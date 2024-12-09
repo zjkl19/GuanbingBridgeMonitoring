@@ -4,6 +4,7 @@ whisker_value=300;  %该值越大，包进去的离群值越多
 x_label_rotation = 45; % 设置x轴标签旋转角度（度）
 % 设置文件目录和文件名模式
 data_dir = '动应变'; % 数据文件所在目录
+output_dir = '箱线图结果_高通滤波';
 file_pattern = fullfile(data_dir, '*.csv'); % CSV文件的模式
 files = dir(file_pattern); % 获取目录中所有CSV文件信息
 % 选择处理文件的范围
@@ -11,15 +12,15 @@ selected_files = 1:length(files); % 默认处理所有文件，可手动指定�
 
 % 手动指定处理文件名（如果需要）
 manual_labels = {
-    ['GB-RSG-G06-001-01'],
-    ['GB-RSG-G06-001-02'],
-    ['GB-RSG-G06-001-03'],
-    ['GB-RSG-G06-001-04'],
-    ['GB-RSG-G06-001-05'],
-    ['GB-RSG-G06-001-06']
+    ['GB-RSG-G05-001-01'],
+    ['GB-RSG-G05-001-02'],
+    ['GB-RSG-G05-001-03'],
+    ['GB-RSG-G05-001-04'],
+    ['GB-RSG-G05-001-05'],
+    ['GB-RSG-G05-001-06']
 };
 % 手动指定处理文件名（如果需要）
-selected_filenames = {'GB-RSG-G06-001-01.csv', 'GB-RSG-G06-001-02.csv', 'GB-RSG-G06-001-03.csv','GB-RSG-G06-001-04.csv', 'GB-RSG-G06-001-05.csv', 'GB-RSG-G06-001-06.csv'}; % 指定文件名列表，若为空则处理 selected_files
+selected_filenames = {'GB-RSG-G05-001-01.csv', 'GB-RSG-G05-001-02.csv', 'GB-RSG-G05-001-03.csv','GB-RSG-G05-001-04.csv', 'GB-RSG-G05-001-05.csv', 'GB-RSG-G05-001-06.csv'}; % 指定文件名列表，若为空则处理 selected_files
 
 
 % 查找指定文件名在文件列表中的索引（若提供了文件名列表）
@@ -76,12 +77,10 @@ for i = selected_files
     try
         % 使用textscan逐行读取数据
         fid = fopen(file_path);
-        % 跳过前5行的非数据部分
-        for k = 1:5
-            fgetl(fid);
-        end
+        header_lines = detect_header_lines(file_path); % 自动检测HeaderLines
+        %disp(header_lines)
         % 读取数据部分
-        data = textscan(fid, '%s %f', 'Delimiter', ',', 'HeaderLines', 1);
+        data = textscan(fid, '%s %f', 'Delimiter', ',', 'HeaderLines', header_lines);
         fclose(fid);
         
         % 获取应变值列
@@ -196,7 +195,7 @@ xlabel('测点');
 ylabel('应变（με）');
 
 % 保存图像
-output_dir = '箱线图结果_高通滤波';
+
 if ~exist(output_dir, 'dir')
     mkdir(output_dir);
 end
@@ -206,5 +205,35 @@ saveas(gcf, fullfile(output_dir, 'boxplot_filtered_comparison.emf'));
 %savefig(gcf, fullfile(outpyut_dir, 'boxplot_filtered_comparison.fig'), 'compact');
 
 disp('高通滤波后的箱线图已生成并保存。');
+
+% 自动检测HeaderLines，限制只读取前50行
+function header_lines = detect_header_lines(file_path)
+    % 打开文件
+    fid = fopen(file_path, 'rt');
+    
+    % 初始化
+    header_lines = 0;
+    line_count = 0;
+    
+    % 读取文件的前50行
+    while line_count < 50 && ~feof(fid)
+        line = fgetl(fid); % 逐行读取
+        line_count = line_count + 1;
+        %disp(line_count)
+        % 查找包含"绝对时间"的行
+        if contains(line, '绝对时间')
+            header_lines = line_count; % 如果找到“绝对时间”，记录当前行号
+            break; % 找到后跳出循环
+        end
+    end
+    
+    % 如果没有找到“绝对时间”行，返回0（表示没有头部信息）
+    if header_lines == 0
+        warning('未找到“绝对时间”行');
+    end
+    
+    % 关闭文件
+    fclose(fid);
+end
 
 
