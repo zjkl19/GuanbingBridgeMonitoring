@@ -15,13 +15,10 @@ sampling_rate = 100; % 假设采样频率为 100 Hz
 target_freqs = [1.150, 1.480, 2.310]; % 目标频率
 tolerance = 0.15; % 容差范围
 mark_peaks = true; % 是否标注峰值
-num_peaks = 3; % 需要标注的峰值数量
 
 tic;
 % 读取CSV文件
 data = read_csv_with_header(file_path);
 toc;
 %注：对 FFT 结果进行平滑处理
-%analyze_frequency_spectrum(data, '2024-11-20 00:30:27.039', '2024-11-20 00:40:27.129', 100, [], false);    %不标注峰值
 analyze_frequency_spectrum(data, start_time, end_time, sampling_rate, target_freqs, tolerance, mark_peaks);    %标注峰值
-xlim([0,10])
