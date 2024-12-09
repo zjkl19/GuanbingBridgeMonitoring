@@ -12,15 +12,15 @@ selected_files = 1:length(files); % 默认处理所有文件，可手动指定�
 
 % 手动指定处理文件名（如果需要）
 manual_labels = {
-    ['GB-RSG-G05-001-01'],
-    ['GB-RSG-G05-001-02'],
-    ['GB-RSG-G05-001-03'],
-    ['GB-RSG-G05-001-04'],
-    ['GB-RSG-G05-001-05'],
-    ['GB-RSG-G05-001-06']
+    ['GB-RSG-G06-001-01'],
+    ['GB-RSG-G06-001-02'],
+    ['GB-RSG-G06-001-03'],
+    ['GB-RSG-G06-001-04'],
+    ['GB-RSG-G06-001-05'],
+    ['GB-RSG-G06-001-06']
 };
 % 手动指定处理文件名（如果需要）
-selected_filenames = {'GB-RSG-G05-001-01.csv', 'GB-RSG-G05-001-02.csv', 'GB-RSG-G05-001-03.csv','GB-RSG-G05-001-04.csv', 'GB-RSG-G05-001-05.csv', 'GB-RSG-G05-001-06.csv'}; % 指定文件名列表，若为空则处理 selected_files
+selected_filenames = {'GB-RSG-G06-001-01.csv', 'GB-RSG-G06-001-02.csv', 'GB-RSG-G06-001-03.csv','GB-RSG-G06-001-04.csv', 'GB-RSG-G06-001-05.csv', 'GB-RSG-G06-001-06.csv'}; % 指定文件名列表，若为空则处理 selected_files
 
 
 % 查找指定文件名在文件列表中的索引（若提供了文件名列表）
@@ -137,34 +137,7 @@ end
 elapsed_time = toc(start_time);
 disp(['实际处理时间为 ', num2str(elapsed_time, '%.2f'), ' 秒。']);
 
-% 计算每个测点的统计值（最大值、最小值、四分位点）
-output_file = fullfile(output_dir, 'boxplot_statistics.txt');
-fileID = fopen(output_file, 'a'); % 使用追加模式打开文件
-current_time = datestr(now, 'yyyy-mm-dd HH:MM:SS');
-fprintf(fileID, '统计时间: %s\n', current_time);
-for i = 1:length(labels)
-    data = all_data(:, i);
-    data = data(~isnan(data)); % 去除 NaN 值
-    if ~isempty(data)
-        q1 = quantile(data, 0.25);
-        q3 = quantile(data, 0.75);
-        iqr = q3 - q1;
-        lower_adjacent = max(min(data), q1 - whisker_value * iqr);
-        upper_adjacent = min(max(data), q3 + whisker_value * iqr);
-        median_val = median(data);
 
-        fprintf(fileID, '测点: %s\n', labels{i});
-        fprintf(fileID, '下邻 (Lower Adjacent): %.2f\n', lower_adjacent);
-        fprintf(fileID, '第一四分位数 (Q1): %.2f\n', q1);
-        fprintf(fileID, '中位数: %.2f\n', median_val);
-        fprintf(fileID, '第三四分位数 (Q3): %.2f\n', q3);
-        fprintf(fileID, '上邻 (Upper Adjacent): %.2f\n', upper_adjacent);
-        fprintf(fileID, '\n');
-    end
-end
-fclose(fileID);
-
-disp('测点统计值已保存至 boxplot_statistics.txt 文件。');
 
 
 % 绘制箱线图
@@ -172,14 +145,21 @@ figure;
 show_outliers = false; % 设置是否显示离群值
 
 if ~show_outliers
-    boxplot(all_data, 'Labels', labels, 'LabelOrientation', 'horizontal', 'Symbol', '', 'Whisker', whisker_value);
+    gf=boxplot(all_data, 'Labels', labels, 'LabelOrientation', 'horizontal', 'Symbol', '', 'Whisker', whisker_value);
 else
-    boxplot(all_data, 'Labels', labels, 'LabelOrientation', 'horizontal', 'Whisker', whisker_value);
+    gf=boxplot(all_data, 'Labels', labels, 'LabelOrientation', 'horizontal', 'Whisker', whisker_value);    %不管编译器报警，如果是false自然不会运行到这句
 end
 
 % 设置 XTickLabel 格式为 tex（默认支持换行）
 %ax = gca;
 %ax.TickLabelInterpreter = 'tex'; % 使用 tex 格式支持换行符
+
+% 计算每个测点的统计值（最大值、最小值、四分位点）
+output_file = fullfile(output_dir, 'boxplot_statistics.txt');
+current_time = datestr(now, 'yyyy-mm-dd HH:MM:SS');
+calculate_and_save_statistics(output_dir, labels, gf)
+
+disp('测点统计值已保存至 boxplot_statistics.txt 文件。');
 
 % 设置Y轴范围，手动指定或自动设置
 ylim_manual = true; % 设置是否手动指定Y轴范围
@@ -200,9 +180,19 @@ if ~exist(output_dir, 'dir')
     mkdir(output_dir);
 end
 
-saveas(gcf, fullfile(output_dir, 'boxplot_filtered_comparison.jpg'));
-saveas(gcf, fullfile(output_dir, 'boxplot_filtered_comparison.emf'));
-%savefig(gcf, fullfile(outpyut_dir, 'boxplot_filtered_comparison.fig'), 'compact');
+% 获取当前时间戳
+timestamp = datestr(now, 'yyyy-mm-dd_HH-MM-SS');
+
+% 生成带时间戳的文件名
+output_file_jpg = fullfile(output_dir, ['boxplot_filtered_comparison_' timestamp '.jpg']);
+output_file_emf = fullfile(output_dir, ['boxplot_filtered_comparison_' timestamp '.emf']);
+output_file_fig = fullfile(output_dir, ['boxplot_filtered_comparison_' timestamp '.fig']);
+
+% 保存图形
+saveas(gcf, output_file_jpg);   % 保存为JPG格式
+saveas(gcf, output_file_emf);   % 保存为EMF格式
+savefig(gcf, output_file_fig, 'compact');  % 保存为FIG格式（紧凑版）
+%savefig(gcf, fullfile(output_dir, 'boxplot_filtered_comparison.fig'));    %这样存占用空间非常大
 
 disp('高通滤波后的箱线图已生成并保存。');
 
@@ -235,5 +225,6 @@ function header_lines = detect_header_lines(file_path)
     % 关闭文件
     fclose(fid);
 end
+
 
 
