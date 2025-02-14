@@ -10,18 +10,16 @@ files = dir(file_pattern); % 获取目录中所有CSV文件信息
 % 选择处理文件的范围
 selected_files = 1:length(files); % 默认处理所有文件，可手动指定索引，如：[1, 3, 5]
 
-% 手动指定处理文件名（如果需要）
 manual_labels = {
-    ['GB-RSG-G06-001-01'],
-    ['GB-RSG-G06-001-02'],
-    ['GB-RSG-G06-001-03'],
-    ['GB-RSG-G06-001-04'],
-    ['GB-RSG-G06-001-05'],
-    ['GB-RSG-G06-001-06']
+['GB-RSG-G05-001-01'],
+['GB-RSG-G05-001-02'],
+['GB-RSG-G05-001-03'],
+['GB-RSG-G05-001-04'],
+['GB-RSG-G05-001-05'],
+['GB-RSG-G05-001-06']
 };
 % 手动指定处理文件名（如果需要）
-selected_filenames = {'GB-RSG-G06-001-01.csv', 'GB-RSG-G06-001-02.csv', 'GB-RSG-G06-001-03.csv','GB-RSG-G06-001-04.csv', 'GB-RSG-G06-001-05.csv', 'GB-RSG-G06-001-06.csv'}; % 指定文件名列表，若为空则处理 selected_files
-
+selected_filenames = {'GB-RSG-G05-001-01.csv', 'GB-RSG-G05-001-02.csv', 'GB-RSG-G05-001-03.csv','GB-RSG-G05-001-04.csv', 'GB-RSG-G05-001-05.csv', 'GB-RSG-G05-001-06.csv'}; % 指定文件名列表，若为空则处理 selected_files
 
 % 查找指定文件名在文件列表中的索引（若提供了文件名列表）
 if ~isempty(selected_filenames)
@@ -158,8 +156,9 @@ end
 output_file = fullfile(output_dir, 'boxplot_statistics.txt');
 current_time = datestr(now, 'yyyy-mm-dd HH:MM:SS');
 calculate_and_save_statistics(output_dir, labels, gf)
-
 disp('测点统计值已保存至 boxplot_statistics.txt 文件。');
+
+calculate_and_save_statistics_to_excel(output_dir, labels, gf)
 
 % 设置Y轴范围，手动指定或自动设置
 ylim_manual = true; % 设置是否手动指定Y轴范围
