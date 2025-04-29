@@ -10,16 +10,30 @@ files = dir(file_pattern); % 获取目录中所有CSV文件信息
 % 选择处理文件的范围
 selected_files = 1:length(files); % 默认处理所有文件，可手动指定索引，如：[1, 3, 5]
 
-manual_labels = {
-['GB-RSG-G05-001-01'],
-['GB-RSG-G05-001-02'],
-['GB-RSG-G05-001-03'],
-['GB-RSG-G05-001-04'],
-['GB-RSG-G05-001-05'],
-['GB-RSG-G05-001-06']
-};
-% 手动指定处理文件名（如果需要）
-selected_filenames = {'GB-RSG-G05-001-01.csv', 'GB-RSG-G05-001-02.csv', 'GB-RSG-G05-001-03.csv','GB-RSG-G05-001-04.csv', 'GB-RSG-G05-001-05.csv', 'GB-RSG-G05-001-06.csv'}; % 指定文件名列表，若为空则处理 selected_files
+selected_labels=2;
+if selected_labels==1
+    manual_labels = {
+        ['GB-RSG-G05-001-01'],
+        ['GB-RSG-G05-001-02'],
+        ['GB-RSG-G05-001-03'],
+        ['GB-RSG-G05-001-04'],
+        ['GB-RSG-G05-001-05'],
+        ['GB-RSG-G05-001-06']
+        };
+    % 手动指定处理文件名（如果需要）
+    selected_filenames = {'GB-RSG-G05-001-01.csv', 'GB-RSG-G05-001-02.csv', 'GB-RSG-G05-001-03.csv','GB-RSG-G05-001-04.csv', 'GB-RSG-G05-001-05.csv', 'GB-RSG-G05-001-06.csv'}; % 指定文件名列表，若为空则处理 selected_files
+elseif selected_labels==2
+    manual_labels = {
+        ['GB-RSG-G06-001-01'],
+        ['GB-RSG-G06-001-02'],
+        ['GB-RSG-G06-001-03'],
+        ['GB-RSG-G06-001-04'],
+        ['GB-RSG-G06-001-05'],
+        ['GB-RSG-G06-001-06']
+        };
+    % 手动指定处理文件名（如果需要）
+    selected_filenames = {'GB-RSG-G06-001-01.csv', 'GB-RSG-G06-001-02.csv', 'GB-RSG-G06-001-03.csv','GB-RSG-G06-001-04.csv', 'GB-RSG-G06-001-05.csv', 'GB-RSG-G06-001-06.csv'}; % 指定文件名列表，若为空则处理 selected_files
+end
 
 % 查找指定文件名在文件列表中的索引（若提供了文件名列表）
 if ~isempty(selected_filenames)

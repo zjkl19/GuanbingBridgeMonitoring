@@ -9,8 +9,8 @@ disp(['起始日期: ', start_date]);
 disp(['结束日期: ', end_date]);
 
 % 参数设置
-start_time = '2025-01-25 8:30:27.039';
-end_time = '2025-01-25 8:40:27.129';
+start_time = '2025-03-25 00:30:27.039';
+end_time = '2025-03-25 00:40:27.129';
 sampling_rate = 100; % 采样频率为 100 Hz
 target_freqs = [1.150, 1.480, 2.310]; % 目标频率
 tolerance = 0.15; % 容差范围

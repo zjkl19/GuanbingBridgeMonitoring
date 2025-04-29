@@ -78,7 +78,7 @@ function plot_temperature_timeseries()
 
         % 绘制时程曲线
         figure;
-        plot(time, data, '-o');
+        plot(time, data, '--');
         title([point_id, ' 温度时程曲线']);
         xlabel('时间');
         ylabel('温度 (°C)');
