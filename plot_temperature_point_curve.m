@@ -82,6 +82,7 @@ all_val = all_val(sort_idx);
 % 绘图
 fig = figure('Position',[100 100 1000 469]);
 plot(all_time, all_val, 'LineWidth', 1);
+ylim([0,35]);
 % 强制显示大约4等分刻度，并包含起止日期
 numDivisions = 4;  % 近似4等分
 tickNums = linspace(datenum(start_date,'yyyy-mm-dd'), datenum(end_date,'yyyy-mm-dd'), numDivisions+1);
@@ -110,7 +111,7 @@ base = sprintf('%s_%s_%s', point_id, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyym
 saveas(fig, fullfile(output_dir, [base '_' timestamp '.jpg']));
 saveas(fig, fullfile(output_dir, [base '_' timestamp '.emf']));
 savefig(fig, fullfile(output_dir, [base '_' timestamp '.fig']), 'compact');
-
+close;
 elapsed = toc(t0);
 fprintf('时程绘图完成，用时 %.2f 秒', elapsed);
 end
