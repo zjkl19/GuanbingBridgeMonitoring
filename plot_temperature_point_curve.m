@@ -66,11 +66,12 @@ for i = 1:numel(dates)
         end
     end
     fclose(fid);
-    if ~found
-        warning('文件 %s 未检测到头部，已跳过', fname);
-        continue;
-    end
-    % 读取数据
+%     if ~found
+%         warning('文件 %s 未检测到头部，已跳过', fname);
+%         continue;
+%     end
+
+    % 读取数据，无论是否找到头部都使用 readtable
     T = readtable(fullpath, 'Delimiter', ',', 'HeaderLines', header, 'Format', '%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
     all_time = [all_time; T{:,1}];
     all_val  = [all_val;  T{:,2}];
