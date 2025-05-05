@@ -23,6 +23,9 @@
 
 %root = 'G:/BaiduNetdiskDownload/管柄大桥数据/';
 %analyze_acceleration_points(root, '2025-02-26','2025-03-25','accel_stats.xlsx','波形_重采样')
+
+root = 'G:/BaiduNetdiskDownload/管柄大桥数据/';
+batch_rename_crk_T_to_t(root,'2025-02-26','2025-03-25', true)
 tic;
 root = 'G:/BaiduNetdiskDownload/管柄大桥数据/';
 analyze_crack_points(root, '2025-02-26','2025-03-25','crack_stats.xlsx','特征值')
