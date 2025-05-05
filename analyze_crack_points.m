@@ -54,6 +54,7 @@ for gi = 1:numel(groups)
     end
     legend(pid_list,'Location','northeast');
     xlabel('时间'); ylabel('裂缝宽度 (mm)');
+    ytickformat('%.2f');
     tmp_manual = true;
     if tmp_manual, ylim([-0.20,0.20]); else, ylim auto; end
     ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = datetime(ticks,'ConvertFrom','datenum'); xtickformat('yyyy-MM-dd');
@@ -79,7 +80,7 @@ for gi = 1:numel(groups)
     end
     legend(pid_list,'Location','northeast');
     xlabel('时间'); ylabel('温度 (℃)');
-    tmp_manual = true; if tmp_manual, ylim auto; else, ylim auto; end
+    tmp_manual = true; if tmp_manual, ylim([-5,40]); else, ylim auto; end
     ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = datetime(ticks,'ConvertFrom','datenum'); xtickformat('yyyy-MM-dd');
     grid on; grid minor;
     title(sprintf('裂缝温度 时程 组%d', gi));
