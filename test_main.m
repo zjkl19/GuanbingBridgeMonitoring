@@ -7,13 +7,14 @@
 
 
 root = 'G:/BaiduNetdiskDownload/管柄大桥数据';
-pts = {'GB-RTS-G05-001-01','GB-RTS-G05-001-02','GB-RTS-G05-001-03'};
-analyze_temperature_points(root, pts, '2025-02-26','2025-03-25','temp_stats.xlsx','特征值_重采样');
+start_date  = '2025-02-26';
+end_date    = '2025-03-25';
 
-%root = 'G:/BaiduNetdiskDownload/管柄大桥数据/';
-%pts  = {'GB-RHS-G05-001-01','GB-RHS-G05-001-02','GB-RHS-G05-001-03'};
-%pts  = {'GB-RHS-G05-001-03'};
-%analyze_humidity_points(root, pts, '2025-02-26','2025-03-25','humidity_stats.xlsx');
+%pts = {'GB-RTS-G05-001-01','GB-RTS-G05-001-02','GB-RTS-G05-001-03'};
+%analyze_temperature_points(root, pts, '2025-02-26','2025-03-25','temp_stats.xlsx','特征值_重采样');
+
+pts  = {'GB-RHS-G05-001-01','GB-RHS-G05-001-02','GB-RHS-G05-001-03'};
+analyze_humidity_points(root, pts, start_date,end_date,'humidity_stats.xlsx','特征值_重采样');
 
 %root = 'G:/BaiduNetdiskDownload/管柄大桥数据/';
 %analyze_tilt_points(root, '2025-02-26','2025-03-25','tilt_stats.xlsx','波形_重采样');

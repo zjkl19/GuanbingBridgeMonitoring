@@ -1,27 +1,29 @@
-function analyze_humidity_points(root_dir, point_ids, start_date, end_date, excel_file)
+function analyze_humidity_points(root_dir, point_ids, start_date, end_date, excel_file, subfolder)
 % analyze_humidity_points 批量绘制测点湿度时程曲线、统计指标并绘制频次分布
 %   root_dir: 根目录，例如 'F:/管柄大桥健康监测数据/'
 %   point_ids: 测点编号 cell 数组，如 {'GB-RHS-G05-001-01',...}
 %   start_date,end_date: 日期范围，'yyyy-MM-dd'
 %   excel_file: 输出统计 Excel，如 'humidity_stats.xlsx'
+%   subfolder: 数据所在子文件夹，默认 '特征值'
 
 if nargin<1||isempty(root_dir),    root_dir = pwd; end
 if nargin<2||isempty(point_ids),    error('请提供 point_ids cell 数组'); end
 if nargin<3||isempty(start_date),   start_date = input('开始日期 (yyyy-MM-dd): ','s'); end
 if nargin<4||isempty(end_date),     end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
 if nargin<5||isempty(excel_file),   excel_file = 'humidity_stats.xlsx'; end
+if nargin<6||isempty(subfolder),    subfolder  = '特征值'; end
 
 % 存储统计
 stats = cell(numel(point_ids),4);
 for i = 1:numel(point_ids)
     pid = point_ids{i}; fprintf('处理测点 %s ...\n', pid);
     % 提取数据
-    [times, vals] = extract_humidity_data(root_dir, pid, start_date, end_date);
+    [times, vals] = extract_humidity_data(root_dir, subfolder, pid, start_date, end_date);
     if isempty(vals)
         warning('测点 %s 无数据，跳过。', pid); continue;
     end
     % 绘制时程曲线
-    plot_humidity_point_curve(root_dir, pid, start_date, end_date);
+    plot_humidity_point_curve(root_dir, subfolder,pid, start_date, end_date);
     % 统计最小/最大/平均
     mn = min(vals); mx = max(vals); av = round(mean(vals),1);
     stats{i,1} = pid; stats{i,2} = mn; stats{i,3} = mx; stats{i,4} = av;
@@ -34,7 +36,7 @@ writetable(T, excel_file);
 fprintf('统计结果已保存至 %s\n', excel_file);
 end
 
-function [all_time, all_val] = extract_humidity_data(root_dir, point_id, start_date, end_date)
+function [all_time, all_val] = extract_humidity_data(root_dir, subfolder, point_id, start_date, end_date)
 % extract_humidity_data 提取指定测点在日期范围内的湿度时间和值数组
 all_time = [];
 all_val  = [];
@@ -45,7 +47,7 @@ dinfo = dir(fullfile(root_dir,'20??-??-??')); folders = {dinfo([dinfo.isdir]).na
 dates = folders(datenum(folders,'yyyy-mm-dd')>=dn0 & datenum(folders,'yyyy-mm-dd')<=dn1);
 for j = 1:numel(dates)
     day = dates{j};
-    dir_path = fullfile(root_dir, day, '特征值');
+    dir_path = fullfile(root_dir, day,  subfolder);
     if ~exist(dir_path,'dir'), continue; end
     files = dir(fullfile(dir_path,'*.csv'));
     matches = files(arrayfun(@(f) contains(f.name, point_id), files));
@@ -75,7 +77,7 @@ end
 all_val = all_val(idx);
 end
 
-function plot_humidity_point_curve(root_dir, point_id, start_date, end_date)
+function plot_humidity_point_curve(root_dir,subfolder, point_id, start_date, end_date)
 % plot_humidity_point_curve 绘制指定测点湿度时程曲线
 % 窗口1000×469，单位% ，4等分刻度，加平均线
 
@@ -83,7 +85,7 @@ function plot_humidity_point_curve(root_dir, point_id, start_date, end_date)
 t0 = tic;
 
 % 提取数据
-[times, vals] = extract_humidity_data(root_dir, point_id, start_date, end_date);
+[times, vals] = extract_humidity_data(root_dir,subfolder, point_id, start_date, end_date);
 if isempty(vals)
     error('测点 %s 无数据，无法绘图', point_id);
 end
