@@ -1,10 +1,15 @@
 function v = clean_zero(v, times, params)
-% clean_zero   将值等于 0 的点设为 NaN
-    if isfield(params,'t_range') && ~isempty(params.t_range)
-      inwin = times >= params.t_range(1) & times <= params.t_range(2);
+% clean_zero 将指定时段内的零值置为 NaN
+%   v: 原始数据向量
+%   times: 与 v 对应的时间向量（datetime）
+%   params.t_range: [t0, t1] 时间范围（可空），只在此范围内处理
+
+    if isempty(params.t_range)
+        mask = v == 0;
     else
-      inwin = true(size(v));
+        t0 = params.t_range(1);
+        t1 = params.t_range(2);
+        mask = (v == 0) & (times >= t0 & times <= t1);
     end
-    mask = inwin & (v == 0);
     v(mask) = NaN;
 end

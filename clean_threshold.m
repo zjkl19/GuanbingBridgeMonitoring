@@ -1,12 +1,16 @@
 function v = clean_threshold(v, times, params)
-% clean_threshold   将超过上下限的值置为 NaN
-%   params.min/min, params.max/max, params.t_range 可选
-    if isfield(params,'t_range') && ~isempty(params.t_range)
-      % 如果指定了时间区间，可先把 times 排除掉不在区间的行
-      inwin = times >= params.t_range(1) & times <= params.t_range(2);
+% clean_threshold 按阈值过滤数据
+%   v: 原始数据向量
+%   times: 与 v 对应的时间向量（datetime）
+%   params.min, params.max: 有效数据范围
+%   params.t_range: [t0, t1] 时间范围（可空），只在此范围内过滤
+
+    if isempty(params.t_range)
+        mask = v < params.min | v > params.max;
     else
-      inwin = true(size(v));
+        t0 = params.t_range(1);
+        t1 = params.t_range(2);
+        mask = (v < params.min | v > params.max) & (times >= t0 & times <= t1);
     end
-    mask = inwin & (v < params.min | v > params.max);
     v(mask) = NaN;
 end

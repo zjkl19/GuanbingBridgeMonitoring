@@ -75,8 +75,29 @@ for j = 1:numel(dates)
     fclose(fid);
     % 读取数据
     T = readtable(fullpath, 'Delimiter', ',', 'HeaderLines', h, 'Format', '%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-    all_time = [all_time; T{:,1}];
-    all_val  = [all_val;  T{:,2}];
+
+    times = T{:,1}; vals = T{:,2};
+    % === 基础清洗 ===
+        % 阈值过滤：超出 [-100,100] 置 NaN
+        vals = clean_threshold(vals, times, struct('min', -3, 'max', 31, 't_range', []));
+        % 去除 0 值
+        vals = clean_zero(vals, times, struct('t_range', []));
+        % 示例：针对特殊测点额外清洗
+        % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
+        %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 20, 't_range', [datetime('2025-02-28 20:00:00'), datetime('2025-02-28 23:00:00')]));
+        % end
+        if strcmp(point_id, 'GB-DIS-G05-001-02Y')
+            vals = clean_threshold(vals, times, struct('min', -1, 'max', 22, 't_range', []));
+        end
+        if strcmp(point_id, 'GB-DIS-G06-001-02Y')
+            vals = clean_threshold(vals, times, struct('min', -2, 'max', 20, 't_range', []));
+        end
+         if strcmp(point_id, 'GB-DIS-G06-003-01Y')
+            vals = clean_threshold(vals, times, struct('min', -2, 'max', 20, 't_range', []));
+        end
+        % =====================
+    all_time = [all_time; times];
+    all_val  = [all_val;  vals];
 end
 % 排序
 [all_time, idx] = sort(all_time);
@@ -93,8 +114,8 @@ for i = 1:numel(pid_list)
     [t,v] = extract_deflection_data(root_dir, subfolder, pid_list{i}, start_date, end_date);
     h(i) = plot(t, v, 'LineWidth', 1);
 end
-legend(h, pid_list, 'Location','northeast', 'Box','off');
-
+lg=legend(h, pid_list, 'Location','northeast', 'Box','off');
+lg.AutoUpdate = 'off';
 % X 刻度
 numDiv = 4;
 ticks = datetime(linspace(dn0, dn1, numDiv+1), 'ConvertFrom','datenum');
