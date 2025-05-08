@@ -25,7 +25,7 @@ tpts = { ...
     'GB-VIB-G06-001-01','GB-VIB-G06-002-01','GB-VIB-G06-003-01','GB-VIB-G07-001-01'};
 
 % 初始化统计
-stats = cell(numel(tpts),5);
+stats = cell(numel(tpts),6);
 
 for i = 1:numel(tpts)
     pid = tpts{i}; fprintf('处理测点 %s ...\n', pid);
@@ -61,13 +61,13 @@ for i = 1:numel(tpts)
         rms_max = NaN;
         rms_time = NaT;
     end
-    stats(i,:) = {pid, mn, mx, av, rms_max};
+    stats(i,:) = {pid, mn, mx, av, rms_max,rms_time};
     % 绘图
     plot_accel_curve(root_dir,pid, times, vals, mn, mx);
 end
 
 % 写入 Excel
-T = cell2table(stats, 'VariableNames',{'PointID','Min','Max','Mean','RMS10min'});
+T = cell2table(stats, 'VariableNames',{'PointID','Min','Max','Mean','RMS10minMax','RMSStartTime'});
 writetable(T, excel_file);
 fprintf('统计结果已保存至 %s\n', excel_file);
 

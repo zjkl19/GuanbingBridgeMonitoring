@@ -17,12 +17,11 @@ end_date    = '2025-03-25';
 
 %analyze_tilt_points(root, start_date,end_date,'tilt_stats.xlsx','波形_重采样');
 
-%analyze_acceleration_points(root, '2025-02-26','2025-03-25','accel_stats.xlsx','波形_重采样',true)
+analyze_acceleration_points(root, start_date,end_date,'accel_stats.xlsx','波形_重采样',true)
 
 %batch_rename_crk_T_to_t(root,'2025-02-26','2025-03-25', true)
 
-%root = 'G:/BaiduNetdiskDownload/管柄大桥数据/';
-analyze_crack_points(root, start_date,end_date,'crack_stats.xlsx','特征值')
+%analyze_crack_points(root, start_date,end_date,'crack_stats.xlsx','特征值')
 
 %analyze_strain_points(root, '2025-02-26','2025-03-25','strain_stats.xlsx','特征值')
 
