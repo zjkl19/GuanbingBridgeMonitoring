@@ -71,7 +71,14 @@ for j=1:numel(dates)
     end
     fclose(fid);
     T=readtable(fullpath,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-    all_time=[all_time; T{:,1}]; all_val=[all_val; T{:,2}];
+
+    times = T{:,1}; vals = T{:,2};
+    if strcmp(point_id, 'GB-DIS-P05-001-01-Y')
+        vals = clean_threshold(vals, times, struct('min', -0.07, 'max', 1, 't_range',[datetime('2025-02-28 07:00:00'), datetime('2025-02-28 09:00:00')]));
+        vals = clean_threshold(vals, times, struct('min', -0.06, 'max', 1, 't_range',[datetime('2025-03-12 11:00:00'), datetime('2025-03-12 12:00:00')]));
+    end
+
+    all_time=[all_time; times]; all_val=[all_val; vals];
 end
 [all_time,ix]=sort(all_time); all_val=all_val(ix);
 end
@@ -111,7 +118,7 @@ end
 % Y 轴范围（可切换）
 tmp_manual=true;
 if tmp_manual
-    ylim([-0.15,0.15]);
+    ylim([-0.17,0.17]);
 else
     ylim auto;
 end

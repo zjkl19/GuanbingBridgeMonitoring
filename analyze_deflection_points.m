@@ -79,18 +79,24 @@ for j = 1:numel(dates)
     times = T{:,1}; vals = T{:,2};
     % === 基础清洗 ===
         % 阈值过滤：超出 [-100,100] 置 NaN
-        vals = clean_threshold(vals, times, struct('min', -3, 'max', 31, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', 0, 'max', 31, 't_range', []));
         % 去除 0 值
         vals = clean_zero(vals, times, struct('t_range', []));
         % 示例：针对特殊测点额外清洗
         % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
         %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 20, 't_range', [datetime('2025-02-28 20:00:00'), datetime('2025-02-28 23:00:00')]));
         % end
+        if strcmp(point_id, 'GB-DIS-G05-001-01Y')
+            vals = clean_threshold(vals, times, struct('min', -1, 'max', 26, 't_range', []));
+        end
         if strcmp(point_id, 'GB-DIS-G05-001-02Y')
             vals = clean_threshold(vals, times, struct('min', -1, 'max', 22, 't_range', []));
         end
+        if strcmp(point_id, 'GB-DIS-G06-001-01Y')
+            vals = clean_threshold(vals, times, struct('min', -2, 'max', 19, 't_range', []));
+        end
         if strcmp(point_id, 'GB-DIS-G06-001-02Y')
-            vals = clean_threshold(vals, times, struct('min', -2, 'max', 20, 't_range', []));
+            vals = clean_threshold(vals, times, struct('min', -2, 'max', 19, 't_range', []));
         end
          if strcmp(point_id, 'GB-DIS-G06-003-01Y')
             vals = clean_threshold(vals, times, struct('min', -2, 'max', 20, 't_range', []));
