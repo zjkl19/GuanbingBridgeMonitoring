@@ -94,17 +94,19 @@ for j=1:numel(dates)
     times = T{:,1}; vals = T{:,2};
     % === 数据清洗 ===
     vals = clean_threshold(vals, times, struct('min', -400, 'max', 200, 't_range', []));
-    if strcmp(point_id, 'GB-RSG-G06-001-02')
+    if strcmp(pid, 'GB-RSG-G06-001-02')
         vals = clean_threshold(vals, times, struct('min', -350, 'max', 20, 't_range', []));
     end
-    if strcmp(point_id, 'GB-RSG-G06-001-03')
+    if strcmp(pid, 'GB-RSG-G06-001-03')
         vals = clean_threshold(vals, times, struct('min', -350, 'max', -17, 't_range', []));
     end
-    if strcmp(point_id, 'GB-RSG-G06-001-06')
+    if strcmp(pid, 'GB-RSG-G06-001-06')
         vals = clean_threshold(vals, times, struct('min', -350, 'max', 20, 't_range', []));
     end
     % === === ===
     all_t=[all_t;times]; all_v=[all_v;vals];
 end
 [all_t,ix]=sort(all_t); all_v=all_v(ix);
+all_v = apply_lowpass(all_t, all_v);
+
 end
