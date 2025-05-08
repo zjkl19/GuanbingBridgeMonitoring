@@ -95,9 +95,9 @@ end
 end
 % ========== Subfunctions ==========
 
-function [times, vals] = extract_crack_data(root_dir, subfolder, point_id, start_date, end_date)
-    times = [];
-    vals  = [];
+function [all_time, all_val] = extract_crack_data(root_dir, subfolder, point_id, start_date, end_date)
+    all_time = [];
+    all_val  = [];
     dn0 = datenum(start_date,'yyyy-mm-dd'); dn1 = datenum(end_date,'yyyy-mm-dd');
     info = dir(fullfile(root_dir,'20??-??-??'));
     folders = {info([info.isdir]).name};
@@ -122,7 +122,23 @@ function [times, vals] = extract_crack_data(root_dir, subfolder, point_id, start
         end
         fclose(fid);
         T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-        times = [times; T{:,1}]; vals = [vals; T{:,2}];
+        times = T{:,1}; vals = T{:,2};
+        %bug：温度一起清洗了
+        % === 基础清洗 ===
+        % 示例：针对特殊测点额外清洗
+        % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
+        %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 20, 't_range', [datetime('2025-02-28 20:00:00'), datetime('2025-02-28 23:00:00')]));
+        % end
+        vals = clean_threshold(vals, times, struct('min', -0.22, 'max', 0.20, 't_range', []));
+         if strcmp(point_id, 'GB-CRK-G05-001-01')
+            vals = clean_threshold(vals, times, struct('min', -0.22, 'max', 0.045, 't_range', []));
+        end
+        if strcmp(point_id, 'GB-CRK-G06-001-01')
+            vals = clean_threshold(vals, times, struct('min', -0.22, 'max', 0.00, 't_range', []));
+        end
+        % =====================
+
+        all_time = [all_time; times]; all_val = [all_val; vals];
     end
-    [times, ix] = sort(times); vals = vals(ix);
+    [all_time, ix] = sort(all_time); all_val = all_val(ix);
 end
