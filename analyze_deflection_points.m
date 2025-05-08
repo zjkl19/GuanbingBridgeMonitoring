@@ -1,15 +1,17 @@
-function analyze_deflection_points(root_dir, start_date, end_date, excel_file, subfolder)
+function analyze_deflection_points(root_dir, start_date, end_date, excel_file, subfolder, useMedianFilter)
 % analyze_deflection_points 批量绘制主梁位移（挠度）时程曲线并统计指标
 %   root_dir: 根目录，例如 'F:/管柄大桥健康监测数据/'
 %   start_date,end_date: 日期范围，'yyyy-MM-dd'
 %   excel_file: 输出统计 Excel，如 'deflection_stats.xlsx'
 %   subfolder: 数据所在子文件夹，默认 '特征值_重采样'
+%   useMedianFilter: 是否对最终时序做中值滤波 (true/false)，默认 false
 
 if nargin<1||isempty(root_dir),    root_dir = pwd; end
 if nargin<2||isempty(start_date),   start_date = input('开始日期 (yyyy-MM-dd): ','s'); end
 if nargin<3||isempty(end_date),     end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
 if nargin<4||isempty(excel_file),   excel_file = 'deflection_stats.xlsx'; end
 if nargin<5||isempty(subfolder),    subfolder  = '特征值_重采样'; end
+if nargin<6||isempty(useMedianFilter), useMedianFilter = false;      end
 
 % 定义测点分组（Y通道）
 groups = { ...
@@ -19,7 +21,7 @@ groups = { ...
     {'GB-DIS-G06-001-01Y','GB-DIS-G06-001-02Y'}, ...
     {'GB-DIS-G06-002-01Y','GB-DIS-G06-002-02Y','GB-DIS-G06-002-03Y'}, ...
     {'GB-DIS-G06-003-01Y','GB-DIS-G06-003-02Y'} ...
-};
+    };
 
 % 结果存储，行：测点，列：PID, Min, Max, Mean
 def_stats = {};
@@ -31,7 +33,7 @@ for g = 1:numel(groups)
     % 先对每个点统计
     for i = 1:numel(pid_list)
         pid = pid_list{i};
-        [times, vals] = extract_deflection_data(root_dir, subfolder, pid, start_date, end_date);
+        [times, vals] = extract_deflection_data(root_dir, subfolder, pid, start_date, end_date, useMedianFilter);
         if isempty(vals)
             warning('测点 %s 无数据，跳过。', pid);
             continue;
@@ -40,7 +42,7 @@ for g = 1:numel(groups)
         row = row + 1;
     end
     % 然后绘制本组曲线
-    plot_deflection_curve(root_dir, subfolder, pid_list, start_date, end_date, g);
+    plot_deflection_curve(root_dir, subfolder, pid_list, start_date, end_date, g, useMedianFilter);
 end
 
 % 写入 Excel
@@ -49,7 +51,7 @@ writetable(T, excel_file);
 fprintf('挠度统计已保存至 %s\n', excel_file);
 end
 
-function [all_time, all_val] = extract_deflection_data(root_dir, subfolder, point_id, start_date, end_date)
+function [all_time, all_val] = extract_deflection_data(root_dir, subfolder, point_id, start_date, end_date, useMedianFilter)
 % extract_deflection_data 提取挠度数据（单位 mm）
 all_time = [];
 all_val  = [];
@@ -75,49 +77,65 @@ for j = 1:numel(dates)
     fclose(fid);
     % 读取数据
     T = readtable(fullpath, 'Delimiter', ',', 'HeaderLines', h, 'Format', '%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-
+    
     times = T{:,1}; vals = T{:,2};
     % === 基础清洗 ===
-        % 阈值过滤：超出 [-100,100] 置 NaN
-        vals = clean_threshold(vals, times, struct('min', 0, 'max', 31, 't_range', []));
-        % 去除 0 值
-        vals = clean_zero(vals, times, struct('t_range', []));
-        % 示例：针对特殊测点额外清洗
-        % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
-        %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 20, 't_range', [datetime('2025-02-28 20:00:00'), datetime('2025-02-28 23:00:00')]));
-        % end
-        if strcmp(point_id, 'GB-DIS-G05-001-01Y')
-            vals = clean_threshold(vals, times, struct('min', -1, 'max', 26, 't_range', []));
-        end
-        if strcmp(point_id, 'GB-DIS-G05-001-02Y')
-            vals = clean_threshold(vals, times, struct('min', -1, 'max', 22, 't_range', []));
-        end
-        if strcmp(point_id, 'GB-DIS-G06-001-01Y')
-            vals = clean_threshold(vals, times, struct('min', -2, 'max', 19, 't_range', []));
-        end
-        if strcmp(point_id, 'GB-DIS-G06-001-02Y')
-            vals = clean_threshold(vals, times, struct('min', -2, 'max', 19, 't_range', []));
-        end
-         if strcmp(point_id, 'GB-DIS-G06-003-01Y')
-            vals = clean_threshold(vals, times, struct('min', -2, 'max', 20, 't_range', []));
-        end
-        % =====================
+    % 阈值过滤：超出 [-100,100] 置 NaN
+    vals = clean_threshold(vals, times, struct('min', 0, 'max', 31, 't_range', []));
+    % 去除 0 值
+    vals = clean_zero(vals, times, struct('t_range', []));
+    % 示例：针对特殊测点额外清洗
+    % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
+    %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 20, 't_range', [datetime('2025-02-28 20:00:00'), datetime('2025-02-28 23:00:00')]));
+    % end
+    if strcmp(point_id, 'GB-DIS-G05-001-01Y')
+        vals = clean_threshold(vals, times, struct('min', -1, 'max', 26, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-G05-001-02Y')
+        vals = clean_threshold(vals, times, struct('min', -1, 'max', 22, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-G06-001-01Y')
+        vals = clean_threshold(vals, times, struct('min', -2, 'max', 19, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-G06-001-02Y')
+        vals = clean_threshold(vals, times, struct('min', -2, 'max', 19, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-G06-003-01Y')
+        vals = clean_threshold(vals, times, struct('min', -2, 'max', 20, 't_range', []));
+    end
+    % =====================
     all_time = [all_time; times];
     all_val  = [all_val;  vals];
 end
 % 排序
 [all_time, idx] = sort(all_time);
 all_val = all_val(idx);
+% === 新增：中值滤波 ===
+if useMedianFilter && numel(all_val)>=3
+    % 1) 估算采样频率
+    dt = seconds(all_time(2) - all_time(1));  % 单位秒
+    fs = 1/dt;                               % 实际采样频率 (Hz)
+    
+    % 2) 设定时间窗长度（秒），可根据需求调整
+    window_sec = 0.5;                        % 半秒窗
+    win_len = max(3, round(window_sec * fs));  % 至少 3 点
+    if mod(win_len,2)==0
+        win_len = win_len + 1;               % 确保为奇数
+    end
+    
+    % 3) 执行零相位中值滤波
+    all_val = medfilt1(all_val, win_len);
+end
 end
 
-function plot_deflection_curve(root_dir, subfolder, pid_list, start_date, end_date, group_idx)
+function plot_deflection_curve(root_dir, subfolder, pid_list, start_date, end_date, group_idx, useMedianFilter)
 % plot_deflection_curve 绘制一组挠度时程曲线
 fig = figure('Position',[100 100 1000 469]); hold on;
 dn0 = datenum(start_date,'yyyy-mm-dd'); dn1 = datenum(end_date,'yyyy-mm-dd');
 % 绘制多条曲线并生成句柄
 h = gobjects(numel(pid_list),1);
 for i = 1:numel(pid_list)
-    [t,v] = extract_deflection_data(root_dir, subfolder, pid_list{i}, start_date, end_date);
+    [t, v] = extract_deflection_data(root_dir, subfolder, pid_list{i}, start_date, end_date, useMedianFilter);
     h(i) = plot(t, v, 'LineWidth', 1);
 end
 lg=legend(h, pid_list, 'Location','northeast', 'Box','off');
