@@ -15,7 +15,7 @@ end_date    = '2025-03-25';
 
 %analyze_deflection_points(root,start_date,end_date,'deflection_stats.xlsx','特征值_重采样');
 
-analyze_tilt_points(root, start_date,end_date,'tilt_stats.xlsx','波形_重采样');
+%analyze_tilt_points(root, start_date,end_date,'tilt_stats.xlsx','波形_重采样');
 
 
 %root = 'G:/BaiduNetdiskDownload/管柄大桥数据/';
@@ -28,6 +28,5 @@ analyze_tilt_points(root, start_date,end_date,'tilt_stats.xlsx','波形_重采�
 %analyze_crack_points(root, '2025-02-26','2025-03-25','crack_stats.xlsx','特征值')
 %toc;
 
-%root = 'G:/BaiduNetdiskDownload/管柄大桥数据/';
-%analyze_strain_points(root, '2025-02-26','2025-03-25','strain_stats.xlsx','特征值')
+analyze_strain_points(root, '2025-02-26','2025-03-25','strain_stats.xlsx','特征值')
 

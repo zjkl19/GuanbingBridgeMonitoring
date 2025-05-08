@@ -15,7 +15,7 @@ if nargin<5||isempty(subfolder),    subfolder  = '特征值'; end
 groups = { ...
     {'GB-RSG-G05-001-01', 'GB-RSG-G05-001-02', 'GB-RSG-G05-001-03', 'GB-RSG-G05-001-04', 'GB-RSG-G05-001-05', 'GB-RSG-G05-001-06'}, ...
     {'GB-RSG-G06-001-01', 'GB-RSG-G06-001-02', 'GB-RSG-G06-001-03', 'GB-RSG-G06-001-04', 'GB-RSG-G06-001-05', 'GB-RSG-G06-001-06'} ...
-};
+    };
 
 % 结果存表：PID, Min, Max, Mean
 stats = {};
@@ -54,14 +54,14 @@ for gi = 1:numel(groups)
     legend(pid_list,'Location','northeast','Box','off');
     xlabel('时间'); ylabel('主梁应变 (με)');
     % 组别对应手动 YLim
-manual_ylims = {[-200,200], [-350,200]}; % 可根据需要自行调整每组 YLim
+    manual_ylims = {[-200,200], [-350,200]}; % 可根据需要自行调整每组 YLim
 
-tmp_manual = true;
-if tmp_manual
-    ylim(manual_ylims{gi});
-else
-    ylim auto;
- end
+    tmp_manual = true;
+    if tmp_manual
+        ylim(manual_ylims{gi});
+    else
+        ylim auto;
+    end
     ax=gca; ax.XLim=[ticks(1) ticks(end)]; ax.XTick=ticks; xtickformat('yyyy-MM-dd');
     grid on; grid minor;
     title(sprintf('应变时程曲线 组%d',gi));
@@ -74,24 +74,37 @@ end
 end
 
 function [all_t, all_v] = extract_strain_data(root_dir, subfolder, pid, start_date, end_date)
-    all_t=[]; all_v=[];
-    dn0=datenum(start_date,'yyyy-mm-dd'); dn1=datenum(end_date,'yyyy-mm-dd');
-    info=dir(fullfile(root_dir,'20??-??-??')); folders={info([info.isdir]).name};
-    dates=folders(datenum(folders,'yyyy-mm-dd')>=dn0 & datenum(folders,'yyyy-mm-dd')<=dn1);
-    for j=1:numel(dates)
-        dirp=fullfile(root_dir,dates{j},subfolder);
-        if ~exist(dirp,'dir'), continue; end
-        files=dir(fullfile(dirp,'*.csv'));
-        idx=find(arrayfun(@(f) contains(f.name,pid),files),1);
-        if isempty(idx), continue; end
-        fp=fullfile(files(idx).folder,files(idx).name);
-        fid=fopen(fp,'rt'); h=0;
-        while h<50 && ~feof(fid)
-            ln=fgetl(fid); h=h+1;
-            if contains(ln,'[绝对时间]'), break; end
-        end; fclose(fid);
-        T=readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-        all_t=[all_t;T{:,1}]; all_v=[all_v;T{:,2}];
+all_t=[]; all_v=[];
+dn0=datenum(start_date,'yyyy-mm-dd'); dn1=datenum(end_date,'yyyy-mm-dd');
+info=dir(fullfile(root_dir,'20??-??-??')); folders={info([info.isdir]).name};
+dates=folders(datenum(folders,'yyyy-mm-dd')>=dn0 & datenum(folders,'yyyy-mm-dd')<=dn1);
+for j=1:numel(dates)
+    dirp=fullfile(root_dir,dates{j},subfolder);
+    if ~exist(dirp,'dir'), continue; end
+    files=dir(fullfile(dirp,'*.csv'));
+    idx=find(arrayfun(@(f) contains(f.name,pid),files),1);
+    if isempty(idx), continue; end
+    fp=fullfile(files(idx).folder,files(idx).name);
+    fid=fopen(fp,'rt'); h=0;
+    while h<50 && ~feof(fid)
+        ln=fgetl(fid); h=h+1;
+        if contains(ln,'[绝对时间]'), break; end
+    end; fclose(fid);
+    T=readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+    times = T{:,1}; vals = T{:,2};
+    % === 数据清洗 ===
+    vals = clean_threshold(vals, times, struct('min', -400, 'max', 200, 't_range', []));
+    if strcmp(point_id, 'GB-RSG-G06-001-02')
+        vals = clean_threshold(vals, times, struct('min', -350, 'max', 20, 't_range', []));
     end
-    [all_t,ix]=sort(all_t); all_v=all_v(ix);
+    if strcmp(point_id, 'GB-RSG-G06-001-03')
+        vals = clean_threshold(vals, times, struct('min', -350, 'max', -17, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-RSG-G06-001-06')
+        vals = clean_threshold(vals, times, struct('min', -350, 'max', 20, 't_range', []));
+    end
+    % === === ===
+    all_t=[all_t;times]; all_v=[all_v;vals];
+end
+[all_t,ix]=sort(all_t); all_v=all_v(ix);
 end
