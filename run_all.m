@@ -30,13 +30,9 @@ function run_all(root, start_date, end_date, opts)
         analyze_humidity_points(root, pts, start_date, end_date, 'humidity_stats.xlsx', '特征值');
     end
 
-    if opts.doDeflectNoFlt
+    if opts.doDeflect
         analyze_deflection_points(root, start_date, end_date, ...
-            'deflection_stats.xlsx', '特征值_重采样', false);
-    end
-    if opts.doDeflectMedFlt
-        analyze_deflection_points(root, start_date, end_date, ...
-            'deflection_中值滤波_stats.xlsx', '特征值_重采样', true);
+            'deflection_stats.xlsx', '特征值_重采样');
     end
 
     if opts.doTilt

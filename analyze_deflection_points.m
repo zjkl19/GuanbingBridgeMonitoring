@@ -1,17 +1,15 @@
-function analyze_deflection_points(root_dir, start_date, end_date, excel_file, subfolder, useMedianFilter)
-% analyze_deflection_points 批量绘制主梁位移（挠度）时程曲线并统计指标
+function analyze_deflection_points(root_dir, start_date, end_date, excel_file, subfolder)
+% analyze_deflection_points 批量绘制主梁位移（挠度）时程曲线并统计原始及中值滤波数据指标
 %   root_dir: 根目录，例如 'F:/管柄大桥健康监测数据/'
-%   start_date,end_date: 日期范围，'yyyy-MM-dd'
+%   start_date,end_date: 日期范围，'yyyy-mm-dd'
 %   excel_file: 输出统计 Excel，如 'deflection_stats.xlsx'
 %   subfolder: 数据所在子文件夹，默认 '特征值_重采样'
-%   useMedianFilter: 是否对最终时序做中值滤波 (true/false)，默认 false
 
 if nargin<1||isempty(root_dir),    root_dir = pwd; end
 if nargin<2||isempty(start_date),   start_date = input('开始日期 (yyyy-MM-dd): ','s'); end
 if nargin<3||isempty(end_date),     end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
 if nargin<4||isempty(excel_file),   excel_file = 'deflection_stats.xlsx'; end
 if nargin<5||isempty(subfolder),    subfolder  = '特征值_重采样'; end
-if nargin<6||isempty(useMedianFilter), useMedianFilter = false;      end
 
 % 定义测点分组（Y通道）
 groups = { ...
@@ -23,37 +21,53 @@ groups = { ...
     {'GB-DIS-G06-003-01Y','GB-DIS-G06-003-02Y'} ...
     };
 
-% 结果存储，行：测点，列：PID, Min, Max, Mean
-def_stats = {};
+% 初始化统计：PointID, OrigMin, OrigMax, OrigMean, FiltMin, FiltMax, FiltMean
+stats = {};
 row = 1;
-% 遍历每组
 for g = 1:numel(groups)
     pid_list = groups{g};
     fprintf('处理组 %d: %s\n', g, strjoin(pid_list, ', '));
-    % 先对每个点统计
-    for i = 1:numel(pid_list)
+    % 准备存储原始与滤波数据
+    N = numel(pid_list);
+    orig_times = cell(N,1);
+    orig_vals  = cell(N,1);
+    filt_times = cell(N,1);
+    filt_vals  = cell(N,1);
+    for i = 1:N
         pid = pid_list{i};
-        [times, vals] = extract_deflection_data(root_dir, subfolder, pid, start_date, end_date, useMedianFilter);
+        [times, vals] = extract_deflection_data(root_dir, subfolder, pid, start_date, end_date);
         if isempty(vals)
             warning('测点 %s 无数据，跳过。', pid);
             continue;
         end
-        times_list{i} = times;
-        vals_list {i} = vals;
-        def_stats(row,1:4) = {pid, round(min(vals),1), round(max(vals),1), round(mean(vals),1)};
+        
+        win_len=201;
+        % 中值滤波
+        vals_f = medfilt1(vals, win_len);
+
+        % 统计（都忽略 NaN）
+        orig_times{i} = times;    orig_vals{i} = vals;
+        filt_times{i} = times;    filt_vals{i} = vals_f;
+        % 统计
+        stats(row, :) = {
+            pid, ...
+            round(min(vals),1), round(max(vals),1), round(mean(vals),1), ...
+            round(min(vals_f),1), round(max(vals_f),1), round(mean(vals_f),1)};
         row = row + 1;
     end
-    % 然后绘制本组曲线
-    plot_deflection_curve(times_list, vals_list, pid_list,    root_dir, start_date, end_date, g);
+    % 绘制原始数据组曲线
+    plot_deflection_curve(orig_times, orig_vals, pid_list, root_dir, start_date, end_date, g);
+    % 绘制滤波后数据组曲线
+    plot_deflection_curve(filt_times, filt_vals, pid_list, root_dir, start_date, end_date, g);
 end
-
 % 写入 Excel
-T = cell2table(def_stats, 'VariableNames', {'PointID','Min_mm','Max_mm','Mean_mm'});
+T = cell2table(stats, 'VariableNames', ...
+    {'PointID','OrigMin_mm','OrigMax_mm','OrigMean_mm','FiltMin_mm','FiltMax_mm','FiltMean_mm'});
 writetable(T, excel_file);
-fprintf('挠度统计已保存至 %s\n', excel_file);
+fprintf('应变统计已保存至 %s\n', excel_file);
 end
 
-function [all_time, all_val] = extract_deflection_data(root_dir, subfolder, point_id, start_date, end_date, useMedianFilter)
+function [all_time, all_val] = extract_deflection_data(root_dir, subfolder, point_id, start_date, end_date)
 % extract_deflection_data 提取挠度数据（单位 mm）
 all_time = [];
 all_val  = [];
@@ -112,22 +126,7 @@ end
 % 排序
 [all_time, idx] = sort(all_time);
 all_val = all_val(idx);
-% === 新增：中值滤波 ===
-if useMedianFilter && numel(all_val)>=3
-    % 1) 估算采样频率
-    dt = seconds(all_time(2) - all_time(1));  % 单位秒
-    fs = 1/dt;                               % 实际采样频率 (Hz)
-    
-    % 2) 设定时间窗长度（秒），可根据需求调整
-    window_sec = 0.5;                        % 半秒窗
-    win_len = max(201, round(window_sec * fs));  % 至少 201 点
-    if mod(win_len,2)==0
-        win_len = win_len + 1;               % 确保为奇数
-    end
-    
-    % 3) 执行零相位中值滤波
-    all_val = medfilt1(all_val, win_len);
-end
+
 end
 
 function plot_deflection_curve(times_list, vals_list, pid_list,  root_dir, start_date, end_date, group_idx)
