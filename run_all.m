@@ -32,11 +32,11 @@ function run_all(root, start_date, end_date, opts)
 
     if opts.doDeflectNoFlt
         analyze_deflection_points(root, start_date, end_date, ...
-            'deflection_stats.xlsx', '特征值', false);
+            'deflection_stats.xlsx', '特征值_重采样', false);
     end
     if opts.doDeflectMedFlt
         analyze_deflection_points(root, start_date, end_date, ...
-            'deflection_中值滤波_stats.xlsx', '特征值', true);
+            'deflection_中值滤波_stats.xlsx', '特征值_重采样', true);
     end
 
     if opts.doTilt

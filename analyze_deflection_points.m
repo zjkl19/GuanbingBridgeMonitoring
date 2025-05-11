@@ -38,11 +38,13 @@ for g = 1:numel(groups)
             warning('测点 %s 无数据，跳过。', pid);
             continue;
         end
+        times_list{i} = times;
+        vals_list {i} = vals;
         def_stats(row,1:4) = {pid, round(min(vals),1), round(max(vals),1), round(mean(vals),1)};
         row = row + 1;
     end
     % 然后绘制本组曲线
-    plot_deflection_curve(root_dir, subfolder, pid_list, start_date, end_date, g, useMedianFilter);
+    plot_deflection_curve(times_list, vals_list, pid_list,    root_dir, start_date, end_date, g);
 end
 
 % 写入 Excel
@@ -128,18 +130,20 @@ if useMedianFilter && numel(all_val)>=3
 end
 end
 
-function plot_deflection_curve(root_dir, subfolder, pid_list, start_date, end_date, group_idx, useMedianFilter)
+function plot_deflection_curve(times_list, vals_list, pid_list,  root_dir, start_date, end_date, group_idx)
 % plot_deflection_curve 绘制一组挠度时程曲线
 fig = figure('Position',[100 100 1000 469]); hold on;
 dn0 = datenum(start_date,'yyyy-mm-dd'); dn1 = datenum(end_date,'yyyy-mm-dd');
 % 绘制多条曲线并生成句柄
 h = gobjects(numel(pid_list),1);
+
 for i = 1:numel(pid_list)
-    [t, v] = extract_deflection_data(root_dir, subfolder, pid_list{i}, start_date, end_date, useMedianFilter);
-    h(i) = plot(t, v, 'LineWidth', 1);
+    plot(times_list{i}, vals_list{i}, 'LineWidth', 1);
 end
-lg=legend(h, pid_list, 'Location','northeast', 'Box','off');
+
+lg=legend(pid_list,'Location','northeast','Box','off');
 lg.AutoUpdate = 'off';
+
 % X 刻度
 numDiv = 4;
 ticks = datetime(linspace(dn0, dn1, numDiv+1), 'ConvertFrom','datenum');
