@@ -18,12 +18,12 @@ groupY = {'GB-DIS-P04-001-01-Y','GB-DIS-P05-001-01-Y','GB-DIS-P06-001-01-Y'};
 
 % 处理 X 组
 [statsX, dataX] = process_group(root_dir, subfolder, groupX, start_date, end_date, 'X');
-plot_tilt_curve(dataX, start_date, end_date, 'X');
+plot_tilt_curve(root_dir,dataX, start_date, end_date, 'X');
 clear dataX  %# frees all the big time/value arrays in memory
 
 % 处理 Y 组
 [statsY, dataY] = process_group(root_dir, subfolder, groupY, start_date, end_date, 'Y');
-plot_tilt_curve(dataY, start_date, end_date, 'Y');
+plot_tilt_curve(root_dir,dataY, start_date, end_date, 'Y');
 clear dataY
 
 % 写入 Excel
@@ -56,7 +56,7 @@ end
 end
 
 
-function plot_tilt_curve(dataList, t0, t1, suffix)
+function plot_tilt_curve(root_dir,dataList, t0, t1, suffix)
 % plot_tilt_curve 绘制一组倾角曲线（不再重复 I/O）
 fig = figure('Position',[100 100 1000 469]); hold on;
 
@@ -99,7 +99,7 @@ grid on; grid minor;
 
 % 保存
 ts = datestr(now,'yyyymmdd_HHMMSS');
-out = fullfile(pwd, ['时程曲线_倾角_' suffix]); if ~exist(out,'dir'), mkdir(out); end
+out=fullfile(root_dir,'时程曲线_倾角'); if ~exist(out,'dir'), mkdir(out); end
 fname = sprintf('Tilt_%s_%s_%s', suffix, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
 saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
 saveas(fig, fullfile(out, [fname '_' ts '.emf']));
