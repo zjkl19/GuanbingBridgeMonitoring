@@ -1,100 +1,79 @@
 function analyze_crack_points(root_dir, start_date, end_date, excel_file, subfolder)
-% analyze_crack_points 批量绘制按分组的裂缝宽度和温度时程曲线并统计指标
-%   root_dir: 根目录，例如 'F:/管柄大桥健康监测数据/'
-%   start_date,end_date: 日期范围，'yyyy-MM-dd'
-%   excel_file: 输出统计 Excel，如 'crack_stats.xlsx'
-%   subfolder: 数据所在子文件夹，默认 '特征值'
+% analyze_crack_points_refactored 批量绘制并统计裂缝宽度与温度时程曲线（方案A重构）
+%   保持绘图函数独立，只提取一次数据，避免不必要的 I/O
 
-if nargin<1||isempty(root_dir),    root_dir = pwd; end
-if nargin<2||isempty(start_date),   start_date = input('开始日期 (yyyy-MM-dd): ','s'); end
-if nargin<3||isempty(end_date),     end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
-if nargin<4||isempty(excel_file),   excel_file = 'crack_stats.xlsx'; end
-if nargin<5||isempty(subfolder),    subfolder  = '特征值'; end
+if nargin<1||isempty(root_dir),  root_dir = pwd;               end
+if nargin<2||isempty(start_date), start_date = input('开始日期 (yyyy-MM-dd): ','s'); end
+if nargin<3||isempty(end_date),   end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
+if nargin<4||isempty(excel_file), excel_file = 'crack_stats.xlsx';end
+if nargin<5||isempty(subfolder),  subfolder  = '特征值';         end
 
-% 定义测点分组
+% 分组定义
 groups = { ...
     {'GB-CRK-G05-001-01','GB-CRK-G05-001-02','GB-CRK-G05-001-03','GB-CRK-G05-001-04'}, ...
     {'GB-CRK-G06-001-01','GB-CRK-G06-001-02','GB-CRK-G06-001-03','GB-CRK-G06-001-04'} ...
 };
 
-def_stats = {};
+% 初始化统计表
+stats = {};
 row = 1;
-
-% 统计指标
 for gi = 1:numel(groups)
     pid_list = groups{gi};
-    for i = 1:numel(pid_list)
+    % 一次读取：存放每个测点的裂缝与温度数据
+    N = numel(pid_list);
+    crack_times = cell(N,1);
+    crack_vals  = cell(N,1);
+    temp_times  = cell(N,1);
+    temp_vals   = cell(N,1);
+    for i = 1:N
         pid = pid_list{i};
-        [~, v_c] = extract_crack_data(root_dir, subfolder, pid, start_date, end_date);
-        [~, v_t] = extract_crack_data(root_dir, subfolder, [pid '-t'], start_date, end_date);
-        if isempty(v_c), mn_c=NaN; mx_c=NaN; av_c=NaN; else mn_c=round(min(v_c),3); mx_c=round(max(v_c),3); av_c=round(mean(v_c),3); end
-        if isempty(v_t), mn_t=NaN; mx_t=NaN; av_t=NaN; else mn_t=round(min(v_t),3); mx_t=round(max(v_t),3); av_t=round(mean(v_t),3); end
-        def_stats(row,:) = {pid,mn_c,mx_c,av_c,mn_t,mx_t,av_t};
+        [tc, vc] = extract_crack_data(root_dir, subfolder, pid,   start_date, end_date);
+        [tt, vt] = extract_crack_data(root_dir, subfolder, [pid '-t'], start_date, end_date);
+        crack_times{i} = tc;  crack_vals{i} = vc;
+        temp_times{i}  = tt;  temp_vals{i}  = vt;
+        % 统计
+        stats(row,:) = {
+            pid, ...
+            round(min(vc),3), round(max(vc),3), round(mean(vc),3), ...
+            round(min(vt),3), round(max(vt),3), round(mean(vt),3)};
         row = row + 1;
     end
+    % 绘制裂缝宽度曲线
+    plot_group_curve(crack_times, crack_vals, pid_list, '裂缝宽度 (mm)', ...
+                     fullfile(root_dir,'时程曲线_裂缝宽度 (mm)'), gi, start_date, end_date);
+    % 绘制温度曲线
+    plot_group_curve(temp_times, temp_vals, pid_list, '裂缝温度 (℃)', ...
+                     fullfile(root_dir,'时程曲线_裂缝温度 (℃)'), gi, start_date, end_date);
 end
-% 写 Excel
-T = cell2table(def_stats, 'VariableNames',{'PointID','CrackMin','CrackMax','CrackMean','TempMin','TempMax','TempMean'});
+% 写Excel
+T = cell2table(stats, 'VariableNames',{'PointID','CrkMin','CrkMax','CrkMean','TmpMin','TmpMax','TmpMean'});
 writetable(T, excel_file);
 fprintf('统计结果已保存至 %s\n', excel_file);
+end
 
-% 时间刻度基础值
+function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, out_dir, group_idx, start_date, end_date)
+% 通用组曲线绘制
+if ~exist(out_dir,'dir'), mkdir(out_dir); end
+fig = figure('Position',[100 100 1000 469]); hold on;
+for i = 1:numel(labels)
+    plot(times_cell{i}, vals_cell{i}, 'LineWidth',1);
+end
+legend(labels,'Location','northeast','Box','off');
+xlabel('时间'); ylabel(ylabel_str);
+% 时间刻度
 dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd');
 dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
-ticks = linspace(datenum(dt0), datenum(dt1), 5);
-
-% 绘图：裂缝宽度按组
-for gi = 1:numel(groups)
-    pid_list = groups{gi};
-    fig = figure('Position',[100 100 1000 469]); hold on;
-    for i = 1:numel(pid_list)
-        pid = pid_list{i};
-        [t_c, v_c] = extract_crack_data(root_dir, subfolder, pid, start_date, end_date);
-        plot(t_c, v_c, 'LineWidth',1);
-    end
-    legend(pid_list,'Location','northeast');
-    xlabel('时间'); ylabel('裂缝宽度 (mm)');
-    ytickformat('%.2f');
-    tmp_manual = true;
-    if tmp_manual, ylim([-0.20,0.20]); else, ylim auto; end
-    ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = datetime(ticks,'ConvertFrom','datenum'); xtickformat('yyyy-MM-dd');
-    grid on; grid minor;
-    title(sprintf('裂缝宽度 时程 组%d', gi));
-    ts = datestr(now,'yyyymmdd_HHMMSS');
-    out = fullfile(root_dir,'时程曲线_裂缝宽度 (mm)'); if ~exist(out,'dir'), mkdir(out); end
-    fname = sprintf('CrkG%d_%s_%s', gi, datestr(dt0,'yyyyMMdd'), datestr(dt1,'yyyyMMdd'));
-    saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
-    saveas(fig, fullfile(out, [fname '_' ts '.emf']));
-    savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
-    close(fig);
+ticks = datetime(linspace(datenum(dt0),datenum(dt1),5),'ConvertFrom','datenum');
+ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = ticks;
+xtickformat('yyyy-MM-dd'); grid on; grid minor;
+% 保存
+ts = datestr(now,'yyyymmdd_HHMMSS');
+fname = sprintf('%s_G%d_%s_%s', ylabel_str, group_idx, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
+saveas(fig, fullfile(out_dir, [fname '_' ts '.jpg']));
+saveas(fig, fullfile(out_dir, [fname '_' ts '.emf']));
+savefig(fig,fullfile(out_dir,[fname '_' ts '.fig']),'compact');
+close(fig);
 end
-
-% 绘图：温度按组
-for gi = 1:numel(groups)
-    pid_list = groups{gi};
-    fig = figure('Position',[100 100 1000 469]); hold on;
-    for i = 1:numel(pid_list)
-        pid = pid_list{i};
-        [t_t, v_t] = extract_crack_data(root_dir, subfolder, [pid '-t'], start_date, end_date);
-        plot(t_t, v_t, 'LineWidth',1);
-    end
-    legend(pid_list,'Location','northeast');
-    xlabel('时间'); ylabel('温度 (℃)');
-    tmp_manual = true; if tmp_manual, ylim([-5,40]); else, ylim auto; end
-    ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = datetime(ticks,'ConvertFrom','datenum'); xtickformat('yyyy-MM-dd');
-    grid on; grid minor;
-    title(sprintf('裂缝温度 时程 组%d', gi));
-    ts = datestr(now,'yyyymmdd_HHMMSS');
-    out = fullfile(root_dir,'时程曲线_裂缝温度 (℃)'); if ~exist(out,'dir'), mkdir(out); end
-    fname = sprintf('TmpG%d_%s_%s', gi, datestr(dt0,'yyyyMMdd'), datestr(dt1,'yyyyMMdd'));
-    saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
-    saveas(fig, fullfile(out, [fname '_' ts '.emf']));
-    savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
-    close(fig);
-end
-end
-% ========== Subfunctions ==========
-
 function [all_time, all_val] = extract_crack_data(root_dir, subfolder, point_id, start_date, end_date)
     all_time = [];
     all_val  = [];

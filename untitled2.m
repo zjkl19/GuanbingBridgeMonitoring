@@ -1,135 +1,144 @@
-function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfolder)
-% analyze_tilt_points 批量绘制倾角时程曲线并统计指标
+function analyze_crack_points(root_dir, start_date, end_date, excel_file, subfolder)
+% analyze_crack_points 批量绘制按分组的裂缝宽度和温度时程曲线并统计指标
 %   root_dir: 根目录，例如 'F:/管柄大桥健康监测数据/'
 %   start_date,end_date: 日期范围，'yyyy-MM-dd'
-%   excel_file: 输出统计 Excel，如 'tilt_stats.xlsx'
-%   subfolder: 数据所在子文件夹，默认 '特征值_重采样'
+%   excel_file: 输出统计 Excel，如 'crack_stats.xlsx'
+%   subfolder: 数据所在子文件夹，默认 '特征值'
 
-if nargin<1||isempty(root_dir),  root_dir = pwd; end
-if nargin<2||isempty(start_date), start_date = input('开始日期 (yyyy-MM-dd): ','s'); end
-if nargin<3||isempty(end_date),   end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
-if nargin<4||isempty(excel_file), excel_file = 'tilt_stats.xlsx'; end
-if nargin<5||isempty(subfolder),  subfolder  = '波形_重采样'; end
+if nargin<1||isempty(root_dir),    root_dir = pwd; end
+if nargin<2||isempty(start_date),   start_date = input('开始日期 (yyyy-MM-dd): ','s'); end
+if nargin<3||isempty(end_date),     end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
+if nargin<4||isempty(excel_file),   excel_file = 'crack_stats.xlsx'; end
+if nargin<5||isempty(subfolder),    subfolder  = '特征值'; end
 
-% 测点分组
-groupX = {'GB-DIS-P04-001-01-X','GB-DIS-P05-001-01-X','GB-DIS-P06-001-01-X'};
-groupY = {'GB-DIS-P04-001-01-Y','GB-DIS-P05-001-01-Y','GB-DIS-P06-001-01-Y'};
+% 定义测点分组
+groups = { ...
+    {'GB-CRK-G05-001-01','GB-CRK-G05-001-02','GB-CRK-G05-001-03','GB-CRK-G05-001-04'}, ...
+    {'GB-CRK-G06-001-01','GB-CRK-G06-001-02','GB-CRK-G06-001-03','GB-CRK-G06-001-04'} ...
+};
 
-% 提取统计并绘图
-statsX = process_group(root_dir, subfolder, groupX, start_date, end_date, 'X');
-statsY = process_group(root_dir, subfolder, groupY, start_date, end_date, 'Y');
+def_stats = {};
+row = 1;
 
-% 合并写入 Excel，不同 sheet
-T_X = cell2table(statsX, 'VariableNames',{'PointID','Min','Max','Mean'});
-T_Y = cell2table(statsY, 'VariableNames',{'PointID','Min','Max','Mean'});
-writetable(T_X, excel_file, 'Sheet','Tilt_X');
-writetable(T_Y, excel_file, 'Sheet','Tilt_Y');
-fprintf('倾角统计已保存至 %s\n', excel_file);
-end
-
-function stats = process_group(root_dir, subfolder, point_ids, start_date, end_date, suffix)
-% process_group 处理一个分组，绘图并计算统计
-num = numel(point_ids);
-stats = cell(num,4);
-for i=1:num
-    pid = point_ids{i}; fprintf('处理 %s ...\n', pid);
-    [times, vals] = extract_tilt_data(root_dir, subfolder, pid, start_date, end_date);
-    if isempty(vals)
-        warning('测点 %s 无数据，跳过。', pid);
-        continue;
+% 统计指标
+for gi = 1:numel(groups)
+    pid_list = groups{gi};
+    for i = 1:numel(pid_list)
+        pid = pid_list{i};
+        [~, v_c] = extract_crack_data(root_dir, subfolder, pid, start_date, end_date);
+        [~, v_t] = extract_crack_data(root_dir, subfolder, [pid '-t'], start_date, end_date);
+        if isempty(v_c), mn_c=NaN; mx_c=NaN; av_c=NaN; else mn_c=round(min(v_c),3); mx_c=round(max(v_c),3); av_c=round(mean(v_c),3); end
+        if isempty(v_t), mn_t=NaN; mx_t=NaN; av_t=NaN; else mn_t=round(min(v_t),3); mx_t=round(max(v_t),3); av_t=round(mean(v_t),3); end
+        def_stats(row,:) = {pid,mn_c,mx_c,av_c,mn_t,mx_t,av_t};
+        row = row + 1;
     end
-    % 统计并保留3位小数
-    stats{i,1} = pid;
-    stats{i,2} = round(min(vals),3);
-    stats{i,3} = round(max(vals),3);
-    stats{i,4} = round(mean(vals),3);
 end
-% 绘制整组曲线
-plot_tilt_curve(root_dir, subfolder, point_ids, start_date, end_date, suffix);
-end
+% 写 Excel
+T = cell2table(def_stats, 'VariableNames',{'PointID','CrackMin','CrackMax','CrackMean','TempMin','TempMax','TempMean'});
+writetable(T, excel_file);
+fprintf('统计结果已保存至 %s\n', excel_file);
 
-function [all_time, all_val] = extract_tilt_data(root_dir, subfolder, point_id, start_date, end_date)
-% extract_tilt_data 提取倾角数据
-all_time=[]; all_val=[];
-dn0=datenum(start_date,'yyyy-mm-dd'); dn1=datenum(end_date,'yyyy-mm-dd');
-dinfo=dir(fullfile(root_dir,'20??-??-??')); folders={dinfo([dinfo.isdir]).name};
-dates=folders(datenum(folders,'yyyy-mm-dd')>=dn0 & datenum(folders,'yyyy-mm-dd')<=dn1);
-for j=1:numel(dates)
-    day=dates{j}; dirp=fullfile(root_dir,day,subfolder);
-    if ~exist(dirp,'dir'), continue; end
-    files=dir(fullfile(dirp,'*.csv'));
-    idxs=arrayfun(@(f) contains(f.name, point_id), files);
-    if ~any(idxs), continue; end
-    fname=files(find(idxs,1)).name;
-    fullpath=fullfile(dirp,fname);
-    % 检测头部前50行
-    fid=fopen(fullpath,'rt'); h=0;
-    for k=1:50
-        if feof(fid), break; end
-        ln=fgetl(fid); h=h+1;
-        if contains(ln,'[绝对时间]'), break; end
+% 时间刻度基础值
+dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd');
+dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
+ticks = linspace(datenum(dt0), datenum(dt1), 5);
+
+% 绘图：裂缝宽度按组
+for gi = 1:numel(groups)
+    pid_list = groups{gi};
+    fig = figure('Position',[100 100 1000 469]); hold on;
+    for i = 1:numel(pid_list)
+        pid = pid_list{i};
+        [t_c, v_c] = extract_crack_data(root_dir, subfolder, pid, start_date, end_date);
+        plot(t_c, v_c, 'LineWidth',1);
     end
-    fclose(fid);
-    T=readtable(fullpath,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+    legend(pid_list,'Location','northeast');
+    xlabel('时间'); ylabel('裂缝宽度 (mm)');
+    ytickformat('%.2f');
+    tmp_manual = true;
+    if tmp_manual, ylim([-0.20,0.20]); else, ylim auto; end
+    ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = datetime(ticks,'ConvertFrom','datenum'); xtickformat('yyyy-MM-dd');
+    grid on; grid minor;
+    title(sprintf('裂缝宽度 时程 组%d', gi));
+    ts = datestr(now,'yyyymmdd_HHMMSS');
+    out = fullfile(root_dir,'时程曲线_裂缝宽度 (mm)'); if ~exist(out,'dir'), mkdir(out); end
+    fname = sprintf('CrkG%d_%s_%s', gi, datestr(dt0,'yyyyMMdd'), datestr(dt1,'yyyyMMdd'));
+    saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
+    saveas(fig, fullfile(out, [fname '_' ts '.emf']));
+    savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
+    close(fig);
+end
 
-    times = T{:,1}; vals = T{:,2};
-    if strcmp(point_id, 'GB-DIS-P05-001-01-Y')
-        vals = clean_threshold(vals, times, struct('min', -0.07, 'max', 1, 't_range',[datetime('2025-02-28 07:00:00'), datetime('2025-02-28 09:00:00')]));
-        vals = clean_threshold(vals, times, struct('min', -0.06, 'max', 1, 't_range',[datetime('2025-03-12 11:00:00'), datetime('2025-03-12 12:00:00')]));
+% 绘图：温度按组
+for gi = 1:numel(groups)
+    pid_list = groups{gi};
+    fig = figure('Position',[100 100 1000 469]); hold on;
+    for i = 1:numel(pid_list)
+        pid = pid_list{i};
+        [t_t, v_t] = extract_crack_data(root_dir, subfolder, [pid '-t'], start_date, end_date);
+        plot(t_t, v_t, 'LineWidth',1);
     end
-
-    all_time=[all_time; times]; all_val=[all_val; vals];
+    legend(pid_list,'Location','northeast');
+    xlabel('时间'); ylabel('温度 (℃)');
+    tmp_manual = true; if tmp_manual, ylim([-5,40]); else, ylim auto; end
+    ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = datetime(ticks,'ConvertFrom','datenum'); xtickformat('yyyy-MM-dd');
+    grid on; grid minor;
+    title(sprintf('裂缝温度 时程 组%d', gi));
+    ts = datestr(now,'yyyymmdd_HHMMSS');
+    out = fullfile(root_dir,'时程曲线_裂缝温度 (℃)'); if ~exist(out,'dir'), mkdir(out); end
+    fname = sprintf('TmpG%d_%s_%s', gi, datestr(dt0,'yyyyMMdd'), datestr(dt1,'yyyyMMdd'));
+    saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
+    saveas(fig, fullfile(out, [fname '_' ts '.emf']));
+    savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
+    close(fig);
 end
-[all_time,ix]=sort(all_time); all_val=all_val(ix);
 end
+% ========== Subfunctions ==========
 
-function plot_tilt_curve(root_dir, subfolder, point_ids, start_date, end_date, suffix)
-% plot_tilt_curve 绘制一组倾角曲线并添加预警线和图例
-fig=figure('Position',[100 100 1000 469]); hold on;
-dn0=datenum(start_date,'yyyy-mm-dd'); dn1=datenum(end_date,'yyyy-mm-dd');
-% 绘制多条曲线并收集图例句柄
-hLines = gobjects(numel(point_ids),1);
-for i=1:numel(point_ids)
-    [t,v]=extract_tilt_data(root_dir, subfolder, point_ids{i}, start_date, end_date);
-    hLines(i) = plot(t,v,'LineWidth',1);
-end
-% 添加图例，只显示测点曲线
-lg = legend(hLines, point_ids, 'Location','northeast');
-lg.AutoUpdate = 'off';
+function [all_time, all_val] = extract_crack_data(root_dir, subfolder, point_id, start_date, end_date)
+    all_time = [];
+    all_val  = [];
+    dn0 = datenum(start_date,'yyyy-mm-dd'); dn1 = datenum(end_date,'yyyy-mm-dd');
+    info = dir(fullfile(root_dir,'20??-??-??'));
+    folders = {info([info.isdir]).name};
+    dates = folders(datenum(folders,'yyyy-mm-dd')>=dn0 & datenum(folders,'yyyy-mm-dd')<=dn1);
+    is_temp = endsWith(point_id,'-t');
+    for j = 1:numel(dates)
+        dirp = fullfile(root_dir, dates{j}, subfolder);
+        if ~exist(dirp,'dir'), continue; end
+        files = dir(fullfile(dirp,'*.csv'));
+        if is_temp
+            idx = find(contains({files.name}, point_id),1);
+        else
+            names = {files.name}; valid_idx = find(contains(names, point_id) & ~contains(names,'-t') & ~contains(names,'-hz'));
+            idx = valid_idx(1);
+        end
+        if isempty(idx), continue; end
+        fp = fullfile(files(idx).folder, files(idx).name);
+        fid = fopen(fp,'rt'); h = 0;
+        while h < 50 && ~feof(fid)
+            ln = fgetl(fid); h = h + 1;
+            if contains(ln,'[绝对时间]'), break; end
+        end
+        fclose(fid);
+        T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+        times = T{:,1}; vals = T{:,2};
+        %bug：温度一起清洗了
+        % === 基础清洗 ===
+        % 示例：针对特殊测点额外清洗
+        % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
+        %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 20, 't_range', [datetime('2025-02-28 20:00:00'), datetime('2025-02-28 23:00:00')]));
+        % end
+        vals = clean_threshold(vals, times, struct('min', -0.22, 'max', 0.20, 't_range', []));
+         if strcmp(point_id, 'GB-CRK-G05-001-01')
+            vals = clean_threshold(vals, times, struct('min', -0.22, 'max', 0.045, 't_range', []));
+        end
+        if strcmp(point_id, 'GB-CRK-G06-001-01')
+            vals = clean_threshold(vals, times, struct('min', -0.22, 'max', 0.00, 't_range', []));
+        end
+        % =====================
 
-% X 轴刻度
-numDiv=4; ticks=datetime(linspace(dn0,dn1,numDiv+1),'ConvertFrom','datenum');
-ax=gca; ax.XLim=ticks([1 end]); ax.XTick=ticks; xtickformat('yyyy-MM-dd');
-xlabel('时间'); ylabel('倾角 (°)'); title(['倾角时程曲线 ' suffix]);
-
-% 添加报警线和 Y 轴范围
-yVals = [-0.126,0.126,-0.155,0.155];
-labels = {'二级报警值-0.126','二级报警值0.126','三级报警值-0.155','三级报警值0.155'};
-colors = [0.9290 0.6940 0.1250;  % 黄色警告颜色
-          0.9290 0.6940 0.1250;
-          1      0      0;
-          1      0      0];
-for k=1:4
-    yl = yline(yVals(k), '--');
-    yl.Color = colors(k,:);
-    yl.Label = labels{k};
-    yl.LabelHorizontalAlignment = 'left';
-end
-% Y 轴范围（可切换）
-tmp_manual=true;
-if tmp_manual
-    ylim([-0.17,0.17]);
-else
-    ylim auto;
-end
-
-grid on; grid minor;
-% 保存 JPG, EMF, FIG
-ts=datestr(now,'yyyymmdd_HHMMSS'); out=fullfile(root_dir,'时程曲线_倾角');
-if ~exist(out,'dir'), mkdir(out); end
-fname=sprintf('Tilt_%s_%s_%s',suffix,datestr(dn0,'yyyymmdd'),datestr(dn1,'yyyymmdd'));
-saveas(fig,fullfile(out,[fname '_' ts '.jpg']));
-saveas(fig,fullfile(out,[fname '_' ts '.emf']));
-savefig(fig,fullfile(out,[fname '_' ts '.fig']),'compact');
-close(fig);
+        all_time = [all_time; times]; all_val = [all_val; vals];
+    end
+    [all_time, ix] = sort(all_time); all_val = all_val(ix);
 end
