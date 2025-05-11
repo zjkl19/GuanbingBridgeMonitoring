@@ -38,15 +38,14 @@ end
 zipList = {};
 outDirs = {};
 for i = 1:numel(selected)
-    day = selected{i};
-    countZ = 0;
+    day = selected{i}; countZ = 0;
     for sub = {'波形','特征值'}
         zdir = fullfile(root_dir, day, sub{1});
         zfiles = dir(fullfile(zdir, '*.zip'));
         if ~isempty(zfiles)
             for k = 1:numel(zfiles)
                 zipList{end+1} = fullfile(zfiles(k).folder, zfiles(k).name);
-                outDirs{end+1} = zfiles(k).folder;
+outDirs{end+1} = zfiles(k).folder;
                 countZ = countZ + 1;
             end
         end
@@ -60,25 +59,47 @@ if N == 0
     error('未发现任何 ZIP 文件，终止执行');
 end
 
-% 估算解压时间（基于慢速 HDD 45MB/s 测速折算）
-dirsz     = cellfun(@(f) dir(f).bytes, zipList);
-totalMB   = sum(dirsz) / 1e6;
-speedMBps = 45/8;  % 折算综合速率（MB/s）
-est_time_s = totalMB / speedMBps;
-% 环境依赖说明
-env_note = sprintf('（基于慢速 HDD 综合速率 %.2f MB/s）', speedMBps);
+% 估算解压后总大小（使用 Java ZipFile 读取未压缩大小）
+totalBytes = 0;
+for i = 1:numel(zipList)
+    zfPath = zipList{i};
+    jz = java.util.zip.ZipFile(zfPath);
+    entries = jz.entries();
+    while entries.hasMoreElements()
+        entry = entries.nextElement();
+        totalBytes = totalBytes + entry.getSize();
+    end
+    jz.close();
+end
+totalGB = totalBytes / 1e9;
 
-time_min = est_time_s / 60;
+% --- 磁盘空间检查 ---
+drive = root_dir(1:3);  % 如 'C:\'
+fileObj = java.io.File(drive);
+freeBytes = fileObj.getFreeSpace();
+freeGB = freeBytes/1e9;
+fprintf('当前磁盘剩余空间: %.2f GB，预计解压需要空间: %.2f GB', freeGB, totalGB);
+if freeBytes < totalBytes + 10*1e9
+    % 空间不足，强制用户确认
+    c = input('磁盘剩余可能不足10GB，是否继续？(y/n): ', 's');
+    if ~strcmpi(c,'y')
+        fprintf('操作已取消。');
+        return;
+    end
+end
+% ----------------------
+
+% 估算解压时间（基于慢速 HDD 45MB/s 测速折算）
+speedMBps = 45/8;  % MB/s
+est_time_s = totalGB*1024/speedMBps;
+env_note = sprintf('（基于慢速 HDD 综合速率 %.2f MB/s）', speedMBps);
+time_min = est_time_s/60;
 if time_min > 3
     if silent
-        fprintf('预计解压 %.1f 分钟 %s，静默模式下直接开始运行\n', time_min, env_note);
+        fprintf('预计解压 %.1f 分钟 %s，静默模式直接开始\n', time_min, env_note);
     else
         prompt = sprintf('预计解压 %.1f 分钟 %s，超过3分钟，是否继续？(y/n): ', time_min, env_note);
-        c = input(prompt, 's');
-        if ~strcmpi(c, 'y')
-            disp('操作已取消');
-            return;
-        end
+        c = input(prompt, 's'); if ~strcmpi(c,'y'), fprintf('操作已取消。\n'); return; end
     end
 else
     fprintf('预计解压 %.1f 分钟 %s，开始运行\n', time_min, env_note);
@@ -101,9 +122,7 @@ resultFiles  = cell(N,1);
 resultStatus = cell(N,1);
 start_t = tic;
 parfor idx = 1:N
-    zf  = zipList{idx};
-    out = outDirs{idx};
-    status = '成功';
+    zf = zipList{idx}; out = outDirs{idx}; status = '成功';
     cmd = sprintf(['powershell -NoProfile -Command "Expand-Archive -Path ''%s'' ' ...
                    '-DestinationPath ''%s'' -Force"'], zf, out);
     [s,~] = system(cmd);
@@ -119,13 +138,14 @@ elapsed = toc(start_t);
 
 delete(gcp('nocreate'));
 
-% 合并结果
-results = [resultFiles, resultStatus];
+% 解压后磁盘空间
+freeBytes2 = fileObj.getFreeSpace(); freeGB2 = freeBytes2/1e9;
+fprintf('解压完成，剩余空间: %.2f GB\n', freeGB2);
 
 % 输出日志和耗时
 fprintf('\n处理结果:\n');
 for i = 1:N
-    fprintf('%s -> %s\n', results{i,1}, results{i,2});
+    fprintf('%s -> %s\n', resultFiles{i}, resultStatus{i});
 end
 fprintf('总耗时: %.2f 秒\n', elapsed);
 end
