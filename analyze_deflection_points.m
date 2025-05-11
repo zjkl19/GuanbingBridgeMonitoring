@@ -59,6 +59,8 @@ for g = 1:numel(groups)
     plot_deflection_curve(orig_times, orig_vals, pid_list, root_dir, start_date, end_date, g);
     % 绘制滤波后数据组曲线
     plot_deflection_curve(filt_times, filt_vals, pid_list, root_dir, start_date, end_date, g);
+    
+     clear orig_times orig_vals filt_times filt_vals
 end
 % 写入 Excel
 T = cell2table(stats, 'VariableNames', ...
