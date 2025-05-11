@@ -51,8 +51,8 @@ for g = 1:numel(groups)
         % 统计
         stats(row, :) = {
             pid, ...
-            round(min(vals),1), round(max(vals),1), round(mean(vals),1), ...
-            round(min(vals_f),1), round(max(vals_f),1), round(mean(vals_f),1)};
+            round(min(vals),1), round(max(vals),1), round(mean(vals,  'omitnan'), 1), ...
+            round(min(vals_f),1), round(max(vals_f),1), round(mean(vals_f,  'omitnan'), 1)};
         row = row + 1;
     end
     % 绘制原始数据组曲线
