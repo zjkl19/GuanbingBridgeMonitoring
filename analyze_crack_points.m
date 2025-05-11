@@ -88,8 +88,25 @@ function [all_time, all_val] = extract_crack_data(root_dir, subfolder, point_id,
         files = dir(fullfile(dirp,'*.csv'));
         if is_temp
             idx = find(contains({files.name}, point_id),1);
+            if isempty(idx)
+                fprintf('DEBUG [%s]: 温度文件未找到，point_id="%s", dir="%s"\n', mfilename, point_id, dirp);
+                fprintf('    可用文件列表：\n');
+                for kk=1:numel(files)
+                    fprintf('      %s\n', files(kk).name);
+                end
+                continue;
+            end
         else
-            names = {files.name}; valid_idx = find(contains(names, point_id) & ~contains(names,'-t') & ~contains(names,'-hz'));
+            names = {files.name};
+            valid_idx = find(contains(names, point_id) & ~contains(names,'-t') & ~contains(names,'-hz'));
+            if isempty(valid_idx)
+                fprintf('DEBUG [%s]: 裂缝文件未找到，point_id="%s", dir="%s"\n', mfilename, point_id, dirp);
+                fprintf('    可用文件列表：\n');
+                for kk=1:numel(names)
+                    fprintf('      %s\n', names{kk});
+                end
+                continue;
+            end
             idx = valid_idx(1);
         end
         if isempty(idx), continue; end
