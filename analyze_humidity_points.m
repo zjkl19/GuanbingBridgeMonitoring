@@ -23,7 +23,7 @@ for i = 1:numel(point_ids)
         warning('测点 %s 无数据，跳过。', pid); continue;
     end
     % 绘制时程曲线
-    plot_humidity_point_curve(root_dir, subfolder,pid, start_date, end_date);
+    plot_humidity_point_curve(times, vals, pid, root_dir, start_date, end_date);
     % 统计最小/最大/平均
     mn = min(vals); mx = max(vals); av = round(mean(vals),1);
     stats{i,1} = pid; stats{i,2} = mn; stats{i,3} = mx; stats{i,4} = av;
@@ -77,15 +77,13 @@ end
 all_val = all_val(idx);
 end
 
-function plot_humidity_point_curve(root_dir,subfolder, point_id, start_date, end_date)
+function plot_humidity_point_curve(times, vals,pid,  root_dir, start_date, end_date)
 % plot_humidity_point_curve 绘制指定测点湿度时程曲线
 % 窗口1000×469，单位% ，4等分刻度，加平均线
 
 % 开始计时
 t0 = tic;
 
-% 提取数据
-[times, vals] = extract_humidity_data(root_dir,subfolder, point_id, start_date, end_date);
 if isempty(vals)
     error('测点 %s 无数据，无法绘图', point_id);
 end
@@ -114,7 +112,7 @@ yl.LabelVerticalAlignment = 'bottom';
 yl.FontSize = 12;
 % 网格与标签
 grid on; grid minor;
-title(sprintf('测点 %s 湿度时程曲线', point_id));
+title(sprintf('测点 %s 湿度时程曲线', pid));
 xlabel('时间');
 ylabel('湿度 (%)');
 
@@ -123,7 +121,7 @@ ylabel('湿度 (%)');
 timestamp = datestr(now,'yyyy-mm-dd_HH-MM-SS');
 output_dir = fullfile(root_dir,'时程曲线_湿度');
 if ~exist(output_dir,'dir'), mkdir(output_dir); end
-base = sprintf('%s_%s_%s', point_id, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
+base = sprintf('%s_%s_%s', pid, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
 saveas(fig, fullfile(output_dir,[base '_' timestamp '.jpg']));
 saveas(fig, fullfile(output_dir,[base '_' timestamp '.emf']));
 savefig(fig,fullfile(output_dir,[base '_' timestamp '.fig']),'compact');
