@@ -1,27 +1,38 @@
-% 生成模拟时程数据
-fs = 100;                   % 采样频率 100 Hz
-t = 0:1/fs:10;              % 时间向量：0～10 s
-signal_clean = sin(2*pi*0.5*t);    % 0.5 Hz 正弦信号
-noise = 0.2*randn(size(t));        % 高斯噪声
-signal_noisy = signal_clean + noise;
 
-% 添加脉冲噪声（尖峰）
-num_spikes = 20;
-for k = 1:num_spikes
-    idx = randi(length(signal_noisy));
-    signal_noisy(idx) = signal_noisy(idx) + (randn*5);
-end
+tic;
+%root = 'G:/BaiduNetdiskDownload/管柄大桥数据';
+root = 'H:\BaiduNetdiskDownload\';
+start_date  = '2025-03-26';
+end_date    = '2025-04-25';
+warnState = warning('off','MATLAB:table:ModifiedAndSavedVarnames');   %临时关闭读取表格的警告
 
-% 中值滤波
-window_size = 5;            % 滤波窗口长度（奇数）
-signal_filtered = medfilt1(signal_noisy, window_size);
+batch_unzip_data_parallel(root, start_date, end_date,true)
+batch_rename_csv(root, start_date, end_date,true);
+batch_remove_header('G:\\BaiduNetdiskDownload\\管柄大桥数据', '2025-02-26', '2025-03-25',true);
+batch_resample_data_parallel(root, start_date, end_date, 100,true,'batch_resample_data_parallel_config.csv');
 
-% 绘图对比
-figure;
-plot(t, signal_noisy, 'b', 'DisplayName', '原始带噪信号'); hold on;
-plot(t, signal_filtered, 'r', 'LineWidth',1.5, 'DisplayName', '中值滤波后信号');
-legend('Location','best');
-xlabel('时间 (s)');
-ylabel('幅值');
-title('中值滤波示例：原始信号 vs 滤波后信号');
-grid on;
+pts = {'GB-RTS-G05-001-01','GB-RTS-G05-001-02','GB-RTS-G05-001-03'};
+analyze_temperature_points(root, pts , start_date, end_date,'temp_stats.xlsx','特征值');
+
+pts  = {'GB-RHS-G05-001-01','GB-RHS-G05-001-02','GB-RHS-G05-001-03'};
+analyze_humidity_points(root, pts, start_date,end_date,'humidity_stats.xlsx','特征值');
+
+useMedianFilter = false; 
+analyze_deflection_points(root,start_date,end_date,'deflection_stats.xlsx','特征值',useMedianFilter);
+
+useMedianFilter = true; 
+analyze_deflection_points(root,start_date,end_date,'deflection_中值滤波_stats.xlsx','特征值',useMedianFilter);
+
+analyze_tilt_points(root, start_date,end_date,'tilt_stats.xlsx','波形_重采样');
+
+analyze_acceleration_points(root, start_date,end_date,'accel_stats.xlsx','波形_重采样',true);
+
+batch_rename_crk_T_to_t(root, start_date, end_date, true);
+
+analyze_crack_points(root, start_date,end_date,'crack_stats.xlsx','特征值');
+
+analyze_strain_points(root,  start_date, end_date,'strain_stats.xlsx','特征值')
+
+warning(warnState);  %恢复读取表格的警告
+
+toc;
