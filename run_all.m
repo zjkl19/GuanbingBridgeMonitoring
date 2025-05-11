@@ -32,7 +32,7 @@ function run_all(root, start_date, end_date, opts)
 
     if opts.doDeflect
         analyze_deflection_points(root, start_date, end_date, ...
-            'deflection_stats.xlsx', '特征值_重采样');
+            'deflection_stats.xlsx', '特征值');
     end
 
     if opts.doTilt
