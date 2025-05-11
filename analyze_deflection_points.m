@@ -120,7 +120,7 @@ if useMedianFilter && numel(all_val)>=3
     
     % 2) 设定时间窗长度（秒），可根据需求调整
     window_sec = 0.5;                        % 半秒窗
-    win_len = max(3, round(window_sec * fs));  % 至少 3 点
+    win_len = max(201, round(window_sec * fs));  % 至少 201 点
     if mod(win_len,2)==0
         win_len = win_len + 1;               % 确保为奇数
     end
