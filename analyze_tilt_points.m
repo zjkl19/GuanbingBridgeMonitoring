@@ -19,10 +19,12 @@ groupY = {'GB-DIS-P04-001-01-Y','GB-DIS-P05-001-01-Y','GB-DIS-P06-001-01-Y'};
 % 处理 X 组
 [statsX, dataX] = process_group(root_dir, subfolder, groupX, start_date, end_date, 'X');
 plot_tilt_curve(dataX, start_date, end_date, 'X');
+clear dataX  %# frees all the big time/value arrays in memory
 
 % 处理 Y 组
 [statsY, dataY] = process_group(root_dir, subfolder, groupY, start_date, end_date, 'Y');
 plot_tilt_curve(dataY, start_date, end_date, 'Y');
+clear dataY
 
 % 写入 Excel
 T_X = cell2table(statsX, 'VariableNames', {'PointID','Min','Max','Mean'});

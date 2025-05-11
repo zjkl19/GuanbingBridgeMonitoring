@@ -66,7 +66,7 @@ end
 T = cell2table(stats, 'VariableNames', ...
     {'PointID','OrigMin_mm','OrigMax_mm','OrigMean_mm','FiltMin_mm','FiltMax_mm','FiltMean_mm'});
 writetable(T, excel_file);
-fprintf('应变统计已保存至 %s\n', excel_file);
+fprintf('挠度统计已保存至 %s\n', excel_file);
 end
 
 function [all_time, all_val] = extract_deflection_data(root_dir, subfolder, point_id, start_date, end_date)
