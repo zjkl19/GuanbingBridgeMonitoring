@@ -47,6 +47,8 @@ for i = 1:nPts
     ax.XTick = xt;
     xtickformat('yyyy-MM-dd');
     xlabel('时间'); ylabel('环境温度（℃）');
+    tmp_manual = true;
+    if tmp_manual, ylim([0,35]); else, ylim auto; end
     grid on; grid minor;
     title(sprintf('测点 %s 温度时程曲线', pid));
     % 保存

@@ -111,6 +111,8 @@ yl.LabelHorizontalAlignment = 'center';
 yl.LabelVerticalAlignment = 'bottom';
 yl.FontSize = 12;
 % 网格与标签
+tmp_manual = true;
+if tmp_manual, ylim([20,100]); else, ylim auto; end
 grid on; grid minor;
 title(sprintf('测点 %s 湿度时程曲线', pid));
 xlabel('时间');

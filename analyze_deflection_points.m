@@ -40,8 +40,18 @@ for g = 1:numel(groups)
             warning('测点 %s 无数据，跳过。', pid);
             continue;
         end
-        
-        win_len=201;
+         % 动态计算中值滤波窗口长度
+        if numel(times) >= 2
+            dts = seconds(diff(times));
+            fs = 1/median(dts);
+            window_sec = 10*60;                        % 10分钟窗
+            %win_len = max(201, round(window_sec * fs));  % 至少201点
+            win_len =  round(window_sec * fs);
+            if mod(win_len,2)==0, win_len = win_len + 1; end
+        else
+            win_len=201;
+        end
+       disp(['中值滤波窗口长度: ', num2str(win_len)]);
         % 中值滤波
         vals_f = medfilt1(vals, win_len);
 
@@ -99,7 +109,7 @@ for j = 1:numel(dates)
     times = T{:,1}; vals = T{:,2};
     % === 基础清洗 ===
     % 阈值过滤：超出 [-100,100] 置 NaN
-    vals = clean_threshold(vals, times, struct('min', 0, 'max', 31, 't_range', []));
+    vals = clean_threshold(vals, times, struct('min', -3, 'max', 31, 't_range', []));
     % 去除 0 值
     vals = clean_zero(vals, times, struct('t_range', []));
     % 示例：针对特殊测点额外清洗
@@ -108,18 +118,41 @@ for j = 1:numel(dates)
     % end
     if strcmp(point_id, 'GB-DIS-G05-001-01Y')
         vals = clean_threshold(vals, times, struct('min', -1, 'max', 26, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -20, 'max', 13.5, 't_range', [datetime('2025-03-29 13:00:00'), datetime('2025-04-01 20:00:00')]));
     end
     if strcmp(point_id, 'GB-DIS-G05-001-02Y')
         vals = clean_threshold(vals, times, struct('min', -1, 'max', 22, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -20, 'max', 13.5, 't_range', [datetime('2025-03-29 13:00:00'), datetime('2025-04-01 20:00:00')]));
+    end
+    if strcmp(point_id, 'GB-DIS-G05-002-03Y')
+        vals = clean_threshold(vals, times, struct('min', 2, 'max', 40, 't_range', [datetime('2025-04-09 00:00:00'), datetime('2025-04-21 23:00:00')]));
+    end
+    if strcmp(point_id, 'GB-DIS-G05-003-02Y')
+        vals = clean_threshold(vals, times, struct('min', 2, 'max', 40, 't_range', [datetime('2025-04-02 00:00:00'), datetime('2025-04-20 23:00:00')]));
     end
     if strcmp(point_id, 'GB-DIS-G06-001-01Y')
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 19, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -2, 'max', 17, 't_range', []));
     end
     if strcmp(point_id, 'GB-DIS-G06-001-02Y')
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 19, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -2, 'max', 17, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-G06-002-01Y')
+        vals = clean_threshold(vals, times, struct('min', -3, 'max', 28, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -3, 'max', 25, 't_range', [datetime('2025-04-23 00:00:00'), datetime('2025-04-25 23:00:00')]));
+    end
+    if strcmp(point_id, 'GB-DIS-G06-002-02Y')
+        vals = clean_threshold(vals, times, struct('min', -3, 'max', 26, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -3, 'max', 25, 't_range', [datetime('2025-04-23 00:00:00'), datetime('2025-04-25 23:00:00')]));
+    end
+    if strcmp(point_id, 'GB-DIS-G06-002-03Y')
+        vals = clean_threshold(vals, times, struct('min', -2, 'max', 27, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -3, 'max', 25, 't_range', [datetime('2025-04-23 00:00:00'), datetime('2025-04-25 23:00:00')]));
     end
     if strcmp(point_id, 'GB-DIS-G06-003-01Y')
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 20, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -2, 'max', 16, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-G06-003-02Y')
+        vals = clean_threshold(vals, times, struct('min', -2, 'max', 16, 't_range', []));
     end
     % =====================
     all_time = [all_time; times];
