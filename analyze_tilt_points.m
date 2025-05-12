@@ -127,7 +127,20 @@ for j = 1:numel(dates)
         if contains(ln,'[绝对时间]'), break; end
     end; fclose(fid);
     T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-    all_t = [all_t; T{:,1}]; all_v = [all_v; T{:,2}];
+    times=T{:,1};vals=T{:,2};
+    point_id=pid;
+    if strcmp(point_id, 'GB-DIS-P04-001-01-X')
+        vals = clean_threshold(vals, times, struct('min', -0.1, 'max', 0.02, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-P06-001-01-X')
+        vals = clean_threshold(vals, times, struct('min', -0.1, 'max', 0.02, 't_range', []));
+    end
+    if ismember(point_id, {'GB-DIS-P04-001-01-Y','GB-DIS-P05-001-01-Y', 'GB-DIS-P06-001-01-Y'})
+        vals = clean_threshold(vals, times, struct('min', -0.07, 'max', 0.056, 't_range', []));
+    end
+    all_t = [all_t; times]; all_v = [all_v; vals];
+
 end
 [times, ix] = sort(all_t); vals = all_v(ix);
+
 end

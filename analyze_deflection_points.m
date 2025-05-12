@@ -44,6 +44,8 @@ for g = 1:numel(groups)
         if numel(times) >= 2
             dts = seconds(diff(times));
             fs = 1/median(dts);
+            win_samps = round(fs * 10);        % x 秒窗口
+
             window_sec = 10*60;                        % 10分钟窗
             %win_len = max(201, round(window_sec * fs));  % 至少201点
             win_len =  round(window_sec * fs);
@@ -51,10 +53,13 @@ for g = 1:numel(groups)
         else
             win_len=201;
         end
+        disp("第" + i+ "个测点采样频率 "+fs+"Hz");
        disp(['中值滤波窗口长度: ', num2str(win_len)]);
         % 中值滤波
-        vals_f = medfilt1(vals, win_len);
-
+        
+        %vals_f = medfilt1(vals, win_len);
+        win_samps = round(fs * 10*600);
+        vals_f =movmedian(vals, win_samps, 'omitnan');
         % 统计（都忽略 NaN）
         orig_times{i} = times;    orig_vals{i} = vals;
         filt_times{i} = times;    filt_vals{i} = vals_f;
@@ -112,48 +117,60 @@ for j = 1:numel(dates)
     vals = clean_threshold(vals, times, struct('min', -3, 'max', 31, 't_range', []));
     % 去除 0 值
     vals = clean_zero(vals, times, struct('t_range', []));
+
+   % === 去除短时尖刺（秒窗口移动中值法）===
+   if numel(vals)>=2
+       % 估计采样频率 fs
+            dts = seconds(diff(times));
+            fs = 1/median(dts);
+       win_samps = round(fs * 15);        % x 秒窗口
+       % 找出移动中值离群点
+       mask = isoutlier(vals, 'movmedian', win_samps,'ThresholdFactor', 3);
+       vals(mask) = NaN;
+   end
+   % =====================
     % 示例：针对特殊测点额外清洗
     % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
     %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 20, 't_range', [datetime('2025-02-28 20:00:00'), datetime('2025-02-28 23:00:00')]));
     % end
-    if strcmp(point_id, 'GB-DIS-G05-001-01Y')
-        vals = clean_threshold(vals, times, struct('min', -1, 'max', 26, 't_range', []));
-        vals = clean_threshold(vals, times, struct('min', -20, 'max', 13.5, 't_range', [datetime('2025-03-29 13:00:00'), datetime('2025-04-01 20:00:00')]));
-    end
-    if strcmp(point_id, 'GB-DIS-G05-001-02Y')
-        vals = clean_threshold(vals, times, struct('min', -1, 'max', 22, 't_range', []));
-        vals = clean_threshold(vals, times, struct('min', -20, 'max', 13.5, 't_range', [datetime('2025-03-29 13:00:00'), datetime('2025-04-01 20:00:00')]));
-    end
-    if strcmp(point_id, 'GB-DIS-G05-002-03Y')
-        vals = clean_threshold(vals, times, struct('min', 2, 'max', 40, 't_range', [datetime('2025-04-09 00:00:00'), datetime('2025-04-21 23:00:00')]));
-    end
-    if strcmp(point_id, 'GB-DIS-G05-003-02Y')
-        vals = clean_threshold(vals, times, struct('min', 2, 'max', 40, 't_range', [datetime('2025-04-02 00:00:00'), datetime('2025-04-20 23:00:00')]));
-    end
-    if strcmp(point_id, 'GB-DIS-G06-001-01Y')
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 17, 't_range', []));
-    end
-    if strcmp(point_id, 'GB-DIS-G06-001-02Y')
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 17, 't_range', []));
-    end
-    if strcmp(point_id, 'GB-DIS-G06-002-01Y')
-        vals = clean_threshold(vals, times, struct('min', -3, 'max', 28, 't_range', []));
-        vals = clean_threshold(vals, times, struct('min', -3, 'max', 25, 't_range', [datetime('2025-04-23 00:00:00'), datetime('2025-04-25 23:00:00')]));
-    end
-    if strcmp(point_id, 'GB-DIS-G06-002-02Y')
-        vals = clean_threshold(vals, times, struct('min', -3, 'max', 26, 't_range', []));
-        vals = clean_threshold(vals, times, struct('min', -3, 'max', 25, 't_range', [datetime('2025-04-23 00:00:00'), datetime('2025-04-25 23:00:00')]));
-    end
-    if strcmp(point_id, 'GB-DIS-G06-002-03Y')
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 27, 't_range', []));
-        vals = clean_threshold(vals, times, struct('min', -3, 'max', 25, 't_range', [datetime('2025-04-23 00:00:00'), datetime('2025-04-25 23:00:00')]));
-    end
-    if strcmp(point_id, 'GB-DIS-G06-003-01Y')
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 16, 't_range', []));
-    end
-    if strcmp(point_id, 'GB-DIS-G06-003-02Y')
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 16, 't_range', []));
-    end
+    % if strcmp(point_id, 'GB-DIS-G05-001-01Y')
+    %     vals = clean_threshold(vals, times, struct('min', -1, 'max', 26, 't_range', []));
+    %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 13.5, 't_range', [datetime('2025-03-29 13:00:00'), datetime('2025-04-01 20:00:00')]));
+    % end
+    % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
+    %     vals = clean_threshold(vals, times, struct('min', -1, 'max', 22, 't_range', []));
+    %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 13.5, 't_range', [datetime('2025-03-29 13:00:00'), datetime('2025-04-01 20:00:00')]));
+    % end
+    % if strcmp(point_id, 'GB-DIS-G05-002-03Y')
+    %     vals = clean_threshold(vals, times, struct('min', 2, 'max', 40, 't_range', [datetime('2025-04-09 00:00:00'), datetime('2025-04-21 23:00:00')]));
+    % end
+    % if strcmp(point_id, 'GB-DIS-G05-003-02Y')
+    %     vals = clean_threshold(vals, times, struct('min', 2, 'max', 40, 't_range', [datetime('2025-04-02 00:00:00'), datetime('2025-04-20 23:00:00')]));
+    % end
+    % if strcmp(point_id, 'GB-DIS-G06-001-01Y')
+    %     vals = clean_threshold(vals, times, struct('min', -2, 'max', 17, 't_range', []));
+    % end
+    % if strcmp(point_id, 'GB-DIS-G06-001-02Y')
+    %     vals = clean_threshold(vals, times, struct('min', -2, 'max', 17, 't_range', []));
+    % end
+    % if strcmp(point_id, 'GB-DIS-G06-002-01Y')
+    %     vals = clean_threshold(vals, times, struct('min', -3, 'max', 28, 't_range', []));
+    %     vals = clean_threshold(vals, times, struct('min', -3, 'max', 25, 't_range', [datetime('2025-04-23 00:00:00'), datetime('2025-04-25 23:00:00')]));
+    % end
+    % if strcmp(point_id, 'GB-DIS-G06-002-02Y')
+    %     vals = clean_threshold(vals, times, struct('min', -3, 'max', 26, 't_range', []));
+    %     vals = clean_threshold(vals, times, struct('min', -3, 'max', 25, 't_range', [datetime('2025-04-23 00:00:00'), datetime('2025-04-25 23:00:00')]));
+    % end
+    % if strcmp(point_id, 'GB-DIS-G06-002-03Y')
+    %     vals = clean_threshold(vals, times, struct('min', -2, 'max', 27, 't_range', []));
+    %     vals = clean_threshold(vals, times, struct('min', -3, 'max', 25, 't_range', [datetime('2025-04-23 00:00:00'), datetime('2025-04-25 23:00:00')]));
+    % end
+    % if strcmp(point_id, 'GB-DIS-G06-003-01Y')
+    %     vals = clean_threshold(vals, times, struct('min', -2, 'max', 16, 't_range', []));
+    % end
+    % if strcmp(point_id, 'GB-DIS-G06-003-02Y')
+    %     vals = clean_threshold(vals, times, struct('min', -2, 'max', 16, 't_range', []));
+    % end
     % =====================
     all_time = [all_time; times];
     all_val  = [all_val;  vals];
