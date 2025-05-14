@@ -1,112 +1,101 @@
-function analyze_strain_points1(root_dir, start_date, end_date, excel_file, subfolder)
-% analyze_strain_points 批量绘制主梁应变时程曲线并统计指标
-%   root_dir: 根目录，例如 'F:/管柄大桥健康监测数据/'
+function analyze_temperature_points1(root_dir, point_ids, start_date, end_date, excel_file, subfolder)
+% analyze_temperature_points 批量绘制多个测点温度时程曲线并统计基本指标（合并至单文件）
+%   root_dir: 根目录，例如 'G:/BaiduNetdiskDownload/管柄大桥数据'
+%   point_ids: 测点编号 cell 数组，例如 {'GB-RTS-G05-001-01','GB-RTS-G05-001-02'}
 %   start_date,end_date: 日期范围，'yyyy-MM-dd'
-%   excel_file: 输出统计 Excel，如 'strain_stats.xlsx'
+%   excel_file: 输出统计 Excel 路径，例如 'temp_stats.xlsx'
 %   subfolder: 数据所在子文件夹，默认 '特征值'
 
 if nargin<1||isempty(root_dir),    root_dir = pwd; end
-if nargin<2||isempty(start_date),   start_date = input('开始日期 (yyyy-MM-dd): ','s'); end
-if nargin<3||isempty(end_date),     end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
-if nargin<4||isempty(excel_file),   excel_file = 'strain_stats.xlsx'; end
-if nargin<5||isempty(subfolder),    subfolder  = '特征值'; end
+if nargin<2||isempty(point_ids),    error('请提供 point_ids cell 数组'); end
+if nargin<3||isempty(start_date),   start_date = input('开始日期 (yyyy-MM-dd): ','s'); end
+if nargin<4||isempty(end_date),     end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
+if nargin<5||isempty(excel_file),   excel_file = 'temperature_stats.xlsx'; end
 
-% 定义测点分组
-groups = { ...
-    {'GB-RSG-G05-001-01', 'GB-RSG-G05-001-02', 'GB-RSG-G05-001-03', 'GB-RSG-G05-001-04', 'GB-RSG-G05-001-05', 'GB-RSG-G05-001-06'}, ...
-    {'GB-RSG-G06-001-01', 'GB-RSG-G06-001-02', 'GB-RSG-G06-001-03', 'GB-RSG-G06-001-04', 'GB-RSG-G06-001-05', 'GB-RSG-G06-001-06'} ...
-    };
+nPts = numel(point_ids);
+stats = cell(nPts,4);
 
-% 结果存表：PID, Min, Max, Mean
-stats = {};
-row = 1;
-% 提取并统计
-for gi = 1:numel(groups)
-    for i = 1:numel(groups{gi})
-        pid = groups{gi}{i};
-        [t, v] = extract_strain_data(root_dir, subfolder, pid, start_date, end_date);
-        if isempty(v)
-            warning('无 %s 数据', pid);
-            continue;
-        end
-        stats(row,:) = {pid, round(min(v)), round(max(v)), round(mean(v))};
-        row = row + 1;
+dn0 = datenum(start_date,'yyyy-mm-dd');
+dn1 = datenum(end_date,  'yyyy-mm-dd');
+% 通用存图目录
+timestamp = datestr(now,'yyyymmdd_HHMMSS');
+outDir = fullfile(root_dir,'时程曲线_温度');
+if ~exist(outDir,'dir'), mkdir(outDir); end
+
+for i = 1:nPts
+    pid = point_ids{i};
+    fprintf('Processing %s...\n', pid);
+    % 提取数据
+    [all_time, all_val] = extract_point_data(root_dir, subfolder,pid, dn0, dn1);
+    if isempty(all_val)
+        warning('测点 %s 无数据, 跳过', pid);
+        continue;
     end
+    % 绘图
+    fig = figure('Position',[100 100 1000 469]); hold on;
+    plot(all_time, all_val,'LineWidth',1);
+    % 均值横线
+    avg_val = round(mean(all_val),1);
+    yline(avg_val,'--r',sprintf('平均值 %.1f',avg_val),...
+        'LabelHorizontalAlignment','center','LabelVerticalAlignment','bottom');
+    % 刻度和格式
+    numDiv = 4;
+    tk = linspace(dn0,dn1,numDiv+1);
+    xt = datetime(tk,'ConvertFrom','datenum');
+    ax = gca;
+    ax.XLim = [xt(1) xt(end)];
+    ax.XTick = xt;
+    xtickformat('yyyy-MM-dd');
+    xlabel('时间'); ylabel('环境温度（℃）');
+    tmp_manual = true;
+    if tmp_manual, ylim([0,35]); else, ylim auto; end
+    grid on; grid minor;
+    title(sprintf('测点 %s 温度时程曲线', pid));
+    % 保存
+    base = sprintf('%s_%s_%s', pid, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
+    saveas(fig, fullfile(outDir,[base '_' timestamp '.jpg']));
+    saveas(fig, fullfile(outDir,[base '_' timestamp '.emf']));
+    savefig(fig, fullfile(outDir,[base '_' timestamp '.fig']), 'compact');
+    close(fig);
+    % 统计
+    mn = min(all_val);
+    mx = max(all_val);
+    stats{i,1} = pid;
+    stats{i,2} = mn;
+    stats{i,3} = mx;
+    stats{i,4} = avg_val;
 end
 % 写 Excel
-T = cell2table(stats, 'VariableNames', {'PointID','Min','Max','Mean'});
-writetable(T, excel_file);
-fprintf('应变统计已保存至 %s\n', excel_file);
-
-% 通用时间刻度
-dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd');
-dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
-ticks = datetime(linspace(datenum(dt0), datenum(dt1),5),'ConvertFrom','datenum');
-
-% 绘图
-for gi = 1:numel(groups)
-    pid_list = groups{gi};
-    fig=figure('Position',[100 100 1000 469]); hold on;
-    for i = 1:numel(pid_list)
-        [t,v] = extract_strain_data(root_dir, subfolder, pid_list{i}, start_date, end_date);
-        plot(t, v, 'LineWidth',1);
-    end
-    legend(pid_list,'Location','northeast','Box','off');
-    xlabel('时间'); ylabel('主梁应变 (με)');
-    % 组别对应手动 YLim
-    manual_ylims = {[-200,200], [-350,200]}; % 可根据需要自行调整每组 YLim
-
-    tmp_manual = true;
-    if tmp_manual
-        ylim(manual_ylims{gi});
-    else
-        ylim auto;
-    end
-    ax=gca; ax.XLim=[ticks(1) ticks(end)]; ax.XTick=ticks; xtickformat('yyyy-MM-dd');
-    grid on; grid minor;
-    title(sprintf('应变时程曲线 组%d',gi));
-    ts=datestr(now,'yyyymmdd_HHMMSS'); out=fullfile(root_dir,'时程曲线_应变'); if ~exist(out,'dir'), mkdir(out); end
-    fname=sprintf('StrainG%d_%s_%s',gi,datestr(dt0,'yyyyMMdd'),datestr(dt1,'yyyyMMdd'));
-    saveas(fig,fullfile(out,[fname '_' ts '.jpg']));
-    saveas(fig,fullfile(out,[fname '_' ts '.emf']));
-    savefig(fig,fullfile(out,[fname '_' ts '.fig']), 'compact'); close(fig);
-end
+T = cell2table(stats,'VariableNames',{'PointID','Min','Max','Mean'});
+writetable(T,excel_file);
+fprintf('统计结果已保存至 %s\n',excel_file);
 end
 
-function [all_t, all_v] = extract_strain_data(root_dir, subfolder, pid, start_date, end_date)
-all_t=[]; all_v=[];
-dn0=datenum(start_date,'yyyy-mm-dd'); dn1=datenum(end_date,'yyyy-mm-dd');
-info=dir(fullfile(root_dir,'20??-??-??')); folders={info([info.isdir]).name};
-dates=folders(datenum(folders,'yyyy-mm-dd')>=dn0 & datenum(folders,'yyyy-mm-dd')<=dn1);
-for j=1:numel(dates)
-    dirp=fullfile(root_dir,dates{j},subfolder);
+function [all_time, all_val] = extract_point_data(root_dir,subfolder, point_id, dn0, dn1)
+% extract_point_data: 按日期范围收集单测点温度数据
+all_time = [];
+all_val  = [];
+info = dir(fullfile(root_dir,'20??-??-??'));
+folders = {info([info.isdir]).name};
+valid = folders(datenum(folders,'yyyy-mm-dd')>=dn0 & datenum(folders,'yyyy-mm-dd')<=dn1);
+for j = 1:numel(valid)
+    dirp = fullfile(root_dir, valid{j}, subfolder);
     if ~exist(dirp,'dir'), continue; end
-    files=dir(fullfile(dirp,'*.csv'));
-    idx=find(arrayfun(@(f) contains(f.name,pid),files),1);
+    files = dir(fullfile(dirp,'*.csv'));
+    idx = find(arrayfun(@(f) contains(f.name, point_id), files),1);
     if isempty(idx), continue; end
-    fp=fullfile(files(idx).folder,files(idx).name);
-    fid=fopen(fp,'rt'); h=0;
+    fp = fullfile(files(idx).folder, files(idx).name);
+    % 自动检测头部行数（最多前50行）
+    fid= fopen(fp,'rt'); h=0;
     while h<50 && ~feof(fid)
-        ln=fgetl(fid); h=h+1;
+        ln = fgetl(fid); h=h+1;
         if contains(ln,'[绝对时间]'), break; end
     end; fclose(fid);
-    T=readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-    times = T{:,1}; vals = T{:,2};
-    % === 数据清洗 ===
-    vals = clean_threshold(vals, times, struct('min', -400, 'max', 200, 't_range', []));
-    if strcmp(pid, 'GB-RSG-G06-001-02')
-        vals = clean_threshold(vals, times, struct('min', -350, 'max', 20, 't_range', []));
-    end
-    if strcmp(pid, 'GB-RSG-G06-001-03')
-        vals = clean_threshold(vals, times, struct('min', -350, 'max', -17, 't_range', []));
-    end
-    if strcmp(pid, 'GB-RSG-G06-001-06')
-        vals = clean_threshold(vals, times, struct('min', -350, 'max', 20, 't_range', []));
-    end
-    % === === ===
-    all_t=[all_t;times]; all_v=[all_v;vals];
+    % 读取
+    T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+    all_time = [all_time; T{:,1}];
+    all_val  = [all_val;  T{:,2}];
 end
-[all_t,ix]=sort(all_t); all_v=all_v(ix);
-all_v = apply_lowpass(all_t, all_v);
-
+[all_time, ix] = sort(all_time);
+all_val = all_val(ix);
 end

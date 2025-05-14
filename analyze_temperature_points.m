@@ -85,14 +85,47 @@ for j = 1:numel(valid)
     idx = find(arrayfun(@(f) contains(f.name, point_id), files),1);
     if isempty(idx), continue; end
     fp = fullfile(files(idx).folder, files(idx).name);
-    % 自动检测头部行数（最多前50行）
-    fid= fopen(fp,'rt'); h=0;
-    while h<50 && ~feof(fid)
-        ln = fgetl(fid); h=h+1;
-        if contains(ln,'[绝对时间]'), break; end
-    end; fclose(fid);
-    % 读取
-    T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+
+    [~, name, ~] = fileparts(fp);
+
+    % ---- 以下是新增的缓存逻辑 ----
+    cache_dir = fullfile(files(idx).folder, 'cache');
+    if ~exist(cache_dir,'dir')
+        mkdir(cache_dir);
+    end
+    cacheFile = fullfile(cache_dir, [name '.mat']);
+
+    useCache = false;
+    if exist(cacheFile,'file')
+        infoCSV = dir(fp);
+        infoMAT = dir(cacheFile);
+        % 只有当 MAT 更新于 CSV 时才使用缓存
+        if datenum(infoMAT.date) > datenum(infoCSV.date)
+            useCache = true;
+        end
+    end
+    
+    if useCache
+        S = load(cacheFile,'T');
+        T = S.T;
+    else
+        % 读 CSV
+        fid = fopen(fp,'rt'); h=0;
+        while h<50 && ~feof(fid)
+            ln = fgetl(fid); h=h+1;
+            if contains(ln,'[绝对时间]'), break; end
+        end
+        fclose(fid);
+        T = readtable(fp, ...
+            'Delimiter',',', ...
+            'HeaderLines',h, ...
+            'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+
+        % 写缓存
+        save(cacheFile,'T');
+        S.T = T;
+    end
+    % ---- 缓存逻辑结束 ----
     all_time = [all_time; T{:,1}];
     all_val  = [all_val;  T{:,2}];
 end
