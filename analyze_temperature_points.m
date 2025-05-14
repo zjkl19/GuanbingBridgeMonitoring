@@ -43,7 +43,7 @@ for i = 1:nPts
     tk = linspace(dn0,dn1,numDiv+1);
     xt = datetime(tk,'ConvertFrom','datenum');
     ax = gca;
-    ax.XLim = [xt(1) xt(end)];
+    ax.XLim = [xt(1) xt(end)];  %bug:只有1天的情况下会报错
     ax.XTick = xt;
     xtickformat('yyyy-MM-dd');
     xlabel('时间'); ylabel('环境温度（℃）');

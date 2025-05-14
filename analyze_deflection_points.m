@@ -109,9 +109,39 @@ for j = 1:numel(dates)
     end
     fclose(fid);
     % 读取数据
-    T = readtable(fullpath, 'Delimiter', ',', 'HeaderLines', h, 'Format', '%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-    
-    times = T{:,1}; vals = T{:,2};
+    % ==== 缓存机制开始 ====
+    cacheDir = fullfile(dirp, 'cache');
+    if ~exist(cacheDir,'dir'), mkdir(cacheDir); end
+
+    [~, name, ~] = fileparts(fullpath);
+    cacheFile = fullfile(cacheDir, [name '.mat']);
+    useCache = false;
+
+    if exist(cacheFile,'file')
+        infoCSV = dir(fullpath);
+        infoMAT = dir(cacheFile);
+        % 只有当 MAT 比 CSV 新时才用缓存
+        if datenum(infoMAT.date) > datenum(infoCSV.date)
+            tmp = load(cacheFile, 'times','vals');
+            times = tmp.times;
+            vals  = tmp.vals;
+            useCache = true;
+        end
+    end
+
+    if ~useCache
+        % 从 CSV 读
+        T = readtable(fullpath, ...
+            'Delimiter',',', ...
+            'HeaderLines',h, ...
+            'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+        times = T{:,1};
+        vals  = T{:,2};
+        % 写入缓存
+        save(cacheFile, 'times','vals');
+    end
+    % ==== 缓存机制结束 ====
+
     % === 基础清洗 ===
     % 阈值过滤：超出 [-100,100] 置 NaN
     vals = clean_threshold(vals, times, struct('min', -3, 'max', 31, 't_range', []));
