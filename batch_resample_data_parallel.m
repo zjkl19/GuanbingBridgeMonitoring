@@ -97,7 +97,9 @@ parfor i=1:N
             if contains(line,'[绝对时间]'), found=true; break; end
         end; fclose(fid);
         if ~found
-            msg{i} = sprintf('%s 跳过: 无可检测头部',fnames{i}); continue;
+            h=1;
+            msg{i} = sprintf('%s 跳过: 无可检测头部',fnames{i}); 
+            found=true;
         end
         % 读取并重采样
         T = readtable(infile,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');

@@ -14,6 +14,9 @@ groups = { ...
     {'GB-CRK-G06-001-01','GB-CRK-G06-001-02','GB-CRK-G06-001-03','GB-CRK-G06-001-04'} ...
 };
 
+% 手动指定每组的 YLim 范围
+manual_ylims = {[-0.25, 0.25], [-0.3, 0.3]};  % 每组的 YLim 范围，可以根据实际需要调整
+
 % 初始化统计表
 stats = {};
 row = 1;
@@ -38,12 +41,13 @@ for gi = 1:numel(groups)
             round(min(vt),3), round(max(vt),3), round(mean(vt),3)};
         row = row + 1;
     end
-    % 绘制裂缝宽度曲线
+    % 绘制裂缝宽度曲线，传递手动指定的 YLim 范围
     plot_group_curve(crack_times, crack_vals, pid_list, '裂缝宽度 (mm)', ...
-                     fullfile(root_dir,'时程曲线_裂缝宽度 (mm)'), gi, start_date, end_date);
-    % 绘制温度曲线
+                     fullfile(root_dir,'时程曲线_裂缝宽度 (mm)'), gi, start_date, end_date, manual_ylims{gi});
+    % 绘制温度曲线，传递手动指定的 YLim 范围
     plot_group_curve(temp_times, temp_vals, pid_list, '裂缝温度 (℃)', ...
-                     fullfile(root_dir,'时程曲线_裂缝温度 (℃)'), gi, start_date, end_date);
+                     fullfile(root_dir,'时程曲线_裂缝温度 (℃)'), gi, start_date, end_date, manual_ylims{gi});
+
 end
 % 写Excel
 T = cell2table(stats, 'VariableNames',{'PointID','CrkMin','CrkMax','CrkMean','TmpMin','TmpMax','TmpMean'});
@@ -51,13 +55,26 @@ writetable(T, excel_file);
 fprintf('统计结果已保存至 %s\n', excel_file);
 end
 
-function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, out_dir, group_idx, start_date, end_date)
+function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, out_dir, group_idx, start_date, end_date, ylim_range)
+
 % 通用组曲线绘制
 if ~exist(out_dir,'dir'), mkdir(out_dir); end
 fig = figure('Position',[100 100 1000 469]); hold on;
-for i = 1:numel(labels)
-    plot(times_cell{i}, vals_cell{i}, 'LineWidth',1);
+N = numel(labels);
+colors_4 = {
+    [0 0 0],    % 黑色
+    [1 0 0],    % 红色
+    [0 0 1],    % 蓝色
+    [0 0.7 0]   % 绿色
+};
+for i = 1:N
+    if N == 4
+        plot(times_cell{i}, vals_cell{i}, 'LineWidth', 1.0, 'Color', colors_4{i});
+    else
+        plot(times_cell{i}, vals_cell{i}, 'LineWidth', 1.0); % 默认颜色
+    end
 end
+
 legend(labels,'Location','northeast','Box','off');
 xlabel('时间'); ylabel(ylabel_str);
 % 时间刻度
@@ -66,6 +83,12 @@ dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
 ticks = datetime(linspace(datenum(dt0),datenum(dt1),5),'ConvertFrom','datenum');
 ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = ticks;
 xtickformat('yyyy-MM-dd'); grid on; grid minor;
+% 设置 Y 轴范围
+if ~isempty(ylim_range)
+    ylim(ylim_range);  % 使用手动设置的 YLim 范围
+else
+    ylim auto;         % 否则自动调整
+end
 % 保存
 ts = datestr(now,'yyyymmdd_HHMMSS');
 fname = sprintf('%s_G%d_%s_%s', ylabel_str, group_idx, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));

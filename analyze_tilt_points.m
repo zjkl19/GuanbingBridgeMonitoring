@@ -64,10 +64,19 @@ dn0 = datenum(t0,'yyyy-mm-dd'); dn1 = datenum(t1,'yyyy-mm-dd');
 
 % 多条曲线
 hLines = gobjects(numel(dataList),1);
-for i = 1:numel(dataList)
+N = numel(dataList);
+% 3条线：黑、红、蓝
+colors_3 = {[0 0 0], [1 0 0], [0 0 1]};  % 黑、红、蓝
+
+for i = 1:N
     d = dataList(i);
     if isempty(d.vals), continue; end
-    hLines(i) = plot(d.times, d.vals, 'LineWidth',1);
+    if N == 3
+        c = colors_3{i};
+        hLines(i) = plot(d.times, d.vals, 'LineWidth', 1.0, 'Color', c);
+    else
+        hLines(i) = plot(d.times, d.vals, 'LineWidth', 1.0); % 默认色
+    end
 end
 legend(hLines, {dataList.pid}, 'Location','northeast','Box','off');
 lg = legend; lg.AutoUpdate = 'off';

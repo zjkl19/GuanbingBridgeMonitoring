@@ -47,9 +47,25 @@ ticks = datetime(linspace(datenum(dt0), datenum(dt1),5),'ConvertFrom','datenum')
 for gi = 1:numel(groups)
     pid_list = groups{gi};
     fig=figure('Position',[100 100 1000 469]); hold on;
-    for i = 1:numel(pid_list)
-        [t,v] = extract_strain_data(root_dir, subfolder, pid_list{i}, start_date, end_date);
-        plot(t, v, 'LineWidth',1);
+    N = numel(pid_list);
+    % 5条及以上的手动配色（第6条线红色，满足你的要求）
+    colors_6 = {
+        [0 0 0],         % 黑色
+        [0 0 1],         % 蓝色
+        [0 0.7 0],       % 绿色
+        [1 0.4 0.8],     % 粉红色
+        [1 0.6 0],       % 橙色
+        [1 0 0]          % 红色
+    };
+    
+    for i = 1:N
+        [t, v] = extract_strain_data(root_dir, subfolder, pid_list{i}, start_date, end_date);
+        if N == 5 || N == 6
+            c = colors_6{i};
+            plot(t, v, 'LineWidth', 1.0, 'Color', c);
+        else
+            plot(t, v, 'LineWidth', 1.0); % 默认颜色
+        end
     end
     legend(pid_list,'Location','northeast','Box','off');
     xlabel('时间'); ylabel('主梁应变 (με)');

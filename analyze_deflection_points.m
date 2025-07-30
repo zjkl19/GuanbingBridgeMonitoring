@@ -232,8 +232,22 @@ dn0 = datenum(start_date,'yyyy-mm-dd'); dn1 = datenum(end_date,'yyyy-mm-dd');
 % 绘制多条曲线并生成句柄
 h = gobjects(numel(pid_list),1);
 
-for i = 1:numel(pid_list)
-    plot(times_list{i}, vals_list{i}, 'LineWidth', 1);
+N = numel(pid_list);
+
+% 2条线：蓝、绿；3条线：紫、蓝、绿
+colors_2 = {[0 0 1], [0 0.7 0]};                  % 蓝，绿
+colors_3 = {[0.5 0 0.7], [0 0 1], [0 0.7 0]};     % 紫，蓝，绿
+
+for i = 1:N
+    if N == 2
+        c = colors_2{i};
+    elseif N == 3
+        c = colors_3{i};
+    else
+        cmap = lines(N);   % 默认Matlab配色
+        c = cmap(i,:);
+    end
+    plot(times_list{i}, vals_list{i}, 'LineWidth', 1.0, 'Color', c);
 end
 
 lg=legend(pid_list,'Location','northeast','Box','off');
