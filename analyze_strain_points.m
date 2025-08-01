@@ -101,23 +101,35 @@ for j=1:numel(dates)
     idx=find(arrayfun(@(f) contains(f.name,pid),files),1);
     if isempty(idx), continue; end
     fp=fullfile(files(idx).folder,files(idx).name);
-    fid=fopen(fp,'rt'); h=0;
+    fid = fopen(fp,'rt');
+    h = 0;
+    found = false;               % ← 初始化 found
     while h<50 && ~feof(fid)
         ln=fgetl(fid); h=h+1;
-        if contains(ln,'[绝对时间]'), break; end
-    end; fclose(fid);
+        if contains(ln,'[绝对时间]')
+            found = true; 
+            break;
+        end
+    end
+    if ~found
+       warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+       h = 0;                  % ← 避免把所有行当成 header 跳过
+    end
+    fclose(fid);
     T=readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
     times = T{:,1}; vals = T{:,2};
     % === 数据清洗 ===
     vals = clean_threshold(vals, times, struct('min', -400, 'max', 200, 't_range', []));
-    if strcmp(pid, 'GB-RSG-G06-001-02')
+    if strcmp(pid, 'GB-RSG-G05-001-03')
         vals = clean_threshold(vals, times, struct('min', -350, 'max', 20, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', 0, 'max', 0, 't_range', [datetime('2025-04-26 00:00:00'), datetime('2025-05-10 00:00:00')]));
     end
-    if strcmp(pid, 'GB-RSG-G06-001-03')
-        vals = clean_threshold(vals, times, struct('min', -350, 'max', -17, 't_range', []));
-    end
-    if strcmp(pid, 'GB-RSG-G06-001-06')
+     if strcmp(pid, 'GB-RSG-G05-001-02')
         vals = clean_threshold(vals, times, struct('min', -350, 'max', 20, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -30, 'max', 20, 't_range', []));
+     end
+    if strcmp(pid, 'GB-RSG-G05-001-06')
+        vals = clean_threshold(vals, times, struct('min', 50, 'max', 70, 't_range', [datetime('2025-05-13 15:00:00'), datetime('2025-05-13 16:00:00')]));
     end
     % === === ===
     all_t=[all_t;times]; all_v=[all_v;vals];

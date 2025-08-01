@@ -57,14 +57,22 @@ for j = 1:numel(dates)
         warning('日期 %s 中测点 %s 匹配多个文件，仅使用 %s', day, point_id, matches(1).name);
     end
     % 检测头部前50行, 未找到也继续读取全部内容
-    fid = fopen(fullpath,'rt'); header = 0;
+
+    fid = fopen(fullpath,'rt');
+    header = 0;
+    found = false;               % ← 初始化 found
     for k = 1:50
         if feof(fid), break; end
         ln = fgetl(fid);
         header = header + 1;
         if contains(ln,'[绝对时间]')
+            found = true; 
             break;
         end
+    end
+    if ~found
+        warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fullpath);
+        header = 0;                  % ← 避免把所有行当成 header 跳过
     end
     fclose(fid);
     % 读取数据，无论是否找到头部都使用 readtable

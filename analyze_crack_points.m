@@ -12,7 +12,7 @@ if nargin<5||isempty(subfolder),  subfolder  = '特征值';         end
 groups = { ...
     {'GB-CRK-G05-001-01','GB-CRK-G05-001-02','GB-CRK-G05-001-03','GB-CRK-G05-001-04'}, ...
     {'GB-CRK-G06-001-01','GB-CRK-G06-001-02','GB-CRK-G06-001-03','GB-CRK-G06-001-04'} ...
-};
+    };
 
 % 手动指定每组的 YLim 范围
 manual_ylims = {[-0.25, 0.25], [-0.3, 0.3]};  % 每组的 YLim 范围，可以根据实际需要调整
@@ -43,10 +43,10 @@ for gi = 1:numel(groups)
     end
     % 绘制裂缝宽度曲线，传递手动指定的 YLim 范围
     plot_group_curve(crack_times, crack_vals, pid_list, '裂缝宽度 (mm)', ...
-                     fullfile(root_dir,'时程曲线_裂缝宽度 (mm)'), gi, start_date, end_date, manual_ylims{gi});
+        fullfile(root_dir,'时程曲线_裂缝宽度 (mm)'), gi, start_date, end_date, manual_ylims{gi});
     % 绘制温度曲线，传递手动指定的 YLim 范围
     plot_group_curve(temp_times, temp_vals, pid_list, '裂缝温度 (℃)', ...
-                     fullfile(root_dir,'时程曲线_裂缝温度 (℃)'), gi, start_date, end_date, manual_ylims{gi});
+        fullfile(root_dir,'时程曲线_裂缝温度 (℃)'), gi, start_date, end_date, manual_ylims{gi});
 
 end
 % 写Excel
@@ -66,7 +66,7 @@ colors_4 = {
     [1 0 0],    % 红色
     [0 0 1],    % 蓝色
     [0 0.7 0]   % 绿色
-};
+    };
 for i = 1:N
     if N == 4
         plot(times_cell{i}, vals_cell{i}, 'LineWidth', 1.0, 'Color', colors_4{i});
@@ -98,66 +98,79 @@ savefig(fig,fullfile(out_dir,[fname '_' ts '.fig']),'compact');
 close(fig);
 end
 function [all_time, all_val] = extract_crack_data(root_dir, subfolder, point_id, start_date, end_date)
-    all_time = [];
-    all_val  = [];
-    dn0 = datenum(start_date,'yyyy-mm-dd'); dn1 = datenum(end_date,'yyyy-mm-dd');
-    info = dir(fullfile(root_dir,'20??-??-??'));
-    folders = {info([info.isdir]).name};
-    dates = folders(datenum(folders,'yyyy-mm-dd')>=dn0 & datenum(folders,'yyyy-mm-dd')<=dn1);
-    is_temp = endsWith(point_id,'-t');
-    for j = 1:numel(dates)
-        dirp = fullfile(root_dir, dates{j}, subfolder);
-        if ~exist(dirp,'dir'), continue; end
-        files = dir(fullfile(dirp,'*.csv'));
-        if is_temp
-            idx = find(contains({files.name}, point_id),1);
-            if isempty(idx)
-                fprintf('DEBUG [%s]: 温度文件未找到，point_id="%s", dir="%s"\n', mfilename, point_id, dirp);
-                fprintf('    可用文件列表：\n');
-                for kk=1:numel(files)
-                    fprintf('      %s\n', files(kk).name);
-                end
-                continue;
+all_time = [];
+all_val  = [];
+dn0 = datenum(start_date,'yyyy-mm-dd'); dn1 = datenum(end_date,'yyyy-mm-dd');
+info = dir(fullfile(root_dir,'20??-??-??'));
+folders = {info([info.isdir]).name};
+dates = folders(datenum(folders,'yyyy-mm-dd')>=dn0 & datenum(folders,'yyyy-mm-dd')<=dn1);
+is_temp = endsWith(point_id,'-t');
+for j = 1:numel(dates)
+    dirp = fullfile(root_dir, dates{j}, subfolder);
+    if ~exist(dirp,'dir'), continue; end
+    files = dir(fullfile(dirp,'*.csv'));
+    if is_temp
+        idx = find(contains({files.name}, point_id),1);
+        if isempty(idx)
+            fprintf('DEBUG [%s]: 温度文件未找到，point_id="%s", dir="%s"\n', mfilename, point_id, dirp);
+            fprintf('    可用文件列表：\n');
+            for kk=1:numel(files)
+                fprintf('      %s\n', files(kk).name);
             end
-        else
-            names = {files.name};
-            valid_idx = find(contains(names, point_id) & ~contains(names,'-t') & ~contains(names,'-hz'));
-            if isempty(valid_idx)
-                fprintf('DEBUG [%s]: 裂缝文件未找到，point_id="%s", dir="%s"\n', mfilename, point_id, dirp);
-                fprintf('    可用文件列表：\n');
-                for kk=1:numel(names)
-                    fprintf('      %s\n', names{kk});
-                end
-                continue;
+            continue;
+        end
+    else
+        names = {files.name};
+        valid_idx = find(contains(names, point_id) & ~contains(names,'-t') & ~contains(names,'-hz'));
+        if isempty(valid_idx)
+            fprintf('DEBUG [%s]: 裂缝文件未找到，point_id="%s", dir="%s"\n', mfilename, point_id, dirp);
+            fprintf('    可用文件列表：\n');
+            for kk=1:numel(names)
+                fprintf('      %s\n', names{kk});
             end
-            idx = valid_idx(1);
+            continue;
         end
-        if isempty(idx), continue; end
-        fp = fullfile(files(idx).folder, files(idx).name);
-        fid = fopen(fp,'rt'); h = 0;
-        while h < 50 && ~feof(fid)
-            ln = fgetl(fid); h = h + 1;
-            if contains(ln,'[绝对时间]'), break; end
-        end
-        fclose(fid);
-        T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-        times = T{:,1}; vals = T{:,2};
-        %bug：温度一起清洗了
-        % === 基础清洗 ===
-        % 示例：针对特殊测点额外清洗
-        % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
-        %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 20, 't_range', [datetime('2025-02-28 20:00:00'), datetime('2025-02-28 23:00:00')]));
-        % end
-        vals = clean_threshold(vals, times, struct('min', -0.22, 'max', 0.20, 't_range', []));
-         if strcmp(point_id, 'GB-CRK-G05-001-01')
-            vals = clean_threshold(vals, times, struct('min', -0.22, 'max', 0.045, 't_range', []));
-        end
-        if strcmp(point_id, 'GB-CRK-G06-001-01')
-            vals = clean_threshold(vals, times, struct('min', -0.22, 'max', 0.00, 't_range', []));
-        end
-        % =====================
-
-        all_time = [all_time; times]; all_val = [all_val; vals];
+        idx = valid_idx(1);
     end
-    [all_time, ix] = sort(all_time); all_val = all_val(ix);
+    if isempty(idx), continue; end
+    fp = fullfile(files(idx).folder, files(idx).name);
+
+    fid = fopen(fp,'rt');
+    h = 0;
+    found = false;               % ← 初始化 found
+    while h < 50 && ~feof(fid)
+        ln = fgetl(fid); h = h + 1;
+        if contains(ln,'[绝对时间]')
+            found = true;
+            break;
+        end
+    end
+    if ~found
+        warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+        h = 0;                  % ← 避免把所有行当成 header 跳过
+    end
+    fclose(fid);
+    T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+    times = T{:,1}; vals = T{:,2};
+    %bug：温度一起清洗了
+    % === 基础清洗 ===
+    % 示例：针对特殊测点额外清洗
+    % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
+    %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 20, 't_range', [datetime('2025-02-28 20:00:00'), datetime('2025-02-28 23:00:00')]));
+    % end
+    vals = clean_threshold(vals, times, struct('min', -0.22, 'max', 0.20, 't_range', []));
+    if strcmp(point_id, 'GB-CRK-G05-001-01')
+        vals = clean_threshold(vals, times, struct('min', -0.22, 'max', -0.05, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-CRK-G05-001-02')
+        vals = clean_threshold(vals, times, struct('min', -0.22, 'max', -0.05, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-CRK-G06-001-01')
+        vals = clean_threshold(vals, times, struct('min', -0.22, 'max', 0.05, 't_range', []));
+    end
+    % =====================
+
+    all_time = [all_time; times]; all_val = [all_val; vals];
+end
+[all_time, ix] = sort(all_time); all_val = all_val(ix);
 end

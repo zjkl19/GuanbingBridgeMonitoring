@@ -105,17 +105,28 @@ for j = 1:numel(valid)
         end
     end
     
+
     if useCache
         S = load(cacheFile,'T');
         T = S.T;
     else
         % 读 CSV
-        fid = fopen(fp,'rt'); h=0;
+        fid = fopen(fp,'rt');
+        h = 0;
+        found = false;               % ← 初始化 found
         while h<50 && ~feof(fid)
             ln = fgetl(fid); h=h+1;
-            if contains(ln,'[绝对时间]'), break; end
+            if contains(ln,'[绝对时间]')
+                found = true; 
+                break;
+            end
+        end
+        if ~found
+           warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+           h = 0;                  % ← 避免把所有行当成 header 跳过
         end
         fclose(fid);
+
         T = readtable(fp, ...
             'Delimiter',',', ...
             'HeaderLines',h, ...

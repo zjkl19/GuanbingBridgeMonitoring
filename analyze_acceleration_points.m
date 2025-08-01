@@ -93,16 +93,56 @@ for j=1:numel(dates)
     if isempty(idx), continue; end
     fp = fullfile(dirp, files(idx).name);
     % 头部检测
-    fid = fopen(fp,'rt'); h=0;
+    fid = fopen(fp,'rt');
+    h = 0;
+    found = false;               % ← 初始化 found
     for k=1:50
         if feof(fid), break; end
         ln = fgetl(fid); h=h+1;
-        if contains(ln,'[绝对时间]'), break; end
+        if contains(ln,'[绝对时间]')
+            found = true; 
+            break;
+        end
+    end
+    if ~found
+       warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+       h = 0;                  % ← 避免把所有行当成 header 跳过
     end
     fclose(fid);
-    T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
 
-    times = T{:,1}; vals = T{:,2};
+
+% ==== 缓存机制开始 =========================
+    cacheDir = fullfile(dirp,'cache');
+    if ~exist(cacheDir,'dir'), mkdir(cacheDir); end
+
+    [~,name,~] = fileparts(fp);
+    cacheFile  = fullfile(cacheDir,[name '.mat']);
+    useCache   = false;
+
+    if exist(cacheFile,'file')
+        infoCSV = dir(fp);
+        infoMAT = dir(cacheFile);
+        % 仅当 MAT 更新且较新才使用
+        if datenum(infoMAT.date) > datenum(infoCSV.date)
+            tmp      = load(cacheFile,'times','vals');
+            times    = tmp.times;
+            vals     = tmp.vals;
+            useCache = true;
+        end
+    end
+
+    if ~useCache
+        % 从 CSV 读取并写缓存
+        T = readtable(fp, ...
+            'Delimiter',',', ...
+            'HeaderLines',h, ...
+            'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+        times = T{:,1};
+        vals  = T{:,2};
+        save(cacheFile,'times','vals');
+    end
+    % ==== 缓存机制结束 =========================================
+
     % === 基础清洗 ===
         % 示例：针对特殊测点额外清洗
         % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
@@ -110,7 +150,22 @@ for j=1:numel(dates)
         % end
          if strcmp(point_id, 'GB-VIB-G06-002-01')
             vals = clean_threshold(vals, times, struct('min', -500, 'max', 400, 't_range', []));
-        end
+         end
+         if strcmp(point_id, 'GB-VIB-G04-001-01')
+            vals = clean_threshold(vals, times, struct('min', -500, 'max', 500, 't_range', [datetime('2025-05-12 20:00:00'), datetime('2025-05-15 22:00:00')]));
+         end
+         if strcmp(point_id, 'GB-VIB-G05-003-01')
+            vals = clean_threshold(vals, times, struct('min', -500, 'max', 300, 't_range', [datetime('2025-04-26 20:00:00'), datetime('2025-05-18 22:00:00')]));
+         end
+         if strcmp(point_id, 'GB-VIB-G05-002-01')
+            vals = clean_threshold(vals, times, struct('min', -500, 'max', 500, 't_range', [datetime('2025-05-12 20:00:00'), datetime('2025-05-15 22:00:00')]));
+         end
+          if strcmp(point_id, 'GB-VIB-G06-001-01')
+            vals = clean_threshold(vals, times, struct('min', -500, 'max', 500, 't_range', [datetime('2025-05-12 20:00:00'), datetime('2025-05-15 22:00:00')]));
+          end
+          if strcmp(point_id, 'GB-VIB-G06-003-01')
+            vals = clean_threshold(vals, times, struct('min', -500, 'max', 500, 't_range', [datetime('2025-05-12 20:00:00'), datetime('2025-05-15 22:00:00')]));
+          end 
         if strcmp(point_id, 'GB-VIB-G07-001-01')
             vals = clean_threshold(vals, times, struct('min', -500, 'max', 420, 't_range', []));
         end

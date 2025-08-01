@@ -130,22 +130,38 @@ for j = 1:numel(dates)
     idx = find(arrayfun(@(f) contains(f.name,pid),files),1);
     if isempty(idx), continue; end
     fp = fullfile(files(idx).folder, files(idx).name);
-    fid = fopen(fp,'rt'); h=0;
+
+    fid = fopen(fp,'rt');
+    h = 0;
+    found = false;               % ← 初始化 found
+
     while h<50 && ~feof(fid)
         ln = fgetl(fid); h=h+1;
-        if contains(ln,'[绝对时间]'), break; end
-    end; fclose(fid);
+        if contains(ln,'[绝对时间]')
+            found = true; 
+            break;
+        end
+    end 
+    if ~found
+       warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+       h = 0;                  % ← 避免把所有行当成 header 跳过
+    end
+    fclose(fid);
     T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
     times=T{:,1};vals=T{:,2};
     point_id=pid;
     if strcmp(point_id, 'GB-DIS-P04-001-01-X')
+        vals = clean_threshold(vals, times, struct('min', -0.05, 'max', 0.02, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-P05-001-01-X')
+        vals = clean_threshold(vals, times, struct('min', -0.1, 'max', 0.02, 't_range', []));
         vals = clean_threshold(vals, times, struct('min', -0.1, 'max', 0.02, 't_range', []));
     end
     if strcmp(point_id, 'GB-DIS-P06-001-01-X')
         vals = clean_threshold(vals, times, struct('min', -0.1, 'max', 0.02, 't_range', []));
     end
     if ismember(point_id, {'GB-DIS-P04-001-01-Y','GB-DIS-P05-001-01-Y', 'GB-DIS-P06-001-01-Y'})
-        vals = clean_threshold(vals, times, struct('min', -0.07, 'max', 0.056, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -0.05, 'max', 0.056, 't_range', []));
     end
     all_t = [all_t; times]; all_v = [all_v; vals];
 
