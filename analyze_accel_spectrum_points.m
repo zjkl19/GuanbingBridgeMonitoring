@@ -25,6 +25,9 @@ if nargin<9,  use_parallel = false;                                    end
 outDirFig = fullfile(root_dir,'谱峰值曲线_加速度');
 if ~exist(outDirFig,'dir'), mkdir(outDirFig); end
 
+psdRoot = fullfile(root_dir,'PSD_备查');
+if ~exist(psdRoot,'dir'), mkdir(psdRoot); end
+
 dates_all = (datetime(start_date):days(1):datetime(end_date)).';
 Nday      = numel(dates_all);
 
@@ -69,21 +72,51 @@ fprintf('★ 已输出 Excel -> %s\n', excel_file);
 
             t0 = day + duration(0,30,0);
             t1 = day + duration(0,40,0);
+            
             winIdx = ts>=t0 & ts<=t1;
             if ~any(winIdx), continue; end
 
-            x   = detrend(val(winIdx));
-            fs  = 1/median(seconds(diff(ts(winIdx))));
-
-            % Welch 参数
-            win_sec = 20;
+            % --- 估计采样频率 & 初始 Welch 参数 -----------------
+            fs      = 1/median(seconds(diff(ts(winIdx))));
+            win_sec = 20;                              % 20 s 窗
             wlen    = round(win_sec*fs);
-            if mod(wlen,2)==1, wlen=wlen+1; end
+            if mod(wlen,2)==1, wlen = wlen+1; end
             overlap = round(0.5*wlen);
             nfft    = 2^nextpow2(max(wlen,8192));
 
+            % --- 去掉 NaN，防止 pwelch 报错 --------------------
+            x_raw = val(winIdx);
+            good  = ~isnan(x_raw) & isfinite(x_raw);
+            if nnz(good) < 3          % 有效点太少
+                continue;
+            end
+            x = detrend(x_raw(good));
+
+            % 若有效样本 < 当前窗口，重新缩小 wlen / nfft --------
+            if numel(x) < wlen
+                wlen    = numel(x);
+                overlap = round(0.5*wlen);
+                nfft    = 2^nextpow2(max(wlen,512));
+            end
+
             [Pxx,f] = pwelch(x, hamming(wlen), overlap, nfft, fs,'onesided');
             Pdb = 10*log10(Pxx);
+
+            % -------- 备查 PSD 图/fig --------
+            psdDir = fullfile(psdRoot,pid);
+            if ~exist(psdDir,'dir'), mkdir(psdDir); end
+
+            figPSD = figure('Visible','off','Position',[100 100 900 420]);
+            plot(f,Pdb,'k','LineWidth',1); grid on;
+            hold on;
+            xline(target_freqs,'--r');
+            hold off;
+            xlabel('频率 (Hz)'); ylabel('PSD (dB)');
+            title(sprintf('PSD %s  %s  (00:30–00:40)',pid,dayStr));
+            fnamePSD = fullfile(psdDir,sprintf('PSD_%s_%s',pid,dayStr));
+            saveas(figPSD,[fnamePSD '.jpg']);
+            savefig(figPSD,[fnamePSD '.fig'],'compact');
+            close(figPSD);
 
             % 提峰
             for fi = 1:nFreq
@@ -102,16 +135,18 @@ fprintf('★ 已输出 Excel -> %s\n', excel_file);
         peakAmpMat(:,:, idxPt)  = ampDay;
         peakFreqMat(:,:,idxPt)  = freqDay;
 
-        % 绘图
+
+        % 绘图：峰值“频率”时程
         fig = figure('Visible','off','Position',[100 100 1000 470]);
-        plot(dates_all, ampDay,'LineWidth',1.2);
+        plot(dates_all, freqDay,'LineWidth',1.2);
         grid on; xtickformat('yyyy-MM-dd');
-        xlabel('日期'); ylabel('PSD 峰值 (dB)');
-        legend(compose('%.3f Hz',target_freqs),'Location','best');
-        title(sprintf('测点 %s  (00:30–00:40)', pid));
+        xlabel('日期'); ylabel('峰值频率 (Hz)');
+        
+        legend({'一阶','二阶','三阶'},'Location','best');
+        title(sprintf('峰值频率时程 %s  (00:30–00:40)', pid));
 
         fname = fullfile(outDirFig, ...
-                 sprintf('Spec_%s_%s_%s', pid, ...
+                 sprintf('SpecFreq_%s_%s_%s', pid, ...
                  datestr(dates_all(1),'yyyymmdd'), ...
                  datestr(dates_all(end),'yyyymmdd')));
         saveas(fig, [fname '.jpg']);
