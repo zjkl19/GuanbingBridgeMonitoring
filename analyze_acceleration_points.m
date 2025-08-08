@@ -64,6 +64,8 @@ for i = 1:numel(tpts)
     stats(i,:) = {pid, mn, mx, av, rms_max,rms_time};
     % 绘图
     plot_accel_curve(root_dir,pid, times, vals, mn, mx);
+    % === 新增：10 min RMS 全时程曲线（独立出图） ===
+    plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date);
 end
 
 % 写入 Excel
@@ -210,4 +212,104 @@ saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
 saveas(fig, fullfile(out, [fname '_' ts '.emf']));
 savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
 close(fig);
+end
+
+function plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date)
+% plot_accel_rms_curve
+% 计算并绘制 10 min 滑动 RMS 全时程曲线（独立出图）
+% - NaN/Inf 自动剔除（按窗口有效比例阈值 70% 处理）
+% - X 轴根据数据/日期自动设定，避免端点不递增导致报错
+% - 输出 JPG/EMF/FIG 到 root_dir/时程曲线_加速度_RMS10min/
+
+    % ---------- 入参与基础校验 ----------
+    if nargin < 7
+        error('plot_accel_rms_curve: 需要 7 个参数 (root_dir,pid,times,vals,fs,start_date,end_date)');
+    end
+    if isempty(times) || isempty(vals) || numel(times) ~= numel(vals)
+        warning('plot_accel_rms_curve: times/vals 为空或长度不一致，跳过 %s', pid);
+        return;
+    end
+
+    % ---------- 采样率与窗口 ----------
+    % 若 fs 无效，则从时间戳估计
+    if isempty(fs) || ~isfinite(fs) || fs <= 0
+        dts = seconds(diff(times));
+        dts = dts(isfinite(dts) & dts > 0);
+        if isempty(dts)
+            warning('plot_accel_rms_curve: 无法从时间推断 fs，跳过 %s', pid);
+            return;
+        end
+        fs = 1/median(dts);
+    end
+
+    win_len = max(1, round(600 * fs));  % 600s = 10min 的样本数
+
+    % ---------- 10min RMS 计算 ----------
+    % 有效样本计数（非 NaN/Inf）
+    valid_mask = isfinite(vals);
+    valid_cnt  = movsum(valid_mask, win_len, 'Endpoints','shrink');
+
+    % 滑动 RMS（NaN 不参与）
+    rms_series = sqrt(movmean(vals.^2, win_len, 'omitnan', 'Endpoints','shrink'));
+
+    % 有效性阈值（至少 70% 有效点）
+    min_need = max(1, round(0.7 * win_len));
+    rms_series(valid_cnt < min_need) = NaN;
+
+    % ---------- 绘图 ----------
+    fig = figure('Position',[100 100 1000 469]);
+    plot(times, rms_series, 'LineWidth', 1.2);
+    xlabel('时间'); ylabel('10 min RMS (mm/s^2)');
+    title(sprintf('10 min RMS 时程 %s', pid));
+    grid on; grid minor;
+
+    % ======= 更稳的 X 轴范围和刻度 =======
+    % 1) 先用数据时间范围
+    if ~isempty(times) && any(isfinite(datenum(times)))
+        tmin = min(times);
+        tmax = max(times);
+    else
+        % times 为空或不可用时，用入参日期
+        tmin = datetime(start_date,'InputFormat','yyyy-MM-dd');
+        tmax = datetime(end_date,  'InputFormat','yyyy-MM-dd');
+    end
+
+    % 2) 保证顺序 & 非相等
+    if tmax < tmin
+        tmp  = tmin; tmin = tmax; tmax = tmp;
+    end
+    if tmax == tmin
+        % 给一点 padding，避免 XLim 两端相同
+        tmin = tmin - minutes(30);
+        tmax = tmax + minutes(30);
+    end
+
+    % 3) 生成刻度（确保严格递增且唯一）
+    ticks = linspace(tmin, tmax, 5).';
+    ticks = unique(ticks);  % 去重，防止极短区间仍然重复
+
+    ax = gca;
+    ax.XLim  = [ticks(1) ticks(end)];
+    ax.XTick = ticks;
+    xtickformat('yyyy-MM-dd');
+
+    % ---------- 保存 ----------
+    ts  = datestr(now,'yyyymmdd_HHMMSS');
+    out = fullfile(root_dir,'时程曲线_加速度_RMS10min');
+    if ~exist(out,'dir'), mkdir(out); end
+
+    % 文件名按开始/结束日期拼接
+    try
+        dn0 = datenum(start_date,'yyyy-MM-dd');
+        dn1 = datenum(end_date,  'yyyy-MM-dd');
+        fname = sprintf('AccelRMS10_%s_%s_%s', pid, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
+    catch
+        % 若入参不是合法日期字符串，就按数据时间范围命名
+        fname = sprintf('AccelRMS10_%s_%s_%s', pid, datestr(tmin,'yyyymmdd'), datestr(tmax,'yyyymmdd'));
+    end
+
+    saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
+    saveas(fig, fullfile(out, [fname '_' ts '.emf']));
+    savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
+    close(fig);
 end
