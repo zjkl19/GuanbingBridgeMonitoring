@@ -76,9 +76,59 @@ for j = 1:numel(dates)
     end
     fclose(fid);
     % 读取数据，无论是否找到头部都使用 readtable
-    T = readtable(fullpath, 'Delimiter', ',', 'HeaderLines', header, 'Format', '%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-    all_time = [all_time; T{:,1}];
-    all_val  = [all_val;  T{:,2}];
+% ---------- 缓存 ----------
+    cacheDir = fullfile(dir_path,'cache');
+    if ~exist(cacheDir,'dir'), mkdir(cacheDir); end
+    [~, base, ~] = fileparts(fullpath);
+    cacheFile = fullfile(cacheDir, [base '.mat']);
+    useCache  = false;
+
+    if exist(cacheFile,'file')
+        infoCSV = dir(fullpath);
+        infoMAT = dir(cacheFile);
+        if datenum(infoMAT.date) > datenum(infoCSV.date)
+            try
+                S = load(cacheFile,'times','vals');
+                times = S.times;
+                vals  = S.vals;
+                useCache = true;
+            catch
+                useCache = false; % 缓存损坏则重读
+            end
+        end
+    end
+
+    if ~useCache
+        % 检测头部前50行
+        fid = fopen(fullpath,'rt');
+        header = 0; found = false;
+        for k = 1:50
+            if feof(fid), break; end
+            ln = fgetl(fid);
+            header = header + 1;
+            if contains(ln,'[绝对时间]')
+                found = true;
+                break;
+            end
+        end
+        if ~found
+            warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fullpath);
+            header = 0;
+        end
+        fclose(fid);
+
+        % 读取数据
+        T = readtable(fullpath, 'Delimiter', ',', 'HeaderLines', header, ...
+                                 'Format', '%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+        times = T{:,1};
+        vals  = T{:,2};
+
+        % 写缓存
+        save(cacheFile,'times','vals');
+    end
+    % --------------------------
+    all_time = [all_time; times];
+    all_val  = [all_val;  vals];
 end
 % 排序
 [all_time, idx] = sort(all_time);

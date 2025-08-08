@@ -150,8 +150,49 @@ for j = 1:numel(dates)
         h = 0;                  % ← 避免把所有行当成 header 跳过
     end
     fclose(fid);
-    T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-    times = T{:,1}; vals = T{:,2};
+    % ================= 缓存机制 =================
+    cacheDir = fullfile(dirp, 'cache');
+    if ~exist(cacheDir,'dir'), mkdir(cacheDir); end
+    [~,name,~] = fileparts(fp);
+    cacheFile  = fullfile(cacheDir, [name '.mat']);
+    useCache   = false;
+
+    if exist(cacheFile,'file')
+        infoCSV = dir(fp);
+        infoMAT = dir(cacheFile);
+        if datenum(infoMAT.date) > datenum(infoCSV.date)
+            tmp   = load(cacheFile, 'times','vals');
+            times = tmp.times;
+            vals  = tmp.vals;
+            useCache = true;
+        end
+    end
+
+    if ~useCache
+        fid = fopen(fp,'rt');
+        h = 0;
+        found = false;               % 初始化 found
+        while h < 50 && ~feof(fid)
+            ln = fgetl(fid);
+            h = h + 1;
+            if contains(ln,'[绝对时间]')
+                found = true;
+                break;
+            end
+        end
+        if ~found
+            warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+            h = 0; % 避免把所有行当成 header 跳过
+        end
+        fclose(fid);
+
+        T = readtable(fp,'Delimiter',',','HeaderLines',h, ...
+            'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+        times = T{:,1};
+        vals  = T{:,2};
+        save(cacheFile, 'times','vals');
+    end
+    % ==================缓存机制结束===========================
     %bug：温度一起清洗了
     % === 基础清洗 ===
     % 示例：针对特殊测点额外清洗

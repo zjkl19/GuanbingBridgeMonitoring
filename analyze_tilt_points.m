@@ -147,8 +147,49 @@ for j = 1:numel(dates)
        h = 0;                  % ← 避免把所有行当成 header 跳过
     end
     fclose(fid);
-    T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-    times=T{:,1};vals=T{:,2};
+% ---------- 缓存 ----------
+    cacheDir = fullfile(dirp,'cache');
+    if ~exist(cacheDir,'dir'), mkdir(cacheDir); end
+    [~, base, ~] = fileparts(fp);
+    cacheFile = fullfile(cacheDir, [base '.mat']);
+    useCache  = false;
+
+    if exist(cacheFile,'file')
+        infoCSV = dir(fp);
+        infoMAT = dir(cacheFile);
+        if datenum(infoMAT.date) > datenum(infoCSV.date)
+            try
+                S = load(cacheFile,'times','vals');
+                times = S.times; vals = S.vals;
+                useCache = true;
+            catch
+                useCache = false; % 缓存损坏则重读
+            end
+        end
+    end
+
+    if ~useCache
+        % 仅在读 CSV 时检测头部
+        fid = fopen(fp,'rt');
+        h = 0; found = false;
+        while h<50 && ~feof(fid)
+            ln = fgetl(fid); h = h + 1;
+            if contains(ln,'[绝对时间]'), found = true; break; end
+        end
+        if ~found
+            warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+            h = 0;
+        end
+        fclose(fid);
+
+        T = readtable(fp,'Delimiter',',','HeaderLines',h, ...
+                         'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+        times = T{:,1};
+        vals  = T{:,2};
+
+        save(cacheFile, 'times','vals');
+    end
+    % -------------------------
     point_id=pid;
     if strcmp(point_id, 'GB-DIS-P04-001-01-X')
         vals = clean_threshold(vals, times, struct('min', -0.05, 'max', 0.02, 't_range', []));
