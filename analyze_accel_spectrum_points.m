@@ -136,15 +136,59 @@ fprintf('★ 已输出 Excel -> %s\n', excel_file);
         peakFreqMat(:,:,idxPt)  = freqDay;
 
 
-        % 绘图：峰值“频率”时程
+        % 绘图：峰值“频率”时程（含三条理论自振频率虚线与同色标注）
         fig = figure('Visible','off','Position',[100 100 1000 470]);
-        plot(dates_all, freqDay,'LineWidth',1.2);
+        hold on;
+        h = plot(dates_all, freqDay, 'LineWidth', 1.2);  % 返回每阶的曲线句柄
         grid on; xtickformat('yyyy-MM-dd');
         xlabel('日期'); ylabel('峰值频率 (Hz)');
-        
-        legend({'一阶','二阶','三阶'},'Location','best');
-        title(sprintf('峰值频率时程 %s  (00:30–00:40)', pid));
+        legend({'一阶','二阶','三阶'}, 'Location', 'eastoutside'); % 右侧外部
+        title(sprintf('峰值频率时程 %s  ', pid));
 
+        % 三条理论自振频率（虚线，颜色与对应实测曲线一致）
+        theor = [0.975, 1.243, 1.528];
+        tlabels = { ...
+            '理论竖向一阶自振频率0.975Hz', ...
+            '理论竖向二阶自振频率1.243Hz', ...
+            '理论竖向三阶自振频率1.528Hz' };
+
+        % 自动调整 Y 轴范围
+        ax = gca;
+        dataMin = min(freqDay,[],'all','omitnan');
+        dataMax = max(freqDay,[],'all','omitnan');
+        if ~isempty(dataMin) && ~isempty(dataMax) && isfinite(dataMin) && isfinite(dataMax)
+            ymin = min([dataMin, theor]);
+            ymax = max([dataMax, theor]);
+            pad  = max(0.02, 0.05*(ymax - ymin));   % 至少 0.02 Hz 或 5% 余量
+            ylim([ymin - 0.5*pad, ymax + 1.5*pad]); % 上方多留空间给文本
+        end
+
+        % 画三条理论虚线 & 上方文本标注（同色，且不进图例）
+        xleft = dates_all(1);
+        if numel(dates_all) >= 2
+            xoff = (dates_all(end) - dates_all(1)) * 0.01;
+        else
+            xoff = days(1);
+        end
+        yoff = diff(ylim) * 0.02;
+
+        for k = 1:numel(theor)
+            if k <= numel(h) && isgraphics(h(k))
+                c = get(h(k),'Color');
+            else
+                c = [0 0 0];
+            end
+            % 理论虚线不进图例
+            yline(theor(k), '--', 'Color', c, 'LineWidth', 1, ...
+                  'HandleVisibility','off');
+            % 在线上方加文字
+            text(xleft + xoff, theor(k) + yoff, tlabels{k}, ...
+                'Color', c, 'FontSize', 9, 'VerticalAlignment','bottom');
+        end
+        hold off;
+
+
+        % 保存
         fname = fullfile(outDirFig, ...
                  sprintf('SpecFreq_%s_%s_%s', pid, ...
                  datestr(dates_all(1),'yyyymmdd'), ...
