@@ -17,9 +17,21 @@ classdef test_load_timeseries_range < matlab.unittest.TestCase
             addpath(tc.ProjRoot);
             addpath(fullfile(tc.ProjRoot,'pipeline'));
             addpath(fullfile(tc.ProjRoot,'config'));
+
             tc.Cfg = load_config();
-            % 强制关键配置，避免编码/缺省导致测试不稳定
+            % 强制关键配置，避免编码/阈值影响测试
             tc.Cfg.defaults.header_marker = '[绝对时间]';
+            if isfield(tc.Cfg,'defaults')
+                fns = fieldnames(tc.Cfg.defaults);
+                for i = 1:numel(fns)
+                    if isfield(tc.Cfg.defaults.(fns{i}),'thresholds')
+                        tc.Cfg.defaults.(fns{i}).thresholds = [];
+                    end
+                    if isfield(tc.Cfg.defaults.(fns{i}),'zero_to_nan')
+                        tc.Cfg.defaults.(fns{i}).zero_to_nan = false;
+                    end
+                end
+            end
             if ~isfield(tc.Cfg,'subfolders'), tc.Cfg.subfolders = struct(); end
             if ~isfield(tc.Cfg.subfolders,'strain'), tc.Cfg.subfolders.strain = '特征值'; end
             if ~isfield(tc.Cfg.subfolders,'crack'),  tc.Cfg.subfolders.crack  = '特征值'; end
