@@ -47,9 +47,25 @@ ticks = datetime(linspace(datenum(dt0), datenum(dt1),5),'ConvertFrom','datenum')
 for gi = 1:numel(groups)
     pid_list = groups{gi};
     fig=figure('Position',[100 100 1000 469]); hold on;
-    for i = 1:numel(pid_list)
-        [t,v] = extract_strain_data(root_dir, subfolder, pid_list{i}, start_date, end_date);
-        plot(t, v, 'LineWidth',1);
+    N = numel(pid_list);
+    % 5条及以上的手动配色（第6条线红色，满足你的要求）
+    colors_6 = {
+        [0 0 0],         % 黑色
+        [0 0 1],         % 蓝色
+        [0 0.7 0],       % 绿色
+        [1 0.4 0.8],     % 粉红色
+        [1 0.6 0],       % 橙色
+        [1 0 0]          % 红色
+    };
+    
+    for i = 1:N
+        [t, v] = extract_strain_data(root_dir, subfolder, pid_list{i}, start_date, end_date);
+        if N == 5 || N == 6
+            c = colors_6{i};
+            plot(t, v, 'LineWidth', 1.0, 'Color', c);
+        else
+            plot(t, v, 'LineWidth', 1.0); % 默认颜色
+        end
     end
     legend(pid_list,'Location','northeast','Box','off');
     xlabel('时间'); ylabel('主梁应变 (με)');
@@ -85,23 +101,76 @@ for j=1:numel(dates)
     idx=find(arrayfun(@(f) contains(f.name,pid),files),1);
     if isempty(idx), continue; end
     fp=fullfile(files(idx).folder,files(idx).name);
-    fid=fopen(fp,'rt'); h=0;
+    fid = fopen(fp,'rt');
+    h = 0;
+    found = false;               % ← 初始化 found
     while h<50 && ~feof(fid)
         ln=fgetl(fid); h=h+1;
-        if contains(ln,'[绝对时间]'), break; end
-    end; fclose(fid);
-    T=readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-    times = T{:,1}; vals = T{:,2};
+        if contains(ln,'[绝对时间]')
+            found = true; 
+            break;
+        end
+    end
+    if ~found
+       warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+       h = 0;                  % ← 避免把所有行当成 header 跳过
+    end
+    fclose(fid);
+% ---------- 缓存机制 ----------
+    cacheDir = fullfile(dirp, 'cache');
+    if ~exist(cacheDir,'dir'), mkdir(cacheDir); end
+    [~, name, ~] = fileparts(fp);
+    cacheFile = fullfile(cacheDir, [name '.mat']);
+    useCache  = false;
+
+    if exist(cacheFile,'file')
+        infoCSV = dir(fp);
+        infoMAT = dir(cacheFile);
+        if datenum(infoMAT.date) > datenum(infoCSV.date)
+            tmp   = load(cacheFile, 'times','vals');
+            times = tmp.times;
+            vals  = tmp.vals;
+            useCache = true;
+        end
+    end
+
+    if ~useCache
+        % 头部行数检测
+        fid = fopen(fp,'rt');
+        h = 0; found = false;
+        while h < 50 && ~feof(fid)
+            ln = fgetl(fid); h = h + 1;
+            if contains(ln,'[绝对时间]')
+                found = true; break;
+            end
+        end
+        if ~found
+            warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+            h = 0;
+        end
+        fclose(fid);
+
+        % 读取 CSV
+        T = readtable(fp,'Delimiter',',','HeaderLines',h, ...
+                         'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+        times = T{:,1};
+        vals  = T{:,2};
+
+        % 写缓存
+        save(cacheFile, 'times','vals');
+    end
+    % -----------------------------
     % === 数据清洗 ===
     vals = clean_threshold(vals, times, struct('min', -400, 'max', 200, 't_range', []));
     if strcmp(pid, 'GB-RSG-G06-001-02')
-        vals = clean_threshold(vals, times, struct('min', -350, 'max', 20, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -350, 'max', 5, 't_range', []));
     end
-    if strcmp(pid, 'GB-RSG-G06-001-03')
-        vals = clean_threshold(vals, times, struct('min', -350, 'max', -17, 't_range', []));
-    end
-    if strcmp(pid, 'GB-RSG-G06-001-06')
+     if strcmp(pid, 'GB-RSG-G05-001-02')
         vals = clean_threshold(vals, times, struct('min', -350, 'max', 20, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -30, 'max', 20, 't_range', []));
+     end
+    if strcmp(pid, 'GB-RSG-G05-001-06')
+        vals = clean_threshold(vals, times, struct('min', 50, 'max', 70, 't_range', [datetime('2025-05-13 15:00:00'), datetime('2025-05-13 16:00:00')]));
     end
     % === === ===
     all_t=[all_t;times]; all_v=[all_v;vals];

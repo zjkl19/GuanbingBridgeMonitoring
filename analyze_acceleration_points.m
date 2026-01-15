@@ -64,6 +64,9 @@ for i = 1:numel(tpts)
     stats(i,:) = {pid, mn, mx, av, rms_max,rms_time};
     % 绘图
     plot_accel_curve(root_dir,pid, times, vals, mn, mx);
+    
+    % === 新增：10 min RMS 全时程曲线（独立出图） ===
+    plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date);
 end
 
 % 写入 Excel
@@ -93,16 +96,55 @@ for j=1:numel(dates)
     if isempty(idx), continue; end
     fp = fullfile(dirp, files(idx).name);
     % 头部检测
-    fid = fopen(fp,'rt'); h=0;
+    fid = fopen(fp,'rt');
+    h = 0;
+    found = false;               % ← 初始化 found
     for k=1:50
         if feof(fid), break; end
         ln = fgetl(fid); h=h+1;
-        if contains(ln,'[绝对时间]'), break; end
+        if contains(ln,'[绝对时间]')
+            found = true; 
+            break;
+        end
+    end
+    if ~found
+       warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+       h = 0;                  % ← 避免把所有行当成 header 跳过
     end
     fclose(fid);
-    T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+    
+% ==== 缓存机制开始 =========================
+    cacheDir = fullfile(dirp,'cache');
+    if ~exist(cacheDir,'dir'), mkdir(cacheDir); end
 
-    times = T{:,1}; vals = T{:,2};
+    [~,name,~] = fileparts(fp);
+    cacheFile  = fullfile(cacheDir,[name '.mat']);
+    useCache   = false;
+
+    if exist(cacheFile,'file')
+        infoCSV = dir(fp);
+        infoMAT = dir(cacheFile);
+        % 仅当 MAT 更新且较新才使用
+        if datenum(infoMAT.date) > datenum(infoCSV.date)
+            tmp      = load(cacheFile,'times','vals');
+            times    = tmp.times;
+            vals     = tmp.vals;
+            useCache = true;
+        end
+    end
+
+    if ~useCache
+        % 从 CSV 读取并写缓存
+        T = readtable(fp, ...
+            'Delimiter',',', ...
+            'HeaderLines',h, ...
+            'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+        times = T{:,1};
+        vals  = T{:,2};
+        save(cacheFile,'times','vals');
+    end
+    % ==== 缓存机制结束 =========================================
+    
     % === 基础清洗 ===
         % 示例：针对特殊测点额外清洗
         % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
@@ -110,9 +152,27 @@ for j=1:numel(dates)
         % end
          if strcmp(point_id, 'GB-VIB-G06-002-01')
             vals = clean_threshold(vals, times, struct('min', -500, 'max', 400, 't_range', []));
-        end
+         end
+         if strcmp(point_id, 'GB-VIB-G04-001-01')
+            vals = clean_threshold(vals, times, struct('min', -400, 'max', 400, 't_range', []));
+         end
+         if strcmp(point_id, 'GB-VIB-G05-001-01')
+            vals = clean_threshold(vals, times, struct('min', -300, 'max', 300, 't_range', []));
+         end
+         if strcmp(point_id, 'GB-VIB-G05-002-01')
+            vals = clean_threshold(vals, times, struct('min', -300, 'max', 300, 't_range', []));
+         end
+         if strcmp(point_id, 'GB-VIB-G05-003-01')
+            vals = clean_threshold(vals, times, struct('min', -500, 'max', 300, 't_range', []));
+         end
+          if strcmp(point_id, 'GB-VIB-G06-001-01')
+            vals = clean_threshold(vals, times, struct('min', -300, 'max', 300, 't_range', []));
+          end
+          if strcmp(point_id, 'GB-VIB-G06-003-01')
+            vals = clean_threshold(vals, times, struct('min', -300, 'max', 300, 't_range', []));
+          end 
         if strcmp(point_id, 'GB-VIB-G07-001-01')
-            vals = clean_threshold(vals, times, struct('min', -500, 'max', 420, 't_range', []));
+            vals = clean_threshold(vals, times, struct('min', -400, 'max', 400, 't_range', []));
         end
         % =====================
     all_time = [all_time; times];
@@ -151,6 +211,96 @@ title(['加速度时程 ' pid]);
 ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir,'时程曲线_加速度'); if ~exist(out,'dir'), mkdir(out); end
 fname = [pid '_' datestr(times(1),'yyyymmdd') '_' datestr(times(end),'yyyymmdd')];
+saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
+saveas(fig, fullfile(out, [fname '_' ts '.emf']));
+savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
+close(fig);
+end
+
+function plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date)
+% 10 min RMS 全时程曲线（含峰值红线与时间标注，健壮的刻度处理）
+
+if isempty(vals) || numel(times) ~= numel(vals)
+    return;
+end
+
+% --- 计算 10min 滑动 RMS ---
+win_len = max(1, round(600 * fs));  % 10 min
+valid_cnt = movsum(~isnan(vals) & isfinite(vals), win_len, 'Endpoints','shrink');
+rms_series = sqrt(movmean(vals.^2, win_len, 'omitnan', 'Endpoints','shrink'));
+min_need = max(1, round(0.7 * win_len));      % 至少 70% 有效样本
+rms_series(valid_cnt < min_need) = NaN;
+
+% 峰值与时间
+[rms_max, idx_max] = max(rms_series, [], 'omitnan');
+t_max = NaT;
+if ~isempty(idx_max) && ~isnan(rms_max)
+    t_max = times(idx_max);
+end
+
+% --- 绘图 ---
+fig = figure('Position',[100 100 1000 469]);
+plot(times, rms_series, 'LineWidth', 1.2);
+xlabel('时间'); ylabel('10 min RMS (mm/s^2)');
+% Y 轴范围切换
+tmp_manual=true;
+if tmp_manual
+    ylim([0,80]);
+else
+    ylim auto;
+end
+
+title(sprintf('10 min RMS 时程 %s', pid));
+grid on; grid minor; hold on;
+
+% 峰值红线与标注
+if ~isnan(rms_max)
+    h1 = yline(rms_max, '--r');
+    h1.Label = sprintf('最大值 %.3f', rms_max);
+    h1.LabelHorizontalAlignment = 'left';
+    if ~isnat(t_max)
+        plot(t_max, rms_max, 'ro', 'MarkerFaceColor','r');
+        %text(t_max, rms_max, sprintf('  %s', datestr(t_max,'yyyy-mm-dd HH:MM:ss')), ...
+        %    'VerticalAlignment','bottom', 'FontSize',9, 'Color','r');
+    end
+end
+
+% --- X 轴范围与刻度（健壮处理） ---
+ax = gca;
+
+% 以实际数据范围为准
+xmin = min(times);
+xmax = max(times);
+
+% 如果全部时间相同，给一个1分钟缓冲，避免范围退化
+if xmin == xmax
+    xmin = xmin - minutes(1);
+    xmax = xmax + minutes(1);
+end
+ax.XLim = [xmin xmax];
+
+% 尝试从“数据范围”生成 5 个刻度（一定递增）
+ticks = datetime(linspace(datenum(xmin), datenum(xmax), 5), 'ConvertFrom','datenum');
+% 去重并确认严格递增
+ticks = unique(ticks,'stable');
+if numel(ticks) >= 2 && all(diff(ticks) > duration(0,0,0))
+    ax.XTick = ticks;
+else
+    % 回退：由 MATLAB 自动选择刻度，避免 DatetimeRuler 报错
+    ax.XTickMode = 'auto';
+end
+% 根据跨度自动选择格式（天级用日期，小时级用日期+时间）
+if days(xmax - xmin) >= 1
+    xtickformat('yyyy-MM-dd');
+else
+    xtickformat('MM-dd HH:mm');
+end
+
+% --- 保存 ---
+ts = datestr(now,'yyyymmdd_HHMMSS');
+out = fullfile(root_dir,'时程曲线_加速度_RMS10min'); 
+if ~exist(out,'dir'), mkdir(out); end
+fname = sprintf('AccelRMS10_%s_%s_%s', pid, datestr(min(times),'yyyymmdd'), datestr(max(times),'yyyymmdd'));
 saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
 saveas(fig, fullfile(out, [fname '_' ts '.emf']));
 savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');

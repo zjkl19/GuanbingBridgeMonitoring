@@ -64,10 +64,19 @@ dn0 = datenum(t0,'yyyy-mm-dd'); dn1 = datenum(t1,'yyyy-mm-dd');
 
 % 多条曲线
 hLines = gobjects(numel(dataList),1);
-for i = 1:numel(dataList)
+N = numel(dataList);
+% 3条线：黑、红、蓝
+colors_3 = {[0 0 0], [1 0 0], [0 0 1]};  % 黑、红、蓝
+
+for i = 1:N
     d = dataList(i);
     if isempty(d.vals), continue; end
-    hLines(i) = plot(d.times, d.vals, 'LineWidth',1);
+    if N == 3
+        c = colors_3{i};
+        hLines(i) = plot(d.times, d.vals, 'LineWidth', 1.0, 'Color', c);
+    else
+        hLines(i) = plot(d.times, d.vals, 'LineWidth', 1.0); % 默认色
+    end
 end
 legend(hLines, {dataList.pid}, 'Location','northeast','Box','off');
 lg = legend; lg.AutoUpdate = 'off';
@@ -121,22 +130,79 @@ for j = 1:numel(dates)
     idx = find(arrayfun(@(f) contains(f.name,pid),files),1);
     if isempty(idx), continue; end
     fp = fullfile(files(idx).folder, files(idx).name);
-    fid = fopen(fp,'rt'); h=0;
+
+    fid = fopen(fp,'rt');
+    h = 0;
+    found = false;               % ← 初始化 found
+
     while h<50 && ~feof(fid)
         ln = fgetl(fid); h=h+1;
-        if contains(ln,'[绝对时间]'), break; end
-    end; fclose(fid);
-    T = readtable(fp,'Delimiter',',','HeaderLines',h,'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-    times=T{:,1};vals=T{:,2};
+        if contains(ln,'[绝对时间]')
+            found = true; 
+            break;
+        end
+    end 
+    if ~found
+       warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+       h = 0;                  % ← 避免把所有行当成 header 跳过
+    end
+    fclose(fid);
+% ---------- 缓存 ----------
+    cacheDir = fullfile(dirp,'cache');
+    if ~exist(cacheDir,'dir'), mkdir(cacheDir); end
+    [~, base, ~] = fileparts(fp);
+    cacheFile = fullfile(cacheDir, [base '.mat']);
+    useCache  = false;
+
+    if exist(cacheFile,'file')
+        infoCSV = dir(fp);
+        infoMAT = dir(cacheFile);
+        if datenum(infoMAT.date) > datenum(infoCSV.date)
+            try
+                S = load(cacheFile,'times','vals');
+                times = S.times; vals = S.vals;
+                useCache = true;
+            catch
+                useCache = false; % 缓存损坏则重读
+            end
+        end
+    end
+
+    if ~useCache
+        % 仅在读 CSV 时检测头部
+        fid = fopen(fp,'rt');
+        h = 0; found = false;
+        while h<50 && ~feof(fid)
+            ln = fgetl(fid); h = h + 1;
+            if contains(ln,'[绝对时间]'), found = true; break; end
+        end
+        if ~found
+            warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+            h = 0;
+        end
+        fclose(fid);
+
+        T = readtable(fp,'Delimiter',',','HeaderLines',h, ...
+                         'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
+        times = T{:,1};
+        vals  = T{:,2};
+
+        save(cacheFile, 'times','vals');
+    end
+    % -------------------------
     point_id=pid;
     if strcmp(point_id, 'GB-DIS-P04-001-01-X')
-        vals = clean_threshold(vals, times, struct('min', -0.1, 'max', 0.02, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -0.5, 'max', 0.05, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-P05-001-01-X')
+        vals = clean_threshold(vals, times, struct('min', -0.1, 'max', 0.05, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -0.1, 'max', 0.05, 't_range', []));
     end
     if strcmp(point_id, 'GB-DIS-P06-001-01-X')
-        vals = clean_threshold(vals, times, struct('min', -0.1, 'max', 0.02, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -0.1, 'max', 0.05, 't_range', []));
     end
     if ismember(point_id, {'GB-DIS-P04-001-01-Y','GB-DIS-P05-001-01-Y', 'GB-DIS-P06-001-01-Y'})
-        vals = clean_threshold(vals, times, struct('min', -0.07, 'max', 0.056, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -0.05, 'max', 0.056, 't_range', []));
     end
     all_t = [all_t; times]; all_v = [all_v; vals];
 

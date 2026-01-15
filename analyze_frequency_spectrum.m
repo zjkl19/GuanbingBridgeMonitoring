@@ -58,6 +58,9 @@ function analyze_frequency_spectrum(data, start_time, end_time, sampling_rate, t
     if mark_peaks
         % 调用辅助函数标注目标频率附近的峰值
         analyze_frequency_peaks(freq, amplitude_smoothed, target_freqs, tolerance);
+        
+       
+    
     end
 
     % 保存图像

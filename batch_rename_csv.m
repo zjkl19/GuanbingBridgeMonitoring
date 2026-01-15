@@ -5,7 +5,7 @@ function batch_rename_csv(root_dir, start_date, end_date, silent)
 %   silent: 静默模式，如果为 true 则不询问直接运行（默认 false）
 
 if nargin<1 || isempty(root_dir)
-    root_dir = 'F:/管柄大桥健康监测数据/';
+    root_dir = 'F:\管柄数据\管柄6月数据\动应变';
 end
 if nargin<2 || isempty(start_date)
     start_date = input('开始日期 (yyyy-MM-dd): ', 's');

@@ -40,7 +40,7 @@ for g = 1:numel(groups)
             warning('测点 %s 无数据，跳过。', pid);
             continue;
         end
-         % 动态计算中值滤波窗口长度
+        % 动态计算中值滤波窗口长度
         if numel(times) >= 2
             dts = seconds(diff(times));
             fs = 1/median(dts);
@@ -54,9 +54,9 @@ for g = 1:numel(groups)
             win_len=201;
         end
         disp("第" + i+ "个测点采样频率 "+fs+"Hz");
-       disp(['中值滤波窗口长度: ', num2str(win_len)]);
+        disp(['中值滤波窗口长度: ', num2str(win_len)]);
         % 中值滤波
-        
+
         %vals_f = medfilt1(vals, win_len);
         win_samps = round(fs * 10*600);
         vals_f =movmedian(vals, win_samps, 'omitnan');
@@ -74,8 +74,8 @@ for g = 1:numel(groups)
     plot_deflection_curve(orig_times, orig_vals, pid_list, root_dir, start_date, end_date, g);
     % 绘制滤波后数据组曲线
     plot_deflection_curve(filt_times, filt_vals, pid_list, root_dir, start_date, end_date, g);
-    
-     clear orig_times orig_vals filt_times filt_vals
+
+    clear orig_times orig_vals filt_times filt_vals
 end
 % 写入 Excel
 T = cell2table(stats, 'VariableNames', ...
@@ -101,11 +101,20 @@ for j = 1:numel(dates)
     if isempty(idx), continue; end
     fullpath = fullfile(dirp, files(idx).name);
     % 检测头部行数
-    fid = fopen(fullpath,'rt'); h = 0;
+    fid = fopen(fullpath,'rt');
+    h = 0;
+    found = false;               % ← 初始化 found
     for k = 1:50
         if feof(fid), break; end
         ln = fgetl(fid); h = h + 1;
-        if contains(ln,'[绝对时间]'), break; end
+        if contains(ln,'[绝对时间]')
+            found = true;
+            break;
+        end
+    end
+    if ~found
+        warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fullpath);
+        h = 0;                  % ← 避免把所有行当成 header 跳过
     end
     fclose(fid);
     % 读取数据
@@ -144,78 +153,76 @@ for j = 1:numel(dates)
 
     % === 基础清洗 ===
     % 阈值过滤：超出 [-100,100] 置 NaN
-    vals = clean_threshold(vals, times, struct('min', -3, 'max', 31, 't_range', []));
+    vals = clean_threshold(vals, times, struct('min', -10, 'max', 31, 't_range', []));
     % 去除 0 值
     vals = clean_zero(vals, times, struct('t_range', []));
 
-   % === 去除短时尖刺（秒窗口移动中值法）===
-   if numel(vals)>=2
-       % 估计采样频率 fs
-            dts = seconds(diff(times));
-            fs = 1/median(dts);
-       win_samps = round(fs * 15);        % x 秒窗口
-       % 找出移动中值离群点
-       mask = isoutlier(vals, 'movmedian', win_samps,'ThresholdFactor', 3);
-       vals(mask) = NaN;
-   end
-   % =====================
+    % === 去除短时尖刺（秒窗口移动中值法）===
+    if numel(vals)>=2
+        % 估计采样频率 fs
+        dts = seconds(diff(times));
+        fs = 1/median(dts);
+        win_samps = round(fs * 15);        % x 秒窗口
+        % 找出移动中值离群点
+        mask = isoutlier(vals, 'movmedian', win_samps,'ThresholdFactor', 3);
+        vals(mask) = NaN;
+    end
+    % =====================
     % 示例：针对特殊测点额外清洗
-    
-     if strcmp(point_id, 'GB-DIS-G05-001-02Y')
-         vals = clean_threshold(vals, times, struct('min', 4.0, 'max', 25, 't_range', [datetime('2025-04-10 20:00:00'), datetime('2025-04-10 22:00:00')]));
-         vals = clean_threshold(vals, times, struct('min', -1.5, 'max', 22, 't_range', [datetime('2025-04-14 00:00:00'), datetime('2025-04-14 08:00:00')]));
-     end
     % if strcmp(point_id, 'GB-DIS-G05-001-01Y')
-    %     vals = clean_threshold(vals, times, struct('min', -1, 'max', 26, 't_range', []));
+    %     vals = clean_threshold(vals, times, struct('min', -100, 'max', 260, 't_range', []));
     %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 13.5, 't_range', [datetime('2025-03-29 13:00:00'), datetime('2025-04-01 20:00:00')]));
     % end
-    % if strcmp(point_id, 'GB-DIS-G05-001-02Y')
-    %     vals = clean_threshold(vals, times, struct('min', -1, 'max', 22, 't_range', []));
-    %     vals = clean_threshold(vals, times, struct('min', -20, 'max', 13.5, 't_range', [datetime('2025-03-29 13:00:00'), datetime('2025-04-01 20:00:00')]));
-    % end
-    % if strcmp(point_id, 'GB-DIS-G05-002-03Y')
-    %     vals = clean_threshold(vals, times, struct('min', 2, 'max', 40, 't_range', [datetime('2025-04-09 00:00:00'), datetime('2025-04-21 23:00:00')]));
-    % end
+    if strcmp(point_id, 'GB-DIS-G05-001-01Y')
+        vals = clean_threshold(vals, times, struct('min', -6, 'max', 14, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-G05-001-02Y')
+        vals = clean_threshold(vals, times, struct('min', -6, 'max', 10, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-G05-002-01Y')
+        vals = clean_threshold(vals, times, struct('min', 4, 'max', 20, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-G05-002-02Y')
+        vals = clean_threshold(vals, times, struct('min', 0, 'max', 25, 't_range', []));
+    end
+    if strcmp(point_id, 'GB-DIS-G05-002-03Y')
+        vals = clean_threshold(vals, times, struct('min', -3, 'max', 20, 't_range', [datetime('2025-08-03 06:00:00'), datetime('2025-08-14 08:00:00')]));
+    end
     if strcmp(point_id, 'GB-DIS-G05-003-01Y')
-        vals = clean_threshold(vals, times, struct('min', 0.1, 'max', 40, 't_range', [datetime('2025-04-03 00:00:00'), datetime('2025-04-20 08:00:00')]));
+        vals = clean_threshold(vals, times, struct('min', -2, 'max', 10, 't_range', []));
     end
-    % if strcmp(point_id, 'GB-DIS-G05-003-02Y')
-    %     vals = clean_threshold(vals, times, struct('min', 2, 'max', 40, 't_range', [datetime('2025-04-02 00:00:00'), datetime('2025-04-20 23:00:00')]));
-    % end
+    if strcmp(point_id, 'GB-DIS-G05-003-02Y')
+        vals = clean_threshold(vals, times, struct('min', -5.7, 'max', 12, 't_range', []));
+    end
+    if ismember(point_id, {'GB-DIS-G06-001-02Y'})
+        vals = clean_threshold(vals, times, struct('min', -10, 'max', 10, 't_range', []));
+    end
     if ismember(point_id, {'GB-DIS-G06-001-01Y','GB-DIS-G06-001-02Y'})
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 9, 't_range', [datetime('2025-04-20 00:00:00'), datetime('2025-04-22 08:00:00')]));
+        vals = clean_threshold(vals, times, struct('min', -4, 'max', 10, 't_range', [datetime('2025-08-04 06:00:00'), datetime('2025-08-13 08:00:00')]));
     end
-    if strcmp(point_id, 'GB-DIS-G06-001-02Y')
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 20, 't_range', []));
+    if ismember(point_id, {'GB-DIS-G06-001-01Y'})
+        vals = clean_threshold(vals, times, struct('min', -10, 'max', 10, 't_range', [datetime('2025-08-14 06:00:00'), datetime('2025-08-23 08:00:00')]));
     end
     if ismember(point_id, {'GB-DIS-G06-002-01Y','GB-DIS-G06-002-02Y', 'GB-DIS-G06-002-03Y'})
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 25.0, 't_range', [datetime('2025-04-07 22:00:00'), datetime('2025-04-25 08:00:00')]));
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 18.0, 't_range', [datetime('2025-04-19 22:40:00'), datetime('2025-04-25 08:00:00')]));
+        vals = clean_threshold(vals, times, struct('min', -6, 'max', 21.0, 't_range', []));
     end
-
-    if ismember(point_id, {'GB-DIS-G06-003-01Y','GB-DIS-G06-003-02Y'})
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 16, 't_range', [datetime('2025-04-05 00:00:00'), datetime('2025-04-25 08:00:00')]));
-        vals = clean_threshold(vals, times, struct('min', -2, 'max', 12, 't_range', [datetime('2025-04-19 09:00:00'), datetime('2025-04-25 08:00:00')]));
+    if ismember(point_id, {'GB-DIS-G06-002-03Y'})
+        vals = clean_threshold(vals, times, struct('min', -5, 'max', 21.0, 't_range', []));
+        vals = clean_threshold(vals, times, struct('min', -10, 'max', 18, 't_range', [datetime('2025-08-13 06:00:00'), datetime('2025-08-18 08:00:00')]));
     end
-    % if strcmp(point_id, 'GB-DIS-G06-002-01Y')
-    %     vals = clean_threshold(vals, times, struct('min', -3, 'max', 28, 't_range', []));
-    %     vals = clean_threshold(vals, times, struct('min', -3, 'max', 25, 't_range', [datetime('2025-04-23 00:00:00'), datetime('2025-04-25 23:00:00')]));
-    % end
-    % if strcmp(point_id, 'GB-DIS-G06-002-02Y')
-    %     vals = clean_threshold(vals, times, struct('min', -3, 'max', 26, 't_range', []));
-    %     vals = clean_threshold(vals, times, struct('min', -3, 'max', 25, 't_range', [datetime('2025-04-23 00:00:00'), datetime('2025-04-25 23:00:00')]));
-    % end
-    % if strcmp(point_id, 'GB-DIS-G06-002-03Y')
-    %     vals = clean_threshold(vals, times, struct('min', -2, 'max', 27, 't_range', []));
-    %     vals = clean_threshold(vals, times, struct('min', -3, 'max', 25, 't_range', [datetime('2025-04-23 00:00:00'), datetime('2025-04-25 23:00:00')]));
-    % end
-    % if strcmp(point_id, 'GB-DIS-G06-003-01Y')
-    %     vals = clean_threshold(vals, times, struct('min', -2, 'max', 16, 't_range', []));
-    % end
-    % if strcmp(point_id, 'GB-DIS-G06-003-02Y')
-    %     vals = clean_threshold(vals, times, struct('min', -2, 'max', 16, 't_range', []));
-    % end
-    % =====================
+    if ismember(point_id, {'GB-DIS-G06-002-01Y','GB-DIS-G06-002-02Y', 'GB-DIS-G06-002-03Y'})
+        vals = clean_threshold(vals, times, struct('min', -10, 'max', 18, 't_range', [datetime('2025-08-13 06:00:00'), datetime('2025-08-18 08:00:00')]));
+    end
+    if ismember(point_id, {'GB-DIS-G06-003-02Y'})
+        vals = clean_threshold(vals, times, struct('min', -5, 'max', 10, 't_range', []));
+         vals = clean_threshold(vals, times, struct('min', -10, 'max', 9, 't_range', [datetime('2025-08-13 06:00:00'), datetime('2025-08-18 08:00:00')]));
+    end
+    if ismember(point_id, {'GB-DIS-G06-003-01Y'})
+        vals = clean_threshold(vals, times, struct('min', -6, 'max', 10, 't_range', []));
+    end
+    if ismember(point_id, {'GB-DIS-G06-003-03Y'})
+        vals = clean_threshold(vals, times, struct('min', -10, 'max', 19, 't_range', [datetime('2025-08-13 06:00:00'), datetime('2025-08-23 08:00:00')]));
+    end
     all_time = [all_time; times];
     all_val  = [all_val;  vals];
 end
@@ -232,8 +239,22 @@ dn0 = datenum(start_date,'yyyy-mm-dd'); dn1 = datenum(end_date,'yyyy-mm-dd');
 % 绘制多条曲线并生成句柄
 h = gobjects(numel(pid_list),1);
 
-for i = 1:numel(pid_list)
-    plot(times_list{i}, vals_list{i}, 'LineWidth', 1);
+N = numel(pid_list);
+
+% 2条线：蓝、绿；3条线：紫、蓝、绿
+colors_2 = {[0 0 1], [0 0.7 0]};                  % 蓝，绿
+colors_3 = {[0.5 0 0.7], [0 0 1], [0 0.7 0]};     % 紫，蓝，绿
+
+for i = 1:N
+    if N == 2
+        c = colors_2{i};
+    elseif N == 3
+        c = colors_3{i};
+    else
+        cmap = lines(N);   % 默认Matlab配色
+        c = cmap(i,:);
+    end
+    plot(times_list{i}, vals_list{i}, 'LineWidth', 1.0, 'Color', c);
 end
 
 lg=legend(pid_list,'Location','northeast','Box','off');

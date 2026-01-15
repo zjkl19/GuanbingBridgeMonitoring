@@ -83,7 +83,7 @@ all_val = all_val(sort_idx);
 % 绘图
 fig = figure('Position',[100 100 1000 469]);
 plot(all_time, all_val, 'LineWidth', 1);
-ylim([0,35]);
+ylim([0,40]);
 % 强制显示大约4等分刻度，并包含起止日期
 numDivisions = 4;  % 近似4等分
 tickNums = linspace(datenum(start_date,'yyyy-mm-dd'), datenum(end_date,'yyyy-mm-dd'), numDivisions+1);

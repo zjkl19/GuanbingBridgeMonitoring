@@ -1,5 +1,5 @@
 % 设置文件夹路径
-folderPath = 'D:\matlab\Guanbing\动应变';
+folderPath = 'F:\管柄数据\管柄6月数据\动应变';
 
 % 获取文件夹中的所有CSV文件
 fileList = dir(fullfile(folderPath, '*.csv'));

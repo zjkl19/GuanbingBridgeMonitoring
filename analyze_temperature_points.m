@@ -48,7 +48,7 @@ for i = 1:nPts
     xtickformat('yyyy-MM-dd');
     xlabel('时间'); ylabel('环境温度（℃）');
     tmp_manual = true;
-    if tmp_manual, ylim([0,35]); else, ylim auto; end
+    if tmp_manual, ylim([0,40]); else, ylim auto; end
     grid on; grid minor;
     title(sprintf('测点 %s 温度时程曲线', pid));
     % 保存
@@ -105,17 +105,28 @@ for j = 1:numel(valid)
         end
     end
     
+
     if useCache
         S = load(cacheFile,'T');
         T = S.T;
     else
         % 读 CSV
-        fid = fopen(fp,'rt'); h=0;
+        fid = fopen(fp,'rt');
+        h = 0;
+        found = false;               % ← 初始化 found
         while h<50 && ~feof(fid)
             ln = fgetl(fid); h=h+1;
-            if contains(ln,'[绝对时间]'), break; end
+            if contains(ln,'[绝对时间]')
+                found = true; 
+                break;
+            end
+        end
+        if ~found
+           warning('提示：文件 %s 未检测到头部标记 “[绝对时间]”，使用 h=0 读取全部作为数据', fp);
+           h = 0;                  % ← 避免把所有行当成 header 跳过
         end
         fclose(fid);
+
         T = readtable(fp, ...
             'Delimiter',',', ...
             'HeaderLines',h, ...

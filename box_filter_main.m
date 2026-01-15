@@ -3,7 +3,7 @@
 whisker_value=300;  %该值越大，包进去的离群值越多
 x_label_rotation = 45; % 设置x轴标签旋转角度（度）
 % 设置文件目录和文件名模式
-data_dir = '动应变'; % 数据文件所在目录
+data_dir = 'F:\管柄数据\管柄8月数据\动应变'; % 数据文件所在目录
 output_dir = '箱线图结果_高通滤波';
 file_pattern = fullfile(data_dir, '*.csv'); % CSV文件的模式
 files = dir(file_pattern); % 获取目录中所有CSV文件信息
@@ -177,7 +177,7 @@ calculate_and_save_statistics_to_excel(output_dir, labels, gf)
 % 设置Y轴范围，手动指定或自动设置
 ylim_manual = true; % 设置是否手动指定Y轴范围
 if ylim_manual
-    ylim([-30, 30]); % 手动指定Y轴范围
+    ylim([-40, 40]); % 手动指定Y轴范围
 else
     ylim auto; % 自动设置Y轴范围
 end
