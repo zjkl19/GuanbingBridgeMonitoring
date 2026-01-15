@@ -23,7 +23,7 @@ end
 function warns = validate_config(cfg)
 %VALIDATE_CONFIG Basic schema checks; returns cell array of warning strings.
     warns = {};
-    required_top = {"defaults","subfolders","file_patterns","groups","plot_styles"};
+    required_top = {"defaults","subfolders","file_patterns","groups","plot_styles","vendor"};
     for k = 1:numel(required_top)
         if ~isfield(cfg, required_top{k})
             warns{end+1} = sprintf('Missing config.%s', required_top{k}); %#ok<AGROW>
@@ -33,6 +33,8 @@ function warns = validate_config(cfg)
     % header marker
     if ~isfield(cfg,'defaults') || ~isfield(cfg.defaults,'header_marker')
         warns{end+1} = 'defaults.header_marker not set; fallback to [绝对时间]';
+    elseif ~ischar(cfg.defaults.header_marker) && ~isstring(cfg.defaults.header_marker)
+        warns{end+1} = 'defaults.header_marker should be string';
     end
 
     % subfolders
@@ -53,5 +55,32 @@ function warns = validate_config(cfg)
     % plot_styles basic checks
     if ~isfield(cfg,'plot_styles')
         warns{end+1} = 'plot_styles not set; using hardcoded defaults';
+    end
+
+    % file_patterns basic checks per sensor
+    sensors = {'deflection','acceleration','acceleration_raw','strain','tilt','crack','crack_temp','humidity','temperature'};
+    if isfield(cfg,'file_patterns')
+        for k = 1:numel(sensors)
+            s = sensors{k};
+            if ~isfield(cfg.file_patterns, s), continue; end
+            fp = cfg.file_patterns.(s);
+            if ~isfield(fp,'default') || isempty(fp.default)
+                warns{end+1} = sprintf('file_patterns.%s.default missing or empty', s); %#ok<AGROW>
+            end
+        end
+    end
+
+    % defaults per sensor thresholds schema
+    if isfield(cfg,'defaults')
+        fns = fieldnames(cfg.defaults);
+        for i = 1:numel(fns)
+            def = cfg.defaults.(fns{i});
+            if isfield(def,'thresholds')
+                th = def.thresholds;
+                if ~(isstruct(th) || isempty(th))
+                    warns{end+1} = sprintf('defaults.%s.thresholds should be struct array', fns{i}); %#ok<AGROW>
+                end
+            end
+        end
     end
 end

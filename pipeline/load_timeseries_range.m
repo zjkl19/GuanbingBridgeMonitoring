@@ -29,6 +29,8 @@ function [times, vals, meta] = load_timeseries_range(root_dir, subfolder, point_
     all_t = [];
     all_v = [];
 
+    loader = get_vendor_loader(cfg);
+
     rules = build_rules(cfg, sensor_type, point_id);
     meta.applied_rules = rules;
 
@@ -37,10 +39,10 @@ function [times, vals, meta] = load_timeseries_range(root_dir, subfolder, point_
         dirp = fullfile(root_dir, day, subfolder);
         if ~exist(dirp, 'dir'), continue; end
 
-        fp = find_file_for_point(dirp, point_id, cfg, sensor_type);
+        fp = loader.find_file(dirp, point_id, sensor_type);
         if isempty(fp), continue; end
 
-        [t, v] = load_single_file(fp, cfg.defaults.header_marker);
+        [t, v] = loader.read_file(fp, sensor_type);
         if isempty(v), continue; end
         meta.files{end+1} = fp; %#ok<AGROW>
         all_t = [all_t; t]; %#ok<AGROW>
@@ -66,6 +68,25 @@ function [times, vals, meta] = load_timeseries_range(root_dir, subfolder, point_
         mask = isoutlier(vals, 'movmedian', w, 'ThresholdFactor', rules.outlier_threshold_factor);
         vals(mask) = NaN;
     end
+end
+
+% -------------------------------------------------------------------------
+function loader = get_vendor_loader(cfg)
+    vendor = 'default';
+    if isfield(cfg,'vendor') && ~isempty(cfg.vendor)
+        vendor = lower(string(cfg.vendor));
+    end
+    switch vendor
+        case {'donghua','东华'}
+            loader = make_donghua_loader(cfg);
+        otherwise
+            loader = make_donghua_loader(cfg); % fallback
+    end
+end
+
+function loader = make_donghua_loader(cfg)
+    loader.find_file = @(dirp, point_id, sensor_type) find_file_for_point(dirp, point_id, cfg, sensor_type);
+    loader.read_file = @(fp, sensor_type) load_single_file(fp, cfg.defaults.header_marker); %#ok<NASGU>
 end
 
 % -------------------------------------------------------------------------
