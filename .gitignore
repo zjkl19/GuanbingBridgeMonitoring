@@ -1,5 +1,6 @@
 # Generated outputs and caches
 outputs/
+archive/
 **/cache/
 
 # Editor / OS artefacts
@@ -10,3 +11,7 @@ Thumbs.db
 
 # MATLAB autosave/backup
 *.asv
+
+# Test temp roots
+tempname*/
+
