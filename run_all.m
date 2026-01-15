@@ -41,24 +41,24 @@ sub.strain       = get_subfolder(cfg, 'strain',       '特征值');
 results = {};
 
 if opts.precheck_zip_count
-    precheck_zip_count(root, start_date, end_date);
+    results{end+1} = run_step('预检查压缩包数量', @() precheck_zip_count(root, start_date, end_date)); %#ok<AGROW>
 end
 
 if opts.doUnzip
-    batch_unzip_data_parallel(root, start_date, end_date, true);
+    results{end+1} = run_step('批量解压', @() batch_unzip_data_parallel(root, start_date, end_date, true)); %#ok<AGROW>
 end
 
 if opts.doRenameCsv
-    batch_rename_csv(root, start_date, end_date, true);
+    results{end+1} = run_step('批量重命名CSV', @() batch_rename_csv(root, start_date, end_date, true)); %#ok<AGROW>
 end
 
 if opts.doRemoveHeader
-    batch_remove_header(root, start_date, end_date, true);
+    results{end+1} = run_step('批量去除表头', @() batch_remove_header(root, start_date, end_date, true)); %#ok<AGROW>
 end
 
 if opts.doResample
-    batch_resample_data_parallel(...
-        root, start_date, end_date, 100, true, 'batch_resample_data_parallel_config.csv');
+    results{end+1} = run_step('批量重采样', @() batch_resample_data_parallel(...
+        root, start_date, end_date, 100, true, 'batch_resample_data_parallel_config.csv')); %#ok<AGROW>
 end
 
 if opts.doTemp

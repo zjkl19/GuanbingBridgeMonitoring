@@ -28,9 +28,9 @@ function run_gui()
     f = uifigure('Name','福建建科院健康监测大数据分析', ...
                  'Position',[80 80 960 720], ...
                  'Color',[0.97 0.98 1]);
-    gl = uigridlayout(f,[11 4]);
-    gl.RowHeight = {90,32,32,32,32,32,32,32,32,24,'1x'};
-    gl.ColumnWidth = {210,210,210,'1x'};
+    gl = uigridlayout(f,[13 4]);
+    gl.RowHeight = {90,32,32,32,32,32,32,32,32,32,32,24,'1x'};
+    gl.ColumnWidth = {190,240,240,'1x'};
     gl.Padding = [12 12 12 12];
     gl.RowSpacing = 6;
     gl.ColumnSpacing = 8;
@@ -87,57 +87,77 @@ function run_gui()
         'DisplayFormat','yyyy-MM-dd');
     endPicker.Layout.Row = 3; endPicker.Layout.Column = 4;
 
+    % 预处理开关
+    cbPrecheck = uicheckbox(gl,'Text','预检查压缩包数','Value',false); cbPrecheck.Layout.Row = 4; cbPrecheck.Layout.Column = 1;
+    cbUnzip    = uicheckbox(gl,'Text','批量解压','Value',false);      cbUnzip.Layout.Row = 4; cbUnzip.Layout.Column = 2;
+    cbRename   = uicheckbox(gl,'Text','重命名CSV','Value',false);     cbRename.Layout.Row = 4; cbRename.Layout.Column = 3;
+    cbRmHeader = uicheckbox(gl,'Text','去除表头','Value',false);       cbRmHeader.Layout.Row = 4; cbRmHeader.Layout.Column = 4;
+    cbResample = uicheckbox(gl,'Text','重采样','Value',false);         cbResample.Layout.Row = 5; cbResample.Layout.Column = 1;
+
     % 模块开关 + 全选
     cbSelectAll = uicheckbox(gl,'Text','全选/全不选','Value',false, ...
         'FontWeight','bold','ValueChangedFcn',@(cb,~) onSelectAll(cb));
-    cbSelectAll.Layout.Row = 4; cbSelectAll.Layout.Column = 4;
+    cbSelectAll.Layout.Row = 5; cbSelectAll.Layout.Column = 4;
 
-    cbTemp    = uicheckbox(gl,'Text','温度','Value',false);          cbTemp.Layout.Row = 4; cbTemp.Layout.Column = 1;
-    cbHum     = uicheckbox(gl,'Text','湿度','Value',false);          cbHum.Layout.Row = 4; cbHum.Layout.Column = 2;
-    cbDef     = uicheckbox(gl,'Text','挠度','Value',true);           cbDef.Layout.Row = 4; cbDef.Layout.Column = 3;
-    cbTilt    = uicheckbox(gl,'Text','倾角','Value',false);          cbTilt.Layout.Row = 5; cbTilt.Layout.Column = 1;
-    cbAccel   = uicheckbox(gl,'Text','加速度','Value',false);        cbAccel.Layout.Row = 5; cbAccel.Layout.Column = 2;
-    cbSpec    = uicheckbox(gl,'Text','加速度频谱','Value',false);    cbSpec.Layout.Row = 5; cbSpec.Layout.Column = 3;
-    cbCrack   = uicheckbox(gl,'Text','裂缝','Value',false);          cbCrack.Layout.Row = 6; cbCrack.Layout.Column = 1;
-    cbStrain  = uicheckbox(gl,'Text','应变','Value',false);          cbStrain.Layout.Row = 6; cbStrain.Layout.Column = 2;
-    cbDynBox  = uicheckbox(gl,'Text','动应变箱线图','Value',false);  cbDynBox.Layout.Row = 6; cbDynBox.Layout.Column = 3;
+    cbTemp    = uicheckbox(gl,'Text','温度','Value',false);          cbTemp.Layout.Row = 6; cbTemp.Layout.Column = 1;
+    cbHum     = uicheckbox(gl,'Text','湿度','Value',false);          cbHum.Layout.Row = 6; cbHum.Layout.Column = 2;
+    cbDef     = uicheckbox(gl,'Text','挠度','Value',true);           cbDef.Layout.Row = 6; cbDef.Layout.Column = 3;
+    cbTilt    = uicheckbox(gl,'Text','倾角','Value',false);          cbTilt.Layout.Row = 6; cbTilt.Layout.Column = 4;
+    cbAccel   = uicheckbox(gl,'Text','加速度','Value',false);        cbAccel.Layout.Row = 7; cbAccel.Layout.Column = 1;
+    cbSpec    = uicheckbox(gl,'Text','加速度频谱','Value',false);    cbSpec.Layout.Row = 7; cbSpec.Layout.Column = 2;
+    cbCrack   = uicheckbox(gl,'Text','裂缝','Value',false);          cbCrack.Layout.Row = 7; cbCrack.Layout.Column = 3;
+    cbStrain  = uicheckbox(gl,'Text','应变','Value',false);          cbStrain.Layout.Row = 7; cbStrain.Layout.Column = 4;
+    cbDynBox  = uicheckbox(gl,'Text','动应变箱线图','Value',false);  cbDynBox.Layout.Row = 8; cbDynBox.Layout.Column = 1;
 
     % 配置文件
     lblCfg = uilabel(gl,'Text','配置文件(JSON):','HorizontalAlignment','right');
-    lblCfg.Layout.Row = 8; lblCfg.Layout.Column = 2;
+    lblCfg.Layout.Row = 9; lblCfg.Layout.Column = 2;
     cfgEdit = uieditfield(gl,'text','Value',defaultCfgPath);
-    cfgEdit.Layout.Row = 8; cfgEdit.Layout.Column = 3;
+    cfgEdit.Layout.Row = 9; cfgEdit.Layout.Column = 3;
     cfgBtn = uibutton(gl,'Text','选择','ButtonPushedFcn',@(btn,~) onBrowseFile(cfgEdit,'*.json'));
-    cfgBtn.Layout.Row = 8; cfgBtn.Layout.Column = 4;
+    cfgBtn.Layout.Row = 9; cfgBtn.Layout.Column = 4;
 
     % 日志路径
     lblLog = uilabel(gl,'Text','日志目录:','HorizontalAlignment','right');
-    lblLog.Layout.Row = 7; lblLog.Layout.Column = 1;
+    lblLog.Layout.Row = 8; lblLog.Layout.Column = 1;
     logEdit = uieditfield(gl,'text','Value',defaultLogDir);
-    logEdit.Layout.Row = 7; logEdit.Layout.Column = [2 3];
+    logEdit.Layout.Row = 8; logEdit.Layout.Column = [2 3];
     logBtn = uibutton(gl,'Text','浏览','ButtonPushedFcn',@(btn,~) onBrowseDir(logEdit));
-    logBtn.Layout.Row = 7; logBtn.Layout.Column = 4;
+    logBtn.Layout.Row = 8; logBtn.Layout.Column = 4;
 
     % 预设
     presetSaveBtn = uibutton(gl,'Text','保存预设','ButtonPushedFcn',@(btn,~) onSavePreset());
-    presetSaveBtn.Layout.Row = 9; presetSaveBtn.Layout.Column = 1;
+    presetSaveBtn.Layout.Row = 10; presetSaveBtn.Layout.Column = 1;
     presetLoadBtn = uibutton(gl,'Text','加载预设','ButtonPushedFcn',@(btn,~) onLoadPreset());
-    presetLoadBtn.Layout.Row = 9; presetLoadBtn.Layout.Column = 2;
+    presetLoadBtn.Layout.Row = 10; presetLoadBtn.Layout.Column = 2;
 
     % 控制按钮
     runBtn = uibutton(gl,'Text','运行','FontWeight','bold','BackgroundColor',primaryBlue, ...
         'FontColor',[1 1 1],'ButtonPushedFcn',@(btn,~) onRun());
-    runBtn.Layout.Row = 9; runBtn.Layout.Column = 3;
+    runBtn.Layout.Row = 10; runBtn.Layout.Column = 3;
     clearBtn = uibutton(gl,'Text','清空日志','ButtonPushedFcn',@(btn,~) set(logArea,'Value',{}));
-    clearBtn.Layout.Row = 9; clearBtn.Layout.Column = 4;
+    clearBtn.Layout.Row = 10; clearBtn.Layout.Column = 4;
 
     % 状态标签
     statusLbl = uilabel(gl,'Text','就绪','FontColor',primaryBlue);
-    statusLbl.Layout.Row = 10; statusLbl.Layout.Column = [1 4];
+    statusLbl.Layout.Row = 11; statusLbl.Layout.Column = [1 4];
 
     % 日志显示
     logArea = uitextarea(gl,'Editable','off','Value',{'准备就绪...'});
-    logArea.Layout.Row = 11; logArea.Layout.Column = [1 4];
+    logArea.Layout.Row = 12; logArea.Layout.Column = [1 4];
+
+    % 启动时尝试自动加载上次参数
+    autoPreset = fullfile(projRoot,'outputs','ui_last_preset.json');
+    if exist(autoPreset,'file')
+        try
+            txt = fileread(autoPreset);
+            preset = jsondecode(txt);
+            apply_preset(preset);
+            addLog(['已自动加载上次参数: ' autoPreset]);
+        catch
+            % 忽略自动加载失败
+        end
+    end
 
     % ------------- 回调函数 -------------
     function onBrowseDir(edit)
@@ -173,11 +193,11 @@ function run_gui()
             end
 
             opts = struct( ...
-                'precheck_zip_count', false, ...
-                'doUnzip', false, ...
-                'doRenameCsv', false, ...
-                'doRemoveHeader', false, ...
-                'doResample', false, ...
+                'precheck_zip_count', cbPrecheck.Value, ...
+                'doUnzip', cbUnzip.Value, ...
+                'doRenameCsv', cbRename.Value, ...
+                'doRemoveHeader', cbRmHeader.Value, ...
+                'doResample', cbResample.Value, ...
                 'doTemp', cbTemp.Value, ...
                 'doHumidity', cbHum.Value, ...
                 'doDeflect', cbDef.Value, ...
@@ -197,6 +217,31 @@ function run_gui()
             if exist(logEdit.Value,'dir')==0
                 mkdir(logEdit.Value);
             end
+
+            % 运行并自动保存最近参数
+            save_last_preset(struct( ...
+                'root', root, ...
+                'start_date', start_date, ...
+                'end_date', end_date, ...
+                'cfg', cfgEdit.Value, ...
+                'logdir', logEdit.Value, ...
+                'preproc', struct( ...
+                    'precheck', cbPrecheck.Value, ...
+                    'unzip', cbUnzip.Value, ...
+                    'rename', cbRename.Value, ...
+                    'rmheader', cbRmHeader.Value, ...
+                    'resample', cbResample.Value), ...
+                'modules', struct( ...
+                    'temp', cbTemp.Value, ...
+                    'humidity', cbHum.Value, ...
+                    'deflect', cbDef.Value, ...
+                    'tilt', cbTilt.Value, ...
+                    'accel', cbAccel.Value, ...
+                    'spec', cbSpec.Value, ...
+                    'crack', cbCrack.Value, ...
+                    'strain', cbStrain.Value, ...
+                    'dynbox', cbDynBox.Value) ...
+                ));
 
             addLog(sprintf('root=%s, %s -> %s', root, start_date, end_date));
             run_all(root, start_date, end_date, opts, cfg);
@@ -246,12 +291,31 @@ function run_gui()
         if isequal(fname,0), return; end
         txt = fileread(fullfile(fpath,fname));
         preset = jsondecode(txt);
+        apply_preset(preset);
+        addLog(['预设已加载: ' fullfile(fpath,fname)]);
+    end
 
+    function onSelectAll(cb)
+        targets = [cbTemp, cbHum, cbDef, cbTilt, cbAccel, cbSpec, cbCrack, cbStrain, cbDynBox];
+        for i = 1:numel(targets)
+            targets(i).Value = cb.Value;
+        end
+    end
+
+    function apply_preset(preset)
         if isfield(preset,'root'),       rootEdit.Value = preset.root; end
         if isfield(preset,'start_date'), startPicker.Value = datetime(preset.start_date,'InputFormat','yyyy-MM-dd'); end
         if isfield(preset,'end_date'),   endPicker.Value   = datetime(preset.end_date,'InputFormat','yyyy-MM-dd'); end
         if isfield(preset,'cfg'),        cfgEdit.Value = preset.cfg; end
         if isfield(preset,'logdir'),     logEdit.Value = preset.logdir; end
+        if isfield(preset,'preproc')
+            p = preset.preproc;
+            if isfield(p,'precheck'), cbPrecheck.Value = p.precheck; end
+            if isfield(p,'unzip'),    cbUnzip.Value    = p.unzip; end
+            if isfield(p,'rename'),   cbRename.Value   = p.rename; end
+            if isfield(p,'rmheader'), cbRmHeader.Value = p.rmheader; end
+            if isfield(p,'resample'), cbResample.Value = p.resample; end
+        end
         if isfield(preset,'modules')
             m = preset.modules;
             if isfield(m,'temp'),     cbTemp.Value = m.temp; end
@@ -264,16 +328,23 @@ function run_gui()
             if isfield(m,'strain'),   cbStrain.Value = m.strain; end
             if isfield(m,'dynbox'),   cbDynBox.Value = m.dynbox; end
         end
-        addLog(['预设已加载: ' fullfile(fpath,fname)]);
     end
 
-    function onSelectAll(cb)
-        targets = [cbTemp, cbHum, cbDef, cbTilt, cbAccel, cbSpec, cbCrack, cbStrain, cbDynBox];
-        for i = 1:numel(targets)
-            targets(i).Value = cb.Value;
+    function save_last_preset(preset)
+        lastPath = fullfile(defaultLogDir, '..', 'ui_last_preset.json');
+        lastPath = fullfile(projRoot,'outputs','ui_last_preset.json');
+        try
+            if ~exist(fileparts(lastPath),'dir')
+                mkdir(fileparts(lastPath));
+            end
+            fid = fopen(lastPath,'wt');
+            if fid<0, return; end
+            fwrite(fid, jsonencode(preset),'char');
+            fclose(fid);
+        catch
+            % 忽略保存失败
         end
     end
-
     function addLog(msg)
         val = logArea.Value;
         val{end+1} = sprintf('[%s] %s', datestr(now,'HH:MM:SS'), msg);
