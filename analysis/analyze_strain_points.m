@@ -20,30 +20,32 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
     end
     if nargin<6||isempty(cfg),         cfg = load_config(); end
 
-    groups = { ...
-        {'GB-RSG-G05-001-01', 'GB-RSG-G05-001-02', 'GB-RSG-G05-001-03', 'GB-RSG-G05-001-04', 'GB-RSG-G05-001-05', 'GB-RSG-G05-001-06'}, ...
-        {'GB-RSG-G06-001-01', 'GB-RSG-G06-001-02', 'GB-RSG-G06-001-03', 'GB-RSG-G06-001-04', 'GB-RSG-G06-001-05', 'GB-RSG-G06-001-06'} ...
-        };
+    groups_cfg = get_groups(cfg,'strain');
+    if isempty(groups_cfg)
+        groups_cfg = struct('G05',{{'GB-RSG-G05-001-01','GB-RSG-G05-001-02','GB-RSG-G05-001-03','GB-RSG-G05-001-04','GB-RSG-G05-001-05','GB-RSG-G05-001-06'}}, ...
+                            'G06',{{'GB-RSG-G06-001-01','GB-RSG-G06-001-02','GB-RSG-G06-001-03','GB-RSG-G06-001-04','GB-RSG-G06-001-05','GB-RSG-G06-001-06'}} );
+    end
+    style = get_style(cfg,'strain');
+    colors_6 = normalize_colors(get_style_field(style,'colors_6', {
+        [0 0 0],
+        [0 0 1],
+        [0 0.7 0],
+        [1 0.4 0.8],
+        [1 0.6 0],
+        [1 0 0]
+    }));
 
     stats = {};
     row = 1;
     dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd');
     dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
-    ticks = datetime(linspace(datenum(dt0), datenum(dt1),5),'ConvertFrom','datenum');
+    ticks = dt0 + (dt1 - dt0) * (0:4)/4;
 
-    for gi = 1:numel(groups)
-        pid_list = groups{gi};
+    grp_names = fieldnames(groups_cfg);
+    for gi = 1:numel(grp_names)
+        pid_list = groups_cfg.(grp_names{gi});
         fig=figure('Position',[100 100 1000 469]); hold on;
         N = numel(pid_list);
-        colors_6 = {
-            [0 0 0],         % 黑
-            [0 0 1],         % 蓝
-            [0 0.7 0],       % 绿
-            [1 0.4 0.8],     % 粉
-            [1 0.6 0],       % 橙
-            [1 0 0]          % 红
-        };
-
         for i = 1:N
             pid = pid_list{i};
             [t, v] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'strain');
@@ -59,10 +61,9 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
 
         legend(pid_list,'Location','northeast','Box','off');
         xlabel('时间'); ylabel('主梁应变 (με)');
-        manual_ylims = {[-200,200], [-350,200]};
-        tmp_manual = true;
-        if tmp_manual
-            ylim(manual_ylims{gi});
+        ylims_cfg = get_style_field(style,'ylims', struct());
+        if isfield(ylims_cfg, grp_names{gi})
+            ylim(ylims_cfg.(grp_names{gi}));
         else
             ylim auto;
         end
@@ -79,4 +80,37 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
     T = cell2table(stats, 'VariableNames', {'PointID','Min','Max','Mean'});
     writetable(T, excel_file);
     fprintf('应变统计已保存至 %s\n', excel_file);
+end
+
+% helpers
+function g = get_groups(cfg, key)
+    g = [];
+    if isfield(cfg,'groups') && isfield(cfg.groups, key)
+        g = cfg.groups.(key);
+    end
+end
+
+function style = get_style(cfg, key)
+    style = struct();
+    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles, key)
+        style = cfg.plot_styles.(key);
+    end
+end
+
+function val = get_style_field(style, field, default)
+    if isstruct(style) && isfield(style, field)
+        val = style.(field);
+    else
+        val = default;
+    end
+end
+
+function ccell = normalize_colors(c)
+    if isnumeric(c)
+        ccell = mat2cell(c, ones(size(c,1),1), size(c,2));
+    elseif iscell(c)
+        ccell = c;
+    else
+        ccell = {};
+    end
 end

@@ -7,10 +7,7 @@
         { "min": -10, "max": 31 }
       ],
       "zero_to_nan": true,
-      "outlier": {
-        "window_sec": 15,
-        "threshold_factor": 3
-      }
+      "outlier": { "window_sec": 15, "threshold_factor": 3 }
     },
     "acceleration": {
       "thresholds": [],
@@ -139,16 +136,82 @@
   "file_patterns": {
     "crack": {
       "default": [
-        "{point}_峰值.csv"
+        "{point}_*.csv"
       ],
       "per_point": {
       }
     },
     "crack_temp": {
       "default": [
-        "{point}-t*.csv"
+        "{point}-t_*.csv"
       ],
       "per_point": {
+      }
+    }
+  },
+  "groups": {
+    "deflection": [
+      ["GB-DIS-G05-001-01Y", "GB-DIS-G05-001-02Y"],
+      ["GB-DIS-G05-002-01Y", "GB-DIS-G05-002-02Y", "GB-DIS-G05-002-03Y"],
+      ["GB-DIS-G05-003-01Y", "GB-DIS-G05-003-02Y"],
+      ["GB-DIS-G06-001-01Y", "GB-DIS-G06-001-02Y"],
+      ["GB-DIS-G06-002-01Y", "GB-DIS-G06-002-02Y", "GB-DIS-G06-002-03Y"],
+      ["GB-DIS-G06-003-01Y", "GB-DIS-G06-003-02Y"]
+    ],
+    "strain": {
+      "G05": ["GB-RSG-G05-001-01","GB-RSG-G05-001-02","GB-RSG-G05-001-03","GB-RSG-G05-001-04","GB-RSG-G05-001-05","GB-RSG-G05-001-06"],
+      "G06": ["GB-RSG-G06-001-01","GB-RSG-G06-001-02","GB-RSG-G06-001-03","GB-RSG-G06-001-04","GB-RSG-G06-001-05","GB-RSG-G06-001-06"]
+    },
+    "tilt": {
+      "X": ["GB-DIS-P04-001-01-X","GB-DIS-P05-001-01-X","GB-DIS-P06-001-01-X"],
+      "Y": ["GB-DIS-P04-001-01-Y","GB-DIS-P05-001-01-Y","GB-DIS-P06-001-01-Y"]
+    },
+    "crack": {
+      "G05": ["GB-CRK-G05-001-01","GB-CRK-G05-001-02","GB-CRK-G05-001-03","GB-CRK-G05-001-04"],
+      "G06": ["GB-CRK-G06-001-01","GB-CRK-G06-001-02","GB-CRK-G06-001-03","GB-CRK-G06-001-04"]
+    }
+  },
+  "plot_styles": {
+    "deflection": {
+      "colors_2": [[0,0,1],[0,0.7,0]],
+      "colors_3": [[0.5,0,0.7],[0,0,1],[0,0.7,0]],
+      "warn_lines": [
+        {"y": -21.0, "label": "二级报警值-21.0", "color": [0.9290, 0.6940, 0.1250]},
+        {"y":  33.4, "label": "二级报警值33.4",  "color": [0.9290, 0.6940, 0.1250]},
+        {"y": -26.3, "label": "三级报警值-26.3", "color": [1, 0, 0]},
+        {"y":  41.7, "label": "三级报警值41.7",  "color": [1, 0, 0]}
+      ],
+      "ylim": [-40, 50]
+    },
+    "strain": {
+      "colors_6": [
+        [0,0,0],
+        [0,0,1],
+        [0,0.7,0],
+        [1,0.4,0.8],
+        [1,0.6,0],
+        [1,0,0]
+      ],
+      "ylims": {
+        "G05": [-200, 200],
+        "G06": [-350, 200]
+      }
+    },
+    "tilt": {
+      "colors_3": [[0,0,0],[1,0,0],[0,0,1]],
+      "warn_lines": [
+        {"y": -0.126, "label": "二级报警值-0.126", "color": [0.9290,0.6940,0.1250]},
+        {"y":  0.126, "label": "二级报警值0.126",  "color": [0.9290,0.6940,0.1250]},
+        {"y": -0.155, "label": "三级报警值-0.155", "color": [1,0,0]},
+        {"y":  0.155, "label": "三级报警值0.155",  "color": [1,0,0]}
+      ],
+      "ylim": [-0.17, 0.17]
+    },
+    "crack": {
+      "colors_4": [[0,0,0],[1,0,0],[0,0,1],[0,0.7,0]],
+      "ylims": {
+        "G05": [-0.25, 0.25],
+        "G06": [-0.3, 0.3]
       }
     }
   }

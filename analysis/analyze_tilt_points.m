@@ -21,15 +21,19 @@ function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfold
     end
     if nargin<6||isempty(cfg),         cfg = load_config(); end
 
-    groupX = {'GB-DIS-P04-001-01-X','GB-DIS-P05-001-01-X','GB-DIS-P06-001-01-X'};
-    groupY = {'GB-DIS-P04-001-01-Y','GB-DIS-P05-001-01-Y','GB-DIS-P06-001-01-Y'};
+    groups_cfg = get_groups(cfg,'tilt');
+    if isempty(groups_cfg)
+        groups_cfg = struct('X',{{'GB-DIS-P04-001-01-X','GB-DIS-P05-001-01-X','GB-DIS-P06-001-01-X'}}, ...
+                            'Y',{{'GB-DIS-P04-001-01-Y','GB-DIS-P05-001-01-Y','GB-DIS-P06-001-01-Y'}} );
+    end
+    style = get_style(cfg,'tilt');
 
-    [statsX, dataX] = process_group(root_dir, subfolder, groupX, start_date, end_date, 'X', cfg);
-    plot_tilt_curve(root_dir,dataX, start_date, end_date, 'X');
+    [statsX, dataX] = process_group(root_dir, subfolder, groups_cfg.X, start_date, end_date, 'X', cfg);
+    plot_tilt_curve(root_dir,dataX, start_date, end_date, 'X', style);
     clear dataX;
 
-    [statsY, dataY] = process_group(root_dir, subfolder, groupY, start_date, end_date, 'Y', cfg);
-    plot_tilt_curve(root_dir,dataY, start_date, end_date, 'Y');
+    [statsY, dataY] = process_group(root_dir, subfolder, groups_cfg.Y, start_date, end_date, 'Y', cfg);
+    plot_tilt_curve(root_dir,dataY, start_date, end_date, 'Y', style);
     clear dataY;
 
     T_X = cell2table(statsX, 'VariableNames', {'PointID','Min','Max','Mean'});
@@ -58,14 +62,14 @@ function [stats, dataList] = process_group(root, subfolder, pids, t0, t1, suffix
     end
 end
 
-function plot_tilt_curve(root_dir,dataList, t0, t1, suffix)
+function plot_tilt_curve(root_dir,dataList, t0, t1, suffix, style)
 fig = figure('Position',[100 100 1000 469]); hold on;
 
-dn0 = datenum(t0,'yyyy-mm-dd'); dn1 = datenum(t1,'yyyy-mm-dd');
+dt0 = datetime(t0,'InputFormat','yyyy-MM-dd'); dt1 = datetime(t1,'InputFormat','yyyy-MM-dd');
 
 hLines = gobjects(numel(dataList),1);
 N = numel(dataList);
-colors_3 = {[0 0 0], [1 0 0], [0 0 1]};  % 黑、红、蓝
+colors_3 = normalize_colors(get_style_field(style,'colors_3', {[0 0 0], [1 0 0], [0 0 1]}));  % 黑、红、蓝
 
 for i = 1:N
     d = dataList(i);
@@ -81,32 +85,71 @@ legend(hLines, {dataList.pid}, 'Location','northeast','Box','off');
 lg = legend; lg.AutoUpdate = 'off';
 
 numDiv = 4;
-ticks = datetime(linspace(dn0,dn1,numDiv+1),'ConvertFrom','datenum');
-ax = gca; ax.XLim = ticks([1 end]); ax.XTick = ticks;
+ticks = dt0 + (dt1 - dt0) * (0:numDiv)/numDiv;
+ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = ticks;
 xtickformat('yyyy-MM-dd');
 xlabel('时间'); ylabel('倾角 (°)');
 title(['倾角时程曲线 ' suffix]);
 
-yVals = [-0.126,0.126,-0.155,0.155];
-labels = {'二级报警值-0.126','二级报警值0.126','三级报警值-0.155','三级报警值0.155'};
-colors = [0.9290 0.6940 0.1250;0.9290 0.6940 0.1250;1 0 0;1 0 0];
-for k = 1:4
-    yl = yline(yVals(k), '--');
-    yl.Color = colors(k,:);
-    yl.Label = labels{k};
-    yl.LabelHorizontalAlignment = 'left';
+warn_lines = get_style_field(style,'warn_lines',{});
+if isstruct(warn_lines) && ~iscell(warn_lines)
+    warn_lines = num2cell(warn_lines);
+end
+if iscell(warn_lines)
+    for k = 1:numel(warn_lines)
+        wl = warn_lines{k};
+        if isstruct(wl) && isfield(wl,'y')
+            yl = yline(wl.y, '--');
+            if isfield(wl,'color'), yl.Color = wl.color; end
+            if isfield(wl,'label'), yl.Label = wl.label; end
+            yl.LabelHorizontalAlignment = 'left';
+        end
+    end
 end
 
-tmp_manual = true;
-if tmp_manual, ylim([-0.17,0.17]); else, ylim auto; end
+ylim_val = get_style_field(style,'ylim', []);
+if ~isempty(ylim_val), ylim(ylim_val); else, ylim auto; end
 
 grid on; grid minor;
 
 ts = datestr(now,'yyyymmdd_HHMMSS');
 out=fullfile(root_dir,'时程曲线_倾角'); if ~exist(out,'dir'), mkdir(out); end
-fname = sprintf('Tilt_%s_%s_%s', suffix, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
+fname = sprintf('Tilt_%s_%s_%s', suffix, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
 saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
 saveas(fig, fullfile(out, [fname '_' ts '.emf']));
 savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
 close(fig);
+end
+
+% helpers
+function g = get_groups(cfg, key)
+    g = [];
+    if isfield(cfg,'groups') && isfield(cfg.groups, key)
+        g = cfg.groups.(key);
+    end
+end
+
+function style = get_style(cfg, key)
+    style = struct();
+    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles, key)
+        style = cfg.plot_styles.(key);
+    end
+end
+
+function val = get_style_field(style, field, default)
+    if isstruct(style) && isfield(style, field)
+        val = style.(field);
+    else
+        val = default;
+    end
+end
+
+function ccell = normalize_colors(c)
+    if isnumeric(c)
+        ccell = mat2cell(c, ones(size(c,1),1), size(c,2));
+    elseif iscell(c)
+        ccell = c;
+    else
+        ccell = {};
+    end
 end
