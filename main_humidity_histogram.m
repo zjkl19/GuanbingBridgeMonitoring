@@ -1,1 +1,0 @@
-plot_humidity_histogram()
