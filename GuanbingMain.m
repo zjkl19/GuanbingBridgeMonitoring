@@ -8,7 +8,7 @@ addpath(fullfile(here,'pipeline'));
 addpath(fullfile(here,'analysis'));
 addpath(fullfile(here,'scripts'));
 
-root        = 'F:\桥梁数据\桥梁8月数据'; % TODO: 按实际路径修改
+root        = 'F:\管柄数据\管柄8月数据'; % TODO: 按实际路径修改
 start_date  = '2025-08-11';
 end_date    = '2025-08-12';
 

@@ -1,0 +1,12 @@
+# Generated outputs and caches
+outputs/
+**/cache/
+
+# Editor / OS artefacts
+*.tmp
+*.log
+*.DS_Store
+Thumbs.db
+
+# MATLAB autosave/backup
+*.asv
