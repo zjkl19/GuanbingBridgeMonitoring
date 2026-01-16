@@ -1,0 +1,38 @@
+function save_config(cfg, filepath, make_backup)
+% save_config  Save configuration struct to JSON with optional backup.
+%   save_config(cfg, filepath, make_backup)
+%   - cfg        : struct to encode
+%   - filepath   : target JSON path
+%   - make_backup: true to create a timestamped backup of the existing file
+%
+% Behavior:
+%   * Ensures target folder exists.
+%   * Optionally writes a backup <name>_backup_yyyymmdd_HHMMSS.json if the
+%     target file already exists and make_backup is true.
+%   * Uses jsonencode with PrettyPrint for readability.
+
+    if nargin < 3, make_backup = true; end
+    if nargin < 2 || isempty(filepath)
+        error('filepath is required');
+    end
+    outDir = fileparts(filepath);
+    if ~isempty(outDir) && ~exist(outDir,'dir')
+        mkdir(outDir);
+    end
+
+    if make_backup && isfile(filepath)
+        [p,n,~] = fileparts(filepath);
+        ts = datestr(now,'yyyymmdd_HHMMSS');
+        backup = fullfile(p, sprintf('%s_backup_%s.json', n, ts));
+        copyfile(filepath, backup);
+    end
+
+    opts = struct('PrettyPrint', true, 'ConvertInfAndNaN', true);
+    txt = jsonencode(cfg, opts);
+    fid = fopen(filepath,'wt');
+    if fid < 0
+        error('无法写入配置文件: %s', filepath);
+    end
+    fwrite(fid, txt, 'char');
+    fclose(fid);
+end

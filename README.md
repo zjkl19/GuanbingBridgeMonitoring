@@ -1,9 +1,20 @@
 # 使用说明（Guanbing 项目）
 
+## 配置示例与手工修改
+- 示例：`config/sample_config.json` 为标准 JSON，无注释，可复制后改成你的桥梁配置。`default_config.json` 为当前默认使用的配置。
+- JSON5 未在 MATLAB 原生 `jsondecode` 支持，暂不建议使用注释/尾逗号等 JSON5 特性。
+- 推荐用脚本保存/校验：
+  - 保存：`save_config(cfg, 'config/your_config.json', true);`（自动备份）
+  - 校验：`validate_config(cfg);`（检查阈值、时间格式等）
+- GUI 中“阈值配置”页可对 defaults/per_point 阈值做增删改，支持另存为新配置。
+- 手工改字段注意：
+  - 时间格式统一 `yyyy-MM-dd HH:mm:ss`，留空表示全时段。
+  - `thresholds` 为数组，每项含 `min`、`max`，可选 `t_range_start/end`。
+  - `zero_to_nan` 布尔；`outlier` 含 `window_sec`、`threshold_factor`，可留空表示不启用。
 ## 快速开始
 1) 运行环境：MATLAB R2024a（Signal Processing / Statistics Toolbox 可选，用于分析与绘图）。
 2) 配置文件：`config/default_config.json`（可复制一份自定义）。
-3) 命令行入口：`run_all(root, start_date, end_date, opts, cfg)`，或使用 GUI `addpath(fullfile(pwd,'ui')); run_gui`。
+3) 命令行入口：`run_all(root, start_date, end_date, opts, cfg)`，或使用 GUI `addpath(fullfile(pwd,'ui')); run_gui`（若提示 `uilabel` 未识别，可先执行 `addpath(fullfile(matlabroot,'toolbox','matlab','uicomponents','uicomponents'));`）。
 4) 输出：分析结果/日志等默认写入 `outputs/`。
 
 ## 目录结构
