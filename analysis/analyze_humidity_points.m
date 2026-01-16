@@ -16,6 +16,7 @@ function analyze_humidity_points(root_dir, point_ids, start_date, end_date, exce
     end
     if nargin<7||isempty(cfg),          cfg = load_config(); end
 
+    style = get_style(cfg,'humidity');
     stats = cell(numel(point_ids),4);
     for i = 1:numel(point_ids)
         pid = point_ids{i}; fprintf('处理测点 %s ...\n', pid);
@@ -23,7 +24,7 @@ function analyze_humidity_points(root_dir, point_ids, start_date, end_date, exce
         if isempty(vals)
             warning('测点 %s 无数据，跳过', pid); continue;
         end
-        plot_humidity_point_curve(times, vals, pid, root_dir, start_date, end_date);
+        plot_humidity_point_curve(times, vals, pid, root_dir, start_date, end_date, style);
         mn = min(vals); mx = max(vals); av = round(mean(vals),1);
         stats{i,1} = pid; stats{i,2} = mn; stats{i,3} = mx; stats{i,4} = av;
         plot_humidity_frequency(vals, pid, root_dir, start_date, end_date);
@@ -33,9 +34,7 @@ function analyze_humidity_points(root_dir, point_ids, start_date, end_date, exce
     fprintf('统计结果已保存至 %s\n', excel_file);
 end
 
-function plot_humidity_point_curve(times, vals, pid, root_dir, start_date, end_date)
-% plot_humidity_point_curve 绘制指定测点湿度时程曲线
-
+function plot_humidity_point_curve(times, vals, pid, root_dir, start_date, end_date, style)
 if isempty(vals)
     error('测点 %s 无数据，无法绘图', pid);
 end
@@ -44,7 +43,7 @@ dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd');
 dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
 
 fig = figure('Position',[100 100 1000 469]);
-plot(times, vals, 'LineWidth',1);
+plot(times, vals, 'LineWidth',1, 'Color', get_color(style,1));
 numDivisions = 4;
 ticks = dt0 + (dt1 - dt0) * (0:numDivisions) / numDivisions;
 ax = gca;
@@ -57,12 +56,12 @@ yl.Label = sprintf('平均值 %.1f%%', avg_val);
 yl.LabelHorizontalAlignment = 'center';
 yl.LabelVerticalAlignment = 'bottom';
 yl.FontSize = 12;
-tmp_manual = true;
-if tmp_manual, ylim([20,100]); else, ylim auto; end
+ylim_cfg = get_style_field(style,'ylim', []);
+if ~isempty(ylim_cfg), ylim(ylim_cfg); else, ylim auto; end
 grid on; grid minor;
-title(sprintf('测点 %s 湿度时程曲线', pid));
+title(sprintf('%s %s', get_style_field(style,'title_prefix','湿度时程'), pid));
 xlabel('时间');
-ylabel('湿度 (%)');
+ylabel(get_style_field(style,'ylabel','湿度 (%)'));
 
 timestamp = char(datetime('now','Format','yyyy-MM-dd_HH-mm-ss'));
 output_dir = fullfile(root_dir,'时程曲线_湿度');
@@ -75,8 +74,6 @@ close(fig);
 end
 
 function plot_humidity_frequency(vals, point_id, root_dir, start_date, end_date)
-% plot_humidity_frequency 绘制湿度累计频次分布(%)
-
 bins = 20:10:100;
 counts = histcounts(vals, bins);
 total = sum(counts);
@@ -102,4 +99,33 @@ saveas(fig, fullfile(outdir,[fname '_' timestamp '.jpg']));
 saveas(fig, fullfile(outdir,[fname '_' timestamp '.emf']));
 savefig(fig,fullfile(outdir,[fname '_' timestamp '.fig']),'compact');
 close(fig);
+end
+
+% helpers
+function style = get_style(cfg, key)
+    style = struct();
+    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles, key)
+        style = cfg.plot_styles.(key);
+    end
+end
+
+function val = get_style_field(style, field, default)
+    if isstruct(style) && isfield(style, field)
+        val = style.(field);
+    else
+        val = default;
+    end
+end
+
+function c = get_color(style, idx)
+    c = [];
+    if isfield(style,'colors') && isnumeric(style.colors)
+        if size(style.colors,1) >= idx
+            c = style.colors(idx,:);
+        end
+    end
+    if isempty(c)
+        cmap = lines(3);
+        c = cmap(idx,:);
+    end
 end

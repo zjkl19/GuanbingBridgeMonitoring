@@ -1,4 +1,5 @@
 function run_all(root, start_date, end_date, opts, cfg)
+% run_all  统一入口，串联预处理与各分析模块，支持软停止。
 global RUN_STOP_FLAG;
 tic;
 % Disable ModifiedAndSavedVarnames warning

@@ -1,10 +1,12 @@
 function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfolder, cfg)
 % analyze_strain_points 批量绘制主梁应变时程并统计
-%   root_dir: 根目录
+%
+% 输入:
+%   root_dir   根目录
 %   start_date,end_date: 'yyyy-MM-dd'
 %   excel_file: 输出 Excel
-%   subfolder: 数据子目录（默认配置里的 strain）
-%   cfg: load_config() 结果
+%   subfolder: 数据子目录，默认配置里的 strain
+%   cfg: load_config() 结构
 
     if nargin<1||isempty(root_dir),    root_dir = pwd; end
     if nargin<2||isempty(start_date),  start_date = input('开始日期(yyyy-MM-dd): ','s'); end
@@ -50,7 +52,7 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
             pid = pid_list{i};
             [t, v] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'strain');
             if isempty(v)
-                warning('无%s 数据', pid);
+                warning('测点 %s 无数据', pid);
                 continue;
             end
             stats(row,:) = {pid, round(min(v)), round(max(v)), round(mean(v))};
@@ -60,7 +62,7 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
         end
 
         legend(pid_list,'Location','northeast','Box','off');
-        xlabel('时间'); ylabel('主梁应变 (με)');
+        xlabel('时间'); ylabel(get_style_field(style,'ylabel','主梁应变 (με)'));
         ylims_cfg = get_style_field(style,'ylims', struct());
         if isfield(ylims_cfg, grp_names{gi})
             ylim(ylims_cfg.(grp_names{gi}));
@@ -69,9 +71,9 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
         end
         ax=gca; ax.XLim=[ticks(1) ticks(end)]; ax.XTick=ticks; xtickformat('yyyy-MM-dd');
         grid on; grid minor;
-        title(sprintf('应变时程曲线 组%d',gi));
+        title(sprintf('%s 组%s', get_style_field(style,'title_prefix','应变时程曲线'), grp_names{gi}));
         ts=datestr(now,'yyyymmdd_HHMMSS'); out=fullfile(root_dir,'时程曲线_应变'); if ~exist(out,'dir'), mkdir(out); end
-        fname=sprintf('StrainG%d_%s_%s',gi,datestr(dt0,'yyyyMMdd'),datestr(dt1,'yyyyMMdd'));
+        fname=sprintf('Strain_%s_%s_%s',grp_names{gi},datestr(dt0,'yyyyMMdd'),datestr(dt1,'yyyyMMdd'));
         saveas(fig,fullfile(out,[fname '_' ts '.jpg']));
         saveas(fig,fullfile(out,[fname '_' ts '.emf']));
         savefig(fig,fullfile(out,[fname '_' ts '.fig']), 'compact'); close(fig);

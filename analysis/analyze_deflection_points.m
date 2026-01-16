@@ -1,8 +1,8 @@
 function analyze_deflection_points(root_dir, start_date, end_date, excel_file, subfolder, cfg)
 % analyze_deflection_points
-%   批量绘制主梁位移（挠度）时程曲线并统计（原始+中值滤波）
+% 批量绘制主梁挠度时程（原始+中值滤波）并统计。
 %
-% 输入：
+% 输入:
 %   root_dir   根目录，如 'F:/桥梁监测数据/'
 %   start_date, end_date  'yyyy-MM-dd'
 %   excel_file 输出统计 Excel
@@ -23,7 +23,6 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
     end
     if nargin<6||isempty(cfg),         cfg = load_config(); end
 
-    % 分组与样式
     groups = get_groups(cfg, 'deflection', { ...
         {'GB-DIS-G05-001-01Y','GB-DIS-G05-001-02Y'}, ...
         {'GB-DIS-G05-002-01Y','GB-DIS-G05-002-02Y','GB-DIS-G05-002-03Y'}, ...
@@ -38,12 +37,10 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
     row = 1;
     for g = 1:numel(groups)
         pid_list = groups{g};
-        fprintf('处理组%d: %s\n', g, strjoin(pid_list, ', '));
+        fprintf('处理组 %d: %s\n', g, strjoin(pid_list, ', '));
         N = numel(pid_list);
-        orig_times = cell(N,1);
-        orig_vals  = cell(N,1);
-        filt_times = cell(N,1);
-        filt_vals  = cell(N,1);
+        orig_times = cell(N,1); orig_vals = cell(N,1);
+        filt_times = cell(N,1); filt_vals = cell(N,1);
 
         for i = 1:N
             pid = pid_list{i};
@@ -53,7 +50,7 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
                 continue;
             end
 
-            % 动态计算中值滤波窗口（10 min）
+            % 中值滤波窗口（约 10 min）
             if numel(times) >= 2
                 dts = seconds(diff(times));
                 fs = 1/median(dts);
@@ -65,8 +62,8 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
             end
             vals_f = movmedian(vals, win_len, 'omitnan');
 
-            orig_times{i} = times;    orig_vals{i} = vals;
-            filt_times{i} = times;    filt_vals{i} = vals_f;
+            orig_times{i} = times;  orig_vals{i} = vals;
+            filt_times{i} = times;  filt_vals{i} = vals_f;
             stats(row, :) = {
                 pid, ...
                 round(min(vals),1), round(max(vals),1), round(mean(vals,  'omitnan'), 1), ...
@@ -75,10 +72,8 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
         end
 
         % 绘制原始&滤波曲线
-        plot_deflection_curve(orig_times, orig_vals, pid_list, root_dir, start_date, end_date, g, style);
-        plot_deflection_curve(filt_times, filt_vals, pid_list, root_dir, start_date, end_date, g, style);
-
-        clear orig_times orig_vals filt_times filt_vals
+        plot_deflection_curve(orig_times, orig_vals, pid_list, root_dir, start_date, end_date, g, style, '原始');
+        plot_deflection_curve(filt_times, filt_vals, pid_list, root_dir, start_date, end_date, g, style, '滤波');
     end
 
     % 写入 Excel
@@ -88,11 +83,9 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
     fprintf('挠度统计已保存至 %s\n', excel_file);
 end
 
-function plot_deflection_curve(times_list, vals_list, pid_list,  root_dir, start_date, end_date, group_idx, style)
-% plot_deflection_curve 绘制一组挠度时程曲线
+function plot_deflection_curve(times_list, vals_list, pid_list, root_dir, start_date, end_date, group_idx, style, suffix)
 fig = figure('Position',[100 100 1000 469]); hold on;
 dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd'); dt1 = datetime(end_date,'InputFormat','yyyy-MM-dd');
-h = gobjects(numel(pid_list),1);
 N = numel(pid_list);
 
 colors_2 = normalize_colors(get_style_field(style,'colors_2', {[0 0 1], [0 0.7 0]}));
@@ -107,18 +100,25 @@ for i = 1:N
         cmap = lines(N);
         c = cmap(i,:);
     end
-    h(i) = plot(times_list{i}, vals_list{i}, 'LineWidth', 1.0, 'Color', c);
+    if isempty(vals_list{i}), continue; end
+    plot(times_list{i}, vals_list{i}, 'LineWidth', 1.0, 'Color', c);
 end
 
-lg=legend(pid_list,'Location','northeast','Box','off');
+lg = legend(pid_list,'Location','northeast','Box','off');
 lg.AutoUpdate = 'off';
 
-% X 刻度
+% X 轴
 numDiv = 4;
 ticks = dt0 + (dt1 - dt0) * (0:numDiv) / numDiv;
 ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = ticks; xtickformat('yyyy-MM-dd');
-xlabel('时间'); ylabel('主梁位移 (mm)');
-title(sprintf('挠度时程曲线 组%d', group_idx));
+xlabel('时间'); ylabel(get_style_field(style,'ylabel','挠度 (mm)'));
+prefix = get_style_field(style,'title_prefix','挠度时程');
+if nargin < 9 || isempty(suffix)
+    suffix = '';
+else
+    suffix = [' ' suffix];
+end
+title(sprintf('%s 组%d%s', prefix, group_idx, suffix));
 
 % 预警线
 warn_lines = get_style_field(style,'warn_lines', {});
@@ -135,7 +135,7 @@ if iscell(warn_lines)
     end
 end
 
-% Y轴范围
+% Y 轴范围
 ylim_val = get_style_field(style,'ylim', []);
 if ~isempty(ylim_val)
     ylim(ylim_val);
@@ -144,7 +144,7 @@ else
 end
 grid on; grid minor;
 
-% 保存 JPG, EMF, FIG
+% 保存
 ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir, '时程曲线_挠度'); if ~exist(out,'dir'), mkdir(out); end
 fname = sprintf('Defl_G%d_%s_%s', group_idx, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
@@ -154,7 +154,7 @@ savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
 close(fig);
 end
 
-% ------------ helpers ------------
+% helpers
 function groups = get_groups(cfg, key, fallback)
     groups = fallback;
     if isfield(cfg, 'groups') && isfield(cfg.groups, key)

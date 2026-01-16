@@ -1,16 +1,17 @@
 function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfolder, cfg)
-% analyze_tilt_points 批量绘制倾角时程并统计
-%   root_dir: 根目录
-%   start_date: 开始日期 'yyyy-MM-dd'
-%   end_date: 结束日期 'yyyy-MM-dd'
-%   excel_file: 输出 Excel
-%   subfolder: 数据子目录（默认配置里的 tilt）
-%   cfg: load_config() 结果
+% analyze_tilt_points  倾角时程与统计（按 X/Y 分组）。
+%
+% root_dir   : 根目录
+% start_date : 'yyyy-MM-dd'
+% end_date   : 'yyyy-MM-dd'
+% excel_file : 输出 Excel 文件名
+% subfolder  : 数据子目录（默认 cfg.subfolders.tilt 或 '波形_重采样'）
+% cfg        : load_config() 结果
 
-    if nargin<1||isempty(root_dir),    root_dir  = pwd;           end
-    if nargin<2||isempty(start_date),  start_date = input('开始日期: ','s'); end
-    if nargin<3||isempty(end_date),    end_date   = input('结束日期: ','s'); end
-    if nargin<4||isempty(excel_file),  excel_file = 'tilt_stats.xlsx';end
+    if nargin<1||isempty(root_dir),   root_dir  = pwd; end
+    if nargin<2||isempty(start_date), start_date = input('开始日期 (yyyy-MM-dd): ','s'); end
+    if nargin<3||isempty(end_date),   end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
+    if nargin<4||isempty(excel_file), excel_file = 'tilt_stats.xlsx'; end
     if nargin<5||isempty(subfolder)
         cfg_tmp = load_config();
         if isfield(cfg_tmp,'subfolders') && isfield(cfg_tmp.subfolders,'tilt')
@@ -19,7 +20,7 @@ function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfold
             subfolder  = '波形_重采样';
         end
     end
-    if nargin<6||isempty(cfg),         cfg = load_config(); end
+    if nargin<6||isempty(cfg), cfg = load_config(); end
 
     groups_cfg = get_groups(cfg,'tilt');
     if isempty(groups_cfg)
@@ -29,12 +30,10 @@ function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfold
     style = get_style(cfg,'tilt');
 
     [statsX, dataX] = process_group(root_dir, subfolder, groups_cfg.X, start_date, end_date, 'X', cfg);
-    plot_tilt_curve(root_dir,dataX, start_date, end_date, 'X', style);
-    clear dataX;
+    plot_tilt_curve(root_dir, dataX, start_date, end_date, 'X', style);
 
     [statsY, dataY] = process_group(root_dir, subfolder, groups_cfg.Y, start_date, end_date, 'Y', cfg);
-    plot_tilt_curve(root_dir,dataY, start_date, end_date, 'Y', style);
-    clear dataY;
+    plot_tilt_curve(root_dir, dataY, start_date, end_date, 'Y', style);
 
     T_X = cell2table(statsX, 'VariableNames', {'PointID','Min','Max','Mean'});
     T_Y = cell2table(statsY, 'VariableNames', {'PointID','Min','Max','Mean'});
@@ -53,6 +52,7 @@ function [stats, dataList] = process_group(root, subfolder, pids, t0, t1, suffix
         [times, vals] = load_timeseries_range(root, subfolder, pid, t0, t1, cfg, 'tilt');
         if isempty(vals)
             warning('测点 %s 无数据，跳过', pid);
+            stats(i,:) = {pid, NaN, NaN, NaN};
             continue;
         end
         stats(i,:) = {pid, round(min(vals),3), round(max(vals),3), round(mean(vals),3)};
@@ -62,63 +62,61 @@ function [stats, dataList] = process_group(root, subfolder, pids, t0, t1, suffix
     end
 end
 
-function plot_tilt_curve(root_dir,dataList, t0, t1, suffix, style)
-fig = figure('Position',[100 100 1000 469]); hold on;
+function plot_tilt_curve(root_dir, dataList, t0, t1, suffix, style)
+    fig = figure('Position',[100 100 1000 469]); hold on;
 
-dt0 = datetime(t0,'InputFormat','yyyy-MM-dd'); dt1 = datetime(t1,'InputFormat','yyyy-MM-dd');
+    dt0 = datetime(t0,'InputFormat','yyyy-MM-dd'); dt1 = datetime(t1,'InputFormat','yyyy-MM-dd');
+    colors_3 = normalize_colors(get_style_field(style,'colors_3', {[0 0 0], [1 0 0], [0 0 1]}));
 
-hLines = gobjects(numel(dataList),1);
-N = numel(dataList);
-colors_3 = normalize_colors(get_style_field(style,'colors_3', {[0 0 0], [1 0 0], [0 0 1]}));  % 黑、红、蓝
-
-for i = 1:N
-    d = dataList(i);
-    if isempty(d.vals), continue; end
-    if N == 3
-        c = colors_3{i};
-        hLines(i) = plot(d.times, d.vals, 'LineWidth', 1.0, 'Color', c);
-    else
-        hLines(i) = plot(d.times, d.vals, 'LineWidth', 1.0);
-    end
-end
-legend(hLines, {dataList.pid}, 'Location','northeast','Box','off');
-lg = legend; lg.AutoUpdate = 'off';
-
-numDiv = 4;
-ticks = dt0 + (dt1 - dt0) * (0:numDiv)/numDiv;
-ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = ticks;
-xtickformat('yyyy-MM-dd');
-xlabel('时间'); ylabel('倾角 (°)');
-title(['倾角时程曲线 ' suffix]);
-
-warn_lines = get_style_field(style,'warn_lines',{});
-if isstruct(warn_lines) && ~iscell(warn_lines)
-    warn_lines = num2cell(warn_lines);
-end
-if iscell(warn_lines)
-    for k = 1:numel(warn_lines)
-        wl = warn_lines{k};
-        if isstruct(wl) && isfield(wl,'y')
-            yl = yline(wl.y, '--');
-            if isfield(wl,'color'), yl.Color = wl.color; end
-            if isfield(wl,'label'), yl.Label = wl.label; end
-            yl.LabelHorizontalAlignment = 'left';
+    hLines = gobjects(numel(dataList),1);
+    for i = 1:numel(dataList)
+        d = dataList(i);
+        if isempty(d.vals), continue; end
+        if numel(dataList) == 3 && i <= numel(colors_3)
+            hLines(i) = plot(d.times, d.vals, 'LineWidth', 1.0, 'Color', colors_3{i});
+        else
+            hLines(i) = plot(d.times, d.vals, 'LineWidth', 1.0);
         end
     end
-end
+    goodLines = hLines(isgraphics(hLines));
+    legend(goodLines, {dataList.pid}, 'Location','northeast','Box','off');
 
-ylim_val = get_style_field(style,'ylim', []);
-if ~isempty(ylim_val), ylim(ylim_val); else, ylim auto; end
+    numDiv = 4;
+    ticks = dt0 + (dt1 - dt0) * (0:numDiv)/numDiv;
+    ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = ticks;
+    xtickformat('yyyy-MM-dd');
+    xlabel('时间');
+    ylabel(get_style_field(style,'ylabel','倾角 (°)'));
+    title(sprintf('%s %s', get_style_field(style,'title_prefix','倾角时程'), suffix));
 
-grid on; grid minor;
+    warn_lines = get_style_field(style,'warn_lines',{});
+    if isstruct(warn_lines) && ~iscell(warn_lines)
+        warn_lines = num2cell(warn_lines);
+    end
+    if iscell(warn_lines)
+        for k = 1:numel(warn_lines)
+            wl = warn_lines{k};
+            if isstruct(wl) && isfield(wl,'y')
+                yl = yline(wl.y, '--');
+                if isfield(wl,'color'), yl.Color = wl.color; end
+                if isfield(wl,'label'), yl.Label = wl.label; end
+                yl.LabelHorizontalAlignment = 'left';
+            end
+        end
+    end
 
-ts = datestr(now,'yyyymmdd_HHMMSS');
-out=fullfile(root_dir,'时程曲线_倾角'); if ~exist(out,'dir'), mkdir(out); end
-fname = sprintf('Tilt_%s_%s_%s', suffix, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
-saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
-saveas(fig, fullfile(out, [fname '_' ts '.emf']));
-savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
-close(fig);
+    ylim_val = get_style_field(style,'ylim', []);
+    if ~isempty(ylim_val), ylim(ylim_val); else, ylim auto; end
+
+    grid on; grid minor;
+
+    ts = datestr(now,'yyyymmdd_HHMMSS');
+    out=fullfile(root_dir,'时程曲线_倾角'); if ~exist(out,'dir'), mkdir(out); end
+    fname = sprintf('Tilt_%s_%s_%s', suffix, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
+    saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
+    saveas(fig, fullfile(out, [fname '_' ts '.emf']));
+    savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
+    close(fig);
 end
 
 % helpers
