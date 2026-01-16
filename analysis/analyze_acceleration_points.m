@@ -29,10 +29,11 @@ function analyze_acceleration_points(root_dir, start_date, end_date, excel_file,
     time_start = datetime('now','Format','yyyy-MM-dd HH:mm:ss');
     fprintf('开始时间 %s\n', char(time_start));
 
-    tpts = { ...
+    tpts = get_points(cfg, 'acceleration', { ...
         'GB-VIB-G04-001-01','GB-VIB-G05-001-01','GB-VIB-G05-002-01','GB-VIB-G05-003-01', ...
-        'GB-VIB-G06-001-01','GB-VIB-G06-002-01','GB-VIB-G06-003-01','GB-VIB-G07-001-01'};
+        'GB-VIB-G06-001-01','GB-VIB-G06-002-01','GB-VIB-G06-003-01','GB-VIB-G07-001-01'});
 
+    style = get_style(cfg, 'acceleration');
     stats = cell(numel(tpts),6);
 
     for i = 1:numel(tpts)
@@ -66,8 +67,8 @@ function analyze_acceleration_points(root_dir, start_date, end_date, excel_file,
             rms_time = NaT;
         end
         stats(i,:) = {pid, mn, mx, av, rms_max,rms_time};
-        plot_accel_curve(root_dir,pid, times, vals, mn, mx);
-        plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date);
+        plot_accel_curve(root_dir,pid, times, vals, mn, mx, style);
+        plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date, style);
     end
 
     T = cell2table(stats, 'VariableNames',{'PointID','Min','Max','Mean','RMS10minMax','RMSStartTime'});
@@ -80,14 +81,55 @@ function analyze_acceleration_points(root_dir, start_date, end_date, excel_file,
     fprintf('总用时 %.2f 秒\n', elapsed);
 end
 
-function plot_accel_curve(root_dir,pid, times, vals, mn, mx)
+function pts = get_points(cfg, key, fallback)
+    pts = fallback;
+    if isfield(cfg,'points') && isfield(cfg.points, key)
+        val = cfg.points.(key);
+        if iscellstr(val) || (iscell(val) && all(cellfun(@ischar,val)))
+            pts = val;
+        end
+    end
+end
+
+function style = get_style(cfg, key)
+    style = struct('ylabel','主梁竖向振动加速度 (mm/s^2)', ...
+                   'title_prefix','加速度时程', ...
+                   'ylim', [], ...
+                   'color_main',[0 0.447 0.741], ...
+                   'color_rms',[0.8500 0.3250 0.0980], ...
+                   'rms_ylabel','10 min RMS (mm/s^2)', ...
+                   'rms_title_prefix','10 min RMS 时程', ...
+                   'rms_ylim', []);
+    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,key)
+        ps = cfg.plot_styles.(key);
+        if isfield(ps,'ylabel'), style.ylabel = ps.ylabel; end
+        if isfield(ps,'title_prefix'), style.title_prefix = ps.title_prefix; end
+        if isfield(ps,'ylim'), style.ylim = ps.ylim; end
+        if isfield(ps,'colors') && numel(ps.colors)>=1
+            c = ps.colors;
+            if isnumeric(c) && size(c,2)==3
+                style.color_main = c(1,:);
+                if size(c,1)>=2, style.color_rms = c(2,:); end
+            end
+        end
+        if isfield(ps,'rms')
+            r = ps.rms;
+            if isfield(r,'ylabel'), style.rms_ylabel = r.ylabel; end
+            if isfield(r,'title_prefix'), style.rms_title_prefix = r.title_prefix; end
+            if isfield(r,'ylim'), style.rms_ylim = r.ylim; end
+            if isfield(r,'color'), style.color_rms = r.color; end
+        end
+    end
+end
+
+function plot_accel_curve(root_dir,pid, times, vals, mn, mx, style)
 % 绘制加速度时程曲线及标尺
 fig = figure('Position',[100 100 1000 469]);
-plot(times, vals, 'LineWidth',1);
-xlabel('时间'); ylabel('主梁竖向振动加速度 (mm/s^2)');
-tmp_manual=true;
-if tmp_manual
-    ylim([-500,500]);
+plot(times, vals, 'LineWidth',1, 'Color', style.color_main);
+xlabel('时间');
+ylabel(style.ylabel);
+if ~isempty(style.ylim)
+    ylim(style.ylim);
 else
     ylim auto;
 end
@@ -101,7 +143,7 @@ numDiv = 4;
 ticks = datetime(linspace(dn0, dn1, numDiv+1), 'ConvertFrom','datenum');
 ax = gca; ax.XLim = ticks([1 end]); ax.XTick = ticks; xtickformat('yyyy-MM-dd');
 grid on; grid minor;
-title(['加速度时程 ' pid]);
+title([style.title_prefix ' ' pid]);
 ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir,'时程曲线_加速度'); if ~exist(out,'dir'), mkdir(out); end
 fname = [pid '_' datestr(times(1),'yyyymmdd') '_' datestr(times(end),'yyyymmdd')];
@@ -111,7 +153,7 @@ savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
 close(fig);
 end
 
-function plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date)
+function plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date, style)
 % 10 min RMS 全时程曲线（含峰值标注）
 if isempty(vals) || numel(times) ~= numel(vals)
     return;
@@ -130,16 +172,15 @@ if ~isempty(idx_max) && ~isnan(rms_max)
 end
 
 fig = figure('Position',[100 100 1000 469]);
-plot(times, rms_series, 'LineWidth', 1.2);
-xlabel('时间'); ylabel('10 min RMS (mm/s^2)');
-tmp_manual=true;
-if tmp_manual
-    ylim([0,80]);
+plot(times, rms_series, 'LineWidth', 1.2, 'Color', style.color_rms);
+xlabel('时间'); ylabel(style.rms_ylabel);
+if ~isempty(style.rms_ylim)
+    ylim(style.rms_ylim);
 else
     ylim auto;
 end
 
-title(sprintf('10 min RMS 时程 %s', pid));
+title(sprintf('%s %s', style.rms_title_prefix, pid));
 grid on; grid minor; hold on;
 
 if ~isnan(rms_max)

@@ -161,12 +161,14 @@ function [times, vals] = load_single_file(fp, header_marker)
         return;
     end
 
-    % detect header lines
+    % detect header lines (marker or first parsable data line)
     fid = fopen(fp, 'rt');
     h = 0;
     found = false;
-    while h < 50 && ~feof(fid)
+    buf = {};
+    while h < 200 && ~feof(fid)
         ln = fgetl(fid); h = h + 1;
+        buf{end+1} = ln; %#ok<AGROW>
         if contains(ln, header_marker)
             found = true;
             break;
@@ -174,7 +176,14 @@ function [times, vals] = load_single_file(fp, header_marker)
     end
     fclose(fid);
     if ~found
-        h = 0;
+        % find first line like "yyyy-mm-dd HH:MM:SS[.fff],"
+        pat = '^\s*\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?\s*,';
+        idx = find(~cellfun(@isempty, regexp(buf, pat, 'once')), 1);
+        if ~isempty(idx)
+            h = idx - 1;
+        else
+            h = 0;
+        end
     end
 
     cacheDir = fullfile(fileparts(fp), 'cache');
@@ -199,14 +208,69 @@ function [times, vals] = load_single_file(fp, header_marker)
     end
 
     if ~useCache
-        T = readtable(fp, ...
-            'Delimiter', ',', ...
-            'HeaderLines', h, ...
-            'ReadVariableNames', false, ...
-            'Format', '%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-        times = T{:,1};
-        vals  = T{:,2};
+        [times, vals, ok] = read_with_fallback(fp, h);
+        if ~ok
+            times = []; vals = [];
+            return;
+        end
         save(cacheFile, 'times', 'vals');
+    end
+end
+
+% -------------------------------------------------------------------------
+function [times, vals, ok] = read_with_fallback(fp, header_lines)
+    times = []; vals = []; ok = false;
+    fmts = { ...
+        '%{yyyy-MM-dd HH:mm:ss.SSS}D%f', ...
+        '%{yyyy-MM-dd HH:mm:ss}D%f' ...
+        };
+    encs = {'UTF-16LE','UTF-8',''};
+
+    % 1) readtable 尝试多编码、多格式
+    for ei = 1:numel(encs)
+        enc = encs{ei};
+        for fi = 1:numel(fmts)
+            fmt = fmts{fi};
+            try
+                T = readtable(fp, ...
+                    'Delimiter', ',', ...
+                    'HeaderLines', header_lines, ...
+                    'ReadVariableNames', false, ...
+                    'FileEncoding', enc, ...
+                    'Format', fmt);
+                if size(T,2) < 2, continue; end
+                times = T{:,1};
+                vals  = T{:,2};
+                ok = true;
+                return;
+            catch
+                % try next
+            end
+        end
+    end
+
+    % 2) textscan 兼容旧版本/特殊编码
+    for ei = 1:numel(encs)
+        enc = encs{ei};
+        try
+            fid = fopen(fp,'r','n',enc);
+            if fid==-1, continue; end
+            cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+            for k = 1:header_lines
+                if feof(fid), break; end
+                fgetl(fid);
+            end
+            C = textscan(fid,'%s %f','Delimiter',',','CollectOutput',true);
+            if isempty(C) || numel(C)<2, continue; end
+            times = datetime(C{1}, 'InputFormat','yyyy-MM-dd HH:mm:ss.SSS');
+            vals  = C{2};
+            if numel(times) == numel(vals)
+                ok = true;
+                return;
+            end
+        catch
+            % continue
+        end
     end
 end
 

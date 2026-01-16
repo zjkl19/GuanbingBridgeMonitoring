@@ -25,8 +25,8 @@ function run_gui()
     f = uifigure('Name','福建建科院健康监测大数据分析', ...
                  'Position',[80 80 960 720], ...
                  'Color',[0.97 0.98 1]);
-    gl = uigridlayout(f,[13 4]);
-    gl.RowHeight   = {90,32,32,32,32,32,32,32,32,32,32,24,'1x'};
+    gl = uigridlayout(f,[14 4]);
+    gl.RowHeight   = {90,32,32,32,32,32,32,32,32,32,32,32,24,'1x'};
     gl.ColumnWidth = {190,240,240,'1x'};
     gl.Padding = [12 12 12 12];
     gl.RowSpacing = 6; gl.ColumnSpacing = 8;
@@ -123,15 +123,18 @@ function run_gui()
     runBtn = uibutton(gl,'Text','运行','FontWeight','bold','BackgroundColor',primaryBlue, ...
         'FontColor',[1 1 1],'ButtonPushedFcn',@(btn,~) onRun());
     runBtn.Layout.Row = 11; runBtn.Layout.Column = 3;
+    stopBtn = uibutton(gl,'Text','停止','BackgroundColor',[0.8 0.2 0.2], ...
+        'FontColor',[1 1 1],'ButtonPushedFcn',@(btn,~) onStop());
+    stopBtn.Layout.Row = 11; stopBtn.Layout.Column = 4;
     clearBtn = uibutton(gl,'Text','清空日志','ButtonPushedFcn',@(btn,~) set(logArea,'Value',{}));
-    clearBtn.Layout.Row = 11; clearBtn.Layout.Column = 4;
+    clearBtn.Layout.Row = 12; clearBtn.Layout.Column = 4;
 
     % 状态与日志
     statusLbl = uilabel(gl,'Text','就绪','FontColor',primaryBlue);
-    statusLbl.Layout.Row = 12; statusLbl.Layout.Column = [1 4];
+    statusLbl.Layout.Row = 13; statusLbl.Layout.Column = [1 4];
 
     logArea = uitextarea(gl,'Editable','off','Value',{'准备就绪...'});
-    logArea.Layout.Row = 13; logArea.Layout.Column = [1 4];
+    logArea.Layout.Row = 14; logArea.Layout.Column = [1 4];
 
     % 启动时加载上次参数
     autoPreset = fullfile(projRoot,'outputs','ui_last_preset.json');
@@ -161,10 +164,15 @@ function run_gui()
     end
 
     function onRun()
+        global RUN_STOP_FLAG;
         runBtn.Enable = 'off';
+        stopBtn.Enable = 'on';
+        setappdata(f, 'stop_flag', false);
+        RUN_STOP_FLAG = false;
         statusLbl.Text = '运行中...';
         addLog('开始运行');
         drawnow;
+        t0 = tic;
         try
             if exist(cfgEdit.Value,'file')
                 cfg = load_config(cfgEdit.Value);
@@ -223,8 +231,9 @@ function run_gui()
 
             addLog(sprintf('root=%s, %s -> %s', root, start_date, end_date));
             run_all(root, start_date, end_date, opts, cfg);
-            addLog('运行完成');
-            statusLbl.Text = '完成';
+            elapsed = toc(t0);
+            addLog(sprintf('运行完成，用时 %.2f 秒', elapsed));
+            statusLbl.Text = sprintf('完成，用时 %.2f 秒', elapsed);
             statusLbl.FontColor = [0 0.5 0];
         catch ME
             addLog(['运行失败: ' ME.message]);
@@ -232,6 +241,14 @@ function run_gui()
             statusLbl.FontColor = [0.8 0 0];
         end
         runBtn.Enable = 'on';
+        stopBtn.Enable = 'off';
+    end
+
+    function onStop()
+        global RUN_STOP_FLAG;
+        setappdata(f, 'stop_flag', true);
+        RUN_STOP_FLAG = true;
+        addLog('收到停止请求，将跳过后续步骤');
     end
 
     function onSavePreset()

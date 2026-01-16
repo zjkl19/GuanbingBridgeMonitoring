@@ -10,11 +10,16 @@ function analyze_accel_spectrum_points(root_dir,start_date,end_date,point_ids,..
     if nargin<1||isempty(root_dir),  root_dir = pwd; end
     if nargin<2||isempty(start_date), error('必须指定 start_date'); end
     if nargin<3||isempty(end_date),   error('必须指定 end_date');   end
+    if nargin<10||isempty(cfg),        cfg = load_config();                end
     if nargin<4||isempty(point_ids)
-        point_ids = {'GB-VIB-G04-001-01','GB-VIB-G05-001-01',...
-                     'GB-VIB-G05-002-01','GB-VIB-G05-003-01',...
-                     'GB-VIB-G06-001-01','GB-VIB-G06-002-01',...
-                     'GB-VIB-G06-003-01','GB-VIB-G07-001-01'};
+        point_ids = get_points(cfg, 'accel_spectrum', []);
+        if isempty(point_ids)
+            point_ids = get_points(cfg, 'acceleration', ...
+                {'GB-VIB-G04-001-01','GB-VIB-G05-001-01',...
+                 'GB-VIB-G05-002-01','GB-VIB-G05-003-01',...
+                 'GB-VIB-G06-001-01','GB-VIB-G06-002-01',...
+                 'GB-VIB-G06-003-01','GB-VIB-G07-001-01'});
+        end
     end
     if nargin<5||isempty(excel_file),  excel_file = 'accel_spec_stats.xlsx'; end
     if nargin<6||isempty(subfolder)
@@ -28,7 +33,8 @@ function analyze_accel_spectrum_points(root_dir,start_date,end_date,point_ids,..
     if nargin<7||isempty(target_freqs),target_freqs=[1.150 1.480 2.310];   end
     if nargin<8||isempty(tolerance),   tolerance  = 0.15;                  end
     if nargin<9,  use_parallel = false;                                    end
-    if nargin<10||isempty(cfg),        cfg = load_config();                end
+
+    style = get_style(cfg, 'accel_spectrum');
 
     outDirFig = fullfile(root_dir,'谱峰值曲线_加速度');
     if ~exist(outDirFig,'dir'), mkdir(outDirFig); end
@@ -89,6 +95,33 @@ function analyze_accel_spectrum_points(root_dir,start_date,end_date,point_ids,..
     fprintf('✓ 已输出 Excel -> %s\n', excel_file);
 end
 
+function pts = get_points(cfg, key, fallback)
+    pts = fallback;
+    if isfield(cfg,'points') && isfield(cfg.points, key)
+        val = cfg.points.(key);
+        if iscellstr(val) || (iscell(val) && all(cellfun(@ischar,val)))
+            pts = val;
+        end
+    end
+end
+
+function style = get_style(cfg, key)
+    style = struct( ...
+        'psd_ylabel','PSD (dB)', ...
+        'psd_title_prefix','PSD', ...
+        'psd_color',[0 0 0], ...
+        'freq_ylabel','峰值频率(Hz)', ...
+        'freq_title_prefix','峰值频率时程');
+    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,key)
+        ps = cfg.plot_styles.(key);
+        if isfield(ps,'psd_ylabel'), style.psd_ylabel = ps.psd_ylabel; end
+        if isfield(ps,'psd_title_prefix'), style.psd_title_prefix = ps.psd_title_prefix; end
+        if isfield(ps,'psd_color'), style.psd_color = ps.psd_color; end
+        if isfield(ps,'freq_ylabel'), style.freq_ylabel = ps.freq_ylabel; end
+        if isfield(ps,'freq_title_prefix'), style.freq_title_prefix = ps.freq_title_prefix; end
+    end
+end
+
 % =========================================================================
 function [ampRow, freqRow] = process_one_day(day, pid, root_dir, subfolder, target_freqs, tolerance, psdRoot, cfg)
     ampRow  = NaN(1, numel(target_freqs));
@@ -129,10 +162,10 @@ function [ampRow, freqRow] = process_one_day(day, pid, root_dir, subfolder, targ
     psdDir = fullfile(psdRoot,pid);
     if ~exist(psdDir,'dir'), mkdir(psdDir); end
     figPSD = figure('Visible','off','Position',[100 100 900 420]);
-    plot(f,Pdb,'k','LineWidth',1); grid on; hold on;
+    plot(f,Pdb,'Color',style.psd_color,'LineWidth',1); grid on; hold on;
     xline(target_freqs,'--r');
-    xlabel('频率 (Hz)'); ylabel('PSD (dB)');
-    title(sprintf('PSD %s  %s  (05:30-05:40)',pid,dayStr));
+    xlabel('频率 (Hz)'); ylabel(style.psd_ylabel);
+    title(sprintf('%s %s  %s',style.psd_title_prefix,pid,dayStr));
     fnamePSD = fullfile(psdDir,sprintf('PSD_%s_%s',pid,dayStr));
     saveas(figPSD,[fnamePSD '.jpg']);
     savefig(figPSD,[fnamePSD '.fig'],'compact');
@@ -157,9 +190,9 @@ function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig)
     hold on;
     h = plot(dates_all, freqDay, 'LineWidth', 1.2);
     grid on; xtickformat('yyyy-MM-dd');
-    xlabel('日期'); ylabel('峰值频率(Hz)');
+    xlabel('日期'); ylabel(style.freq_ylabel);
     legend(h, compose('%d阶', 1:numel(target_freqs)), 'Location', 'eastoutside');
-    title(sprintf('峰值频率时程 %s', pid));
+    title(sprintf('%s %s', style.freq_title_prefix, pid));
 
     theor = [0.975, 1.243, 1.528];
     tlabels = { ...
