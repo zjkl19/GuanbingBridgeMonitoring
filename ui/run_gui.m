@@ -44,7 +44,8 @@
     logoPath = fullfile(projRoot,'建科院标志PNG-01.png');
     uiimg = uiimage(hgl); uiimg.Layout.Row = 1; uiimg.Layout.Column = 1; uiimg.ScaleMethod = 'fit';
     if exist(logoPath,'file'), uiimg.ImageSource = logoPath; end
-    titleLbl = uilabel(hgl,'Text','福建建科院健康监测大数据分析','FontSize',30,'FontWeight','bold','FontColor',primaryBlue,'HorizontalAlignment','center');
+    versionStr = 'v1.0.0';
+    titleLbl = uilabel(hgl,'Text',['福建建科院健康监测大数据分析 ' versionStr],'FontSize',30,'FontWeight','bold','FontColor',primaryBlue,'HorizontalAlignment','center');
     titleLbl.Layout.Row = 1; titleLbl.Layout.Column = [2 4];
 
     lblRoot = uilabel(gl,'Text','数据根目录:','FontWeight','bold','HorizontalAlignment','right'); lblRoot.Layout.Row=2; lblRoot.Layout.Column=1;
