@@ -1,10 +1,10 @@
-function analyze_accel_spectrum_points(root_dir,start_date,end_date,point_ids,...
+﻿function analyze_accel_spectrum_points(root_dir,start_date,end_date,point_ids,...
                                        excel_file,subfolder,target_freqs, ...
                                        tolerance,use_parallel,cfg)
 % analyze_accel_spectrum_points
-%   对给定测点在 [start_date,end_date] 范围内每�?05:30-05:40 的加速度信号
-%   计算 Welch PSD，提�?target_freqs±tolerance Hz 的峰值频率与幅值�?
-%   使用 load_timeseries_range 统一读取与清洗�?
+%   对给定测点在 [start_date,end_date] 范围内每日 05:30-05:40 的加速度信号
+%   计算 Welch PSD，提取 target_freqs±tolerance Hz 的峰值频率与幅值。
+%   使用 load_timeseries_range 统一读取与清洗。
 
     if nargin<1||isempty(root_dir),  root_dir = pwd; end
     if nargin<2||isempty(start_date), error('必须指定 start_date'); end
@@ -29,8 +29,12 @@ function analyze_accel_spectrum_points(root_dir,start_date,end_date,point_ids,..
             subfolder  = '波形';
         end
     end
-    if nargin<7||isempty(target_freqs),target_freqs=[1.150 1.480 2.310];   end
-    if nargin<8||isempty(tolerance),   tolerance  = 0.15;                  end
+    if nargin<7||isempty(target_freqs)
+        target_freqs = get_spec_param(cfg, 'target_freqs', [1.150 1.480 2.310]);
+    end
+    if nargin<8||isempty(tolerance)
+        tolerance  = get_spec_param(cfg, 'tolerance', 0.15);
+    end
     if nargin<9,  use_parallel = false;                                    end
 
     style = get_style(cfg, 'accel_spectrum');
@@ -46,6 +50,7 @@ function analyze_accel_spectrum_points(root_dir,start_date,end_date,point_ids,..
 
     nPts  = numel(point_ids);
     nFreq = numel(target_freqs);
+    [theor_freqs, theor_labels] = get_spec_theor(cfg);
 
     peakAmpMat   = NaN(Nday,nFreq,nPts);
     peakFreqMat  = NaN(Nday,nFreq,nPts);
@@ -83,7 +88,7 @@ function analyze_accel_spectrum_points(root_dir,start_date,end_date,point_ids,..
         writetable(T, excel_file,'Sheet',point_ids{ii});
 
         % 绘制峰值频率时程
-        plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, style);
+        plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, style, theor_freqs, theor_labels);
     end
     fprintf('✓ 已输出 Excel -> %s\n', excel_file);
 end
@@ -124,6 +129,26 @@ function style = get_style(cfg, key)
                 style.colors = c;
             end
         end
+    end
+end
+
+function val = get_spec_param(cfg, field, defaultVal)
+    val = defaultVal;
+    if isfield(cfg, 'accel_spectrum_params') && isstruct(cfg.accel_spectrum_params)
+        ps = cfg.accel_spectrum_params;
+        if isfield(ps, field) && ~isempty(ps.(field))
+            val = ps.(field);
+        end
+    end
+end
+
+function [freqs, labels] = get_spec_theor(cfg)
+    freqs = [];
+    labels = {};
+    if isfield(cfg, 'accel_spectrum_params') && isstruct(cfg.accel_spectrum_params)
+        ps = cfg.accel_spectrum_params;
+        if isfield(ps, 'theor_freqs'), freqs = ps.theor_freqs; end
+        if isfield(ps, 'theor_labels'), labels = ps.theor_labels; end
     end
 end
 
@@ -190,7 +215,7 @@ function [ampRow, freqRow] = process_one_day(day, pid, root_dir, subfolder, targ
 end
 
 % =========================================================================
-function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, style)
+function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, style, theor_freqs, theor_labels)
     fig = figure('Visible','off','Position',[100 100 1000 470]);
     hold on;
     colors = normalize_colors(style.colors);
@@ -204,20 +229,27 @@ function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, 
     end
     grid on; xtickformat('yyyy-MM-dd');
     xlabel('日期'); ylabel(style.freq_ylabel);
-    legend(h, compose('峰%d (%.3fHz)', 1:numel(target_freqs), target_freqs), 'Location', 'eastoutside');
+    labels = arrayfun(@(k,f)sprintf('峰%d (%.3fHz)',k,f), (1:numel(target_freqs)).', target_freqs(:), 'UniformOutput', false);
+    legend(h, labels, 'Location', 'eastoutside');
     title(sprintf('%s %s', style.freq_title_prefix, pid));
 
-    theor = [0.975, 1.243, 1.528];
-    tlabels = { ...
-        '理论竖向一阶自振频率 0.975Hz', ...
-        '理论竖向二阶自振频率 1.243Hz', ...
-        '理论竖向三阶自振频率 1.528Hz' };
+    if nargin < 7 || isempty(theor_freqs)
+        theor_freqs = [];
+    end
+    if nargin < 8 || isempty(theor_labels)
+        theor_labels = arrayfun(@(f) sprintf('理论频率 %.3fHz', f), theor_freqs, 'UniformOutput', false);
+    end
 
     dataMin = min(freqDay,[],'all','omitnan');
     dataMax = max(freqDay,[],'all','omitnan');
     if ~isempty(dataMin) && ~isempty(dataMax) && isfinite(dataMin) && isfinite(dataMax)
-        ymin = min([dataMin, theor]);
-        ymax = max([dataMax, theor]);
+        vals_min = dataMin;
+        vals_max = dataMax;
+        if ~isempty(theor_freqs)
+            vals_min = min([vals_min; theor_freqs(:)]);
+            vals_max = max([vals_max; theor_freqs(:)]);
+        end
+        ymin = vals_min; ymax = vals_max;
         pad  = max(0.02, 0.05*(ymax - ymin));
         ylim([ymin - 0.5*pad, ymax + 1.5*pad]);
     end
@@ -231,13 +263,13 @@ function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, 
     yoff = diff(ylim(ax)) * 0.02;
     xleft = dates_all(1);
 
-    for k = 1:numel(theor)
+    for k = 1:numel(theor_freqs)
         c = [0 0 0];
         if k <= numel(h) && isgraphics(h(k))
             c = get(h(k),'Color');
         end
-        yline(theor(k), '--', 'Color', c, 'LineWidth', 1, 'HandleVisibility','off');
-        text(xleft + xoff, theor(k) + yoff, tlabels{k}, ...
+        yline(theor_freqs(k), '--', 'Color', c, 'LineWidth', 1, 'HandleVisibility','off');
+        text(xleft + xoff, theor_freqs(k) + yoff, theor_labels{k}, ...
             'Color', c, 'FontSize', 9, 'VerticalAlignment','bottom');
     end
     hold off;

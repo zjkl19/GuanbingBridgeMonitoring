@@ -95,10 +95,11 @@ if opts.doAccelSpectrum && ~should_stop()
         'GB-VIB-G06-001-01','GB-VIB-G06-002-01', ...
         'GB-VIB-G06-003-01','GB-VIB-G07-001-01'};
     accel_pts = get_points(cfg, 'accel_spectrum', get_points(cfg, 'acceleration', default_spec_pts));
+    [spec_freqs, spec_tol] = get_accel_spec_params(cfg);
     results{end+1} = run_step('加速度频谱', @() analyze_accel_spectrum_points( ...
         root, start_date, end_date, accel_pts, ...
         'accel_spec_stats.xlsx', sub.accel_raw, ...   % use raw waveform
-        [1.150 1.480 2.310], 0.15, false, cfg));
+        spec_freqs, spec_tol, false, cfg));
 end
 
 if opts.doRenameCrk && ~should_stop()
@@ -151,6 +152,16 @@ function pts = get_points(cfg, key, fallback)
         if iscell(val) || isstring(val)
             pts = cellstr(val(:));
         end
+    end
+end
+
+function [freqs, tol] = get_accel_spec_params(cfg)
+    freqs = [1.150 1.480 2.310];
+    tol   = 0.15;
+    if isfield(cfg,'accel_spectrum_params') && isstruct(cfg.accel_spectrum_params)
+        ps = cfg.accel_spectrum_params;
+        if isfield(ps,'target_freqs') && ~isempty(ps.target_freqs), freqs = ps.target_freqs; end
+        if isfield(ps,'tolerance')   && ~isempty(ps.tolerance),    tol   = ps.tolerance;   end
     end
 end
 

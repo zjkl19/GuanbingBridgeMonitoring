@@ -2,43 +2,126 @@
   "vendor": "hongtang",
   "defaults": {
     "header_marker": "[绝对时间]",
-    "deflection": { "thresholds": [], "zero_to_nan": true, "outlier": { "window_sec": 15, "threshold_factor": 3 } },
-    "acceleration": { "thresholds": [], "zero_to_nan": false, "outlier": [] },
-    "accel_spectrum": { "thresholds": [], "zero_to_nan": false, "outlier": [] },
-    "strain": { "thresholds": [], "zero_to_nan": false, "outlier": [] },
-    "tilt": { "thresholds": [], "zero_to_nan": false, "outlier": [] },
-    "crack": { "thresholds": [], "zero_to_nan": false, "outlier": [] },
-    "humidity": { "thresholds": [], "zero_to_nan": false, "outlier": [] },
-    "temperature": { "thresholds": [], "zero_to_nan": false, "outlier": [] }
+    "deflection": {
+      "thresholds": [],
+      "zero_to_nan": true,
+      "outlier": {
+        "window_sec": 15,
+        "threshold_factor": 3
+      }
+    },
+    "acceleration": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "accel_spectrum": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "strain": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "tilt": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "crack": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "humidity": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "temperature": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    }
   },
   "per_point": {
     "acceleration": {
-      "A1": { "thresholds": [] },
-      "A2": { "thresholds": [] },
-      "A3": { "thresholds": [] },
-      "A4": { "thresholds": [] },
-      "A5": { "thresholds": [] },
-      "A6": { "thresholds": [] },
-      "A7": { "thresholds": [] },
-      "A8": { "thresholds": [] },
-      "A9-X": { "thresholds": [] },
-      "A9-Y": { "thresholds": [] },
-      "A10-X": { "thresholds": [] },
-      "A10-Y": { "thresholds": [] }
+      "A1": {
+        "thresholds": []
+      },
+      "A2": {
+        "thresholds": []
+      },
+      "A3": {
+        "thresholds": []
+      },
+      "A4": {
+        "thresholds": []
+      },
+      "A5": {
+        "thresholds": []
+      },
+      "A6": {
+        "thresholds": []
+      },
+      "A7": {
+        "thresholds": []
+      },
+      "A8": {
+        "thresholds": []
+      },
+      "A9-X": {
+        "thresholds": []
+      },
+      "A9-Y": {
+        "thresholds": []
+      },
+      "A10-X": {
+        "thresholds": []
+      },
+      "A10-Y": {
+        "thresholds": []
+      }
     },
     "accel_spectrum": {
-      "A1": { "thresholds": [] },
-      "A2": { "thresholds": [] },
-      "A3": { "thresholds": [] },
-      "A4": { "thresholds": [] },
-      "A5": { "thresholds": [] },
-      "A6": { "thresholds": [] },
-      "A7": { "thresholds": [] },
-      "A8": { "thresholds": [] },
-      "A9-X": { "thresholds": [] },
-      "A9-Y": { "thresholds": [] },
-      "A10-X": { "thresholds": [] },
-      "A10-Y": { "thresholds": [] }
+      "A1": {
+        "thresholds": []
+      },
+      "A2": {
+        "thresholds": []
+      },
+      "A3": {
+        "thresholds": []
+      },
+      "A4": {
+        "thresholds": []
+      },
+      "A5": {
+        "thresholds": []
+      },
+      "A6": {
+        "thresholds": []
+      },
+      "A7": {
+        "thresholds": []
+      },
+      "A8": {
+        "thresholds": []
+      },
+      "A9-X": {
+        "thresholds": []
+      },
+      "A9-Y": {
+        "thresholds": []
+      },
+      "A10-X": {
+        "thresholds": []
+      },
+      "A10-Y": {
+        "thresholds": []
+      }
     }
   },
   "subfolders": {
@@ -53,7 +136,9 @@
   },
   "file_patterns": {
     "acceleration": {
-      "default": [ "{point}_*.csv" ],
+      "default": [
+        "{point}_*.csv"
+      ],
       "per_point": {
         "A1": "{point}_174.csv",
         "A2": "{point}_172.csv",
@@ -70,7 +155,9 @@
       }
     },
     "accel_spectrum": {
-      "default": [ "{point}_*.csv" ],
+      "default": [
+        "{point}_*.csv"
+      ],
       "per_point": {
         "A1": "{point}_174.csv",
         "A2": "{point}_172.csv",
@@ -88,30 +175,120 @@
     }
   },
   "points": {
-    "acceleration": [ "A1","A2","A3","A4","A5","A6","A7","A8","A9-X","A9-Y","A10-X","A10-Y" ],
-    "accel_spectrum": [ "A1","A2","A3","A4","A5","A6","A7","A8","A9-X","A9-Y","A10-X","A10-Y" ]
+    "acceleration": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6",
+      "A7",
+      "A8",
+      "A9-X",
+      "A9-Y",
+      "A10-X",
+      "A10-Y"
+    ],
+    "accel_spectrum": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6",
+      "A7",
+      "A8",
+      "A9-X",
+      "A9-Y",
+      "A10-X",
+      "A10-Y"
+    ]
   },
   "groups": {},
   "plot_styles": {
     "acceleration": {
       "ylabel": "主梁竖向振动加速度 (mm/s^2)",
       "title_prefix": "加速度时程",
-      "ylim": [ -500, 500 ],
-      "colors": [ [0,0.447,0.741],[0.8500,0.3250,0.0980] ],
+      "ylim": [
+        -500,
+        500
+      ],
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ]
+      ],
       "rms": {
         "ylabel": "10 min RMS (mm/s^2)",
         "title_prefix": "10 min RMS 时程",
-        "ylim": [ 0, 80 ],
-        "color": [0,0.447,0.741]
+        "ylim": [
+          0,
+          80
+        ],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
       }
     },
     "accel_spectrum": {
       "psd_ylabel": "PSD (dB)",
       "psd_title_prefix": "PSD",
-      "psd_color": [0,0,0],
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
       "freq_ylabel": "峰值频率 (Hz)",
       "freq_title_prefix": "峰值频率时程",
-      "colors": [ [0,0,1],[1,0,0],[0,0.7,0],[0.5,0,0.7] ]
+      "colors": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          0.5,
+          0,
+          0.7
+        ]
+      ]
     }
+  },
+  "accel_spectrum_params": {
+    "target_freqs": [
+      1.15,
+      1.48,
+      2.31
+    ],
+    "tolerance": 0.15,
+    "theor_freqs": [
+      0.975,
+      1.243,
+      1.528
+    ],
+    "theor_labels": [
+      "理论竖向一阶自振频率 0.975Hz",
+      "理论竖向二阶自振频率 1.243Hz",
+      "理论竖向三阶自振频率 1.528Hz"
+    ]
   }
 }
