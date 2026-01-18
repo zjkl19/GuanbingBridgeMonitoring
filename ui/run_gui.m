@@ -2,12 +2,6 @@
 % run_gui  GUI 入口，便于配置并运行 run_all；含阈值配置页。
 % 用法：addpath(fullfile(pwd,'ui')); run_gui
 
-    % 确保 UI 组件路径可用
-    uiPath = fullfile(matlabroot,'toolbox','matlab','uicomponents','uicomponents');
-    if exist(uiPath,'dir')
-        addpath(uiPath);
-        rehash path; rehash toolboxcache;
-    end
     import matlab.ui.control.*
     import matlab.ui.container.*
     if ~exist('uilabel','file')
@@ -114,18 +108,20 @@
     uilabel(cfgGrid,'Text','编辑阈值/清洗规则：空=全时段/不启用；时间格式 yyyy-MM-dd HH:mm:ss');
     uilabel(cfgGrid,'Text','传感器类型:','HorizontalAlignment','right');
     sensorList = list_sensors(cfgCache);
+    if isempty(sensorList), sensorList = {'deflection'}; end
     sensorDrop = uidropdown(cfgGrid,'Items',sensorList,'Value',sensorList{1},'ValueChangedFcn',@(dd,~) refresh_tables());
     sensorDrop.Layout.Row=2; sensorDrop.Layout.Column=2;
     filterEdit = uieditfield(cfgGrid,'text','Placeholder','过滤 point_id (包含)...','ValueChangedFcn',@(ed,~) refresh_tables());
     filterEdit.Layout.Row=2; filterEdit.Layout.Column=3;
     reloadBtn = uibutton(cfgGrid,'Text','重新加载配置','ButtonPushedFcn',@(btn,~) onReloadCfg()); reloadBtn.Layout.Row=2; reloadBtn.Layout.Column=4;
+    helpBtn = uibutton(cfgGrid,'Text','说明','ButtonPushedFcn',@(btn,~) show_help()); helpBtn.Layout.Row=1; helpBtn.Layout.Column=4;
 
     defaultsLabel = uilabel(cfgGrid,'Text','默认阈值 (min/max/时间窗)','FontWeight','bold'); defaultsLabel.Layout.Row=3; defaultsLabel.Layout.Column=1;
     defaultsTable = uitable(cfgGrid,'ColumnName',{'min','max','t_range_start','t_range_end'},'ColumnEditable',true(1,4));
     defaultsTable.Layout.Row=3; defaultsTable.Layout.Column=[2 4];
     zeroChk = uicheckbox(cfgGrid,'Text','zero_to_nan','Value',false); zeroChk.Layout.Row=4; zeroChk.Layout.Column=1;
-    outWin = uieditfield(cfgGrid,'numeric','Placeholder','outlier window_sec','Limits',[0 Inf],'ValueDisplayFormat','%.0f'); outWin.Layout.Row=4; outWin.Layout.Column=2;
-    outTh  = uieditfield(cfgGrid,'numeric','Placeholder','threshold_factor','Limits',[0 Inf],'ValueDisplayFormat','%.2f'); outTh.Layout.Row=4; outTh.Layout.Column=3;
+    outWin = uieditfield(cfgGrid,'numeric','Placeholder','outlier window_sec','Limits',[0 Inf],'ValueDisplayFormat','%.0f','AllowEmpty','on'); outWin.Layout.Row=4; outWin.Layout.Column=2;
+    outTh  = uieditfield(cfgGrid,'numeric','Placeholder','threshold_factor','Limits',[0 Inf],'ValueDisplayFormat','%.2f','AllowEmpty','on'); outTh.Layout.Row=4; outTh.Layout.Column=3;
     defaultsAddBtn = uibutton(cfgGrid,'Text','新增一行','ButtonPushedFcn',@(btn,~) add_default_row()); defaultsAddBtn.Layout.Row=4; defaultsAddBtn.Layout.Column=4;
 
     perLabel = uilabel(cfgGrid,'Text','per_point 阈值 (可新增/删除行)','FontWeight','bold'); perLabel.Layout.Row=5; perLabel.Layout.Column=1;
@@ -231,6 +227,18 @@
 
     %% 阈值 Tab 逻辑
     function refresh_tables()
+        % 确保下拉有效
+        sensors = list_sensors(cfgCache);
+        if isempty(sensors)
+            sensors = {'deflection'};
+        end
+        sensorDrop.Items = sensors;
+        if ~ismember(sensorDrop.Value, sensors)
+            sensorDrop.Value = sensors{1};
+        end
+        perTable.Selection = [];
+        defaultsTable.Selection = [];
+
         sensor = sensorDrop.Value; filterStr = lower(strtrim(filterEdit.Value));
         def = struct(); if isfield(cfgCache,'defaults') && isfield(cfgCache.defaults, sensor), def = cfgCache.defaults.(sensor); end
         defRows = {};
@@ -277,38 +285,69 @@
             cfgMsg.Value = {['加载失败: ' ME.message]};
         end
     end
+    function show_help()
+        msg = sprintf(['字段说明:\n',...
+            '- t_range_start / t_range_end: 时间范围，格式 yyyy-MM-dd HH:mm:ss，留空表示全时段。\n',...
+            '- zero_to_nan: 勾选表示把数值为 0 视为缺失(NaN)。\n',...
+            '- outlier_window_sec: 移动窗长(秒)，配合 threshold_factor 做 isoutlier(movmedian)；留空表示不启用。\n',...
+            '- outlier_threshold_factor: 异常阈值系数，越大越宽松；留空表示不启用。\n',...
+            '- thresholds: 每行 min/max 为必填，时间窗可选，超限将置 NaN。\n',...
+            '保存会先校验格式并自动备份。']);
+        uialert(f, msg, '阈值配置说明');
+    end
     function onSaveCfg(doSaveAs)
         try
             cfgNew = cfgCache; sensor = sensorDrop.Value;
-            dData = defaultsTable.Data; ths = {};
+            % --- defaults ---
+            dData = defaultsTable.Data; ths = struct('min',{},'max',{},'t_range_start',{},'t_range_end',{});
             for i = 1:size(dData,1)
                 mn = str2num_safe(dData{i,1}); mx = str2num_safe(dData{i,2}); if isempty(mn) || isempty(mx), continue; end
-                th = struct('min', mn, 'max', mx); t0 = strtrim(dData{i,3}); t1 = strtrim(dData{i,4}); if ~isempty(t0), th.t_range_start = t0; end; if ~isempty(t1), th.t_range_end = t1; end; ths{end+1} = th; %#ok<AGROW>
+                t0 = strtrim(dData{i,3}); t1 = strtrim(dData{i,4});
+                ths(end+1) = make_threshold(mn, mx, t0, t1); %#ok<AGROW>
             end
-            cfgNew.defaults.(sensor).thresholds = [ths{:}]; cfgNew.defaults.(sensor).zero_to_nan = logical(zeroChk.Value);
+            cfgNew.defaults.(sensor).thresholds = ths;
+            cfgNew.defaults.(sensor).zero_to_nan = logical(zeroChk.Value);
             ow = outWin.Value; ot = outTh.Value; if ~isempty(ow) || ~isempty(ot), cfgNew.defaults.(sensor).outlier = struct('window_sec', ow, 'threshold_factor', ot); else, cfgNew.defaults.(sensor).outlier = []; end
 
-            pData = perTable.Data; perStruct = struct();
+            % 组装 per_point，按测点聚合阈值，避免结构体字段不一致导致赋值报错
+            pData = perTable.Data;
+            perStruct = struct();
+            th_map = struct(); meta_map = struct();
             for i = 1:size(pData,1)
                 pid = strtrim(pData{i,1}); if isempty(pid), continue; end
                 mn = str2num_safe(pData{i,2}); mx = str2num_safe(pData{i,3}); if isempty(mn) || isempty(mx), continue; end
-                th = struct('min', mn, 'max', mx); t0 = strtrim(pData{i,4}); t1 = strtrim(pData{i,5}); if ~isempty(t0), th.t_range_start = t0; end; if ~isempty(t1), th.t_range_end = t1; end
-                if ~isfield(perStruct, pid)
-                    perStruct.(pid) = struct('thresholds', th, 'zero_to_nan', logical(pData{i,6}));
-                    owv = str2num_safe(pData{i,7}); otv = str2num_safe(pData{i,8});
-                    if ~isempty(owv) || ~isempty(otv), perStruct.(pid).outlier = struct('window_sec', owv, 'threshold_factor', otv); else, perStruct.(pid).outlier = []; end
+                t0 = strtrim(pData{i,4}); t1 = strtrim(pData{i,5});
+                th = make_threshold(mn, mx, t0, t1);
+                if ~isfield(th_map, pid)
+                    th_map.(pid) = th;
+                    meta_map.(pid) = struct( ...
+                        'zero_to_nan', logical(pData{i,6}), ...
+                        'ow', str2num_safe(pData{i,7}), ...
+                        'ot', str2num_safe(pData{i,8}));
                 else
-                    perStruct.(pid).thresholds(end+1) = th; %#ok<AGROW>
+                    th_map.(pid)(end+1) = th; %#ok<AGROW>
                 end
             end
-            cfgNew.per_point.(sensor) = perStruct;
+            pnames = fieldnames(th_map);
+            for ii = 1:numel(pnames)
+                pid = pnames{ii};
+                perStruct.(pid).thresholds = th_map.(pid);
+                perStruct.(pid).zero_to_nan = meta_map.(pid).zero_to_nan;
+                owv = meta_map.(pid).ow; otv = meta_map.(pid).ot;
+                if ~isempty(owv) || ~isempty(otv)
+                    perStruct.(pid).outlier = struct('window_sec', owv, 'threshold_factor', otv);
+                else
+                    perStruct.(pid).outlier = [];
+                end
+            end
+            cfgNew.per_point.(sensor) = prune_per_struct(perStruct);
 
             targetPath = cfgPath;
             if doSaveAs
                 [fname,fpath] = uiputfile('*.json','另存为',cfgPath); if isequal(fname,0), return; end
                 targetPath = fullfile(fpath,fname);
             end
-            save_config(cfgNew, targetPath, true); validate_config(cfgNew);
+            save_config(cfgNew, targetPath, true); validate_config(cfgNew, false);
             cfgCache = cfgNew; cfgPath = targetPath; cfgEdit.Value = targetPath; cfgMsg.Value = {['已保存配置到 ' targetPath]};
         catch ME
             cfgMsg.Value = {['保存失败: ' ME.message]};
@@ -325,5 +364,36 @@
     end
     function names = list_sensors(c)
         names = {}; if isfield(c,'defaults'), fn = fieldnames(c.defaults); names = fn(~strcmp(fn,'header_marker')); end; if isempty(names), names={'deflection'}; end
+    end
+    function th = make_threshold(mn, mx, t0, t1)
+        th = struct('min', mn, 'max', mx, 't_range_start', '', 't_range_end', '');
+        if ~isempty(t0), th.t_range_start = t0; end
+        if ~isempty(t1), th.t_range_end   = t1; end
+    end
+    % 移除缺少 min/max 的阈值行；若测点无有效阈值则移除该测点
+    function cleaned = prune_per_struct(perStruct)
+        cleaned = struct();
+        if isempty(perStruct) || ~isstruct(perStruct), return; end
+        pnames = fieldnames(perStruct);
+        for i = 1:numel(pnames)
+            pid = pnames{i};
+            ths = perStruct.(pid).thresholds;
+            if isempty(ths) || ~isstruct(ths), continue; end
+            newThs = struct('min', {}, 'max', {}, 't_range_start', {}, 't_range_end', {});
+            for k = 1:numel(ths)
+                if isfield(ths(k),'min') && isfield(ths(k),'max') ...
+                        && ~isempty(ths(k).min) && ~isempty(ths(k).max) ...
+                        && isnumeric(ths(k).min) && isnumeric(ths(k).max)
+                    newThs(end+1) = make_threshold( ...
+                        ths(k).min, ths(k).max, ...
+                        str_or_empty(ths(k),'t_range_start'), ...
+                        str_or_empty(ths(k),'t_range_end')); %#ok<AGROW>
+                end
+            end
+            if ~isempty(newThs)
+                cleaned.(pid) = perStruct.(pid);
+                cleaned.(pid).thresholds = newThs;
+            end
+        end
     end
 end

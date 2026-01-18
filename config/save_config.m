@@ -27,8 +27,9 @@ function save_config(cfg, filepath, make_backup)
         copyfile(filepath, backup);
     end
 
-    opts = struct('PrettyPrint', true, 'ConvertInfAndNaN', true);
-    txt = jsonencode(cfg, opts);
+    % jsonencode 不接受 options 结构体，必须以 Name-Value 传参
+    % 否则会报 “名称参数类型必须为字符串标量或字符向量”
+    txt = jsonencode(cfg, 'PrettyPrint', true, 'ConvertInfAndNaN', true);
     fid = fopen(filepath,'wt');
     if fid < 0
         error('无法写入配置文件: %s', filepath);

@@ -58,14 +58,21 @@ function [times, vals, meta] = load_timeseries_range(root_dir, subfolder, point_
     vals = all_v(order);
 
     % === cleaning pipeline ===
+    % 1) 阈值过滤：超出 min/max 置 NaN。
+    % 2) 零值过滤：zero_to_nan=true 时，值为 0 置 NaN（适合部分传感器“掉线写 0”场景）。
+    % 3) 滑窗异常值：以窗口 w 点的 movmedian 为基准，isoutlier 判断，超出则置 NaN。
+    %    例：fs=20 Hz，outlier_window_sec=10，则 w=round(20*10)=200 点。
+    %    假设某段 vals=[1 1 1 10 1 1 1 ...]，movmedian≈1，若 threshold_factor=3，
+    %    则 10 会被判为异常置 NaN，其余保留。
     vals = apply_thresholds(vals, times, rules.thresholds);
     if rules.zero_to_nan
         vals(vals == 0) = NaN;
     end
     if ~isempty(rules.outlier_window_sec) && ~isempty(rules.outlier_threshold_factor) && numel(times) >= 2
-        fs = 1/median(seconds(diff(times)));
-        w = max(1, round(fs * rules.outlier_window_sec));
-        mask = isoutlier(vals, 'movmedian', w, 'ThresholdFactor', rules.outlier_threshold_factor);
+        fs = 1/median(seconds(diff(times)));          % 估计采样率 (Hz)
+        w = max(1, round(fs * rules.outlier_window_sec)); % 窗口点数
+        mask = isoutlier(vals, 'movmedian', w, ...
+            'ThresholdFactor', rules.outlier_threshold_factor);
         vals(mask) = NaN;
     end
 end
