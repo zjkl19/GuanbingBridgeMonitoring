@@ -89,11 +89,12 @@ end
 
 % -------- Acceleration spectrum analysis --------
 if opts.doAccelSpectrum && ~should_stop()
-    accel_pts = { ...
+    default_spec_pts = { ...
         'GB-VIB-G04-001-01','GB-VIB-G05-001-01', ...
         'GB-VIB-G05-002-01','GB-VIB-G05-003-01', ...
         'GB-VIB-G06-001-01','GB-VIB-G06-002-01', ...
-        'GB-VIB-G06-003-01','GB-VIB-G07-001-01'};   % same as time-domain analysis
+        'GB-VIB-G06-003-01','GB-VIB-G07-001-01'};
+    accel_pts = get_points(cfg, 'accel_spectrum', get_points(cfg, 'acceleration', default_spec_pts));
     results{end+1} = run_step('加速度频谱', @() analyze_accel_spectrum_points( ...
         root, start_date, end_date, accel_pts, ...
         'accel_spec_stats.xlsx', sub.accel_raw, ...   % use raw waveform
@@ -140,6 +141,16 @@ function sub = get_subfolder(cfg, key, fallback)
     sub = fallback;
     if isfield(cfg, 'subfolders') && isfield(cfg.subfolders, key)
         sub = cfg.subfolders.(key);
+    end
+end
+
+function pts = get_points(cfg, key, fallback)
+    pts = fallback;
+    if isfield(cfg, 'points') && isfield(cfg.points, key)
+        val = cfg.points.(key);
+        if iscell(val) || isstring(val)
+            pts = cellstr(val(:));
+        end
     end
 end
 

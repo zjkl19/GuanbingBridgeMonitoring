@@ -103,11 +103,11 @@ function fp = find_file_for_point(dirp, point_id, cfg, sensor_type)
     if isfield(cfg, 'file_patterns') && isfield(cfg.file_patterns, sensor_type)
         ft = cfg.file_patterns.(sensor_type);
         if isfield(ft, 'default')
-            patterns = [patterns; cellstr(ft.default(:))];
+            patterns = [patterns; normalize_patterns(ft.default)];
         end
         if isfield(ft, 'per_point') && isfield(ft.per_point, point_id)
             pt_pat = ft.per_point.(point_id);
-            patterns = [cellstr(pt_pat(:)); patterns]; % point-specific takes priority
+            patterns = [normalize_patterns(pt_pat); patterns]; % point-specific takes priority
         end
     end
 
@@ -126,6 +126,19 @@ function fp = find_file_for_point(dirp, point_id, cfg, sensor_type)
     idx = find(arrayfun(@(f) contains(f.name, point_id), files), 1);
     if ~isempty(idx)
         fp = fullfile(files(idx).folder, files(idx).name);
+    end
+end
+
+% Normalize pattern input to a cell array of pattern strings
+function pats = normalize_patterns(p)
+    if isstring(p)
+        pats = cellstr(p(:));
+    elseif ischar(p)
+        pats = {p};
+    elseif iscell(p)
+        pats = cellstr(p(:));
+    else
+        pats = {};
     end
 end
 

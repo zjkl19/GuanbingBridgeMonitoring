@@ -2,9 +2,9 @@ function analyze_accel_spectrum_points(root_dir,start_date,end_date,point_ids,..
                                        excel_file,subfolder,target_freqs, ...
                                        tolerance,use_parallel,cfg)
 % analyze_accel_spectrum_points
-%   对给定测点在 [start_date,end_date] 范围内每日 05:30-05:40 的加速度信号
-%   计算 Welch PSD，提取 target_freqs±tolerance Hz 的峰值频率与幅值。
-%   使用 load_timeseries_range 统一读取与清洗。
+%   对给定测点在 [start_date,end_date] 范围内每�?05:30-05:40 的加速度信号
+%   计算 Welch PSD，提�?target_freqs±tolerance Hz 的峰值频率与幅值�?
+%   使用 load_timeseries_range 统一读取与清洗�?
 
     if nargin<1||isempty(root_dir),  root_dir = pwd; end
     if nargin<2||isempty(start_date), error('必须指定 start_date'); end
@@ -99,21 +99,31 @@ function pts = get_points(cfg, key, fallback)
 end
 
 function style = get_style(cfg, key)
-    style = struct( ...
-        'psd_ylabel','PSD (dB)', ...
-        'psd_title_prefix','PSD', ...
-        'psd_color',[0 0 0], ...
-        'freq_ylabel','峰值频率 (Hz)', ...
-        'freq_title_prefix','峰值频率时程', ...
-        'colors', {[0 0 1],[1 0 0],[0 0.7 0],[0.5 0 0.7]});
+    % 标量默认样式，避免因颜色矩阵/元胞自动扩展�?struct 数组
+    style = struct();
+    style.psd_ylabel        = 'PSD (dB)';
+    style.psd_title_prefix  = 'PSD';
+    style.psd_color         = [0 0 0];
+    style.freq_ylabel       = '峰值频率 (Hz)';
+    style.freq_title_prefix = '峰值频率时程';
+    style.colors            = {[0 0 1],[1 0 0],[0 0.7 0],[0.5 0 0.7]};
+
     if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,key)
-        ps = cfg.plot_styles.(key);
-        if isfield(ps,'psd_ylabel'), style.psd_ylabel = ps.psd_ylabel; end
-        if isfield(ps,'psd_title_prefix'), style.psd_title_prefix = ps.psd_title_prefix; end
-        if isfield(ps,'psd_color'), style.psd_color = ps.psd_color; end
-        if isfield(ps,'freq_ylabel'), style.freq_ylabel = ps.freq_ylabel; end
+        ps_all = cfg.plot_styles.(key);
+        ps = ps_all(1); % 强制标量
+        if isfield(ps,'psd_ylabel'),        style.psd_ylabel = ps.psd_ylabel; end
+        if isfield(ps,'psd_title_prefix'),  style.psd_title_prefix = ps.psd_title_prefix; end
+        if isfield(ps,'psd_color'),         style.psd_color = ps.psd_color; end
+        if isfield(ps,'freq_ylabel'),       style.freq_ylabel = ps.freq_ylabel; end
         if isfield(ps,'freq_title_prefix'), style.freq_title_prefix = ps.freq_title_prefix; end
-        if isfield(ps,'colors'), style.colors = ps.colors; end
+        if isfield(ps,'colors')
+            c = ps.colors;
+            if isnumeric(c) && size(c,2)==3
+                style.colors = mat2cell(c, ones(size(c,1),1), 3);
+            elseif iscell(c)
+                style.colors = c;
+            end
+        end
     end
 end
 
@@ -243,11 +253,22 @@ function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, 
 end
 
 function ccell = normalize_colors(c)
-    if isnumeric(c)
-        ccell = mat2cell(c, ones(size(c,1),1), size(c,2));
+    if isnumeric(c) && size(c,2)==3
+        ccell = mat2cell(c, ones(size(c,1),1), 3);
     elseif iscell(c)
-        ccell = c;
+        tmp = {};
+        for i = 1:numel(c)
+            ci = c{i};
+            if isnumeric(ci) && numel(ci)==3
+                tmp{end+1} = reshape(ci,1,3); %#ok<AGROW>
+            end
+        end
+        ccell = tmp;
     else
         ccell = {};
+    end
+    if isempty(ccell)
+        co = lines( max(1, size(c,1)) );
+        ccell = mat2cell(co, ones(size(co,1),1), 3);
     end
 end

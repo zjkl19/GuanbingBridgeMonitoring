@@ -1,0 +1,117 @@
+{
+  "vendor": "hongtang",
+  "defaults": {
+    "header_marker": "[绝对时间]",
+    "deflection": { "thresholds": [], "zero_to_nan": true, "outlier": { "window_sec": 15, "threshold_factor": 3 } },
+    "acceleration": { "thresholds": [], "zero_to_nan": false, "outlier": [] },
+    "accel_spectrum": { "thresholds": [], "zero_to_nan": false, "outlier": [] },
+    "strain": { "thresholds": [], "zero_to_nan": false, "outlier": [] },
+    "tilt": { "thresholds": [], "zero_to_nan": false, "outlier": [] },
+    "crack": { "thresholds": [], "zero_to_nan": false, "outlier": [] },
+    "humidity": { "thresholds": [], "zero_to_nan": false, "outlier": [] },
+    "temperature": { "thresholds": [], "zero_to_nan": false, "outlier": [] }
+  },
+  "per_point": {
+    "acceleration": {
+      "A1": { "thresholds": [] },
+      "A2": { "thresholds": [] },
+      "A3": { "thresholds": [] },
+      "A4": { "thresholds": [] },
+      "A5": { "thresholds": [] },
+      "A6": { "thresholds": [] },
+      "A7": { "thresholds": [] },
+      "A8": { "thresholds": [] },
+      "A9-X": { "thresholds": [] },
+      "A9-Y": { "thresholds": [] },
+      "A10-X": { "thresholds": [] },
+      "A10-Y": { "thresholds": [] }
+    },
+    "accel_spectrum": {
+      "A1": { "thresholds": [] },
+      "A2": { "thresholds": [] },
+      "A3": { "thresholds": [] },
+      "A4": { "thresholds": [] },
+      "A5": { "thresholds": [] },
+      "A6": { "thresholds": [] },
+      "A7": { "thresholds": [] },
+      "A8": { "thresholds": [] },
+      "A9-X": { "thresholds": [] },
+      "A9-Y": { "thresholds": [] },
+      "A10-X": { "thresholds": [] },
+      "A10-Y": { "thresholds": [] }
+    }
+  },
+  "subfolders": {
+    "deflection": "特征值_重采样",
+    "acceleration": "波形_重采样",
+    "acceleration_raw": "波形",
+    "strain": "特征值",
+    "tilt": "波形_重采样",
+    "crack": "特征值",
+    "humidity": "特征值",
+    "temperature": "特征值"
+  },
+  "file_patterns": {
+    "acceleration": {
+      "default": [ "{point}_*.csv" ],
+      "per_point": {
+        "A1": "{point}_174.csv",
+        "A2": "{point}_172.csv",
+        "A3": "{point}_173.csv",
+        "A4": "{point}_175.csv",
+        "A5": "{point}_168.csv",
+        "A6": "{point}_169.csv",
+        "A7": "{point}_170.csv",
+        "A8": "{point}_171.csv",
+        "A9-X": "{point}_176.csv",
+        "A9-Y": "{point}_177.csv",
+        "A10-X": "{point}_156.csv",
+        "A10-Y": "{point}_157.csv"
+      }
+    },
+    "accel_spectrum": {
+      "default": [ "{point}_*.csv" ],
+      "per_point": {
+        "A1": "{point}_174.csv",
+        "A2": "{point}_172.csv",
+        "A3": "{point}_173.csv",
+        "A4": "{point}_175.csv",
+        "A5": "{point}_168.csv",
+        "A6": "{point}_169.csv",
+        "A7": "{point}_170.csv",
+        "A8": "{point}_171.csv",
+        "A9-X": "{point}_176.csv",
+        "A9-Y": "{point}_177.csv",
+        "A10-X": "{point}_156.csv",
+        "A10-Y": "{point}_157.csv"
+      }
+    }
+  },
+  "points": {
+    "acceleration": [ "A1","A2","A3","A4","A5","A6","A7","A8","A9-X","A9-Y","A10-X","A10-Y" ],
+    "accel_spectrum": [ "A1","A2","A3","A4","A5","A6","A7","A8","A9-X","A9-Y","A10-X","A10-Y" ]
+  },
+  "groups": {},
+  "plot_styles": {
+    "acceleration": {
+      "ylabel": "主梁竖向振动加速度 (mm/s^2)",
+      "title_prefix": "加速度时程",
+      "ylim": [ -500, 500 ],
+      "colors": [ [0,0.447,0.741],[0.8500,0.3250,0.0980] ],
+      "rms": {
+        "ylabel": "10 min RMS (mm/s^2)",
+        "title_prefix": "10 min RMS 时程",
+        "ylim": [ 0, 80 ],
+        "color": [0,0.447,0.741]
+      }
+    },
+    "accel_spectrum": {
+      "psd_ylabel": "PSD (dB)",
+      "psd_title_prefix": "PSD",
+      "psd_color": [0,0,0],
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "峰值频率时程",
+      "colors": [ [0,0,1],[1,0,0],[0,0.7,0],[0.5,0,0.7] ]
+    }
+  }
+}
