@@ -1,6 +1,10 @@
 classdef test_load_timeseries_range < matlab.unittest.TestCase
-    % 基础冒烟测试：验证 load_timeseries_range 能读取 CSV 并应用 header 检测与缓存。
-    % 在临时目录下创建 YYYY-MM-DD/<subfolder>/xxx.csv 并清理。
+    % Basic unit tests for load_timeseries_range:
+    % - reads CSV with header marker
+    % - caches second call
+    % - respects file_patterns fallback
+    %
+    % The tests create temporary YYYY-MM-DD/<subfolder>/xxx.csv files.
 
     properties
         TempRoot
@@ -10,16 +14,15 @@ classdef test_load_timeseries_range < matlab.unittest.TestCase
 
     methods (TestMethodSetup)
         function setupPaths(tc)
-            % 定位项目根目录（tests 上一级）
             tc.ProjRoot = fileparts(fileparts(mfilename('fullpath')));
             tc.TempRoot = tempname;
             mkdir(tc.TempRoot);
-            addpath(tc.ProjRoot);
-            addpath(fullfile(tc.ProjRoot,'pipeline'));
-            addpath(fullfile(tc.ProjRoot,'config'));
+            addpath(tc.ProjRoot, ...
+                    fullfile(tc.ProjRoot,'pipeline'), ...
+                    fullfile(tc.ProjRoot,'config'));
 
             tc.Cfg = load_config();
-            % 强制关键配置，避免编码/阈值影响测试
+            % force key config to avoid encoding surprises
             tc.Cfg.defaults.header_marker = '[绝对时间]';
             if isfield(tc.Cfg,'defaults')
                 fns = fieldnames(tc.Cfg.defaults);
@@ -49,7 +52,7 @@ classdef test_load_timeseries_range < matlab.unittest.TestCase
             if exist(tc.TempRoot,'dir')
                 rmdir(tc.TempRoot,'s');
             end
-            % 不移除路径，避免干扰其他测试
+            % keep paths; harmless for other tests
         end
     end
 
@@ -63,8 +66,9 @@ classdef test_load_timeseries_range < matlab.unittest.TestCase
             dayDir = fullfile(tc.TempRoot, dateStr, subfolder);
             mkdir(dayDir);
             fp = fullfile(dayDir, [pid '.csv']);
-            % 写入含 header 标记的简单 CSV
-            fid = fopen(fp,'wt');
+            % simple CSV with header marker line
+            % write with explicit UTF-8 to avoid mojibake in header marker
+            fid = fopen(fp,'w','n','UTF-8');
             fprintf(fid, 'Header1,Header2\n');
             fprintf(fid, '%s,Value\n', header_marker);
             fprintf(fid, '2025-01-01 00:00:00.000,1.0\n');
@@ -77,14 +81,14 @@ classdef test_load_timeseries_range < matlab.unittest.TestCase
             tc.verifyEqual(v(1), 1.0);
             tc.verifyEqual(meta.files{1}, fp);
 
-            % 第二次调用应命中缓存
+            % second call should hit cache and keep values
             [t2,v2,~] = load_timeseries_range(tc.TempRoot, subfolder, pid, dateStr, dateStr, tc.Cfg, 'strain');
             tc.verifyEqual(numel(t2), 2);
             tc.verifyEqual(v2(2), 2.0);
         end
 
         function testFilePatternFallback(tc)
-            % 确认 file_patterns default 生效
+            % ensure file_patterns default works
             dateStr = '2025-02-02';
             subfolder = get_sub(tc.Cfg, 'crack', '特征值');
             pid = 'PATTERN-PID';
@@ -93,7 +97,7 @@ classdef test_load_timeseries_range < matlab.unittest.TestCase
             dayDir = fullfile(tc.TempRoot, dateStr, subfolder);
             mkdir(dayDir);
             fp = fullfile(dayDir, [pid '_abc.csv']);
-            fid = fopen(fp,'wt');
+            fid = fopen(fp,'w','n','UTF-8');
             fprintf(fid, '%s,Value\n', header_marker);
             fprintf(fid, '2025-02-02 00:00:00.000,3.0\n');
             fclose(fid);

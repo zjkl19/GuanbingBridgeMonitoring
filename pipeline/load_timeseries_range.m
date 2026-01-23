@@ -244,7 +244,8 @@ function [times, vals, ok] = read_with_fallback(fp, header_lines)
         '%{yyyy-MM-dd HH:mm:ss.SSS}D%f', ...
         '%{yyyy-MM-dd HH:mm:ss}D%f' ...
         };
-    encs = {'UTF-16LE','UTF-8',''};
+    % try auto-detect first (MATLAB will use BOM/default), then UTF-8, then UTF-16LE
+    encs = {'auto','UTF-8','UTF-16LE'};
 
     % 1) readtable 尝试多编码、多格式
     for ei = 1:numel(encs)
