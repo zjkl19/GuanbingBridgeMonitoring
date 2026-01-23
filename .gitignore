@@ -15,3 +15,11 @@ Thumbs.db
 # Test temp roots
 tempname*/
 
+# Local test fixtures (potentially large)
+tests/data/
+tests/data/**/cache/
+tests/data/**/run_logs/
+# keep template files for docs
+!tests/data/README.md
+!tests/data/.gitkeep
+

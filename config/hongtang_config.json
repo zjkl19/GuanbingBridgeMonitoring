@@ -126,7 +126,7 @@
   },
   "subfolders": {
     "deflection": "特征值_重采样",
-    "acceleration": "波形_重采样",
+    "acceleration": "波形",
     "acceleration_raw": "波形",
     "strain": "特征值",
     "tilt": "波形_重采样",
@@ -210,8 +210,8 @@
       "ylabel": "主梁竖向振动加速度 (mm/s^2)",
       "title_prefix": "加速度时程",
       "ylim": [
-        -500,
-        500
+        -1,
+        1
       ],
       "colors": [
         [
@@ -230,7 +230,7 @@
         "title_prefix": "10 min RMS 时程",
         "ylim": [
           0,
-          80
+          1
         ],
         "color": [
           0,
