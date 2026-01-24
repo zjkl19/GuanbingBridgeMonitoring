@@ -135,16 +135,16 @@ function [vals_all, times_all] = process_one_pid(root_dir, subfolder, start_str,
     if isempty(vals_all), return; end
 
     % 二次上下限裁剪（仅提示一次，避免与通用清洗重复但保留可调性）
-    if ~isempty(ds_cfg.LowerBound) || ~isempty(ds_cfg.UpperBound)
-        warning_once('dynamic_strain:bounds', ...
-            '动应变再次应用 Lower/UpperBound（请确保与 load_timeseries_range 的阈值规则一致）。');
-        if ~isempty(ds_cfg.LowerBound)
-            vals_all(vals_all < ds_cfg.LowerBound) = NaN;
-        end
-        if ~isempty(ds_cfg.UpperBound)
-            vals_all(vals_all > ds_cfg.UpperBound) = NaN;
-        end
-    end
+    % if ~isempty(ds_cfg.LowerBound) || ~isempty(ds_cfg.UpperBound)
+    %     warning_once('dynamic_strain:bounds', ...
+    %         '动应变再次应用 Lower/UpperBound（请确保与 load_timeseries_range 的阈值规则一致）。');
+    %     if ~isempty(ds_cfg.LowerBound)
+    %         vals_all(vals_all < ds_cfg.LowerBound) = NaN;
+    %     end
+    %     if ~isempty(ds_cfg.UpperBound)
+    %         vals_all(vals_all > ds_cfg.UpperBound) = NaN;
+    %     end
+    % end
 
     % 采样率估计
     if ~isempty(ds_cfg.Fs)
@@ -182,7 +182,7 @@ function [vals_all, times_all] = process_one_pid(root_dir, subfolder, start_str,
         vals_all(vals_all < ds_cfg.LowerBound) = NaN;
     end
     if ~isempty(ds_cfg.UpperBound)
-        vals_all(vals_all > 30) = NaN;
+        vals_all(vals_all > ds_cfg.UpperBound) = NaN;
     end
     % ==========================================
 end
