@@ -79,8 +79,8 @@ function plot_tilt_curve(root_dir, dataList, t0, t1, suffix, style)
         end
     end
     goodLines = hLines(isgraphics(hLines));
-    legend(goodLines, {dataList.pid}, 'Location','northeast','Box','off');
-
+    lg =legend(goodLines, {dataList.pid}, 'Location','northeast','Box','off');
+    lg.AutoUpdate = 'off';
     numDiv = 4;
     ticks = dt0 + (dt1 - dt0) * (0:numDiv)/numDiv;
     ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = ticks;

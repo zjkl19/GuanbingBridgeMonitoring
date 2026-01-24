@@ -21,7 +21,7 @@ classdef test_load_timeseries_range < matlab.unittest.TestCase
                     fullfile(tc.ProjRoot,'pipeline'), ...
                     fullfile(tc.ProjRoot,'config'));
 
-            tc.Cfg = load_config();
+            tc.Cfg = load_config(fullfile(tc.ProjRoot,'tests','config','test_config.json'));
             % force key config to avoid encoding surprises
             tc.Cfg.defaults.header_marker = '[绝对时间]';
             if isfield(tc.Cfg,'defaults')
