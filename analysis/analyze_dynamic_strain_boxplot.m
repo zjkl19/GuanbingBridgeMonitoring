@@ -78,7 +78,7 @@ end
 
 % 输出目录（若传入相对路径则自动挂到 root_dir 下）
 outdir    = resolve_dir(root_dir, opt.OutputDir,  '动应变箱线图_高通滤波');
-outdir_ts = resolve_dir(root_dir, opt.OutputDirTs,'时程_动应变_高通滤波');
+outdir_ts = resolve_dir(root_dir, opt.OutputDirTs,'时程曲线_动应变_高通滤波');
 if ~exist(outdir,'dir'),    mkdir(outdir);    end
 if ~exist(outdir_ts,'dir'), mkdir(outdir_ts); end
 
@@ -176,6 +176,15 @@ function [vals_all, times_all] = process_one_pid(root_dir, subfolder, start_str,
     end
 
     vals_all = v2;
+    % ===== 结果级异常兜底清理（最小侵入）=====
+    % 目的：防止高通后仍出现非物理突起
+    if ~isempty(ds_cfg.LowerBound)
+        vals_all(vals_all < ds_cfg.LowerBound) = NaN;
+    end
+    if ~isempty(ds_cfg.UpperBound)
+        vals_all(vals_all > ds_cfg.UpperBound) = NaN;
+    end
+    % ==========================================
 end
 
 function make_boxplot_and_stats(dataMat, labels, groupName, outdir, ds_cfg, tag, ts, dt0, dt1)
