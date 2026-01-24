@@ -1,4 +1,4 @@
-﻿function run_gui()
+function run_gui()
 % run_gui  GUI 入口，便于配置并运行 run_all；含阈值配置页。
 % 用法：addpath(fullfile(pwd,'ui')); run_gui
 
@@ -73,8 +73,8 @@
     logEdit = uieditfield(gl,'text','Value',defaultLogDir); logEdit.Layout.Row=9; logEdit.Layout.Column=[2 3];
     logBtn  = uibutton(gl,'Text','浏览','ButtonPushedFcn',@(btn,~) onBrowseDir(logEdit)); logBtn.Layout.Row=9; logBtn.Layout.Column=4;
 
-    lblCfg = uilabel(gl,'Text','配置文件(JSON):','HorizontalAlignment','right'); lblCfg.Layout.Row=10; lblCfg.Layout.Column=2;
-    cfgEdit = uieditfield(gl,'text','Value',defaultCfgPath); cfgEdit.Layout.Row=10; cfgEdit.Layout.Column=3;
+    lblCfg = uilabel(gl,'Text','配置文件(JSON):','HorizontalAlignment','right'); lblCfg.Layout.Row=10; lblCfg.Layout.Column=1;
+    cfgEdit = uieditfield(gl,'text','Value',defaultCfgPath); cfgEdit.Layout.Row=10; cfgEdit.Layout.Column=[2 3];
     cfgBtn  = uibutton(gl,'Text','选择','ButtonPushedFcn',@(btn,~) onBrowseFile(cfgEdit,'*.json')); cfgBtn.Layout.Row=10; cfgBtn.Layout.Column=4;
 
     presetSaveBtn = uibutton(gl,'Text','保存预设','ButtonPushedFcn',@(btn,~) onSavePreset()); presetSaveBtn.Layout.Row=11; presetSaveBtn.Layout.Column=1;
