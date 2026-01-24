@@ -1,7 +1,7 @@
-﻿{
+{
   "vendor": "donghua",
   "defaults": {
-    "header_marker": "[缁濆鏃堕棿]",
+    "header_marker": "[绝对时间]",
     "deflection": {
       "thresholds": [
         {
@@ -28,12 +28,6 @@
       ],
       "zero_to_nan": false
     },
-    "dynamic_strain": {
-      "ylims": {
-        "G05": [-30, 30],
-        "G06": [-30, 30]
-      }
-    },
     "tilt": {
       "thresholds": [],
       "zero_to_nan": false
@@ -46,17 +40,6 @@
         }
       ],
       "zero_to_nan": false
-    },
-    "dynamic_strain": {
-      "Fs": null,
-      "Fc": 0.1,
-      "Whisker": 300,
-      "ShowOutliers": false,
-      "YLimManual": true,
-      "YLimRange": [-30, 30],
-      "LowerBound": -150,
-      "UpperBound": 150,
-      "EdgeTrimSec": 5
     }
   },
   "per_point": {
@@ -438,14 +421,14 @@
     }
   },
   "subfolders": {
-    "deflection": "鐗瑰緛鍊糭閲嶉噰鏍?,
-    "acceleration": "娉㈠舰_閲嶉噰鏍?,
-    "acceleration_raw": "娉㈠舰",
-    "strain": "鐗瑰緛鍊?,
-    "tilt": "娉㈠舰_閲嶉噰鏍?,
-    "crack": "鐗瑰緛鍊?,
-    "humidity": "鐗瑰緛鍊?,
-    "temperature": "鐗瑰緛鍊?
+    "deflection": "特征值_重采样",
+    "acceleration": "波形_重采样",
+    "acceleration_raw": "波形",
+    "strain": "特征值",
+    "tilt": "波形_重采样",
+    "crack": "特征值",
+    "humidity": "特征值",
+    "temperature": "特征值"
   },
   "file_patterns": {
     "crack": {
@@ -530,10 +513,6 @@
         "GB-RSG-G06-001-06"
       ]
     },
-    "dynamic_strain": {
-      "G05": ["GB-RSG-G05-001-01","GB-RSG-G05-001-02","GB-RSG-G05-001-03","GB-RSG-G05-001-04","GB-RSG-G05-001-05","GB-RSG-G05-001-06"],
-      "G06": ["GB-RSG-G06-001-01","GB-RSG-G06-001-02","GB-RSG-G06-001-03","GB-RSG-G06-001-04","GB-RSG-G06-001-05","GB-RSG-G06-001-06"]
-    },
     "tilt": {
       "X": [
         "GB-DIS-P04-001-01-X",
@@ -563,8 +542,8 @@
   },
   "plot_styles": {
     "acceleration": {
-      "ylabel": "涓绘绔栧悜鎸姩鍔犻€熷害 (mm/s^2)",
-      "title_prefix": "鍔犻€熷害鏃剁▼",
+      "ylabel": "主梁竖向振动加速度 (mm/s^2)",
+      "title_prefix": "加速度时程",
       "ylim": [
         -500,
         500
@@ -583,7 +562,7 @@
       ],
       "rms": {
         "ylabel": "10 min RMS (mm/s^2)",
-        "title_prefix": "10 min RMS 鏃剁▼",
+        "title_prefix": "10 min RMS 时程",
         "ylim": [
           0,
           80
@@ -603,8 +582,8 @@
         0,
         0
       ],
-      "freq_ylabel": "宄板€奸鐜?(Hz)",
-      "freq_title_prefix": "宄板€奸鐜囨椂绋?,
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "峰值频率时程",
       "colors": [
         [
           0,
@@ -661,7 +640,7 @@
       "warn_lines": [
         {
           "y": -21.0,
-          "label": "浜岀骇鎶ヨ鍊?-21.0",
+          "label": "二级报警值 -21.0",
           "color": [
             0.929,
             0.694,
@@ -670,7 +649,7 @@
         },
         {
           "y": 33.4,
-          "label": "浜岀骇鎶ヨ鍊?33.4",
+          "label": "二级报警值 33.4",
           "color": [
             0.929,
             0.694,
@@ -679,7 +658,7 @@
         },
         {
           "y": -26.3,
-          "label": "涓夌骇鎶ヨ鍊?-26.3",
+          "label": "三级报警值 -26.3",
           "color": [
             1,
             0,
@@ -688,7 +667,7 @@
         },
         {
           "y": 41.7,
-          "label": "涓夌骇鎶ヨ鍊?41.7",
+          "label": "三级报警值 41.7",
           "color": [
             1,
             0,
@@ -700,8 +679,8 @@
         -40,
         50
       ],
-      "ylabel": "鎸犲害 (mm)",
-      "title_prefix": "鎸犲害鏃剁▼"
+      "ylabel": "挠度 (mm)",
+      "title_prefix": "挠度时程"
     },
     "strain": {
       "colors_6": [
@@ -746,8 +725,8 @@
           200
         ]
       },
-      "ylabel": "涓绘搴斿彉 (渭蔚)",
-      "title_prefix": "搴斿彉鏃剁▼鏇茬嚎"
+      "ylabel": "主梁应变 (με)",
+      "title_prefix": "应变时程曲线"
     },
     "tilt": {
       "colors_3": [
@@ -770,7 +749,7 @@
       "warn_lines": [
         {
           "y": -0.126,
-          "label": "浜岀骇鎶ヨ鍊?-0.126",
+          "label": "二级报警值 -0.126",
           "color": [
             0.929,
             0.694,
@@ -779,7 +758,7 @@
         },
         {
           "y": 0.126,
-          "label": "浜岀骇鎶ヨ鍊?0.126",
+          "label": "二级报警值 0.126",
           "color": [
             0.929,
             0.694,
@@ -788,7 +767,7 @@
         },
         {
           "y": -0.155,
-          "label": "涓夌骇鎶ヨ鍊?-0.155",
+          "label": "三级报警值 -0.155",
           "color": [
             1,
             0,
@@ -797,7 +776,7 @@
         },
         {
           "y": 0.155,
-          "label": "涓夌骇鎶ヨ鍊?0.155",
+          "label": "三级报警值 0.155",
           "color": [
             1,
             0,
@@ -809,8 +788,8 @@
         -0.17,
         0.17
       ],
-      "ylabel": "鍊捐 (掳)",
-      "title_prefix": "鍊捐鏃剁▼"
+      "ylabel": "倾角 (°)",
+      "title_prefix": "倾角时程"
     },
     "crack": {
       "colors_4": [
@@ -845,14 +824,14 @@
           0.3
         ]
       },
-      "ylabel_crack": "瑁傜紳瀹藉害 (mm)",
-      "ylabel_temp": "瑁傜紳娓╁害 (掳C)",
-      "title_prefix_crack": "瑁傜紳瀹藉害",
-      "title_prefix_temp": "瑁傜紳娓╁害"
+      "ylabel_crack": "裂缝宽度 (mm)",
+      "ylabel_temp": "裂缝温度 (°C)",
+      "title_prefix_crack": "裂缝宽度",
+      "title_prefix_temp": "裂缝温度"
     },
     "temperature": {
-      "ylabel": "娓╁害 (掳C)",
-      "title_prefix": "娓╁害鏃剁▼",
+      "ylabel": "温度 (°C)",
+      "title_prefix": "温度时程",
       "colors": [
         [
           0,
@@ -876,8 +855,8 @@
       ]
     },
     "humidity": {
-      "ylabel": "鐩稿婀垮害 (%)",
-      "title_prefix": "婀垮害鏃剁▼",
+      "ylabel": "相对湿度 (%)",
+      "title_prefix": "湿度时程",
       "colors": [
         [
           0,
@@ -914,10 +893,9 @@
       1.528
     ],
     "theor_labels": [
-      "鐞嗚绔栧悜涓€闃惰嚜鎸鐜?0.975Hz",
-      "鐞嗚绔栧悜浜岄樁鑷尟棰戠巼 1.243Hz",
-      "鐞嗚绔栧悜涓夐樁鑷尟棰戠巼 1.528Hz"
+      "理论竖向一阶自振频率 0.975Hz",
+      "理论竖向二阶自振频率 1.243Hz",
+      "理论竖向三阶自振频率 1.528Hz"
     ]
   }
 }
-

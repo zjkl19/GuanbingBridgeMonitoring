@@ -1,379 +1,371 @@
 function analyze_dynamic_strain_boxplot(root_dir, start_date, end_date, varargin)
-% analyze_dynamic_strain_boxplot
-% ────────────────────────────────────────────────────────────────────────
-% 读取 <root>\YYYY-MM-DD\特征值\*.csv 的动应变数据（两组：G05/G06），
-% 对每个测点在 start_date~end_date 范围内的全部文件逐个执行：
-%   1) 去异常（越界置 NaN）
-%   2) 高通滤波（filtfilt，支持NaN掩码回填）
-%   3) 边界修剪（可选，默认首尾各 5 s）
-% 将所有文件处理后的数据拼接为“该测点的总体样本”，用于箱线图与统计。
+%ANALYZE_DYNAMIC_STRAIN_BOXPLOT  按配置批量生成动应变箱线图与时程图（高通滤波版）
 %
-% 新增：
-%   - 生成两组（G05/G06）高通滤波后的“时程曲线图”，并保存 JPG/EMF/FIG。
+%   analyze_dynamic_strain_boxplot(root_dir, start_date, end_date, Name, Value, ...)
 %
-% 输出：
-%   - 箱线图（G05 一张，G06 一张）：JPG/EMF/FIG
-%   - 统计 TXT + Excel（Min/Q1/Median/Q3/Max/Mean/Std/Count）
-%   - 时程曲线（G05 一张，G06 一张）：JPG/EMF/FIG
-%   - CSV/MAT 读取使用“每文件缓存”：<同目录>\cache\<同名>.mat，仅缓存 times/vals
+%   必选参数：
+%     root_dir   : 数据根目录，包含形如 YYYY-MM-DD 的子目录
+%     start_date : 起始日期字符串 'yyyy-MM-dd'
+%     end_date   : 结束日期字符串 'yyyy-MM-dd'
 %
-% 用法示例：
-%   analyze_dynamic_strain_boxplot('F:\管柄数据\管柄7月数据', '2025-07-01','2025-07-07');
+%   可选 Name-Value：
+%     'Cfg'        : 配置 struct 或 JSON 路径，默认 load_config()
+%     'OutputDir'  : 箱线图输出目录，默认 <root>/动应变箱线图_高通滤波
+%     'OutputDirTs': 时程图输出目录，默认 <root>/时程_动应变_高通滤波
 %
-% 可选参数（Name-Value）：
-%   'Subfolder'        (char)   默认 '特征值'
-%   'OutputDir'        (char)   默认 '箱线图结果_高通滤波'
-%   'Fs'               (double) 默认 20          % 采样频率
-%   'Fc'               (double) 默认 0.1         % 高通截止频率
-%   'Whisker'          (double) 默认 300         % 箱线图胡须参数
-%   'ShowOutliers'     (logical)默认 false       % 是否显示离群值
-%   'YLimManual'       (logical)默认 true
-%   'YLimRange'        (1x2 double) 默认 [-30 30]
-%   'LowerBound'       (double) 默认 -150        % 去异常阈值
-%   'UpperBound'       (double) 默认  150
-%   'EdgeTrimSec'      (double) 默认 5           % 每文件滤波后首尾修剪秒数
-%
-% 作者：ChatGPT  2025-08-15
-% ────────────────────────────────────────────────────────────────────────
+%   设计要点：
+%     - 分组、样式、清洗参数均从配置读取（优先 defaults.dynamic_strain /
+%       groups.dynamic_strain / plot_styles.dynamic_strain）。
+%     - 统一使用 load_timeseries_range 读取与清洗，再在本函数中可选
+%       Lower/UpperBound 二次裁剪，并高通滤波、边缘裁剪。
+%     - 若配置缺失则回落到内置默认并仅提示一次，保证不崩。
 
-%% 参数
+%% 解析参数
 p = inputParser;
 addRequired(p, 'root_dir',   @(s)ischar(s)||isstring(s));
 addRequired(p, 'start_date', @(s)ischar(s)||isstring(s));
 addRequired(p, 'end_date',   @(s)ischar(s)||isstring(s));
-addParameter(p,'Subfolder',   '特征值',         @(s)ischar(s)||isstring(s));
-addParameter(p,'OutputDir',   '箱线图结果_高通滤波', @(s)ischar(s)||isstring(s));
-addParameter(p,'Fs',          20,               @(x)isnumeric(x)&&isscalar(x)&&x>0);
-addParameter(p,'Fc',          0.1,              @(x)isnumeric(x)&&isscalar(x)&&x>0);
-addParameter(p,'Whisker',     300,              @(x)isnumeric(x)&&isscalar(x)&&x>0);
-addParameter(p,'ShowOutliers',false,            @(x)islogical(x)||ismember(x,[0 1]));
-addParameter(p,'YLimManual',  true,             @(x)islogical(x)||ismember(x,[0 1]));
-addParameter(p,'YLimRange',   [-30 30],         @(v)isnumeric(v)&&numel(v)==2);
-addParameter(p,'LowerBound',  -150,             @(x)isnumeric(x)&&isscalar(x));
-addParameter(p,'UpperBound',   150,             @(x)isnumeric(x)&&isscalar(x));
-addParameter(p,'EdgeTrimSec',   5,              @(x)isnumeric(x)&&isscalar(x)&&x>=0);
-
+addParameter(p,'Cfg',         [], @(x)isstruct(x)||ischar(x)||isstring(x));
+addParameter(p,'OutputDir',   '', @(s)ischar(s)||isstring(s));
+addParameter(p,'OutputDirTs', '', @(s)ischar(s)||isstring(s));
+addParameter(p,'Subfolder',   '', @(s)ischar(s)||isstring(s));
+addParameter(p,'Fs',          [], @(x)isnumeric(x)&&isscalar(x)||isempty(x));
+addParameter(p,'Fc',          [], @(x)isnumeric(x)&&isscalar(x)||isempty(x));
+addParameter(p,'Whisker',     [], @(x)isnumeric(x)&&isscalar(x)||isempty(x));
+addParameter(p,'ShowOutliers',[], @(x)islogical(x)||isnumeric(x));
+addParameter(p,'YLimManual',  [], @(x)islogical(x)||isnumeric(x));
+addParameter(p,'YLimRange',   [], @(x)isnumeric(x)&&numel(x)==2);
+addParameter(p,'LowerBound',  [], @(x)isnumeric(x)&&isscalar(x)||isempty(x));
+addParameter(p,'UpperBound',  [], @(x)isnumeric(x)&&isscalar(x)||isempty(x));
+addParameter(p,'EdgeTrimSec', [], @(x)isnumeric(x)&&isscalar(x)||isempty(x));
 parse(p, root_dir, start_date, end_date, varargin{:});
 opt = p.Results;
 
-root_dir   = char(opt.root_dir);
-subfolder  = char(opt.Subfolder);
-outdir     = fullfile(root_dir, char(opt.OutputDir));
-if ~exist(outdir,'dir'), mkdir(outdir); end
-outdir_ts  = fullfile(root_dir, '时程曲线_动应变_高通滤波');
+root_dir = char(opt.root_dir);
+dt0 = datetime(opt.start_date,'InputFormat','yyyy-MM-dd');
+dt1 = datetime(opt.end_date,  'InputFormat','yyyy-MM-dd');
+start_str = char(string(dt0,'yyyy-MM-dd'));
+end_str   = char(string(dt1,'yyyy-MM-dd'));
+tag = sprintf('%s-%s', char(string(dt0,'yyyyMMdd')), char(string(dt1,'yyyyMMdd')));
+timestamp = char(string(datetime('now'),'yyyy-MM-dd_HH-mm-ss'));
+
+%% 加载配置
+if isempty(opt.Cfg)
+    cfg = load_config();
+elseif ischar(opt.Cfg) || isstring(opt.Cfg)
+    cfg = load_config(opt.Cfg);
+else
+    cfg = opt.Cfg;
+end
+
+ds = get_dynamic_cfg(cfg); % 动应变专用参数（含默认回退提示）
+
+% 允许外部参数覆盖配置（例如 run_all 传入）
+override_fields = {'Fs','Fc','Whisker','ShowOutliers','YLimManual','YLimRange','LowerBound','UpperBound','EdgeTrimSec'};
+for i = 1:numel(override_fields)
+    f = override_fields{i};
+    if ~isempty(opt.(f))
+        ds.(f) = opt.(f);
+    end
+end
+
+% 子目录允许外部传入覆盖
+if ~isempty(opt.Subfolder)
+    subfolder = char(opt.Subfolder);
+else
+    subfolder = get_subfolder(cfg, 'strain', '特征值');
+end
+
+% 输出目录
+outdir    = ifelse(~isempty(opt.OutputDir),  char(opt.OutputDir),  fullfile(root_dir, '动应变箱线图_高通滤波'));
+outdir_ts = ifelse(~isempty(opt.OutputDirTs),char(opt.OutputDirTs),fullfile(root_dir, '时程_动应变_高通滤波'));
+if ~exist(outdir,'dir'),    mkdir(outdir);    end
 if ~exist(outdir_ts,'dir'), mkdir(outdir_ts); end
 
-fs         = opt.Fs;
-fc         = opt.Fc;
-whisker    = opt.Whisker;
-showOut    = opt.ShowOutliers;
-ylim_manual= opt.YLimManual;
-ylim_rng   = opt.YLimRange;
-lo_bd      = opt.LowerBound;
-hi_bd      = opt.UpperBound;
-trim_sec   = opt.EdgeTrimSec;
+% 分组与样式
+[groups, group_names, style] = get_groups_and_style(cfg);
 
-% 两组固定测点
-groupG05 = {'GB-RSG-G05-001-01','GB-RSG-G05-001-02','GB-RSG-G05-001-03', ...
-            'GB-RSG-G05-001-04','GB-RSG-G05-001-05','GB-RSG-G05-001-06'};
-groupG06 = {'GB-RSG-G06-001-01','GB-RSG-G06-001-02','GB-RSG-G06-001-03', ...
-            'GB-RSG-G06-001-04','GB-RSG-G06-001-05','GB-RSG-G06-001-06'};
+fprintf('日期范围: %s ~ %s\n', start_str, end_str);
+fprintf('数据目录: %s\\YYYY-MM-DD\\%s\n', root_dir, subfolder);
 
-dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd');
-dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
-tag = [datestr(dt0,'yyyymmdd') '-' datestr(dt1,'yyyymmdd')];
-ts  = datestr(now,'yyyy-mm-dd_HH-MM-SS');
-
-% 设计高通滤波器
-[b,a] = butter(1, fc/(fs/2), 'high');
-
-fprintf('日期范围：%s ~ %s，目录：%s\\YYYY-MM-DD\\%s\n', start_date, end_date, root_dir, subfolder);
-fprintf('Fs=%.3f Hz, Fc=%.3f Hz，高通一阶（filtfilt），边界修剪 %.1f s\n', fs, fc, trim_sec);
-
-%% 处理两组
-fprintf('\n== 处理 G05 ==\n');
-[dataG05, labelsG05, tsG05] = collect_group_data(groupG05);
-make_boxplot_and_stats(dataG05, labelsG05, 'G05', outdir);
-plot_timeseries_group(tsG05, labelsG05, 'G05', outdir_ts, dt0, dt1, ylim_manual, ylim_rng, tag, ts);
-
-fprintf('\n== 处理 G06 ==\n');
-[dataG06, labelsG06, tsG06] = collect_group_data(groupG06);
-make_boxplot_and_stats(dataG06, labelsG06, 'G06', outdir);
-plot_timeseries_group(tsG06, labelsG06, 'G06', outdir_ts, dt0, dt1, ylim_manual, ylim_rng, tag, ts);
+%% 处理各分组
+for gi = 1:numel(groups)
+    gname = group_names{gi};
+    fprintf('\n== 处理分组 %s ==\n', gname);
+    [dataMat, labels, tsList] = collect_group_data(root_dir, subfolder, start_str, end_str, groups{gi}, ds, cfg);
+    make_boxplot_and_stats(dataMat, labels, gname, outdir, ds, tag, timestamp, dt0, dt1);
+    ylim_group = get_ylim(style, gname, ds);
+    plot_timeseries_group(tsList, labels, gname, outdir_ts, dt0, dt1, ds, ylim_group, tag, timestamp);
+end
 
 fprintf('\n全部完成。\n');
 
-%% ================= 内部函数 =================
+end
 
-    function [dataMat, labels, tsList] = collect_group_data(pid_list)
-        % 对一组 6 个测点，逐个测点汇总“处理后的总体样本” + 收集时程用于绘图
-        N = numel(pid_list);
-        colData = cell(N,1);
-        labels  = pid_list(:).';
-        tsList  = struct('pid',cell(N,1),'times',[],'vals',[]);
-        for ii = 1:N
-            pid = pid_list{ii};
-            fprintf('  ▸ 汇总测点 %s ...\n', pid);
-            [vals_all, times_all] = process_one_pid(pid);   % ← 返回值+时
-            colData{ii} = vals_all(:);                      % 列向量
-            tsList(ii).pid   = pid;
-            tsList(ii).times = times_all(:);
-            tsList(ii).vals  = vals_all(:);
-            fprintf('    总样本数（非 NaN）：%d\n', nnz(~isnan(vals_all)));
+%% 内部函数
+function [dataMat, labels, tsList] = collect_group_data(root_dir, subfolder, start_str, end_str, pid_list, ds_cfg, cfg)
+    N = numel(pid_list);
+    colData = cell(N,1);
+    labels  = pid_list(:).';
+    tsList  = struct('pid',cell(N,1),'times',[],'vals',[]);
+    for ii = 1:N
+        pid = pid_list{ii};
+        fprintf('  -> 读取 %s ...\n', pid);
+        [vals_all, times_all] = process_one_pid(root_dir, subfolder, start_str, end_str, pid, ds_cfg, cfg);
+        colData{ii} = vals_all(:);
+        tsList(ii).pid   = pid;
+        tsList(ii).times = times_all(:);
+        tsList(ii).vals  = vals_all(:);
+        fprintf('    样本数(非NaN): %d\n', nnz(~isnan(vals_all)));
+    end
+    Lmax = max(cellfun(@numel, colData));
+    dataMat = NaN(Lmax, N);
+    for ii = 1:N
+        v = colData{ii};
+        dataMat(1:numel(v), ii) = v;
+    end
+end
+
+function [vals_all, times_all] = process_one_pid(root_dir, subfolder, start_str, end_str, pid, ds_cfg, cfg)
+    % 统一调用 load_timeseries_range 读取 + 通用清洗
+    [times_all, vals_all] = load_timeseries_range( ...
+        root_dir, subfolder, pid, start_str, end_str, cfg, 'strain');
+
+    % 若仍为空直接返回
+    if isempty(vals_all), return; end
+
+    % 二次上下限裁剪（仅提示一次，避免与通用清洗重复但保留可调性）
+    if ~isempty(ds_cfg.LowerBound) || ~isempty(ds_cfg.UpperBound)
+        warning_once('dynamic_strain:bounds', ...
+            '动应变再次应用 Lower/UpperBound（请确保与 load_timeseries_range 的阈值规则一致）。');
+        if ~isempty(ds_cfg.LowerBound)
+            vals_all(vals_all < ds_cfg.LowerBound) = NaN;
         end
-        % 填充为 NaN 对齐的矩阵（箱线图可接受 NaN）
-        Lmax = max(cellfun(@numel, colData));
-        dataMat = NaN(Lmax, N);
-        for ii = 1:N
-            v = colData{ii};
-            dataMat(1:numel(v), ii) = v;
+        if ~isempty(ds_cfg.UpperBound)
+            vals_all(vals_all > ds_cfg.UpperBound) = NaN;
         end
     end
 
-    function [vals_all, times_all] = process_one_pid(pid)
-        % 遍历日期 -> 定位文件 -> 读缓存/CSV -> 去异常 -> 滤波 -> 修剪 -> 拼接
-        dn0 = datenum(start_date,'yyyy-mm-dd');
-        dn1 = datenum(end_date,  'yyyy-mm-dd');
-        dinfo = dir(fullfile(root_dir,'20??-??-??'));
-        folders = {dinfo([dinfo.isdir]).name};
-        dates = folders(datenum(folders,'yyyy-mm-dd')>=dn0 & datenum(folders,'yyyy-mm-dd')<=dn1);
-
-        vals_all  = [];
-        times_all = [];
-        trimN     = round(trim_sec * fs);
-
-        for jj = 1:numel(dates)
-            day = dates{jj};
-            dirp = fullfile(root_dir, day, subfolder);
-            if ~exist(dirp,'dir'), continue; end
-
-            files = dir(fullfile(dirp,'*.csv'));
-            idx   = find(arrayfun(@(f) contains(f.name, pid), files), 1);
-            if isempty(idx), continue; end
-
-            fp = fullfile(files(idx).folder, files(idx).name);
-            [times, vals] = read_csv_with_cache(fp);
-            if isempty(vals), continue; end
-
-            % 去异常（越界置 NaN）
-            vals(vals<lo_bd | vals>hi_bd) = NaN;
-
-            % 高通滤波（NaN→0，再回填 NaN）
-            v2 = vals;
-            maskNaN = isnan(v2) | ~isfinite(v2);
-            v2(maskNaN) = 0;
-            v2 = filtfilt(b,a,v2);
-            v2(maskNaN) = NaN;
-
-            % 边界修剪：首尾各 trimN 样本（若足够长）
-            if trimN>0 && numel(v2)>2*trimN
-                v2    = v2(trimN+1:end-trimN);
-                times = times(trimN+1:end-trimN);
-            end
-
-            % 拼接
-            vals_all  = [vals_all;  v2(:)];
-            times_all = [times_all; times(:)];
-        end
-
-        % 时间最终按时间排序一次，确保递增
-        if ~isempty(times_all)
-            [times_all, ix] = sort(times_all);
-            vals_all = vals_all(ix);
-        end
-    end
-
-    function make_boxplot_and_stats(dataMat, labels, groupName, outdir_)
-        % 绘制箱线图
-        f = figure('Position',[100 100 1100 520]);
-        if showOut
-            gf = boxplot(dataMat, 'Labels', labels, ...
-                'LabelOrientation', 'horizontal', 'Whisker', whisker);
+    % 采样率估计
+    if ~isempty(ds_cfg.Fs)
+        fs_local = ds_cfg.Fs;
+    else
+        if numel(times_all) >= 2
+            fs_local = 1/median(seconds(diff(times_all)));
         else
-            gf = boxplot(dataMat, 'Labels', labels, ...
-                'LabelOrientation', 'horizontal', 'Whisker', whisker, 'Symbol','');
-        end
-        xlabel('测点'); ylabel('应变 (με)');
-        title(sprintf('动应变箱线图（高通滤波后）%s  [%s]', groupName, tag));
-        xtickangle(45);
-        grid on; grid minor;
-        if ylim_manual
-            ylim(ylim_rng);
-        else
-            ylim auto;
-        end
-
-        % 保存图像
-        base = sprintf('boxplot_%s_%s', groupName, tag);
-        saveas(f, fullfile(outdir_, [base '_' ts '.jpg']));
-        saveas(f, fullfile(outdir_, [base '_' ts '.emf']));
-        savefig(f, fullfile(outdir_, [base '_' ts '.fig']), 'compact');
-        close(f);
-
-        % 统计并保存
-        statsTbl = calc_stats_table(dataMat, labels);
-        % TXT
-        txtPath = fullfile(outdir_, sprintf('boxplot_stats_%s_%s.txt', groupName, tag));
-        write_stats_txt(txtPath, statsTbl);
-        % 追加到 Excel（每组一个 Sheet）
-        xlsxPath = fullfile(outdir_, sprintf('boxplot_stats_%s.xlsx', tag));
-        writetable(statsTbl, xlsxPath, 'Sheet', groupName);
-        fprintf('  ▸ %s 统计写入：\n    %s（TXT）\n    %s（Excel Sheet=%s）\n', ...
-            groupName, txtPath, xlsxPath, groupName);
-    end
-
-    function plot_timeseries_group(tsList, labels, groupName, outdir_ts_, dt0_, dt1_, yl_manual, yl_rng, tag_, ts_)
-        % 绘制高通滤波后的“时程曲线”（一张图/组）
-        f = figure('Position',[100 100 1100 520]); hold on;
-
-        % 专用配色（6条）
-        colors_6 = {
-            [0 0 0],         % 黑
-            [0 0 1],         % 蓝
-            [0 0.7 0],       % 绿
-            [1 0.4 0.8],     % 粉
-            [1 0.6 0],       % 橙
-            [1 0 0]          % 红
-        };
-
-        % 逐条曲线
-        n = numel(tsList);
-        hLines = gobjects(n,1);
-        for i = 1:n
-            t = tsList(i).times;
-            v = tsList(i).vals;
-            if isempty(t) || isempty(v), continue; end
-            c = colors_6{ min(i, numel(colors_6)) };
-            hLines(i) = plot(t, v, 'LineWidth', 1.0, 'Color', c);
-        end
-
-        % 轴/网格/标题
-        xlabel('时间'); ylabel('应变 (με)');
-        title(sprintf('动应变时程（高通滤波后）%s  [%s]', groupName, tag_));
-        grid on; grid minor;
-
-        % X 轴范围与刻度（从实际数据确定）
-        all_t = vertcat(tsList.times);
-        if ~isempty(all_t)
-            xmin = min(all_t); xmax = max(all_t);
-        else
-            xmin = dt0_; xmax = dt1_;
-        end
-        if xmin == xmax
-            xmin = xmin - minutes(1);
-            xmax = xmax + minutes(1);
-        end
-        ax = gca; ax.XLim = [xmin xmax];
-
-        % 5 等分刻度（严格递增检测）
-        ticks = datetime(linspace(datenum(xmin), datenum(xmax), 5), 'ConvertFrom','datenum');
-        ticks = unique(ticks,'stable');
-        if numel(ticks) >= 2 && all(diff(ticks) > duration(0,0,0))
-            ax.XTick = ticks;
-        else
-            ax.XTickMode = 'auto';
-        end
-        if days(xmax - xmin) >= 1
-            xtickformat('yyyy-MM-dd');
-        else
-            xtickformat('MM-dd HH:mm');
-        end
-
-        % Y 轴范围
-        if yl_manual
-            ylim(yl_rng);
-        else
-            ylim auto;
-        end
-
-        % 图例
-        legend(hLines, labels, 'Location','northeast','Box','off');
-
-        % 保存
-        base = sprintf('dynstrain_hp_%s_%s', groupName, tag_);
-        saveas(f, fullfile(outdir_ts_, [base '_' ts_ '.jpg']));
-        saveas(f, fullfile(outdir_ts_, [base '_' ts_ '.emf']));
-        savefig(f, fullfile(outdir_ts_, [base '_' ts_ '.fig']), 'compact');
-        close(f);
-    end
-
-    function T = calc_stats_table(dataMat, labels)
-        % dataMat: L x N（NaN 允许）
-        N = numel(labels);
-        mins  = NaN(N,1); q1s = NaN(N,1); meds = NaN(N,1); q3s = NaN(N,1);
-        maxs  = NaN(N,1); means=NaN(N,1); stds=NaN(N,1); cnts=NaN(N,1);
-        for k = 1:N
-            v = dataMat(:,k);
-            v = v(~isnan(v) & isfinite(v));
-            if isempty(v), continue; end
-            mins(k)  = min(v);
-            q1s(k)   = quantile(v,0.25);
-            meds(k)  = quantile(v,0.50);
-            q3s(k)   = quantile(v,0.75);
-            maxs(k)  = max(v);
-            means(k) = mean(v);
-            stds(k)  = std(v);
-            cnts(k)  = numel(v);
-        end
-        T = table(labels(:), mins, q1s, meds, q3s, maxs, means, stds, cnts, ...
-            'VariableNames', {'PointID','Min','Q1','Median','Q3','Max','Mean','Std','Count'});
-    end
-
-    function write_stats_txt(path, T)
-        fid = fopen(path,'wt');
-        fprintf(fid, '动应变箱线图统计（高通滤波后）  日期范围：%s ~ %s\n', start_date, end_date);
-        fprintf(fid, '列：PointID, Min, Q1, Median, Q3, Max, Mean, Std, Count\n\n');
-        for i = 1:height(T)
-            fprintf(fid, '%s\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%d\n', ...
-                T.PointID{i}, T.Min(i), T.Q1(i), T.Median(i), T.Q3(i), ...
-                T.Max(i), T.Mean(i), T.Std(i), T.Count(i));
-        end
-        fclose(fid);
-    end
-
-    function [times, vals] = read_csv_with_cache(fp)
-        % 与 analyze_strain_points 相同的缓存策略：仅缓存原始 times/vals
-        times = []; vals = [];
-
-        % 缓存文件路径
-        cacheDir = fullfile(fileparts(fp), 'cache');
-        if ~exist(cacheDir,'dir'), mkdir(cacheDir); end
-        [~, name, ~] = fileparts(fp);
-        cacheFile = fullfile(cacheDir, [name '.mat']);
-        useCache  = false;
-
-        if exist(cacheFile,'file')
-            infoCSV = dir(fp);
-            infoMAT = dir(cacheFile);
-            if datenum(infoMAT.date) > datenum(infoCSV.date)
-                tmp   = load(cacheFile,'times','vals');
-                times = tmp.times;
-                vals  = tmp.vals;
-                useCache = true;
-            end
-        end
-
-        if ~useCache
-            % 检测 HeaderLines
-            fid = fopen(fp,'rt');
-            h = 0; found=false; k=0;
-            while k<50 && ~feof(fid)
-                ln = fgetl(fid); k=k+1; h=h+1;
-                if contains(ln,'[绝对时间]'), found=true; break; end
-            end
-            fclose(fid);
-            if ~found
-                warning('提示：文件 %s 未检测到头部标记“[绝对时间]”，使用 HeaderLines=0 读取。', fp);
-                h = 0;
-            end
-            % 读取 CSV
-            T = readtable(fp, 'Delimiter', ',', 'HeaderLines', h, ...
-                'Format','%{yyyy-MM-dd HH:mm:ss.SSS}D%f');
-            times = T{:,1};
-            vals  = T{:,2};
-            % 写缓存（只存原始）
-            save(cacheFile,'times','vals');
+            fs_local = 20;
+            warning_once('dynamic_strain:fs', '无法从数据估计采样率，使用默认 20 Hz。');
         end
     end
 
+    v2 = vals_all;
+    % 高通滤波
+    if ~isempty(ds_cfg.Fc) && ds_cfg.Fc > 0
+        [b,a] = butter(1, ds_cfg.Fc/(fs_local/2), 'high');
+        maskNaN = isnan(v2) | ~isfinite(v2);
+        v2(maskNaN) = 0;
+        v2 = filtfilt(b,a,v2);
+        v2(maskNaN) = NaN;
+    end
+
+    % 边缘裁剪
+    trimN = round(ds_cfg.EdgeTrimSec * fs_local);
+    if trimN>0 && numel(v2)>2*trimN
+        v2        = v2(trimN+1:end-trimN);
+        times_all = times_all(trimN+1:end-trimN);
+    end
+
+    vals_all = v2;
+end
+
+function make_boxplot_and_stats(dataMat, labels, groupName, outdir, ds_cfg, tag, ts, dt0, dt1)
+    f = figure('Position',[100 100 1100 520]);
+    if ds_cfg.ShowOutliers
+        boxplot(dataMat, 'Labels', labels, 'LabelOrientation','horizontal', 'Whisker', ds_cfg.Whisker);
+    else
+        boxplot(dataMat, 'Labels', labels, 'LabelOrientation','horizontal', 'Whisker', ds_cfg.Whisker, 'Symbol','');
+    end
+    xlabel('测点'); ylabel('应变 (με)');
+    title(sprintf('动应变箱线图（高通滤波后）%s [%s]', groupName, tag));
+    xtickangle(45); grid on; grid minor;
+    if ds_cfg.YLimManual, ylim(ds_cfg.YLimRange); end
+
+    base = sprintf('boxplot_%s_%s', groupName, tag);
+    saveas(f, fullfile(outdir, [base '_' ts '.jpg']));
+    saveas(f, fullfile(outdir, [base '_' ts '.emf']));
+    savefig(f, fullfile(outdir, [base '_' ts '.fig']), 'compact');
+    close(f);
+
+    statsTbl = calc_stats_table(dataMat, labels);
+    txtPath  = fullfile(outdir, sprintf('boxplot_stats_%s_%s.txt', groupName, tag));
+    xlsxPath = fullfile(outdir, sprintf('boxplot_stats_%s.xlsx', tag));
+    write_stats_txt(txtPath, statsTbl, dt0, dt1);
+    writetable(statsTbl, xlsxPath, 'Sheet', groupName);
+end
+
+function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, ds_cfg, ylim_group, tag, ts)
+    f = figure('Position',[100 100 1100 520]); hold on;
+    colors_6 = {[0 0 0],[0 0 1],[0 0.7 0],[1 0.4 0.8],[1 0.6 0],[1 0 0]};
+
+    n = numel(tsList);
+    hLines = gobjects(n,1);
+    for i = 1:n
+        t = tsList(i).times; v = tsList(i).vals;
+        if isempty(t) || isempty(v), continue; end
+        c = colors_6{ min(i, numel(colors_6)) };
+        hLines(i) = plot(t, v, 'LineWidth', 1.0, 'Color', c);
+    end
+
+    xlabel('时间'); ylabel('应变 (με)');
+    title(sprintf('动应变时程（高通滤波后）%s [%s]', groupName, tag));
+    grid on; grid minor;
+
+    all_t = vertcat(tsList.times);
+    if ~isempty(all_t)
+        xmin = min(all_t); xmax = max(all_t);
+    else
+        xmin = dt0; xmax = dt1;
+    end
+    if xmin == xmax, xmin = xmin - minutes(1); xmax = xmax + minutes(1); end
+    ax = gca; ax.XLim = [xmin xmax];
+    ticks = linspace(xmin, xmax, 5);
+    ax.XTick = ticks;
+    if days(xmax - xmin) >= 1, xtickformat('yyyy-MM-dd'); else, xtickformat('MM-dd HH:mm'); end
+
+    if ~isempty(ylim_group)
+        ylim(ylim_group);
+    elseif ds_cfg.YLimManual
+        ylim(ds_cfg.YLimRange);
+    end
+
+    legend(hLines, labels, 'Location','northeast','Box','off');
+
+    base = sprintf('dynstrain_hp_%s_%s', groupName, tag);
+    saveas(f, fullfile(outdir_ts, [base '_' ts '.jpg']));
+    saveas(f, fullfile(outdir_ts, [base '_' ts '.emf']));
+    savefig(f, fullfile(outdir_ts, [base '_' ts '.fig']), 'compact');
+    close(f);
+end
+
+function T = calc_stats_table(dataMat, labels)
+    N = numel(labels);
+    mins  = NaN(N,1); q1s = NaN(N,1); meds = NaN(N,1); q3s = NaN(N,1);
+    maxs  = NaN(N,1); means=NaN(N,1); stds=NaN(N,1); cnts=NaN(N,1);
+    for k = 1:N
+        v = dataMat(:,k);
+        v = v(~isnan(v) & isfinite(v));
+        if isempty(v), continue; end
+        mins(k)  = min(v);
+        q1s(k)   = quantile(v,0.25);
+        meds(k)  = quantile(v,0.50);
+        q3s(k)   = quantile(v,0.75);
+        maxs(k)  = max(v);
+        means(k) = mean(v);
+        stds(k)  = std(v);
+        cnts(k)  = numel(v);
+    end
+    T = table(labels(:), mins, q1s, meds, q3s, maxs, means, stds, cnts, ...
+        'VariableNames', {'PointID','Min','Q1','Median','Q3','Max','Mean','Std','Count'});
+end
+
+function write_stats_txt(path, T, dt0, dt1)
+    fid = fopen(path,'wt');
+    fprintf(fid, '动应变箱线图统计（高通滤波后） 日期范围: %s ~ %s\n', char(string(dt0,'yyyy-MM-dd')), char(string(dt1,'yyyy-MM-dd')));
+    fprintf(fid, "字段: PointID, Min, Q1, Median, Q3, Max, Mean, Std, Count\n\n");
+    for i = 1:height(T)
+        fprintf(fid, '%s\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%d\n', ...
+            T.PointID{i}, T.Min(i), T.Q1(i), T.Median(i), T.Q3(i), ...
+            T.Max(i), T.Mean(i), T.Std(i), T.Count(i));
+    end
+    fclose(fid);
+end
+
+function ylim_val = get_ylim(style_cfg, groupName, ds_cfg)
+    ylim_val = [];
+    if isstruct(style_cfg) && isfield(style_cfg,'ylims') && isfield(style_cfg.ylims, groupName)
+        ylim_val = style_cfg.ylims.(groupName);
+    elseif ds_cfg.YLimManual
+        ylim_val = ds_cfg.YLimRange;
+    end
+end
+
+function [groups, names, style] = get_groups_and_style(cfg)
+    groups = {}; names = {};
+    if isfield(cfg,'groups') && isfield(cfg.groups,'dynamic_strain')
+        g = cfg.groups.dynamic_strain;
+    elseif isfield(cfg,'groups_dynamic_strain')
+        g = cfg.groups_dynamic_strain;
+    else
+        g = [];
+    end
+
+    if isstruct(g)
+        names = fieldnames(g);
+        for i = 1:numel(names)
+            groups{i} = cellstr(g.(names{i})(:));
+        end
+    elseif iscell(g)
+        groups = g;
+        names = arrayfun(@(i)sprintf('Group%d',i),1:numel(g),'UniformOutput',false);
+    end
+
+    if isempty(groups)
+        names = {'G05','G06'};
+        groups = {
+            {'GB-RSG-G05-001-01','GB-RSG-G05-001-02','GB-RSG-G05-001-03','GB-RSG-G05-001-04','GB-RSG-G05-001-05','GB-RSG-G05-001-06'}, ...
+            {'GB-RSG-G06-001-01','GB-RSG-G06-001-02','GB-RSG-G06-001-03','GB-RSG-G06-001-04','GB-RSG-G06-001-05','GB-RSG-G06-001-06'}};
+        warning_once('dynamic_strain:groups', '未在配置中找到 groups.dynamic_strain，使用内置 G05/G06 默认分组。');
+    end
+
+    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,'dynamic_strain')
+        style = cfg.plot_styles.dynamic_strain;
+    elseif isfield(cfg,'plot_styles_dynamic_strain')
+        style = cfg.plot_styles_dynamic_strain;
+    else
+        style = struct();
+    end
+end
+
+function sub = get_subfolder(cfg, key, fallback)
+    sub = fallback;
+    if isfield(cfg,'subfolders') && isfield(cfg.subfolders, key) && ~isempty(cfg.subfolders.(key))
+        sub = cfg.subfolders.(key);
+    end
+end
+
+function ds = get_dynamic_cfg(cfg)
+    ds = struct('Fs',[], 'Fc',0.1, 'Whisker',300, 'ShowOutliers',false, ...
+        'YLimManual',true, 'YLimRange',[-30 30], ...
+        'LowerBound',-150, 'UpperBound',150, 'EdgeTrimSec',5);
+    found = false;
+    if isfield(cfg,'defaults') && isfield(cfg.defaults,'dynamic_strain')
+        d = cfg.defaults.dynamic_strain; found = true;
+    elseif isfield(cfg,'defaults_dynamic_strain')
+        d = cfg.defaults_dynamic_strain; found = true;
+    else
+        d = struct();
+    end
+    fn = fieldnames(ds);
+    for i = 1:numel(fn)
+        f = fn{i};
+        if isfield(d,f) && ~isempty(d.(f))
+            ds.(f) = d.(f);
+        end
+    end
+    if ~found
+        warning_once('dynamic_strain:config', 'defaults.dynamic_strain 缺失，已使用内置默认值。');
+    end
+end
+
+function warning_once(id,msg)
+    persistent fired;
+    if isempty(fired), fired = containers.Map(); end
+    if ~isKey(fired,id)
+        warning(msg);
+        fired(id) = true;
+    end
+end
+
+function out = ifelse(cond, a, b)
+    if cond, out = a; else, out = b; end
 end
