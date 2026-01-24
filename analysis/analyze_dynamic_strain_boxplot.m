@@ -61,13 +61,13 @@ end
 ds = get_dynamic_cfg(cfg); % 动应变专用参数（含默认回退提示）
 
 % 允许外部参数覆盖配置（例如 run_all 传入）
-override_fields = {'Fs','Fc','Whisker','ShowOutliers','YLimManual','YLimRange','LowerBound','UpperBound','EdgeTrimSec'};
-for i = 1:numel(override_fields)
-    f = override_fields{i};
-    if ~isempty(opt.(f))
-        ds.(f) = opt.(f);
-    end
-end
+% override_fields = {'Fs','Fc','Whisker','ShowOutliers','YLimManual','YLimRange','LowerBound','UpperBound','EdgeTrimSec'};
+% for i = 1:numel(override_fields)
+%     f = override_fields{i};
+%     if ~isempty(opt.(f))
+%         ds.(f) = opt.(f);
+%     end
+% end
 
 % 子目录允许外部传入覆盖
 if ~isempty(opt.Subfolder)
