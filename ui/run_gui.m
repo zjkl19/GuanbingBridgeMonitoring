@@ -137,13 +137,24 @@ function run_gui()
 
     %% 运行页回调
     function onBrowseDir(edit)
-        p = uigetdir(edit.Value); if isequal(p,0), return; end
+        p = uigetdir(edit.Value);
+        if isequal(p,0), return; end
+
         if isstring(p), p = char(p); end
         if ischar(p), edit.Value = p; end
+
+        % === 强制把主界面拉回前台 ===
+        figure(f);        % 关键：把 uifigure 设为当前窗口
+        drawnow;          % 立即刷新事件队列
     end
     function onBrowseFile(edit, filter)
-        [fname,fpath] = uigetfile(filter,'选择文件',edit.Value); if isequal(fname,0), return; end
+        [fname,fpath] = uigetfile(filter,'选择文件',edit.Value);
+        if isequal(fname,0), return; end
         edit.Value = fullfile(fpath,fname);
+
+        % === 强制回到前台 ===
+        figure(f);
+        drawnow;
     end
     function onRun()
         global RUN_STOP_FLAG;
