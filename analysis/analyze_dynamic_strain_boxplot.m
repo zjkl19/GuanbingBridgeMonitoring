@@ -182,7 +182,7 @@ function [vals_all, times_all] = process_one_pid(root_dir, subfolder, start_str,
         vals_all(vals_all < ds_cfg.LowerBound) = NaN;
     end
     if ~isempty(ds_cfg.UpperBound)
-        vals_all(vals_all > ds_cfg.UpperBound) = NaN;
+        vals_all(vals_all > 30) = NaN;
     end
     % ==========================================
 end
