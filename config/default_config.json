@@ -39,14 +39,14 @@
       "zero_to_nan": false
     },
     "dynamic_strain": {
-      "Fs": null,
+      "Fs": 20,
       "Fc": 0.1,
       "Whisker": 300,
       "ShowOutliers": false,
       "YLimManual": true,
       "YLimRange": [-30, 30],
-      "LowerBound": -400,
-      "UpperBound": 35,
+      "LowerBound": -150,
+      "UpperBound": 30,
       "EdgeTrimSec": 5
     }
   },
