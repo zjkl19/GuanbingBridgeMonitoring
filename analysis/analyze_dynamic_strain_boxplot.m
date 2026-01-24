@@ -76,9 +76,9 @@ else
     subfolder = get_subfolder(cfg, 'strain', '特征值');
 end
 
-% 输出目录
-outdir    = ifelse(~isempty(opt.OutputDir),  char(opt.OutputDir),  fullfile(root_dir, '动应变箱线图_高通滤波'));
-outdir_ts = ifelse(~isempty(opt.OutputDirTs),char(opt.OutputDirTs),fullfile(root_dir, '时程_动应变_高通滤波'));
+% 输出目录（若传入相对路径则自动挂到 root_dir 下）
+outdir    = resolve_dir(root_dir, opt.OutputDir,  '动应变箱线图_高通滤波');
+outdir_ts = resolve_dir(root_dir, opt.OutputDirTs,'时程_动应变_高通滤波');
 if ~exist(outdir,'dir'),    mkdir(outdir);    end
 if ~exist(outdir_ts,'dir'), mkdir(outdir_ts); end
 
@@ -368,4 +368,20 @@ end
 
 function out = ifelse(cond, a, b)
     if cond, out = a; else, out = b; end
+end
+
+function p = resolve_dir(root_dir, user_path, default_name)
+    if ~isempty(user_path)
+        p = char(user_path);
+        if ~is_absolute_path(p)
+            p = fullfile(root_dir, p);
+        end
+    else
+        p = fullfile(root_dir, default_name);
+    end
+end
+
+function yes = is_absolute_path(p)
+    % Windows drive root or UNC or Unix-style
+    yes = ~isempty(regexp(p, '^[A-Za-z]:\\', 'once')) || startsWith(p, filesep) || startsWith(p, '\\');
 end

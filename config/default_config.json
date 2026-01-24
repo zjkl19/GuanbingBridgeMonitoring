@@ -20,7 +20,7 @@
     "strain": {
       "thresholds": {
         "min": -400,
-        "max": 30,
+        "max": 300,
         "t_range_start": "",
         "t_range_end": ""
       },
