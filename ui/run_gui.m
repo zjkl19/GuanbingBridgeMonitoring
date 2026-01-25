@@ -251,7 +251,9 @@ function run_gui()
         perTable.Selection = [];
         defaultsTable.Selection = [];
 
-        sensor = sensorDrop.Value; filterStr = lower(strtrim(filterEdit.Value));
+        sensor = sensorDrop.Value; 
+        filterStr = lower(strtrim(filterEdit.Value));
+        filterStrNorm = strrep(filterStr,'_','-'); % 兼容下划线/连字符
         def = struct(); if isfield(cfgCache,'defaults') && isfield(cfgCache.defaults, sensor), def = cfgCache.defaults.(sensor); end
         defRows = {};
         if isfield(def,'thresholds')
@@ -271,13 +273,16 @@ function run_gui()
         if isfield(cfgCache,'per_point') && isfield(cfgCache.per_point, sensor)
             pts = cfgCache.per_point.(sensor); pnames = fieldnames(pts);
             for i = 1:numel(pnames)
-                pid = pnames{i}; if ~isempty(filterStr) && isempty(strfind(lower(pid), filterStr)), continue; end %#ok<STREMP>
+                pid = pnames{i};
+                pidDisp = strrep(pid,'_','-');
+                pidKey = lower(strrep(pid,'_','-'));
+                if ~isempty(filterStrNorm) && isempty(strfind(pidKey, filterStrNorm)), continue; end %#ok<STREMP>
                 rule = pts.(pid); ths = []; if isfield(rule,'thresholds'), ths = rule.thresholds; end
                 if isempty(ths)
-                    perRows(end+1,:) = {pid, [], [], '', '', bool_or_empty(rule,'zero_to_nan'), num_or_empty_out(rule,'outlier','window_sec'), num_or_empty_out(rule,'outlier','threshold_factor')}; %#ok<AGROW>
+                    perRows(end+1,:) = {pidDisp, [], [], '', '', bool_or_empty(rule,'zero_to_nan'), num_or_empty_out(rule,'outlier','window_sec'), num_or_empty_out(rule,'outlier','threshold_factor')}; %#ok<AGROW>
                 else
                     for k = 1:numel(ths)
-                        perRows(end+1,:) = {pid, num_or_empty(ths(k),'min'), num_or_empty(ths(k),'max'), str_or_empty(ths(k),'t_range_start'), str_or_empty(ths(k),'t_range_end'), bool_or_empty(rule,'zero_to_nan'), num_or_empty_out(rule,'outlier','window_sec'), num_or_empty_out(rule,'outlier','threshold_factor')}; %#ok<AGROW>
+                        perRows(end+1,:) = {pidDisp, num_or_empty(ths(k),'min'), num_or_empty(ths(k),'max'), str_or_empty(ths(k),'t_range_start'), str_or_empty(ths(k),'t_range_end'), bool_or_empty(rule,'zero_to_nan'), num_or_empty_out(rule,'outlier','window_sec'), num_or_empty_out(rule,'outlier','threshold_factor')}; %#ok<AGROW>
                     end
                 end
             end
@@ -337,6 +342,7 @@ function run_gui()
             th_map = struct(); meta_map = struct();
             for i = 1:size(pData,1)
                 pid = strtrim(pData{i,1}); if isempty(pid), continue; end
+                pid = strrep(pid,'-','_'); % 内部字段名使用下划线，避免 struct 字段非法
                 mn = str2num_safe(pData{i,2}); mx = str2num_safe(pData{i,3}); if isempty(mn) || isempty(mx), continue; end
                 t0 = strtrim(pData{i,4}); t1 = strtrim(pData{i,5});
                 th = make_threshold(mn, mx, t0, t1);
