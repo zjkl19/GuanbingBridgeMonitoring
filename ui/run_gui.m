@@ -129,6 +129,7 @@ function run_gui()
     perTable.Layout.Row=5; perTable.Layout.Column=[1 4];
     addRowBtn = uibutton(cfgGrid,'Text','新增行','ButtonPushedFcn',@(btn,~) add_per_row()); addRowBtn.Layout.Row=6; addRowBtn.Layout.Column=1;
     delRowBtn = uibutton(cfgGrid,'Text','删除选中行','ButtonPushedFcn',@(btn,~) delete_per_rows()); delRowBtn.Layout.Row=6; delRowBtn.Layout.Column=2;
+    pickFigBtn = uibutton(cfgGrid,'Text','从图片框选','ButtonPushedFcn',@(btn,~) onPickFromFig()); pickFigBtn.Layout.Row=6; pickFigBtn.Layout.Column=3;
     saveCfgBtn = uibutton(cfgGrid,'Text','保存','BackgroundColor',primaryBlue,'FontColor',[1 1 1],'ButtonPushedFcn',@(btn,~) onSaveCfg(false)); saveCfgBtn.Layout.Row=7; saveCfgBtn.Layout.Column=3;
     saveAsCfgBtn = uibutton(cfgGrid,'Text','另存为','ButtonPushedFcn',@(btn,~) onSaveCfg(true)); saveAsCfgBtn.Layout.Row=7; saveAsCfgBtn.Layout.Column=4;
     cfgMsg = uitextarea(cfgGrid,'Editable','off','Value',{'阈值编辑提示：时间格式 yyyy-MM-dd HH:mm:ss；留空表示全时段/不启用。'}); cfgMsg.Layout.Row=8; cfgMsg.Layout.Column=[1 4];
@@ -288,6 +289,16 @@ function run_gui()
     function delete_per_rows()
         idx = perTable.Selection; if isempty(idx), return; end
         data = perTable.Data; data(idx(:,1),:) = []; perTable.Data = data;
+    end
+    function onPickFromFig()
+        try
+            rows = pick_from_fig(f);
+            if isempty(rows), return; end
+            perTable.Data = [perTable.Data; rows];
+            addLog(sprintf('从图片追加 %d 条阈值记录', size(rows,1)));
+        catch ME
+            uialert(f, ['从图片框选失败: ' ME.message], '错误');
+        end
     end
     function onReloadCfg()
         try
