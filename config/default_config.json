@@ -52,31 +52,31 @@
   },
   "per_point": {
     "deflection": {
-      "GB_DIS_G05_001_01Y": {
+      "GB-DIS-G05-001-01Y": {
         "thresholds": {
           "min": -6,
           "max": 14
         }
       },
-      "GB_DIS_G05_001_02Y": {
+      "GB-DIS-G05-001-02Y": {
         "thresholds": {
           "min": -6,
           "max": 10
         }
       },
-      "GB_DIS_G05_002_01Y": {
+      "GB-DIS-G05-002-01Y": {
         "thresholds": {
           "min": 4,
           "max": 20
         }
       },
-      "GB_DIS_G05_002_02Y": {
+      "GB-DIS-G05-002-02Y": {
         "thresholds": {
           "min": 0,
           "max": 25
         }
       },
-      "GB_DIS_G05_002_03Y": {
+      "GB-DIS-G05-002-03Y": {
         "thresholds": [
           {
             "min": -3,
@@ -90,19 +90,19 @@
           }
         ]
       },
-      "GB_DIS_G05_003_01Y": {
+      "GB-DIS-G05-003-01Y": {
         "thresholds": {
           "min": -2,
           "max": 10
         }
       },
-      "GB_DIS_G05_003_02Y": {
+      "GB-DIS-G05-003-02Y": {
         "thresholds": {
           "min": -5.7,
           "max": 12
         }
       },
-      "GB_DIS_G06_001_01Y": {
+      "GB-DIS-G06-001-01Y": {
         "thresholds": [
           {
             "min": -4,
@@ -118,7 +118,7 @@
           }
         ]
       },
-      "GB_DIS_G06_001_02Y": {
+      "GB-DIS-G06-001-02Y": {
         "thresholds": [
           {
             "min": -10,
@@ -132,7 +132,7 @@
           }
         ]
       },
-      "GB_DIS_G06_002_01Y": {
+      "GB-DIS-G06-002-01Y": {
         "thresholds": [
           {
             "min": -6,
@@ -146,7 +146,7 @@
           }
         ]
       },
-      "GB_DIS_G06_002_02Y": {
+      "GB-DIS-G06-002-02Y": {
         "thresholds": [
           {
             "min": -6,
@@ -160,7 +160,7 @@
           }
         ]
       },
-      "GB_DIS_G06_002_03Y": {
+      "GB-DIS-G06-002-03Y": {
         "thresholds": [
           {
             "min": -5,
@@ -174,13 +174,13 @@
           }
         ]
       },
-      "GB_DIS_G06_003_01Y": {
+      "GB-DIS-G06-003-01Y": {
         "thresholds": {
           "min": -6,
           "max": 10
         }
       },
-      "GB_DIS_G06_003_02Y": {
+      "GB-DIS-G06-003-02Y": {
         "thresholds": [
           {
             "min": -5,
@@ -194,7 +194,7 @@
           }
         ]
       },
-      "GB_DIS_G06_003_03Y": {
+      "GB-DIS-G06-003-03Y": {
         "thresholds": {
           "min": -10,
           "max": 19,
@@ -204,13 +204,13 @@
       }
     },
     "acceleration": {
-      "GB_VIB_G06_002_01": {
+      "GB-VIB-G06-002-01": {
         "thresholds": {
           "min": -500,
           "max": 400
         }
       },
-      "GB_VIB_G04_001_01": {
+      "GB-VIB-G04-001-01": {
         "thresholds": [
           {
             "min": -400,
@@ -224,13 +224,13 @@
           }
         ]
       },
-      "GB_VIB_G05_001_01": {
+      "GB-VIB-G05-001-01": {
         "thresholds": {
           "min": -300,
           "max": 300
         }
       },
-      "GB_VIB_G05_002_01": {
+      "GB-VIB-G05-002-01": {
         "thresholds": [
           {
             "min": -300,
@@ -244,7 +244,7 @@
           }
         ]
       },
-      "GB_VIB_G05_003_01": {
+      "GB-VIB-G05-003-01": {
         "thresholds": [
           {
             "min": -500,
@@ -258,7 +258,7 @@
           }
         ]
       },
-      "GB_VIB_G06_001_01": {
+      "GB-VIB-G06-001-01": {
         "thresholds": [
           {
             "min": -300,
@@ -272,7 +272,7 @@
           }
         ]
       },
-      "GB_VIB_G06_003_01": {
+      "GB-VIB-G06-003-01": {
         "thresholds": [
           {
             "min": -300,
@@ -286,7 +286,7 @@
           }
         ]
       },
-      "GB_VIB_G07_001_01": {
+      "GB-VIB-G07-001-01": {
         "thresholds": [
           {
             "min": -400,
@@ -300,7 +300,7 @@
       }
     },
     "strain": {
-      "GB_RSG_G06_001_02": {
+      "GB-RSG-G06-001-02": {
         "thresholds": {
           "min": -350,
           "max": 5,
@@ -310,7 +310,7 @@
         "zero_to_nan": false,
         "outlier": []
       },
-      "GB_RSG_G05_001_02": {
+      "GB-RSG-G05-001-02": {
         "thresholds": [
           {
             "min": -350,
@@ -340,37 +340,37 @@
       }
     },
     "tilt": {
-      "GB_DIS_P04_001_01_X": {
+      "GB-DIS-P04-001-01-X": {
         "thresholds": {
           "min": -0.5,
           "max": 0.05
         }
       },
-      "GB_DIS_P05_001_01_X": {
+      "GB-DIS-P05-001-01-X": {
         "thresholds": {
           "min": -0.1,
           "max": 0.05
         }
       },
-      "GB_DIS_P06_001_01_X": {
+      "GB-DIS-P06-001-01-X": {
         "thresholds": {
           "min": -0.1,
           "max": 0.05
         }
       },
-      "GB_DIS_P04_001_01_Y": {
+      "GB-DIS-P04-001-01-Y": {
         "thresholds": {
           "min": -0.05,
           "max": 0.056
         }
       },
-      "GB_DIS_P05_001_01_Y": {
+      "GB-DIS-P05-001-01-Y": {
         "thresholds": {
           "min": -0.05,
           "max": 0.056
         }
       },
-      "GB_DIS_P06_001_01_Y": {
+      "GB-DIS-P06-001-01-Y": {
         "thresholds": {
           "min": -0.05,
           "max": 0.056
@@ -378,19 +378,19 @@
       }
     },
     "crack": {
-      "GB_CRK_G05_001_01": {
+      "GB-CRK-G05-001-01": {
         "thresholds": {
           "min": -0.22,
           "max": -0.1
         }
       },
-      "GB_CRK_G05_001_02": {
+      "GB-CRK-G05-001-02": {
         "thresholds": {
           "min": -100,
           "max": -0.05
         }
       },
-      "GB_CRK_G06_001_01": {
+      "GB-CRK-G06-001-01": {
         "thresholds": {
           "min": -0.25,
           "max": 0.05
