@@ -253,7 +253,6 @@ function run_gui()
 
         sensor = sensorDrop.Value; 
         filterStr = lower(strtrim(filterEdit.Value));
-        filterStrNorm = strrep(filterStr,'_','-'); % 兼容下划线/连字符
         def = struct(); if isfield(cfgCache,'defaults') && isfield(cfgCache.defaults, sensor), def = cfgCache.defaults.(sensor); end
         defRows = {};
         if isfield(def,'thresholds')
@@ -274,9 +273,13 @@ function run_gui()
             pts = cfgCache.per_point.(sensor); pnames = fieldnames(pts);
             for i = 1:numel(pnames)
                 pid = pnames{i};
-                pidDisp = strrep(pid,'_','-');
-                pidKey = lower(strrep(pid,'_','-'));
-                if ~isempty(filterStrNorm) && isempty(strfind(pidKey, filterStrNorm)), continue; end %#ok<STREMP>
+                % prefer original name if mapping exists
+                pidDisp = pid;
+                if isfield(cfgCache,'name_map_global') && isfield(cfgCache.name_map_global, pid)
+                    pidDisp = cfgCache.name_map_global.(pid);
+                end
+                pidKey = lower(pidDisp);
+                if ~isempty(filterStr) && isempty(strfind(pidKey, filterStr)), continue; end %#ok<STREMP>
                 rule = pts.(pid); ths = []; if isfield(rule,'thresholds'), ths = rule.thresholds; end
                 if isempty(ths)
                     perRows(end+1,:) = {pidDisp, [], [], '', '', bool_or_empty(rule,'zero_to_nan'), num_or_empty_out(rule,'outlier','window_sec'), num_or_empty_out(rule,'outlier','threshold_factor')}; %#ok<AGROW>
@@ -340,20 +343,22 @@ function run_gui()
             pData = perTable.Data;
             perStruct = struct();
             th_map = struct(); meta_map = struct();
+            name_map = struct();
             for i = 1:size(pData,1)
-                pid = strtrim(pData{i,1}); if isempty(pid), continue; end
-                pid = strrep(pid,'-','_'); % 内部字段名使用下划线，避免 struct 字段非法
+                pidOrig = strtrim(pData{i,1}); if isempty(pidOrig), continue; end
+                pidSafe = strrep(pidOrig,'-','_'); % 内部字段名使用下划线，避免 struct 字段非法
                 mn = str2num_safe(pData{i,2}); mx = str2num_safe(pData{i,3}); if isempty(mn) || isempty(mx), continue; end
                 t0 = strtrim(pData{i,4}); t1 = strtrim(pData{i,5});
                 th = make_threshold(mn, mx, t0, t1);
-                if ~isfield(th_map, pid)
-                    th_map.(pid) = th;
-                    meta_map.(pid) = struct( ...
+                if ~isfield(th_map, pidSafe)
+                    th_map.(pidSafe) = th;
+                    meta_map.(pidSafe) = struct( ...
                         'zero_to_nan', logical(pData{i,6}), ...
                         'ow', str2num_safe(pData{i,7}), ...
                         'ot', str2num_safe(pData{i,8}));
+                    name_map.(pidSafe) = pidOrig; % 保存原始名称
                 else
-                    th_map.(pid)(end+1) = th; %#ok<AGROW>
+                    th_map.(pidSafe)(end+1) = th; %#ok<AGROW>
                 end
             end
             pnames = fieldnames(th_map);
@@ -369,6 +374,9 @@ function run_gui()
                 end
             end
             cfgNew.per_point.(sensor) = prune_per_struct(perStruct);
+            if ~isempty(fieldnames(name_map))
+                cfgNew.name_map_global = name_map;
+            end
 
             targetPath = cfgPath;
             if doSaveAs

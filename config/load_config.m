@@ -16,6 +16,19 @@ function cfg = load_config(path)
     end
     txt = fileread(path);
     cfg = jsondecode(txt);
+
+    % 记录原始字段名映射（尤其 per_point 中含连字符的 point_id），便于保存时还原
+    name_map = struct();
+    tokens = regexp(txt, '"(GB[^"]+)"\s*:', 'tokens');
+    for i = 1:numel(tokens)
+        orig = tokens{i}{1};
+        safe = strrep(orig,'-','_');  % jsondecode 会把连字符改成下划线
+        name_map.(safe) = orig;
+    end
+    if ~isempty(fieldnames(name_map))
+        cfg.name_map_global = name_map;
+    end
+
     cfg.source = path;
     cfg.warnings = validate_config(cfg);
 end
