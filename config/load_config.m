@@ -17,13 +17,23 @@ function cfg = load_config(path)
     txt = fileread(path);
     cfg = jsondecode(txt);
 
-    % 记录原始字段名映射（尤其 per_point 中含连字符的 point_id），便于保存时还原
+    % 记录原始字段名映射（point_id 可能含连字符），便于保存时还原
+    % 仅映射 per_point / file_patterns.per_point 中实际存在的测点字段
+    safe_ids = collect_safe_point_ids(cfg);
     name_map = struct();
-    tokens = regexp(txt, '"(GB[^"]+)"\s*:', 'tokens');
-    for i = 1:numel(tokens)
-        orig = tokens{i}{1};
-        safe = strrep(orig,'-','_');  % jsondecode 会把连字符改成下划线
-        name_map.(safe) = orig;
+    if ~isempty(safe_ids)
+        safe_set = struct();
+        for i = 1:numel(safe_ids)
+            safe_set.(safe_ids{i}) = true;
+        end
+        tokens = regexp(txt, '"([^"]+)"\s*:', 'tokens');
+        for i = 1:numel(tokens)
+            orig = tokens{i}{1};
+            safe = strrep(orig,'-','_');  % jsondecode 会把连字符改成下划线
+            if isfield(safe_set, safe)
+                name_map.(safe) = orig;
+            end
+        end
     end
     if ~isempty(fieldnames(name_map))
         cfg.name_map_global = name_map;
@@ -31,6 +41,32 @@ function cfg = load_config(path)
 
     cfg.source = path;
     cfg.warnings = validate_config(cfg);
+end
+
+function ids = collect_safe_point_ids(cfg)
+% Collect point_id fieldnames from per_point and file_patterns.per_point
+    ids = {};
+    if isfield(cfg,'per_point') && isstruct(cfg.per_point)
+        sens = fieldnames(cfg.per_point);
+        for i = 1:numel(sens)
+            pts = cfg.per_point.(sens{i});
+            if isstruct(pts)
+                ids = [ids; fieldnames(pts)]; %#ok<AGROW>
+            end
+        end
+    end
+    if isfield(cfg,'file_patterns') && isstruct(cfg.file_patterns)
+        sens = fieldnames(cfg.file_patterns);
+        for i = 1:numel(sens)
+            fp = cfg.file_patterns.(sens{i});
+            if isstruct(fp) && isfield(fp,'per_point') && isstruct(fp.per_point)
+                ids = [ids; fieldnames(fp.per_point)]; %#ok<AGROW>
+            end
+        end
+    end
+    if ~isempty(ids)
+        ids = unique(ids, 'stable');
+    end
 end
 
 function warns = validate_config(cfg)

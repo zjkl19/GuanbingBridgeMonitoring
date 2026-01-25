@@ -47,7 +47,9 @@ function save_config(cfg, filepath, make_backup)
         for i = 1:numel(keys)
             safe = keys{i};
             orig = name_map.(safe);
-            txt = regexprep(txt, ['"' , regexptranslate('escape', safe) , '"'], ['"' orig '"']);
+            pat = ['"' , regexptranslate('escape', safe) , '"\s*:'];
+            rep = ['"' orig '":'];
+            txt = regexprep(txt, pat, rep);
         end
     end
     fid = fopen(filepath,'wt');

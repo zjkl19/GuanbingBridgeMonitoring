@@ -58,38 +58,22 @@
   "per_point": {
     "deflection": {
       "GB-DIS-G05-001-01Y": {
-        "thresholds": [
-          {
-            "min": -6,
-            "max": 14,
-            "t_range_start": "",
-            "t_range_end": ""
-          },
-          {
-            "min": -10,
-            "max": 30,
-            "t_range_start": "2025-08-03 11:10:54",
-            "t_range_end": "2025-08-03 22:05:27"
-          }
-        ],
+        "thresholds": {
+          "min": -6,
+          "max": 14,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
         "zero_to_nan": false,
         "outlier": []
       },
       "GB-DIS-G05-001-02Y": {
-        "thresholds": [
-          {
-            "min": -6,
-            "max": 10,
-            "t_range_start": "",
-            "t_range_end": ""
-          },
-          {
-            "min": -10,
-            "max": 30,
-            "t_range_start": "2025-08-03 11:10:54",
-            "t_range_end": "2025-08-03 22:05:27"
-          }
-        ],
+        "thresholds": {
+          "min": -6,
+          "max": 10,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
         "zero_to_nan": false,
         "outlier": []
       },

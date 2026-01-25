@@ -100,13 +100,14 @@ end
 function fp = find_file_for_point(dirp, point_id, cfg, sensor_type)
     fp = '';
     patterns = {};
+    safe_id = strrep(point_id, '-', '_');
     if isfield(cfg, 'file_patterns') && isfield(cfg.file_patterns, sensor_type)
         ft = cfg.file_patterns.(sensor_type);
         if isfield(ft, 'default')
             patterns = [patterns; normalize_patterns(ft.default)];
         end
-        if isfield(ft, 'per_point') && isfield(ft.per_point, point_id)
-            pt_pat = ft.per_point.(point_id);
+        if isfield(ft, 'per_point') && isfield(ft.per_point, safe_id)
+            pt_pat = ft.per_point.(safe_id);
             patterns = [normalize_patterns(pt_pat); patterns]; % point-specific takes priority
         end
     end
@@ -155,12 +156,17 @@ function rules = build_rules(cfg, sensor_type, point_id)
             if isfield(def.outlier, 'threshold_factor'), rules.outlier_threshold_factor = def.outlier.threshold_factor; end
         end
     end
+    safe_id = strrep(point_id, '-', '_');
     if isfield(cfg, 'per_point') && isfield(cfg.per_point, sensor_type) ...
-            && isfield(cfg.per_point.(sensor_type), point_id)
-        pt = cfg.per_point.(sensor_type).(point_id);
-        if isfield(pt, 'thresholds')
-            % point-specific thresholds override defaults (append)
-            rules.thresholds = pt.thresholds;
+            && isfield(cfg.per_point.(sensor_type), safe_id)
+        pt = cfg.per_point.(sensor_type).(safe_id);
+        if isfield(pt, 'thresholds') && ~isempty(pt.thresholds)
+            % 默认阈值 + 点位阈值一起执行，点位阈值追加在后
+            if isempty(rules.thresholds)
+                rules.thresholds = pt.thresholds;
+            else
+                rules.thresholds = [rules.thresholds(:); pt.thresholds(:)];
+            end
         end
         if isfield(pt, 'zero_to_nan'), rules.zero_to_nan = logical(pt.zero_to_nan); end
         if isfield(pt, 'outlier')
