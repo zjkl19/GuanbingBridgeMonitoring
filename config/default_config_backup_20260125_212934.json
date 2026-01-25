@@ -5,9 +5,7 @@
     "deflection": {
       "thresholds": {
         "min": -10,
-        "max": 31,
-        "t_range_start": "",
-        "t_range_end": ""
+        "max": 31
       },
       "zero_to_nan": true,
       "outlier": {
@@ -46,10 +44,7 @@
       "Whisker": 300,
       "ShowOutliers": false,
       "YLimManual": true,
-      "YLimRange": [
-        -30,
-        30
-      ],
+      "YLimRange": [-30, 30],
       "LowerBound": -150,
       "UpperBound": 30,
       "EdgeTrimSec": 5
@@ -60,62 +55,52 @@
       "GB-DIS-G05-001-01Y": {
         "thresholds": {
           "min": -6,
-          "max": 14,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
+          "max": 14
+        }
       },
       "GB-DIS-G05-001-02Y": {
         "thresholds": {
           "min": -6,
-          "max": 10,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
+          "max": 10
+        }
       },
       "GB-DIS-G05-002-01Y": {
         "thresholds": {
           "min": 4,
-          "max": 20,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
+          "max": 20
+        }
       },
       "GB-DIS-G05-002-02Y": {
         "thresholds": {
           "min": 0,
-          "max": 25,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
+          "max": 25
+        }
+      },
+      "GB-DIS-G05-002-03Y": {
+        "thresholds": [
+          {
+            "min": -3,
+            "max": 20
+          },
+          {
+            "min": -3,
+            "max": 20,
+            "t_range_start": "2025-08-03 06:00:00",
+            "t_range_end": "2025-08-14 08:00:00"
+          }
+        ]
       },
       "GB-DIS-G05-003-01Y": {
         "thresholds": {
           "min": -2,
-          "max": 10,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
+          "max": 10
+        }
       },
       "GB-DIS-G05-003-02Y": {
         "thresholds": {
           "min": -5.7,
-          "max": 12,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
+          "max": 12
+        }
       },
       "GB-DIS-G06-001-01Y": {
         "thresholds": [
@@ -131,19 +116,83 @@
             "t_range_start": "2025-08-14 06:00:00",
             "t_range_end": "2025-08-23 08:00:00"
           }
-        ],
-        "zero_to_nan": false,
-        "outlier": []
+        ]
+      },
+      "GB-DIS-G06-001-02Y": {
+        "thresholds": [
+          {
+            "min": -10,
+            "max": 10
+          },
+          {
+            "min": -4,
+            "max": 10,
+            "t_range_start": "2025-08-04 06:00:00",
+            "t_range_end": "2025-08-13 08:00:00"
+          }
+        ]
+      },
+      "GB-DIS-G06-002-01Y": {
+        "thresholds": [
+          {
+            "min": -6,
+            "max": 21
+          },
+          {
+            "min": -10,
+            "max": 18,
+            "t_range_start": "2025-08-13 06:00:00",
+            "t_range_end": "2025-08-18 08:00:00"
+          }
+        ]
+      },
+      "GB-DIS-G06-002-02Y": {
+        "thresholds": [
+          {
+            "min": -6,
+            "max": 21
+          },
+          {
+            "min": -10,
+            "max": 18,
+            "t_range_start": "2025-08-13 06:00:00",
+            "t_range_end": "2025-08-18 08:00:00"
+          }
+        ]
+      },
+      "GB-DIS-G06-002-03Y": {
+        "thresholds": [
+          {
+            "min": -5,
+            "max": 21
+          },
+          {
+            "min": -10,
+            "max": 18,
+            "t_range_start": "2025-08-13 06:00:00",
+            "t_range_end": "2025-08-18 08:00:00"
+          }
+        ]
       },
       "GB-DIS-G06-003-01Y": {
         "thresholds": {
           "min": -6,
-          "max": 10,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
+          "max": 10
+        }
+      },
+      "GB-DIS-G06-003-02Y": {
+        "thresholds": [
+          {
+            "min": -5,
+            "max": 10
+          },
+          {
+            "min": -10,
+            "max": 9,
+            "t_range_start": "2025-08-13 06:00:00",
+            "t_range_end": "2025-08-18 08:00:00"
+          }
+        ]
       },
       "GB-DIS-G06-003-03Y": {
         "thresholds": {
@@ -151,9 +200,7 @@
           "max": 19,
           "t_range_start": "2025-08-13 06:00:00",
           "t_range_end": "2025-08-23 08:00:00"
-        },
-        "zero_to_nan": false,
-        "outlier": []
+        }
       }
     },
     "acceleration": {
@@ -445,22 +492,8 @@
       ]
     },
     "dynamic_strain": {
-      "G05": [
-        "GB-RSG-G05-001-01",
-        "GB-RSG-G05-001-02",
-        "GB-RSG-G05-001-03",
-        "GB-RSG-G05-001-04",
-        "GB-RSG-G05-001-05",
-        "GB-RSG-G05-001-06"
-      ],
-      "G06": [
-        "GB-RSG-G06-001-01",
-        "GB-RSG-G06-001-02",
-        "GB-RSG-G06-001-03",
-        "GB-RSG-G06-001-04",
-        "GB-RSG-G06-001-05",
-        "GB-RSG-G06-001-06"
-      ]
+      "G05": ["GB-RSG-G05-001-01","GB-RSG-G05-001-02","GB-RSG-G05-001-03","GB-RSG-G05-001-04","GB-RSG-G05-001-05","GB-RSG-G05-001-06"],
+      "G06": ["GB-RSG-G06-001-01","GB-RSG-G06-001-02","GB-RSG-G06-001-03","GB-RSG-G06-001-04","GB-RSG-G06-001-05","GB-RSG-G06-001-06"]
     },
     "tilt": {
       "X": [
@@ -836,42 +869,19 @@
     "Whisker": 300,
     "ShowOutliers": false,
     "YLimManual": true,
-    "YLimRange": [
-      -30,
-      30
-    ],
+    "YLimRange": [-30, 30],
     "LowerBound": -150,
     "UpperBound": 30,
     "EdgeTrimSec": 5
   },
   "groups_dynamic_strain": {
-    "G05": [
-      "GB-RSG-G05-001-01",
-      "GB-RSG-G05-001-02",
-      "GB-RSG-G05-001-03",
-      "GB-RSG-G05-001-04",
-      "GB-RSG-G05-001-05",
-      "GB-RSG-G05-001-06"
-    ],
-    "G06": [
-      "GB-RSG-G06-001-01",
-      "GB-RSG-G06-001-02",
-      "GB-RSG-G06-001-03",
-      "GB-RSG-G06-001-04",
-      "GB-RSG-G06-001-05",
-      "GB-RSG-G06-001-06"
-    ]
+    "G05": ["GB-RSG-G05-001-01","GB-RSG-G05-001-02","GB-RSG-G05-001-03","GB-RSG-G05-001-04","GB-RSG-G05-001-05","GB-RSG-G05-001-06"],
+    "G06": ["GB-RSG-G06-001-01","GB-RSG-G06-001-02","GB-RSG-G06-001-03","GB-RSG-G06-001-04","GB-RSG-G06-001-05","GB-RSG-G06-001-06"]
   },
   "plot_styles_dynamic_strain": {
     "ylims": {
-      "G05": [
-        -30,
-        30
-      ],
-      "G06": [
-        -30,
-        30
-      ]
+      "G05": [-30, 30],
+      "G06": [-30, 30]
     }
   },
   "accel_spectrum_params": {

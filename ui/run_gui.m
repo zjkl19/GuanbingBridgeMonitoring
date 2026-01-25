@@ -343,7 +343,12 @@ function run_gui()
             pData = perTable.Data;
             perStruct = struct();
             th_map = struct(); meta_map = struct();
-            name_map = struct();
+            % 继承已有的名称映射，避免未修改的测点丢失原始名字
+            if isfield(cfgCache,'name_map_global') && isstruct(cfgCache.name_map_global)
+                name_map = cfgCache.name_map_global;
+            else
+                name_map = struct();
+            end
             for i = 1:size(pData,1)
                 pidOrig = strtrim(pData{i,1}); if isempty(pidOrig), continue; end
                 pidSafe = strrep(pidOrig,'-','_'); % 内部字段名使用下划线，避免 struct 字段非法
