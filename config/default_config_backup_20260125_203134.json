@@ -328,7 +328,7 @@
         "zero_to_nan": false,
         "outlier": []
       },
-      "GB-RSG-G05-001-06": {
+      "GB_RSG_G05_001_06": {
         "thresholds": {
           "min": 50,
           "max": 70,
