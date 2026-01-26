@@ -53,6 +53,10 @@
       "LowerBound": -150,
       "UpperBound": 30,
       "EdgeTrimSec": 5
+    },
+    "cable_accel": {
+      "thresholds": [],
+      "zero_to_nan": false
     }
   },
   "per_point": {
@@ -365,6 +369,56 @@
           "max": 0.05
         }
       }
+    },
+    "cable_accel": {
+      "GB-VIB-G04-001-01": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "GB-VIB-G05-001-01": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "GB-VIB-G05-002-01": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "GB-VIB-G05-003-01": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "GB-VIB-G06-001-01": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "GB-VIB-G06-002-01": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "GB-VIB-G06-003-01": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "GB-VIB-G07-001-01": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      }
     }
   },
   "subfolders": {
@@ -375,7 +429,9 @@
     "tilt": "波形_重采样",
     "crack": "特征值",
     "humidity": "特征值",
-    "temperature": "特征值"
+    "temperature": "特征值",
+    "cable_accel": "索力加速度_重采样",
+    "cable_accel_raw": "索力加速度"
   },
   "file_patterns": {
     "crack": {
@@ -403,6 +459,26 @@
       "GB-VIB-G07-001-01"
     ],
     "accel_spectrum": [
+      "GB-VIB-G04-001-01",
+      "GB-VIB-G05-001-01",
+      "GB-VIB-G05-002-01",
+      "GB-VIB-G05-003-01",
+      "GB-VIB-G06-001-01",
+      "GB-VIB-G06-002-01",
+      "GB-VIB-G06-003-01",
+      "GB-VIB-G07-001-01"
+    ],
+    "cable_accel": [
+      "GB-VIB-G04-001-01",
+      "GB-VIB-G05-001-01",
+      "GB-VIB-G05-002-01",
+      "GB-VIB-G05-003-01",
+      "GB-VIB-G06-001-01",
+      "GB-VIB-G06-002-01",
+      "GB-VIB-G06-003-01",
+      "GB-VIB-G07-001-01"
+    ],
+    "cable_accel_spectrum": [
       "GB-VIB-G04-001-01",
       "GB-VIB-G05-001-01",
       "GB-VIB-G05-002-01",
@@ -843,6 +919,79 @@
         20,
         100
       ]
+    },
+    "cable_accel": {
+      "ylabel": "索力加速度 (mm/s^2)",
+      "title_prefix": "索力加速度时程",
+      "ylim": [
+        -500,
+        500
+      ],
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ]
+      ],
+      "rms": {
+        "ylabel": "10 min RMS (mm/s^2)",
+        "title_prefix": "10 min RMS 时程",
+        "ylim": [
+          0,
+          80
+        ],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
+      }
+    },
+    "cable_accel_spectrum": {
+      "psd_ylabel": "PSD (dB)",
+      "psd_title_prefix": "PSD",
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "峰值频率时程",
+      "colors": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          0.5,
+          0,
+          0.7
+        ]
+      ],
+      "force_ylabel": "索力 (kN)",
+      "force_title_prefix": "索力时程",
+      "force_color": [
+        0,
+        0.447,
+        0.741
+      ]
     }
   },
   "defaults_dynamic_strain_note": "下方 dynamic_strain 为动应变专用参数；缺失则代码使用内置默认。",
@@ -909,5 +1058,23 @@
     ]
   },
   "source": "D:\\MatlabProjects\\Guanbing\\config\\default_config.json",
-  "warnings": []
+  "warnings": [],
+  "cable_accel_spectrum_params": {
+    "target_freqs": [
+      1.15,
+      1.48,
+      2.31
+    ],
+    "tolerance": 0.15,
+    "theor_freqs": [
+      0.975,
+      1.243,
+      1.528
+    ],
+    "theor_labels": [
+      "理论竖向一阶自振频率 0.975Hz",
+      "理论竖向二阶自振频率 1.243Hz",
+      "理论竖向三阶自振频率 1.528Hz"
+    ]
+  }
 }

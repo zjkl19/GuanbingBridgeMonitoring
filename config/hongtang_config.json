@@ -44,6 +44,11 @@
       "thresholds": [],
       "zero_to_nan": false,
       "outlier": []
+    },
+    "cable_accel": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
     }
   },
   "per_point": {
@@ -122,6 +127,152 @@
       "A10-Y": {
         "thresholds": []
       }
+    },
+    "cable_accel": {
+      "CS1": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CS2": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CS3": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CS4": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CS5": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CS6": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CS7": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CS8": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CS9": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CS10": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CS11": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CS12": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CX1": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CX2": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CX3": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CX4": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CX5": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CX6": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CX7": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CX8": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CX9": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CX10": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CX11": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      },
+      "CX12": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2
+      }
     }
   },
   "subfolders": {
@@ -132,7 +283,9 @@
     "tilt": "波形_重采样",
     "crack": "特征值",
     "humidity": "特征值",
-    "temperature": "特征值"
+    "temperature": "特征值",
+    "cable_accel": "波形",
+    "cable_accel_raw": "波形"
   },
   "file_patterns": {
     "acceleration": {
@@ -172,6 +325,68 @@
         "A10-X": "{point}_156.csv",
         "A10-Y": "{point}_157.csv"
       }
+    },
+    "cable_accel": {
+      "default": [
+        "{point}_*.csv"
+      ],
+      "per_point": {
+        "CS1": "{point}_148.csv",
+        "CS2": "{point}_149.csv",
+        "CS3": "{point}_150.csv",
+        "CS4": "{point}_151.csv",
+        "CS5": "{point}_152.csv",
+        "CS6": "{point}_153.csv",
+        "CS7": "{point}_154.csv",
+        "CS8": "{point}_155.csv",
+        "CS9": "{point}_167.csv",
+        "CS10": "{point}_166.csv",
+        "CS11": "{point}_164.csv",
+        "CS12": "{point}_165.csv",
+        "CX1": "{point}_122.csv",
+        "CX2": "{point}_123.csv",
+        "CX3": "{point}_120.csv",
+        "CX4": "{point}_121.csv",
+        "CX5": "{point}_127.csv",
+        "CX6": "{point}_126.csv",
+        "CX7": "{point}_124.csv",
+        "CX8": "{point}_125.csv",
+        "CX9": "{point}_139.csv",
+        "CX10": "{point}_138.csv",
+        "CX11": "{point}_136.csv",
+        "CX12": "{point}_137.csv"
+      }
+    },
+    "cable_accel_spectrum": {
+      "default": [
+        "{point}_*.csv"
+      ],
+      "per_point": {
+        "CS1": "{point}_148.csv",
+        "CS2": "{point}_149.csv",
+        "CS3": "{point}_150.csv",
+        "CS4": "{point}_151.csv",
+        "CS5": "{point}_152.csv",
+        "CS6": "{point}_153.csv",
+        "CS7": "{point}_154.csv",
+        "CS8": "{point}_155.csv",
+        "CS9": "{point}_167.csv",
+        "CS10": "{point}_166.csv",
+        "CS11": "{point}_164.csv",
+        "CS12": "{point}_165.csv",
+        "CX1": "{point}_122.csv",
+        "CX2": "{point}_123.csv",
+        "CX3": "{point}_120.csv",
+        "CX4": "{point}_121.csv",
+        "CX5": "{point}_127.csv",
+        "CX6": "{point}_126.csv",
+        "CX7": "{point}_124.csv",
+        "CX8": "{point}_125.csv",
+        "CX9": "{point}_139.csv",
+        "CX10": "{point}_138.csv",
+        "CX11": "{point}_136.csv",
+        "CX12": "{point}_137.csv"
+      }
     }
   },
   "points": {
@@ -202,6 +417,58 @@
       "A9-Y",
       "A10-X",
       "A10-Y"
+    ],
+    "cable_accel": [
+      "CS1",
+      "CS2",
+      "CS3",
+      "CS4",
+      "CS5",
+      "CS6",
+      "CS7",
+      "CS8",
+      "CS9",
+      "CS10",
+      "CS11",
+      "CS12",
+      "CX1",
+      "CX2",
+      "CX3",
+      "CX4",
+      "CX5",
+      "CX6",
+      "CX7",
+      "CX8",
+      "CX9",
+      "CX10",
+      "CX11",
+      "CX12"
+    ],
+    "cable_accel_spectrum": [
+      "CS1",
+      "CS2",
+      "CS3",
+      "CS4",
+      "CS5",
+      "CS6",
+      "CS7",
+      "CS8",
+      "CS9",
+      "CS10",
+      "CS11",
+      "CS12",
+      "CX1",
+      "CX2",
+      "CX3",
+      "CX4",
+      "CX5",
+      "CX6",
+      "CX7",
+      "CX8",
+      "CX9",
+      "CX10",
+      "CX11",
+      "CX12"
     ]
   },
   "groups": {},
@@ -270,6 +537,86 @@
           0,
           0.7
         ]
+      ],
+      "force_ylabel": "?? (kN)",
+      "force_title_prefix": "????",
+      "force_color": [
+        0,
+        0.447,
+        0.741
+      ]
+    },
+    "cable_accel": {
+      "ylabel": "主梁竖向振动加速度 (mm/s^2)",
+      "title_prefix": "加速度时程",
+      "ylim": [
+        -1,
+        1
+      ],
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ]
+      ],
+      "rms": {
+        "ylabel": "10 min RMS (mm/s^2)",
+        "title_prefix": "10 min RMS 时程",
+        "ylim": [
+          0,
+          1
+        ],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
+      }
+    },
+    "cable_accel_spectrum": {
+      "psd_ylabel": "PSD (dB)",
+      "psd_title_prefix": "PSD",
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "峰值频率时程",
+      "colors": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          0.5,
+          0,
+          0.7
+        ]
+      ],
+      "force_ylabel": "?? (kN)",
+      "force_title_prefix": "????",
+      "force_color": [
+        0,
+        0.447,
+        0.741
       ]
     }
   },

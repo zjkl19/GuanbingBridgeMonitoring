@@ -243,6 +243,20 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
                 else
                     perStruct.(pid).outlier = [];
                 end
+
+                % preserve extra per-point fields (e.g., rho/L/force_decimals)
+                if isfield(cfgCache,'per_point') && isfield(cfgCache.per_point, sensor) ...
+                        && isfield(cfgCache.per_point.(sensor), pid)
+                    old = cfgCache.per_point.(sensor).(pid);
+                    fns = fieldnames(old);
+                    for fi = 1:numel(fns)
+                        fn = fns{fi};
+                        if any(strcmp(fn, {'thresholds','zero_to_nan','outlier'}))
+                            continue;
+                        end
+                        perStruct.(pid).(fn) = old.(fn);
+                    end
+                end
             end
             cfgNew.per_point.(sensor) = prune_per_struct(perStruct);
             if ~isempty(fieldnames(name_map))

@@ -37,6 +37,8 @@ sub.deflection   = get_subfolder(cfg, 'deflection',   '特征值_重采样');
 sub.tilt         = get_subfolder(cfg, 'tilt',         '波形_重采样');
 sub.accel        = get_subfolder(cfg, 'acceleration', '波形_重采样');
 sub.accel_raw    = get_subfolder(cfg, 'acceleration_raw', '波形');
+sub.cable_accel  = get_subfolder(cfg, 'cable_accel', '索力加速度_重采样');
+sub.cable_accel_raw = get_subfolder(cfg, 'cable_accel_raw', '索力加速度');
 sub.crack        = get_subfolder(cfg, 'crack',        '特征值');
 sub.strain       = get_subfolder(cfg, 'strain',       '特征值');
 
@@ -87,6 +89,11 @@ if opts.doAccel && ~should_stop()
         'accel_stats.xlsx', sub.accel, true, cfg));
 end
 
+if isfield(opts,'doCableAccel') && opts.doCableAccel && ~should_stop()
+    results{end+1} = run_step('索力加速度分析', @() analyze_cable_acceleration_points(root, start_date, end_date, ...
+        'cable_accel_stats.xlsx', sub.cable_accel, true, cfg));
+end
+
 % -------- Acceleration spectrum analysis --------
 if opts.doAccelSpectrum && ~should_stop()
     default_spec_pts = { ...
@@ -99,6 +106,20 @@ if opts.doAccelSpectrum && ~should_stop()
     results{end+1} = run_step('加速度频谱', @() analyze_accel_spectrum_points( ...
         root, start_date, end_date, accel_pts, ...
         'accel_spec_stats.xlsx', sub.accel_raw, ...   % use raw waveform
+        spec_freqs, spec_tol, false, cfg));
+end
+
+if isfield(opts,'doCableAccelSpectrum') && opts.doCableAccelSpectrum && ~should_stop()
+    default_spec_pts = { ...
+        'GB-VIB-G04-001-01','GB-VIB-G05-001-01', ...
+        'GB-VIB-G05-002-01','GB-VIB-G05-003-01', ...
+        'GB-VIB-G06-001-01','GB-VIB-G06-002-01', ...
+        'GB-VIB-G06-003-01','GB-VIB-G07-001-01'};
+    cable_pts = get_points(cfg, 'cable_accel_spectrum', get_points(cfg, 'cable_accel', default_spec_pts));
+    [spec_freqs, spec_tol] = get_cable_spec_params(cfg);
+    results{end+1} = run_step('索力加速度频谱', @() analyze_cable_accel_spectrum_points( ...
+        root, start_date, end_date, cable_pts, ...
+        'cable_accel_spec_stats.xlsx', sub.cable_accel_raw, ...
         spec_freqs, spec_tol, false, cfg));
 end
 
@@ -164,6 +185,17 @@ function [freqs, tol] = get_accel_spec_params(cfg)
         if isfield(ps,'tolerance')   && ~isempty(ps.tolerance),    tol   = ps.tolerance;   end
     end
 end
+
+function [freqs, tol] = get_cable_spec_params(cfg)
+    freqs = [1.150 1.480 2.310];
+    tol   = 0.15;
+    if isfield(cfg,'cable_accel_spectrum_params') && isstruct(cfg.cable_accel_spectrum_params)
+        ps = cfg.cable_accel_spectrum_params;
+        if isfield(ps,'target_freqs') && ~isempty(ps.target_freqs), freqs = ps.target_freqs; end
+        if isfield(ps,'tolerance')   && ~isempty(ps.tolerance),    tol   = ps.tolerance;   end
+    end
+end
+
 
 function result = run_step(label, fcn)
     try
