@@ -1,9 +1,9 @@
-function rows = pick_from_fig(parentFig)
+function rows = pick_from_fig(parentFig, figPath)
 % pick_from_fig
-% 从 FIG 文件中通过矩形框选生成 per_point 阈值行（稳定版 V1.3-final）
+% 从 FIG 文件中通过矩形框选生成 per_point 阈值行（稳定版）
 %
 % 特性：
-% - 支持多次框选、不断追加
+% - 支持多次框选，不断追加
 % - 使用 overlay axes + datenum，避免 datetime ROI 崩溃
 % - 不使用 uiwait/uiresume，避免“对象已删除”错误
 % - 仅在“完成并返回”或关闭窗口时返回
@@ -16,10 +16,21 @@ function rows = pick_from_fig(parentFig)
 rows = {};
 rowsPicked = {};
 
+if nargin < 1
+    parentFig = [];
+end
+if nargin < 2
+    figPath = '';
+end
+
 %% 选择 FIG 文件
-[fname,fpath] = uigetfile('*.fig','选择 FIG 文件');
-if isequal(fname,0), return; end
-figPath = fullfile(fpath,fname);
+if isempty(figPath)
+    [fname,fpath] = uigetfile('*.fig','选择 FIG 文件');
+    if isequal(fname,0), return; end
+    figPath = fullfile(fpath,fname);
+else
+    if isstring(figPath), figPath = char(figPath); end
+end
 
 figSrc = [];
 selFig = [];
@@ -29,6 +40,9 @@ yMaxEdit = [];
 
 try
     %% 打开 FIG 并选择坐标轴
+    if ~isfile(figPath)
+        error('FIG 文件不存在: %s', figPath);
+    end
     figSrc = openfig(figPath,'invisible');
     axList = findobj(figSrc,'Type','axes');
     if isempty(axList)
@@ -178,7 +192,7 @@ end
         pos = roi.Position;
         delete(overlayAx);
 
-        %% datenum → datetime
+        %% datenum -> datetime
         t0 = datetime(pos(1),'ConvertFrom','datenum');
         t1 = datetime(pos(1)+pos(3),'ConvertFrom','datenum');
         if t1 < t0, [t0,t1] = deal(t1,t0); end
