@@ -1,5 +1,5 @@
 function analyze_cable_acceleration_points(root_dir, start_date, end_date, excel_file, subfolder, auto_detect_fs, cfg)
-% analyze_cable_acceleration_points ??????????????????
+% analyze_cable_acceleration_points 批量绘制索力加速度时程及统计
 %   root_dir: 根目录
 %   start_date,end_date: 'yyyy-MM-dd'
 %   excel_file: 输出 Excel
@@ -16,7 +16,7 @@ function analyze_cable_acceleration_points(root_dir, start_date, end_date, excel
         if isfield(cfg_tmp,'subfolders') && isfield(cfg_tmp.subfolders,'cable_accel')
             subfolder = cfg_tmp.subfolders.cable_accel;
         else
-            subfolder = '波形_重采样';
+            subfolder = '索力加速度_重采样';
         end
     end
     if nargin<6 || isempty(auto_detect_fs)
@@ -92,7 +92,7 @@ function pts = get_points(cfg, key, fallback)
 end
 
 function style = get_style(cfg, key)
-    style = struct('ylabel','????? (mm/s^2)', ...
+    style = struct('ylabel','索力加速度 (mm/s^2)', ...
                    'title_prefix','索力加速度时程', ...
                    'ylim', [], ...
                    'color_main',[0 0.447 0.741], ...

@@ -133,145 +133,289 @@
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15
       },
       "CS2": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15
       },
       "CS3": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15
       },
       "CS4": {
         "thresholds": [],
-        "rho": 1,
-        "L": 1,
-        "force_decimals": 2
+        "rho": 23.9,
+        "L": 14.963,
+        "force_decimals": 2,
+        "target_freqs": [
+          9.502,
+          11,
+          12
+        ],
+        "tolerance": 0.15
       },
       "CS5": {
         "thresholds": [],
-        "rho": 1,
-        "L": 1,
-        "force_decimals": 2
+        "rho": 23.9,
+        "L": 29.113,
+        "force_decimals": 2,
+        "target_freqs": [
+          4.209,
+          6,
+          7
+        ],
+        "tolerance": 0.15
       },
       "CS6": {
         "thresholds": [],
-        "rho": 1,
-        "L": 1,
-        "force_decimals": 2
+        "rho": 27.7,
+        "L": 48.756,
+        "force_decimals": 2,
+        "target_freqs": [
+          2.139,
+          4,
+          6
+        ],
+        "tolerance": 0.15
       },
       "CS7": {
         "thresholds": [],
-        "rho": 1,
-        "L": 1,
-        "force_decimals": 2
+        "rho": 27.7,
+        "L": 48.756,
+        "force_decimals": 2,
+        "target_freqs": [
+          2.07,
+          4,
+          6
+        ],
+        "tolerance": 0.15
       },
       "CS8": {
         "thresholds": [],
-        "rho": 1,
-        "L": 1,
-        "force_decimals": 2
+        "rho": 23.9,
+        "L": 29.113,
+        "force_decimals": 2,
+        "target_freqs": [
+          3.799,
+          5,
+          8
+        ],
+        "tolerance": 0.15
       },
       "CS9": {
         "thresholds": [],
-        "rho": 1,
-        "L": 1,
-        "force_decimals": 2
+        "rho": 23.9,
+        "L": 14.963,
+        "force_decimals": 2,
+        "target_freqs": [
+          9.814,
+          13,
+          15
+        ],
+        "tolerance": 0.15
       },
       "CS10": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15
       },
       "CS11": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15
       },
       "CS12": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15
       },
       "CX1": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15
       },
       "CX2": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15
       },
       "CX3": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15
       },
       "CX4": {
         "thresholds": [],
-        "rho": 1,
-        "L": 1,
-        "force_decimals": 2
+        "rho": 23.9,
+        "L": 14.963,
+        "force_decimals": 2,
+        "target_freqs": [
+          9.229,
+          11,
+          13
+        ],
+        "tolerance": 0.15
       },
       "CX5": {
         "thresholds": [],
-        "rho": 1,
-        "L": 1,
-        "force_decimals": 2
+        "rho": 23.9,
+        "L": 29.113,
+        "force_decimals": 2,
+        "target_freqs": [
+          4.209,
+          6,
+          8
+        ],
+        "tolerance": 0.15
       },
       "CX6": {
         "thresholds": [],
-        "rho": 1,
-        "L": 1,
-        "force_decimals": 2
+        "rho": 27.7,
+        "L": 48.756,
+        "force_decimals": 2,
+        "target_freqs": [
+          2.178,
+          4,
+          6
+        ],
+        "tolerance": 0.15
       },
       "CX7": {
         "thresholds": [],
-        "rho": 1,
-        "L": 1,
-        "force_decimals": 2
+        "rho": 27.7,
+        "L": 48.756,
+        "force_decimals": 2,
+        "target_freqs": [
+          2.08,
+          4,
+          6
+        ],
+        "tolerance": 0.15
       },
       "CX8": {
         "thresholds": [],
-        "rho": 1,
-        "L": 1,
-        "force_decimals": 2
+        "rho": 23.9,
+        "L": 29.113,
+        "force_decimals": 2,
+        "target_freqs": [
+          4.219,
+          6,
+          8
+        ],
+        "tolerance": 0.15
       },
       "CX9": {
         "thresholds": [],
-        "rho": 1,
-        "L": 1,
-        "force_decimals": 2
+        "rho": 23.9,
+        "L": 14.963,
+        "force_decimals": 2,
+        "target_freqs": [
+          9.512,
+          12,
+          14
+        ],
+        "tolerance": 0.15
       },
       "CX10": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15
       },
       "CX11": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15
       },
       "CX12": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15
       }
     }
   },
@@ -474,7 +618,7 @@
   "groups": {},
   "plot_styles": {
     "acceleration": {
-      "ylabel": "主梁竖向振动加速度 (mm/s^2)",
+      "ylabel": "主梁竖向振动加速度 (m/s^2)",
       "title_prefix": "加速度时程",
       "ylim": [
         -1,
@@ -493,7 +637,7 @@
         ]
       ],
       "rms": {
-        "ylabel": "10 min RMS (mm/s^2)",
+        "ylabel": "10 min RMS (m/s^2)",
         "title_prefix": "10 min RMS 时程",
         "ylim": [
           0,
@@ -538,8 +682,8 @@
           0.7
         ]
       ],
-      "force_ylabel": "?? (kN)",
-      "force_title_prefix": "????",
+      "force_ylabel": "索力 (kN)",
+      "force_title_prefix": "索力时程",
       "force_color": [
         0,
         0.447,
@@ -547,7 +691,7 @@
       ]
     },
     "cable_accel": {
-      "ylabel": "主梁竖向振动加速度 (mm/s^2)",
+      "ylabel": "主梁竖向振动加速度 (m/s^2)",
       "title_prefix": "加速度时程",
       "ylim": [
         -1,
@@ -566,7 +710,7 @@
         ]
       ],
       "rms": {
-        "ylabel": "10 min RMS (mm/s^2)",
+        "ylabel": "10 min RMS (m/s^2)",
         "title_prefix": "10 min RMS 时程",
         "ylim": [
           0,
@@ -611,8 +755,8 @@
           0.7
         ]
       ],
-      "force_ylabel": "?? (kN)",
-      "force_title_prefix": "????",
+      "force_ylabel": "索力 (kN)",
+      "force_title_prefix": "索力时程",
       "force_color": [
         0,
         0.447,
@@ -637,5 +781,13 @@
       "理论竖向二阶自振频率 1.243Hz",
       "理论竖向三阶自振频率 1.528Hz"
     ]
+  },
+  "cable_accel_spectrum_params": {
+    "target_freqs": [
+      1,
+      2,
+      3
+    ],
+    "tolerance": 0.15
   }
 }

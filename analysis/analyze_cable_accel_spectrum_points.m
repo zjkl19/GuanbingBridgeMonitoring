@@ -28,7 +28,7 @@
         elseif isfield(cfg_tmp,'subfolders') && isfield(cfg_tmp.subfolders,'cable_accel')
             subfolder = cfg_tmp.subfolders.cable_accel;
         else
-            subfolder  = '?????????';
+            subfolder  = '索力加速度';
         end
     end
 if nargin<7||isempty(target_freqs)
@@ -54,12 +54,9 @@ if nargin<7||isempty(target_freqs)
     dates_all = (datetime(start_date):days(1):datetime(end_date)).';
     Nday      = numel(dates_all);
 
-    nPts  = numel(point_ids);
-    nFreq = numel(target_freqs);
-    [theor_freqs, theor_labels] = get_cable_spec_theor(cfg);
 
-    peakAmpMat   = NaN(Nday,nFreq,nPts);
-    peakFreqMat  = NaN(Nday,nFreq,nPts);
+    nPts  = numel(point_ids);
+    [theor_freqs, theor_labels] = get_cable_spec_theor(cfg);
 
     if use_parallel
         p = gcp('nocreate'); if isempty(p), parpool('local'); end
@@ -68,42 +65,45 @@ if nargin<7||isempty(target_freqs)
     for ii = 1:nPts
         pid = point_ids{ii};
         fprintf('\n---- 测点 %s ----\n', pid);
-        ampDay  = NaN(Nday,nFreq);
-        freqDay = NaN(Nday,nFreq);
+
+        [pt_target_freqs, pt_tol] = get_point_spec_params(cfg, pid, target_freqs, tolerance);
+        nFreqPt = numel(pt_target_freqs);
+        ampDay  = NaN(Nday,nFreqPt);
+        freqDay = NaN(Nday,nFreqPt);
 
         if use_parallel
             parfor di = 1:Nday
-                [ampDay(di,:), freqDay(di,:)] = process_one_day(dates_all(di), pid, root_dir, subfolder, target_freqs, tolerance, psdRoot, style, cfg);
+                [ampDay(di,:), freqDay(di,:)] = process_one_day( ...
+                    dates_all(di), pid, root_dir, subfolder, pt_target_freqs, pt_tol, psdRoot, style, cfg);
             end
         else
             for di = 1:Nday
-                [ampDay(di,:), freqDay(di,:)] = process_one_day(dates_all(di), pid, root_dir, subfolder, target_freqs, tolerance, psdRoot, style, cfg);
+                [ampDay(di,:), freqDay(di,:)] = process_one_day( ...
+                    dates_all(di), pid, root_dir, subfolder, pt_target_freqs, pt_tol, psdRoot, style, cfg);
             end
         end
-
-        peakAmpMat(:,:, ii)  = ampDay;
-        peakFreqMat(:,:,ii)  = freqDay;
 
         [rho, L, force_decimals, has_params] = get_cable_params(cfg, pid);
         forceSeries = compute_cable_force(freqDay(:,1), rho, L, force_decimals);
         if ~has_params
-            warning('?? %s ??? rho/L??????? NaN', pid);
+            warning('测点 %s 未配置 rho/L，索力将为 NaN', pid);
         end
 
         % 写 Excel（每个测点一个 Sheet）
         dateCol = dates_all(:);
-        freqTbl = array2table( peakFreqMat(:,:,ii), ...
-                   'VariableNames', compose('Freq_%0.3fHz',target_freqs));
-        ampTbl  = array2table( peakAmpMat(:,:,ii), ...
-                   'VariableNames', compose('Amp_%0.3fHz', target_freqs));
+        freqTbl = array2table(freqDay, ...
+                   'VariableNames', compose('Freq_%0.3fHz',pt_target_freqs));
+        ampTbl  = array2table(ampDay, ...
+                   'VariableNames', compose('Amp_%0.3fHz', pt_target_freqs));
         forceTbl = table(forceSeries, 'VariableNames',{'CableForce_kN'});
         T = [table(dateCol,'VariableNames',{'Date'}) , freqTbl , ampTbl , forceTbl];
         writetable(T, excel_file,'Sheet',point_ids{ii});
 
-        % 绘制峰值频率时程
-        plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, style, theor_freqs, theor_labels);
+        % 绘制峰值频率时程与索力时程
+        plot_freq_timeseries(dates_all, freqDay, pid, pt_target_freqs, outDirFig, style, theor_freqs, theor_labels);
         plot_force_timeseries(dates_all, forceSeries, pid, outDirForce, style, force_decimals);
     end
+
     fprintf('✓ 已输出 Excel -> %s\n', excel_file);
 end
 
@@ -118,7 +118,7 @@ function pts = get_points(cfg, key, fallback)
 end
 
 function style = get_style(cfg, key)
-% ??????????????/??????? struct ??
+% 标量默认样式，避免因颜色矩阵/元胞自动扩展为 struct 数组
     style = struct();
     style.psd_ylabel        = 'PSD (dB)';
     style.psd_title_prefix  = 'PSD';
@@ -126,8 +126,8 @@ function style = get_style(cfg, key)
     style.freq_ylabel       = '峰值频率 (Hz)';
     style.freq_title_prefix = '峰值频率时程';
     style.colors            = {[0 0 1],[1 0 0],[0 0.7 0],[0.5 0 0.7]};
-    style.force_ylabel       = '?? (kN)';
-    style.force_title_prefix = '????';
+    style.force_ylabel       = '索力 (kN)';
+    style.force_title_prefix = '索力时程';
     style.force_color         = [0 0.447 0.741];
 
     if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,key)
@@ -169,6 +169,30 @@ function [freqs, labels] = get_cable_spec_theor(cfg)
         ps = cfg.cable_accel_spectrum_params;
         if isfield(ps, 'theor_freqs'), freqs = ps.theor_freqs; end
         if isfield(ps, 'theor_labels'), labels = ps.theor_labels; end
+    end
+end
+
+function [pt_target_freqs, pt_tol] = get_point_spec_params(cfg, pid, target_freqs, tolerance)
+    pt_target_freqs = target_freqs;
+    pt_tol = tolerance;
+    if isempty(pt_target_freqs)
+        pt_target_freqs = get_cable_spec_param(cfg, 'target_freqs', [1.150 1.480 2.310]);
+    end
+    if isempty(pt_tol)
+        pt_tol = get_cable_spec_param(cfg, 'tolerance', 0.15);
+    end
+
+    if isfield(cfg,'per_point') && isfield(cfg.per_point,'cable_accel')
+        safe_id = strrep(pid, '-', '_');
+        if isfield(cfg.per_point.cable_accel, safe_id)
+            pt = cfg.per_point.cable_accel.(safe_id);
+            if isfield(pt,'target_freqs') && ~isempty(pt.target_freqs)
+                pt_target_freqs = pt.target_freqs;
+            end
+            if isfield(pt,'tolerance') && ~isempty(pt.tolerance)
+                pt_tol = pt.tolerance;
+            end
+        end
     end
 end
 
@@ -337,13 +361,13 @@ end
 
 function plot_force_timeseries(dates_all, forceSeries, pid, outDirForce, style, decimals)
     if isempty(forceSeries) || all(isnan(forceSeries))
-        warning('?? %s ???? NaN???????', pid);
+        warning('测点 %s 索力全为 NaN，跳过绘图', pid);
         return;
     end
     fig = figure('Visible','off','Position',[100 100 1000 470]);
     plot(dates_all, forceSeries, 'LineWidth', 1.2, 'Color', style.force_color);
     grid on; xtickformat('yyyy-MM-dd');
-    xlabel('??'); ylabel(style.force_ylabel);
+    xlabel('日期'); ylabel(style.force_ylabel);
     title(sprintf('%s %s', style.force_title_prefix, pid));
 
     dataMin = min(forceSeries,[],'all','omitnan');

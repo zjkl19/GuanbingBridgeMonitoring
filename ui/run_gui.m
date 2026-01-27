@@ -69,7 +69,7 @@ function run_gui()
     cbStrain = uicheckbox(gl,'Text','应变','Value',false);   cbStrain.Layout.Row=7; cbStrain.Layout.Column=4;
     cbCableAccel = uicheckbox(gl,'Text','索力加速度','Value',false); cbCableAccel.Layout.Row=8; cbCableAccel.Layout.Column=1;
     cbCableSpec  = uicheckbox(gl,'Text','索力加速度频谱','Value',false); cbCableSpec.Layout.Row=8; cbCableSpec.Layout.Column=2;
-    cbDynBox = uicheckbox(gl,'Text','??????','Value',false); cbDynBox.Layout.Row=8; cbDynBox.Layout.Column=3;
+    cbDynBox = uicheckbox(gl,'Text','动应变箱线图','Value',false); cbDynBox.Layout.Row=8; cbDynBox.Layout.Column=3;
 
     lblLog = uilabel(gl,'Text','日志目录:','HorizontalAlignment','right'); lblLog.Layout.Row=9; lblLog.Layout.Column=1;
     logEdit = uieditfield(gl,'text','Value',defaultLogDir); logEdit.Layout.Row=9; logEdit.Layout.Column=[2 3];
