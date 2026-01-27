@@ -1,5 +1,8 @@
 {
   "vendor": "hongtang",
+  "gui": {
+    "show_warnings": false
+  },
   "defaults": {
     "header_marker": "[绝对时间]",
     "deflection": {

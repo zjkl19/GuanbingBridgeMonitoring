@@ -1,7 +1,10 @@
 ﻿{
   "vendor": "donghua",
+  "gui": {
+    "show_warnings": false
+  },
   "defaults": {
-    "header_marker": "[缁濆鏃堕棿]",
+    "header_marker": "[绝对时间]",
     "deflection": {
       "thresholds": [
         {

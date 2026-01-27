@@ -19,6 +19,10 @@ function run_gui()
 
     primaryBlue = [0 94 172]/255;
     cfgCache = load_config(defaultCfgPath);
+    showWarningsDefault = false;
+    if isfield(cfgCache,'gui') && isstruct(cfgCache.gui) && isfield(cfgCache.gui,'show_warnings')
+        showWarningsDefault = logical(cfgCache.gui.show_warnings);
+    end
     cfgPath = defaultCfgPath;
 
     f = uifigure('Name','福建建科院健康监测大数据分析','Position',[80 80 1280 760],'Color',[0.97 0.98 1]);
@@ -87,6 +91,8 @@ function run_gui()
     stopBtn.Layout.Row=11; stopBtn.Layout.Column=4;
     clearBtn = uibutton(gl,'Text','清空日志','ButtonPushedFcn',@(btn,~) set(logArea,'Value',{}));
     clearBtn.Layout.Row=12; clearBtn.Layout.Column=4;
+    cbWarn = uicheckbox(gl,'Text','显示警告','Value',showWarningsDefault);
+    cbWarn.Layout.Row=12; cbWarn.Layout.Column=3;
 
     statusLbl = uilabel(gl,'Text','就绪','FontColor',primaryBlue); statusLbl.Layout.Row=13; statusLbl.Layout.Column=[1 4];
     logArea   = uitextarea(gl,'Editable','off','Value',{'准备就绪...'}); logArea.Layout.Row=14; logArea.Layout.Column=[1 4];
@@ -137,12 +143,28 @@ function run_gui()
                 addLog('指定配置文件不存在，使用默认配置');
                 cfg = load_config();
             end
+            showWarnings = false;
+            if isfield(cfg,'gui') && isstruct(cfg.gui) && isfield(cfg.gui,'show_warnings')
+                showWarnings = logical(cfg.gui.show_warnings);
+            end
+            % UI override (default comes from config)
+            showWarnings = logical(cbWarn.Value);
+            if ~isfield(cfg,'gui') || ~isstruct(cfg.gui), cfg.gui = struct(); end
+            cfg.gui.show_warnings = showWarnings;
+            warnState = warning('query','all');
+            btState = warning('query','backtrace');
+            if ~showWarnings
+                warning('off','all');
+                warning('off','backtrace');
+                addLog('Warnings suppressed for this run (gui.show_warnings=false).');
+            end
+            warnCleanup = onCleanup(@() restore_warnings(warnState, btState)); %#ok<NASGU>
             opts = struct('precheck_zip_count',cbPrecheck.Value,'doUnzip',cbUnzip.Value,'doRenameCsv',cbRename.Value,'doRemoveHeader',cbRmHeader.Value,'doResample',cbResample.Value, ...
                 'doTemp',cbTemp.Value,'doHumidity',cbHum.Value,'doDeflect',cbDef.Value,'doTilt',cbTilt.Value,'doAccel',cbAccel.Value,'doAccelSpectrum',cbSpec.Value,'doCableAccel',cbCableAccel.Value,'doCableAccelSpectrum',cbCableSpec.Value, ...
                 'doRenameCrk',false,'doCrack',cbCrack.Value,'doStrain',cbStrain.Value,'doDynStrainBoxplot',cbDynBox.Value);
             root = rootEdit.Value; start_date = datestr(startPicker.Value,'yyyy-mm-dd'); end_date = datestr(endPicker.Value,'yyyy-mm-dd');
             if exist(logEdit.Value,'dir')==0, mkdir(logEdit.Value); end
-            save_last_preset(struct('root',root,'start_date',start_date,'end_date',end_date,'cfg',cfgEdit.Value,'logdir',logEdit.Value, ...
+            save_last_preset(struct('root',root,'start_date',start_date,'end_date',end_date,'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value), ...
                 'preproc',struct('precheck',cbPrecheck.Value,'unzip',cbUnzip.Value,'rename',cbRename.Value,'rmheader',cbRmHeader.Value,'resample',cbResample.Value), ...
                 'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'deflect',cbDef.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value)));
             addLog(sprintf('root=%s, %s -> %s', root, start_date, end_date));
@@ -160,7 +182,7 @@ function run_gui()
     end
     function onSavePreset()
         preset = struct('root',rootEdit.Value,'start_date',datestr(startPicker.Value,'yyyy-MM-dd'),'end_date',datestr(endPicker.Value,'yyyy-MM-dd'), ...
-            'cfg',cfgEdit.Value,'logdir',logEdit.Value,'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'deflect',cbDef.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value));
+            'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value),'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'deflect',cbDef.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value));
         [fname,fpath] = uiputfile('*.json','保存预设','preset.json'); if isequal(fname,0), return; end
         fid=fopen(fullfile(fpath,fname),'wt'); if fid<0, addLog('预设保存失败'); return; end
         fwrite(fid,jsonencode(preset),'char'); fclose(fid); addLog(['预设已保存: ' fullfile(fpath,fname)]);
@@ -179,6 +201,7 @@ function run_gui()
         if isfield(preset,'end_date'),   endPicker.Value   = datetime(preset.end_date,'InputFormat','yyyy-MM-dd'); end
         if isfield(preset,'cfg'),        cfgEdit.Value = preset.cfg; end
         if isfield(preset,'logdir'),     logEdit.Value = preset.logdir; end
+        if isfield(preset,'show_warnings'), cbWarn.Value = logical(preset.show_warnings); end
         if isfield(preset,'preproc')
             p = preset.preproc;
             if isfield(p,'precheck'), cbPrecheck.Value = p.precheck; end
@@ -211,6 +234,16 @@ function run_gui()
         catch
         end
     end
+    function restore_warnings(warnState, btState)
+        try
+            warning(warnState);
+            if isstruct(btState) && isfield(btState,'state')
+                warning(btState.state,'backtrace');
+            end
+        catch
+        end
+    end
+
     function addLog(msg)
         val = logArea.Value; val{end+1} = sprintf('[%s] %s', datestr(now,'HH:MM:SS'), msg); logArea.Value = val; drawnow;
     end
