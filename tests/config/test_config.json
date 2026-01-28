@@ -60,6 +60,16 @@
       "LowerBound": -150,
       "UpperBound": 150,
       "EdgeTrimSec": 5
+    },
+    "wind_speed": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "wind_direction": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
     }
   },
   "per_point": {
@@ -444,6 +454,7 @@
     "deflection": "鐗瑰緛鍊糭閲嶉噰鏍?,
     "acceleration": "娉㈠舰_閲嶉噰鏍?,
     "acceleration_raw": "娉㈠舰",
+    "wind_raw": "波形",
     "strain": "鐗瑰緛鍊?,
     "tilt": "娉㈠舰_閲嶉噰鏍?,
     "crack": "鐗瑰緛鍊?,
@@ -451,6 +462,12 @@
     "temperature": "鐗瑰緛鍊?
   },
   "file_patterns": {
+    "wind_speed": {
+      "default": ["{file_id}.csv"]
+    },
+    "wind_direction": {
+      "default": ["{file_id}.csv"]
+    },
     "crack": {
       "default": [
         "{point}_*.csv"
@@ -465,6 +482,7 @@
     }
   },
   "points": {
+    "wind": [],
     "acceleration": [
       "GB-VIB-G04-001-01",
       "GB-VIB-G05-001-01",
@@ -903,6 +921,13 @@
         100
       ]
     }
+  },
+  "wind_params": {
+    "speed_bins": [0, 2, 4, 6, 8, 10, 15, 20, 25, 30, 35, 40],
+    "sector_deg": 22.5,
+    "alarm_levels": [25, 29.92, 37.4],
+    "window_minutes": 10,
+    "decimals": 2
   },
   "accel_spectrum_params": {
     "target_freqs": [

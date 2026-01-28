@@ -41,6 +41,7 @@ sub.cable_accel  = get_subfolder(cfg, 'cable_accel', '索力加速度_重采样'
 sub.cable_accel_raw = get_subfolder(cfg, 'cable_accel_raw', '索力加速度');
 sub.crack        = get_subfolder(cfg, 'crack',        '特征值');
 sub.strain       = get_subfolder(cfg, 'strain',       '特征值');
+sub.wind_raw     = get_subfolder(cfg, 'wind_raw',     '波形');
 
 results = {};
 RUN_STOP_FLAG = false;
@@ -74,6 +75,10 @@ end
 if opts.doHumidity && ~should_stop()
     pts = {'GB-RHS-G05-001-01','GB-RHS-G05-001-02','GB-RHS-G05-001-03'};
     results{end+1} = run_step('湿度分析', @() analyze_humidity_points(root, pts, start_date, end_date, 'humidity_stats.xlsx', sub.humidity, cfg));
+end
+
+if isfield(opts,'doWind') && opts.doWind && ~should_stop()
+    results{end+1} = run_step('风速风向分析', @() analyze_wind_points(root, start_date, end_date, sub.wind_raw, cfg));
 end
 
 if opts.doDeflect && ~should_stop()

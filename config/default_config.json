@@ -60,6 +60,16 @@
     "cable_accel": {
       "thresholds": [],
       "zero_to_nan": false
+    },
+    "wind_speed": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "wind_direction": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
     }
   },
   "per_point": {
@@ -434,9 +444,16 @@
     "humidity": "特征值",
     "temperature": "特征值",
     "cable_accel": "索力加速度_重采样",
-    "cable_accel_raw": "索力加速度"
+    "cable_accel_raw": "索力加速度",
+    "wind_raw": "波形"
   },
   "file_patterns": {
+    "wind_speed": {
+      "default": ["{file_id}.csv"]
+    },
+    "wind_direction": {
+      "default": ["{file_id}.csv"]
+    },
     "crack": {
       "default": [
         "{point}_*.csv"
@@ -451,6 +468,7 @@
     }
   },
   "points": {
+    "wind": [],
     "acceleration": [
       "GB-VIB-G04-001-01",
       "GB-VIB-G05-001-01",
@@ -1041,6 +1059,13 @@
         30
       ]
     }
+  },
+  "wind_params": {
+    "speed_bins": [0, 2, 4, 6, 8, 10, 15, 20, 25, 30, 35, 40],
+    "sector_deg": 22.5,
+    "alarm_levels": [25, 29.92, 37.4],
+    "window_minutes": 10,
+    "decimals": 2
   },
   "accel_spectrum_params": {
     "target_freqs": [

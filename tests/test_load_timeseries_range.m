@@ -38,11 +38,24 @@ classdef test_load_timeseries_range < matlab.unittest.TestCase
             if ~isfield(tc.Cfg,'subfolders'), tc.Cfg.subfolders = struct(); end
             if ~isfield(tc.Cfg.subfolders,'strain'), tc.Cfg.subfolders.strain = '特征值'; end
             if ~isfield(tc.Cfg.subfolders,'crack'),  tc.Cfg.subfolders.crack  = '特征值'; end
+            if ~isfield(tc.Cfg.subfolders,'wind_raw'), tc.Cfg.subfolders.wind_raw = '波形'; end
             if ~isfield(tc.Cfg,'file_patterns')
                 tc.Cfg.file_patterns = struct();
             end
             if ~isfield(tc.Cfg.file_patterns,'crack')
                 tc.Cfg.file_patterns.crack = struct('default',{{'{point}_*.csv'}},'per_point',struct());
+            end
+            if ~isfield(tc.Cfg.file_patterns,'wind_speed')
+                tc.Cfg.file_patterns.wind_speed = struct('default',{{'{file_id}.csv'}},'per_point',struct());
+            end
+            if ~isfield(tc.Cfg.file_patterns,'wind_direction')
+                tc.Cfg.file_patterns.wind_direction = struct('default',{{'{file_id}.csv'}},'per_point',struct());
+            end
+            if ~isfield(tc.Cfg,'per_point') || ~isstruct(tc.Cfg.per_point)
+                tc.Cfg.per_point = struct();
+            end
+            if ~isfield(tc.Cfg.per_point,'wind')
+                tc.Cfg.per_point.wind = struct();
             end
         end
     end
@@ -106,6 +119,32 @@ classdef test_load_timeseries_range < matlab.unittest.TestCase
             tc.verifyEqual(numel(v),1);
             tc.verifyEqual(v(1),3.0);
             tc.verifyEqual(t(1), datetime(2025,2,2,0,0,0));
+        end
+
+        function testWindAliasFileId(tc)
+            dateStr = '2025-03-03';
+            subfolder = get_sub(tc.Cfg, 'wind_raw', '波形');
+            pid = 'W1';
+            header_marker = get_header_marker(tc.Cfg);
+
+            tc.Cfg.per_point.wind.W1 = struct( ...
+                'speed_point_id', '风速_162', ...
+                'dir_point_id', '风向_163');
+
+            dayDir = fullfile(tc.TempRoot, dateStr, subfolder);
+            mkdir(dayDir);
+
+            fpSpeed = fullfile(dayDir, '风速_162.csv');
+            fid = fopen(fpSpeed, 'w', 'n', 'UTF-8');
+            fprintf(fid, '%s,Value\n', header_marker);
+            fprintf(fid, '2025-03-03 00:00:00.000,1.5\n');
+            fclose(fid);
+
+            [t, v, meta] = load_timeseries_range(tc.TempRoot, subfolder, pid, dateStr, dateStr, tc.Cfg, 'wind_speed');
+            tc.verifyEqual(numel(v), 1);
+            tc.verifyEqual(v(1), 1.5);
+            tc.verifyEqual(meta.files{1}, fpSpeed);
+            tc.verifyEqual(t(1), datetime(2025,3,3,0,0,0));
         end
     end
 end

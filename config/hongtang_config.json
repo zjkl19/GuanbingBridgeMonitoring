@@ -52,6 +52,16 @@
       "thresholds": [],
       "zero_to_nan": false,
       "outlier": []
+    },
+    "wind_speed": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "wind_direction": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
     }
   },
   "per_point": {
@@ -420,6 +430,22 @@
         ],
         "tolerance": 0.15
       }
+    },
+    "wind": {
+      "W1": {
+        "speed_point_id": "风速_162",
+        "dir_point_id": "风向_163",
+        "alarm_levels": [25, 29.92, 37.4],
+        "window_minutes": 10,
+        "decimals": 2
+      },
+      "W2": {
+        "speed_point_id": "塔顶风速_178",
+        "dir_point_id": "塔顶风向_179",
+        "alarm_levels": [25, 29.92, 37.4],
+        "window_minutes": 10,
+        "decimals": 2
+      }
     }
   },
   "subfolders": {
@@ -432,9 +458,20 @@
     "humidity": "特征值",
     "temperature": "特征值",
     "cable_accel": "波形",
-    "cable_accel_raw": "波形"
+    "cable_accel_raw": "波形",
+    "wind_raw": "波形"
   },
   "file_patterns": {
+    "wind_speed": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    },
+    "wind_direction": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    },
     "acceleration": {
       "default": [
         "{point}_*.csv"
@@ -537,6 +574,10 @@
     }
   },
   "points": {
+    "wind": [
+      "W1",
+      "W2"
+    ],
     "acceleration": [
       "A1",
       "A2",
@@ -766,6 +807,13 @@
         0.741
       ]
     }
+  },
+  "wind_params": {
+    "speed_bins": [0, 2, 4, 6, 8, 10, 15, 20, 25, 30, 35, 40],
+    "sector_deg": 22.5,
+    "alarm_levels": [25, 29.92, 37.4],
+    "window_minutes": 10,
+    "decimals": 2
   },
   "accel_spectrum_params": {
     "target_freqs": [

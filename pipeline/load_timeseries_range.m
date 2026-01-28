@@ -101,6 +101,7 @@ function fp = find_file_for_point(dirp, point_id, cfg, sensor_type)
     fp = '';
     patterns = {};
     safe_id = strrep(point_id, '-', '_');
+    file_id = get_file_id(cfg, sensor_type, safe_id, point_id);
     if isfield(cfg, 'file_patterns') && isfield(cfg.file_patterns, sensor_type)
         ft = cfg.file_patterns.(sensor_type);
         if isfield(ft, 'default')
@@ -115,6 +116,7 @@ function fp = find_file_for_point(dirp, point_id, cfg, sensor_type)
     for k = 1:numel(patterns)
         pat = patterns{k};
         pat = strrep(pat, '{point}', point_id);
+        pat = strrep(pat, '{file_id}', file_id);
         matches = dir(fullfile(dirp, pat));
         if ~isempty(matches)
             fp = fullfile(matches(1).folder, matches(1).name);
@@ -124,7 +126,10 @@ function fp = find_file_for_point(dirp, point_id, cfg, sensor_type)
 
     % fallback to contains (legacy)
     files = dir(fullfile(dirp, '*.csv'));
-    idx = find(arrayfun(@(f) contains(f.name, point_id), files), 1);
+    idx = find(arrayfun(@(f) contains(f.name, file_id), files), 1);
+    if isempty(idx)
+        idx = find(arrayfun(@(f) contains(f.name, point_id), files), 1);
+    end
     if ~isempty(idx)
         fp = fullfile(files(idx).folder, files(idx).name);
     end
@@ -151,7 +156,7 @@ function rules = build_rules(cfg, sensor_type, point_id)
         def = cfg.defaults.(sensor_type);
         if isfield(def, 'thresholds'), rules.thresholds = def.thresholds; end
         if isfield(def, 'zero_to_nan'), rules.zero_to_nan = logical(def.zero_to_nan); end
-        if isfield(def, 'outlier')
+        if isfield(def, 'outlier') && isstruct(def.outlier)
             if isfield(def.outlier, 'window_sec'), rules.outlier_window_sec = def.outlier.window_sec; end
             if isfield(def.outlier, 'threshold_factor'), rules.outlier_threshold_factor = def.outlier.threshold_factor; end
         end
@@ -160,18 +165,55 @@ function rules = build_rules(cfg, sensor_type, point_id)
     if isfield(cfg, 'per_point') && isfield(cfg.per_point, sensor_type) ...
             && isfield(cfg.per_point.(sensor_type), safe_id)
         pt = cfg.per_point.(sensor_type).(safe_id);
-        if isfield(pt, 'thresholds') && ~isempty(pt.thresholds)
-            % 默认阈值 + 点位阈值一起执行，点位阈值追加在后
-            if isempty(rules.thresholds)
-                rules.thresholds = pt.thresholds;
-            else
-                rules.thresholds = [rules.thresholds(:); pt.thresholds(:)];
-            end
+        rules = apply_point_rules(rules, pt);
+    end
+
+    % Wind mapping lives under per_point.wind; allow shared cleaning rules.
+    if strncmp(sensor_type, 'wind_', 5) && isfield(cfg, 'per_point') ...
+            && isfield(cfg.per_point, 'wind') && isfield(cfg.per_point.wind, safe_id)
+        pt = cfg.per_point.wind.(safe_id);
+        rules = apply_point_rules(rules, pt);
+    end
+end
+
+function rules = apply_point_rules(rules, pt)
+    if isfield(pt, 'thresholds') && ~isempty(pt.thresholds)
+        % Execute defaults then point thresholds; normalize to column vectors.
+        if isempty(rules.thresholds)
+            rules.thresholds = pt.thresholds;
+        else
+            rules.thresholds = [rules.thresholds(:); pt.thresholds(:)];
         end
-        if isfield(pt, 'zero_to_nan'), rules.zero_to_nan = logical(pt.zero_to_nan); end
-        if isfield(pt, 'outlier')
-            if isfield(pt.outlier, 'window_sec'), rules.outlier_window_sec = pt.outlier.window_sec; end
-            if isfield(pt.outlier, 'threshold_factor'), rules.outlier_threshold_factor = pt.outlier.threshold_factor; end
+    end
+    if isfield(pt, 'zero_to_nan')
+        rules.zero_to_nan = logical(pt.zero_to_nan);
+    end
+    if isfield(pt, 'outlier') && isstruct(pt.outlier)
+        if isfield(pt.outlier, 'window_sec'), rules.outlier_window_sec = pt.outlier.window_sec; end
+        if isfield(pt.outlier, 'threshold_factor'), rules.outlier_threshold_factor = pt.outlier.threshold_factor; end
+    end
+end
+
+function file_id = get_file_id(cfg, sensor_type, safe_id, point_id)
+    file_id = point_id;
+    if ~isfield(cfg, 'per_point') || ~isfield(cfg.per_point, 'wind') ...
+            || ~isfield(cfg.per_point.wind, safe_id)
+        return;
+    end
+    pt = cfg.per_point.wind.(safe_id);
+    key = '';
+    if strcmp(sensor_type, 'wind_speed')
+        key = 'speed_point_id';
+    elseif strcmp(sensor_type, 'wind_direction')
+        key = 'dir_point_id';
+    end
+    if ~isempty(key) && isfield(pt, key) && ~isempty(pt.(key))
+        alias = pt.(key);
+        if isstring(alias)
+            alias = char(alias);
+        end
+        if ischar(alias)
+            file_id = alias;
         end
     end
 end
