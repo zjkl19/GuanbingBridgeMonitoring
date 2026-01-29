@@ -162,11 +162,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
+        "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
       "CS2": {
@@ -174,11 +170,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
+        "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
       "CS3": {
@@ -186,11 +178,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
+        "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
       "CS4": {
@@ -198,11 +186,7 @@
         "rho": 23.9,
         "L": 14.963,
         "force_decimals": 2,
-        "target_freqs": [
-          9.502,
-          11,
-          12
-        ],
+        "target_freqs": [9.502,11,12],
         "tolerance": 0.15
       },
       "CS5": {
@@ -210,11 +194,7 @@
         "rho": 23.9,
         "L": 29.113,
         "force_decimals": 2,
-        "target_freqs": [
-          4.209,
-          6,
-          7
-        ],
+        "target_freqs": [4.209,6,7],
         "tolerance": 0.15
       },
       "CS6": {
@@ -222,11 +202,7 @@
         "rho": 27.7,
         "L": 48.756,
         "force_decimals": 2,
-        "target_freqs": [
-          2.139,
-          4,
-          6
-        ],
+        "target_freqs": [2.139,4,6],
         "tolerance": 0.15
       },
       "CS7": {
@@ -234,11 +210,7 @@
         "rho": 27.7,
         "L": 48.756,
         "force_decimals": 2,
-        "target_freqs": [
-          2.07,
-          4,
-          6
-        ],
+        "target_freqs": [2.07,4,6],
         "tolerance": 0.15
       },
       "CS8": {
@@ -246,11 +218,7 @@
         "rho": 23.9,
         "L": 29.113,
         "force_decimals": 2,
-        "target_freqs": [
-          3.799,
-          5,
-          8
-        ],
+        "target_freqs": [3.799,5,8],
         "tolerance": 0.15
       },
       "CS9": {
@@ -258,11 +226,7 @@
         "rho": 23.9,
         "L": 14.963,
         "force_decimals": 2,
-        "target_freqs": [
-          9.814,
-          13,
-          15
-        ],
+        "target_freqs": [9.814,13,15],
         "tolerance": 0.15
       },
       "CS10": {
@@ -270,11 +234,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
+        "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
       "CS11": {
@@ -282,11 +242,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
+        "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
       "CS12": {
@@ -294,11 +250,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
+        "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
       "CX1": {
@@ -306,11 +258,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
+        "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
       "CX2": {
@@ -318,11 +266,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
+        "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
       "CX3": {
@@ -330,11 +274,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
+        "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
       "CX4": {
@@ -342,11 +282,7 @@
         "rho": 23.9,
         "L": 14.963,
         "force_decimals": 2,
-        "target_freqs": [
-          9.229,
-          11,
-          13
-        ],
+        "target_freqs": [9.229,11,13],
         "tolerance": 0.15
       },
       "CX5": {
@@ -354,11 +290,7 @@
         "rho": 23.9,
         "L": 29.113,
         "force_decimals": 2,
-        "target_freqs": [
-          4.209,
-          6,
-          8
-        ],
+        "target_freqs": [4.209,6,8],
         "tolerance": 0.15
       },
       "CX6": {
@@ -366,11 +298,7 @@
         "rho": 27.7,
         "L": 48.756,
         "force_decimals": 2,
-        "target_freqs": [
-          2.178,
-          4,
-          6
-        ],
+        "target_freqs": [2.178,4,6],
         "tolerance": 0.15
       },
       "CX7": {
@@ -378,11 +306,7 @@
         "rho": 27.7,
         "L": 48.756,
         "force_decimals": 2,
-        "target_freqs": [
-          2.08,
-          4,
-          6
-        ],
+        "target_freqs": [2.08,4,6],
         "tolerance": 0.15
       },
       "CX8": {
@@ -390,11 +314,7 @@
         "rho": 23.9,
         "L": 29.113,
         "force_decimals": 2,
-        "target_freqs": [
-          4.219,
-          6,
-          8
-        ],
+        "target_freqs": [4.219,6,8],
         "tolerance": 0.15
       },
       "CX9": {
@@ -402,11 +322,7 @@
         "rho": 23.9,
         "L": 14.963,
         "force_decimals": 2,
-        "target_freqs": [
-          9.512,
-          12,
-          14
-        ],
+        "target_freqs": [9.512,12,14],
         "tolerance": 0.15
       },
       "CX10": {
@@ -414,11 +330,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
+        "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
       "CX11": {
@@ -426,11 +338,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
+        "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
       "CX12": {
@@ -438,11 +346,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
+        "target_freqs": [1,2,3],
         "tolerance": 0.15
       }
     },
@@ -450,22 +354,14 @@
       "W1": {
         "speed_point_id": "风速_162",
         "dir_point_id": "风向_163",
-        "alarm_levels": [
-          25,
-          29.92,
-          37.4
-        ],
+        "alarm_levels": [25,29.92,37.4],
         "window_minutes": 10,
         "decimals": 2
       },
       "W2": {
         "speed_point_id": "塔顶风速_178",
         "dir_point_id": "塔顶风向_179",
-        "alarm_levels": [
-          25,
-          29.92,
-          37.4
-        ],
+        "alarm_levels": [25,29.92,37.4],
         "window_minutes": 10,
         "decimals": 2
       }
@@ -473,24 +369,15 @@
     "eq": {
       "EQ-X": {
         "file_id": "X_144",
-        "alarm_levels": [
-          1,
-          2
-        ]
+        "alarm_levels": [2.3,5.0]
       },
       "EQ-Y": {
         "file_id": "Y_145",
-        "alarm_levels": [
-          1,
-          2
-        ]
+        "alarm_levels": [2.3,5.0]
       },
       "EQ-Z": {
         "file_id": "Z_146",
-        "alarm_levels": [
-          1,
-          2
-        ]
+        "alarm_levels": [1.495,3.25]
       }
     }
   },
@@ -731,29 +618,12 @@
     "acceleration": {
       "ylabel": "主梁竖向振动加速度 (m/s^2)",
       "title_prefix": "加速度时程",
-      "ylim": [
-        -1,
-        1
-      ],
-      "colors": [
-        [
-          0,
-          0.447,
-          0.741
-        ],
-        [
-          0.85,
-          0.325,
-          0.098
-        ]
-      ],
+      "ylim": [-1,1],
+      "colors": [[0,0.447,0.741],[0.85,0.325,0.098]],
       "rms": {
         "ylabel": "10 min RMS (m/s^2)",
         "title_prefix": "10 min RMS 时程",
-        "ylim": [
-          0,
-          1
-        ],
+        "ylim": [0,1],
         "color": [
           0,
           0.447,
@@ -764,69 +634,23 @@
     "accel_spectrum": {
       "psd_ylabel": "PSD (dB)",
       "psd_title_prefix": "PSD",
-      "psd_color": [
-        0,
-        0,
-        0
-      ],
+      "psd_color": [0,0,0],
       "freq_ylabel": "峰值频率 (Hz)",
       "freq_title_prefix": "峰值频率时程",
-      "colors": [
-        [
-          0,
-          0,
-          1
-        ],
-        [
-          1,
-          0,
-          0
-        ],
-        [
-          0,
-          0.7,
-          0
-        ],
-        [
-          0.5,
-          0,
-          0.7
-        ]
-      ],
+      "colors": [[0,0,1],[1,0,0],[0,0.7,0],[0.5,0,0.7]],
       "force_ylabel": "索力 (kN)",
       "force_title_prefix": "索力时程",
-      "force_color": [
-        0,
-        0.447,
-        0.741
-      ]
+      "force_color": [0,0.447,0.741]
     },
     "cable_accel": {
       "ylabel": "主梁竖向振动加速度 (m/s^2)",
       "title_prefix": "加速度时程",
-      "ylim": [
-        -1,
-        1
-      ],
-      "colors": [
-        [
-          0,
-          0.447,
-          0.741
-        ],
-        [
-          0.85,
-          0.325,
-          0.098
-        ]
-      ],
+      "ylim": [-1,1],
+      "colors": [[0,0.447,0.741],[0.85,0.325,0.098]],
       "rms": {
         "ylabel": "10 min RMS (m/s^2)",
         "title_prefix": "10 min RMS 时程",
-        "ylim": [
-          0,
-          1
-        ],
+        "ylim": [0,1],
         "color": [
           0,
           0.447,
@@ -837,42 +661,13 @@
     "cable_accel_spectrum": {
       "psd_ylabel": "PSD (dB)",
       "psd_title_prefix": "PSD",
-      "psd_color": [
-        0,
-        0,
-        0
-      ],
+      "psd_color": [0,0,0],
       "freq_ylabel": "峰值频率 (Hz)",
       "freq_title_prefix": "峰值频率时程",
-      "colors": [
-        [
-          0,
-          0,
-          1
-        ],
-        [
-          1,
-          0,
-          0
-        ],
-        [
-          0,
-          0.7,
-          0
-        ],
-        [
-          0.5,
-          0,
-          0.7
-        ]
-      ],
+      "colors": [[0,0,1],[1,0,0],[0,0.7,0],[0.5,0,0.7]],
       "force_ylabel": "索力 (kN)",
       "force_title_prefix": "索力时程",
-      "force_color": [
-        0,
-        0.447,
-        0.741
-      ]
+      "force_color": [0,0.447,0.741]
     },
     "eq": {
       "ylabel": "地震动加速度 (m/s^2)",
@@ -905,26 +700,14 @@
       40
     ],
     "sector_deg": 22.5,
-    "alarm_levels": [
-      25,
-      29.92,
-      37.4
-    ],
+    "alarm_levels": [25,29.92,37.4],
     "window_minutes": 10,
     "decimals": 2
   },
   "accel_spectrum_params": {
-    "target_freqs": [
-      1.15,
-      1.48,
-      2.31
-    ],
+    "target_freqs": [1.15,1.48,2.31],
     "tolerance": 0.15,
-    "theor_freqs": [
-      0.975,
-      1.243,
-      1.528
-    ],
+    "theor_freqs": [0.975,1.243,1.528],
     "theor_labels": [
       "理论竖向一阶自振频率 0.975Hz",
       "理论竖向二阶自振频率 1.243Hz",
@@ -932,17 +715,10 @@
     ]
   },
   "cable_accel_spectrum_params": {
-    "target_freqs": [
-      1,
-      2,
-      3
-    ],
+    "target_freqs": [1,2,3],
     "tolerance": 0.15
   },
   "eq_params": {
-    "alarm_levels": [
-      1,
-      2
-    ]
+    "alarm_levels": [1,2]
   }
 }
