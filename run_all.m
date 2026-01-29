@@ -42,6 +42,7 @@ sub.cable_accel_raw = get_subfolder(cfg, 'cable_accel_raw', '索力加速度');
 sub.crack        = get_subfolder(cfg, 'crack',        '特征值');
 sub.strain       = get_subfolder(cfg, 'strain',       '特征值');
 sub.wind_raw     = get_subfolder(cfg, 'wind_raw',     '波形');
+sub.eq_raw       = get_subfolder(cfg, 'eq_raw',       '波形');
 
 results = {};
 RUN_STOP_FLAG = false;
@@ -79,6 +80,10 @@ end
 
 if isfield(opts,'doWind') && opts.doWind && ~should_stop()
     results{end+1} = run_step('风速风向分析', @() analyze_wind_points(root, start_date, end_date, sub.wind_raw, cfg));
+end
+
+if isfield(opts,'doEq') && opts.doEq && ~should_stop()
+    results{end+1} = run_step('地震动分析', @() analyze_eq_points(root, start_date, end_date, sub.eq_raw, cfg));
 end
 
 if opts.doDeflect && ~should_stop()

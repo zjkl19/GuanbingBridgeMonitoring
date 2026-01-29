@@ -62,6 +62,21 @@
       "thresholds": [],
       "zero_to_nan": false,
       "outlier": []
+    },
+    "eq_x": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "eq_y": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "eq_z": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
     }
   },
   "per_point": {
@@ -435,16 +450,47 @@
       "W1": {
         "speed_point_id": "风速_162",
         "dir_point_id": "风向_163",
-        "alarm_levels": [25, 29.92, 37.4],
+        "alarm_levels": [
+          25,
+          29.92,
+          37.4
+        ],
         "window_minutes": 10,
         "decimals": 2
       },
       "W2": {
         "speed_point_id": "塔顶风速_178",
         "dir_point_id": "塔顶风向_179",
-        "alarm_levels": [25, 29.92, 37.4],
+        "alarm_levels": [
+          25,
+          29.92,
+          37.4
+        ],
         "window_minutes": 10,
         "decimals": 2
+      }
+    },
+    "eq": {
+      "EQ-X": {
+        "file_id": "X_144",
+        "alarm_levels": [
+          1,
+          2
+        ]
+      },
+      "EQ-Y": {
+        "file_id": "Y_145",
+        "alarm_levels": [
+          1,
+          2
+        ]
+      },
+      "EQ-Z": {
+        "file_id": "Z_146",
+        "alarm_levels": [
+          1,
+          2
+        ]
       }
     }
   },
@@ -459,7 +505,8 @@
     "temperature": "特征值",
     "cable_accel": "波形",
     "cable_accel_raw": "波形",
-    "wind_raw": "波形"
+    "wind_raw": "波形",
+    "eq_raw": "波形"
   },
   "file_patterns": {
     "wind_speed": {
@@ -571,6 +618,21 @@
         "CX11": "{point}_136.csv",
         "CX12": "{point}_137.csv"
       }
+    },
+    "eq_x": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    },
+    "eq_y": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    },
+    "eq_z": {
+      "default": [
+        "{file_id}.csv"
+      ]
     }
   },
   "points": {
@@ -657,6 +719,11 @@
       "CX10",
       "CX11",
       "CX12"
+    ],
+    "eq": [
+      "EQ-X",
+      "EQ-Y",
+      "EQ-Z"
     ]
   },
   "groups": {},
@@ -806,12 +873,43 @@
         0.447,
         0.741
       ]
+    },
+    "eq": {
+      "ylabel": "地震动加速度 (m/s^2)",
+      "title_prefix": "地震动时程",
+      "color": [
+        0,
+        0.447,
+        0.741
+      ],
+      "output": {
+        "root_dir": "地震动结果",
+        "series_dir": "地震动时程",
+        "prefix": "EQ"
+      }
     }
   },
   "wind_params": {
-    "speed_bins": [0, 2, 4, 6, 8, 10, 15, 20, 25, 30, 35, 40],
+    "speed_bins": [
+      0,
+      2,
+      4,
+      6,
+      8,
+      10,
+      15,
+      20,
+      25,
+      30,
+      35,
+      40
+    ],
     "sector_deg": 22.5,
-    "alarm_levels": [25, 29.92, 37.4],
+    "alarm_levels": [
+      25,
+      29.92,
+      37.4
+    ],
     "window_minutes": 10,
     "decimals": 2
   },
@@ -840,5 +938,11 @@
       3
     ],
     "tolerance": 0.15
+  },
+  "eq_params": {
+    "alarm_levels": [
+      1,
+      2
+    ]
   }
 }

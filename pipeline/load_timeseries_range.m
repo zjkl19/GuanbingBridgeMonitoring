@@ -196,25 +196,44 @@ end
 
 function file_id = get_file_id(cfg, sensor_type, safe_id, point_id)
     file_id = point_id;
-    if ~isfield(cfg, 'per_point') || ~isfield(cfg.per_point, 'wind') ...
-            || ~isfield(cfg.per_point.wind, safe_id)
+    if ~isfield(cfg, 'per_point')
         return;
     end
-    pt = cfg.per_point.wind.(safe_id);
-    key = '';
-    if strcmp(sensor_type, 'wind_speed')
-        key = 'speed_point_id';
-    elseif strcmp(sensor_type, 'wind_direction')
-        key = 'dir_point_id';
+
+    if strncmp(sensor_type, 'wind_', 5) && isfield(cfg.per_point, 'wind') ...
+            && isfield(cfg.per_point.wind, safe_id)
+        pt = cfg.per_point.wind.(safe_id);
+        key = '';
+        if strcmp(sensor_type, 'wind_speed')
+            key = 'speed_point_id';
+        elseif strcmp(sensor_type, 'wind_direction')
+            key = 'dir_point_id';
+        end
+        if ~isempty(key) && isfield(pt, key) && ~isempty(pt.(key))
+            alias = pt.(key);
+            if isstring(alias)
+                alias = char(alias);
+            end
+            if ischar(alias)
+                file_id = alias;
+            end
+        end
+        return;
     end
-    if ~isempty(key) && isfield(pt, key) && ~isempty(pt.(key))
-        alias = pt.(key);
-        if isstring(alias)
-            alias = char(alias);
+
+    if strncmp(sensor_type, 'eq_', 3) && isfield(cfg.per_point, 'eq') ...
+            && isfield(cfg.per_point.eq, safe_id)
+        pt = cfg.per_point.eq.(safe_id);
+        if isfield(pt, 'file_id') && ~isempty(pt.file_id)
+            alias = pt.file_id;
+            if isstring(alias)
+                alias = char(alias);
+            end
+            if ischar(alias)
+                file_id = alias;
+            end
         end
-        if ischar(alias)
-            file_id = alias;
-        end
+        return;
     end
 end
 
