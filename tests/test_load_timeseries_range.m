@@ -1,164 +1,151 @@
 classdef test_load_timeseries_range < matlab.unittest.TestCase
-    % Basic unit tests for load_timeseries_range:
-    % - reads CSV with header marker
-    % - caches second call
-    % - respects file_patterns fallback
-    %
-    % The tests create temporary YYYY-MM-DD/<subfolder>/xxx.csv files.
+    % Unit tests for load_timeseries_range with minimal data under tests/data/_unit
 
     properties
-        TempRoot
-        Cfg
+        DataRoot
         ProjRoot
+        Cfg
     end
 
     methods (TestMethodSetup)
         function setupPaths(tc)
             tc.ProjRoot = fileparts(fileparts(mfilename('fullpath')));
-            tc.TempRoot = tempname;
-            mkdir(tc.TempRoot);
+            tc.DataRoot = fullfile(tc.ProjRoot, 'tests', 'data', '_unit');
+
             addpath(tc.ProjRoot, ...
                     fullfile(tc.ProjRoot,'pipeline'), ...
                     fullfile(tc.ProjRoot,'config'));
 
             tc.Cfg = load_config(fullfile(tc.ProjRoot,'tests','config','test_config.json'));
-            % force key config to avoid encoding surprises
             tc.Cfg.defaults.header_marker = '[绝对时间]';
-            if isfield(tc.Cfg,'defaults')
-                fns = fieldnames(tc.Cfg.defaults);
-                for i = 1:numel(fns)
-                    if isfield(tc.Cfg.defaults.(fns{i}),'thresholds')
-                        tc.Cfg.defaults.(fns{i}).thresholds = [];
-                    end
-                    if isfield(tc.Cfg.defaults.(fns{i}),'zero_to_nan')
-                        tc.Cfg.defaults.(fns{i}).zero_to_nan = false;
-                    end
-                end
-            end
+
+            % ensure required subfolders
             if ~isfield(tc.Cfg,'subfolders'), tc.Cfg.subfolders = struct(); end
-            if ~isfield(tc.Cfg.subfolders,'strain'), tc.Cfg.subfolders.strain = '特征值'; end
-            if ~isfield(tc.Cfg.subfolders,'crack'),  tc.Cfg.subfolders.crack  = '特征值'; end
-            if ~isfield(tc.Cfg.subfolders,'wind_raw'), tc.Cfg.subfolders.wind_raw = '波形'; end
-            if ~isfield(tc.Cfg,'file_patterns')
-                tc.Cfg.file_patterns = struct();
-            end
-            if ~isfield(tc.Cfg.file_patterns,'crack')
-                tc.Cfg.file_patterns.crack = struct('default',{{'{point}_*.csv'}},'per_point',struct());
-            end
-            if ~isfield(tc.Cfg.file_patterns,'wind_speed')
-                tc.Cfg.file_patterns.wind_speed = struct('default',{{'{file_id}.csv'}},'per_point',struct());
-            end
-            if ~isfield(tc.Cfg.file_patterns,'wind_direction')
-                tc.Cfg.file_patterns.wind_direction = struct('default',{{'{file_id}.csv'}},'per_point',struct());
-            end
+            tc.Cfg.subfolders.strain = '特征值';
+            tc.Cfg.subfolders.crack = '特征值';
+            tc.Cfg.subfolders.wind_raw = '波形';
+            tc.Cfg.subfolders.eq_raw = '波形';
+
+            % file patterns
+            if ~isfield(tc.Cfg,'file_patterns'), tc.Cfg.file_patterns = struct(); end
+            tc.Cfg.file_patterns.crack = struct('default',{'{point}_*.csv'},'per_point',struct());
+            tc.Cfg.file_patterns.wind_speed = struct('default',{'{file_id}.csv'},'per_point',struct());
+            tc.Cfg.file_patterns.wind_direction = struct('default',{'{file_id}.csv'},'per_point',struct());
+            tc.Cfg.file_patterns.eq_x = struct('default',{'{file_id}.csv'},'per_point',struct());
+            tc.Cfg.file_patterns.eq_y = struct('default',{'{file_id}.csv'},'per_point',struct());
+            tc.Cfg.file_patterns.eq_z = struct('default',{'{file_id}.csv'},'per_point',struct());
+            tc.Cfg.file_patterns.cable_accel = struct('default',{'{point}_*.csv'},'per_point',struct());
+
             if ~isfield(tc.Cfg,'per_point') || ~isstruct(tc.Cfg.per_point)
                 tc.Cfg.per_point = struct();
             end
             if ~isfield(tc.Cfg.per_point,'wind')
                 tc.Cfg.per_point.wind = struct();
             end
-        end
-    end
+            tc.Cfg.per_point.wind.W1 = struct('speed_point_id','风速_162','dir_point_id','风向_163');
 
-    methods (TestMethodTeardown)
-        function cleanup(tc)
-            if exist(tc.TempRoot,'dir')
-                rmdir(tc.TempRoot,'s');
+            if ~isfield(tc.Cfg.per_point,'eq')
+                tc.Cfg.per_point.eq = struct();
             end
-            % keep paths; harmless for other tests
+            tc.Cfg.per_point.eq.EQ_X = struct('file_id','X_144');
         end
     end
 
     methods (Test)
-        function testBasicLoad(tc)
-            dateStr = '2025-01-01';
-            subfolder = get_sub(tc.Cfg, 'strain', '特征值');
-            pid = 'TEST-PID-001';
-            header_marker = get_header_marker(tc.Cfg);
-
-            dayDir = fullfile(tc.TempRoot, dateStr, subfolder);
-            mkdir(dayDir);
-            fp = fullfile(dayDir, [pid '.csv']);
-            % simple CSV with header marker line
-            % write with explicit UTF-8 to avoid mojibake in header marker
-            fid = fopen(fp,'w','n','UTF-8');
-            fprintf(fid, 'Header1,Header2\n');
-            fprintf(fid, '%s,Value\n', header_marker);
-            fprintf(fid, '2025-01-01 00:00:00.000,1.0\n');
-            fprintf(fid, '2025-01-01 00:00:01.000,2.0\n');
-            fclose(fid);
-
-            [t,v,meta] = load_timeseries_range(tc.TempRoot, subfolder, pid, dateStr, dateStr, tc.Cfg, 'strain');
+        function testUtf8BasicLoad(tc)
+            [t,v,~] = load_timeseries_range(tc.DataRoot, '特征值', 'TEST-STRAIN-001', ...
+                '2025-01-01', '2025-01-01', tc.Cfg, 'strain');
             tc.verifyEqual(numel(t), 2);
+            tc.verifyEqual(v(1), 1.0);
+            tc.verifyEqual(v(2), 2.0);
+        end
+
+        function testUtf16BomLoad(tc)
+            [t,v,~] = load_timeseries_range(tc.DataRoot, '特征值', 'UTF16-PID', ...
+                '2025-01-02', '2025-01-02', tc.Cfg, 'strain');
+            tc.verifyEqual(numel(t), 2);
+            tc.verifyEqual(v(1), 4.0);
+        end
+
+        function testThresholdsAndTimeRange(tc)
+            cfg = tc.Cfg;
+            cfg.defaults.strain.thresholds = struct('min',0,'max',10, ...
+                't_range_start','','t_range_end','');
+            cfg.per_point.strain.THRESH_001 = struct('thresholds', struct( ...
+                'min',0,'max',4, ...
+                't_range_start','2025-01-01 00:00:01', ...
+                't_range_end','2025-01-01 00:00:02'));
+
+            [~,v,~] = load_timeseries_range(tc.DataRoot, '特征值', 'THRESH-001', ...
+                '2025-01-01', '2025-01-01', cfg, 'strain');
+            tc.verifyEqual(numel(v), 5);
+            tc.verifyEqual(v(1), 1.0);
+            tc.verifyTrue(all(isnan(v(2:end))));
+        end
+
+        function testEmptyTimeRangeAppliesGlobal(tc)
+            cfg = tc.Cfg;
+            cfg.defaults.strain.thresholds = [];
+            cfg.per_point.strain.THRESH_EMPTY = struct('thresholds', struct( ...
+                'min',0,'max',8, ...
+                't_range_start','', ...
+                't_range_end',''));
+
+            [~,v,~] = load_timeseries_range(tc.DataRoot, '特征值', 'THRESH-EMPTY', ...
+                '2025-01-01', '2025-01-01', cfg, 'strain');
             tc.verifyEqual(numel(v), 2);
             tc.verifyEqual(v(1), 1.0);
-            tc.verifyEqual(meta.files{1}, fp);
-
-            % second call should hit cache and keep values
-            [t2,v2,~] = load_timeseries_range(tc.TempRoot, subfolder, pid, dateStr, dateStr, tc.Cfg, 'strain');
-            tc.verifyEqual(numel(t2), 2);
-            tc.verifyEqual(v2(2), 2.0);
+            tc.verifyTrue(isnan(v(2)));
         end
 
         function testFilePatternFallback(tc)
-            % ensure file_patterns default works
-            dateStr = '2025-02-02';
-            subfolder = get_sub(tc.Cfg, 'crack', '特征值');
-            pid = 'PATTERN-PID';
-            header_marker = get_header_marker(tc.Cfg);
-
-            dayDir = fullfile(tc.TempRoot, dateStr, subfolder);
-            mkdir(dayDir);
-            fp = fullfile(dayDir, [pid '_abc.csv']);
-            fid = fopen(fp,'w','n','UTF-8');
-            fprintf(fid, '%s,Value\n', header_marker);
-            fprintf(fid, '2025-02-02 00:00:00.000,3.0\n');
-            fclose(fid);
-
-            [t,v,~] = load_timeseries_range(tc.TempRoot, subfolder, pid, dateStr, dateStr, tc.Cfg, 'crack');
-            tc.verifyEqual(numel(v),1);
-            tc.verifyEqual(v(1),3.0);
-            tc.verifyEqual(t(1), datetime(2025,2,2,0,0,0));
+            cfg = tc.Cfg;
+            if isfield(cfg.defaults,'crack') && isfield(cfg.defaults.crack,'thresholds')
+                cfg.defaults.crack.thresholds = [];
+            end
+            [t,v,~] = load_timeseries_range(tc.DataRoot, '特征值', 'PATTERN-PID', ...
+                '2025-01-01', '2025-01-01', cfg, 'crack');
+            tc.verifyEqual(numel(v), 1);
+            tc.verifyEqual(v(1), 3.0);
+            tc.verifyEqual(t(1), datetime(2025,1,1,0,0,0));
         end
 
-        function testWindAliasFileId(tc)
-            dateStr = '2025-03-03';
-            subfolder = get_sub(tc.Cfg, 'wind_raw', '波形');
-            pid = 'W1';
-            header_marker = get_header_marker(tc.Cfg);
-
-            tc.Cfg.per_point.wind.W1 = struct( ...
-                'speed_point_id', '风速_162', ...
-                'dir_point_id', '风向_163');
-
-            dayDir = fullfile(tc.TempRoot, dateStr, subfolder);
-            mkdir(dayDir);
-
-            fpSpeed = fullfile(dayDir, '风速_162.csv');
-            fid = fopen(fpSpeed, 'w', 'n', 'UTF-8');
-            fprintf(fid, '%s,Value\n', header_marker);
-            fprintf(fid, '2025-03-03 00:00:00.000,1.5\n');
-            fclose(fid);
-
-            [t, v, meta] = load_timeseries_range(tc.TempRoot, subfolder, pid, dateStr, dateStr, tc.Cfg, 'wind_speed');
+        function testWindFileIdMapping(tc)
+            [t,v,~] = load_timeseries_range(tc.DataRoot, '波形', 'W1', ...
+                '2025-01-01', '2025-01-01', tc.Cfg, 'wind_speed');
             tc.verifyEqual(numel(v), 1);
             tc.verifyEqual(v(1), 1.5);
-            tc.verifyEqual(meta.files{1}, fpSpeed);
-            tc.verifyEqual(t(1), datetime(2025,3,3,0,0,0));
+            tc.verifyEqual(t(1), datetime(2025,1,1,0,0,0));
         end
-    end
-end
 
-function sub = get_sub(cfg, key, fallback)
-    sub = fallback;
-    if isfield(cfg,'subfolders') && isfield(cfg.subfolders,key)
-        sub = cfg.subfolders.(key);
-    end
-end
+        function testEqFileIdMapping(tc)
+            [t,v,~] = load_timeseries_range(tc.DataRoot, '波形', 'EQ-X', ...
+                '2025-01-01', '2025-01-01', tc.Cfg, 'eq_x');
+            tc.verifyEqual(numel(v), 1);
+            tc.verifyEqual(v(1), 0.01);
+            tc.verifyEqual(t(1), datetime(2025,1,1,0,0,0));
+        end
 
-function hm = get_header_marker(cfg)
-    hm = '[绝对时间]';
-    if isfield(cfg,'defaults') && isfield(cfg.defaults,'header_marker')
-        hm = cfg.defaults.header_marker;
+        function testCableFilePattern(tc)
+            [t,v,~] = load_timeseries_range(tc.DataRoot, '波形', 'CS1', ...
+                '2025-01-01', '2025-01-01', tc.Cfg, 'cable_accel');
+            tc.verifyEqual(numel(v), 1);
+            tc.verifyEqual(v(1), 2.5);
+            tc.verifyEqual(t(1), datetime(2025,1,1,0,0,0));
+        end
+
+        function testMissingFile(tc)
+            [t,v,~] = load_timeseries_range(tc.DataRoot, '特征值', 'MISSING', ...
+                '2025-01-01', '2025-01-01', tc.Cfg, 'strain');
+            tc.verifyEmpty(t);
+            tc.verifyEmpty(v);
+        end
+
+        function testNonNumericValue(tc)
+            [~,v,~] = load_timeseries_range(tc.DataRoot, '特征值', 'BAD-001', ...
+                '2025-01-01', '2025-01-01', tc.Cfg, 'strain');
+            tc.verifyEqual(numel(v), 2);
+            tc.verifyTrue(isnan(v(2)));
+        end
     end
 end

@@ -16,10 +16,16 @@ Thumbs.db
 tempname*/
 
 # Local test fixtures (potentially large)
-tests/data/
+tests/data/**
 tests/data/**/cache/
 tests/data/**/run_logs/
 # keep template files for docs
 !tests/data/README.md
 !tests/data/.gitkeep
+# keep unit test fixtures
+!tests/data/_unit/
+!tests/data/_unit/**
+# ignore caches inside unit fixtures
+tests/data/_unit/**/cache/
+tests/data/_unit/**/cache/**
 
