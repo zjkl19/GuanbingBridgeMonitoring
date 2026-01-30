@@ -654,16 +654,7 @@
     },
     "strain": {
       "colors_6": [[0,0,0],[0,0,1],[0,0.7,0],[1,0.4,0.8],[1,0.6,0],[1,0,0]],
-      "ylims": {
-        "G05": [
-          -200,
-          200
-        ],
-        "G06": [
-          -350,
-          200
-        ]
-      },
+      "ylims": {"G05":[-200,200],"G06":[-350,200]},
       "ylabel": "主梁应变 (με)",
       "title_prefix": "应变时程曲线"
     },
@@ -696,38 +687,8 @@
       "title_prefix": "倾角时程"
     },
     "crack": {
-      "colors_4": [
-        [
-          0,
-          0,
-          0
-        ],
-        [
-          1,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          1
-        ],
-        [
-          0,
-          0.7,
-          0
-        ]
-      ],
-      "ylims": {
-        "G05": [
-          -0.25,
-          0.25
-        ],
-        "G06": [
-          -0.3,
-          0.3
-        ]
-      },
+      "colors_4": [[0,0,0],[1,0,0],[0,0,1],[0,0.7,0]],
+      "ylims": {"G05":[-0.25,0.25],"G06":[-0.3,0.3]},
       "ylabel_crack": "裂缝宽度 (mm)",
       "ylabel_temp": "裂缝温度 (°C)",
       "title_prefix_crack": "裂缝宽度",
@@ -803,16 +764,7 @@
     ]
   },
   "plot_styles_dynamic_strain": {
-    "ylims": {
-      "G05": [
-        -30,
-        30
-      ],
-      "G06": [
-        -30,
-        30
-      ]
-    }
+    "ylims": {"G05":[-30,30],"G06":[-30,30]}
   },
   "wind_params": {
     "speed_bins": [0, 2, 4, 6, 8, 10, 15, 20, 25, 30, 35, 40],
@@ -822,11 +774,7 @@
     "decimals": 2
   },
   "accel_spectrum_params": {
-    "target_freqs": [
-      1.15,
-      1.48,
-      2.31
-    ],
+    "target_freqs": [1.15,1.48,2.31],
     "tolerance": 0.15,
     "theor_freqs": [0.975,1.243,1.528],
     "theor_labels": [
@@ -838,11 +786,7 @@
   "source": "D:\\MatlabProjects\\Guanbing\\config\\default_config.json",
   "warnings": [],
   "cable_accel_spectrum_params": {
-    "target_freqs": [
-      1.15,
-      1.48,
-      2.31
-    ],
+    "target_freqs": [1.15,1.48,2.31],
     "tolerance": 0.15,
     "theor_freqs": [0.975,1.243,1.528],
     "theor_labels": [
