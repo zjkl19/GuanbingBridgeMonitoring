@@ -84,6 +84,7 @@ if nargin<7||isempty(target_freqs)
         end
 
         [rho, L, force_decimals, has_params] = get_cable_params(cfg, pid);
+        force_ylim = get_force_ylim(cfg, pid, style);
         forceSeries = compute_cable_force(freqDay(:,1), rho, L, force_decimals);
         if ~has_params
             warning('测点 %s 未配置 rho/L，索力将为 NaN', pid);
@@ -101,7 +102,7 @@ if nargin<7||isempty(target_freqs)
 
         % 绘制峰值频率时程与索力时程
         plot_freq_timeseries(dates_all, freqDay, pid, pt_target_freqs, outDirFig, style, theor_freqs, theor_labels);
-        plot_force_timeseries(dates_all, forceSeries, pid, outDirForce, style, force_decimals);
+        plot_force_timeseries(dates_all, forceSeries, pid, outDirForce, style, force_decimals, force_ylim);
     end
 
     fprintf('✓ 已输出 Excel -> %s\n', excel_file);
@@ -129,6 +130,7 @@ function style = get_style(cfg, key)
     style.force_ylabel       = '索力 (kN)';
     style.force_title_prefix = '索力时程';
     style.force_color         = [0 0.447 0.741];
+    style.force_ylim          = [];
 
     if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,key)
         ps_all = cfg.plot_styles.(key);
@@ -141,6 +143,7 @@ function style = get_style(cfg, key)
         if isfield(ps,'force_ylabel'), style.force_ylabel = ps.force_ylabel; end
         if isfield(ps,'force_title_prefix'), style.force_title_prefix = ps.force_title_prefix; end
         if isfield(ps,'force_color'), style.force_color = ps.force_color; end
+        if isfield(ps,'force_ylim'), style.force_ylim = ps.force_ylim; end
         if isfield(ps,'colors')
             c = ps.colors;
             if isnumeric(c) && size(c,2)==3
@@ -347,6 +350,34 @@ function [rho, L, decimals, has_params] = get_cable_params(cfg, pid)
     end
 end
 
+function force_ylim = get_force_ylim(cfg, pid, style)
+    force_ylim = [];
+    if nargin >= 3 && isfield(style,'force_ylim') && ~isempty(style.force_ylim)
+        force_ylim = style.force_ylim;
+    end
+    if isfield(cfg,'per_point') && isfield(cfg.per_point,'cable_accel')
+        safe_id = strrep(pid, '-', '_');
+        if isfield(cfg.per_point.cable_accel, safe_id)
+            pt = cfg.per_point.cable_accel.(safe_id);
+            if isfield(pt,'force_ylim') && ~isempty(pt.force_ylim)
+                force_ylim = pt.force_ylim;
+            end
+        end
+    end
+    if ~isempty(force_ylim)
+        if ~(isnumeric(force_ylim) && numel(force_ylim)==2 && all(isfinite(force_ylim(:))))
+            warning('测点 %s force_ylim 无效，使用自动范围', pid);
+            force_ylim = [];
+            return;
+        end
+        force_ylim = reshape(force_ylim,1,2);
+        if ~(force_ylim(2) > force_ylim(1))
+            warning('测点 %s force_ylim 无效（min>=max），使用自动范围', pid);
+            force_ylim = [];
+        end
+    end
+end
+
 function force = compute_cable_force(freqs, rho, L, decimals)
     force = NaN(size(freqs));
     if isempty(freqs), return; end
@@ -359,7 +390,7 @@ function force = compute_cable_force(freqs, rho, L, decimals)
     end
 end
 
-function plot_force_timeseries(dates_all, forceSeries, pid, outDirForce, style, decimals)
+function plot_force_timeseries(dates_all, forceSeries, pid, outDirForce, style, decimals, force_ylim)
     if isempty(forceSeries) || all(isnan(forceSeries))
         warning('测点 %s 索力全为 NaN，跳过绘图', pid);
         return;
@@ -370,11 +401,15 @@ function plot_force_timeseries(dates_all, forceSeries, pid, outDirForce, style, 
     xlabel('日期'); ylabel(style.force_ylabel);
     title(sprintf('%s %s', style.force_title_prefix, pid));
 
-    dataMin = min(forceSeries,[],'all','omitnan');
-    dataMax = max(forceSeries,[],'all','omitnan');
-    if isfinite(dataMin) && isfinite(dataMax)
-        pad  = max(0.02, 0.05*(dataMax - dataMin));
-        ylim([dataMin - 0.5*pad, dataMax + 1.5*pad]);
+    if nargin >= 7 && ~isempty(force_ylim)
+        ylim(force_ylim);
+    else
+        dataMin = min(forceSeries,[],'all','omitnan');
+        dataMax = max(forceSeries,[],'all','omitnan');
+        if isfinite(dataMin) && isfinite(dataMax)
+            pad  = max(0.02, 0.05*(dataMax - dataMin));
+            ylim([dataMin - 0.5*pad, dataMax + 1.5*pad]);
+        end
     end
 
     fname = fullfile(outDirForce, ...

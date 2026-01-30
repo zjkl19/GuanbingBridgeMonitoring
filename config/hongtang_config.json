@@ -162,6 +162,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
+        "force_ylim": [1000,2200],
         "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
@@ -170,6 +171,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
+        "force_ylim": [1000,2200],
         "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
@@ -178,6 +180,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
+        "force_ylim": [1000,2200],
         "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
@@ -186,6 +189,7 @@
         "rho": 23.9,
         "L": 14.963,
         "force_decimals": 2,
+        "force_ylim": [1800,2000],
         "target_freqs": [9.502,11,12],
         "tolerance": 0.15
       },
@@ -194,6 +198,7 @@
         "rho": 23.9,
         "L": 29.113,
         "force_decimals": 2,
+        "force_ylim": [1300,1500],
         "target_freqs": [4.209,6,7],
         "tolerance": 0.15
       },
@@ -202,6 +207,7 @@
         "rho": 27.7,
         "L": 48.756,
         "force_decimals": 2,
+        "force_ylim": [1100,1300],
         "target_freqs": [2.139,4,6],
         "tolerance": 0.15
       },
@@ -210,6 +216,7 @@
         "rho": 27.7,
         "L": 48.756,
         "force_decimals": 2,
+        "force_ylim": [1000,1300],
         "target_freqs": [2.07,4,6],
         "tolerance": 0.15
       },
@@ -218,6 +225,7 @@
         "rho": 23.9,
         "L": 29.113,
         "force_decimals": 2,
+        "force_ylim": [1000,1300],
         "target_freqs": [3.799,5,8],
         "tolerance": 0.15
       },
@@ -226,6 +234,7 @@
         "rho": 23.9,
         "L": 14.963,
         "force_decimals": 2,
+        "force_ylim": [1900,2200],
         "target_freqs": [9.814,13,15],
         "tolerance": 0.15
       },
@@ -234,6 +243,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
+        "force_ylim": [1000,2200],
         "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
@@ -242,6 +252,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
+        "force_ylim": [1000,2200],
         "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
@@ -250,6 +261,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
+        "force_ylim": [1000,2200],
         "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
@@ -258,6 +270,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
+        "force_ylim": [1000,2200],
         "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
@@ -266,6 +279,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
+        "force_ylim": [1000,2200],
         "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
@@ -274,6 +288,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
+        "force_ylim": [1000,2200],
         "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
@@ -282,6 +297,7 @@
         "rho": 23.9,
         "L": 14.963,
         "force_decimals": 2,
+        "force_ylim": [1700,1900],
         "target_freqs": [9.229,11,13],
         "tolerance": 0.15
       },
@@ -290,6 +306,7 @@
         "rho": 23.9,
         "L": 29.113,
         "force_decimals": 2,
+        "force_ylim": [1300,1600],
         "target_freqs": [4.209,6,8],
         "tolerance": 0.15
       },
@@ -298,6 +315,7 @@
         "rho": 27.7,
         "L": 48.756,
         "force_decimals": 2,
+        "force_ylim": [1100,1400],
         "target_freqs": [2.178,4,6],
         "tolerance": 0.15
       },
@@ -306,6 +324,7 @@
         "rho": 27.7,
         "L": 48.756,
         "force_decimals": 2,
+        "force_ylim": [1000,1300],
         "target_freqs": [2.08,4,6],
         "tolerance": 0.15
       },
@@ -314,6 +333,7 @@
         "rho": 23.9,
         "L": 29.113,
         "force_decimals": 2,
+        "force_ylim": [1300,1600],
         "target_freqs": [4.219,6,8],
         "tolerance": 0.15
       },
@@ -322,6 +342,7 @@
         "rho": 23.9,
         "L": 14.963,
         "force_decimals": 2,
+        "force_ylim": [1800,2100],
         "target_freqs": [9.512,12,14],
         "tolerance": 0.15
       },
@@ -330,6 +351,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
+        "force_ylim": [1000,2200],
         "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
@@ -338,6 +360,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
+        "force_ylim": [1000,2200],
         "target_freqs": [1,2,3],
         "tolerance": 0.15
       },
@@ -346,6 +369,7 @@
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
+        "force_ylim": [1000,2200],
         "target_freqs": [1,2,3],
         "tolerance": 0.15
       }
@@ -618,17 +642,13 @@
     "acceleration": {
       "ylabel": "主梁竖向振动加速度 (m/s^2)",
       "title_prefix": "加速度时程",
-      "ylim": [-1,1],
+      "ylim": [-2,2],
       "colors": [[0,0.447,0.741],[0.85,0.325,0.098]],
       "rms": {
         "ylabel": "10 min RMS (m/s^2)",
         "title_prefix": "10 min RMS 时程",
         "ylim": [0,1],
-        "color": [
-          0,
-          0.447,
-          0.741
-        ]
+        "color": [0,0.447,0.741]
       }
     },
     "accel_spectrum": {
@@ -643,7 +663,7 @@
       "force_color": [0,0.447,0.741]
     },
     "cable_accel": {
-      "ylabel": "主梁竖向振动加速度 (m/s^2)",
+      "ylabel": "振动加速度 (m/s^2)",
       "title_prefix": "加速度时程",
       "ylim": [-1,1],
       "colors": [[0,0.447,0.741],[0.85,0.325,0.098]],
@@ -651,11 +671,7 @@
         "ylabel": "10 min RMS (m/s^2)",
         "title_prefix": "10 min RMS 时程",
         "ylim": [0,1],
-        "color": [
-          0,
-          0.447,
-          0.741
-        ]
+        "color": [0,0.447,0.741]
       }
     },
     "cable_accel_spectrum": {
@@ -667,16 +683,13 @@
       "colors": [[0,0,1],[1,0,0],[0,0.7,0],[0.5,0,0.7]],
       "force_ylabel": "索力 (kN)",
       "force_title_prefix": "索力时程",
-      "force_color": [0,0.447,0.741]
+      "force_color": [0,0.447,0.741],
+      "force_ylim": [1000,2200]
     },
     "eq": {
       "ylabel": "地震动加速度 (m/s^2)",
       "title_prefix": "地震动时程",
-      "color": [
-        0,
-        0.447,
-        0.741
-      ],
+      "color": [0,0.447,0.741],
       "output": {
         "root_dir": "地震动结果",
         "series_dir": "地震动时程",
@@ -705,13 +718,13 @@
     "decimals": 2
   },
   "accel_spectrum_params": {
-    "target_freqs": [1.15,1.48,2.31],
+    "target_freqs": [0.898,1.460,2.737],
     "tolerance": 0.15,
-    "theor_freqs": [0.975,1.243,1.528],
+    "theor_freqs": [0.733,1.378,1.965],
     "theor_labels": [
-      "理论竖向一阶自振频率 0.975Hz",
-      "理论竖向二阶自振频率 1.243Hz",
-      "理论竖向三阶自振频率 1.528Hz"
+      "理论一阶自振频率 0.733Hz",
+      "理论二阶自振频率 1.378Hz",
+      "理论三阶自振频率 1.965Hz"
     ]
   },
   "cable_accel_spectrum_params": {
