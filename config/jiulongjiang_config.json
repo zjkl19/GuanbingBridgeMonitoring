@@ -782,13 +782,13 @@
     "design_axle_kg": 28000,
     "overload_factors": [1.5,2.0],
     "topn": 10,
-    "lanes": [1,2,3,4,5,6,7,8],
-    "up_lanes": [1,2,3,4],
+    "lanes": [1,2,3,4,5,6],
+    "up_lanes": [1,2,3],
     "speed_bins": [0,30,50,70,9999],
     "gross_bins": [0,10000,30000,50000,999999],
     "hour_bins": [0,2,4,6,8,10,12,14,16,18,20,22,24],
     "custom_weights": [30000,50000],
-    "critical_lanes": [1,2,3,4,5,6,7,8],
+    "critical_lanes": [1,2,3,4,5,6],
     "hourly_critical_weight_kg": 50000,
     "input": {
       "zhichen": {

@@ -925,21 +925,27 @@ end
 function lane = resolve_lane(tbl, cols)
     n = height(tbl);
     lane = NaN(n,1);
+    % Prefer text lane column (e.g., "车道2") when present
+    if ~isempty(cols.lane_text)
+        lane = parse_lane_text(tbl{:, cols.lane_text});
+        if any(isfinite(lane))
+            return;
+        end
+    end
+    % Fallback to numeric lane id column
     if ~isempty(cols.lane_id)
         lane = to_double(tbl{:, cols.lane_id});
-        return;
     end
-    if ~isempty(cols.lane_text)
-        txt = tbl{:, cols.lane_text};
-        lane = zeros(n,1);
-        for i = 1:n
-            s = string(txt(i));
-            d = regexp(s, '\d+', 'match');
-            if ~isempty(d)
-                lane(i) = str2double(d{1});
-            else
-                lane(i) = NaN;
-            end
+end
+
+function lane = parse_lane_text(col)
+    n = numel(col);
+    lane = NaN(n,1);
+    for i = 1:n
+        s = string(col(i));
+        d = regexp(s, '\d+', 'match');
+        if ~isempty(d)
+            lane(i) = str2double(d{1});
         end
     end
 end
