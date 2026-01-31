@@ -86,6 +86,10 @@ if isfield(opts,'doEq') && opts.doEq && ~should_stop()
     results{end+1} = run_step('地震动分析', @() analyze_eq_points(root, start_date, end_date, sub.eq_raw, cfg));
 end
 
+if isfield(opts,'doWIM') && opts.doWIM && ~should_stop()
+    results{end+1} = run_step('WIM', @() analyze_wim_reports(root, start_date, end_date, cfg));
+end
+
 if opts.doDeflect && ~should_stop()
     results{end+1} = run_step('挠度分析', @() analyze_deflection_points(root, start_date, end_date, ...
         'deflection_stats.xlsx', sub.deflection, cfg));

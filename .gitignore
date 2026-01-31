@@ -29,3 +29,13 @@ tests/data/**/run_logs/
 tests/data/_unit/**/cache/
 tests/data/_unit/**/cache/**
 
+# Local WIM samples / outputs (not tracked)
+data/
+data/**
+data/_samples/
+data/_samples/**
+data/output/
+data/output/**
+xfer202512/
+xfer202512/**
+

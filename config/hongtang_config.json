@@ -717,6 +717,35 @@
     "window_minutes": 10,
     "decimals": 2
   },
+  "wim": {
+    "vendor": "zhichen",
+    "bridge": "hongtang",
+    "output_root": "data/output",
+    "excel_name": "WIM_Report_{bridge}_{yyyymm}.xlsx",
+    "design_total_kg": 55000,
+    "design_axle_kg": 28000,
+    "overload_factors": [1.5,2.0],
+    "topn": 10,
+    "lanes": [1,2,3,4,5,6,7,8],
+    "up_lanes": [1,2,3,4],
+    "speed_bins": [0,30,50,70,9999],
+    "gross_bins": [0,10000,30000,50000,999999],
+    "hour_bins": [0,2,4,6,8,10,12,14,16,18,20,22,24],
+    "custom_weights": [30000,50000],
+    "critical_lanes": [1,2,3,4,5,6,7,8],
+    "hourly_critical_weight_kg": 50000,
+    "input": {
+      "zhichen": {
+        "dir": "data/_samples/wim/zhichen/202512",
+        "bcp": "HS_Data_{yyyymm}.bcp",
+        "fmt": "HS_Data_{yyyymm}.fmt",
+        "encoding": "gbk"
+      },
+      "jiulongjiang": {
+        "files": ["data/_samples/wim/zhichen/jiulongjiang/九龙江过车记录2025-04-04~2025-04-10(1).xlsx"]
+      }
+    }
+  },
   "accel_spectrum_params": {
     "target_freqs": [0.898,1.460,2.737],
     "tolerance": 0.15,
