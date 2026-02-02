@@ -1,5 +1,6 @@
-function wim_extract_sample(src_dir, yyyymm, out_dir, n, encoding)
-% wim_extract_sample  Extract first N rows from WIM bcp/fmt and save as sample.
+function wim_extract_sample(src_dir, yyyymm, out_dir, n, encoding, mode)
+% wim_extract_sample  Extract N rows from WIM bcp/fmt and save as sample.
+%   mode: 'first' (default) or 'random' (one-time random sample)
 %
 % Usage:
 %   wim_extract_sample();  % uses defaults
@@ -25,6 +26,9 @@ function wim_extract_sample(src_dir, yyyymm, out_dir, n, encoding)
     if nargin < 5 || isempty(encoding)
         encoding = 'gbk';
     end
+    if nargin < 6 || isempty(mode)
+        mode = 'first';
+    end
 
     fmt_path = fullfile(src_dir, ['HS_Data_' yyyymm '.fmt']);
     bcp_path = fullfile(src_dir, ['HS_Data_' yyyymm '.bcp']);
@@ -41,6 +45,15 @@ function wim_extract_sample(src_dir, yyyymm, out_dir, n, encoding)
     out_fmt = fullfile(out_dir, sprintf('HS_Data_%s_sample_%d.fmt', yyyymm, n));
     out_csv = fullfile(out_dir, sprintf('HS_Data_%s_sample_%d.csv', yyyymm, n));
 
+    if exist(out_bcp, 'file') && exist(out_fmt, 'file') && exist(out_csv, 'file')
+        info_bcp = dir(out_bcp);
+        info_csv = dir(out_csv);
+        if ~isempty(info_bcp) && ~isempty(info_csv) && info_bcp.bytes > 0 && info_csv.bytes > 0
+            fprintf('Sample already exists, skip: %s\n', out_bcp);
+            return;
+        end
+    end
+
     copyfile(fmt_path, out_fmt);
 
     fid_in = fopen(bcp_path, 'r', 'ieee-le');
@@ -56,14 +69,56 @@ function wim_extract_sample(src_dir, yyyymm, out_dir, n, encoding)
     rows(1,:) = headers;
 
     count = 0;
-    while count < n
-        [row_raw, row_bytes, ok] = read_bcp_row_raw(fid_in, fmt);
-        if ~ok, break; end
-        fwrite(fid_out, row_raw, 'uint8');
+    if strcmpi(mode, 'random')
+        rng('shuffle');
+        sample_raw = cell(n, 1);
+        sample_bytes = cell(n, 1);
+        sample_idx = zeros(n, 1);
+        row_idx = 0;
+        while true
+            [row_raw, row_bytes, ok] = read_bcp_row_raw(fid_in, fmt);
+            if ~ok, break; end
+            row_idx = row_idx + 1;
+            if row_idx <= n
+                sample_raw{row_idx} = row_raw;
+                sample_bytes{row_idx} = row_bytes;
+                sample_idx(row_idx) = row_idx;
+            else
+                j = randi(row_idx);
+                if j <= n
+                    sample_raw{j} = row_raw;
+                    sample_bytes{j} = row_bytes;
+                    sample_idx(j) = row_idx;
+                end
+            end
+        end
 
-        count = count + 1;
-        vals = decode_row(fmt, row_bytes, encoding);
-        rows(count+1,:) = vals;
+        if row_idx == 0
+            error('No rows found in bcp: %s', bcp_path);
+        end
+
+        n = min(n, row_idx);
+        sample_raw = sample_raw(1:n);
+        sample_bytes = sample_bytes(1:n);
+        sample_idx = sample_idx(1:n);
+        [~, order] = sort(sample_idx);
+        for i = 1:n
+            k = order(i);
+            fwrite(fid_out, sample_raw{k}, 'uint8');
+            count = count + 1;
+            vals = decode_row(fmt, sample_bytes{k}, encoding);
+            rows(count+1,:) = vals;
+        end
+    else
+        while count < n
+            [row_raw, row_bytes, ok] = read_bcp_row_raw(fid_in, fmt);
+            if ~ok, break; end
+            fwrite(fid_out, row_raw, 'uint8');
+
+            count = count + 1;
+            vals = decode_row(fmt, row_bytes, encoding);
+            rows(count+1,:) = vals;
+        end
     end
 
     if count < n

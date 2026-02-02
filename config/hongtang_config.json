@@ -722,6 +722,8 @@
     "bridge": "hongtang",
     "output_root": "data/output",
     "excel_name": "WIM_Report_{bridge}_{yyyymm}.xlsx",
+    "pipeline": "database",
+    "pipeline_note": "direct=process files directly; database=import into SQL Server then run reports",
     "design_total_kg": 55000,
     "design_axle_kg": 28000,
     "overload_factors": [1.5,2.0],
@@ -745,6 +747,19 @@
         "files": ["data/_samples/wim/jiulongjiang/九龙江过车记录2025-04-04~2025-04-10(1).xlsx"]
       }
     }
+  },
+  "wim_db": {
+    "server": ".",
+    "database": "HighSpeed_PROC",
+    "schema": "dbo",
+    "table_prefix": "HS_Data_",
+    "raw_table_prefix": "WIM_Raw_",
+    "import_mode": "truncate",
+    "import_mode_note": "truncate=truncate and reload; skip_if_exists=skip import when table already has rows",
+    "scripts_dir": "scripts/wim_sql",
+    "auth": "windows",
+    "sqlcmd_utf8": true,
+    "trust_server_cert": true
   },
   "accel_spectrum_params": {
     "target_freqs": [0.898,1.460,2.737],
