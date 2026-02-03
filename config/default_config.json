@@ -449,10 +449,14 @@
   },
   "file_patterns": {
     "wind_speed": {
-      "default": ["{file_id}.csv"]
+      "default": [
+        "{file_id}.csv"
+      ]
     },
     "wind_direction": {
-      "default": ["{file_id}.csv"]
+      "default": [
+        "{file_id}.csv"
+      ]
     },
     "crack": {
       "default": [
@@ -606,89 +610,286 @@
     "acceleration": {
       "ylabel": "主梁竖向振动加速度 (mm/s^2)",
       "title_prefix": "加速度时程",
-      "ylim": [-500,500],
-      "colors": [[0,0.447,0.741],[0.85,0.325,0.098]],
+      "ylim": [
+        -500,
+        500
+      ],
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ]
+      ],
       "rms": {
         "ylabel": "10 min RMS (mm/s^2)",
         "title_prefix": "10 min RMS 时程",
-        "ylim": [0,80],
-        "color": [0,0.447,0.741]
+        "ylim": [
+          0,
+          80
+        ],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
       }
     },
     "accel_spectrum": {
       "psd_ylabel": "PSD (dB)",
       "psd_title_prefix": "PSD",
-      "psd_color": [0,0,0],
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
       "freq_ylabel": "峰值频率 (Hz)",
       "freq_title_prefix": "峰值频率时程",
-      "colors": [[0,0,1],[1,0,0],[0,0.7,0],[0.5,0,0.7]]
+      "colors": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          0.5,
+          0,
+          0.7
+        ]
+      ]
     },
     "deflection": {
-      "colors_2": [[0,0,1],[0,0.7,0]],
-      "colors_3": [[0.5,0,0.7],[0,0,1],[0,0.7,0]],
+      "colors_2": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "colors_3": [
+        [
+          0.5,
+          0,
+          0.7
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
       "warn_lines": [
         {
           "y": -21,
           "label": "二级报警值 -21.0",
-          "color": [0.929,0.694,0.125]
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ]
         },
         {
           "y": 33.4,
           "label": "二级报警值 33.4",
-          "color": [0.929,0.694,0.125]
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ]
         },
         {
           "y": -26.3,
           "label": "三级报警值 -26.3",
-          "color": [1,0,0]
+          "color": [
+            1,
+            0,
+            0
+          ]
         },
         {
           "y": 41.7,
           "label": "三级报警值 41.7",
-          "color": [1,0,0]
+          "color": [
+            1,
+            0,
+            0
+          ]
         }
       ],
-      "ylim": [-40,50],
+      "ylim": [
+        -40,
+        50
+      ],
       "ylabel": "挠度 (mm)",
       "title_prefix": "挠度时程"
     },
     "strain": {
-      "colors_6": [[0,0,0],[0,0,1],[0,0.7,0],[1,0.4,0.8],[1,0.6,0],[1,0,0]],
-      "ylims": {"G05":[-200,200],"G06":[-350,200]},
+      "colors_6": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          1,
+          0.4,
+          0.8
+        ],
+        [
+          1,
+          0.6,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ]
+      ],
+      "ylims": {
+        "G05": [
+          -200,
+          200
+        ],
+        "G06": [
+          -350,
+          200
+        ]
+      },
       "ylabel": "主梁应变 (με)",
       "title_prefix": "应变时程曲线"
     },
     "tilt": {
-      "colors_3": [[0,0,0],[1,0,0],[0,0,1]],
+      "colors_3": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ]
+      ],
       "warn_lines": [
         {
           "y": -0.126,
           "label": "二级报警值 -0.126",
-          "color": [0.929,0.694,0.125]
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ]
         },
         {
           "y": 0.126,
           "label": "二级报警值 0.126",
-          "color": [0.929,0.694,0.125]
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ]
         },
         {
           "y": -0.155,
           "label": "三级报警值 -0.155",
-          "color": [1,0,0]
+          "color": [
+            1,
+            0,
+            0
+          ]
         },
         {
           "y": 0.155,
           "label": "三级报警值 0.155",
-          "color": [1,0,0]
+          "color": [
+            1,
+            0,
+            0
+          ]
         }
       ],
-      "ylim": [-0.17,0.17],
+      "ylim": [
+        -0.17,
+        0.17
+      ],
       "ylabel": "倾角 (°)",
       "title_prefix": "倾角时程"
     },
     "crack": {
-      "colors_4": [[0,0,0],[1,0,0],[0,0,1],[0,0.7,0]],
-      "ylims": {"G05":[-0.25,0.25],"G06":[-0.3,0.3]},
+      "colors_4": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "ylims": {
+        "G05": [
+          -0.25,
+          0.25
+        ],
+        "G06": [
+          -0.3,
+          0.3
+        ]
+      },
       "ylabel_crack": "裂缝宽度 (mm)",
       "ylabel_temp": "裂缝温度 (°C)",
       "title_prefix_crack": "裂缝宽度",
@@ -697,37 +898,125 @@
     "temperature": {
       "ylabel": "温度 (°C)",
       "title_prefix": "温度时程",
-      "colors": [[0,0.447,0.741],[0.85,0.325,0.098],[0,0.7,0]],
-      "ylim": [0,40]
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "ylim": [
+        0,
+        40
+      ]
     },
     "humidity": {
       "ylabel": "相对湿度 (%)",
       "title_prefix": "湿度时程",
-      "colors": [[0,0.447,0.741],[0.85,0.325,0.098],[0,0.7,0]],
-      "ylim": [20,100]
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "ylim": [
+        20,
+        100
+      ]
     },
     "cable_accel": {
       "ylabel": "索力加速度 (mm/s^2)",
       "title_prefix": "索力加速度时程",
-      "ylim": [-500,500],
-      "colors": [[0,0.447,0.741],[0.85,0.325,0.098]],
+      "ylim": [
+        -500,
+        500
+      ],
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ]
+      ],
       "rms": {
         "ylabel": "10 min RMS (mm/s^2)",
         "title_prefix": "10 min RMS 时程",
-        "ylim": [0,80],
-        "color": [0,0.447,0.741]
+        "ylim": [
+          0,
+          80
+        ],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
       }
     },
     "cable_accel_spectrum": {
       "psd_ylabel": "PSD (dB)",
       "psd_title_prefix": "PSD",
-      "psd_color": [0,0,0],
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
       "freq_ylabel": "峰值频率 (Hz)",
       "freq_title_prefix": "峰值频率时程",
-      "colors": [[0,0,1],[1,0,0],[0,0.7,0],[0.5,0,0.7]],
+      "colors": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          0.5,
+          0,
+          0.7
+        ]
+      ],
       "force_ylabel": "索力 (kN)",
       "force_title_prefix": "索力时程",
-      "force_color": [0,0.447,0.741]
+      "force_color": [
+        0,
+        0.447,
+        0.741
+      ]
     }
   },
   "defaults_dynamic_strain_note": "下方 dynamic_strain 为动应变专用参数；缺失则代码使用内置默认。",
@@ -764,12 +1053,38 @@
     ]
   },
   "plot_styles_dynamic_strain": {
-    "ylims": {"G05":[-30,30],"G06":[-30,30]}
+    "ylims": {
+      "G05": [
+        -30,
+        30
+      ],
+      "G06": [
+        -30,
+        30
+      ]
+    }
   },
   "wind_params": {
-    "speed_bins": [0, 2, 4, 6, 8, 10, 15, 20, 25, 30, 35, 40],
+    "speed_bins": [
+      0,
+      2,
+      4,
+      6,
+      8,
+      10,
+      15,
+      20,
+      25,
+      30,
+      35,
+      40
+    ],
     "sector_deg": 22.5,
-    "alarm_levels": [25,29.92,37.4],
+    "alarm_levels": [
+      25,
+      29.92,
+      37.4
+    ],
     "window_minutes": 10,
     "decimals": 2
   },
@@ -782,15 +1097,70 @@
     "pipeline_note": "direct=process files directly; database=import into SQL Server then run reports",
     "design_total_kg": 55000,
     "design_axle_kg": 28000,
-    "overload_factors": [1.5,2.0],
+    "overload_factors": [
+      1.5,
+      2.0
+    ],
     "topn": 10,
-    "lanes": [1,2,3,4,5,6,7,8],
-    "up_lanes": [1,2,3,4],
-    "speed_bins": [0,30,50,70,9999],
-    "gross_bins": [0,10000,30000,50000,999999],
-    "hour_bins": [0,2,4,6,8,10,12,14,16,18,20,22,24],
-    "custom_weights": [30000,50000],
-    "critical_lanes": [1,2,3,4,5,6,7,8],
+    "lanes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "up_lanes": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "speed_bins": [
+      0,
+      30,
+      50,
+      70,
+      9999
+    ],
+    "gross_bins": [
+      0,
+      10000,
+      30000,
+      50000,
+      999999
+    ],
+    "hour_bins": [
+      0,
+      2,
+      4,
+      6,
+      8,
+      10,
+      12,
+      14,
+      16,
+      18,
+      20,
+      22,
+      24
+    ],
+    "custom_weights": [
+      30000,
+      50000
+    ],
+    "critical_lanes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
     "hourly_critical_weight_kg": 50000,
     "input": {
       "zhichen": {
@@ -815,7 +1185,8 @@
     "scripts_dir": "scripts/wim_sql",
     "auth": "windows",
     "sqlcmd_utf8": true,
-    "trust_server_cert": true
+    "trust_server_cert": true,
+    "service_name": "MSSQLSERVER"
   },
   "wim_plot": {
     "enabled": false,
@@ -823,7 +1194,10 @@
     "format": "png",
     "excel_path": "data/python/动态称重.xlsx",
     "sheet": "Sheet1",
-    "fig_size_px": [900,600],
+    "fig_size_px": [
+      900,
+      600
+    ],
     "y_decimals": 0,
     "value_label": true,
     "percent_on_newline": true,
@@ -842,9 +1216,17 @@
     "fig_size_list": []
   },
   "accel_spectrum_params": {
-    "target_freqs": [1.15,1.48,2.31],
+    "target_freqs": [
+      1.15,
+      1.48,
+      2.31
+    ],
     "tolerance": 0.15,
-    "theor_freqs": [0.975,1.243,1.528],
+    "theor_freqs": [
+      0.975,
+      1.243,
+      1.528
+    ],
     "theor_labels": [
       "理论竖向一阶自振频率 0.975Hz",
       "理论竖向二阶自振频率 1.243Hz",
@@ -854,9 +1236,17 @@
   "source": "D:\\MatlabProjects\\Guanbing\\config\\default_config.json",
   "warnings": [],
   "cable_accel_spectrum_params": {
-    "target_freqs": [1.15,1.48,2.31],
+    "target_freqs": [
+      1.15,
+      1.48,
+      2.31
+    ],
     "tolerance": 0.15,
-    "theor_freqs": [0.975,1.243,1.528],
+    "theor_freqs": [
+      0.975,
+      1.243,
+      1.528
+    ],
     "theor_labels": [
       "理论竖向一阶自振频率 0.975Hz",
       "理论竖向二阶自振频率 1.243Hz",

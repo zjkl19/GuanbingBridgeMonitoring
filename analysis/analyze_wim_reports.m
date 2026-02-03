@@ -1060,6 +1060,7 @@ end
 function run_wim_database_pipeline(root_dir, start_date, end_date, wim, cfg)
     proj_root = fileparts(fileparts(mfilename('fullpath')));
     db = get_wim_db_cfg(wim, cfg, proj_root);
+    ensure_sql_service_running(db);
 
     vendor = resolve_vendor(wim);
     bridge = get_field_default(wim, 'bridge', get_field_default(cfg, 'vendor', 'bridge'));
@@ -1141,10 +1142,76 @@ function db = get_wim_db_cfg(wim, cfg, proj_root)
     db = fill_default(db, 'raw_table_prefix', 'WIM_Raw_');
     db = fill_default(db, 'import_mode', 'truncate');
     db = fill_default(db, 'scripts_dir', fullfile('scripts', 'wim_sql'));
+    db = fill_default(db, 'service_name', 'MSSQLSERVER');
     db = fill_default(db, 'auth', 'windows');
     db = fill_default(db, 'sqlcmd_utf8', true);
     db = fill_default(db, 'trust_server_cert', true);
     db.scripts_dir = resolve_path(proj_root, db.scripts_dir);
+end
+
+function ensure_sql_service_running(db)
+    svc = resolve_sql_service_name(db);
+    status = sql_service_status(svc);
+    if ~strcmpi(status, 'Running')
+        fprintf('[WIM] SQL Server service %s is %s. Attempting to start...\n', svc, status);
+        [rc, out] = system(ps_cmd(sprintf("Start-Service -Name '%s'", svc)));
+        if rc ~= 0
+            error('SQL Server service %s not running and failed to start. Run MATLAB as Administrator. Details: %s', svc, strtrim(out));
+        end
+        pause(1.0);
+        status = sql_service_status(svc);
+        if ~strcmpi(status, 'Running')
+            error('SQL Server service %s not running after start. Run MATLAB as Administrator.', svc);
+        end
+    end
+end
+
+function svc = resolve_sql_service_name(db)
+    svc = get_field_default(db, 'service_name', '');
+    if ~isempty(svc) && sql_service_exists(svc)
+        return;
+    end
+    names = list_sql_services();
+    if isempty(names)
+        error('No SQL Server services found. Install SQL Server or set wim_db.service_name.');
+    end
+    svc = names{1};
+    if numel(names) > 1
+        fprintf('[WIM] Multiple SQL Server services detected: %s. Using %s. Set wim_db.service_name to override.\n', strjoin(names, ', '), svc);
+    end
+end
+
+function ok = sql_service_exists(name)
+    if isempty(name), ok = false; return; end
+    cmd = sprintf("Get-Service -Name '%s' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name", name);
+    [rc, out] = system(ps_cmd(cmd));
+    ok = (rc == 0) && ~isempty(strtrim(out));
+end
+
+function status = sql_service_status(name)
+    cmd = sprintf("Get-Service -Name '%s' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Status", name);
+    [rc, out] = system(ps_cmd(cmd));
+    if rc ~= 0
+        status = '';
+    else
+        status = strtrim(out);
+    end
+end
+
+function names = list_sql_services()
+    cmd = "Get-Service -Name 'MSSQL*' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name";
+    [rc, out] = system(ps_cmd(cmd));
+    if rc ~= 0
+        names = {};
+        return;
+    end
+    lines = strtrim(splitlines(string(out)));
+    lines = lines(lines ~= "");
+    names = cellstr(lines);
+end
+
+function cmd = ps_cmd(inner)
+    cmd = sprintf('powershell -NoProfile -Command \"%s\"', strrep(inner, '"', '\"'));
 end
 
 function out = merge_struct(a, b)

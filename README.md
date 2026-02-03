@@ -18,6 +18,15 @@
 - 测试配置：`tests/config/test_config.json`
 - 根据实际数据结构调整 `subfolders`、`file_patterns` 等字段
 
+## WIM 数据库模式（SQL Server）
+- 配置项：`wim_db.service_name`（默认 `MSSQLSERVER`）
+- 命名实例示例：`MSSQL$SQLEXPRESS`
+- 程序会尝试自动检测并启动服务；若检测到多个实例，会选择第一个并给出警告
+- 手动查询实例名（PowerShell）：
+  ```
+  Get-Service | ? { $_.Name -like 'MSSQL*' } | Select Name, Status
+  ```
+
 ## 单元测试
 在项目根目录运行：
 ```matlab
