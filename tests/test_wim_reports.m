@@ -13,6 +13,7 @@
             cfg.wim.input.zhichen.bcp = 'HS_Data_202512_sample_1000.bcp';
             cfg.wim.input.zhichen.fmt = 'HS_Data_202512_sample_1000.fmt';
             cfg.wim.output_root = tempname;
+            if isfield(cfg, 'wim_plot'), cfg.wim_plot.enabled = false; end
 
             analyze_wim_reports(proj_root, '2025-12-01', '2025-12-31', cfg);
             out_dir = fullfile(cfg.wim.output_root, cfg.wim.bridge, '202512');
@@ -38,6 +39,7 @@
             cfg.wim.input.zhichen.bcp = 'HS_Data_202512_sample_1000.bcp';
             cfg.wim.input.zhichen.fmt = 'HS_Data_202512_sample_1000.fmt';
             cfg.wim.output_root = tempname;
+            if isfield(cfg, 'wim_plot'), cfg.wim_plot.enabled = false; end
             cfg.wim_db.server = '.';
             cfg.wim_db.database = 'HighSpeed_PROC';
             cfg.wim_db.trust_server_cert = true;

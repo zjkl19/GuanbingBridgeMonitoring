@@ -63,6 +63,7 @@ function analyze_wim_reports(root_dir, start_date, end_date, cfg)
     write_excel_from_csvs(csv_paths, excel_path);
 
     fprintf('WIM reports done: %s\n', excel_path);
+    maybe_generate_wim_plots(csv_paths, out_dir, wim, cfg, bridge, yyyymm);
 end
 
 % =========================
@@ -208,6 +209,7 @@ function acc = init_accumulators(wim, start_date, end_date)
     acc.speed_counts = zeros(numel(speed_edges)-1,1);
     acc.gross_edges = gross_edges;
     acc.gross_counts = zeros(numel(gross_edges)-1,1);
+    acc.lane_gross_counts = zeros(numel(lanes), numel(gross_edges)-1);
 
     acc.hour_edges = hour_edges;
     acc.hour_counts = zeros(numel(hour_edges)-1,1);
@@ -354,6 +356,13 @@ function reports = build_report_tables(acc, wim)
     [labels, counts] = bin_table(acc.gross_edges, acc.gross_counts);
     reports.LaneSpeedWeight_Gross = table((1:numel(counts)).', labels, counts, ...
         'VariableNames', {'bin_id','label','count'});
+    % Per-lane gross bins
+    [labels2, ~] = bin_table(acc.gross_edges, acc.gross_counts);
+    [lane_grid, bin_grid] = ndgrid(acc.lanes(:), 1:numel(labels2));
+    label_grid = repmat(labels2(:).', numel(acc.lanes), 1);
+    reports.LaneSpeedWeight_GrossPerLane = table( ...
+        lane_grid(:), bin_grid(:), label_grid(:), acc.lane_gross_counts(:), ...
+        'VariableNames', {'lane','bin_id','label','count'});
 
     % Hourly
     [labels, counts] = bin_table(acc.hour_edges, acc.hour_counts);
@@ -574,7 +583,13 @@ function acc = update_accumulators(acc, t_dn, lane, gross, speed, axle_w, axle_n
 
     if isfinite(gross)
         bi = find_bin(gross, acc.gross_edges);
-        if bi > 0, acc.gross_counts(bi) = acc.gross_counts(bi) + 1; end
+        if bi > 0
+            acc.gross_counts(bi) = acc.gross_counts(bi) + 1;
+            if isfinite(lane) && isKey(acc.lane_map, lane)
+                li = acc.lane_map(lane);
+                acc.lane_gross_counts(li, bi) = acc.lane_gross_counts(li, bi) + 1;
+            end
+        end
     end
 
     hh = floor(mod(t_dn, 1) * 24);
@@ -1107,6 +1122,8 @@ function run_wim_database_pipeline(root_dir, start_date, end_date, wim, cfg)
     excel_path = fullfile(out_dir, excel_name);
     write_excel_from_csvs(csv_paths, excel_path);
     fprintf('WIM reports done (database): %s\n', excel_path);
+
+    maybe_generate_wim_plots(csv_paths, out_dir, wim, cfg, bridge, yyyymm);
 end
 
 function db = get_wim_db_cfg(wim, cfg, proj_root)
@@ -1381,6 +1398,9 @@ function csv_paths = run_wim_sql_reports(db, wim, out_dir, yyyymm, src_table, st
     csv_paths.LaneSpeedWeight_Gross = run_sql_report(db, fullfile(script_dir, 'report_gross_bins.sql'), ...
         fullfile(out_dir, sprintf('%s_LaneSpeedWeight_Gross.csv', yyyymm)), vars, ...
         {'bin_id','label','count'});
+    csv_paths.LaneSpeedWeight_GrossPerLane = run_sql_report(db, fullfile(script_dir, 'report_lane_gross_bins.sql'), ...
+        fullfile(out_dir, sprintf('%s_LaneSpeedWeight_GrossPerLane.csv', yyyymm)), vars, ...
+        {'lane','bin_id','label','count'});
 
     csv_paths.Hourly_Count = run_sql_report(db, fullfile(script_dir, 'report_hourly_count.sql'), ...
         fullfile(out_dir, sprintf('%s_Hourly_Count.csv', yyyymm)), vars, ...
@@ -1678,5 +1698,436 @@ function enc = detect_file_encoding(path)
         enc = 'UTF-16LE';
     elseif numel(bytes) >= 3 && bytes(1)==239 && bytes(2)==187 && bytes(3)==191
         enc = 'UTF-8';
+    end
+end
+
+% =========================
+% Plotting (WIM)
+% =========================
+function maybe_generate_wim_plots(csv_paths, out_dir, wim, cfg, bridge, yyyymm)
+    plot_cfg = get_wim_plot_cfg(cfg, wim);
+    if ~plot_cfg.enabled
+        return;
+    end
+
+    plot_dir = fullfile(out_dir, plot_cfg.output_dir);
+    if ~exist(plot_dir, 'dir'), mkdir(plot_dir); end
+
+    defs = load_wim_plot_defs(plot_cfg.excel_path, plot_cfg.sheet);
+    if isempty(defs)
+        fprintf('[WIM] No plot defs found: %s\n', plot_cfg.excel_path);
+        return;
+    end
+
+    summary_path = fullfile(plot_dir, sprintf('WIM_Plot_Summary_%s_%s.txt', bridge, yyyymm));
+    fid = fopen(summary_path, 'w', 'n', 'UTF-8');
+    if fid < 0
+        fprintf('[WIM] Cannot write summary: %s\n', summary_path);
+        fid = [];
+    end
+
+    lane_template = [];
+    for i = 1:numel(defs)
+        if contains(defs(i).name, "车道") && contains(defs(i).name, "不同车重区间车辆数")
+            lane_template = defs(i);
+            break;
+        end
+    end
+
+    for i = 1:numel(defs)
+        def = defs(i);
+        if contains(def.name, "车道") && contains(def.name, "不同车重区间车辆数")
+            continue; % handled by template
+        end
+        [xlabels, yvals, ylabel, title] = resolve_plot_data(def.name, csv_paths, wim, plot_cfg);
+        if isempty(yvals)
+            continue;
+        end
+        fig_px = plot_cfg.fig_size_px;
+        if isfield(plot_cfg, 'fig_size_per_plot') && isstruct(plot_cfg.fig_size_per_plot)
+            key = make_field_key(def.name);
+            if isfield(plot_cfg.fig_size_per_plot, key)
+                fig_px = plot_cfg.fig_size_per_plot.(key);
+            end
+        end
+        if isfield(plot_cfg, 'fig_size_list') && ~isempty(plot_cfg.fig_size_list)
+            sz = lookup_figsize_list(plot_cfg.fig_size_list, def.name);
+            if ~isempty(sz)
+                fig_px = sz;
+            end
+        end
+        out_name = sprintf('WIM_%s_%s_%s.%s', safe_name(def.name), bridge, yyyymm, plot_cfg.format);
+        out_path = fullfile(plot_dir, out_name);
+        plot_bar_chart(out_path, title, ylabel, xlabels, yvals, def.show_pct, def.dtype, plot_cfg, fig_px);
+        write_plot_summary(fid, title, xlabels, yvals, def.dtype, def.show_pct, plot_cfg);
+    end
+
+    if ~isempty(lane_template)
+        if isfield(csv_paths, 'LaneSpeedWeight_GrossPerLane') && exist(csv_paths.LaneSpeedWeight_GrossPerLane, 'file')
+            T = readtable(csv_paths.LaneSpeedWeight_GrossPerLane, 'TextType','string', 'Encoding','UTF-8');
+            lanes = unique(T.lane);
+            labels = string(T.label);
+            for li = 1:numel(lanes)
+                lane = lanes(li);
+                mask = T.lane == lane;
+                [~, order] = sort(T.bin_id(mask));
+                yvals = T.count(mask);
+                yvals = yvals(order);
+                xlabels = labels(mask);
+                xlabels = xlabels(order);
+                title = regexprep(lane_template.name, "车道\d+", sprintf("车道%d", lane));
+                fig_px = plot_cfg.fig_size_px;
+                if isfield(plot_cfg, 'fig_size_per_plot') && isstruct(plot_cfg.fig_size_per_plot)
+                    key = make_field_key(title);
+                    if isfield(plot_cfg.fig_size_per_plot, key)
+                        fig_px = plot_cfg.fig_size_per_plot.(key);
+                    end
+                end
+                if isfield(plot_cfg, 'fig_size_list') && ~isempty(plot_cfg.fig_size_list)
+                    sz = lookup_figsize_list(plot_cfg.fig_size_list, title);
+                    if ~isempty(sz)
+                        fig_px = sz;
+                    end
+                end
+                out_name = sprintf('WIM_%s_%s_%s.%s', safe_name(title), bridge, yyyymm, plot_cfg.format);
+                out_path = fullfile(plot_dir, out_name);
+                plot_bar_chart(out_path, title, lane_template.ylabel, xlabels, yvals, lane_template.show_pct, lane_template.dtype, plot_cfg, fig_px);
+                write_plot_summary(fid, title, xlabels, yvals, lane_template.dtype, lane_template.show_pct, plot_cfg);
+            end
+        end
+    end
+
+    if ~isempty(fid)
+        fclose(fid);
+    end
+end
+
+function plot_cfg = get_wim_plot_cfg(cfg, wim)
+    plot_cfg = struct();
+    if isfield(cfg, 'wim_plot') && isstruct(cfg.wim_plot)
+        plot_cfg = cfg.wim_plot;
+    end
+    if isfield(wim, 'plot') && isstruct(wim.plot)
+        plot_cfg = merge_struct(plot_cfg, wim.plot);
+    end
+    plot_cfg = fill_default(plot_cfg, 'enabled', false);
+    plot_cfg = fill_default(plot_cfg, 'output_dir', 'plots');
+    plot_cfg = fill_default(plot_cfg, 'format', 'png');
+    plot_cfg = fill_default(plot_cfg, 'excel_path', fullfile('data','python','动态称重.xlsx'));
+    plot_cfg = fill_default(plot_cfg, 'sheet', 'Sheet1');
+    plot_cfg = fill_default(plot_cfg, 'fig_size_px', [900, 600]);
+    plot_cfg = fill_default(plot_cfg, 'y_decimals', 0);
+    plot_cfg = fill_default(plot_cfg, 'value_label', true);
+    plot_cfg = fill_default(plot_cfg, 'percent_on_newline', true);
+    plot_cfg = fill_default(plot_cfg, 'font_tick', 11);
+    plot_cfg = fill_default(plot_cfg, 'font_xlabel', 12);
+    plot_cfg = fill_default(plot_cfg, 'font_ylabel', 12);
+    plot_cfg = fill_default(plot_cfg, 'font_title', 14);
+    plot_cfg = fill_default(plot_cfg, 'font_value_label', 11);
+    plot_cfg = fill_default(plot_cfg, 'x_label_rotation', 0);
+    plot_cfg = fill_default(plot_cfg, 'save_fig', true);
+    plot_cfg = fill_default(plot_cfg, 'force_exponent_label', true);
+    plot_cfg = fill_default(plot_cfg, 'xlabels_list', []);
+    plot_cfg = fill_default(plot_cfg, 'ylabels_list', []);
+    plot_cfg = fill_default(plot_cfg, 'fig_size_list', []);
+end
+
+function defs = load_wim_plot_defs(excel_path, sheet)
+    defs = struct('name', {}, 'dtype', {}, 'ylabel', {}, 'show_pct', {});
+    if ~exist(excel_path, 'file')
+        fprintf('[WIM] Plot config not found: %s\n', excel_path);
+        return;
+    end
+    T = readtable(excel_path, 'Sheet', sheet, 'VariableNamingRule','preserve');
+    n = height(T);
+    for i = 1:n
+        name = string(T{i,2});
+        if strlength(strtrim(name)) == 0
+            break;
+        end
+        dtype = lower(string(T{i,4}));
+        ylabel = string(T{i,6});
+        pct = string(T{i,7});
+        defs(end+1) = struct( ... %#ok<AGROW>
+            'name', strtrim(name), ...
+            'dtype', strtrim(dtype), ...
+            'ylabel', strtrim(ylabel), ...
+            'show_pct', strcmp(strtrim(pct), "是"));
+    end
+end
+
+function [xlabels, yvals, ylabel, title] = resolve_plot_data(name, csv_paths, wim, plot_cfg)
+    xlabels = strings(0,1);
+    yvals = [];
+    ylabel = "";
+    title = name;
+
+    if contains(name, "不同车道车辆数") && isfield(csv_paths, 'LaneSpeedWeight_Lane')
+        T = readtable(csv_paths.LaneSpeedWeight_Lane, 'TextType','string', 'Encoding','UTF-8');
+        xlabels = "车道" + string(T.lane);
+        yvals = T.count;
+        ylabel = "数量";
+        [xlabels, ylabel] = apply_plot_overrides(name, xlabels, ylabel, plot_cfg);
+        return;
+    end
+    if contains(name, "不同车速区间车辆数") && isfield(csv_paths, 'LaneSpeedWeight_Speed')
+        T = readtable(csv_paths.LaneSpeedWeight_Speed, 'TextType','string', 'Encoding','UTF-8');
+        xlabels = string(T.label);
+        yvals = T.count;
+        ylabel = "数量";
+        [xlabels, ylabel] = apply_plot_overrides(name, xlabels, ylabel, plot_cfg);
+        return;
+    end
+    if contains(name, "不同车重区间车辆数") && isfield(csv_paths, 'LaneSpeedWeight_Gross')
+        T = readtable(csv_paths.LaneSpeedWeight_Gross, 'TextType','string', 'Encoding','UTF-8');
+        xlabels = string(T.label);
+        yvals = T.count;
+        ylabel = "数量";
+        [xlabels, ylabel] = apply_plot_overrides(name, xlabels, ylabel, plot_cfg);
+        return;
+    end
+    if contains(name, "不同小时区间车辆数") && isfield(csv_paths, 'Hourly_Count')
+        T = readtable(csv_paths.Hourly_Count, 'TextType','string', 'Encoding','UTF-8');
+        xlabels = string(T.label);
+        yvals = T.count;
+        ylabel = "数量";
+        [xlabels, ylabel] = apply_plot_overrides(name, xlabels, ylabel, plot_cfg);
+        return;
+    end
+    if contains(name, "不同小时区间平均车速") && isfield(csv_paths, 'Hourly_AvgSpeed')
+        T = readtable(csv_paths.Hourly_AvgSpeed, 'TextType','string', 'Encoding','UTF-8');
+        xlabels = string(T.label);
+        yvals = T.avg_speed;
+        ylabel = "km/h";
+        [xlabels, ylabel] = apply_plot_overrides(name, xlabels, ylabel, plot_cfg);
+        return;
+    end
+    if contains(name, "车辆时间分布") && isfield(csv_paths, 'Hourly_Over')
+        T = readtable(csv_paths.Hourly_Over, 'TextType','string', 'Encoding','UTF-8');
+        xlabels = string(T.label);
+        yvals = T.over_cnt;
+        ylabel = "数量";
+        thr = double(wim.hourly_critical_weight_kg) / 1000;
+        title = regexprep(name, "\\d+\\s*t", sprintf('%.0ft', thr));
+        [xlabels, ylabel] = apply_plot_overrides(name, xlabels, ylabel, plot_cfg);
+        return;
+    end
+end
+
+function plot_bar_chart(out_path, plot_title, y_label, xlabels, yvals, show_pct, dtype, plot_cfg, fig_px)
+    if isempty(yvals)
+        return;
+    end
+    f = figure('Visible','off', 'Units','pixels', 'Position',[100 100 fig_px(1) fig_px(2)]);
+    bars = bar(yvals, 'FaceColor', [0 0.447 0.741]);
+    grid on;
+    if ~isempty(plot_title)
+        title(char(plot_title), 'Interpreter','none', 'FontSize', plot_cfg.font_title);
+    end
+    if ~isempty(y_label)
+        ylabel(char(y_label), 'Interpreter','none', 'FontSize', plot_cfg.font_ylabel);
+    end
+    xlabel('', 'FontSize', plot_cfg.font_xlabel);
+    xticklabels(cellstr(xlabels));
+    ax = gca;
+    ax.FontSize = plot_cfg.font_tick;
+    ax.TickLabelInterpreter = 'none';
+    labels = wim_build_xtick_labels(xlabels, yvals, show_pct, plot_cfg.percent_on_newline);
+    ax.XTick = 1:numel(labels);
+    ax.XTickLabel = labels;
+    if show_pct
+        % Use manual text labels to avoid MATLAB splitting multi-line tick labels
+        ax.XTickLabel = [];
+        ax.XTick = 1:numel(labels);
+        pos = ax.Position;
+        pad_frac = 0.10;
+        pos(2) = pos(2) + pad_frac;
+        pos(4) = max(0.1, pos(4) - pad_frac);
+        ax.Position = pos;
+        y = ax.YLim(1) - diff(ax.YLim) * 0.12;
+        for i = 1:numel(labels)
+            text(ax.XTick(i), y, labels{i}, ...
+                'HorizontalAlignment','center', ...
+                'VerticalAlignment','top', ...
+                'FontSize', plot_cfg.font_tick, ...
+                'Clipping', 'off');
+        end
+    else
+        ax.XTickLabelRotation = plot_cfg.x_label_rotation;
+    end
+    ax.YAxis.TickLabelFormat = sprintf('%%.%df', plot_cfg.y_decimals);
+    exp_val = ax.YAxis.Exponent;
+    if exp_val ~= 0
+        force_exp = true;
+        if isfield(plot_cfg, 'force_exponent_label')
+            force_exp = logical(plot_cfg.force_exponent_label);
+        end
+        if force_exp
+            text(ax, 0, 1, sprintf('\\times10^{%d}', exp_val), ...
+                'Units','normalized', ...
+                'HorizontalAlignment','left', ...
+                'VerticalAlignment','bottom', ...
+                'FontSize', plot_cfg.font_tick, ...
+                'Interpreter','tex', ...
+                'Clipping','off');
+        end
+    end
+    if plot_cfg.value_label
+        add_bar_labels(bars, yvals, plot_cfg.y_decimals, plot_cfg.font_value_label);
+    end
+    drawnow;
+    [p, n, ~] = fileparts(out_path);
+    fig_path = fullfile(p, [n '.fig']);
+    if plot_cfg.save_fig
+        savefig(f, fig_path);
+    else
+        fig_path = fullfile(tempdir, [n '_' char(java.util.UUID.randomUUID) '.fig']);
+        savefig(f, fig_path);
+    end
+    close(f);
+
+    % Re-open fig to export png (avoids tight cropping issues)
+    f2 = openfig(fig_path, 'invisible');
+    set(f2, 'Units','pixels', 'Position',[100 100 fig_px(1) fig_px(2)]);
+    drawnow;
+    pad_px = 10;
+    if isfield(plot_cfg, 'export_padding_px') && ~isempty(plot_cfg.export_padding_px)
+        pad_px = plot_cfg.export_padding_px;
+    end
+    try
+        exportgraphics(f2, out_path, 'Resolution', 100, 'BackgroundColor','white', 'ContentType','image', 'Padding', pad_px);
+    catch
+        exportgraphics(f2, out_path, 'Resolution', 100, 'BackgroundColor','white', 'ContentType','image');
+    end
+    close(f2);
+    if ~plot_cfg.save_fig
+        if exist(fig_path, 'file')
+            delete(fig_path);
+        end
+    end
+end
+
+function write_plot_summary(fid, title, xlabels, yvals, dtype, show_pct, plot_cfg)
+    if isempty(fid) || isempty(yvals)
+        return;
+    end
+    total = sum(yvals);
+    [mx, idx] = max(yvals);
+    if isstring(xlabels) || iscellstr(xlabels)
+        lab = string(xlabels(idx));
+    else
+        lab = string(idx);
+    end
+    fprintf(fid, "[%s]\n", title);
+    fmt = sprintf('%%.%df', plot_cfg.y_decimals);
+    fprintf(fid, "总量: %s\n", sprintf(fmt, total));
+    fprintf(fid, "最大: %s = %s\n", lab, sprintf(fmt, mx));
+    if show_pct && total > 0
+        fprintf(fid, "占比: %s = %.2f%%\n", lab, mx / total * 100);
+    end
+    fprintf(fid, "\n");
+end
+
+function s = safe_name(s)
+    s = regexprep(s, '[\\/:*?\"<>| ]', '_');
+end
+
+function key = make_field_key(name)
+    key = regexprep(char(name), '\s+', '_');
+    key = regexprep(key, '[^A-Za-z0-9_]', '_');
+    if isempty(key)
+        key = 'plot';
+    end
+end
+
+function [xlabels, ylabel] = apply_plot_overrides(name, xlabels, ylabel, plot_cfg)
+    if isfield(plot_cfg, 'xlabels') && isstruct(plot_cfg.xlabels)
+        key = make_field_key(name);
+        if isfield(plot_cfg.xlabels, key)
+            xl = plot_cfg.xlabels.(key);
+            if ischar(xl) || isstring(xl)
+                xl = cellstr(xl);
+            end
+            if numel(xl) == numel(xlabels)
+                xlabels = string(xl);
+            end
+        end
+    end
+    if isfield(plot_cfg, 'xlabels_list') && ~isempty(plot_cfg.xlabels_list)
+        xl = lookup_label_list(plot_cfg.xlabels_list, name);
+        if ~isempty(xl)
+            if ischar(xl) || isstring(xl)
+                xl = cellstr(xl);
+            end
+            if numel(xl) == numel(xlabels)
+                xlabels = string(xl);
+            end
+        end
+    end
+    if isfield(plot_cfg, 'ylabels') && isstruct(plot_cfg.ylabels)
+        key = make_field_key(name);
+        if isfield(plot_cfg.ylabels, key)
+            ylabel = string(plot_cfg.ylabels.(key));
+        end
+    end
+    if isfield(plot_cfg, 'ylabels_list') && ~isempty(plot_cfg.ylabels_list)
+        yl = lookup_label_list(plot_cfg.ylabels_list, name);
+        if ~isempty(yl)
+            ylabel = string(yl);
+        end
+    end
+end
+
+function val = lookup_label_list(list, name)
+    val = [];
+    try
+        for i = 1:numel(list)
+            item = list(i);
+            if isfield(item, 'name') && strcmp(string(item.name), string(name))
+                if isfield(item, 'labels')
+                    val = item.labels;
+                elseif isfield(item, 'ylabel')
+                    val = item.ylabel;
+                end
+                return;
+            end
+        end
+    catch
+        % ignore
+    end
+end
+
+function add_bar_labels(bars, yvals, decimals, font_size)
+    fmt = sprintf('%%.%df', decimals);
+    if isempty(bars)
+        return;
+    end
+    x = bars(1).XEndPoints;
+    y = bars(1).YEndPoints;
+    n = min(numel(yvals), numel(x));
+    for i = 1:n
+        txt = sprintf(fmt, yvals(i));
+        text(x(i), y(i), txt, 'HorizontalAlignment','center', 'VerticalAlignment','bottom', ...
+            'FontSize', font_size);
+    end
+end
+
+
+function sz = lookup_figsize_list(list, name)
+    sz = [];
+    try
+        for i = 1:numel(list)
+            item = list(i);
+            if isfield(item, 'name') && strcmp(string(item.name), string(name))
+                if isfield(item, 'size_px')
+                    sz = item.size_px;
+                elseif isfield(item, 'fig_size_px')
+                    sz = item.fig_size_px;
+                end
+                return;
+            end
+        end
+    catch
+        % ignore
     end
 end
