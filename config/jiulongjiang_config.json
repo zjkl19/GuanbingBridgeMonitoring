@@ -936,7 +936,8 @@
         50
       ],
       "ylabel": "挠度 (mm)",
-      "title_prefix": "挠度时程"
+      "title_prefix": "挠度时程",
+      "ylim_auto": true
     },
     "strain": {
       "colors_6": [

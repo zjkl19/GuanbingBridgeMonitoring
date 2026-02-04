@@ -79,6 +79,16 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             cachePath = sample_cache_path(testCase.ProjectRoot, pid);
             testCase.verifyTrue(exist(cachePath, 'file') == 2);
         end
+
+        function test_deflection_single_channel(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            pid = 'NDY-01-K15-X1-G14';
+            testCase.assumeTrue(exist(sample_path(testCase.ProjectRoot, pid), 'file') == 2);
+            root = fullfile(testCase.ProjectRoot, 'tests','data','_samples','jlj');
+            [t, v] = load_timeseries_range(root, '', pid, '2026-01-01', '2026-01-01', cfg, 'deflection');
+            testCase.verifyNotEmpty(v);
+            testCase.verifyEqual(numel(t), numel(v));
+        end
     end
 end
 

@@ -33,6 +33,31 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
         });
     style = get_style(cfg, 'deflection');
 
+    if is_jiulongjiang(cfg)
+        points = get_points(cfg, 'deflection', groups);
+        for i = 1:numel(points)
+            pid = points{i};
+            fprintf('Per-point deflection: %s ...\n', pid);
+            [times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'deflection');
+            if isempty(vals)
+                warning('Point %s has no data, skip', pid);
+                continue;
+            end
+            if numel(times) >= 2
+                dts = seconds(diff(times));
+                fs = 1/median(dts);
+                window_sec = 10*60;
+                win_len = round(window_sec * fs);
+                if mod(win_len,2)==0, win_len = win_len + 1; end
+            else
+                win_len = 201;
+            end
+            vals_f = movmedian(vals, win_len, 'omitnan');
+            plot_deflection_curve({times}, {vals}, {pid}, root_dir, start_date, end_date, pid, style, 'Orig');
+            plot_deflection_curve({times}, {vals_f}, {pid}, root_dir, start_date, end_date, pid, style, 'Filt');
+        end
+    end
+
     stats = {};
     row = 1;
     for g = 1:numel(groups)
@@ -118,7 +143,14 @@ if nargin < 9 || isempty(suffix)
 else
     suffix = [' ' suffix];
 end
-title(sprintf('%s 组%d%s', prefix, group_idx, suffix));
+if isnumeric(group_idx)
+    name_tag = sprintf('G%d', group_idx);
+    title_str = sprintf('%s ?%d%s', prefix, group_idx, suffix);
+else
+    name_tag = char(group_idx);
+    title_str = sprintf('%s %s%s', prefix, group_idx, suffix);
+end
+title(title_str);
 
 % 预警线
 warn_lines = get_style_field(style,'warn_lines', {});
@@ -136,18 +168,29 @@ if iscell(warn_lines)
 end
 
 % Y 轴范围
-ylim_val = get_style_field(style,'ylim', []);
-if ~isempty(ylim_val)
-    ylim(ylim_val);
-else
+ylim_auto = get_style_field(style,'ylim_auto', false);
+if islogical(ylim_auto) && ylim_auto
     ylim auto;
+else
+    ylim_val = get_style_field(style,'ylim', []);
+    pid = '';
+    if numel(pid_list)==1
+        pid = pid_list{1};
+    end
+    ylim_override = get_ylim_for_pid(style, pid, ylim_val);
+    if ~isempty(ylim_override)
+        ylim(ylim_override);
+    else
+        ylim auto;
+    end
+end
 end
 grid on; grid minor;
 
 % 保存
 ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir, '时程曲线_挠度'); if ~exist(out,'dir'), mkdir(out); end
-fname = sprintf('Defl_G%d_%s_%s', group_idx, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
+fname = sprintf('Defl_%s_%s_%s', name_tag, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
 saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
 saveas(fig, fullfile(out, [fname '_' ts '.emf']));
 savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
@@ -155,6 +198,71 @@ close(fig);
 end
 
 % helpers
+function pts = get_points(cfg, key, groups)
+    pts = {};
+    if isfield(cfg,'points') && isfield(cfg.points, key)
+        pts = cfg.points.(key);
+    elseif ~isempty(groups)
+        pts = flatten_groups(groups);
+    end
+end
+
+function pts = flatten_groups(groups)
+    pts = {};
+    if iscell(groups)
+        for i = 1:numel(groups)
+            g = groups{i};
+            if iscell(g)
+                pts = [pts, g(:)'];
+            end
+        end
+    end
+    if ~isempty(pts)
+        pts = unique(pts, 'stable');
+    end
+end
+
+function tf = is_jiulongjiang(cfg)
+    tf = isfield(cfg,'vendor') && strcmpi(cfg.vendor,'jiulongjiang');
+end
+
+function y = get_ylim_for_pid(style, pid, default)
+    y = default;
+    if isempty(pid) || ~isstruct(style) || ~isfield(style,'ylims')
+        return;
+    end
+    ylims = style.ylims;
+    if isa(ylims,'containers.Map')
+        if isKey(ylims, pid)
+            y = ylims(pid);
+        end
+        return;
+    end
+    if isstruct(ylims)
+        if isfield(ylims, pid)
+            y = ylims.(pid);
+            return;
+        end
+        if isfield(ylims,'name') && isfield(ylims,'ylim')
+            for i = 1:numel(ylims)
+                if strcmp(ylims(i).name, pid)
+                    y = ylims(i).ylim;
+                    return;
+                end
+            end
+        end
+    end
+    if iscell(ylims)
+        for i = 1:numel(ylims)
+            item = ylims{i};
+            if isstruct(item) && isfield(item,'name') && strcmp(item.name, pid) && isfield(item,'ylim')
+                y = item.ylim;
+                return;
+            end
+        end
+    end
+end
+
 function groups = get_groups(cfg, key, fallback)
     groups = fallback;
     if isfield(cfg, 'groups') && isfield(cfg.groups, key)
