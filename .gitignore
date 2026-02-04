@@ -29,14 +29,20 @@ tests/data/**/run_logs/
 tests/data/_unit/**/cache/
 tests/data/_unit/**/cache/**
 
+# keep jiulongjiang samples for tests
+!tests/data/
+!tests/data/_samples/
+!tests/data/_samples/jlj/
+!tests/data/_samples/jlj/**
+
 # Local WIM samples / outputs (not tracked)
-data/
-data/**
-data/_samples/
-data/_samples/**
-data/output/
-data/output/**
-xfer202512/
-xfer202512/**
+/data/
+/data/**
+/data/_samples/
+/data/_samples/**
+/data/output/
+/data/output/**
+/xfer202512/
+/xfer202512/**
 
 /tests/tmp/

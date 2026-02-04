@@ -29,6 +29,21 @@ function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfold
     end
     style = get_style(cfg,'tilt');
 
+    if is_jiulongjiang(cfg)
+        points = get_points(cfg, 'tilt', groups_cfg);
+        for i = 1:numel(points)
+            pid = points{i};
+            fprintf('Per-point tilt: %s ...\n', pid);
+            [times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'tilt');
+            if isempty(vals)
+                warning('Point %s has no data, skip', pid);
+                continue;
+            end
+            dataOne = struct('pid', pid, 'times', times, 'vals', vals);
+            plot_tilt_curve(root_dir, dataOne, start_date, end_date, pid, style);
+        end
+    end
+
     [statsX, dataX] = process_group(root_dir, subfolder, groups_cfg.X, start_date, end_date, 'X', cfg);
     plot_tilt_curve(root_dir, dataX, start_date, end_date, 'X', style);
 
@@ -105,8 +120,18 @@ function plot_tilt_curve(root_dir, dataList, t0, t1, suffix, style)
         end
     end
 
-    ylim_val = get_style_field(style,'ylim', []);
-    if ~isempty(ylim_val), ylim(ylim_val); else, ylim auto; end
+    ylim_auto = get_style_field(style,'ylim_auto', false);
+    if islogical(ylim_auto) && ylim_auto
+        ylim auto;
+    else
+        ylim_val = get_style_field(style,'ylim', []);
+        pid = '';
+        if numel(dataList)==1 && isfield(dataList,'pid')
+            pid = dataList(1).pid;
+        end
+        ylim_override = get_ylim_for_pid(style, pid, ylim_val);
+        if ~isempty(ylim_override), ylim(ylim_override); else, ylim auto; end
+    end
 
     grid on; grid minor;
 
@@ -124,6 +149,72 @@ function g = get_groups(cfg, key)
     g = [];
     if isfield(cfg,'groups') && isfield(cfg.groups, key)
         g = cfg.groups.(key);
+    end
+end
+
+function pts = get_points(cfg, key, groups_cfg)
+    pts = {};
+    if isfield(cfg,'points') && isfield(cfg.points, key)
+        pts = cfg.points.(key);
+    elseif ~isempty(groups_cfg)
+        pts = flatten_groups(groups_cfg);
+    end
+end
+
+function pts = flatten_groups(groups_cfg)
+    pts = {};
+    if isstruct(groups_cfg)
+        fn = fieldnames(groups_cfg);
+        for i = 1:numel(fn)
+            v = groups_cfg.(fn{i});
+            if iscell(v)
+                pts = [pts, v(:)'];
+            end
+        end
+    end
+    if ~isempty(pts)
+        pts = unique(pts, 'stable');
+    end
+end
+
+function tf = is_jiulongjiang(cfg)
+    tf = isfield(cfg,'vendor') && strcmpi(cfg.vendor,'jiulongjiang');
+end
+
+function y = get_ylim_for_pid(style, pid, default)
+    y = default;
+    if isempty(pid) || ~isstruct(style) || ~isfield(style,'ylims')
+        return;
+    end
+    ylims = style.ylims;
+    if isa(ylims,'containers.Map')
+        if isKey(ylims, pid)
+            y = ylims(pid);
+        end
+        return;
+    end
+    if isstruct(ylims)
+        if isfield(ylims, pid)
+            y = ylims.(pid);
+            return;
+        end
+        if isfield(ylims,'name') && isfield(ylims,'ylim')
+            for i = 1:numel(ylims)
+                if strcmp(ylims(i).name, pid)
+                    y = ylims(i).ylim;
+                    return;
+                end
+            end
+        end
+    end
+    if iscell(ylims)
+        for i = 1:numel(ylims)
+            item = ylims{i};
+            if isstruct(item) && isfield(item,'name') && strcmp(item.name, pid) && isfield(item,'ylim')
+                y = item.ylim;
+                return;
+            end
+        end
     end
 end
 

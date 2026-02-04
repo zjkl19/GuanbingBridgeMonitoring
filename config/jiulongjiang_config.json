@@ -472,46 +472,230 @@
     }
   },
   "points": {
-    "wind": [],
+    "wind": [
+      "CSFSY-01-K16-GD-A20",
+      "CSFSY-02-K16-QM-G20"
+    ],
+    "strain": [
+      "DYBCGQ-01-K16-X4-G20",
+      "DYBCGQ-02-K16-X4-G20",
+      "DYBCGQ-03-K16-X4-G20",
+      "DYBCGQ-04-K16-X4-G20",
+      "DYBCGQ-05-K16-X3-G20",
+      "DYBCGQ-06-K16-X3-G20",
+      "DYBCGQ-07-K16-X3-G20",
+      "DYBCGQ-08-K16-X3-G20",
+      "DYBCGQ-09-K16-X2-G20",
+      "DYBCGQ-10-K16-X2-G20",
+      "DYBCGQ-11-K16-X2-G20",
+      "DYBCGQ-12-K16-X2-G20",
+      "DYBCGQ-13-K16-X1-G20",
+      "DYBCGQ-14-K16-X1-G20",
+      "DYBCGQ-15-K16-X1-G20",
+      "DYBCGQ-16-K16-X1-G20",
+      "DYBCGQ-17-K16-HG-G20",
+      "DYBCGQ-18-K16-HG-G20",
+      "DYBCGQ-19-K16-HG-G20",
+      "DYBCGQ-20-K16-HG-G20",
+      "DYBCGQ-21-K16-ZFGD-A20",
+      "DYBCGQ-22-K16-ZFGD-A20",
+      "DYBCGQ-23-K16-ZGD-A20",
+      "DYBCGQ-27-AZD",
+      "DYBCGQ-28-AZD",
+      "DYBCGQ-29-AZD",
+      "DYBCGQ-30-AZD",
+      "DYBCGQ-31-BZD",
+      "DYBCGQ-32-BZD",
+      "DYBCGQ-33-BZD",
+      "DYBCGQ-34-BZD",
+      "DYBCGQ-35-CZD",
+      "DYBCGQ-36-CZD",
+      "DYBCGQ-37-CZD",
+      "DYBCGQ-38-CZD",
+      "DYBCGQ-39-DZD",
+      "DYBCGQ-40-DZD",
+      "DYBCGQ-41-DZD",
+      "DYBCGQ-42-DZD",
+      "DYBCGQ-43-AZD",
+      "DYBCGQ-44-AZD",
+      "DYBCGQ-45-AZD",
+      "DYBCGQ-46-AZD",
+      "DYBCGQ-47-BZD",
+      "DYBCGQ-48-BZD",
+      "DYBCGQ-49-BZD",
+      "DYBCGQ-50-BZD",
+      "DYBCQG-24-K16-ZGD-A20",
+      "DYBCQG-25-K16-YFGD-G20",
+      "DYBCQG-26-K16-YFGD-G20"
+    ],
+    "eq": [
+      "DZY-01-D15-P15-X",
+      "DZY-01-D15-P15-Y",
+      "DZY-01-D15-P15-Z",
+      "DZY-02-D16-P16-X",
+      "DZY-02-D16-P16-Y",
+      "DZY-02-D16-P16-Z"
+    ],
+    "pending_gnss": [
+      "GNSS-01-K16-ZFGD-A20",
+      "GNSS-02-K16-ZGD-A20",
+      "GNSS-03-K16-YFGD-A20",
+      "GNSS-04-D15-P15",
+      "GNSS-05-D16-P16"
+    ],
+    "temperature": [
+      "JGWD-01-K16-ZFQM-G20",
+      "JGWD-02-K16-YFQM-G20",
+      "WDCGQ-01-K16-X4-G20",
+      "WDCGQ-02-K16-X4-G20",
+      "WDCGQ-03-K16-X3-G20",
+      "WDCGQ-04-K16-X3-G20",
+      "WDCGQ-05-K16-X2-G20",
+      "WDCGQ-06-K16-X2-G20",
+      "WDCGQ-07-K16-X1-G20",
+      "WDCGQ-08-K16-X1-G20",
+      "WDCGQ-09-K15-X4-G18",
+      "WDCGQ-10-K15-X4-G18",
+      "WDCGQ-11-K15-X1-G18",
+      "WDCGQ-12-K15-X1-G18",
+      "WDCGQ-13-K17-X4-G22",
+      "WDCGQ-14-K17-X4-G22",
+      "WDCGQ-15-K17-X1-G22",
+      "WDCGQ-16-K17-X1-G22",
+      "WDCGQ-17-K16-ZGD-A20",
+      "WDCGQ-18-K16-ZDG-A20",
+      "WSDJ-01-K15-X1-G18",
+      "WSDJ-02-K16-X4-G20",
+      "WSDJ-03-K16-X4-G22",
+      "WSDJ-04-K16-QM-G20"
+    ],
+    "crack": [
+      "LFJ-01-K15-X4",
+      "LFJ-02-K15-X4",
+      "LFJ-03-K15-X4",
+      "LFJ-04-K16-X4",
+      "LFJ-05-K16-X4",
+      "LFJ-06-K17-X4",
+      "LFJ-07-K17-X4",
+      "LFJ-08-K16-X3",
+      "LFJ-09-K16-X3",
+      "LFJ-10-K16-X3",
+      "LFJ-11-K15-X1",
+      "LFJ-12-K15-X1",
+      "LFJ-13-K15-X1",
+      "LFJ-14-K16-X2",
+      "LFJ-15-K16-X2",
+      "LFJ-16-K17-X2",
+      "LFJ-17-K17-X1",
+      "LFJ-18-K16-X2",
+      "LFJ-19-K16-X1",
+      "LFJ-20-K16-X1",
+      "LFJ-21-K16-X2",
+      "LFJ-22-K16-X1"
+    ],
+    "deflection": [
+      "NDY-01-K15-X1-G14",
+      "NDY-02-K15-X1-G18",
+      "NDY-03-K15-X1-G15",
+      "NDY-04-K16-X1-G19",
+      "NDY-05-K16-X1-G20",
+      "NDY-06-K16-X1-G21",
+      "NDY-07-K17-X1-G16",
+      "NDY-08-K17-X1-G22",
+      "NDY-09-K17-X1-G17",
+      "NDY-10-K15-X4-G14",
+      "NDY-11-K15-X4-G18",
+      "NDY-12-K15-X4-G15",
+      "NDY-13-K16-X4-G19",
+      "NDY-14-K16-X4-G20",
+      "NDY-15-K16-X4-G21",
+      "NDY-16-K17-X4-G16",
+      "NDY-17-K17-X4-G22",
+      "NDY-18-K17-X4-G17"
+    ],
+    "tilt": [
+      "QJJ-01-CZD-PC20-X",
+      "QJJ-01-CZD-PC20-Y",
+      "QJJ-02-AZD-PA2-X",
+      "QJJ-02-AZD-PA2-Y",
+      "QJJ-03-AZD-A5-X",
+      "QJJ-03-AZD-A5-Y",
+      "QJJ-04-AZD-A6-X",
+      "QJJ-04-AZD-A6-Y",
+      "QJJ-05-BZD-B5-X",
+      "QJJ-05-BZD-B5-Y",
+      "QJJ-06-BZD-B6-X",
+      "QJJ-06-BZD-B6-Y"
+    ],
+    "cable_force": [
+      "SLCGQ-01-K16-ZDG1",
+      "SLCGQ-02-K16-ZDG5",
+      "SLCGQ-03-K16-ZDG8",
+      "SLCGQ-04-K16-ZDG11",
+      "SLCGQ-05-K16-ZDG15",
+      "SLCGQ-06-K16-ZFFDG2",
+      "SLCGQ-07-K16-ZFFDG3",
+      "SLCGQ-08-K16-ZFFDG4",
+      "SLCGQ-09-K16-ZFFDG5",
+      "SLCGQ-10-K16-ZFFDG6",
+      "SLCGQ-11-K16-YFFDG2",
+      "SLCGQ-12-K16-YFFDG3",
+      "SLCGQ-13-K16-YFFDG4",
+      "SLCGQ-14-K16-YFFDG5",
+      "SLCGQ-15-K16-YFFDG6"
+    ],
+    "humidity": [
+      "WSDJ-01-K15-X1-G18",
+      "WSDJ-02-K16-X4-G20",
+      "WSDJ-03-K16-X4-G22",
+      "WSDJ-04-K16-QM-G20"
+    ],
+    "pending_displacement": [
+      "WYJ-01-K15-ZF-G14",
+      "WYJ-02-K15-YF-G14",
+      "WYJ-03-K15-ZF-G15",
+      "WYJ-04-K15-YF-G15",
+      "WYJ-05-K16-ZF-G16",
+      "WYJ-06-K16-YF-G16",
+      "WYJ-07-K17-ZF-G17",
+      "WYJ-08-K17-YF-G17",
+      "WYJ-09-AZD-PA26",
+      "WYJ-10-AZD-PA23",
+      "WYJ-11-AZD-PA20",
+      "WYJ-12-AZD-PA16",
+      "WYJ-13-BZD-PB5",
+      "WYJ-14-BZD-PB1",
+      "WYJ-15-CZD-PC1",
+      "WYJ-16-CZD-PC4",
+      "WYJ-17-DZD-PD1",
+      "WYJ-18-DZD-PD6",
+      "WYJ-19-AZD-A1",
+      "WYJ-20-AZD-A4",
+      "WYJ-21-AZD-A7",
+      "WYJ-22-AZD-A9",
+      "WYJ-23-BZD-B1",
+      "WYJ-24-BZD-B4"
+    ],
+    "pending_stress": [
+      "YLJ-01-K16-QM-G20"
+    ],
     "acceleration": [
-      "GB-VIB-G04-001-01",
-      "GB-VIB-G05-001-01",
-      "GB-VIB-G05-002-01",
-      "GB-VIB-G05-003-01",
-      "GB-VIB-G06-001-01",
-      "GB-VIB-G06-002-01",
-      "GB-VIB-G06-003-01",
-      "GB-VIB-G07-001-01"
-    ],
-    "accel_spectrum": [
-      "GB-VIB-G04-001-01",
-      "GB-VIB-G05-001-01",
-      "GB-VIB-G05-002-01",
-      "GB-VIB-G05-003-01",
-      "GB-VIB-G06-001-01",
-      "GB-VIB-G06-002-01",
-      "GB-VIB-G06-003-01",
-      "GB-VIB-G07-001-01"
-    ],
-    "cable_accel": [
-      "GB-VIB-G04-001-01",
-      "GB-VIB-G05-001-01",
-      "GB-VIB-G05-002-01",
-      "GB-VIB-G05-003-01",
-      "GB-VIB-G06-001-01",
-      "GB-VIB-G06-002-01",
-      "GB-VIB-G06-003-01",
-      "GB-VIB-G07-001-01"
-    ],
-    "cable_accel_spectrum": [
-      "GB-VIB-G04-001-01",
-      "GB-VIB-G05-001-01",
-      "GB-VIB-G05-002-01",
-      "GB-VIB-G05-003-01",
-      "GB-VIB-G06-001-01",
-      "GB-VIB-G06-002-01",
-      "GB-VIB-G06-003-01",
-      "GB-VIB-G07-001-01"
+      "ZDCQG-01-K15-X1-G18",
+      "ZDCQG-02-K15-X4-G18",
+      "ZDCQG-03-K16-X1-G19",
+      "ZDCQG-04-K16-X4-G19",
+      "ZDCQG-05-K16-X1-G20",
+      "ZDCQG-06-K16-X4-G20",
+      "ZDCQG-07-K16-X1-G21",
+      "ZDCQG-08-K16-X4-G21",
+      "ZDCQG-09-K17-X1-G22",
+      "ZDCQG-10-K17-X4-G22",
+      "ZDCQG-11-K16-ZFGD-A20",
+      "ZDCQG-12-K16-ZFGD-A20",
+      "ZDCQG-13-K16-ZGD-A20",
+      "ZDCQG-14-K16-ZGD-A20",
+      "ZDCQG-15-K16-YFGD-A20",
+      "ZDCQG-16-K16-YFGD-A20"
     ]
   },
   "groups": {
@@ -581,14 +765,20 @@
     },
     "tilt": {
       "X": [
-        "GB-DIS-P04-001-01-X",
-        "GB-DIS-P05-001-01-X",
-        "GB-DIS-P06-001-01-X"
+        "QJJ-01-CZD-PC20-X",
+        "QJJ-02-AZD-PA2-X",
+        "QJJ-03-AZD-A5-X",
+        "QJJ-04-AZD-A6-X",
+        "QJJ-05-BZD-B5-X",
+        "QJJ-06-BZD-B6-X"
       ],
       "Y": [
-        "GB-DIS-P04-001-01-Y",
-        "GB-DIS-P05-001-01-Y",
-        "GB-DIS-P06-001-01-Y"
+        "QJJ-01-CZD-PC20-Y",
+        "QJJ-02-AZD-PA2-Y",
+        "QJJ-03-AZD-A5-Y",
+        "QJJ-04-AZD-A6-Y",
+        "QJJ-05-BZD-B5-Y",
+        "QJJ-06-BZD-B6-Y"
       ]
     },
     "crack": {
@@ -851,11 +1041,98 @@
         }
       ],
       "ylim": [
-        -0.17,
-        0.17
+        -0.2,
+        0.2
       ],
       "ylabel": "倾角 (°)",
-      "title_prefix": "倾角时程"
+      "title_prefix": "倾角时程",
+      "ylims": [
+        {
+          "name": "QJJ-01-CZD-PC20-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-01-CZD-PC20-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-02-AZD-PA2-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-02-AZD-PA2-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-03-AZD-A5-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-03-AZD-A5-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-04-AZD-A6-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-04-AZD-A6-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-05-BZD-B5-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-05-BZD-B5-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-06-BZD-B6-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-06-BZD-B6-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        }
+      ],
+      "ylim_auto": true
     },
     "crack": {
       "colors_4": [
@@ -1248,6 +1525,65 @@
       "理论竖向一阶自振频率 0.975Hz",
       "理论竖向二阶自振频率 1.243Hz",
       "理论竖向三阶自振频率 1.528Hz"
+    ]
+  },
+  "data_adapter": {
+    "vendor": "jiulongjiang",
+    "zip": {
+      "glob": "jljData*.zip",
+      "date_pattern": "jljData(\\\\d{8})-(\\\\d{8})",
+      "subdir": "data/csv",
+      "staging_root": "outputs/_staging/jlj"
+    },
+    "csv": {
+      "encoding": "UTF-8",
+      "delimiter": ",",
+      "time_column": "ts",
+      "time_format": "yyyy-MM-dd HH:mm:ss.SSS",
+      "strip_quotes": true
+    },
+    "cache": {
+      "enabled": true,
+      "dir": "cache",
+      "validate": "mtime_size"
+    },
+    "prefix_map": {
+      "WDCGQ": "temperature",
+      "JGWD": "temperature",
+      "WSDJ": "temp_humidity",
+      "CSFSY": "wind",
+      "QJJ": "tilt",
+      "DZY": "eq",
+      "ZDCQG": "acceleration",
+      "DYBCGQ": "strain",
+      "DYBCQG": "strain",
+      "NDY": "deflection",
+      "LFJ": "crack",
+      "SLCGQ": "cable_force",
+      "WYJ": "displacement_pending",
+      "YLJ": "stress_pending",
+      "GNSS": "ignore"
+    },
+    "channel_map": {
+      "temperature": "value_x",
+      "humidity": "value_y",
+      "wind_speed": "value_x",
+      "wind_direction": "value_y",
+      "tilt_x": "value_x",
+      "tilt_y": "value_y",
+      "eq_x": "value_x",
+      "eq_y": "value_y",
+      "eq_z": "value_z",
+      "acceleration": "value_x",
+      "strain": "value_x",
+      "deflection": "value_x",
+      "crack": "value_x",
+      "cable_force": "value_x"
+    },
+    "ignore_prefixes": [
+      "GNSS",
+      "WYJ",
+      "YLJ"
     ]
   }
 }

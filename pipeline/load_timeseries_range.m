@@ -26,6 +26,9 @@ function [times, vals, meta] = load_timeseries_range(root_dir, subfolder, point_
     meta.files = {};
 
     date_list = build_date_list(start_date, end_date);
+    range = struct( ...
+        'start', datetime(start_date, 'InputFormat','yyyy-MM-dd'), ...
+        'end',   datetime(end_date,   'InputFormat','yyyy-MM-dd') + days(1));
     all_t = [];
     all_v = [];
 
@@ -36,13 +39,19 @@ function [times, vals, meta] = load_timeseries_range(root_dir, subfolder, point_
 
     for i = 1:numel(date_list)
         day = date_list{i};
-        dirp = fullfile(root_dir, day, subfolder);
-        if ~exist(dirp, 'dir'), continue; end
+        day_meta = struct('day', day, 'range', range);
+        if isfield(loader, 'get_day_dir')
+            [dirp, day_meta] = loader.get_day_dir(root_dir, day, subfolder, sensor_type, day_meta);
+            if isempty(dirp), continue; end
+        else
+            dirp = fullfile(root_dir, day, subfolder);
+            if ~exist(dirp, 'dir'), continue; end
+        end
 
-        fp = loader.find_file(dirp, point_id, sensor_type);
+        fp = loader.find_file(dirp, point_id, sensor_type, day, day_meta);
         if isempty(fp), continue; end
 
-        [t, v] = loader.read_file(fp, sensor_type);
+        [t, v] = loader.read_file(fp, sensor_type, point_id, day, day_meta);
         if isempty(v), continue; end
         meta.files{end+1} = fp; %#ok<AGROW>
         all_t = [all_t; t]; %#ok<AGROW>
@@ -84,16 +93,25 @@ function loader = get_vendor_loader(cfg)
         vendor = lower(string(cfg.vendor));
     end
     switch vendor
-        case {'donghua','东华'}
+        case {'donghua'}
             loader = make_donghua_loader(cfg);
+        case {'jiulongjiang','jiulong'}
+            loader = make_jiulongjiang_loader(cfg);
         otherwise
             loader = make_donghua_loader(cfg); % fallback
     end
 end
 
 function loader = make_donghua_loader(cfg)
-    loader.find_file = @(dirp, point_id, sensor_type) find_file_for_point(dirp, point_id, cfg, sensor_type);
-    loader.read_file = @(fp, sensor_type) load_single_file(fp, cfg.defaults.header_marker); %#ok<NASGU>
+    loader.find_file = @(dirp, point_id, sensor_type, varargin) find_file_for_point(dirp, point_id, cfg, sensor_type);
+    loader.read_file = @(fp, sensor_type, varargin) load_single_file(fp, cfg.defaults.header_marker); %#ok<NASGU>
+end
+
+function loader = make_jiulongjiang_loader(cfg)
+    adapter = get_jlj_adapter(cfg);
+    loader.get_day_dir = @(root_dir, day, subfolder, sensor_type, meta) jlj_get_day_dir(root_dir, day, adapter, meta);
+    loader.find_file = @(dirp, point_id, sensor_type, varargin) jlj_find_file(dirp, point_id);
+    loader.read_file = @(fp, sensor_type, point_id, varargin) jlj_read_file(fp, sensor_type, point_id, adapter, varargin{:});
 end
 
 % -------------------------------------------------------------------------
@@ -391,5 +409,352 @@ function list = build_date_list(start_date, end_date)
     list = cell(numel(dnums),1);
     for i = 1:numel(dnums)
         list{i} = datestr(dnums(i), 'yyyy-mm-dd');
+    end
+end
+
+% -------------------------------------------------------------------------
+% Jiulongjiang adapter helpers
+function adapter = get_jlj_adapter(cfg)
+    adapter = struct();
+    if isfield(cfg, 'data_adapter') && isstruct(cfg.data_adapter)
+        adapter = cfg.data_adapter;
+    end
+    if ~isfield(adapter, 'zip') || ~isstruct(adapter.zip)
+        adapter.zip = struct();
+    end
+    if ~isfield(adapter, 'csv') || ~isstruct(adapter.csv)
+        adapter.csv = struct();
+    end
+    adapter.zip.glob = get_field_default(adapter.zip, 'glob', 'jljData*.zip');
+    adapter.zip.date_pattern = get_field_default(adapter.zip, 'date_pattern', 'jljData(\\d{8})-(\\d{8})');
+    adapter.zip.subdir = get_field_default(adapter.zip, 'subdir', fullfile('data','csv'));
+    adapter.zip.staging_root = get_field_default(adapter.zip, 'staging_root', fullfile('outputs','_staging','jlj'));
+    adapter.csv.encoding = get_field_default(adapter.csv, 'encoding', 'UTF-8');
+    adapter.csv.delimiter = get_field_default(adapter.csv, 'delimiter', ',');
+    adapter.csv.time_column = get_field_default(adapter.csv, 'time_column', 'ts');
+    adapter.csv.time_format = get_field_default(adapter.csv, 'time_format', 'yyyy-MM-dd HH:mm:ss.SSS');
+    adapter.csv.strip_quotes = get_field_default(adapter.csv, 'strip_quotes', true);
+    if ~isfield(adapter, 'cache') || ~isstruct(adapter.cache)
+        adapter.cache = struct();
+    end
+    adapter.cache.enabled = get_field_default(adapter.cache, 'enabled', true);
+    adapter.cache.dir = get_field_default(adapter.cache, 'dir', 'cache');
+    adapter.cache.validate = get_field_default(adapter.cache, 'validate', 'mtime_size');
+end
+
+function [dirp, meta] = jlj_get_day_dir(root_dir, day, adapter, meta)
+    dirp = '';
+    if nargin < 4 || isempty(meta)
+        meta = struct();
+    end
+    if isempty(root_dir) || ~exist(root_dir, 'dir')
+        return;
+    end
+    dt = datetime(day, 'InputFormat','yyyy-MM-dd');
+    start_str = datestr(dt, 'yyyymmdd');
+    end_str = datestr(dt + days(1), 'yyyymmdd');
+    folder_name = sprintf('jljData%s-%s', start_str, end_str);
+    direct_folder = fullfile(root_dir, folder_name, adapter.zip.subdir);
+    if exist(direct_folder, 'dir')
+        dirp = direct_folder;
+        meta.cache_dir = resolve_jlj_cache_dir(direct_folder, adapter);
+        return;
+    end
+    zip_path = fullfile(root_dir, [folder_name '.zip']);
+    if ~exist(zip_path, 'file')
+        zip_path = find_jlj_zip(root_dir, start_str, adapter.zip);
+    end
+    if isempty(zip_path)
+        return;
+    end
+    staging_root = resolve_jlj_path(adapter.zip.staging_root);
+    if ~exist(staging_root, 'dir'), mkdir(staging_root); end
+    [~, base, ~] = fileparts(zip_path);
+    dest = fullfile(staging_root, base);
+    if ~exist(fullfile(dest, adapter.zip.subdir), 'dir')
+        if ~exist(dest, 'dir'), mkdir(dest); end
+        unzip(zip_path, dest);
+    end
+    dirp = fullfile(dest, adapter.zip.subdir);
+    meta.cache_dir = resolve_jlj_cache_dir(dirp, adapter);
+end
+
+function zip_path = find_jlj_zip(root_dir, start_str, zip_cfg)
+    zip_path = '';
+    files = dir(fullfile(root_dir, zip_cfg.glob));
+    if isempty(files)
+        return;
+    end
+    pat = zip_cfg.date_pattern;
+    for i = 1:numel(files)
+        name = files(i).name;
+        tokens = regexp(name, pat, 'tokens', 'once');
+        if isempty(tokens)
+            continue;
+        end
+        if numel(tokens) >= 1 && strcmp(tokens{1}, start_str)
+            zip_path = fullfile(files(i).folder, name);
+            return;
+        end
+    end
+end
+
+function fp = jlj_find_file(dirp, point_id)
+    fp = '';
+    if isempty(dirp) || ~exist(dirp, 'dir')
+        return;
+    end
+    base = regexprep(point_id, '[-_][XYZ]$', '');
+    cand = fullfile(dirp, [base '.csv']);
+    if exist(cand, 'file')
+        fp = cand;
+        return;
+    end
+    files = dir(fullfile(dirp, '*.csv'));
+    idx = find(arrayfun(@(f) contains(f.name, base), files), 1);
+    if ~isempty(idx)
+        fp = fullfile(files(idx).folder, files(idx).name);
+    end
+end
+
+function [t, v] = jlj_read_file(fp, sensor_type, point_id, adapter, varargin)
+    t = []; v = [];
+    if isempty(fp) || ~exist(fp, 'file')
+        return;
+    end
+    enc = adapter.csv.encoding;
+    delim = adapter.csv.delimiter;
+    cache_dir = resolve_cache_dir_from_meta(adapter, varargin{:});
+    cache_path = '';
+    if adapter.cache.enabled && ~isempty(cache_dir)
+        if ~exist(cache_dir, 'dir'), mkdir(cache_dir); end
+        [~, base, ~] = fileparts(fp);
+        cache_path = fullfile(cache_dir, [base '.mat']);
+    end
+
+    if ~isempty(cache_path) && use_jlj_cache(cache_path, fp, adapter.cache.validate)
+        S = load(cache_path, 'ts', 'valx', 'valy', 'valz', 'meta');
+        [t, v] = pick_cached_channel(S, sensor_type, point_id);
+    else
+        T = readtable(fp, 'Delimiter', delim, 'FileEncoding', enc, ...
+            'TextType','string', 'VariableNamingRule','preserve');
+        vars = T.Properties.VariableNames;
+        tcol = pick_var(vars, adapter.csv.time_column);
+        if isempty(tcol)
+            return;
+        end
+        ts = string(T.(tcol));
+        if adapter.csv.strip_quotes
+            ts = strrep(ts, '"', '');
+        end
+        ts = strtrim(ts);
+        t = parse_jlj_time(ts, adapter.csv.time_format);
+        valx = extract_numeric_column(T, vars, 'value_x');
+        valy = extract_numeric_column(T, vars, 'value_y');
+        valz = extract_numeric_column(T, vars, 'value_z');
+        if ~isempty(cache_path)
+            meta = struct('src', fp, 'mtime', file_mtime(fp), 'size', file_size(fp));
+            ts = t; %#ok<NASGU>
+            save(cache_path, 'ts', 'valx', 'valy', 'valz', 'meta');
+        end
+        [t, v] = pick_channel_from_arrays(t, valx, valy, valz, sensor_type, point_id);
+    end
+    range = extract_range(varargin{:});
+    if ~isempty(range) && isfield(range, 'start') && isfield(range, 'end')
+        mask = t >= range.start & t < range.end;
+        t = t(mask);
+        v = v(mask);
+    end
+end
+
+function cache_dir = resolve_jlj_cache_dir(csv_dir, adapter)
+    cache_dir = '';
+    if ~adapter.cache.enabled
+        return;
+    end
+    base = adapter.cache.dir;
+    if isempty(base)
+        return;
+    end
+    if isabsolute(base)
+        cache_dir = base;
+    else
+        cache_dir = fullfile(csv_dir, base);
+    end
+end
+
+function cache_dir = resolve_cache_dir_from_meta(adapter, varargin)
+    cache_dir = '';
+    for i = 1:numel(varargin)
+        if isstruct(varargin{i}) && isfield(varargin{i}, 'cache_dir')
+            cache_dir = varargin{i}.cache_dir;
+            return;
+        end
+    end
+end
+
+function ok = use_jlj_cache(cache_path, src_path, validate_mode)
+    ok = false;
+    if isempty(cache_path) || ~exist(cache_path, 'file')
+        return;
+    end
+    if strcmpi(validate_mode, 'none')
+        ok = true;
+        return;
+    end
+    try
+        S = load(cache_path, 'meta');
+        if ~isfield(S, 'meta') || ~isstruct(S.meta)
+            return;
+        end
+        mtime = file_mtime(src_path);
+        fsize = file_size(src_path);
+        ok = isfield(S.meta,'mtime') && isfield(S.meta,'size') && ...
+            S.meta.mtime == mtime && S.meta.size == fsize;
+    catch
+        ok = false;
+    end
+end
+
+function [t, v] = pick_cached_channel(S, sensor_type, point_id)
+    if isfield(S, 'ts')
+        t = S.ts;
+    else
+        t = [];
+    end
+    valx = get_field_default(S, 'valx', []);
+    valy = get_field_default(S, 'valy', []);
+    valz = get_field_default(S, 'valz', []);
+    [t, v] = pick_channel_from_arrays(t, valx, valy, valz, sensor_type, point_id);
+end
+
+function [t, v] = pick_channel_from_arrays(t, valx, valy, valz, sensor_type, point_id)
+    col = resolve_jlj_value_column(sensor_type, point_id);
+    switch lower(col)
+        case 'value_y'
+            v = valy;
+        case 'value_z'
+            v = valz;
+        otherwise
+            v = valx;
+    end
+end
+
+function vec = extract_numeric_column(T, vars, name)
+    vec = [];
+    vcol = pick_var(vars, name);
+    if isempty(vcol)
+        return;
+    end
+    v = T.(vcol);
+    if isstring(v) || iscellstr(v)
+        vec = str2double(string(v));
+    else
+        vec = double(v);
+    end
+end
+
+function out = file_mtime(fp)
+    d = dir(fp);
+    if isempty(d)
+        out = 0;
+    else
+        out = d(1).datenum;
+    end
+end
+
+function out = file_size(fp)
+    d = dir(fp);
+    if isempty(d)
+        out = 0;
+    else
+        out = d(1).bytes;
+    end
+end
+
+function col = resolve_jlj_value_column(sensor_type, point_id)
+    col = 'value_x';
+    st = lower(string(sensor_type));
+    if st == "wind_direction"
+        col = 'value_y';
+    elseif st == "humidity"
+        col = 'value_y';
+    elseif st == "wind_speed"
+        col = 'value_x';
+    elseif st == "temperature"
+        col = 'value_x';
+    elseif st == "tilt"
+        if contains(point_id, '-Y') || contains(point_id, '_Y')
+            col = 'value_y';
+        else
+            col = 'value_x';
+        end
+    elseif st == "eq_x"
+        col = 'value_x';
+    elseif st == "eq_y"
+        col = 'value_y';
+    elseif st == "eq_z"
+        col = 'value_z';
+    else
+        col = 'value_x';
+    end
+end
+
+function t = parse_jlj_time(ts, fmt)
+    try
+        t = datetime(ts, 'InputFormat', fmt);
+    catch
+        try
+            t = datetime(ts, 'InputFormat', 'yyyy-MM-dd HH:mm:ss');
+        catch
+            t = NaT(size(ts));
+        end
+    end
+end
+
+function v = pick_var(vars, name)
+    v = '';
+    idx = find(strcmpi(vars, name), 1);
+    if ~isempty(idx)
+        v = vars{idx};
+    end
+end
+
+function range = extract_range(varargin)
+    range = [];
+    for i = 1:numel(varargin)
+        if isstruct(varargin{i}) && isfield(varargin{i}, 'range')
+            range = varargin{i}.range;
+            return;
+        end
+    end
+end
+
+function out = get_field_default(s, field, default)
+    if isstruct(s) && isfield(s, field)
+        out = s.(field);
+    else
+        out = default;
+    end
+end
+
+function p = resolve_jlj_path(p)
+    if isempty(p), return; end
+    if isstring(p), p = char(p); end
+    if ischar(p) && ~isabsolute(p)
+        proj_root = fileparts(fileparts(mfilename('fullpath')));
+        p = fullfile(proj_root, p);
+    end
+end
+
+function tf = isabsolute(p)
+    tf = false;
+    if isempty(p) || ~ischar(p)
+        return;
+    end
+    if numel(p) >= 2 && p(2) == ':'
+        tf = true;
+    elseif startsWith(p, filesep)
+        tf = true;
     end
 end
