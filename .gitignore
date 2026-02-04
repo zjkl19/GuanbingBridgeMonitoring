@@ -46,3 +46,6 @@ tests/data/_unit/**/cache/**
 /xfer202512/**
 
 /tests/tmp/
+tes1t.m
+tilt_stats.xlsx
+tests/data/_samples/jlj/**/cache/
