@@ -6,12 +6,7 @@
   "defaults": {
     "header_marker": "[绝对时间]",
     "deflection": {
-      "thresholds": {
-        "min": -10,
-        "max": 31,
-        "t_range_start": "",
-        "t_range_end": ""
-      },
+      "thresholds": [],
       "zero_to_nan": true,
       "outlier": {
         "window_sec": 15,
@@ -700,32 +695,7 @@
   },
   "groups": {
     "deflection": [
-      [
-        "GB-DIS-G05-001-01Y",
-        "GB-DIS-G05-001-02Y"
-      ],
-      [
-        "GB-DIS-G05-002-01Y",
-        "GB-DIS-G05-002-02Y",
-        "GB-DIS-G05-002-03Y"
-      ],
-      [
-        "GB-DIS-G05-003-01Y",
-        "GB-DIS-G05-003-02Y"
-      ],
-      [
-        "GB-DIS-G06-001-01Y",
-        "GB-DIS-G06-001-02Y"
-      ],
-      [
-        "GB-DIS-G06-002-01Y",
-        "GB-DIS-G06-002-02Y",
-        "GB-DIS-G06-002-03Y"
-      ],
-      [
-        "GB-DIS-G06-003-01Y",
-        "GB-DIS-G06-003-02Y"
-      ]
+
     ],
     "strain": {
       "G05": [

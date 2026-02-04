@@ -23,15 +23,12 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
     end
     if nargin<6||isempty(cfg),         cfg = load_config(); end
 
-    groups = get_groups(cfg, 'deflection', { ...
-        {'GB-DIS-G05-001-01Y','GB-DIS-G05-001-02Y'}, ...
-        {'GB-DIS-G05-002-01Y','GB-DIS-G05-002-02Y','GB-DIS-G05-002-03Y'}, ...
-        {'GB-DIS-G05-003-01Y','GB-DIS-G05-003-02Y'}, ...
-        {'GB-DIS-G06-001-01Y','GB-DIS-G06-001-02Y'}, ...
-        {'GB-DIS-G06-002-01Y','GB-DIS-G06-002-02Y','GB-DIS-G06-002-03Y'}, ...
-        {'GB-DIS-G06-003-01Y','GB-DIS-G06-003-02Y'} ...
-        });
+    groups = get_groups(cfg, 'deflection', {});
     style = get_style(cfg, 'deflection');
+
+    if ~has_groups(cfg, 'deflection')
+        groups = {};
+    end
 
     if is_jiulongjiang(cfg)
         points = get_points(cfg, 'deflection', groups);
@@ -58,8 +55,9 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
         end
     end
 
-    stats = {};
+    stats = cell(0,7);
     row = 1;
+    if ~isempty(groups)
     for g = 1:numel(groups)
         pid_list = groups{g};
         fprintf('处理组 %d: %s\n', g, strjoin(pid_list, ', '));
@@ -100,6 +98,7 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
         plot_deflection_curve(orig_times, orig_vals, pid_list, root_dir, start_date, end_date, g, style, '原始');
         plot_deflection_curve(filt_times, filt_vals, pid_list, root_dir, start_date, end_date, g, style, '滤波');
     end
+    end
 
     % 写入 Excel
     T = cell2table(stats, 'VariableNames', ...
@@ -125,11 +124,15 @@ for i = 1:N
         cmap = lines(N);
         c = cmap(i,:);
     end
-    if isempty(vals_list{i}), continue; end
+if isempty(vals_list{i}), continue; end
     plot(times_list{i}, vals_list{i}, 'LineWidth', 1.0, 'Color', c);
 end
+valid = ~cellfun(@isempty, vals_list);
+if ~any(valid), close(fig); return; end
 
-lg = legend(pid_list,'Location','northeast','Box','off');
+goodLines = findobj(gca,'Type','line');
+goodLines = flipud(goodLines(:));
+lg = legend(goodLines(valid), pid_list(valid),'Location','northeast','Box','off');
 lg.AutoUpdate = 'off';
 
 % X 轴
@@ -169,7 +172,7 @@ end
 
 % Y 轴范围
 ylim_auto = get_style_field(style,'ylim_auto', false);
-if islogical(ylim_auto) && ylim_auto
+if (islogical(ylim_auto) && ylim_auto) || (isnumeric(ylim_auto) && ylim_auto ~= 0)
     ylim auto;
 else
     ylim_val = get_style_field(style,'ylim', []);
@@ -178,13 +181,14 @@ else
         pid = pid_list{1};
     end
     ylim_override = get_ylim_for_pid(style, pid, ylim_val);
+    if ~is_valid_ylim(ylim_override), ylim_override = []; end
     if ~isempty(ylim_override)
         ylim(ylim_override);
     else
         ylim auto;
     end
 end
-end
+
 grid on; grid minor;
 
 % 保存
@@ -215,7 +219,7 @@ function pts = flatten_groups(groups)
             if iscell(g)
                 pts = [pts, g(:)'];
             end
-        end
+end
     end
     if ~isempty(pts)
         pts = unique(pts, 'stable');
@@ -249,7 +253,7 @@ function y = get_ylim_for_pid(style, pid, default)
                     y = ylims(i).ylim;
                     return;
                 end
-            end
+end
         end
     end
     if iscell(ylims)
@@ -259,10 +263,16 @@ function y = get_ylim_for_pid(style, pid, default)
                 y = item.ylim;
                 return;
             end
-        end
+end
     end
 end
 
+function ok = is_valid_ylim(v)
+    ok = isnumeric(v) && numel(v)==2 && all(isfinite(v)) && v(2) > v(1);
+end
+function tf = has_groups(cfg, key)
+    tf = isfield(cfg,'groups') && isfield(cfg.groups, key) && ~isempty(cfg.groups.(key));
+end
 function groups = get_groups(cfg, key, fallback)
     groups = fallback;
     if isfield(cfg, 'groups') && isfield(cfg.groups, key)
