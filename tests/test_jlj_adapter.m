@@ -26,6 +26,16 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             testCase.verifyTrue(exist(cachePath, 'file') == 2);
         end
 
+        function test_humidity_single_channel(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            pid = 'WSDJ-01-K15-X1-G18';
+            testCase.assumeTrue(exist(sample_path(testCase.ProjectRoot, pid), 'file') == 2);
+            root = fullfile(testCase.ProjectRoot, 'tests','data','_samples','jlj');
+            [t, v] = load_timeseries_range(root, '', pid, '2026-01-01', '2026-01-01', cfg, 'humidity');
+            testCase.verifyNotEmpty(v);
+            testCase.verifyEqual(numel(t), numel(v));
+        end
+
         function test_wind_speed_direction(testCase)
             cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
             pid = 'CSFSY-01-K16-GD-A20';

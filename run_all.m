@@ -69,13 +69,23 @@ if opts.doResample && ~should_stop()
 end
 
 if opts.doTemp && ~should_stop()
-    pts = {'GB-RTS-G05-001-01','GB-RTS-G05-001-02','GB-RTS-G05-001-03'};
-    results{end+1} = run_step('温度分析', @() analyze_temperature_points(root, pts, start_date, end_date, 'temp_stats.xlsx', sub.temperature, cfg));
+    temp_fallback = {'GB-RTS-G05-001-01','GB-RTS-G05-001-02','GB-RTS-G05-001-03'};
+    pts = get_sensor_points(cfg, 'temperature', temp_fallback);
+    if isempty(pts)
+        results{end+1} = struct('label','temperature','status','skip','message','No temperature points configured');
+    else
+        results{end+1} = run_step('温度分析', @() analyze_temperature_points(root, pts, start_date, end_date, 'temp_stats.xlsx', sub.temperature, cfg));
+    end
 end
 
 if opts.doHumidity && ~should_stop()
-    pts = {'GB-RHS-G05-001-01','GB-RHS-G05-001-02','GB-RHS-G05-001-03'};
-    results{end+1} = run_step('湿度分析', @() analyze_humidity_points(root, pts, start_date, end_date, 'humidity_stats.xlsx', sub.humidity, cfg));
+    hum_fallback = {'GB-RHS-G05-001-01','GB-RHS-G05-001-02','GB-RHS-G05-001-03'};
+    pts = get_sensor_points(cfg, 'humidity', hum_fallback);
+    if isempty(pts)
+        results{end+1} = struct('label','humidity','status','skip','message','No humidity points configured');
+    else
+        results{end+1} = run_step('湿度分析', @() analyze_humidity_points(root, pts, start_date, end_date, 'humidity_stats.xlsx', sub.humidity, cfg));
+    end
 end
 
 if isfield(opts,'doWind') && opts.doWind && ~should_stop()
@@ -181,12 +191,63 @@ function sub = get_subfolder(cfg, key, fallback)
 end
 
 function pts = get_points(cfg, key, fallback)
-    pts = fallback;
+    pts = normalize_points(fallback);
     if isfield(cfg, 'points') && isfield(cfg.points, key)
-        val = cfg.points.(key);
-        if iscell(val) || isstring(val)
-            pts = cellstr(val(:));
+        raw = cfg.points.(key);
+        if isempty(raw)
+            pts = {};
+            return;
         end
+        if iscell(raw) || isstring(raw) || ischar(raw)
+            pts = normalize_points(raw);
+        end
+    end
+end
+
+function pts = get_sensor_points(cfg, key, fallback)
+    pts = get_points(cfg, key, fallback);
+    if strcmpi(key, 'temperature') || strcmpi(key, 'humidity')
+        shared = get_points(cfg, 'temp_humidity', {});
+        pts = merge_point_lists(pts, shared);
+    end
+end
+
+function pts = merge_point_lists(a, b)
+    pts = [normalize_points(a); normalize_points(b)];
+    if isempty(pts)
+        return;
+    end
+    pts = unique(pts, 'stable');
+end
+
+function pts = normalize_points(v)
+    pts = {};
+    if isstring(v)
+        pts = cellstr(v(:));
+    elseif ischar(v)
+        vv = strtrim(v);
+        if ~isempty(vv)
+            pts = {vv};
+        end
+    elseif iscell(v)
+        tmp = {};
+        for i = 1:numel(v)
+            item = v{i};
+            if isstring(item)
+                if isscalar(item)
+                    item = char(item);
+                else
+                    continue;
+                end
+            end
+            if ischar(item)
+                item = strtrim(item);
+                if ~isempty(item)
+                    tmp{end+1,1} = item; %#ok<AGROW>
+                end
+            end
+        end
+        pts = tmp;
     end
 end
 

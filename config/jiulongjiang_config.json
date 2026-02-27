@@ -558,7 +558,9 @@
       "WDCGQ-15-K17-X1-G22",
       "WDCGQ-16-K17-X1-G22",
       "WDCGQ-17-K16-ZGD-A20",
-      "WDCGQ-18-K16-ZDG-A20",
+      "WDCGQ-18-K16-ZDG-A20"
+    ],
+    "temp_humidity": [
       "WSDJ-01-K15-X1-G18",
       "WSDJ-02-K16-X4-G20",
       "WSDJ-03-K16-X4-G22",
@@ -639,12 +641,7 @@
       "SLCGQ-14-K16-YFFDG5",
       "SLCGQ-15-K16-YFFDG6"
     ],
-    "humidity": [
-      "WSDJ-01-K15-X1-G18",
-      "WSDJ-02-K16-X4-G20",
-      "WSDJ-03-K16-X4-G22",
-      "WSDJ-04-K16-QM-G20"
-    ],
+    "humidity": [],
     "pending_displacement": [
       "WYJ-01-K15-ZF-G14",
       "WYJ-02-K15-YF-G14",
