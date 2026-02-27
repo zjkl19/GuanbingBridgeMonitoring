@@ -4,7 +4,8 @@ global RUN_STOP_FLAG;
 tic;
 % Disable ModifiedAndSavedVarnames warning
 ws = warning('off','MATLAB:table:ModifiedAndSavedVarnames');
-
+notify_cfg = struct();
+try
 % Paths
 here = fileparts(mfilename('fullpath'));
 addpath(here);
@@ -17,6 +18,7 @@ addpath(fullfile(here,'scripts'));
 if nargin < 5 || isempty(cfg)
     cfg = load_config();
 end
+notify_cfg = cfg;
 
 log_records = {};
 start_ts = datetime('now');
@@ -182,6 +184,18 @@ fprintf('总耗时: %.2f 秒\n', elapsed);
 all_logs = [log_records, results];
 print_summary(all_logs);
 write_log(all_logs, start_ts, elapsed);
+kind = select_notify_kind(notify_cfg, has_failures(all_logs));
+if ~isempty(kind)
+    safe_notify(kind, notify_cfg);
+end
+catch ME
+    warning(ws);
+    kind = select_notify_kind(notify_cfg, true);
+    if ~isempty(kind)
+        safe_notify(kind, notify_cfg);
+    end
+    rethrow(ME);
+end
 end
 
 function sub = get_subfolder(cfg, key, fallback)
@@ -331,5 +345,60 @@ function tf = should_stop()
         tf = ~isempty(RUN_STOP_FLAG) && RUN_STOP_FLAG;
     catch
         tf = false;
+    end
+end
+
+function tf = has_failures(logs)
+    tf = false;
+    if isempty(logs), return; end
+    for i = 1:numel(logs)
+        if isempty(logs{i}) || ~isstruct(logs{i}), continue; end
+        if isfield(logs{i}, 'status') && strcmpi(logs{i}.status, 'fail')
+            tf = true;
+            return;
+        end
+    end
+end
+
+function tf = should_notify(cfg, key, defaultValue)
+    if nargin < 3
+        defaultValue = true;
+    end
+    tf = defaultValue;
+    if ~isstruct(cfg) || ~isfield(cfg, 'notify') || ~isstruct(cfg.notify)
+        return;
+    end
+    ncfg = cfg.notify;
+    if isfield(ncfg, 'enabled') && ~isempty(ncfg.enabled)
+        tf = tf && logical(ncfg.enabled);
+    end
+    if isfield(ncfg, key) && ~isempty(ncfg.(key))
+        tf = tf && logical(ncfg.(key));
+    end
+end
+
+function kind = select_notify_kind(cfg, hasError)
+    kind = '';
+    if hasError
+        if should_notify(cfg, 'on_error', true)
+            kind = 'error';
+            return;
+        end
+    end
+    if should_notify(cfg, 'on_task_done', true)
+        kind = 'task_done';
+    elseif should_notify(cfg, 'on_analysis_done', false)
+        kind = 'success';
+    end
+end
+
+function safe_notify(kind, cfg)
+    try
+        if exist('play_notify_sound', 'file') == 2
+            play_notify_sound(kind, cfg);
+        else
+            beep;
+        end
+    catch
     end
 end
