@@ -379,53 +379,230 @@
       }
     },
     "cable_accel": {
-      "GB-VIB-G04-001-01": {
+      "SLCGQ-01-K16-ZDG1": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
       },
-      "GB-VIB-G05-001-01": {
+      "SLCGQ-02-K16-ZDG5": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
       },
-      "GB-VIB-G05-002-01": {
+      "SLCGQ-03-K16-ZDG8": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
       },
-      "GB-VIB-G05-003-01": {
+      "SLCGQ-04-K16-ZDG11": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
       },
-      "GB-VIB-G06-001-01": {
+      "SLCGQ-05-K16-ZDG15": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
       },
-      "GB-VIB-G06-002-01": {
+      "SLCGQ-06-K16-ZFFDG2": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
       },
-      "GB-VIB-G06-003-01": {
+      "SLCGQ-07-K16-ZFFDG3": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
       },
-      "GB-VIB-G07-001-01": {
+      "SLCGQ-08-K16-ZFFDG4": {
         "thresholds": [],
         "rho": 1,
         "L": 1,
-        "force_decimals": 2
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
+      },
+      "SLCGQ-09-K16-ZFFDG5": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
+      },
+      "SLCGQ-10-K16-ZFFDG6": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
+      },
+      "SLCGQ-11-K16-YFFDG2": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
+      },
+      "SLCGQ-12-K16-YFFDG3": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
+      },
+      "SLCGQ-13-K16-YFFDG4": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
+      },
+      "SLCGQ-14-K16-YFFDG5": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
+      },
+      "SLCGQ-15-K16-YFFDG6": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ]
       }
     }
   },
@@ -1261,6 +1438,10 @@
         0,
         0.447,
         0.741
+      ],
+      "force_ylim": [
+        1000,
+        2200
       ]
     }
   },
@@ -1479,9 +1660,9 @@
   "warnings": [],
   "cable_accel_spectrum_params": {
     "target_freqs": [
-      1.15,
-      1.48,
-      2.31
+      1,
+      2,
+      3
     ],
     "tolerance": 0.15,
     "theor_freqs": [
