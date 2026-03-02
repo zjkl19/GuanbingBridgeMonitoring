@@ -831,6 +831,16 @@
   },
   "groups": {},
   "plot_styles": {
+    "crack": {
+      "ylabel_crack": "Crack Width (mm)",
+      "ylabel_temp": "Crack Temp (degC)",
+      "title_prefix_crack": "Crack Width",
+      "title_prefix_temp": "Crack Temp",
+      "per_point_plot": false,
+      "group_plot": true,
+      "temp_enabled": true,
+      "skip_group_if_missing": true
+    },
     "acceleration": {
       "ylabel": "主梁竖向振动加速度 (m/s^2)",
       "title_prefix": "加速度时程",

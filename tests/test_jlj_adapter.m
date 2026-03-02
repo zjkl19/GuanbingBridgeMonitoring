@@ -137,6 +137,39 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             testCase.verifyTrue(exist(fullfile(root, '频谱峰值曲线_加速度'), 'dir') == 7);
             testCase.verifyTrue(exist(fullfile(root, 'PSD_备查', pid), 'dir') == 7);
         end
+
+        function test_crack_lfj_pipeline_without_temp(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            pid = 'LFJ-UT-01';
+            day = datetime(2026,1,1);
+            write_jlj_crack_csv(root, day, pid);
+
+            cfg.points.crack = {pid};
+            cfg.groups.crack = struct();
+            cfg.plot_styles.crack.per_point_plot = true;
+            cfg.plot_styles.crack.group_plot = true;
+            cfg.plot_styles.crack.temp_enabled = false;
+            cfg.plot_styles.crack.skip_group_if_missing = true;
+
+            excelPath = fullfile(root, 'crack_stats_test.xlsx');
+            analyze_crack_points(root, '2026-01-01', '2026-01-01', excelPath, '', cfg);
+
+            testCase.verifyTrue(exist(excelPath, 'file') == 2);
+            T = readtable(excelPath);
+            testCase.verifyEqual(height(T), 1);
+            testCase.verifyEqual(string(T.PointID{1}), string(pid));
+            testCase.verifyTrue(isnan(T.TmpMin(1)));
+            testCase.verifyTrue(isnan(T.TmpMax(1)));
+            testCase.verifyTrue(isnan(T.TmpMean(1)));
+
+            figs = dir(fullfile(root, '**', '*.fig'));
+            testCase.verifyEqual(numel(figs), 1);
+        end
+
     end
 end
 
@@ -173,6 +206,28 @@ function write_jlj_accel_csv(rootDir, day, pid)
     fprintf(fid, 'ts,value_x\n');
     for i = 1:n
         fprintf(fid, '"%s",%.8f\n', datestr(ts(i), 'yyyy-mm-dd HH:MM:SS.FFF'), x(i));
+    end
+end
+
+
+function write_jlj_crack_csv(rootDir, day, pid)
+    dayStart = datestr(day, 'yyyymmdd');
+    dayEnd = datestr(day + days(1), 'yyyymmdd');
+    csvDir = fullfile(rootDir, ['jljData' dayStart '-' dayEnd], 'data', 'csv');
+    if ~exist(csvDir, 'dir'), mkdir(csvDir); end
+
+    n = 24;
+    t0 = day;
+    ts = t0 + minutes((0:n-1) * 60);
+    x = linspace(0.1, 0.25, n);
+
+    fp = fullfile(csvDir, [pid '.csv']);
+    fid = fopen(fp, 'wt');
+    assert(fid > 0, 'Failed to create test csv: %s', fp);
+    cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+    fprintf(fid, 'ts,value_x\n');
+    for i = 1:n
+        fprintf(fid, '"%s",%.6f\n', datestr(ts(i), 'yyyy-mm-dd HH:MM:SS.FFF'), x(i));
     end
 end
 

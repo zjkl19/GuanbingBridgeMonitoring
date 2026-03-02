@@ -900,7 +900,11 @@
       "ylabel_crack": "裂缝宽度 (mm)",
       "ylabel_temp": "裂缝温度 (°C)",
       "title_prefix_crack": "裂缝宽度",
-      "title_prefix_temp": "裂缝温度"
+      "title_prefix_temp": "裂缝温度",
+      "per_point_plot": false,
+      "group_plot": true,
+      "temp_enabled": true,
+      "skip_group_if_missing": true
     },
     "temperature": {
       "ylabel": "温度 (°C)",

@@ -40,8 +40,8 @@
     },
     "crack": {
       "thresholds": {
-        "min": -0.3,
-        "max": 0.3
+        "min": -50,
+        "max": 50
       },
       "zero_to_nan": false
     },
@@ -1322,7 +1322,11 @@
       "ylabel_crack": "裂缝宽度 (mm)",
       "ylabel_temp": "裂缝温度 (°C)",
       "title_prefix_crack": "裂缝宽度",
-      "title_prefix_temp": "裂缝温度"
+      "title_prefix_temp": "裂缝温度",
+      "per_point_plot": true,
+      "group_plot": true,
+      "temp_enabled": false,
+      "skip_group_if_missing": true
     },
     "temperature": {
       "ylabel": "温度 (°C)",
