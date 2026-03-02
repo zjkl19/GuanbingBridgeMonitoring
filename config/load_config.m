@@ -87,7 +87,7 @@ function warns = validate_config(cfg)
     end
 
     % subfolders
-    sub_keys = {'deflection','acceleration','acceleration_raw','cable_accel','cable_accel_raw', ...
+    sub_keys = {'deflection','bearing_displacement','acceleration','acceleration_raw','cable_accel','cable_accel_raw', ...
                 'strain','tilt','crack','humidity','temperature','wind_raw'};
     if isfield(cfg,'subfolders')
         for k = 1:numel(sub_keys)
@@ -108,7 +108,7 @@ function warns = validate_config(cfg)
     end
 
     % file_patterns basic checks per sensor
-    sensors = {'deflection','acceleration','acceleration_raw','cable_accel','cable_accel_raw', ...
+    sensors = {'deflection','bearing_displacement','acceleration','acceleration_raw','cable_accel','cable_accel_raw', ...
                'strain','tilt','crack','crack_temp','humidity','temperature', ...
                'wind_speed','wind_direction','wind'};
     if isfield(cfg,'file_patterns')

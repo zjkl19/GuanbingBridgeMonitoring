@@ -36,6 +36,7 @@ sub = struct();
 sub.temperature  = get_subfolder(cfg, 'temperature',  '特征值');
 sub.humidity     = get_subfolder(cfg, 'humidity',     '特征值');
 sub.deflection   = get_subfolder(cfg, 'deflection',   '特征值_重采样');
+sub.bearing_displacement = get_subfolder(cfg, 'bearing_displacement', sub.deflection);
 sub.tilt         = get_subfolder(cfg, 'tilt',         '波形_重采样');
 sub.accel        = get_subfolder(cfg, 'acceleration', '波形_重采样');
 sub.accel_raw    = get_subfolder(cfg, 'acceleration_raw', '波形');
@@ -105,6 +106,11 @@ end
 if opts.doDeflect && ~should_stop()
     results{end+1} = run_step('挠度分析', @() analyze_deflection_points(root, start_date, end_date, ...
         'deflection_stats.xlsx', sub.deflection, cfg));
+end
+
+if isfield(opts,'doBearingDisplacement') && opts.doBearingDisplacement && ~should_stop()
+    results{end+1} = run_step('支座位移分析', @() analyze_bearing_displacement_points( ...
+        root, start_date, end_date, 'bearing_displacement_stats.xlsx', sub.bearing_displacement, cfg));
 end
 
 if opts.doTilt && ~should_stop()

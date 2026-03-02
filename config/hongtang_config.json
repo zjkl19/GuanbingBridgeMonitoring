@@ -20,6 +20,11 @@
         "threshold_factor": 3
       }
     },
+    "bearing_displacement": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
     "acceleration": {
       "thresholds": [],
       "zero_to_nan": false,
@@ -599,6 +604,7 @@
   },
   "subfolders": {
     "deflection": "特征值_重采样",
+    "bearing_displacement": "特征值_重采样",
     "acceleration": "波形",
     "acceleration_raw": "波形",
     "strain": "特征值",
@@ -743,6 +749,7 @@
       "W1",
       "W2"
     ],
+    "bearing_displacement": [],
     "acceleration": [
       "A1",
       "A2",
@@ -829,8 +836,16 @@
       "EQ-Z"
     ]
   },
-  "groups": {},
+  "groups": {
+    "bearing_displacement": []
+  },
   "plot_styles": {
+    "bearing_displacement": {
+      "warn_lines": [],
+      "ylim_auto": true,
+      "ylabel": "支座位移 (mm)",
+      "title_prefix": "支座位移时程"
+    },
     "crack": {
       "ylabel_crack": "Crack Width (mm)",
       "ylabel_temp": "Crack Temp (degC)",

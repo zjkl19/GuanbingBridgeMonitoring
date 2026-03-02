@@ -113,6 +113,44 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             testCase.verifyEqual(numel(t), numel(v));
         end
 
+        function test_bearing_displacement_pipeline(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            pid = 'WYJ-UT-01';
+            day = datetime(2026,1,1);
+            write_jlj_bearing_csv(root, day, pid);
+
+            cfg.points.bearing_displacement = {pid};
+            cfg.groups.bearing_displacement = {};
+            cfg.plot_styles.bearing_displacement.output_dir = 'bearing_out';
+            cfg.plot_styles.bearing_displacement.ylim_auto = true;
+
+            if ~isfield(cfg, 'per_point') || ~isstruct(cfg.per_point)
+                cfg.per_point = struct();
+            end
+            if ~isfield(cfg.per_point, 'bearing_displacement') || ~isstruct(cfg.per_point.bearing_displacement)
+                cfg.per_point.bearing_displacement = struct();
+            end
+            safe_id = strrep(pid, '-', '_');
+            cfg.per_point.bearing_displacement.(safe_id) = struct( ...
+                'thresholds', [], ...
+                'warn_lines', struct('y', 5, 'label', 'Warn', 'color', [1, 0, 0]) ...
+            );
+
+            excelPath = fullfile(root, 'bearing_displacement_stats_test.xlsx');
+            analyze_bearing_displacement_points(root, '2026-01-01', '2026-01-01', excelPath, '', cfg);
+
+            testCase.verifyTrue(exist(excelPath, 'file') == 2);
+            T = readtable(excelPath, 'VariableNamingRule', 'preserve');
+            testCase.verifyEqual(height(T), 1);
+            testCase.verifyEqual(string(T.PointID{1}), string(pid));
+            figs = dir(fullfile(root, 'bearing_out', '*.fig'));
+            testCase.verifyGreaterThanOrEqual(numel(figs), 2);
+        end
+
         function test_acceleration_spectrum_pipeline(testCase)
             cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
             root = tempname;
@@ -369,6 +407,27 @@ function write_jlj_crack_csv(rootDir, day, pid)
     t0 = day;
     ts = t0 + minutes((0:n-1) * 60);
     x = linspace(0.1, 0.25, n);
+
+    fp = fullfile(csvDir, [pid '.csv']);
+    fid = fopen(fp, 'wt');
+    assert(fid > 0, 'Failed to create test csv: %s', fp);
+    cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+    fprintf(fid, 'ts,value_x\n');
+    for i = 1:n
+        fprintf(fid, '"%s",%.6f\n', datestr(ts(i), 'yyyy-mm-dd HH:MM:SS.FFF'), x(i));
+    end
+end
+
+function write_jlj_bearing_csv(rootDir, day, pid)
+    dayStart = datestr(day, 'yyyymmdd');
+    dayEnd = datestr(day + days(1), 'yyyymmdd');
+    csvDir = fullfile(rootDir, ['jljData' dayStart '-' dayEnd], 'data', 'csv');
+    if ~exist(csvDir, 'dir'), mkdir(csvDir); end
+
+    n = 288;
+    t0 = day;
+    ts = t0 + minutes((0:n-1) * 5);
+    x = 12 + 0.8 * sin(2*pi*(0:n-1)/72);
 
     fp = fullfile(csvDir, [pid '.csv']);
     fid = fopen(fp, 'wt');

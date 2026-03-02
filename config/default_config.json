@@ -25,6 +25,10 @@
         "threshold_factor": 3
       }
     },
+    "bearing_displacement": {
+      "thresholds": [],
+      "zero_to_nan": false
+    },
     "acceleration": {
       "thresholds": [],
       "zero_to_nan": false
@@ -443,6 +447,7 @@
   },
   "subfolders": {
     "deflection": "特征值_重采样",
+    "bearing_displacement": "特征值_重采样",
     "acceleration": "波形_重采样",
     "acceleration_raw": "波形",
     "strain": "特征值",
@@ -480,6 +485,7 @@
   },
   "points": {
     "wind": [],
+    "bearing_displacement": [],
     "acceleration": [
       "GB-VIB-G04-001-01",
       "GB-VIB-G05-001-01",
@@ -550,6 +556,7 @@
         "GB-DIS-G06-003-02Y"
       ]
     ],
+    "bearing_displacement": [],
     "strain": {
       "G05": [
         "GB-RSG-G05-001-01",
@@ -754,6 +761,41 @@
       ],
       "ylabel": "挠度 (mm)",
       "title_prefix": "挠度时程"
+    },
+    "bearing_displacement": {
+      "colors_2": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "colors_3": [
+        [
+          0.5,
+          0,
+          0.7
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "warn_lines": [],
+      "ylim_auto": true,
+      "ylabel": "支座位移 (mm)",
+      "title_prefix": "支座位移时程"
     },
     "strain": {
       "colors_6": [
