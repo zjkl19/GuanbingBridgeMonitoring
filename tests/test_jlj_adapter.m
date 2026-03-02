@@ -138,6 +138,32 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             testCase.verifyTrue(exist(fullfile(root, 'PSD_备查', pid), 'dir') == 7);
         end
 
+
+        function test_acceleration_timeseries_pipeline(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            pid = 'ZDCQG-UT-ACC-01';
+            day = datetime(2026,1,1);
+            write_jlj_accel_csv(root, day, pid);
+            cfg.points.acceleration = {pid};
+
+            excelPath = fullfile(root, 'accel_stats_test.xlsx');
+            analyze_acceleration_points(root, '2026-01-01', '2026-01-01', excelPath, '', true, cfg);
+
+            testCase.verifyTrue(exist(excelPath, 'file') == 2);
+            T = readtable(excelPath, 'VariableNamingRule', 'preserve');
+            testCase.verifyEqual(height(T), 1);
+            testCase.verifyEqual(string(T.PointID{1}), string(pid));
+            testCase.verifyTrue(isfinite(T.Min(1)));
+            testCase.verifyTrue(isfinite(T.Max(1)));
+
+            figs = dir(fullfile(root, '**', ['*' pid '*.fig']));
+            testCase.verifyGreaterThanOrEqual(numel(figs), 2);
+        end
+
         function test_crack_lfj_pipeline_without_temp(testCase)
             cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
             root = tempname;
