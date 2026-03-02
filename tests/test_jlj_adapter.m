@@ -227,6 +227,66 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             testCase.verifyLessThan(abs(T.CableForce_kN(1) - expected), 500);
         end
 
+
+        function test_wind_module_pipeline(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            pid = 'CSFSY-UT-01';
+            day = datetime(2026,1,1);
+            write_jlj_wind_csv(root, day, pid);
+
+            cfg.points.wind = {pid};
+            cfg.plot_styles.wind.output = struct( ...
+                'root_dir', 'wind_out', ...
+                'speed_dir', 'speed', ...
+                'direction_dir', 'direction', ...
+                'speed10_dir', 'speed10', ...
+                'rose_dir', 'rose', ...
+                'stats_file', 'wind_stats.xlsx' ...
+            );
+
+            analyze_wind_points(root, '2026-01-01', '2026-01-01', '', cfg);
+
+            outRoot = fullfile(root, 'wind_out');
+            testCase.verifyTrue(exist(fullfile(outRoot, 'wind_stats.xlsx'), 'file') == 2);
+            testCase.verifyTrue(exist(fullfile(outRoot, 'speed'), 'dir') == 7);
+            testCase.verifyTrue(exist(fullfile(outRoot, 'direction'), 'dir') == 7);
+            testCase.verifyTrue(exist(fullfile(outRoot, 'speed10'), 'dir') == 7);
+            testCase.verifyTrue(exist(fullfile(outRoot, 'rose'), 'dir') == 7);
+
+            roseSummary = dir(fullfile(outRoot, 'rose', '*_summary.txt'));
+            testCase.verifyGreaterThanOrEqual(numel(roseSummary), 1);
+        end
+
+        function test_eq_module_pipeline(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            base = 'DZY-UT-01';
+            day = datetime(2026,1,1);
+            write_jlj_eq_csv(root, day, base);
+
+            cfg.points.eq = {[base '-X'], [base '-Y'], [base '-Z']};
+            cfg.plot_styles.eq.output = struct( ...
+                'root_dir', 'eq_out', ...
+                'series_dir', 'series', ...
+                'prefix', 'EQ' ...
+            );
+            cfg.eq_params.alarm_levels = [0.5, 1.0];
+
+            analyze_eq_points(root, '2026-01-01', '2026-01-01', '', cfg);
+
+            outDir = fullfile(root, 'eq_out', 'series');
+            testCase.verifyTrue(exist(outDir, 'dir') == 7);
+            figs = dir(fullfile(outDir, '*.fig'));
+            testCase.verifyGreaterThanOrEqual(numel(figs), 3);
+        end
+
         function test_crack_lfj_pipeline_without_temp(testCase)
             cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
             root = tempname;
@@ -317,6 +377,54 @@ function write_jlj_crack_csv(rootDir, day, pid)
     fprintf(fid, 'ts,value_x\n');
     for i = 1:n
         fprintf(fid, '"%s",%.6f\n', datestr(ts(i), 'yyyy-mm-dd HH:MM:SS.FFF'), x(i));
+    end
+end
+
+
+function write_jlj_wind_csv(rootDir, day, pid)
+    dayStart = datestr(day, 'yyyymmdd');
+    dayEnd = datestr(day + days(1), 'yyyymmdd');
+    csvDir = fullfile(rootDir, ['jljData' dayStart '-' dayEnd], 'data', 'csv');
+    if ~exist(csvDir, 'dir'), mkdir(csvDir); end
+
+    fs = 1;  % 1 Hz
+    n = 3600;
+    t0 = day;
+    ts = t0 + seconds((0:n-1) / fs);
+    spd = 5 + 1.2 * sin(2*pi*(0:n-1)/300);
+    drc = mod(180 + 25 * sin(2*pi*(0:n-1)/500), 360);
+
+    fp = fullfile(csvDir, [pid '.csv']);
+    fid = fopen(fp, 'wt');
+    assert(fid > 0, 'Failed to create test csv: %s', fp);
+    cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+    fprintf(fid, 'ts,value_x,value_y\n');
+    for i = 1:n
+        fprintf(fid, '"%s",%.6f,%.6f\n', datestr(ts(i), 'yyyy-mm-dd HH:MM:SS.FFF'), spd(i), drc(i));
+    end
+end
+
+function write_jlj_eq_csv(rootDir, day, base)
+    dayStart = datestr(day, 'yyyymmdd');
+    dayEnd = datestr(day + days(1), 'yyyymmdd');
+    csvDir = fullfile(rootDir, ['jljData' dayStart '-' dayEnd], 'data', 'csv');
+    if ~exist(csvDir, 'dir'), mkdir(csvDir); end
+
+    fs = 20;
+    n = 2400;
+    t0 = day + hours(1);
+    ts = t0 + seconds((0:n-1) / fs);
+    x = 0.20 * sin(2*pi*0.8*(0:n-1)/fs);
+    y = 0.15 * sin(2*pi*1.2*(0:n-1)/fs + 0.3);
+    z = 0.10 * sin(2*pi*1.5*(0:n-1)/fs + 0.8);
+
+    fp = fullfile(csvDir, [base '.csv']);
+    fid = fopen(fp, 'wt');
+    assert(fid > 0, 'Failed to create test csv: %s', fp);
+    cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+    fprintf(fid, 'ts,value_x,value_y,value_z\n');
+    for i = 1:n
+        fprintf(fid, '"%s",%.6f,%.6f,%.6f\n', datestr(ts(i), 'yyyy-mm-dd HH:MM:SS.FFF'), x(i), y(i), z(i));
     end
 end
 

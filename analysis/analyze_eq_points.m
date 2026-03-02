@@ -40,7 +40,7 @@ function analyze_eq_points(root_dir, start_date, end_date, subfolder, cfg)
     time_end = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
     fprintf('结束时间: %s', char(time_end));
     elapsed = seconds(time_end - time_start);
-    fprintf('总用时: %.2f \u79d2', elapsed);
+    fprintf('总用时: %.2f sec', elapsed);
 end
 
 function [sensor_type, comp] = get_eq_component(pid)
