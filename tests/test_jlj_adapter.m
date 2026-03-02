@@ -164,6 +164,69 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             testCase.verifyGreaterThanOrEqual(numel(figs), 2);
         end
 
+
+        function test_cable_acceleration_timeseries_pipeline(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            pid = 'SLCGQ-UT-ACC-01';
+            day = datetime(2026,1,1);
+            write_jlj_accel_csv(root, day, pid);
+            cfg.points.cable_accel = {pid};
+
+            excelPath = fullfile(root, 'cable_accel_stats_test.xlsx');
+            analyze_cable_acceleration_points(root, '2026-01-01', '2026-01-01', excelPath, '', true, cfg);
+
+            testCase.verifyTrue(exist(excelPath, 'file') == 2);
+            T = readtable(excelPath, 'VariableNamingRule', 'preserve');
+            testCase.verifyEqual(height(T), 1);
+            testCase.verifyEqual(string(T.PointID{1}), string(pid));
+
+            figs = dir(fullfile(root, '**', ['*' pid '*.fig']));
+            testCase.verifyGreaterThanOrEqual(numel(figs), 2);
+        end
+
+        function test_cable_accel_spectrum_force_pipeline(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            pid = 'SLCGQ-UT-SPEC-01';
+            day = datetime(2026,1,1);
+            write_jlj_accel_csv(root, day, pid);
+
+            cfg.points.cable_accel_spectrum = {pid};
+            if ~isfield(cfg, 'per_point') || ~isstruct(cfg.per_point)
+                cfg.per_point = struct();
+            end
+            if ~isfield(cfg.per_point, 'cable_accel') || ~isstruct(cfg.per_point.cable_accel)
+                cfg.per_point.cable_accel = struct();
+            end
+            safe_id = strrep(pid, '-', '_');
+            cfg.per_point.cable_accel.(safe_id) = struct( ...
+                'thresholds', [], ...
+                'rho', 300, ...
+                'L', 40, ...
+                'force_decimals', 2, ...
+                'target_freqs', [1.2] ...
+            );
+
+            excelPath = fullfile(root, 'cable_accel_spec_stats_test.xlsx');
+            analyze_cable_accel_spectrum_points(root, '2026-01-01', '2026-01-01', ...
+                {pid}, excelPath, '', [1.2], 0.2, false, cfg);
+
+            testCase.verifyTrue(exist(excelPath, 'file') == 2);
+            T = readtable(excelPath, 'Sheet', pid, 'VariableNamingRule', 'preserve');
+            testCase.verifyEqual(height(T), 1);
+            testCase.verifyTrue(isfinite(T.CableForce_kN(1)));
+
+            expected = round(4 * 300 * (40^2) * (1.2^2) / 1000, 2);
+            testCase.verifyLessThan(abs(T.CableForce_kN(1) - expected), 500);
+        end
+
         function test_crack_lfj_pipeline_without_temp(testCase)
             cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
             root = tempname;

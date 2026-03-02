@@ -29,9 +29,15 @@ function analyze_cable_acceleration_points(root_dir, start_date, end_date, excel
     time_start = datetime('now','Format','yyyy-MM-dd HH:mm:ss');
     fprintf('开始时间 %s\n', char(time_start));
 
-    tpts = get_points(cfg, 'cable_accel', { ...
-        'GB-VIB-G04-001-01','GB-VIB-G05-001-01','GB-VIB-G05-002-01','GB-VIB-G05-003-01', ...
-        'GB-VIB-G06-001-01','GB-VIB-G06-002-01','GB-VIB-G06-003-01','GB-VIB-G07-001-01'});
+    tpts = get_points(cfg, 'cable_accel', {});
+    if isempty(tpts)
+        tpts = get_points(cfg, 'cable_force', {});
+    end
+    if isempty(tpts)
+        tpts = { ...
+            'GB-VIB-G04-001-01','GB-VIB-G05-001-01','GB-VIB-G05-002-01','GB-VIB-G05-003-01', ...
+            'GB-VIB-G06-001-01','GB-VIB-G06-002-01','GB-VIB-G06-003-01','GB-VIB-G07-001-01'};
+    end
 
     style = get_style(cfg, 'cable_accel');
     stats = cell(numel(tpts),6);
