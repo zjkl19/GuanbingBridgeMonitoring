@@ -826,7 +826,7 @@
       "SLCGQ-15-K16-YFFDG6"
     ],
     "humidity": [],
-    "pending_displacement": [
+    "bearing_displacement": [
       "WYJ-01-K15-ZF-G14",
       "WYJ-02-K15-YF-G14",
       "WYJ-03-K15-ZF-G15",
@@ -1714,7 +1714,7 @@
       "NDY": "deflection",
       "LFJ": "crack",
       "SLCGQ": "cable_force",
-      "WYJ": "displacement_pending",
+      "WYJ": "bearing_displacement",
       "YLJ": "stress_pending",
       "GNSS": "ignore"
     },
