@@ -239,7 +239,7 @@ end
 ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir,'时程曲线_索力加速度_RMS10min');
 if ~exist(out,'dir'), mkdir(out); end
-fname = sprintf('CableCableCableCableCableAccelRMS10_%s_%s_%s', pid, datestr(min(times),'yyyymmdd'), datestr(max(times),'yyyymmdd'));
+fname = sprintf('CableAccelRMS10_%s_%s_%s', pid, datestr(min(times),'yyyymmdd'), datestr(max(times),'yyyymmdd'));
 saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
 saveas(fig, fullfile(out, [fname '_' ts '.emf']));
 savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');

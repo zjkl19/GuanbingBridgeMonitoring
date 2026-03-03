@@ -60,7 +60,7 @@ function analyze_wim_reports(root_dir, start_date, end_date, cfg)
     excel_name = strrep(excel_name, '{bridge}', bridge);
     excel_name = strrep(excel_name, '{yyyymm}', yyyymm);
     excel_path = fullfile(out_dir, excel_name);
-    write_excel_from_csvs(csv_paths, excel_path);
+    write_excel_from_csvs(csv_paths, excel_path, bridge);
 
     fprintf('WIM reports done: %s\n', excel_path);
     maybe_generate_wim_plots(csv_paths, out_dir, wim, cfg, bridge, yyyymm);
@@ -532,7 +532,8 @@ function csv_paths = write_report_csvs(reports, out_dir, yyyymm)
     end
 end
 
-function write_excel_from_csvs(csv_paths, excel_path)
+function write_excel_from_csvs(csv_paths, excel_path, bridge)
+    if nargin < 3, bridge = ''; end
     names = fieldnames(csv_paths);
     if exist(excel_path, 'file')
         delete(excel_path);
@@ -550,11 +551,50 @@ function write_excel_from_csvs(csv_paths, excel_path)
             writecell(C, excel_path, 'Sheet', safe_sheet_name(name));
         end
     end
+
+    if should_write_topn_metric_sheets(bridge)
+        write_topn_metric_sheet(csv_paths, excel_path, 'TopN', 'TopN_m');
+        write_topn_metric_sheet(csv_paths, excel_path, 'TopN_MaxAxle', 'TopN_MaxAxle_m');
+    end
 end
 
 function s = safe_sheet_name(name)
     s = regexprep(name, '[:\\/\?\*\[\]]', '_');
     if numel(s) > 31, s = s(1:31); end
+end
+
+function tf = should_write_topn_metric_sheets(bridge)
+    if isstring(bridge), bridge = char(bridge); end
+    tf = ischar(bridge) && strcmpi(strtrim(bridge), 'hongtang');
+end
+
+function write_topn_metric_sheet(csv_paths, excel_path, src_name, dst_name)
+    if ~isfield(csv_paths, src_name), return; end
+    csv_path = csv_paths.(src_name);
+    if ~exist(csv_path, 'file'), return; end
+
+    enc = detect_file_encoding(csv_path);
+    try
+        T = readtable(csv_path, 'TextType', 'string', 'Encoding', enc);
+    catch
+        return;
+    end
+
+    Tm = convert_axledis_mm_to_m(T);
+    writetable(Tm, excel_path, 'Sheet', safe_sheet_name(dst_name));
+end
+
+function T = convert_axledis_mm_to_m(T)
+    if ~istable(T) || isempty(T), return; end
+
+    var_names = T.Properties.VariableNames;
+    for i = 1:numel(var_names)
+        name = var_names{i};
+        if startsWith(name, 'axledis', 'IgnoreCase', true)
+            vals = to_double(T.(name));
+            T.(name) = round(vals ./ 1000, 3);
+        end
+    end
 end
 
 % =========================
@@ -1121,7 +1161,7 @@ function run_wim_database_pipeline(root_dir, start_date, end_date, wim, cfg)
     excel_name = strrep(excel_name, '{bridge}', bridge);
     excel_name = strrep(excel_name, '{yyyymm}', yyyymm);
     excel_path = fullfile(out_dir, excel_name);
-    write_excel_from_csvs(csv_paths, excel_path);
+    write_excel_from_csvs(csv_paths, excel_path, bridge);
     fprintf('WIM reports done (database): %s\n', excel_path);
 
     maybe_generate_wim_plots(csv_paths, out_dir, wim, cfg, bridge, yyyymm);
