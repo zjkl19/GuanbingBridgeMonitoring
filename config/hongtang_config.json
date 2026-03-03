@@ -132,40 +132,232 @@
     },
     "accel_spectrum": {
       "A1": {
-        "thresholds": []
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
       },
       "A2": {
-        "thresholds": []
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
       },
       "A3": {
-        "thresholds": []
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
       },
       "A4": {
-        "thresholds": []
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
       },
       "A5": {
-        "thresholds": []
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.534
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
       },
       "A6": {
-        "thresholds": []
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
       },
       "A7": {
-        "thresholds": []
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
       },
       "A8": {
-        "thresholds": []
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
       },
       "A9-X": {
-        "thresholds": []
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.566
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
       },
       "A9-Y": {
-        "thresholds": []
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.544
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
       },
       "A10-X": {
-        "thresholds": []
+        "thresholds": [],
+        "target_freqs": [
+          0.872,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
       },
       "A10-Y": {
-        "thresholds": []
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.536,
+          2.446
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
       }
     },
     "cable_accel": {
@@ -582,22 +774,22 @@
       "EQ-X": {
         "file_id": "X_144",
         "alarm_levels": [
-          2.3,
-          5.0
+          4.5,
+          9.0
         ]
       },
       "EQ-Y": {
         "file_id": "Y_145",
         "alarm_levels": [
-          2.3,
-          5.0
+          4.5,
+          9.0
         ]
       },
       "EQ-Z": {
         "file_id": "Z_146",
         "alarm_levels": [
-          1.495,
-          3.25
+          2.925,
+          5.85
         ]
       }
     }
@@ -863,6 +1055,36 @@
         -2,
         2
       ],
+      "ylims": [
+        {
+          "name": "A9-X",
+          "ylim": [
+            -0.1,
+            0.1
+          ]
+        },
+        {
+          "name": "A9-Y",
+          "ylim": [
+            -0.1,
+            0.1
+          ]
+        },
+        {
+          "name": "A10-X",
+          "ylim": [
+            -0.1,
+            0.1
+          ]
+        },
+        {
+          "name": "A10-Y",
+          "ylim": [
+            -0.1,
+            0.1
+          ]
+        }
+      ],
       "colors": [
         [
           0,
@@ -880,7 +1102,7 @@
         "title_prefix": "10 min RMS 时程",
         "ylim": [
           0,
-          1
+          0.1
         ],
         "color": [
           0,
@@ -933,8 +1155,17 @@
       "ylabel": "振动加速度 (m/s^2)",
       "title_prefix": "加速度时程",
       "ylim": [
-        -1,
-        1
+        -2,
+        2
+      ],
+      "ylims": [
+        {
+          "name": "CS8",
+          "ylim": [
+            2,
+            -2
+          ]
+        }
       ],
       "colors": [
         [
@@ -954,6 +1185,36 @@
         "ylim": [
           0,
           1
+        ],
+        "ylims": [
+          {
+            "name": "A9-X",
+            "ylim": [
+              0,
+              0.05
+            ]
+          },
+          {
+            "name": "A9-Y",
+            "ylim": [
+              0,
+              0.05
+            ]
+          },
+          {
+            "name": "A10-X",
+            "ylim": [
+              0,
+              0.05
+            ]
+          },
+          {
+            "name": "A10-Y",
+            "ylim": [
+              0,
+              0.05
+            ]
+          }
         ],
         "color": [
           0,

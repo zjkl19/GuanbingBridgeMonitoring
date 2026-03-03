@@ -176,6 +176,42 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             testCase.verifyTrue(exist(fullfile(root, 'PSD_备查', pid), 'dir') == 7);
         end
 
+        function test_acceleration_spectrum_per_point_params(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            pid = 'ZDCQG-UT-02';
+            day = datetime(2026,1,1);
+            write_jlj_accel_csv(root, day, pid);
+
+            if ~isfield(cfg, 'per_point') || ~isstruct(cfg.per_point)
+                cfg.per_point = struct();
+            end
+            if ~isfield(cfg.per_point, 'accel_spectrum') || ~isstruct(cfg.per_point.accel_spectrum)
+                cfg.per_point.accel_spectrum = struct();
+            end
+            safe_id = strrep(pid, '-', '_');
+            cfg.per_point.accel_spectrum.(safe_id) = struct( ...
+                'target_freqs', [1.2, 2.4], ...
+                'tolerance', 0.2, ...
+                'theor_freqs', [1.1, 2.2], ...
+                'theor_labels', ["理论一阶 1.1Hz", "理论二阶 2.2Hz"] ...
+            );
+
+            excelPath = fullfile(root, 'accel_spec_stats_test_point.xlsx');
+            analyze_accel_spectrum_points(root, '2026-01-01', '2026-01-01', ...
+                {pid}, excelPath, '', [9.9], 0.01, false, cfg);
+
+            testCase.verifyTrue(exist(excelPath, 'file') == 2);
+            T = readtable(excelPath, 'Sheet', pid, 'VariableNamingRule', 'preserve');
+            vars = string(T.Properties.VariableNames);
+            testCase.verifyTrue(any(vars == "Freq_1.200Hz"));
+            testCase.verifyTrue(any(vars == "Freq_2.400Hz"));
+            testCase.verifyFalse(any(vars == "Freq_9.900Hz"));
+        end
+
 
         function test_acceleration_timeseries_pipeline(testCase)
             cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));

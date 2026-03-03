@@ -49,11 +49,7 @@
     Nday      = numel(dates_all);
 
     nPts  = numel(point_ids);
-    nFreq = numel(target_freqs);
     [theor_freqs, theor_labels] = get_spec_theor(cfg);
-
-    peakAmpMat   = NaN(Nday,nFreq,nPts);
-    peakFreqMat  = NaN(Nday,nFreq,nPts);
 
     if use_parallel
         p = gcp('nocreate'); if isempty(p), parpool('local'); end
@@ -62,33 +58,33 @@
     for ii = 1:nPts
         pid = point_ids{ii};
         fprintf('\n---- 测点 %s ----\n', pid);
+        [target_freqs_pt, tolerance_pt, theor_freqs_pt, theor_labels_pt] = ...
+            get_spec_param_for_point(cfg, pid, target_freqs, tolerance, theor_freqs, theor_labels);
+        nFreq = numel(target_freqs_pt);
         ampDay  = NaN(Nday,nFreq);
         freqDay = NaN(Nday,nFreq);
 
         if use_parallel
             parfor di = 1:Nday
-                [ampDay(di,:), freqDay(di,:)] = process_one_day(dates_all(di), pid, root_dir, subfolder, target_freqs, tolerance, psdRoot, style, cfg);
+                [ampDay(di,:), freqDay(di,:)] = process_one_day(dates_all(di), pid, root_dir, subfolder, target_freqs_pt, tolerance_pt, psdRoot, style, cfg);
             end
         else
             for di = 1:Nday
-                [ampDay(di,:), freqDay(di,:)] = process_one_day(dates_all(di), pid, root_dir, subfolder, target_freqs, tolerance, psdRoot, style, cfg);
+                [ampDay(di,:), freqDay(di,:)] = process_one_day(dates_all(di), pid, root_dir, subfolder, target_freqs_pt, tolerance_pt, psdRoot, style, cfg);
             end
         end
 
-        peakAmpMat(:,:, ii)  = ampDay;
-        peakFreqMat(:,:,ii)  = freqDay;
-
         % 写 Excel（每个测点一个 Sheet）
         dateCol = dates_all(:);
-        freqTbl = array2table( peakFreqMat(:,:,ii), ...
-                   'VariableNames', compose('Freq_%0.3fHz',target_freqs));
-        ampTbl  = array2table( peakAmpMat(:,:,ii), ...
-                   'VariableNames', compose('Amp_%0.3fHz', target_freqs));
+        freqTbl = array2table(freqDay, ...
+                   'VariableNames', compose('Freq_%0.3fHz',target_freqs_pt));
+        ampTbl  = array2table(ampDay, ...
+                   'VariableNames', compose('Amp_%0.3fHz', target_freqs_pt));
         T = [table(dateCol,'VariableNames',{'Date'}) , freqTbl , ampTbl];
         writetable(T, excel_file,'Sheet',point_ids{ii});
 
         % 绘制峰值频率时程
-        plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, style, theor_freqs, theor_labels);
+        plot_freq_timeseries(dates_all, freqDay, pid, target_freqs_pt, outDirFig, style, theor_freqs_pt, theor_labels_pt);
     end
     fprintf('✓ 已输出 Excel -> %s\n', excel_file);
 end
@@ -149,6 +145,62 @@ function [freqs, labels] = get_spec_theor(cfg)
         ps = cfg.accel_spectrum_params;
         if isfield(ps, 'theor_freqs'), freqs = ps.theor_freqs; end
         if isfield(ps, 'theor_labels'), labels = ps.theor_labels; end
+    end
+end
+
+function [freqs, tol, theor_freqs, theor_labels] = get_spec_param_for_point(cfg, pid, default_freqs, default_tol, default_theor_freqs, default_theor_labels)
+    freqs = default_freqs;
+    tol = default_tol;
+    theor_freqs = default_theor_freqs;
+    theor_labels = default_theor_labels;
+
+    if ~isfield(cfg,'per_point') || ~isstruct(cfg.per_point) || ...
+            ~isfield(cfg.per_point,'accel_spectrum') || ~isstruct(cfg.per_point.accel_spectrum)
+        theor_labels = normalize_theor_labels(theor_labels, theor_freqs);
+        return;
+    end
+
+    safe_pid = strrep(pid, '-', '_');
+    pt = [];
+    if isfield(cfg.per_point.accel_spectrum, pid)
+        pt = cfg.per_point.accel_spectrum.(pid);
+    elseif isfield(cfg.per_point.accel_spectrum, safe_pid)
+        pt = cfg.per_point.accel_spectrum.(safe_pid);
+    end
+    if isempty(pt) || ~isstruct(pt)
+        theor_labels = normalize_theor_labels(theor_labels, theor_freqs);
+        return;
+    end
+
+    if isfield(pt,'target_freqs') && ~isempty(pt.target_freqs)
+        freqs = pt.target_freqs;
+    end
+    if isfield(pt,'tolerance') && ~isempty(pt.tolerance)
+        tol = pt.tolerance;
+    end
+    if isfield(pt,'theor_freqs') && ~isempty(pt.theor_freqs)
+        theor_freqs = pt.theor_freqs;
+    end
+    if isfield(pt,'theor_labels') && ~isempty(pt.theor_labels)
+        theor_labels = pt.theor_labels;
+    end
+    theor_labels = normalize_theor_labels(theor_labels, theor_freqs);
+end
+
+function labels = normalize_theor_labels(labels, freqs)
+    if isempty(freqs)
+        labels = {};
+        return;
+    end
+    if isstring(labels)
+        labels = cellstr(labels(:));
+    elseif ischar(labels)
+        labels = {labels};
+    elseif ~iscell(labels)
+        labels = {};
+    end
+    if numel(labels) ~= numel(freqs)
+        labels = arrayfun(@(f) sprintf('理论频率 %.3fHz', f), freqs(:), 'UniformOutput', false);
     end
 end
 

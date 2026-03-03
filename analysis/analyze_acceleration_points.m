@@ -95,16 +95,19 @@ function style = get_style(cfg, key)
     style = struct('ylabel','主梁竖向振动加速度 (mm/s^2)', ...
                    'title_prefix','加速度时程', ...
                    'ylim', [], ...
+                   'ylims', [], ...
                    'color_main',[0 0.447 0.741], ...
                    'color_rms',[0.8500 0.3250 0.0980], ...
                    'rms_ylabel','10 min RMS (mm/s^2)', ...
                    'rms_title_prefix','10 min RMS 时程', ...
-                   'rms_ylim', []);
+                   'rms_ylim', [], ...
+                   'rms_ylims', []);
     if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,key)
         ps = cfg.plot_styles.(key);
         if isfield(ps,'ylabel'), style.ylabel = ps.ylabel; end
         if isfield(ps,'title_prefix'), style.title_prefix = ps.title_prefix; end
         if isfield(ps,'ylim'), style.ylim = ps.ylim; end
+        if isfield(ps,'ylims'), style.ylims = ps.ylims; end
         if isfield(ps,'colors') && numel(ps.colors)>=1
             c = ps.colors;
             if isnumeric(c) && size(c,2)==3
@@ -117,8 +120,10 @@ function style = get_style(cfg, key)
             if isfield(r,'ylabel'), style.rms_ylabel = r.ylabel; end
             if isfield(r,'title_prefix'), style.rms_title_prefix = r.title_prefix; end
             if isfield(r,'ylim'), style.rms_ylim = r.ylim; end
+            if isfield(r,'ylims'), style.rms_ylims = r.ylims; end
             if isfield(r,'color'), style.color_rms = r.color; end
         end
+        if isfield(ps,'rms_ylims'), style.rms_ylims = ps.rms_ylims; end
     end
 end
 
@@ -129,9 +134,19 @@ plot(times, vals, 'LineWidth',1, 'Color', style.color_main);
 xlabel('时间');
 ylabel(style.ylabel);
 if ~isempty(style.ylim)
-    ylim(style.ylim);
+    yl = resolve_point_ylim(style.ylims, pid, style.ylim);
+    if is_valid_ylim(yl)
+        ylim(yl);
+    else
+        ylim(style.ylim);
+    end
 else
-    ylim auto;
+    yl = resolve_point_ylim(style.ylims, pid, []);
+    if is_valid_ylim(yl)
+        ylim(yl);
+    else
+        ylim auto;
+    end
 end
 hold on;
 h1 = yline(mx, '--r'); h1.Label = sprintf('最大值 %.3f', mx);
@@ -174,7 +189,10 @@ end
 fig = figure('Position',[100 100 1000 469]);
 plot(times, rms_series, 'LineWidth', 1.2, 'Color', style.color_rms);
 xlabel('时间'); ylabel(style.rms_ylabel);
-if ~isempty(style.rms_ylim)
+yl_rms = resolve_point_ylim(style.rms_ylims, pid, style.rms_ylim);
+if is_valid_ylim(yl_rms)
+    ylim(yl_rms);
+elseif ~isempty(style.rms_ylim)
     ylim(style.rms_ylim);
 else
     ylim auto;
@@ -220,4 +238,49 @@ saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
 saveas(fig, fullfile(out, [fname '_' ts '.emf']));
 savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
 close(fig);
+end
+
+function yl = resolve_point_ylim(ylims, pid, default_ylim)
+yl = default_ylim;
+if isempty(ylims) || isempty(pid)
+    return;
+end
+safe_pid = strrep(pid, '-', '_');
+
+if isstruct(ylims)
+    if isfield(ylims, pid)
+        yl = ylims.(pid);
+        return;
+    end
+    if isfield(ylims, safe_pid)
+        yl = ylims.(safe_pid);
+        return;
+    end
+    if isfield(ylims, 'name') && isfield(ylims, 'ylim')
+        for i = 1:numel(ylims)
+            nm = string(ylims(i).name);
+            if strcmp(nm, string(pid)) || strcmp(nm, string(safe_pid))
+                yl = ylims(i).ylim;
+                return;
+            end
+        end
+    end
+end
+
+if iscell(ylims)
+    for i = 1:numel(ylims)
+        item = ylims{i};
+        if isstruct(item) && isfield(item,'name') && isfield(item,'ylim')
+            nm = string(item.name);
+            if strcmp(nm, string(pid)) || strcmp(nm, string(safe_pid))
+                yl = item.ylim;
+                return;
+            end
+        end
+    end
+end
+end
+
+function ok = is_valid_ylim(v)
+ok = isnumeric(v) && numel(v)==2 && all(isfinite(v)) && v(2) > v(1);
 end
