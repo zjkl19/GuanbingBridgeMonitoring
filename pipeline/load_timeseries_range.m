@@ -37,25 +37,42 @@ function [times, vals, meta] = load_timeseries_range(root_dir, subfolder, point_
     rules = build_rules(cfg, sensor_type, point_id);
     meta.applied_rules = rules;
 
-    for i = 1:numel(date_list)
-        day = date_list{i};
-        day_meta = struct('day', day, 'range', range);
-        if isfield(loader, 'get_day_dir')
-            [dirp, day_meta] = loader.get_day_dir(root_dir, day, subfolder, sensor_type, day_meta);
-            if isempty(dirp), continue; end
-        else
-            dirp = fullfile(root_dir, day, subfolder);
-            if ~exist(dirp, 'dir'), continue; end
+    used_range_loader = false;
+    if isfield(loader, 'read_range') && isa(loader.read_range, 'function_handle')
+        [t, v, used, files] = loader.read_range(root_dir, subfolder, point_id, sensor_type, range);
+        if used
+            used_range_loader = true;
+            if ~isempty(files)
+                meta.files = files;
+            end
+            if ~isempty(v)
+                all_t = [all_t; t]; %#ok<AGROW>
+                all_v = [all_v; v]; %#ok<AGROW>
+            end
         end
+    end
 
-        fp = loader.find_file(dirp, point_id, sensor_type, day, day_meta);
-        if isempty(fp), continue; end
+    if ~used_range_loader
+        for i = 1:numel(date_list)
+            day = date_list{i};
+            day_meta = struct('day', day, 'range', range);
+            if isfield(loader, 'get_day_dir')
+                [dirp, day_meta] = loader.get_day_dir(root_dir, day, subfolder, sensor_type, day_meta);
+                if isempty(dirp), continue; end
+            else
+                dirp = fullfile(root_dir, day, subfolder);
+                if ~exist(dirp, 'dir'), continue; end
+            end
 
-        [t, v] = loader.read_file(fp, sensor_type, point_id, day, day_meta);
-        if isempty(v), continue; end
-        meta.files{end+1} = fp; %#ok<AGROW>
-        all_t = [all_t; t]; %#ok<AGROW>
-        all_v = [all_v; v]; %#ok<AGROW>
+            fp = loader.find_file(dirp, point_id, sensor_type, day, day_meta);
+            if isempty(fp), continue; end
+
+            [t, v] = loader.read_file(fp, sensor_type, point_id, day, day_meta);
+            if isempty(v), continue; end
+            meta.files{end+1} = fp; %#ok<AGROW>
+            all_t = [all_t; t]; %#ok<AGROW>
+            all_v = [all_v; v]; %#ok<AGROW>
+        end
     end
 
     if isempty(all_t)
@@ -95,6 +112,8 @@ function loader = get_vendor_loader(cfg)
     switch vendor
         case {'donghua'}
             loader = make_donghua_loader(cfg);
+        case {'hongtang'}
+            loader = make_hongtang_loader(cfg);
         case {'jiulongjiang','jiulong'}
             loader = make_jiulongjiang_loader(cfg);
         otherwise
@@ -107,11 +126,340 @@ function loader = make_donghua_loader(cfg)
     loader.read_file = @(fp, sensor_type, varargin) load_single_file(fp, cfg.defaults.header_marker); %#ok<NASGU>
 end
 
+function loader = make_hongtang_loader(cfg)
+    loader = make_donghua_loader(cfg);
+    loader.read_range = @(root_dir, subfolder, point_id, sensor_type, range) ...
+        hongtang_read_range(root_dir, subfolder, point_id, sensor_type, range, cfg);
+end
+
 function loader = make_jiulongjiang_loader(cfg)
     adapter = get_jlj_adapter(cfg);
     loader.get_day_dir = @(root_dir, day, subfolder, sensor_type, meta) jlj_get_day_dir(root_dir, day, adapter, meta);
     loader.find_file = @(dirp, point_id, sensor_type, varargin) jlj_find_file(dirp, point_id);
     loader.read_file = @(fp, sensor_type, point_id, varargin) jlj_read_file(fp, sensor_type, point_id, adapter, varargin{:});
+end
+
+function [t, v, used, files] = hongtang_read_range(root_dir, ~, point_id, sensor_type, range, cfg)
+    t = [];
+    v = [];
+    used = false;
+    files = {};
+
+    if ~strcmpi(sensor_type, 'bearing_displacement')
+        return;
+    end
+
+    adapter = get_hongtang_lowfreq_adapter(cfg);
+    if ~adapter.enabled
+        return;
+    end
+
+    xlsx_path = resolve_hongtang_lowfreq_file(root_dir, adapter.file);
+    if isempty(xlsx_path) || ~exist(xlsx_path, 'file')
+        return;
+    end
+
+    used = true;
+    files = {xlsx_path};
+    [t, v] = read_hongtang_lowfreq_series(xlsx_path, point_id, adapter);
+    if isempty(t) || isempty(v)
+        return;
+    end
+
+    if ~isempty(range) && isfield(range, 'start') && isfield(range, 'end')
+        mask = t >= range.start & t < range.end;
+        t = t(mask);
+        v = v(mask);
+    end
+end
+
+function adapter = get_hongtang_lowfreq_adapter(cfg)
+    adapter = struct();
+    if isfield(cfg, 'data_adapter') && isstruct(cfg.data_adapter)
+        if isfield(cfg.data_adapter, 'hongtang_lowfreq') && isstruct(cfg.data_adapter.hongtang_lowfreq)
+            adapter = cfg.data_adapter.hongtang_lowfreq;
+        elseif isfield(cfg.data_adapter, 'lowfreq') && isstruct(cfg.data_adapter.lowfreq)
+            adapter = cfg.data_adapter.lowfreq;
+        end
+    end
+
+    adapter.enabled = get_field_default(adapter, 'enabled', false);
+    adapter.file = get_field_default(adapter, 'file', fullfile('lowfreq', 'data.xlsx'));
+    adapter.sheet = get_field_default(adapter, 'sheet', 'auto_first_non_empty');
+    adapter.time_column = get_field_default(adapter, 'time_column', 'SamplingTime');
+    adapter.missing_tokens = get_field_default(adapter, 'missing_tokens', {'--', ''});
+    adapter.abs_max_valid = get_field_default(adapter, 'abs_max_valid', 500);
+
+    if ~isfield(adapter, 'cache') || ~isstruct(adapter.cache)
+        adapter.cache = struct();
+    end
+    adapter.cache.enabled = get_field_default(adapter.cache, 'enabled', true);
+    adapter.cache.dir = get_field_default(adapter.cache, 'dir', 'cache');
+    adapter.cache.validate = get_field_default(adapter.cache, 'validate', 'mtime_size');
+end
+
+function p = resolve_hongtang_lowfreq_file(root_dir, p)
+    if isempty(p), return; end
+    if isstring(p), p = char(p); end
+    if ~ischar(p), p = ''; return; end
+    if ~isabsolute(p)
+        p = fullfile(root_dir, p);
+    end
+end
+
+function [t, v] = read_hongtang_lowfreq_series(xlsx_path, point_id, adapter)
+    t = [];
+    v = [];
+
+    cache_path = make_hongtang_cache_file(xlsx_path, point_id, adapter);
+    if ~isempty(cache_path) && can_use_hongtang_cache(cache_path, xlsx_path, adapter.cache.validate)
+        S = load(cache_path, 'times', 'vals');
+        if isfield(S, 'times') && isfield(S, 'vals')
+            t = S.times;
+            v = S.vals;
+            return;
+        end
+    end
+
+    [T, time_col] = read_hongtang_lowfreq_table_cached(xlsx_path, adapter);
+    if isempty(T) || isempty(time_col)
+        return;
+    end
+
+    point_col = pick_column_case_sensitive(T.Properties.VariableNames, point_id);
+    if isempty(point_col)
+        return;
+    end
+
+    t = parse_hongtang_time(T.(time_col));
+    v = to_hongtang_numeric(T.(point_col), adapter.missing_tokens);
+    valid_t = ~isnat(t);
+    t = t(valid_t);
+    v = v(valid_t);
+
+    max_abs = adapter.abs_max_valid;
+    if isnumeric(max_abs) && isscalar(max_abs) && isfinite(max_abs) && max_abs > 0
+        v(abs(v) > max_abs) = NaN;
+    end
+
+    if ~isempty(cache_path)
+        times = t; %#ok<NASGU>
+        vals = v; %#ok<NASGU>
+        meta = struct('mtime', file_mtime(xlsx_path), 'size', file_size(xlsx_path)); %#ok<NASGU>
+        save(cache_path, 'times', 'vals', 'meta');
+    end
+end
+
+function [T, time_col] = read_hongtang_lowfreq_table_cached(xlsx_path, adapter)
+    T = table();
+    time_col = '';
+
+    persistent wb_cache
+    if isempty(wb_cache)
+        wb_cache = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    end
+
+    sheet = pick_hongtang_sheet(xlsx_path, adapter);
+    if isempty(sheet)
+        return;
+    end
+
+    key = sprintf('%s|%.12f|%d|%s', xlsx_path, file_mtime(xlsx_path), file_size(xlsx_path), sheet);
+    if isKey(wb_cache, key)
+        S = wb_cache(key);
+        T = S.T;
+        time_col = S.time_col;
+        return;
+    end
+
+    T = readtable(xlsx_path, 'Sheet', sheet, 'VariableNamingRule', 'preserve', 'TextType', 'string');
+    if isempty(T)
+        return;
+    end
+
+    time_col = pick_column_case_sensitive(T.Properties.VariableNames, adapter.time_column);
+    if isempty(time_col)
+        return;
+    end
+
+    wb_cache(key) = struct('T', T, 'time_col', time_col);
+end
+
+function sheet = pick_hongtang_sheet(xlsx_path, adapter)
+    sheet = '';
+    s = adapter.sheet;
+    if isstring(s), s = char(s); end
+    if ischar(s) && ~isempty(s) && ~strcmpi(s, 'auto_first_non_empty')
+        sheet = s;
+        return;
+    end
+
+    names = sheetnames(xlsx_path);
+    for i = 1:numel(names)
+        try
+            C = readcell(xlsx_path, 'Sheet', names{i}, 'Range', 'A1:C5');
+            if any(cellfun(@is_nonempty_cell_value, C(:)))
+                sheet = names{i};
+                return;
+            end
+        catch
+            % try next sheet
+        end
+    end
+    if ~isempty(names)
+        sheet = names{1};
+    end
+end
+
+function tf = is_nonempty_cell_value(x)
+    tf = false;
+    if isempty(x)
+        return;
+    end
+    if isnumeric(x) && isscalar(x) && isnan(x)
+        return;
+    end
+    if isstring(x)
+        if ismissing(x)
+            return;
+        end
+        tf = strlength(strtrim(x)) > 0;
+        return;
+    end
+    if ischar(x)
+        tf = ~isempty(strtrim(x));
+        return;
+    end
+    tf = true;
+end
+
+function name = pick_column_case_sensitive(vars, target)
+    name = '';
+    if isstring(target), target = char(target); end
+    if ~ischar(target) || isempty(target) || isempty(vars)
+        return;
+    end
+    idx = find(strcmp(vars, target), 1);
+    if isempty(idx)
+        idx = find(strcmpi(vars, target), 1);
+    end
+    if ~isempty(idx)
+        name = vars{idx};
+    end
+end
+
+function t = parse_hongtang_time(raw)
+    if isdatetime(raw)
+        t = raw;
+        return;
+    end
+    if isnumeric(raw)
+        t = datetime(raw, 'ConvertFrom', 'excel');
+        return;
+    end
+
+    s = strtrim(strrep(string(raw), '"', ''));
+    fmts = {'yyyy-MM-dd HH:mm:ss.SSS', 'yyyy-MM-dd HH:mm:ss'};
+    t = NaT(size(s));
+    for i = 1:numel(fmts)
+        try
+            tt = datetime(s, 'InputFormat', fmts{i});
+            bad = isnat(t) & ~isnat(tt);
+            t(bad) = tt(bad);
+        catch
+            % keep trying
+        end
+    end
+end
+
+function v = to_hongtang_numeric(raw, missing_tokens)
+    if isnumeric(raw)
+        v = double(raw);
+        return;
+    end
+    s = strtrim(strrep(string(raw), '"', ''));
+    miss = false(size(s));
+    for i = 1:numel(s)
+        miss(i) = ismissing_token(s(i), missing_tokens);
+    end
+    v = str2double(s);
+    v(miss) = NaN;
+end
+
+function tf = ismissing_token(s, tokens)
+    tf = strlength(s) == 0;
+    if tf, return; end
+    if ischar(tokens) || isstring(tokens)
+        tokens = cellstr(tokens);
+    end
+    if ~iscell(tokens)
+        return;
+    end
+    for i = 1:numel(tokens)
+        tok = string(tokens{i});
+        if s == tok
+            tf = true;
+            return;
+        end
+    end
+end
+
+function cache_path = make_hongtang_cache_file(xlsx_path, point_id, adapter)
+    cache_path = '';
+    if ~adapter.cache.enabled
+        return;
+    end
+    cache_dir = adapter.cache.dir;
+    if isstring(cache_dir), cache_dir = char(cache_dir); end
+    if isempty(cache_dir) || ~ischar(cache_dir)
+        return;
+    end
+    if ~isabsolute(cache_dir)
+        cache_dir = fullfile(fileparts(xlsx_path), cache_dir);
+    end
+    if ~exist(cache_dir, 'dir')
+        mkdir(cache_dir);
+    end
+    [~, fn, ~] = fileparts(xlsx_path);
+    cache_path = fullfile(cache_dir, sprintf('%s__%s.mat', sanitize_cache_name(fn), sanitize_cache_name(point_id)));
+end
+
+function ok = can_use_hongtang_cache(cache_path, src_path, validate_mode)
+    ok = false;
+    if ~exist(cache_path, 'file')
+        return;
+    end
+    if strcmpi(validate_mode, 'none')
+        ok = true;
+        return;
+    end
+
+    src_mtime = file_mtime(src_path);
+    src_size = file_size(src_path);
+    mat_mtime = file_mtime(cache_path);
+    if strcmpi(validate_mode, 'mtime')
+        ok = mat_mtime > src_mtime;
+        return;
+    end
+    if strcmpi(validate_mode, 'mtime_size')
+        try
+            S = load(cache_path, 'meta');
+            if isfield(S, 'meta') && isstruct(S.meta) && ...
+                    isfield(S.meta, 'mtime') && isfield(S.meta, 'size')
+                ok = (S.meta.mtime == src_mtime) && (S.meta.size == src_size);
+                return;
+            end
+        catch
+            ok = false;
+        end
+    end
+    ok = mat_mtime > src_mtime;
+end
+
+function s = sanitize_cache_name(s)
+    if isstring(s), s = char(s); end
+    if ~ischar(s), s = 'cache'; end
+    s = regexprep(s, '[^\w\-]', '_');
 end
 
 % -------------------------------------------------------------------------

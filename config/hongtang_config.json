@@ -10,6 +10,24 @@
     "on_error": true,
     "mode": "beep"
   },
+  "data_adapter": {
+    "hongtang_lowfreq": {
+      "enabled": true,
+      "file": "lowfreq/data.xlsx",
+      "sheet": "auto_first_non_empty",
+      "time_column": "SamplingTime",
+      "missing_tokens": [
+        "--",
+        ""
+      ],
+      "abs_max_valid": 500,
+      "cache": {
+        "enabled": true,
+        "dir": "cache",
+        "validate": "mtime_size"
+      }
+    }
+  },
   "defaults": {
     "header_marker": "[绝对时间]",
     "deflection": {
@@ -941,7 +959,18 @@
       "W1",
       "W2"
     ],
-    "bearing_displacement": [],
+    "bearing_displacement": [
+      "Z11-1",
+      "Z11-2",
+      "Z12-1",
+      "Z12-2",
+      "Z13-1",
+      "Z13-2",
+      "Z14-1",
+      "Z14-2",
+      "Z15-1",
+      "Z15-2"
+    ],
     "acceleration": [
       "A1",
       "A2",
