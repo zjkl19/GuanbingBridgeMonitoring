@@ -145,11 +145,10 @@ function [t, v, used, files] = hongtang_read_range(root_dir, ~, point_id, sensor
     used = false;
     files = {};
 
-    if ~strcmpi(sensor_type, 'bearing_displacement')
+    adapter = get_hongtang_lowfreq_adapter(cfg);
+    if ~hongtang_lowfreq_supports_sensor(adapter, sensor_type)
         return;
     end
-
-    adapter = get_hongtang_lowfreq_adapter(cfg);
     if ~adapter.enabled
         return;
     end
@@ -187,6 +186,7 @@ function adapter = get_hongtang_lowfreq_adapter(cfg)
     adapter.file = get_field_default(adapter, 'file', fullfile('lowfreq', 'data.xlsx'));
     adapter.sheet = get_field_default(adapter, 'sheet', 'auto_first_non_empty');
     adapter.time_column = get_field_default(adapter, 'time_column', 'SamplingTime');
+    adapter.sensor_types = get_field_default(adapter, 'sensor_types', {'bearing_displacement'});
     adapter.missing_tokens = get_field_default(adapter, 'missing_tokens', {'--', ''});
     adapter.abs_max_valid = get_field_default(adapter, 'abs_max_valid', 500);
 
@@ -196,6 +196,21 @@ function adapter = get_hongtang_lowfreq_adapter(cfg)
     adapter.cache.enabled = get_field_default(adapter.cache, 'enabled', true);
     adapter.cache.dir = get_field_default(adapter.cache, 'dir', 'cache');
     adapter.cache.validate = get_field_default(adapter.cache, 'validate', 'mtime_size');
+end
+
+function tf = hongtang_lowfreq_supports_sensor(adapter, sensor_type)
+    tf = false;
+    if isempty(adapter) || ~isstruct(adapter) || ~isfield(adapter, 'enabled') || ~adapter.enabled
+        return;
+    end
+    types = adapter.sensor_types;
+    if ischar(types) || isstring(types)
+        types = cellstr(string(types));
+    end
+    if ~iscell(types)
+        return;
+    end
+    tf = any(strcmpi(types, sensor_type)) || any(strcmpi(types, 'all'));
 end
 
 function p = resolve_hongtang_lowfreq_file(root_dir, p)

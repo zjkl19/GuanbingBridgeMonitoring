@@ -25,7 +25,12 @@
         "enabled": true,
         "dir": "cache",
         "validate": "mtime_size"
-      }
+      },
+      "sensor_types": [
+        "bearing_displacement",
+        "tilt",
+        "strain"
+      ]
     }
   },
   "defaults": {
@@ -1100,6 +1105,894 @@
           5.85
         ]
       }
+    },
+    "tilt": {
+      "Q1_Z": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -0.038,
+            0.038
+          ],
+          "level3": [
+            -0.057,
+            0.057
+          ]
+        }
+      },
+      "Q1_H": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -0.038,
+            0.038
+          ],
+          "level3": [
+            -0.057,
+            0.057
+          ]
+        }
+      },
+      "Q2_Z": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -0.038,
+            0.038
+          ],
+          "level3": [
+            -0.057,
+            0.057
+          ]
+        }
+      },
+      "Q2_H": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -0.038,
+            0.038
+          ],
+          "level3": [
+            -0.057,
+            0.057
+          ]
+        }
+      }
+    },
+    "strain": {
+      "SB_1": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SB_2": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SB_3": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SB_4": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SB_5": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -193,
+            107
+          ],
+          "level3": [
+            -290,
+            160
+          ]
+        }
+      },
+      "SB_6": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -193,
+            107
+          ],
+          "level3": [
+            -290,
+            160
+          ]
+        }
+      },
+      "SC_1": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SC_2": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SC_3": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SC_4": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SC_5": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -115,
+            88
+          ],
+          "level3": [
+            -172,
+            132
+          ]
+        }
+      },
+      "SC_6": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -115,
+            88
+          ],
+          "level3": [
+            -172,
+            132
+          ]
+        }
+      },
+      "SD_1": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SD_2": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SD_3": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SD_4": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SD_5": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -81,
+            272
+          ],
+          "level3": [
+            -121,
+            408
+          ]
+        }
+      },
+      "SD_6": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -81,
+            272
+          ],
+          "level3": [
+            -121,
+            408
+          ]
+        }
+      },
+      "SE_1": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            149
+          ],
+          "level3": [
+            -188,
+            223
+          ]
+        }
+      },
+      "SE_2": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            149
+          ],
+          "level3": [
+            -188,
+            223
+          ]
+        }
+      },
+      "SE_3": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            149
+          ],
+          "level3": [
+            -188,
+            223
+          ]
+        }
+      },
+      "SE_4": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            149
+          ],
+          "level3": [
+            -188,
+            223
+          ]
+        }
+      },
+      "SE_5": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -164,
+            149
+          ],
+          "level3": [
+            -247,
+            223
+          ]
+        }
+      },
+      "SE_6": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -164,
+            149
+          ],
+          "level3": [
+            -247,
+            223
+          ]
+        }
+      },
+      "SF_1": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SF_2": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SF_3": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SF_4": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SF_5": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -81,
+            272
+          ],
+          "level3": [
+            -121,
+            408
+          ]
+        }
+      },
+      "SF_6": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -81,
+            272
+          ],
+          "level3": [
+            -121,
+            408
+          ]
+        }
+      },
+      "SG_1": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SG_2": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SG_3": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SG_4": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SG_5": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -115,
+            88
+          ],
+          "level3": [
+            -172,
+            132
+          ]
+        }
+      },
+      "SG_6": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -115,
+            88
+          ],
+          "level3": [
+            -172,
+            132
+          ]
+        }
+      },
+      "SH_1": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SH_2": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SH_3": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SH_4": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SH_5": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -193,
+            107
+          ],
+          "level3": [
+            -290,
+            160
+          ]
+        }
+      },
+      "SH_6": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -193,
+            107
+          ],
+          "level3": [
+            -290,
+            160
+          ]
+        }
+      },
+      "SL_1": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            44
+          ],
+          "level3": [
+            -204,
+            66
+          ]
+        }
+      },
+      "SL_2": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            37
+          ],
+          "level3": [
+            -204,
+            56
+          ]
+        }
+      },
+      "SL_3": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            66
+          ],
+          "level3": [
+            -204,
+            98
+          ]
+        }
+      },
+      "SL_4": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            72
+          ],
+          "level3": [
+            -204,
+            108
+          ]
+        }
+      },
+      "SL_5": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            66
+          ],
+          "level3": [
+            -204,
+            98
+          ]
+        }
+      },
+      "SL_6": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            44
+          ],
+          "level3": [
+            -204,
+            66
+          ]
+        }
+      },
+      "SL_7": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            37
+          ],
+          "level3": [
+            -204,
+            56
+          ]
+        }
+      },
+      "SL_8": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            66
+          ],
+          "level3": [
+            -204,
+            98
+          ]
+        }
+      },
+      "SL_9": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            72
+          ],
+          "level3": [
+            -204,
+            108
+          ]
+        }
+      },
+      "SL_10": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            66
+          ],
+          "level3": [
+            -204,
+            98
+          ]
+        }
+      },
+      "SK_1": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            37
+          ],
+          "level3": [
+            -204,
+            55
+          ]
+        }
+      },
+      "SK_2": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            31
+          ],
+          "level3": [
+            -204,
+            47
+          ]
+        }
+      },
+      "SK_3": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            31
+          ],
+          "level3": [
+            -204,
+            46
+          ]
+        }
+      },
+      "SK_4": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            41
+          ],
+          "level3": [
+            -204,
+            61
+          ]
+        }
+      },
+      "SK_5": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            46
+          ],
+          "level3": [
+            -204,
+            69
+          ]
+        }
+      },
+      "SK_6": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            42
+          ],
+          "level3": [
+            -204,
+            62
+          ]
+        }
+      },
+      "SK_7": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            37
+          ],
+          "level3": [
+            -204,
+            55
+          ]
+        }
+      },
+      "SK_8": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            31
+          ],
+          "level3": [
+            -204,
+            47
+          ]
+        }
+      },
+      "SK_9": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            31
+          ],
+          "level3": [
+            -204,
+            46
+          ]
+        }
+      },
+      "SK_10": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            41
+          ],
+          "level3": [
+            -204,
+            61
+          ]
+        }
+      },
+      "SK_11": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            46
+          ],
+          "level3": [
+            -204,
+            69
+          ]
+        }
+      },
+      "SK_12": {
+        "thresholds": [],
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            42
+          ],
+          "level3": [
+            -204,
+            62
+          ]
+        }
+      }
     }
   },
   "subfolders": {
@@ -1345,6 +2238,78 @@
       "EQ-X",
       "EQ-Y",
       "EQ-Z"
+    ],
+    "tilt": [
+      "Q1-Z",
+      "Q1-H",
+      "Q2-Z",
+      "Q2-H"
+    ],
+    "strain": [
+      "SB-1",
+      "SB-2",
+      "SB-3",
+      "SB-4",
+      "SB-5",
+      "SB-6",
+      "SC-1",
+      "SC-2",
+      "SC-3",
+      "SC-4",
+      "SC-5",
+      "SC-6",
+      "SD-1",
+      "SD-2",
+      "SD-3",
+      "SD-4",
+      "SD-5",
+      "SD-6",
+      "SE-1",
+      "SE-2",
+      "SE-3",
+      "SE-4",
+      "SE-5",
+      "SE-6",
+      "SF-1",
+      "SF-2",
+      "SF-3",
+      "SF-4",
+      "SF-5",
+      "SF-6",
+      "SG-1",
+      "SG-2",
+      "SG-3",
+      "SG-4",
+      "SG-5",
+      "SG-6",
+      "SH-1",
+      "SH-2",
+      "SH-3",
+      "SH-4",
+      "SH-5",
+      "SH-6",
+      "SL-1",
+      "SL-2",
+      "SL-3",
+      "SL-4",
+      "SL-5",
+      "SL-6",
+      "SL-7",
+      "SL-8",
+      "SL-9",
+      "SL-10",
+      "SK-1",
+      "SK-2",
+      "SK-3",
+      "SK-4",
+      "SK-5",
+      "SK-6",
+      "SK-7",
+      "SK-8",
+      "SK-9",
+      "SK-10",
+      "SK-11",
+      "SK-12"
     ]
   },
   "groups": {
@@ -1373,6 +2338,175 @@
       "C9": [
         "CS9",
         "CX9"
+      ]
+    },
+    "tilt": [],
+    "strain": {
+      "B": [
+        "SB-1",
+        "SB-2",
+        "SB-3",
+        "SB-4",
+        "SB-5",
+        "SB-6"
+      ],
+      "C": [
+        "SC-1",
+        "SC-2",
+        "SC-3",
+        "SC-4",
+        "SC-5",
+        "SC-6"
+      ],
+      "D": [
+        "SD-1",
+        "SD-2",
+        "SD-3",
+        "SD-4",
+        "SD-5",
+        "SD-6"
+      ],
+      "E": [
+        "SE-1",
+        "SE-2",
+        "SE-3",
+        "SE-4",
+        "SE-5",
+        "SE-6"
+      ],
+      "F": [
+        "SF-1",
+        "SF-2",
+        "SF-3",
+        "SF-4",
+        "SF-5",
+        "SF-6"
+      ],
+      "G": [
+        "SG-1",
+        "SG-2",
+        "SG-3",
+        "SG-4",
+        "SG-5",
+        "SG-6"
+      ],
+      "H": [
+        "SH-1",
+        "SH-2",
+        "SH-3",
+        "SH-4",
+        "SH-5",
+        "SH-6"
+      ],
+      "L": [
+        "SL-1",
+        "SL-2",
+        "SL-3",
+        "SL-4",
+        "SL-5",
+        "SL-6",
+        "SL-7",
+        "SL-8",
+        "SL-9",
+        "SL-10"
+      ],
+      "K": [
+        "SK-1",
+        "SK-2",
+        "SK-3",
+        "SK-4",
+        "SK-5",
+        "SK-6",
+        "SK-7",
+        "SK-8",
+        "SK-9",
+        "SK-10",
+        "SK-11",
+        "SK-12"
+      ]
+    },
+    "strain_timeseries": {
+      "B": [
+        "SB-1",
+        "SB-2",
+        "SB-3",
+        "SB-4",
+        "SB-5",
+        "SB-6"
+      ],
+      "C": [
+        "SC-1",
+        "SC-2",
+        "SC-3",
+        "SC-4",
+        "SC-5",
+        "SC-6"
+      ],
+      "D": [
+        "SD-1",
+        "SD-2",
+        "SD-3",
+        "SD-4",
+        "SD-5",
+        "SD-6"
+      ],
+      "E": [
+        "SE-1",
+        "SE-2",
+        "SE-3",
+        "SE-4",
+        "SE-5",
+        "SE-6"
+      ],
+      "F": [
+        "SF-1",
+        "SF-2",
+        "SF-3",
+        "SF-4",
+        "SF-5",
+        "SF-6"
+      ],
+      "G": [
+        "SG-1",
+        "SG-2",
+        "SG-3",
+        "SG-4",
+        "SG-5",
+        "SG-6"
+      ],
+      "H": [
+        "SH-1",
+        "SH-2",
+        "SH-3",
+        "SH-4",
+        "SH-5",
+        "SH-6"
+      ],
+      "L": [
+        "SL-1",
+        "SL-2",
+        "SL-3",
+        "SL-4",
+        "SL-5",
+        "SL-6",
+        "SL-7",
+        "SL-8",
+        "SL-9",
+        "SL-10"
+      ],
+      "K": [
+        "SK-1",
+        "SK-2",
+        "SK-3",
+        "SK-4",
+        "SK-5",
+        "SK-6",
+        "SK-7",
+        "SK-8",
+        "SK-9",
+        "SK-10",
+        "SK-11",
+        "SK-12"
       ]
     }
   },
@@ -1725,6 +2859,45 @@
         "series_dir": "地震动时程",
         "prefix": "EQ"
       }
+    },
+    "tilt": {
+      "alarm_colors": [
+        [
+          0.929,
+          0.694,
+          0.125
+        ],
+        [
+          0.85,
+          0.1,
+          0.1
+        ]
+      ],
+      "ylim_auto": true,
+      "ylabel": "倾斜 (°)",
+      "title_prefix": "倾斜时程",
+      "output_dir": "时程曲线_倾斜"
+    },
+    "strain": {
+      "alarm_colors": [
+        [
+          0.929,
+          0.694,
+          0.125
+        ],
+        [
+          0.85,
+          0.1,
+          0.1
+        ]
+      ],
+      "ylim_auto": true,
+      "ylabel": "主梁应变 (με)",
+      "title_prefix": "应变时程曲线",
+      "output_dir": "时程曲线_应变",
+      "boxplot_title_prefix": "应变箱线图",
+      "boxplot_output_dir": "箱线图_应变",
+      "group_output_dir": "时程曲线_应变_组图"
     }
   },
   "wind_params": {
