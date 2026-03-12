@@ -36,7 +36,7 @@
             subfolder  = '索力加速度';
         end
     end
-if nargin<7||isempty(target_freqs)
+    if nargin<7||isempty(target_freqs)
         target_freqs = get_cable_spec_param(cfg, 'target_freqs', [1.150 1.480 2.310]);
     end
     if nargin<8||isempty(tolerance)
@@ -52,6 +52,8 @@ if nargin<7||isempty(target_freqs)
     outDirForce = fullfile(root_dir,'索力时程图');
     if ~exist(outDirForce,'dir'), mkdir(outDirForce); end
 
+    outDirForceGroup = fullfile(root_dir,'索力时程图_组图');
+    if ~exist(outDirForceGroup,'dir'), mkdir(outDirForceGroup); end
 
     psdRoot = fullfile(root_dir,'PSD_备查_索力加速度');
     if ~exist(psdRoot,'dir'), mkdir(psdRoot); end
@@ -62,6 +64,9 @@ if nargin<7||isempty(target_freqs)
 
     nPts  = numel(point_ids);
     [theor_freqs, theor_labels] = get_cable_spec_theor(cfg);
+    force_groups = get_groups(cfg, 'cable_force');
+    force_series_all = cell(nPts, 1);
+    force_valid_all = false(nPts, 1);
 
     if use_parallel
         p = gcp('nocreate'); if isempty(p), parpool('local'); end
@@ -91,6 +96,9 @@ if nargin<7||isempty(target_freqs)
         [rho, L, force_decimals, has_params] = get_cable_params(cfg, pid);
         force_ylim = get_force_ylim(cfg, pid, style);
         forceSeries = compute_cable_force(freqDay(:,1), rho, L, force_decimals);
+        force_warn_lines = get_force_warn_lines(cfg, pid, style, '');
+        force_series_all{ii} = forceSeries;
+        force_valid_all(ii) = any(isfinite(forceSeries));
         if ~has_params
             warning('测点 %s 未配置 rho/L，索力将为 NaN', pid);
         end
@@ -107,7 +115,37 @@ if nargin<7||isempty(target_freqs)
 
         % 绘制峰值频率时程与索力时程
         plot_freq_timeseries(dates_all, freqDay, pid, pt_target_freqs, outDirFig, style, theor_freqs, theor_labels);
-        plot_force_timeseries(dates_all, forceSeries, pid, outDirForce, style, force_decimals, force_ylim);
+        plot_force_timeseries({dates_all}, {forceSeries}, {pid}, pid, outDirForce, style, force_ylim, {force_warn_lines});
+    end
+
+    group_names = fieldnames(force_groups);
+    for gi = 1:numel(group_names)
+        group_name = group_names{gi};
+        pid_list = normalize_points(force_groups.(group_name));
+        if isempty(pid_list)
+            continue;
+        end
+
+        force_list = {};
+        labels = {};
+        for pi = 1:numel(pid_list)
+            idx = find(strcmp(point_ids, pid_list{pi}), 1, 'first');
+            if isempty(idx) || ~force_valid_all(idx)
+                continue;
+            end
+            force_list{end+1,1} = force_series_all{idx}; %#ok<AGROW>
+            labels{end+1,1} = pid_list{pi}; %#ok<AGROW>
+        end
+        if isempty(labels)
+            continue;
+        end
+
+        warn_line_sets = cell(numel(labels), 1);
+        for pi = 1:numel(labels)
+            warn_line_sets{pi} = get_force_warn_lines(cfg, labels{pi}, style, labels{pi});
+        end
+        group_display_name = build_group_display_name(group_name, labels);
+        plot_force_timeseries(repmat({dates_all}, numel(labels), 1), force_list, labels, group_display_name, outDirForceGroup, style, [], warn_line_sets);
     end
 
     fprintf('✓ 已输出 Excel -> %s\n', excel_file);
@@ -117,8 +155,25 @@ function pts = get_points(cfg, key, fallback)
     pts = fallback;
     if isfield(cfg,'points') && isfield(cfg.points, key)
         val = cfg.points.(key);
-        if iscellstr(val) || (iscell(val) && all(cellfun(@ischar,val)))
+        if isstring(val)
+            pts = cellstr(val(:));
+        elseif iscell(val) && all(cellfun(@(x) ischar(x) || (isstring(x) && isscalar(x)), val(:)))
             pts = val;
+        end
+    end
+end
+
+function groups_cfg = get_groups(cfg, key)
+    groups_cfg = struct();
+    if ~isfield(cfg,'groups') || ~isfield(cfg.groups, key)
+        return;
+    end
+    val = cfg.groups.(key);
+    if isstruct(val)
+        groups_cfg = val;
+    elseif iscell(val)
+        for i = 1:numel(val)
+            groups_cfg.(sprintf('G%d', i)) = val{i};
         end
     end
 end
@@ -136,6 +191,7 @@ function style = get_style(cfg, key)
     style.force_title_prefix = '索力时程';
     style.force_color         = [0 0.447 0.741];
     style.force_ylim          = [];
+    style.force_alarm_colors  = [0.929 0.694 0.125; 0.85 0.1 0.1];
 
     if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,key)
         ps_all = cfg.plot_styles.(key);
@@ -149,6 +205,9 @@ function style = get_style(cfg, key)
         if isfield(ps,'force_title_prefix'), style.force_title_prefix = ps.force_title_prefix; end
         if isfield(ps,'force_color'), style.force_color = ps.force_color; end
         if isfield(ps,'force_ylim'), style.force_ylim = ps.force_ylim; end
+        if isfield(ps,'force_alarm_colors') && ~isempty(ps.force_alarm_colors)
+            style.force_alarm_colors = ps.force_alarm_colors;
+        end
         if isfield(ps,'colors')
             c = ps.colors;
             if isnumeric(c) && size(c,2)==3
@@ -395,36 +454,285 @@ function force = compute_cable_force(freqs, rho, L, decimals)
     end
 end
 
-function plot_force_timeseries(dates_all, forceSeries, pid, outDirForce, style, decimals, force_ylim)
-    if isempty(forceSeries) || all(isnan(forceSeries))
-        warning('测点 %s 索力全为 NaN，跳过绘图', pid);
+function plot_force_timeseries(times_list, force_list, labels, name_tag, out_dir, style, force_ylim, warn_line_sets)
+    valid = false(numel(force_list), 1);
+    for i = 1:numel(force_list)
+        valid(i) = ~isempty(force_list{i}) && any(isfinite(force_list{i}));
+    end
+    if ~any(valid)
+        warning('测点/组 %s 索力全为 NaN，跳过绘图', name_tag);
         return;
     end
+
     fig = figure('Visible','off','Position',[100 100 1000 470]);
-    plot(dates_all, forceSeries, 'LineWidth', 1.2, 'Color', style.force_color);
+    hold on;
+    colors = normalize_colors(style.colors);
+    h = gobjects(numel(force_list),1);
+    for i = 1:numel(force_list)
+        if ~valid(i)
+            continue;
+        end
+        if isscalar(force_list)
+            c = style.force_color;
+        elseif i <= numel(colors)
+            c = colors{i};
+        else
+            cmap = lines(numel(force_list));
+            c = cmap(i,:);
+        end
+        h(i) = plot(times_list{i}, force_list{i}, 'LineWidth', 1.2, 'Color', c);
+    end
     grid on; xtickformat('yyyy-MM-dd');
     xlabel('日期'); ylabel(style.force_ylabel);
-    title(sprintf('%s %s', style.force_title_prefix, pid));
+    title(sprintf('%s %s', style.force_title_prefix, name_tag));
+
+    good_lines = h(isgraphics(h));
+    if numel(good_lines) > 1
+        legend(good_lines, labels(valid), 'Location', 'eastoutside');
+    end
+
+    all_warn_lines = {};
+    if nargin >= 8 && ~isempty(warn_line_sets)
+        for i = 1:numel(warn_line_sets)
+            warn_lines_i = warn_line_sets{i};
+            if isempty(warn_lines_i)
+                continue;
+            end
+            for k = 1:numel(warn_lines_i)
+                wl = warn_lines_i{k};
+                if ~isstruct(wl) || ~isfield(wl,'y') || ~isnumeric(wl.y) || ~isfinite(wl.y)
+                    continue;
+                end
+                yl = yline(wl.y, '--', get_force_warn_label(wl), 'LabelHorizontalAlignment', 'left');
+                if isfield(wl,'color') && isnumeric(wl.color) && numel(wl.color)==3
+                    yl.Color = reshape(wl.color,1,3);
+                end
+                yl.LineWidth = 1.0;
+                all_warn_lines{end+1,1} = wl; %#ok<AGROW>
+            end
+        end
+    end
 
     if nargin >= 7 && ~isempty(force_ylim)
         ylim(force_ylim);
     else
-        dataMin = min(forceSeries,[],'all','omitnan');
-        dataMax = max(forceSeries,[],'all','omitnan');
+        dataMin = NaN;
+        dataMax = NaN;
+        for i = 1:numel(force_list)
+            if ~valid(i)
+                continue;
+            end
+            dataMin = min([dataMin; min(force_list{i},[],'all','omitnan')],[],'omitnan');
+            dataMax = max([dataMax; max(force_list{i},[],'all','omitnan')],[],'omitnan');
+        end
+        warn_vals = cellfun(@(x) x.y, all_warn_lines(cellfun(@(x)isstruct(x)&&isfield(x,'y')&&isnumeric(x.y)&&isfinite(x.y), all_warn_lines)));
+        if ~isempty(warn_vals)
+            dataMin = min([dataMin; warn_vals(:)], [], 'omitnan');
+            dataMax = max([dataMax; warn_vals(:)], [], 'omitnan');
+        end
         if isfinite(dataMin) && isfinite(dataMax)
             pad  = max(0.02, 0.05*(dataMax - dataMin));
             ylim([dataMin - 0.5*pad, dataMax + 1.5*pad]);
         end
     end
 
-    fname = fullfile(outDirForce, ...
-        sprintf('CableForce_%s_%s_%s', pid, ...
-        datestr(dates_all(1),'yyyymmdd'), ...
-        datestr(dates_all(end),'yyyymmdd')));
+    first_idx = find(valid, 1, 'first');
+    dt0 = times_list{first_idx}(1);
+    dt1 = times_list{first_idx}(end);
+    fname = fullfile(out_dir, ...
+        sprintf('CableForce_%s_%s_%s', sanitize_filename(name_tag), ...
+        datestr(dt0,'yyyymmdd'), ...
+        datestr(dt1,'yyyymmdd')));
     saveas(fig, [fname '.jpg']);
     saveas(fig, [fname '.emf']);
     savefig(fig,[fname '.fig'],'compact');
     close(fig);
+end
+
+function warn_lines = get_force_warn_lines(cfg, pid, style, label_prefix)
+    warn_lines = {};
+    if nargin >= 3 && isfield(style,'force_warn_lines') && ~isempty(style.force_warn_lines)
+        warn_lines = normalize_force_warn_lines(style.force_warn_lines, style);
+    end
+    if ~isfield(cfg,'per_point') || ~isfield(cfg.per_point,'cable_accel')
+        return;
+    end
+    safe_id = strrep(pid, '-', '_');
+    if ~isfield(cfg.per_point.cable_accel, safe_id)
+        return;
+    end
+    pt = cfg.per_point.cable_accel.(safe_id);
+    if isfield(pt,'force_alarm_bounds') && ~isempty(pt.force_alarm_bounds)
+        warn_lines = normalize_force_alarm_bounds(pt.force_alarm_bounds, style, label_prefix);
+    elseif isfield(pt,'force_alarm_levels')
+        warn_lines = normalize_force_warn_lines(pt.force_alarm_levels, style, label_prefix);
+    end
+end
+
+function labels = get_force_default_warn_labels()
+    labels = {'黄色预警','红色预警'};
+end
+
+function labels = get_force_bound_warn_labels()
+    labels = {'二级下限','二级上限','三级下限','三级上限'};
+end
+
+function warn_lines = normalize_force_alarm_bounds(v, style, label_prefix)
+    warn_lines = {};
+    if isempty(v) || ~isstruct(v)
+        return;
+    end
+    if nargin < 3
+        label_prefix = '';
+    end
+
+    colors = get_force_alarm_colors(style);
+    labels = get_force_bound_warn_labels();
+    bounds = {
+        'level2', 1, labels{1}, labels{2};
+        'level3', 2, labels{3}, labels{4}
+    };
+    for i = 1:size(bounds,1)
+        field = bounds{i,1};
+        color_idx = bounds{i,2};
+        lower_label = bounds{i,3};
+        upper_label = bounds{i,4};
+        if ~isfield(v, field) || isempty(v.(field))
+            continue;
+        end
+        vals = v.(field);
+        if ~(isnumeric(vals) && numel(vals) == 2 && all(isfinite(vals(:))))
+            continue;
+        end
+        vals = sort(reshape(vals,1,2));
+        warn_lines{end+1,1} = struct( ... %#ok<AGROW>
+            'y', vals(1), ...
+            'color', colors(color_idx,:), ...
+            'label', compose_force_warn_label(label_prefix, lower_label));
+        warn_lines{end+1,1} = struct( ... %#ok<AGROW>
+            'y', vals(2), ...
+            'color', colors(color_idx,:), ...
+            'label', compose_force_warn_label(label_prefix, upper_label));
+    end
+end
+
+function warn_lines = normalize_force_warn_lines(v, style, label_prefix)
+    warn_lines = {};
+    if isempty(v)
+        return;
+    end
+    if nargin < 3
+        label_prefix = '';
+    end
+
+    if nargin < 2 || isempty(style)
+        colors = [0.929 0.694 0.125; 0.85 0.1 0.1];
+    else
+        colors = get_force_alarm_colors(style);
+    end
+    labels = get_force_default_warn_labels();
+
+    if isnumeric(v)
+        vv = v(:);
+        vv = vv(isfinite(vv));
+        warn_lines = cell(numel(vv), 1);
+        for i = 1:numel(vv)
+            warn_lines{i} = struct('y', vv(i));
+            if i <= size(colors,1)
+                warn_lines{i}.color = colors(i,:);
+            end
+            if i <= numel(labels)
+                warn_lines{i}.label = compose_force_warn_label(label_prefix, labels{i});
+            end
+        end
+        return;
+    end
+
+    if isstruct(v)
+        warn_lines = num2cell(v);
+    elseif iscell(v)
+        warn_lines = v(:);
+    else
+        return;
+    end
+
+    for i = 1:numel(warn_lines)
+        wl = warn_lines{i};
+        if ~isstruct(wl)
+            continue;
+        end
+        if (~isfield(wl,'color') || isempty(wl.color)) && i <= size(colors,1)
+            wl.color = colors(i,:);
+        end
+        if (~isfield(wl,'label') || isempty(wl.label)) && i <= numel(labels)
+            wl.label = compose_force_warn_label(label_prefix, labels{i});
+        end
+        warn_lines{i} = wl;
+    end
+end
+
+function c = get_force_alarm_colors(style)
+    c = [0.929 0.694 0.125; 0.85 0.1 0.1];
+    if nargin < 1 || ~isfield(style,'force_alarm_colors') || isempty(style.force_alarm_colors)
+        return;
+    end
+    val = style.force_alarm_colors;
+    if isnumeric(val) && size(val,2) == 3
+        c = val;
+    elseif isstruct(val) && isfield(val,'yellow') && isfield(val,'red')
+        c = [reshape(val.yellow,1,3); reshape(val.red,1,3)];
+    elseif iscell(val) && numel(val) >= 2
+        c = [reshape(val{1},1,3); reshape(val{2},1,3)];
+    end
+end
+
+function label = get_force_warn_label(wl)
+    label = '';
+    if isstruct(wl) && isfield(wl,'label') && ~isempty(wl.label)
+        label = wl.label;
+    end
+end
+
+function label = compose_force_warn_label(prefix, base_label)
+    if nargin < 1 || isempty(prefix)
+        label = base_label;
+    else
+        label = sprintf('%s %s', char(string(prefix)), char(string(base_label)));
+    end
+end
+
+function pts = normalize_points(v)
+    if isempty(v)
+        pts = {};
+    elseif ischar(v)
+        pts = {v};
+    elseif isstring(v)
+        pts = cellstr(v(:));
+    elseif iscell(v)
+        pts = cell(size(v(:)));
+        for i = 1:numel(pts)
+            pts{i} = char(string(v{i}));
+        end
+    else
+        pts = {};
+    end
+end
+
+function out = sanitize_filename(s)
+    out = regexprep(char(string(s)), '[\\/:*?"<>| ]', '_');
+end
+
+function name = build_group_display_name(group_name, labels)
+    labels = labels(~cellfun(@isempty, labels));
+    if isempty(labels)
+        name = group_name;
+        return;
+    end
+    if numel(labels) <= 4
+        name = strjoin(labels(:).', '-');
+    else
+        name = group_name;
+    end
 end
 
 function ccell = normalize_colors(c)
