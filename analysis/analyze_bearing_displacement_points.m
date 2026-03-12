@@ -238,6 +238,56 @@ function warn_lines = resolve_warn_lines(style, cfg, pid)
         else
             warn_lines = normalize_warn_lines(pt.warn_lines);
         end
+    elseif isfield(pt, 'alarm_bounds') && ~isempty(pt.alarm_bounds)
+        warn_lines = bounds_to_warn_lines(pt.alarm_bounds, style);
+    end
+end
+
+function warn_lines = bounds_to_warn_lines(bounds, style)
+    warn_lines = {};
+    if isempty(bounds) || ~isstruct(bounds)
+        return;
+    end
+
+    colors = get_style_field(style, 'alarm_colors', []);
+    level2_color = [0.929 0.694 0.125];
+    level3_color = [0.85 0.1 0.1];
+    if isnumeric(colors) && size(colors, 2) == 3
+        if size(colors, 1) >= 1
+            level2_color = colors(1, :);
+        end
+        if size(colors, 1) >= 2
+            level3_color = colors(2, :);
+        end
+    elseif iscell(colors)
+        if numel(colors) >= 1 && isnumeric(colors{1}) && numel(colors{1}) == 3
+            level2_color = reshape(colors{1}, 1, 3);
+        end
+        if numel(colors) >= 2 && isnumeric(colors{2}) && numel(colors{2}) == 3
+            level3_color = reshape(colors{2}, 1, 3);
+        end
+    end
+
+    warn_lines = [warn_lines; append_alarm_pair(bounds, 'level2', '二级', level2_color)]; %#ok<AGROW>
+    warn_lines = [warn_lines; append_alarm_pair(bounds, 'level3', '三级', level3_color)]; %#ok<AGROW>
+end
+
+function lines = append_alarm_pair(bounds, field_name, prefix, color)
+    lines = {};
+    if ~isfield(bounds, field_name)
+        return;
+    end
+    vals = bounds.(field_name);
+    if ~isnumeric(vals) || numel(vals) ~= 2
+        return;
+    end
+    vals = sort(vals(:));
+    labels = {sprintf('%s下限', prefix), sprintf('%s上限', prefix)};
+    for i = 1:2
+        if ~isfinite(vals(i))
+            continue;
+        end
+        lines{end+1, 1} = struct('y', vals(i), 'label', labels{i}, 'color', color); %#ok<AGROW>
     end
 end
 
