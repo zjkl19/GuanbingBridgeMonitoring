@@ -1,4 +1,4 @@
-﻿{
+{
   "vendor": "hongtang",
   "gui": {
     "show_warnings": false
@@ -29,7 +29,7 @@
     }
   },
   "defaults": {
-    "header_marker": "[缁濆鏃堕棿]",
+    "header_marker": "[绝对时间]",
     "deflection": {
       "thresholds": [],
       "zero_to_nan": true,
@@ -163,9 +163,9 @@
           1.965
         ],
         "theor_labels": [
-          "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-          "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-          "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
         ]
       },
       "A2": {
@@ -182,9 +182,9 @@
           1.965
         ],
         "theor_labels": [
-          "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-          "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-          "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
         ]
       },
       "A3": {
@@ -201,9 +201,9 @@
           1.965
         ],
         "theor_labels": [
-          "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-          "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-          "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
         ]
       },
       "A4": {
@@ -220,9 +220,9 @@
           1.965
         ],
         "theor_labels": [
-          "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-          "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-          "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
         ]
       },
       "A5": {
@@ -239,9 +239,9 @@
           1.965
         ],
         "theor_labels": [
-          "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-          "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-          "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
         ]
       },
       "A6": {
@@ -258,9 +258,9 @@
           1.965
         ],
         "theor_labels": [
-          "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-          "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-          "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
         ]
       },
       "A7": {
@@ -277,9 +277,9 @@
           1.965
         ],
         "theor_labels": [
-          "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-          "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-          "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
         ]
       },
       "A8": {
@@ -296,9 +296,9 @@
           1.965
         ],
         "theor_labels": [
-          "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-          "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-          "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
         ]
       },
       "A9-X": {
@@ -315,9 +315,9 @@
           1.965
         ],
         "theor_labels": [
-          "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-          "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-          "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
         ]
       },
       "A9-Y": {
@@ -334,9 +334,9 @@
           1.965
         ],
         "theor_labels": [
-          "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-          "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-          "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
         ]
       },
       "A10-X": {
@@ -353,9 +353,9 @@
           1.965
         ],
         "theor_labels": [
-          "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-          "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-          "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
         ]
       },
       "A10-Y": {
@@ -372,9 +372,9 @@
           1.965
         ],
         "theor_labels": [
-          "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-          "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-          "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
         ]
       }
     },
@@ -388,16 +388,16 @@
           1000,
           2200
         ],
-        "force_alarm_bounds": {
-          "level2": [],
-          "level3": []
-        },
         "target_freqs": [
           1,
           2,
           3
         ],
-        "tolerance": 0.15
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
       },
       "CS2": {
         "thresholds": [],
@@ -408,16 +408,16 @@
           1000,
           2200
         ],
-        "force_alarm_bounds": {
-          "level2": [],
-          "level3": []
-        },
         "target_freqs": [
           1,
           2,
           3
         ],
-        "tolerance": 0.15
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
       },
       "CS3": {
         "thresholds": [],
@@ -428,16 +428,16 @@
           1000,
           2200
         ],
-        "force_alarm_bounds": {
-          "level2": [],
-          "level3": []
-        },
         "target_freqs": [
           1,
           2,
           3
         ],
-        "tolerance": 0.15
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
       },
       "CS4": {
         "thresholds": [],
@@ -448,6 +448,12 @@
           1700,
           2500
         ],
+        "target_freqs": [
+          9.502,
+          11,
+          12
+        ],
+        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1877.74,
@@ -457,13 +463,7 @@
             2159.4,
             2399.34
           ]
-        },
-        "target_freqs": [
-          9.502,
-          11,
-          12
-        ],
-        "tolerance": 0.15
+        }
       },
       "CS5": {
         "thresholds": [],
@@ -474,6 +474,12 @@
           1100,
           1800
         ],
+        "target_freqs": [
+          4.209,
+          6,
+          7
+        ],
+        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1298.05,
@@ -483,13 +489,7 @@
             1492.76,
             1658.62
           ]
-        },
-        "target_freqs": [
-          4.209,
-          6,
-          7
-        ],
-        "tolerance": 0.15
+        }
       },
       "CS6": {
         "thresholds": [],
@@ -500,6 +500,12 @@
           1000,
           1600
         ],
+        "target_freqs": [
+          2.139,
+          4,
+          6
+        ],
+        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1114.18,
@@ -509,13 +515,7 @@
             1281.31,
             1423.68
           ]
-        },
-        "target_freqs": [
-          2.139,
-          4,
-          6
-        ],
-        "tolerance": 0.15
+        }
       },
       "CS7": {
         "thresholds": [],
@@ -526,6 +526,12 @@
           900,
           1500
         ],
+        "target_freqs": [
+          2.07,
+          4,
+          6
+        ],
+        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1093.73,
@@ -535,13 +541,7 @@
             1257.79,
             1397.54
           ]
-        },
-        "target_freqs": [
-          2.07,
-          4,
-          6
-        ],
-        "tolerance": 0.15
+        }
       },
       "CS8": {
         "thresholds": [],
@@ -552,6 +552,12 @@
           900,
           1500
         ],
+        "target_freqs": [
+          3.799,
+          5,
+          8
+        ],
+        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1084.86,
@@ -561,13 +567,7 @@
             1247.59,
             1386.21
           ]
-        },
-        "target_freqs": [
-          3.799,
-          5,
-          8
-        ],
-        "tolerance": 0.15
+        }
       },
       "CS9": {
         "thresholds": [],
@@ -578,6 +578,12 @@
           1700,
           2500
         ],
+        "target_freqs": [
+          9.814,
+          13,
+          15
+        ],
+        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1855.37,
@@ -587,13 +593,7 @@
             2133.68,
             2370.75
           ]
-        },
-        "target_freqs": [
-          9.814,
-          13,
-          15
-        ],
-        "tolerance": 0.15
+        }
       },
       "CS10": {
         "thresholds": [],
@@ -604,16 +604,16 @@
           1000,
           2200
         ],
-        "force_alarm_bounds": {
-          "level2": [],
-          "level3": []
-        },
         "target_freqs": [
           1,
           2,
           3
         ],
-        "tolerance": 0.15
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
       },
       "CS11": {
         "thresholds": [],
@@ -624,16 +624,16 @@
           1000,
           2200
         ],
-        "force_alarm_bounds": {
-          "level2": [],
-          "level3": []
-        },
         "target_freqs": [
           1,
           2,
           3
         ],
-        "tolerance": 0.15
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
       },
       "CS12": {
         "thresholds": [],
@@ -644,16 +644,16 @@
           1000,
           2200
         ],
-        "force_alarm_bounds": {
-          "level2": [],
-          "level3": []
-        },
         "target_freqs": [
           1,
           2,
           3
         ],
-        "tolerance": 0.15
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
       },
       "CX1": {
         "thresholds": [],
@@ -664,16 +664,16 @@
           1000,
           2200
         ],
-        "force_alarm_bounds": {
-          "level2": [],
-          "level3": []
-        },
         "target_freqs": [
           1,
           2,
           3
         ],
-        "tolerance": 0.15
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
       },
       "CX2": {
         "thresholds": [],
@@ -684,16 +684,16 @@
           1000,
           2200
         ],
-        "force_alarm_bounds": {
-          "level2": [],
-          "level3": []
-        },
         "target_freqs": [
           1,
           2,
           3
         ],
-        "tolerance": 0.15
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
       },
       "CX3": {
         "thresholds": [],
@@ -704,16 +704,16 @@
           1000,
           2200
         ],
-        "force_alarm_bounds": {
-          "level2": [],
-          "level3": []
-        },
         "target_freqs": [
           1,
           2,
           3
         ],
-        "tolerance": 0.15
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
       },
       "CX4": {
         "thresholds": [],
@@ -724,6 +724,12 @@
           1500,
           2200
         ],
+        "target_freqs": [
+          9.229,
+          11,
+          13
+        ],
+        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1616.33,
@@ -733,13 +739,7 @@
             1858.78,
             2065.31
           ]
-        },
-        "target_freqs": [
-          9.229,
-          11,
-          13
-        ],
-        "tolerance": 0.15
+        }
       },
       "CX5": {
         "thresholds": [],
@@ -750,6 +750,12 @@
           1100,
           1800
         ],
+        "target_freqs": [
+          4.209,
+          6,
+          8
+        ],
+        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1291.91,
@@ -759,13 +765,7 @@
             1485.7,
             1650.78
           ]
-        },
-        "target_freqs": [
-          4.209,
-          6,
-          8
-        ],
-        "tolerance": 0.15
+        }
       },
       "CX6": {
         "thresholds": [],
@@ -776,6 +776,12 @@
           1000,
           1600
         ],
+        "target_freqs": [
+          2.178,
+          4,
+          6
+        ],
+        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1124.49,
@@ -785,13 +791,7 @@
             1293.16,
             1436.84
           ]
-        },
-        "target_freqs": [
-          2.178,
-          4,
-          6
-        ],
-        "tolerance": 0.15
+        }
       },
       "CX7": {
         "thresholds": [],
@@ -802,6 +802,12 @@
           900,
           1500
         ],
+        "target_freqs": [
+          2.08,
+          4,
+          6
+        ],
+        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1045.39,
@@ -811,13 +817,7 @@
             1202.2,
             1335.77
           ]
-        },
-        "target_freqs": [
-          2.08,
-          4,
-          6
-        ],
-        "tolerance": 0.15
+        }
       },
       "CX8": {
         "thresholds": [],
@@ -828,6 +828,12 @@
           1200,
           1800
         ],
+        "target_freqs": [
+          4.219,
+          6,
+          8
+        ],
+        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1304.22,
@@ -837,13 +843,7 @@
             1499.85,
             1666.5
           ]
-        },
-        "target_freqs": [
-          4.219,
-          6,
-          8
-        ],
-        "tolerance": 0.15
+        }
       },
       "CX9": {
         "thresholds": [],
@@ -854,6 +854,12 @@
           1600,
           2400
         ],
+        "target_freqs": [
+          9.512,
+          12,
+          14
+        ],
+        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1735.61,
@@ -863,13 +869,7 @@
             1995.9,
             2217.73
           ]
-        },
-        "target_freqs": [
-          9.512,
-          12,
-          14
-        ],
-        "tolerance": 0.15
+        }
       },
       "CX10": {
         "thresholds": [],
@@ -880,16 +880,16 @@
           1000,
           2200
         ],
-        "force_alarm_bounds": {
-          "level2": [],
-          "level3": []
-        },
         "target_freqs": [
           1,
           2,
           3
         ],
-        "tolerance": 0.15
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
       },
       "CX11": {
         "thresholds": [],
@@ -900,16 +900,16 @@
           1000,
           2200
         ],
-        "force_alarm_bounds": {
-          "level2": [],
-          "level3": []
-        },
         "target_freqs": [
           1,
           2,
           3
         ],
-        "tolerance": 0.15
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
       },
       "CX12": {
         "thresholds": [],
@@ -920,22 +920,22 @@
           1000,
           2200
         ],
-        "force_alarm_bounds": {
-          "level2": [],
-          "level3": []
-        },
         "target_freqs": [
           1,
           2,
           3
         ],
-        "tolerance": 0.15
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
       }
     },
     "wind": {
       "W1": {
-        "speed_point_id": "椋庨€焈162",
-        "dir_point_id": "椋庡悜_163",
+        "speed_point_id": "风速_162",
+        "dir_point_id": "风向_163",
         "alarm_levels": [
           25,
           29.92,
@@ -945,8 +945,8 @@
         "decimals": 2
       },
       "W2": {
-        "speed_point_id": "濉旈《椋庨€焈178",
-        "dir_point_id": "濉旈《椋庡悜_179",
+        "speed_point_id": "塔顶风速_178",
+        "dir_point_id": "塔顶风向_179",
         "alarm_levels": [
           25,
           29.92,
@@ -981,19 +981,19 @@
     }
   },
   "subfolders": {
-    "deflection": "鐗瑰緛鍊糭閲嶉噰鏍?,
-    "bearing_displacement": "鐗瑰緛鍊糭閲嶉噰鏍?,
-    "acceleration": "娉㈠舰",
-    "acceleration_raw": "娉㈠舰",
-    "strain": "鐗瑰緛鍊?,
-    "tilt": "娉㈠舰_閲嶉噰鏍?,
-    "crack": "鐗瑰緛鍊?,
-    "humidity": "鐗瑰緛鍊?,
-    "temperature": "鐗瑰緛鍊?,
-    "cable_accel": "娉㈠舰",
-    "cable_accel_raw": "娉㈠舰",
-    "wind_raw": "娉㈠舰",
-    "eq_raw": "娉㈠舰"
+    "deflection": "特征值_重采样",
+    "bearing_displacement": "特征值_重采样",
+    "acceleration": "波形",
+    "acceleration_raw": "波形",
+    "strain": "特征值",
+    "tilt": "波形_重采样",
+    "crack": "特征值",
+    "humidity": "特征值",
+    "temperature": "特征值",
+    "cable_accel": "波形",
+    "cable_accel_raw": "波形",
+    "wind_raw": "波形",
+    "eq_raw": "波形"
   },
   "file_patterns": {
     "wind_speed": {
@@ -1258,8 +1258,8 @@
     "bearing_displacement": {
       "warn_lines": [],
       "ylim_auto": true,
-      "ylabel": "鏀骇浣嶇Щ (mm)",
-      "title_prefix": "鏀骇浣嶇Щ鏃剁▼"
+      "ylabel": "支座位移 (mm)",
+      "title_prefix": "支座位移时程"
     },
     "crack": {
       "ylabel_crack": "Crack Width (mm)",
@@ -1272,8 +1272,8 @@
       "skip_group_if_missing": true
     },
     "acceleration": {
-      "ylabel": "涓绘绔栧悜鎸姩鍔犻€熷害 (m/s^2)",
-      "title_prefix": "鍔犻€熷害鏃剁▼",
+      "ylabel": "主梁竖向振动加速度 (m/s^2)",
+      "title_prefix": "加速度时程",
       "ylim": [
         -2,
         2
@@ -1322,7 +1322,7 @@
       ],
       "rms": {
         "ylabel": "10 min RMS (m/s^2)",
-        "title_prefix": "10 min RMS 鏃剁▼",
+        "title_prefix": "10 min RMS 时程",
         "ylim": [
           0,
           0.1
@@ -1342,8 +1342,8 @@
         0,
         0
       ],
-      "freq_ylabel": "宄板€奸鐜?(Hz)",
-      "freq_title_prefix": "宄板€奸鐜囨椂绋?,
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "峰值频率时程",
       "colors": [
         [
           0,
@@ -1366,8 +1366,8 @@
           0.7
         ]
       ],
-      "force_ylabel": "绱㈠姏 (kN)",
-      "force_title_prefix": "绱㈠姏鏃剁▼",
+      "force_ylabel": "索力 (kN)",
+      "force_title_prefix": "索力时程",
       "force_color": [
         0,
         0.447,
@@ -1375,8 +1375,8 @@
       ]
     },
     "cable_accel": {
-      "ylabel": "鎸姩鍔犻€熷害 (m/s^2)",
-      "title_prefix": "鍔犻€熷害鏃剁▼",
+      "ylabel": "振动加速度 (m/s^2)",
+      "title_prefix": "加速度时程",
       "ylim": [
         -2,
         2
@@ -1404,7 +1404,7 @@
       ],
       "rms": {
         "ylabel": "10 min RMS (m/s^2)",
-        "title_prefix": "10 min RMS 鏃剁▼",
+        "title_prefix": "10 min RMS 时程",
         "ylim": [
           0,
           1
@@ -1454,8 +1454,8 @@
         0,
         0
       ],
-      "freq_ylabel": "宄板€奸鐜?(Hz)",
-      "freq_title_prefix": "宄板€奸鐜囨椂绋?,
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "峰值频率时程",
       "colors": [
         [
           0,
@@ -1478,12 +1478,16 @@
           0.7
         ]
       ],
-      "force_ylabel": "绱㈠姏 (kN)",
-      "force_title_prefix": "绱㈠姏鏃剁▼",
+      "force_ylabel": "索力 (kN)",
+      "force_title_prefix": "索力时程",
       "force_color": [
         0,
         0.447,
         0.741
+      ],
+      "force_ylim": [
+        1000,
+        2200
       ],
       "force_alarm_colors": [
         [
@@ -1496,23 +1500,19 @@
           0.1,
           0.1
         ]
-      ],
-      "force_ylim": [
-        1000,
-        2200
       ]
     },
     "eq": {
-      "ylabel": "鍦伴渿鍔ㄥ姞閫熷害 (m/s^2)",
-      "title_prefix": "鍦伴渿鍔ㄦ椂绋?,
+      "ylabel": "地震动加速度 (m/s^2)",
+      "title_prefix": "地震动时程",
       "color": [
         0,
         0.447,
         0.741
       ],
       "output": {
-        "root_dir": "鍦伴渿鍔ㄧ粨鏋?,
-        "series_dir": "鍦伴渿鍔ㄦ椂绋?,
+        "root_dir": "地震动结果",
+        "series_dir": "地震动时程",
         "prefix": "EQ"
       }
     }
@@ -1624,7 +1624,7 @@
       },
       "jiulongjiang": {
         "files": [
-          "data/_samples/wim/jiulongjiang/涔濋緳姹熻繃杞﹁褰?025-04-04~2025-04-10(1).xlsx"
+          "data/_samples/wim/jiulongjiang/九龙江过车记录2025-04-04~2025-04-10(1).xlsx"
         ]
       }
     }
@@ -1647,7 +1647,7 @@
     "enabled": true,
     "output_dir": "plots",
     "format": "png",
-    "excel_path": "data/python/鍔ㄦ€佺О閲?xlsx",
+    "excel_path": "data/python/动态称重.xlsx",
     "sheet": "Sheet1",
     "fig_size_px": [
       900,
@@ -1668,55 +1668,55 @@
     "fig_size_per_plot": {},
     "xlabels_list": [
       {
-        "name": "涓嶅悓杞﹂€熷尯闂磋溅杈嗘暟",
+        "name": "不同车速区间车辆数",
         "labels": [
           "0~30km/h",
           "30~50km/h",
           "50~70km/h",
-          "70km/h浠ヤ笂"
+          "70km/h以上"
         ]
       },
       {
-        "name": "涓嶅悓杞﹂噸鍖洪棿杞﹁締鏁?,
+        "name": "不同车重区间车辆数",
         "labels": [
-          "0锝?0t",
-          "10锝?0t",
-          "30锝?0t",
-          "50t浠ヤ笂"
+          "0～10t",
+          "10～30t",
+          "30～50t",
+          "50t以上"
         ]
       },
       {
-        "name": "涓嶅悓灏忔椂鍖洪棿杞﹁締鏁?,
+        "name": "不同小时区间车辆数",
         "labels": [
-          "0锝?",
-          "2锝?",
-          "4锝?",
-          "6锝?",
-          "8锝?0",
-          "10锝?2",
-          "12锝?4",
-          "14锝?6",
-          "16锝?8",
-          "18锝?0",
-          "20锝?2",
-          "22锝?4"
+          "0～2",
+          "2～4",
+          "4～6",
+          "6～8",
+          "8～10",
+          "10～12",
+          "12～14",
+          "14～16",
+          "16～18",
+          "18～20",
+          "20～22",
+          "22～24"
         ]
       },
       {
-        "name": "涓嶅悓灏忔椂鍖洪棿骞冲潎杞﹂€?,
+        "name": "不同小时区间平均车速",
         "labels": [
-          "0锝?",
-          "2锝?",
-          "4锝?",
-          "6锝?",
-          "8锝?0",
-          "10锝?2",
-          "12锝?4",
-          "14锝?6",
-          "16锝?8",
-          "18锝?0",
-          "20锝?2",
-          "22锝?4"
+          "0～2",
+          "2～4",
+          "4～6",
+          "6～8",
+          "8～10",
+          "10～12",
+          "12～14",
+          "14～16",
+          "16～18",
+          "18～20",
+          "20～22",
+          "22～24"
         ]
       }
     ],
@@ -1736,9 +1736,9 @@
       1.965
     ],
     "theor_labels": [
-      "鐞嗚涓€闃惰嚜鎸鐜?0.733Hz",
-      "鐞嗚浜岄樁鑷尟棰戠巼 1.378Hz",
-      "鐞嗚涓夐樁鑷尟棰戠巼 1.965Hz"
+      "理论一阶自振频率 0.733Hz",
+      "理论二阶自振频率 1.378Hz",
+      "理论三阶自振频率 1.965Hz"
     ]
   },
   "cable_accel_spectrum_params": {
