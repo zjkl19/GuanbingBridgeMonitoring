@@ -1165,7 +1165,776 @@
         }
       }
     },
-    "strain": {}
+    "strain": {
+      "SB_1": {
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SB_2": {
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SB_3": {
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SB_4": {
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SB_5": {
+        "alarm_bounds": {
+          "level2": [
+            -193,
+            107
+          ],
+          "level3": [
+            -290,
+            160
+          ]
+        }
+      },
+      "SB_6": {
+        "alarm_bounds": {
+          "level2": [
+            -193,
+            107
+          ],
+          "level3": [
+            -290,
+            160
+          ]
+        }
+      },
+      "SC_1": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SC_2": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SC_3": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SC_4": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SC_5": {
+        "alarm_bounds": {
+          "level2": [
+            -115,
+            88
+          ],
+          "level3": [
+            -172,
+            132
+          ]
+        }
+      },
+      "SC_6": {
+        "alarm_bounds": {
+          "level2": [
+            -115,
+            88
+          ],
+          "level3": [
+            -172,
+            132
+          ]
+        }
+      },
+      "SD_1": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SD_2": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SD_3": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SD_4": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SD_5": {
+        "alarm_bounds": {
+          "level2": [
+            -81,
+            272
+          ],
+          "level3": [
+            -121,
+            408
+          ]
+        }
+      },
+      "SD_6": {
+        "alarm_bounds": {
+          "level2": [
+            -81,
+            272
+          ],
+          "level3": [
+            -121,
+            408
+          ]
+        }
+      },
+      "SE_1": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            149
+          ],
+          "level3": [
+            -188,
+            223
+          ]
+        }
+      },
+      "SE_2": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            149
+          ],
+          "level3": [
+            -188,
+            223
+          ]
+        }
+      },
+      "SE_3": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            149
+          ],
+          "level3": [
+            -188,
+            223
+          ]
+        }
+      },
+      "SE_4": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            149
+          ],
+          "level3": [
+            -188,
+            223
+          ]
+        }
+      },
+      "SE_5": {
+        "alarm_bounds": {
+          "level2": [
+            -164,
+            149
+          ],
+          "level3": [
+            -247,
+            223
+          ]
+        }
+      },
+      "SE_6": {
+        "alarm_bounds": {
+          "level2": [
+            -164,
+            149
+          ],
+          "level3": [
+            -247,
+            223
+          ]
+        }
+      },
+      "SF_1": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SF_2": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SF_3": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SF_4": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            95
+          ],
+          "level3": [
+            -188,
+            142
+          ]
+        }
+      },
+      "SF_5": {
+        "alarm_bounds": {
+          "level2": [
+            -81,
+            272
+          ],
+          "level3": [
+            -121,
+            408
+          ]
+        }
+      },
+      "SF_6": {
+        "alarm_bounds": {
+          "level2": [
+            -81,
+            272
+          ],
+          "level3": [
+            -121,
+            408
+          ]
+        }
+      },
+      "SG_1": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SG_2": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SG_3": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SG_4": {
+        "alarm_bounds": {
+          "level2": [
+            -126,
+            65
+          ],
+          "level3": [
+            -188,
+            97
+          ]
+        }
+      },
+      "SG_5": {
+        "alarm_bounds": {
+          "level2": [
+            -115,
+            88
+          ],
+          "level3": [
+            -172,
+            132
+          ]
+        }
+      },
+      "SG_6": {
+        "alarm_bounds": {
+          "level2": [
+            -115,
+            88
+          ],
+          "level3": [
+            -172,
+            132
+          ]
+        }
+      },
+      "SH_1": {
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SH_2": {
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SH_3": {
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SH_4": {
+        "alarm_bounds": {
+          "level2": [
+            -113,
+            226
+          ],
+          "level3": [
+            -170,
+            338
+          ]
+        }
+      },
+      "SH_5": {
+        "alarm_bounds": {
+          "level2": [
+            -193,
+            107
+          ],
+          "level3": [
+            -290,
+            160
+          ]
+        }
+      },
+      "SH_6": {
+        "alarm_bounds": {
+          "level2": [
+            -193,
+            107
+          ],
+          "level3": [
+            -290,
+            160
+          ]
+        }
+      },
+      "SL_1": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            44
+          ],
+          "level3": [
+            -204,
+            66
+          ]
+        }
+      },
+      "SL_6": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            44
+          ],
+          "level3": [
+            -204,
+            66
+          ]
+        }
+      },
+      "SL_2": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            37
+          ],
+          "level3": [
+            -204,
+            56
+          ]
+        }
+      },
+      "SL_7": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            37
+          ],
+          "level3": [
+            -204,
+            56
+          ]
+        }
+      },
+      "SL_3": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            66
+          ],
+          "level3": [
+            -204,
+            98
+          ]
+        }
+      },
+      "SL_5": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            66
+          ],
+          "level3": [
+            -204,
+            98
+          ]
+        }
+      },
+      "SL_8": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            66
+          ],
+          "level3": [
+            -204,
+            98
+          ]
+        }
+      },
+      "SL_10": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            66
+          ],
+          "level3": [
+            -204,
+            98
+          ]
+        }
+      },
+      "SL_4": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            72
+          ],
+          "level3": [
+            -204,
+            108
+          ]
+        }
+      },
+      "SL_9": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            72
+          ],
+          "level3": [
+            -204,
+            108
+          ]
+        }
+      },
+      "SK_1": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            37
+          ],
+          "level3": [
+            -204,
+            55
+          ]
+        }
+      },
+      "SK_7": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            37
+          ],
+          "level3": [
+            -204,
+            55
+          ]
+        }
+      },
+      "SK_2": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            31
+          ],
+          "level3": [
+            -204,
+            47
+          ]
+        }
+      },
+      "SK_8": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            31
+          ],
+          "level3": [
+            -204,
+            47
+          ]
+        }
+      },
+      "SK_3": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            31
+          ],
+          "level3": [
+            -204,
+            46
+          ]
+        }
+      },
+      "SK_9": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            31
+          ],
+          "level3": [
+            -204,
+            46
+          ]
+        }
+      },
+      "SK_4": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            41
+          ],
+          "level3": [
+            -204,
+            61
+          ]
+        }
+      },
+      "SK_10": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            41
+          ],
+          "level3": [
+            -204,
+            61
+          ]
+        }
+      },
+      "SK_5": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            46
+          ],
+          "level3": [
+            -204,
+            69
+          ]
+        }
+      },
+      "SK_11": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            46
+          ],
+          "level3": [
+            -204,
+            69
+          ]
+        }
+      },
+      "SK_6": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            42
+          ],
+          "level3": [
+            -204,
+            62
+          ]
+        }
+      },
+      "SK_12": {
+        "alarm_bounds": {
+          "level2": [
+            -136,
+            42
+          ],
+          "level3": [
+            -204,
+            62
+          ]
+        }
+      }
+    }
   },
   "subfolders": {
     "deflection": "特征值_重采样",
@@ -2070,7 +2839,9 @@
       "output_dir": "时程曲线_应变",
       "boxplot_title_prefix": "应变箱线图",
       "boxplot_output_dir": "箱线图_应变",
-      "group_output_dir": "时程曲线_应变_组图"
+      "group_output_dir": "时程曲线_应变_组图",
+      "show_warn_lines_point": false,
+      "show_warn_lines_boxplot": true
     }
   },
   "wind_params": {

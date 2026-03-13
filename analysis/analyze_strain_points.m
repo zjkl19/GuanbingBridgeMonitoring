@@ -136,15 +136,18 @@ function plot_point_curve(root_dir, times, vals, start_date, end_date, pid, styl
     ylabel(get_style_field(style, 'ylabel', '主梁应变 (με)'));
     title(sprintf('%s %s', get_style_field(style, 'title_prefix', '应变时程曲线'), char(string(pid))));
 
-    warn_lines = normalize_warn_lines(warn_lines);
-    for k = 1:numel(warn_lines)
-        wl = warn_lines{k};
-        if ~isstruct(wl) || ~isfield(wl, 'y') || ~isnumeric(wl.y) || ~isscalar(wl.y) || ~isfinite(wl.y)
-            continue;
-        end
-        yl = yline(wl.y, '--', get_warn_label(wl), 'LabelHorizontalAlignment', 'left');
-        if isfield(wl, 'color') && isnumeric(wl.color) && numel(wl.color) == 3
-            yl.Color = wl.color;
+    show_warn_lines = get_style_field(style, 'show_warn_lines_point', true);
+    if (islogical(show_warn_lines) && show_warn_lines) || (isnumeric(show_warn_lines) && show_warn_lines ~= 0)
+        warn_lines = normalize_warn_lines(warn_lines);
+        for k = 1:numel(warn_lines)
+            wl = warn_lines{k};
+            if ~isstruct(wl) || ~isfield(wl, 'y') || ~isnumeric(wl.y) || ~isscalar(wl.y) || ~isfinite(wl.y)
+                continue;
+            end
+            yl = yline(wl.y, '--', get_warn_label(wl), 'LabelHorizontalAlignment', 'left');
+            if isfield(wl, 'color') && isnumeric(wl.color) && numel(wl.color) == 3
+                yl.Color = wl.color;
+            end
         end
     end
 
@@ -249,21 +252,24 @@ function plot_group_boxplot(root_dir, data_list, start_date, end_date, group_nam
     hold on;
     xtickangle(45);
 
-    for i = 1:numel(data_list)
-        warn_lines = resolve_warn_lines(style, cfg, data_list(i).pid);
-        warn_lines = normalize_warn_lines(warn_lines);
-        for k = 1:numel(warn_lines)
-            wl = warn_lines{k};
-            if ~isstruct(wl) || ~isfield(wl, 'y') || ~isnumeric(wl.y) || ~isscalar(wl.y) || ~isfinite(wl.y)
-                continue;
+    show_warn_lines = get_style_field(style, 'show_warn_lines_boxplot', true);
+    if (islogical(show_warn_lines) && show_warn_lines) || (isnumeric(show_warn_lines) && show_warn_lines ~= 0)
+        for i = 1:numel(data_list)
+            warn_lines = resolve_warn_lines(style, cfg, data_list(i).pid);
+            warn_lines = normalize_warn_lines(warn_lines);
+            for k = 1:numel(warn_lines)
+                wl = warn_lines{k};
+                if ~isstruct(wl) || ~isfield(wl, 'y') || ~isnumeric(wl.y) || ~isscalar(wl.y) || ~isfinite(wl.y)
+                    continue;
+                end
+                x0 = i - 0.28;
+                x1 = i + 0.28;
+                col = [0.5 0.5 0.5];
+                if isfield(wl, 'color') && isnumeric(wl.color) && numel(wl.color) == 3
+                    col = wl.color;
+                end
+                line([x0 x1], [wl.y wl.y], 'LineStyle', '--', 'LineWidth', 1.0, 'Color', col);
             end
-            x0 = i - 0.28;
-            x1 = i + 0.28;
-            col = [0.5 0.5 0.5];
-            if isfield(wl, 'color') && isnumeric(wl.color) && numel(wl.color) == 3
-                col = wl.color;
-            end
-            line([x0 x1], [wl.y wl.y], 'LineStyle', '--', 'LineWidth', 1.0, 'Color', col);
         end
     end
 
