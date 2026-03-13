@@ -694,7 +694,8 @@
             1247.59,
             1386.21
           ]
-        }
+        },
+        "offset_correction": 7
       },
       "CS9": {
         "thresholds": [],
@@ -1164,9 +1165,7 @@
         }
       }
     },
-    "strain": {
-      
-    }
+    "strain": {}
   },
   "subfolders": {
     "deflection": "特征值_重采样",
