@@ -40,7 +40,15 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
     zeroChk = uicheckbox(cfgGrid,'Text','zero_to_nan','Value',false); zeroChk.Layout.Row=4; zeroChk.Layout.Column=1;
     outWin = uieditfield(cfgGrid,'numeric','Placeholder','outlier window_sec','Limits',[0 Inf],'ValueDisplayFormat','%.0f','AllowEmpty','on'); outWin.Layout.Row=4; outWin.Layout.Column=2;
     outTh  = uieditfield(cfgGrid,'numeric','Placeholder','threshold_factor','Limits',[0 Inf],'ValueDisplayFormat','%.2f','AllowEmpty','on'); outTh.Layout.Row=4; outTh.Layout.Column=3;
-    defaultsAddBtn = uibutton(cfgGrid,'Text','新增一行','ButtonPushedFcn',@(btn,~) add_default_row()); defaultsAddBtn.Layout.Row=4; defaultsAddBtn.Layout.Column=4;
+    defaultsBtnGrid = uigridlayout(cfgGrid,[1 2]);
+    defaultsBtnGrid.Layout.Row = 4; defaultsBtnGrid.Layout.Column = 4;
+    defaultsBtnGrid.RowHeight = {'1x'};
+    defaultsBtnGrid.ColumnWidth = {'1x','1x'};
+    defaultsBtnGrid.Padding = [0 0 0 0];
+    defaultsBtnGrid.ColumnSpacing = 6;
+    defaultsBtnGrid.RowSpacing = 0;
+    defaultsAddBtn = uibutton(defaultsBtnGrid,'Text','新增一行','ButtonPushedFcn',@(btn,~) add_default_row()); defaultsAddBtn.Layout.Row=1; defaultsAddBtn.Layout.Column=1;
+    defaultsDelBtn = uibutton(defaultsBtnGrid,'Text','删除选中','ButtonPushedFcn',@(btn,~) delete_default_rows()); defaultsDelBtn.Layout.Row=1; defaultsDelBtn.Layout.Column=2;
 
     perLabel = uilabel(cfgGrid,'Text','per_point 阈值 (可新增/删除)','FontWeight','bold'); perLabel.Layout.Row=5; perLabel.Layout.Column=1;
     perTable = uitable(cfgGrid,'ColumnName',{'point_id','min','max','t_range_start','t_range_end','zero_to_nan','outlier_window_sec','outlier_threshold_factor'},'ColumnEditable',true(1,8));
@@ -48,6 +56,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
     addRowBtn = uibutton(cfgGrid,'Text','新增行','ButtonPushedFcn',@(btn,~) add_per_row()); addRowBtn.Layout.Row=6; addRowBtn.Layout.Column=1;
     delRowBtn = uibutton(cfgGrid,'Text','删除选中行','ButtonPushedFcn',@(btn,~) delete_per_rows()); delRowBtn.Layout.Row=6; delRowBtn.Layout.Column=2;
     pickFigBtn = uibutton(cfgGrid,'Text','从图片框选','ButtonPushedFcn',@(btn,~) onPickFromFig('')); pickFigBtn.Layout.Row=6; pickFigBtn.Layout.Column=3;
+    timeBtn = uibutton(cfgGrid,'Text','选择时间窗','ButtonPushedFcn',@(btn,~) pick_selected_timerange()); timeBtn.Layout.Row=6; timeBtn.Layout.Column=4;
     saveCfgBtn = uibutton(cfgGrid,'Text','保存','BackgroundColor',primaryBlue,'FontColor',[1 1 1],'ButtonPushedFcn',@(btn,~) onSaveCfg(false)); saveCfgBtn.Layout.Row=7; saveCfgBtn.Layout.Column=3;
     saveAsCfgBtn = uibutton(cfgGrid,'Text','另存为','ButtonPushedFcn',@(btn,~) onSaveCfg(true)); saveAsCfgBtn.Layout.Row=7; saveAsCfgBtn.Layout.Column=4;
     cfgMsg = uitextarea(cfgGrid,'Editable','off','Value',{'阈值编辑提示：时间格式 yyyy-MM-dd HH:mm:ss；留空表示全时段/不启用。'}); cfgMsg.Layout.Row=8; cfgMsg.Layout.Column=[1 4];
@@ -156,10 +165,34 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
         perTable.Data = perRows;
     end
     function add_default_row(), defaultsTable.Data = [defaultsTable.Data; {[], [], '', ''}]; end
+    function delete_default_rows()
+        idx = defaultsTable.Selection; if isempty(idx), return; end
+        data = defaultsTable.Data; data(unique(idx(:,1)),:) = []; defaultsTable.Data = data;
+    end
     function add_per_row(), perTable.Data = [perTable.Data; {'', [], [], '', '', false, [], []}]; end
     function delete_per_rows()
         idx = perTable.Selection; if isempty(idx), return; end
         data = perTable.Data; data(idx(:,1),:) = []; perTable.Data = data;
+    end
+    function pick_selected_timerange()
+        [tableRef, rowIdx, startCol, endCol] = get_selected_time_target(defaultsTable, perTable, 3, 4, 4, 5);
+        if isempty(tableRef)
+            cfgMsg.Value = {'请先在默认表或 per_point 表中选中一行，再选择时间窗。'};
+            return;
+        end
+        data = tableRef.Data;
+        initStart = ''; initEnd = '';
+        if size(data,1) >= rowIdx
+            initStart = data{rowIdx, startCol};
+            initEnd = data{rowIdx, endCol};
+        end
+        [t0, t1, ok] = pick_datetime_range(f, initStart, initEnd);
+        if ~ok
+            return;
+        end
+        data{rowIdx, startCol} = t0;
+        data{rowIdx, endCol} = t1;
+        tableRef.Data = data;
     end
     function onPickFromFig(figPath)
         try
@@ -314,6 +347,26 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
                 cleaned.(pid) = perStruct.(pid);
                 cleaned.(pid).thresholds = newThs;
             end
+        end
+    end
+
+    function [tableRef, rowIdx, startCol, endCol] = get_selected_time_target(defTable, ptTable, defStartCol, defEndCol, ptStartCol, ptEndCol)
+        tableRef = [];
+        rowIdx = [];
+        startCol = [];
+        endCol = [];
+        if ~isempty(ptTable.Selection)
+            rowIdx = ptTable.Selection(1,1);
+            tableRef = ptTable;
+            startCol = ptStartCol;
+            endCol = ptEndCol;
+            return;
+        end
+        if ~isempty(defTable.Selection)
+            rowIdx = defTable.Selection(1,1);
+            tableRef = defTable;
+            startCol = defStartCol;
+            endCol = defEndCol;
         end
     end
 

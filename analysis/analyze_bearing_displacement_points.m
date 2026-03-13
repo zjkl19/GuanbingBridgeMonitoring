@@ -40,6 +40,8 @@ function analyze_bearing_displacement_points(root_dir, start_date, end_date, exc
         end
 
         vals_f = moving_median_10min(times, vals);
+        vals_f = apply_threshold_rules(vals_f, times, ...
+            resolve_post_filter_thresholds(cfg, 'bearing_displacement', pid));
 
         row = row + 1;
         stats(row, :) = {
@@ -76,6 +78,8 @@ function analyze_bearing_displacement_points(root_dir, start_date, end_date, exc
                     continue;
                 end
                 vals_f = moving_median_10min(times, vals);
+                vals_f = apply_threshold_rules(vals_f, times, ...
+                    resolve_post_filter_thresholds(cfg, 'bearing_displacement', pid));
                 orig_times{end+1,1} = times; %#ok<AGROW>
                 orig_vals{end+1,1} = vals; %#ok<AGROW>
                 filt_times{end+1,1} = times; %#ok<AGROW>

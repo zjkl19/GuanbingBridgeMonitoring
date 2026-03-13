@@ -50,6 +50,8 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
                 win_len = 201;
             end
             vals_f = movmedian(vals, win_len, 'omitnan');
+            vals_f = apply_threshold_rules(vals_f, times, ...
+                resolve_post_filter_thresholds(cfg, 'deflection', pid));
             plot_deflection_curve({times}, {vals}, {pid}, root_dir, start_date, end_date, pid, style, 'Orig');
             plot_deflection_curve({times}, {vals_f}, {pid}, root_dir, start_date, end_date, pid, style, 'Filt');
         end
@@ -84,6 +86,8 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
                 win_len = 201;
             end
             vals_f = movmedian(vals, win_len, 'omitnan');
+            vals_f = apply_threshold_rules(vals_f, times, ...
+                resolve_post_filter_thresholds(cfg, 'deflection', pid));
 
             orig_times{i} = times;  orig_vals{i} = vals;
             filt_times{i} = times;  filt_vals{i} = vals_f;

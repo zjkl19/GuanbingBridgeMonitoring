@@ -184,6 +184,8 @@ function [vals_all, times_all] = process_one_pid(root_dir, subfolder, start_str,
     if ~isempty(ds_cfg.UpperBound)
         vals_all(vals_all > ds_cfg.UpperBound) = NaN;
     end
+    vals_all = apply_threshold_rules(vals_all, times_all, ...
+        resolve_post_filter_thresholds(cfg, 'dynamic_strain', pid));
     % ==========================================
 end
 

@@ -64,31 +64,10 @@ function warns = check_rule_block(block, path)
     warns = {};
     if ~isstruct(block), warns{end+1} = sprintf('%s must be struct', path); return; end
     if isfield(block,'thresholds')
-        ths = block.thresholds;
-        if ~isempty(ths)
-            for k = 1:numel(ths)
-                th = ths(k);
-                hasMin = isfield(th,'min') && ~isempty(th.min) && isnumeric(th.min);
-                hasMax = isfield(th,'max') && ~isempty(th.max) && isnumeric(th.max);
-                if ~(hasMin && hasMax)
-                    warns{end+1} = sprintf('%s.thresholds(%d) must have numeric min/max', path, k); %#ok<AGROW>
-                    continue;
-                end
-                if th.min > th.max
-                    warns{end+1} = sprintf('%s.thresholds(%d) min>max', path, k); %#ok<AGROW>
-                end
-                if isfield(th,'t_range_start') && ~isempty(th.t_range_start)
-                    try datetime(th.t_range_start,'InputFormat','yyyy-MM-dd HH:mm:ss'); catch
-                        warns{end+1} = sprintf('%s.thresholds(%d) t_range_start format invalid', path, k); %#ok<AGROW>
-                    end
-                end
-                if isfield(th,'t_range_end') && ~isempty(th.t_range_end)
-                    try datetime(th.t_range_end,'InputFormat','yyyy-MM-dd HH:mm:ss'); catch
-                        warns{end+1} = sprintf('%s.thresholds(%d) t_range_end format invalid', path, k); %#ok<AGROW>
-                    end
-                end
-            end
-        end
+        warns = [warns, check_threshold_list(block.thresholds, sprintf('%s.thresholds', path))]; %#ok<AGROW>
+    end
+    if isfield(block,'post_filter_thresholds')
+        warns = [warns, check_threshold_list(block.post_filter_thresholds, sprintf('%s.post_filter_thresholds', path))]; %#ok<AGROW>
     end
     if isfield(block,'outlier') && ~isempty(block.outlier)
         o = block.outlier;
@@ -101,5 +80,34 @@ function warns = check_rule_block(block, path)
     end
     if isfield(block,'zero_to_nan') && ~islogical(block.zero_to_nan)
         block.zero_to_nan = logical(block.zero_to_nan); %#ok<NASGU> % tolerate numeric logicals
+    end
+end
+
+function warns = check_threshold_list(ths, path)
+    warns = {};
+    if isempty(ths)
+        return;
+    end
+    for k = 1:numel(ths)
+        th = ths(k);
+        hasMin = isfield(th,'min') && ~isempty(th.min) && isnumeric(th.min);
+        hasMax = isfield(th,'max') && ~isempty(th.max) && isnumeric(th.max);
+        if ~(hasMin && hasMax)
+            warns{end+1} = sprintf('%s(%d) must have numeric min/max', path, k); %#ok<AGROW>
+            continue;
+        end
+        if th.min > th.max
+            warns{end+1} = sprintf('%s(%d) min>max', path, k); %#ok<AGROW>
+        end
+        if isfield(th,'t_range_start') && ~isempty(th.t_range_start)
+            try datetime(th.t_range_start,'InputFormat','yyyy-MM-dd HH:mm:ss'); catch
+                warns{end+1} = sprintf('%s(%d) t_range_start format invalid', path, k); %#ok<AGROW>
+            end
+        end
+        if isfield(th,'t_range_end') && ~isempty(th.t_range_end)
+            try datetime(th.t_range_end,'InputFormat','yyyy-MM-dd HH:mm:ss'); catch
+                warns{end+1} = sprintf('%s(%d) t_range_end format invalid', path, k); %#ok<AGROW>
+            end
+        end
     end
 end
