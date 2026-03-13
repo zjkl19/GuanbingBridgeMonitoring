@@ -152,7 +152,7 @@ else
 end
 if isnumeric(group_idx)
     name_tag = sprintf('G%d', group_idx);
-    title_str = sprintf('%s ?%d%s', prefix, group_idx, suffix);
+    title_str = sprintf('%s 组%d%s', prefix, group_idx, suffix);
 else
     name_tag = char(group_idx);
     title_str = sprintf('%s %s%s', prefix, group_idx, suffix);
