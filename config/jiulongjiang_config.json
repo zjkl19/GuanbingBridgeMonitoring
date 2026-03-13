@@ -881,9 +881,7 @@
     ]
   },
   "groups": {
-    "deflection": [
-
-    ],
+    "deflection": [],
     "bearing_displacement": [],
     "strain": {
       "G05": [
@@ -1129,6 +1127,7 @@
       ],
       "warn_lines": [],
       "ylim_auto": true,
+      "output_dir": "时程曲线_支座位移",
       "ylabel": "支座位移 (mm)",
       "title_prefix": "支座位移时程"
     },
@@ -1368,7 +1367,9 @@
       "per_point_plot": true,
       "group_plot": true,
       "temp_enabled": false,
-      "skip_group_if_missing": true
+      "skip_group_if_missing": true,
+      "output_dir_crack": "????_????",
+      "output_dir_temp": "????_????"
     },
     "temperature": {
       "ylabel": "温度 (°C)",

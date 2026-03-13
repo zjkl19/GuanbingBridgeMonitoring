@@ -31,6 +31,15 @@
 - `tests/`：单元测试
 - `outputs/`：运行日志、图表、报表输出
 
+常见图表输出目录命名统一使用中文，例如：
+- `时程曲线_支座位移`
+- `时程曲线_裂缝宽度`
+- `时程曲线_裂缝温度`
+- `时程曲线_倾斜`
+- `时程曲线_应变`
+- `时程曲线_应变_组图`
+- `箱线图_应变`
+
 ## 3. 配置文件
 
 - 默认配置：`config/default_config.json`
@@ -38,6 +47,9 @@
 - 九龙江配置：`config/jiulongjiang_config.json`
 
 建议按桥梁复制一份配置后再改，不要直接改默认配置。
+
+图表输出目录可通过各模块的 `plot_styles.<module>.output_dir` 配置覆盖；
+例如支座位移默认输出到 `时程曲线_支座位移`。
 
 ## 4. run_all 模块开关（opts）
 
@@ -138,4 +150,3 @@ Get-Service | Where-Object { $_.Name -like 'MSSQL*' } | Select-Object Name, Stat
 - 结果全是 NaN：优先检查 `defaults/per_point` 阈值是否过严
 - 九龙江数据读不到：检查 `data_adapter`、日期目录命名和 `points` 是否一致
 - WIM 数据库模式失败：先确认 SQL Server 服务、`sqlcmd`、`wim_db.server`、`import_mode`
-

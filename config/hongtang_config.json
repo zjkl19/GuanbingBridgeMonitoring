@@ -2526,6 +2526,7 @@
         ]
       ],
       "ylim_auto": false,
+      "output_dir": "时程曲线_支座位移",
       "ylim": [
         -400,
         400
@@ -2613,7 +2614,9 @@
       "per_point_plot": false,
       "group_plot": true,
       "temp_enabled": true,
-      "skip_group_if_missing": true
+      "skip_group_if_missing": true,
+      "output_dir_crack": "????_????",
+      "output_dir_temp": "????_????"
     },
     "acceleration": {
       "ylabel": "主梁竖向振动加速度 (m/s^2)",

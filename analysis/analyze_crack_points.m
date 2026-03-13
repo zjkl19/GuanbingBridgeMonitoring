@@ -72,8 +72,8 @@ function analyze_crack_points(root_dir, start_date, end_date, excel_file, subfol
     temp_ylabel  = get_style_field(style, 'ylabel_temp', 'Crack Temp (degC)');
     temp_title   = get_style_field(style, 'title_prefix_temp', 'Crack Temp');
 
-    crack_dir = fullfile(root_dir, sanitize_filename('timeseries_crack_width'));
-    temp_dir  = fullfile(root_dir, sanitize_filename('timeseries_crack_temp'));
+    crack_dir = fullfile(root_dir, sanitize_filename(get_style_field(style, 'output_dir_crack', '时程曲线_裂缝宽度')));
+    temp_dir  = fullfile(root_dir, sanitize_filename(get_style_field(style, 'output_dir_temp', '时程曲线_裂缝温度')));
 
     % Per-point plots
     if opt.per_point_plot

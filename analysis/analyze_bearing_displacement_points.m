@@ -202,7 +202,7 @@ function plot_bearing_curve(times_list, vals_list, pid_list, root_dir, start_dat
     grid on;
     grid minor;
 
-    out_dir = get_style_field(style, 'output_dir', 'timeseries_bearing_displacement');
+    out_dir = get_style_field(style, 'output_dir', '时程曲线_支座位移');
     out_dir = fullfile(root_dir, char(string(out_dir)));
     if ~exist(out_dir, 'dir')
         mkdir(out_dir);
