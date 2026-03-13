@@ -55,8 +55,16 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
     perTable.Layout.Row=5; perTable.Layout.Column=[1 4];
     addRowBtn = uibutton(cfgGrid,'Text','新增行','ButtonPushedFcn',@(btn,~) add_per_row()); addRowBtn.Layout.Row=6; addRowBtn.Layout.Column=1;
     delRowBtn = uibutton(cfgGrid,'Text','删除选中行','ButtonPushedFcn',@(btn,~) delete_per_rows()); delRowBtn.Layout.Row=6; delRowBtn.Layout.Column=2;
-    pickFigBtn = uibutton(cfgGrid,'Text','从图片框选','ButtonPushedFcn',@(btn,~) onPickFromFig('')); pickFigBtn.Layout.Row=6; pickFigBtn.Layout.Column=3;
-    timeBtn = uibutton(cfgGrid,'Text','选择时间窗','ButtonPushedFcn',@(btn,~) pick_selected_timerange()); timeBtn.Layout.Row=6; timeBtn.Layout.Column=4;
+    actionBtnGrid = uigridlayout(cfgGrid,[1 3]);
+    actionBtnGrid.Layout.Row = 6; actionBtnGrid.Layout.Column = [3 4];
+    actionBtnGrid.RowHeight = {'1x'};
+    actionBtnGrid.ColumnWidth = {'1x','1x','1x'};
+    actionBtnGrid.Padding = [0 0 0 0];
+    actionBtnGrid.ColumnSpacing = 6;
+    actionBtnGrid.RowSpacing = 0;
+    pickFigBtn = uibutton(actionBtnGrid,'Text','框选','Tooltip','从 FIG 中用矩形框选多条阈值','ButtonPushedFcn',@(btn,~) onPickFromFig('')); pickFigBtn.Layout.Row=1; pickFigBtn.Layout.Column=1;
+    pickLineBtn = uibutton(actionBtnGrid,'Text','拖线设阈','Tooltip','选择一条曲线并拖动上下限线段设阈','ButtonPushedFcn',@(btn,~) onPickFromFigLines('')); pickLineBtn.Layout.Row=1; pickLineBtn.Layout.Column=2;
+    timeBtn = uibutton(actionBtnGrid,'Text','时间窗','Tooltip','给选中行选择时间窗','ButtonPushedFcn',@(btn,~) pick_selected_timerange()); timeBtn.Layout.Row=1; timeBtn.Layout.Column=3;
     saveCfgBtn = uibutton(cfgGrid,'Text','保存','BackgroundColor',primaryBlue,'FontColor',[1 1 1],'ButtonPushedFcn',@(btn,~) onSaveCfg(false)); saveCfgBtn.Layout.Row=7; saveCfgBtn.Layout.Column=3;
     saveAsCfgBtn = uibutton(cfgGrid,'Text','另存为','ButtonPushedFcn',@(btn,~) onSaveCfg(true)); saveAsCfgBtn.Layout.Row=7; saveAsCfgBtn.Layout.Column=4;
     cfgMsg = uitextarea(cfgGrid,'Editable','off','Value',{'阈值编辑提示：时间格式 yyyy-MM-dd HH:mm:ss；留空表示全时段/不启用。'}); cfgMsg.Layout.Row=8; cfgMsg.Layout.Column=[1 4];
@@ -83,7 +91,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
     bodyPanel = uipanel(rightGrid,'BorderType','none');
     bodyPanel.Layout.Row = 2; bodyPanel.Layout.Column = 1;
 
-    figBrowser = build_fig_browser_panel(bodyPanel, f, @(p) onPickFromFig(p));
+    figBrowser = build_fig_browser_panel(bodyPanel, f, @(p) onPickFromFigLines(p));
 
     refresh_tables();
 
@@ -206,6 +214,21 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
             addLog(sprintf('从图片追加 %d 条阈值记录', size(rows,1)));
         catch ME
             uialert(f, ['从图片框选失败: ' ME.message], '错误');
+        end
+    end
+    function onPickFromFigLines(figPath)
+        try
+            if nargin < 1 || isempty(figPath)
+                picked = pick_threshold_lines_from_fig(f);
+            else
+                picked = pick_threshold_lines_from_fig(f, figPath);
+            end
+            if isempty(picked), return; end
+            newRow = {picked.point_id, picked.min, picked.max, picked.t_range_start, picked.t_range_end, false, [], []};
+            perTable.Data = [perTable.Data; newRow];
+            addLog(['从 FIG 拖线追加阈值: ' picked.point_id]);
+        catch ME
+            uialert(f, ['FIG 拖线设阈失败: ' ME.message], '错误');
         end
     end
     function onReloadCfg()

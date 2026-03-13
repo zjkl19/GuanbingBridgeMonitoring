@@ -59,6 +59,8 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
     delRowBtn.Layout.Row = 6; delRowBtn.Layout.Column = 2;
     timeBtn = uibutton(grid, 'Text', '选择时间窗', 'ButtonPushedFcn', @(~,~) pick_selected_timerange());
     timeBtn.Layout.Row = 6; timeBtn.Layout.Column = 3;
+    pickLineBtn = uibutton(grid, 'Text', 'FIG拖线设阈', 'ButtonPushedFcn', @(~,~) onPickFromFigLines(''));
+    pickLineBtn.Layout.Row = 6; pickLineBtn.Layout.Column = 4;
     saveCfgBtn = uibutton(grid, 'Text', '保存', 'BackgroundColor', primaryBlue, ...
         'FontColor', [1 1 1], 'ButtonPushedFcn', @(~,~) onSaveCfg(false));
     saveCfgBtn.Layout.Row = 7; saveCfgBtn.Layout.Column = 3;
@@ -153,6 +155,21 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
         data{rowIdx, startCol} = t0;
         data{rowIdx, endCol} = t1;
         tableRef.Data = data;
+    end
+
+    function onPickFromFigLines(figPath)
+        try
+            if nargin < 1 || isempty(figPath)
+                picked = pick_threshold_lines_from_fig(f);
+            else
+                picked = pick_threshold_lines_from_fig(f, figPath);
+            end
+            if isempty(picked), return; end
+            perTable.Data = [perTable.Data; {picked.point_id, picked.min, picked.max, picked.t_range_start, picked.t_range_end}];
+            msgBox.Value = {['从 FIG 拖线追加规则: ' picked.point_id]};
+        catch ME
+            uialert(f, ['FIG 拖线设阈失败: ' ME.message], '错误');
+        end
     end
 
     function onReloadCfg()

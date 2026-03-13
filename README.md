@@ -51,7 +51,27 @@
 图表输出目录可通过各模块的 `plot_styles.<module>.output_dir` 配置覆盖；
 例如支座位移默认输出到 `时程曲线_支座位移`。
 
-## 4. run_all 模块开关（opts）
+## 4. 阈值配置与滤波后二次清洗
+
+- GUI 中提供两个独立页面：
+  - `阈值配置`
+  - `滤波后二次清洗`
+- 两个页面都支持：
+  - 默认规则编辑
+  - 点位规则编辑
+  - 删除选中行
+  - 时间窗选择
+  - 从 `.fig` 中拖动上下限线段生成一条阈值规则
+- `拖线设阈` 的工作方式：
+  - 只支持 `.fig`
+  - 先选择一条目标曲线
+  - 再拖动上限线、下限线和时间窗
+  - 确认后自动写入 `min/max/t_range_start/t_range_end`
+- 滤波后二次清洗配置字段为：
+  - `defaults.<module>.post_filter_thresholds`
+  - `per_point.<module>.<point_id>.post_filter_thresholds`
+
+## 5. run_all 模块开关（opts）
 
 常用字段：
 
@@ -81,7 +101,7 @@ opts = struct( ...
 run_all('D:\Data\Hongtang', '2026-01-01', '2026-01-31', opts, cfg);
 ```
 
-## 5. WIM（动态称重）流程
+## 6. WIM（动态称重）流程
 
 入口：`analysis/analyze_wim_reports.m`  
 支持两种管线：
@@ -89,7 +109,7 @@ run_all('D:\Data\Hongtang', '2026-01-01', '2026-01-31', opts, cfg);
 - `wim.pipeline = "direct"`：直接读取源文件统计
 - `wim.pipeline = "database"`：先入 SQL Server，再跑 SQL 报表
 
-### 5.1 洪塘（智宸天驰 bcp/fmt）
+### 6.1 洪塘（智宸天驰 bcp/fmt）
 
 主要配置（`config/hongtang_config.json`）：
 
@@ -104,7 +124,7 @@ run_all('D:\Data\Hongtang', '2026-01-01', '2026-01-31', opts, cfg);
 - 汇总 Excel：`WIM_Report_{bridge}_{yyyymm}.xlsx`
 - 若启用 `wim_plot.enabled`，同时生成图和总结文本
 
-### 5.2 SQL Server 服务说明
+### 6.2 SQL Server 服务说明
 
 当 `wim.pipeline = "database"` 时，程序会尝试检查并启动 SQL Server 服务。  
 默认服务名在配置里：`wim_db.service_name`（常见：`MSSQLSERVER` 或 `MSSQL$SQLEXPRESS`）。
@@ -115,7 +135,7 @@ run_all('D:\Data\Hongtang', '2026-01-01', '2026-01-31', opts, cfg);
 Get-Service | Where-Object { $_.Name -like 'MSSQL*' } | Select-Object Name, Status
 ```
 
-## 6. 提示音通知
+## 7. 提示音通知
 
 配置 `notify`：
 
@@ -131,7 +151,7 @@ Get-Service | Where-Object { $_.Name -like 'MSSQL*' } | Select-Object Name, Stat
 
 实现脚本：`scripts/play_notify_sound.m`
 
-## 7. 测试
+## 8. 测试
 
 - 推荐入口：
   ```matlab
