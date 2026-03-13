@@ -83,6 +83,26 @@ function [times, vals, meta] = load_timeseries_range(root_dir, subfolder, point_
     [times, order] = sort(all_t);
     vals = all_v(order);
 
+    if ~isempty(rules.offset_correction) && isnumeric(rules.offset_correction) ...
+            && isscalar(rules.offset_correction) && isfinite(rules.offset_correction) ...
+            && rules.offset_correction ~= 0
+        vals = vals + rules.offset_correction;
+        meta.applied_offset_correction = rules.offset_correction;
+        try
+            offset_correction_registry('record', struct( ...
+                'sensor_type', sensor_type, ...
+                'point_id', point_id, ...
+                'offset_correction', rules.offset_correction, ...
+                'start_time', min(times), ...
+                'end_time', max(times), ...
+                'sample_count', numel(vals), ...
+                'files', {meta.files}));
+        catch
+        end
+    else
+        meta.applied_offset_correction = [];
+    end
+
     % === cleaning pipeline ===
     % 1) 阈值过滤：超出 min/max 置 NaN。
     % 2) 零值过滤：zero_to_nan=true 时，值为 0 置 NaN（适合部分传感器“掉线写 0”场景）。
@@ -532,7 +552,8 @@ end
 % -------------------------------------------------------------------------
 function rules = build_rules(cfg, sensor_type, point_id)
     rules = struct('thresholds', [], 'zero_to_nan', false, ...
-                   'outlier_window_sec', [], 'outlier_threshold_factor', []);
+                   'outlier_window_sec', [], 'outlier_threshold_factor', [], ...
+                   'offset_correction', []);
     if isfield(cfg, 'defaults') && isfield(cfg.defaults, sensor_type)
         def = cfg.defaults.(sensor_type);
         if isfield(def, 'thresholds'), rules.thresholds = def.thresholds; end
@@ -541,6 +562,7 @@ function rules = build_rules(cfg, sensor_type, point_id)
             if isfield(def.outlier, 'window_sec'), rules.outlier_window_sec = def.outlier.window_sec; end
             if isfield(def.outlier, 'threshold_factor'), rules.outlier_threshold_factor = def.outlier.threshold_factor; end
         end
+        if isfield(def, 'offset_correction'), rules.offset_correction = parse_offset_value(def.offset_correction); end
     end
     safe_id = strrep(point_id, '-', '_');
     if isfield(cfg, 'per_point') && isfield(cfg.per_point, sensor_type) ...
@@ -572,6 +594,25 @@ function rules = apply_point_rules(rules, pt)
     if isfield(pt, 'outlier') && isstruct(pt.outlier)
         if isfield(pt.outlier, 'window_sec'), rules.outlier_window_sec = pt.outlier.window_sec; end
         if isfield(pt.outlier, 'threshold_factor'), rules.outlier_threshold_factor = pt.outlier.threshold_factor; end
+    end
+    if isfield(pt, 'offset_correction')
+        pt_offset = parse_offset_value(pt.offset_correction);
+        if ~isempty(pt_offset)
+            rules.offset_correction = pt_offset;
+        end
+    end
+end
+
+function offset = parse_offset_value(raw)
+    offset = [];
+    if isempty(raw)
+        return;
+    end
+    if ischar(raw) || isstring(raw)
+        raw = str2double(raw);
+    end
+    if isnumeric(raw) && isscalar(raw) && isfinite(raw)
+        offset = double(raw);
     end
 end
 

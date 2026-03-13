@@ -33,6 +33,12 @@ function save_config(cfg, filepath, make_backup)
         name_map = cfg.name_map_global;
         cfg = rmfield(cfg,'name_map_global');
     end
+    if isfield(cfg,'source')
+        cfg = rmfield(cfg,'source');
+    end
+    if isfield(cfg,'warnings')
+        cfg = rmfield(cfg,'warnings');
+    end
 
     % jsonencode 不接受 options 结构体，必须以 Name-Value 传参
     % 否则会报 “名称参数类型必须为字符串标量或字符向量”

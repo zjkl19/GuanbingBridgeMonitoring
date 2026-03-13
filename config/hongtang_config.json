@@ -1109,6 +1109,7 @@
     "tilt": {
       "Q1_Z": {
         "thresholds": [],
+        "offset_correction": -1.422,
         "alarm_bounds": {
           "level2": [
             -0.038,
@@ -1122,6 +1123,7 @@
       },
       "Q1_H": {
         "thresholds": [],
+        "offset_correction": -1.185,
         "alarm_bounds": {
           "level2": [
             -0.038,
@@ -1135,6 +1137,7 @@
       },
       "Q2_Z": {
         "thresholds": [],
+        "offset_correction": -1.796,
         "alarm_bounds": {
           "level2": [
             -0.038,
@@ -1148,6 +1151,7 @@
       },
       "Q2_H": {
         "thresholds": [],
+        "offset_correction": -0.507,
         "alarm_bounds": {
           "level2": [
             -0.038,

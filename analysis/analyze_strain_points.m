@@ -183,14 +183,16 @@ function plot_group_timeseries(root_dir, data_list, start_date, end_date, group_
 
     fig = figure('Position', [100 100 1000 469]);
     hold on;
+    n_series = numel(data_list);
+    if n_series > 12
+        fprintf('[WARN] Strain group %s has %d curves; consider splitting it for readability.\n', ...
+            char(string(group_name)), n_series);
+    end
+    colors = get_group_colors(style, n_series);
 
-    colors_6 = normalize_colors(get_style_field(style, 'colors_6', {
-        [0 0 0], [0 0 1], [0 0.7 0], [1 0.4 0.8], [1 0.6 0], [1 0 0]
-    }));
-
-    h_lines = gobjects(numel(data_list), 1);
-    for i = 1:numel(data_list)
-        c = colors_6{min(i, numel(colors_6))};
+    h_lines = gobjects(n_series, 1);
+    for i = 1:n_series
+        c = colors(i, :);
         h_lines(i) = plot(data_list(i).times, data_list(i).vals, 'LineWidth', 1.0, 'Color', c);
     end
     labels = {data_list.pid};
@@ -588,4 +590,48 @@ end
 
 function out = sanitize_filename(name)
     out = regexprep(char(string(name)), '[\\/:*?"<>|]', '_');
+end
+
+function colors = get_group_colors(style, n_series)
+    default_colors = [
+        0.0000 0.4470 0.7410
+        0.8500 0.3250 0.0980
+        0.9290 0.6940 0.1250
+        0.4940 0.1840 0.5560
+        0.4660 0.6740 0.1880
+        0.3010 0.7450 0.9330
+    ];
+    colors = [];
+    custom = normalize_colors(get_style_field(style, 'colors_6', default_colors));
+    if ~isempty(custom)
+        colors = NaN(numel(custom), 3);
+        valid = true(numel(custom), 1);
+        for i = 1:numel(custom)
+            ci = custom{i};
+            if isnumeric(ci) && numel(ci) == 3
+                colors(i, :) = reshape(ci, 1, 3);
+            else
+                valid(i) = false;
+            end
+        end
+        colors = colors(valid, :);
+    end
+    if size(colors, 1) < n_series
+        colors = generate_distinct_colors(n_series);
+    else
+        colors = colors(1:n_series, :);
+    end
+end
+
+function colors = generate_distinct_colors(n_series)
+    if exist('turbo', 'builtin') == 5 || exist('turbo', 'file') == 2
+        colors = turbo(n_series);
+        return;
+    end
+
+    idx = (0:n_series-1)';
+    hues = mod(idx * 0.61803398875, 1.0);
+    sat = 0.65 + 0.20 * mod(idx * 0.31, 1.0);
+    val = 0.78 + 0.18 * mod(idx * 0.47, 1.0);
+    colors = hsv2rgb([hues, sat, val]);
 end

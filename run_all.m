@@ -22,6 +22,7 @@ notify_cfg = cfg;
 
 log_records = {};
 start_ts = datetime('now');
+offset_correction_registry('reset');
 
 % Config warnings
 if isfield(cfg,'warnings') && ~isempty(cfg.warnings)
@@ -186,7 +187,11 @@ end
 % Restore warning
 warning(ws);
 elapsed = toc;
-fprintf('总耗时: %.2f 秒\n', elapsed);
+offsetLog = write_offset_correction_report(start_ts);
+if ~isempty(offsetLog)
+    log_records{end+1} = offsetLog; %#ok<AGROW>
+end
+fprintf('Total elapsed: %.2f sec\n', elapsed);
 all_logs = [log_records, results];
 print_summary(all_logs);
 write_log(all_logs, start_ts, elapsed);
@@ -196,12 +201,32 @@ if ~isempty(kind)
 end
 catch ME
     warning(ws);
+    if exist('start_ts', 'var')
+        offsetLog = write_offset_correction_report(start_ts);
+        if ~isempty(offsetLog) && exist('log_records', 'var')
+            log_records{end+1} = offsetLog; %#ok<AGROW>
+        end
+    end
     kind = select_notify_kind(notify_cfg, true);
     if ~isempty(kind)
         safe_notify(kind, notify_cfg);
     end
     rethrow(ME);
 end
+end
+
+function logRecord = write_offset_correction_report(start_ts)
+    logRecord = [];
+    try
+        logdir = fullfile(pwd,'outputs','run_logs');
+        [filepath, count] = offset_correction_registry('write', logdir, start_ts);
+        logRecord = struct('label', 'offset_correction_report', 'status', 'ok', ...
+            'message', sprintf('%d point(s); %s', count, filepath));
+        fprintf('Offset correction report written to %s\n', filepath);
+    catch ME
+        logRecord = struct('label', 'offset_correction_report', 'status', 'warn', 'message', ME.message);
+        warning('Offset correction report failed: %s', ME.message);
+    end
 end
 
 function sub = get_subfolder(cfg, key, fallback)

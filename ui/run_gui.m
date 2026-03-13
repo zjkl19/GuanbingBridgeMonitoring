@@ -31,6 +31,7 @@ function run_gui()
     tabRun = uitab(tg,'Title','运行');
     tabCfg = uitab(tg,'Title','阈值配置');
     tabPostCfg = uitab(tg,'Title','滤波后二次清洗');
+    tabOffsetCfg = uitab(tg,'Title','零点修正');
 
     %% 运行页
     gl = uigridlayout(tabRun,[15 4]);
@@ -115,6 +116,7 @@ function run_gui()
     %% 阈值配置页（拆分模块）
     th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
     pf = build_post_filter_threshold_tab(tabPostCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
+    oc = build_offset_correction_tab(tabOffsetCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
     tg.SelectionChangedFcn = @(src,evt) onTabChanged(evt);
 
     %% 运行页回调
@@ -263,6 +265,8 @@ function run_gui()
                 th.onShow();
             elseif isequal(evt.NewValue, tabPostCfg) && isstruct(pf) && isfield(pf,'onShow')
                 pf.onShow();
+            elseif isequal(evt.NewValue, tabOffsetCfg) && isstruct(oc) && isfield(oc,'onShow')
+                oc.onShow();
             end
         catch
         end
