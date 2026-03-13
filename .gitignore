@@ -49,3 +49,4 @@ tests/data/_unit/**/cache/**
 tes1t.m
 tilt_stats.xlsx
 tests/data/_samples/jlj/**/cache/
+reporting/.venv/
