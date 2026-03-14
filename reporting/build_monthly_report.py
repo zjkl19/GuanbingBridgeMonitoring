@@ -219,6 +219,12 @@ def insert_paragraph_before(paragraph: Paragraph) -> Paragraph:
     return Paragraph(new_p, paragraph._parent)
 
 
+def insert_paragraph_after(paragraph: Paragraph) -> Paragraph:
+    new_p = OxmlElement("w:p")
+    paragraph._p.addnext(new_p)
+    return Paragraph(new_p, paragraph._parent)
+
+
 def replace_paragraph_text(paragraph: Paragraph, text: str) -> None:
     if paragraph.runs:
         for run in paragraph.runs:
@@ -330,7 +336,7 @@ def insert_labeled_images_before_caption_contains(
         run = pic_para.add_run()
         run.add_picture(str(item.path), width=Mm(width_mm))
 
-        label_para = insert_paragraph_before(pic_para)
+        label_para = insert_paragraph_after(pic_para)
         label_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         label_para.add_run(item.label)
 
