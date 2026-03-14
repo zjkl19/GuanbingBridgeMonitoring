@@ -110,8 +110,12 @@ def resolve_output_dirs(root: Path, configured_dir: str) -> list[Path]:
 
 
 def find_latest_image(root: Path, configured_dir: str, stem_prefix: str) -> tuple[Path | None, dict]:
-    resolved_dirs = resolve_output_dirs(root, configured_dir)
     patterns = [f"{stem_prefix}*.jpg", f"{stem_prefix}*.png", f"{stem_prefix}*.jpeg"]
+    return find_latest_image_patterns(root, configured_dir, patterns)
+
+
+def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[str]) -> tuple[Path | None, dict]:
+    resolved_dirs = resolve_output_dirs(root, configured_dir)
     matched: list[Path] = []
     for folder in resolved_dirs:
         for pattern in patterns:
@@ -128,6 +132,22 @@ def find_latest_image(root: Path, configured_dir: str, stem_prefix: str) -> tupl
             "selected_file": str(matched[0]) if matched else None,
         },
     )
+
+
+def get_report_order(cfg: dict, module: str, key: str, default: list[str]) -> list[str]:
+    reporting = cfg.get("reporting", {})
+    section = reporting.get(module, {})
+    raw = section.get(key)
+    if not isinstance(raw, list) or not raw:
+        return default
+    out = []
+    seen = set()
+    for item in raw:
+        val = str(item).strip()
+        if val and val not in seen:
+            out.append(val)
+            seen.add(val)
+    return out or default
 
 
 def select_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -295,6 +315,26 @@ def insert_picture_before_caption_contains(doc: Document, caption_fragment: str,
     run.add_picture(str(image_path), width=Mm(width_mm))
 
 
+def insert_labeled_images_before_caption_contains(
+    doc: Document,
+    caption_fragment: str,
+    items: list[ImageItem],
+    width_mm: float = 165.0,
+) -> None:
+    caption = find_last_paragraph_contains(doc, caption_fragment)
+    for item in items:
+        if item.path is None or not item.path.exists():
+            continue
+        pic_para = insert_paragraph_before(caption)
+        pic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = pic_para.add_run()
+        run.add_picture(str(item.path), width=Mm(width_mm))
+
+        label_para = insert_paragraph_before(pic_para)
+        label_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        label_para.add_run(item.label)
+
+
 def replace_last_paragraph(doc: Document, exact_text: str, new_text: str) -> None:
     para = find_last_paragraph(doc, exact_text)
     replace_paragraph_text(para, new_text)
@@ -386,8 +426,8 @@ def build_strain_section(cfg: dict, stats_root: Path, fallback_stats_root: Path 
     tower_rows = [r for r in rows if str(r.get("PointID", "")).startswith(("SK-", "SL-"))]
 
     strain_style = cfg["plot_styles"]["strain"]
-    girder_groups = ["B", "C", "D", "E", "F", "G", "H"]
-    tower_groups = ["K", "L"]
+    girder_groups = get_report_order(cfg, "strain", "girder_order", ["B", "C", "D", "E", "F", "G", "H"])
+    tower_groups = get_report_order(cfg, "strain", "tower_order", ["K", "L"])
     girder_imgs = []
     for group in girder_groups:
         img_path, lookup = find_latest_image(image_root, strain_style["boxplot_output_dir"], f"StrainBox_{group}_")
@@ -396,9 +436,6 @@ def build_strain_section(cfg: dict, stats_root: Path, fallback_stats_root: Path 
     for group in tower_groups:
         img_path, lookup = find_latest_image(image_root, strain_style["boxplot_output_dir"], f"StrainBox_{group}_")
         tower_imgs.append(ImageItem(group, img_path, lookup))
-
-    girder_asset = compose_grid(girder_imgs, assets_dir / "strain_girder_boxplot.jpg", cols=2)
-    tower_asset = compose_grid(tower_imgs, assets_dir / "strain_tower_boxplot.jpg", cols=2)
 
     girder_min = min((r["Min"] for r in girder_rows if r.get("Min") is not None), default=None)
     girder_max = max((r["Max"] for r in girder_rows if r.get("Max") is not None), default=None)
@@ -411,8 +448,8 @@ def build_strain_section(cfg: dict, stats_root: Path, fallback_stats_root: Path 
     return {
         "chapter_girder": f"监测结果表明，各测点应变值在{format_range(girder_min, girder_max, 1, 'με')}之间，{alarm_status_text(girder_level)}",
         "chapter_tower": f"监测结果表明，各测点应变值在{format_range(tower_min, tower_max, 1, 'με')}之间，{alarm_status_text(tower_level)}",
-        "girder_image": str(girder_asset),
-        "tower_image": str(tower_asset),
+        "girder_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in girder_imgs],
+        "tower_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in tower_imgs],
         "girder_caption": "图 4-4 主梁各截面位置应变箱线图",
         "tower_caption": "图 4-5 桥塔各截面位置应变箱线图",
         "image_lookup": {
@@ -428,11 +465,9 @@ def build_tilt_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
     h_rows = [r for r in rows if str(r.get("PointID", "")).endswith("-H")]
     style = cfg["plot_styles"]["tilt"]
     items = []
-    for pid in ["Q1-Z", "Q1-H", "Q2-Z", "Q2-H"]:
+    for pid in get_report_order(cfg, "tilt", "order", ["Q1-Z", "Q1-H", "Q2-Z", "Q2-H"]):
         img_path, lookup = find_latest_image(image_root, style["output_dir"], f"Tilt_{pid}_")
         items.append(ImageItem(pid, img_path, lookup))
-    asset = compose_grid(items, assets_dir / "tilt_timeseries.jpg", cols=2)
-
     z_min = min((r["Min"] for r in z_rows if r.get("Min") is not None), default=None)
     z_max = max((r["Max"] for r in z_rows if r.get("Max") is not None), default=None)
     h_min = min((r["Min"] for r in h_rows if r.get("Min") is not None), default=None)
@@ -444,7 +479,7 @@ def build_tilt_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
     )
     return {
         "chapter": summary,
-        "image": str(asset),
+        "images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in items],
         "caption": "图 4-6 桥塔各截面位置倾角时程曲线图",
         "image_lookup": [deepcopy(item.lookup) | {"label": item.label} for item in items],
     }
@@ -452,18 +487,36 @@ def build_tilt_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
 
 def build_bearing_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | None, image_root: Path, assets_dir: Path) -> dict:
     rows = load_sheet_rows(resolve_existing_file(stats_root, fallback_stats_root, "bearing_displacement_stats.xlsx"))
-    configured_points = cfg.get("points", {}).get("bearing_displacement", [])
+    configured_points = get_report_order(cfg, "bearing_displacement", "order", cfg.get("points", {}).get("bearing_displacement", []))
     configured_order = {str(pid): idx for idx, pid in enumerate(configured_points)}
     if configured_order:
         rows = [r for r in rows if str(r.get("PointID", "")) in configured_order]
         rows.sort(key=lambda r: configured_order.get(str(r.get("PointID", "")), 10**9))
 
-    valid_rows = [r for r in rows if r.get("FiltMin_mm") is not None and r.get("FiltMax_mm") is not None]
+    valid_rows = [r for r in rows if r.get("OrigMin_mm") is not None and r.get("OrigMax_mm") is not None]
     style = cfg["plot_styles"]["bearing_displacement"]
     items = []
     for record in valid_rows:
         pid = str(record["PointID"])
-        img_path, lookup = find_latest_image(image_root, style["output_dir"], f"BearingDisp_{pid}_")
+        img_path, lookup = find_latest_image_patterns(
+            image_root,
+            style["output_dir"],
+            [
+                f"BearingDisp_{pid}_*_Orig_*.jpg",
+                f"BearingDisp_{pid}_*_Orig_*.png",
+                f"BearingDisp_{pid}_*_Orig_*.jpeg",
+            ],
+        )
+        if img_path is None:
+            img_path, lookup = find_latest_image_patterns(
+                image_root,
+                style["output_dir"],
+                [
+                    f"BearingDisp_{pid}_*.jpg",
+                    f"BearingDisp_{pid}_*.png",
+                    f"BearingDisp_{pid}_*.jpeg",
+                ],
+            )
         items.append(ImageItem(pid, img_path, lookup))
     if not items:
         items = [ImageItem("支座位移", None, {
@@ -474,18 +527,16 @@ def build_bearing_section(cfg: dict, stats_root: Path, fallback_stats_root: Path
             "matched_files": [],
             "selected_file": None,
         })]
-    asset = compose_grid(items, assets_dir / "bearing_timeseries.jpg", cols=2)
-
-    min_val = min((r["FiltMin_mm"] for r in valid_rows), default=None)
-    max_val = max((r["FiltMax_mm"] for r in valid_rows), default=None)
-    level = max_alarm_level(valid_rows, cfg, "bearing_displacement", "FiltMin_mm", "FiltMax_mm")
+    min_val = min((r["OrigMin_mm"] for r in valid_rows), default=None)
+    max_val = max((r["OrigMax_mm"] for r in valid_rows), default=None)
+    level = max_alarm_level(valid_rows, cfg, "bearing_displacement", "OrigMin_mm", "OrigMax_mm")
     summary = (
         f"选取典型监测数据进行分析。监测结果表明，各测点支座位移在"
         f"{format_range(min_val, max_val, 1, 'mm')}之间，{alarm_status_text(level)}"
     )
     return {
         "chapter": summary,
-        "image": str(asset),
+        "images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in items],
         "caption": "图 4-7 典型测点支座变位时程曲线图",
         "image_lookup": [deepcopy(item.lookup) | {"label": item.label} for item in items],
     }
@@ -517,16 +568,32 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
     replace_next_nonempty_after_exact(doc, "桥塔应变", strain["chapter_tower"], use_last=True, skip=1)
     replace_last_paragraph_contains(doc, "图 4-4 主梁各截面位置应变时程曲线图", strain["girder_caption"])
     replace_last_paragraph_contains(doc, "图 4-5 桥塔各截面位置应变时程曲线图", strain["tower_caption"])
-    insert_picture_before_caption_contains(doc, strain["girder_caption"], Path(strain["girder_image"]))
-    insert_picture_before_caption_contains(doc, strain["tower_caption"], Path(strain["tower_image"]))
+    insert_labeled_images_before_caption_contains(
+        doc,
+        strain["girder_caption"],
+        [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in strain["girder_images"]],
+    )
+    insert_labeled_images_before_caption_contains(
+        doc,
+        strain["tower_caption"],
+        [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in strain["tower_images"]],
+    )
 
     tilt = manifest["sections"]["tilt"]
     replace_last_paragraph_contains(doc, "主塔倾角偏移的方向以闽侯上街-农林大学为纵桥向", "主塔倾角偏移的方向以闽侯上街-农林大学为纵桥向，上游-下游为横桥向。其中朝农林大学方向为正、闽侯上街方向为负，朝上游方向为正、朝下游方向为负。各测点的倾斜幅值如下图所示。" + tilt["chapter"])
-    insert_picture_before_caption_contains(doc, tilt["caption"], Path(tilt["image"]))
+    insert_labeled_images_before_caption_contains(
+        doc,
+        tilt["caption"],
+        [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in tilt["images"]],
+    )
 
     bearing = manifest["sections"]["bearing_displacement"]
     replace_last_paragraph_contains(doc, "支座变位的方向以闽侯上街-农林大学为纵桥向", "支座变位的方向以闽侯上街-农林大学为纵桥向，上游-下游为横桥向。其中朝农林大学方向为正、闽侯上街方向为负，朝上游方向为正、朝下游方向为负。各测点的支座位移时程如下图所示。" + bearing["chapter"])
-    insert_picture_before_caption_contains(doc, bearing["caption"], Path(bearing["image"]))
+    insert_labeled_images_before_caption_contains(
+        doc,
+        bearing["caption"],
+        [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in bearing["images"]],
+    )
 
 
 def summarize_missing_images(manifest: dict) -> list[str]:
