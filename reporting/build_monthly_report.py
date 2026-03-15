@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
@@ -10,6 +11,7 @@ from pathlib import Path
 from typing import Iterable
 
 from docx import Document
+from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.shared import Mm
@@ -23,6 +25,22 @@ class ImageItem:
     label: str
     path: Path | None
     lookup: dict | None = None
+
+
+HONGTANG_CABLE_BUILT_FORCE = {
+    "CS4": 2086.38,
+    "CS5": 1442.28,
+    "CS6": 1237.98,
+    "CS7": 1215.25,
+    "CS8": 1205.40,
+    "CS9": 2061.52,
+    "CX4": 1795.92,
+    "CX5": 1435.46,
+    "CX6": 1249.43,
+    "CX7": 1161.54,
+    "CX8": 1449.13,
+    "CX9": 1928.46,
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,6 +79,33 @@ def load_sheet_rows(path: Path) -> list[dict]:
             item[k] = v
         out.append(item)
     return out
+
+
+def read_numeric_series_csv(path: Path) -> list[float]:
+    values: list[float] = []
+    last_exc: Exception | None = None
+    for encoding in ("utf-8-sig", "utf-16", "gbk"):
+        try:
+            with path.open("r", encoding=encoding) as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or "," not in line or line.startswith("开始时间") or line.startswith("序列号") or line.startswith("通道号"):
+                        continue
+                    parts = line.split(",", 1)
+                    if len(parts) != 2:
+                        continue
+                    try:
+                        values.append(float(parts[1].strip()))
+                    except ValueError:
+                        continue
+            return values
+        except UnicodeError as exc:
+            last_exc = exc
+            values = []
+            continue
+    if last_exc is not None:
+        raise last_exc
+    return values
 
 
 def resolve_existing_file(primary_root: Path | None, fallback_root: Path | None, filename: str) -> Path:
@@ -115,6 +160,10 @@ def find_latest_image(root: Path, configured_dir: str, stem_prefix: str) -> tupl
 
 
 def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[str]) -> tuple[Path | None, dict]:
+    return find_latest_file_patterns(root, configured_dir, patterns)
+
+
+def find_latest_file_patterns(root: Path, configured_dir: str, patterns: list[str]) -> tuple[Path | None, dict]:
     resolved_dirs = resolve_output_dirs(root, configured_dir)
     matched: list[Path] = []
     for folder in resolved_dirs:
@@ -134,20 +183,52 @@ def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[s
     )
 
 
-def get_report_order(cfg: dict, module: str, key: str, default: list[str]) -> list[str]:
-    reporting = cfg.get("reporting", {})
-    section = reporting.get(module, {})
-    raw = section.get(key)
-    if not isinstance(raw, list) or not raw:
-        return default
-    out = []
-    seen = set()
+def normalize_name_list(raw: object) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
     for item in raw:
         val = str(item).strip()
-        if val and val not in seen:
-            out.append(val)
-            seen.add(val)
-    return out or default
+        if not val or val in seen:
+            continue
+        out.append(val)
+        seen.add(val)
+    return out
+
+
+def get_reporting_section(cfg: dict, module: str) -> dict:
+    reporting = cfg.get("reporting", {})
+    section = reporting.get(module, {})
+    return section if isinstance(section, dict) else {}
+
+
+def reporting_enabled(cfg: dict, module: str, default: bool = True) -> bool:
+    section = get_reporting_section(cfg, module)
+    if "enabled" not in section:
+        return default
+    return bool(section.get("enabled"))
+
+
+def get_report_order(cfg: dict, module: str, key: str, default: list[str]) -> list[str]:
+    section = get_reporting_section(cfg, module)
+    order = normalize_name_list(section.get(key)) or list(default)
+    include = normalize_name_list(section.get(f"{key}_include")) or normalize_name_list(section.get("include"))
+    exclude = set(normalize_name_list(section.get(f"{key}_exclude")) or normalize_name_list(section.get("exclude")))
+
+    if include:
+        ordered = include
+    else:
+        ordered = order
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in ordered:
+        if item in exclude or item in seen:
+            continue
+        out.append(item)
+        seen.add(item)
+    return out
 
 
 def select_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -426,6 +507,83 @@ def format_range(min_val: float | int | None, max_val: float | int | None, decim
     return f"{min_val:.{decimals}f}{unit}~{max_val:.{decimals}f}{unit}"
 
 
+def find_table_by_header(doc: Document, header_fragment: str):
+    for table in doc.tables:
+        if not table.rows:
+            continue
+        header_cells = [cell.text.strip() for cell in table.rows[0].cells]
+        if any(header_fragment in text for text in header_cells):
+            return table
+    raise ValueError(f'Table with header fragment "{header_fragment}" not found in template')
+
+
+def parse_float(value: object) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_wind_summary(summary_path: Path) -> dict[str, str]:
+    if not summary_path.exists():
+        return {}
+    text = summary_path.read_text(encoding="utf-8")
+    result: dict[str, str] = {}
+    patterns = {
+        "mean_dir": r"平均风向:\s*([0-9.]+°)",
+        "dominant_dir": r"主导风向:\s*([^\n]+)",
+        "mean_speed": r"平均风速:\s*([0-9.]+)\s*m/s",
+        "max_speed": r"最大风速:\s*([0-9.]+)\s*m/s",
+        "main_grade": r"主要风速等级:\s*([^\n（]+(?:\s*m/s)?)",
+    }
+    for key, pattern in patterns.items():
+        match = re.search(pattern, text)
+        if match:
+            result[key] = match.group(1).strip()
+    return result
+
+
+def compute_string_force_kN(rho: float | None, length_m: float | None, freq_hz: float | None) -> float | None:
+    if rho is None or length_m is None or freq_hz is None:
+        return None
+    return 4.0 * rho * (length_m ** 2) * (freq_hz ** 2) / 1000.0
+
+
+def flatten_group_members(groups_cfg: object) -> list[str]:
+    groups_map = {}
+    if isinstance(groups_cfg, dict):
+        groups_map = groups_cfg
+    points: list[str] = []
+    seen: set[str] = set()
+    for members in groups_map.values():
+        if not isinstance(members, list):
+            continue
+        for item in members:
+            val = str(item).strip()
+            if not val or val in seen:
+                continue
+            points.append(val)
+            seen.add(val)
+    return points
+
+
+def label_path_dicts(items: list[ImageItem]) -> list[dict]:
+    out: list[dict] = []
+    for item in items:
+        lookup = deepcopy(item.lookup) if isinstance(item.lookup, dict) else {}
+        lookup["label"] = item.label
+        out.append(lookup)
+    return out
+
+
+def center_cell(cell) -> None:
+    cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+    for paragraph in cell.paragraphs:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+
 def build_strain_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | None, image_root: Path, assets_dir: Path) -> dict:
     rows = load_sheet_rows(resolve_existing_file(stats_root, fallback_stats_root, "strain_stats.xlsx"))
     girder_rows = [r for r in rows if str(r.get("PointID", "")).startswith(("SB-", "SC-", "SD-", "SE-", "SF-", "SG-", "SH-"))]
@@ -452,6 +610,7 @@ def build_strain_section(cfg: dict, stats_root: Path, fallback_stats_root: Path 
     tower_level = max_alarm_level(tower_rows, cfg, "strain", "Min", "Max")
 
     return {
+        "enabled": reporting_enabled(cfg, "strain"),
         "chapter_girder": f"监测结果表明，各测点应变值在{format_range(girder_min, girder_max, 1, 'με')}之间，{alarm_status_text(girder_level)}",
         "chapter_tower": f"监测结果表明，各测点应变值在{format_range(tower_min, tower_max, 1, 'με')}之间，{alarm_status_text(tower_level)}",
         "girder_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in girder_imgs],
@@ -484,6 +643,7 @@ def build_tilt_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
         f"横桥向位移在{format_range(h_min, h_max, 3, '°')}之间，{alarm_status_text(level)}"
     )
     return {
+        "enabled": reporting_enabled(cfg, "tilt"),
         "chapter": summary,
         "images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in items],
         "caption": "图 4-6 桥塔各截面位置倾角时程曲线图",
@@ -541,10 +701,274 @@ def build_bearing_section(cfg: dict, stats_root: Path, fallback_stats_root: Path
         f"{format_range(min_val, max_val, 1, 'mm')}之间，{alarm_status_text(level)}"
     )
     return {
+        "enabled": reporting_enabled(cfg, "bearing_displacement"),
         "chapter": summary,
         "images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in items],
         "caption": "图 4-7 典型测点支座变位时程曲线图",
         "image_lookup": [deepcopy(item.lookup) | {"label": item.label} for item in items],
+    }
+
+
+def build_cable_force_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | None, image_root: Path, assets_dir: Path) -> dict:
+    if not reporting_enabled(cfg, "cable_force"):
+        return {"enabled": False}
+
+    rows = load_sheet_rows(resolve_existing_file(stats_root, fallback_stats_root, "cable_accel_stats.xlsx"))
+    valid_rows = [r for r in rows if r.get("PointID")]
+    max_abs = max((max(abs(r["Min"]), abs(r["Max"])) for r in valid_rows if r.get("Min") is not None and r.get("Max") is not None), default=None)
+    max_rms = max((r["RMS10minMax"] for r in valid_rows if r.get("RMS10minMax") is not None), default=None)
+
+    groups_cfg = cfg.get("groups", {}).get("cable_force", {})
+    default_point_order = flatten_group_members(groups_cfg) or cfg.get("points", {}).get("cable_accel", [])
+    point_order = get_report_order(cfg, "cable_force", "order", default_point_order)
+
+    reporting_cfg = get_reporting_section(cfg, "cable_force")
+    accel_dir = reporting_cfg.get("accel_output_dir", "时程曲线_索力加速度")
+    rms_dir = reporting_cfg.get("rms_output_dir", "时程曲线_索力加速度_RMS10min")
+    force_dir = reporting_cfg.get("force_output_dir", "索力时程图")
+    force_group_dir = reporting_cfg.get("force_group_output_dir", "索力时程图_组图")
+
+    accel_items: list[ImageItem] = []
+    for pid in point_order:
+        raw_path, raw_lookup = find_latest_image(image_root, accel_dir, f"{pid}_")
+        accel_items.append(ImageItem(f"{pid} 加速度", raw_path, raw_lookup))
+        rms_path, rms_lookup = find_latest_image(image_root, rms_dir, f"CableAccelRMS10_{pid}_")
+        accel_items.append(ImageItem(f"{pid} RMS10min", rms_path, rms_lookup))
+
+    groups_map = groups_cfg if isinstance(groups_cfg, dict) else {}
+    force_order = get_report_order(cfg, "cable_force", "force_order", point_order)
+    force_items: list[ImageItem] = []
+    for label in force_order:
+        img_path, lookup = find_latest_image(image_root, force_dir, f"CableForce_{label}_")
+        if img_path is None and "-" in label:
+            img_path, lookup = find_latest_image(image_root, force_group_dir, f"CableForce_{label}_")
+        force_items.append(ImageItem(label, img_path, lookup))
+
+    per_point_cfg = cfg.get("per_point", {}).get("cable_accel", {})
+    table_rows: list[dict] = []
+    change_rates: list[float] = []
+    for pid in point_order:
+        point_cfg = per_point_cfg.get(pid, {})
+        target_freqs = point_cfg.get("target_freqs", [])
+        freq = parse_float(target_freqs[0]) if isinstance(target_freqs, list) and target_freqs else None
+        rho = parse_float(point_cfg.get("rho"))
+        length_m = parse_float(point_cfg.get("L"))
+        current_force = compute_string_force_kN(rho, length_m, freq)
+        built_force = HONGTANG_CABLE_BUILT_FORCE.get(pid)
+        change_rate = None
+        if current_force is not None and built_force not in (None, 0):
+            change_rate = (current_force - built_force) / built_force * 100.0
+            change_rates.append(change_rate)
+        table_rows.append({
+            "PointID": pid,
+            "rho": rho,
+            "L": length_m,
+            "freq": freq,
+            "current_force": current_force,
+            "built_force": built_force,
+            "change_rate": change_rate,
+        })
+
+    if max_abs is not None and max_rms is not None:
+        accel_summary = (
+            f"选取典型监测数据进行分析，监测结果表明，吊索加速度各测点绝对最大值为{max_abs:.2f}mm/s²，"
+            f"各测点10min加速度均方根值最大为{max_rms:.2f}mm/s²，未超过1000mm/s²，均处于超限阈值范围之内，"
+            f"未出现超过各级超限阈值和报警的情况。"
+        )
+    else:
+        accel_summary = "选取典型监测数据进行分析，吊索加速度与10min加速度均方根结果见下图。"
+
+    if change_rates:
+        min_change = min(change_rates)
+        max_change = max(change_rates)
+        max_abs_change = max(abs(v) for v in change_rates)
+        if max_abs_change <= 10:
+            force_summary = (
+                f"监测结果表明，与成桥索力相比，索力变化范围在{min_change:.2f}%~{max_change:.2f}%之间，"
+                f"与成桥索力相比变化范围在10%以内。"
+            )
+        else:
+            force_summary = (
+                f"监测结果表明，与成桥索力相比，索力变化范围在{min_change:.2f}%~{max_change:.2f}%之间，"
+                f"个别测点绝对变化率超过10%，建议结合现场工况进一步复核。"
+            )
+    else:
+        force_summary = "监测结果表明，索力时程结果见下图，详细结果如表4-7所示。"
+
+    return {
+        "enabled": True,
+        "accel_summary": accel_summary,
+        "force_summary": force_summary,
+        "accel_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in accel_items],
+        "force_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in force_items],
+        "accel_caption": "图 4-8 典型测点振动加速度绝对最大值时程图和10min加速度均方根图",
+        "force_caption": "图 4-9 典型测点索力时程图",
+        "table_rows": table_rows,
+        "image_lookup": {
+            "accel": label_path_dicts(accel_items),
+            "force": label_path_dicts(force_items),
+        },
+    }
+
+
+def build_vibration_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | None, image_root: Path, assets_dir: Path) -> dict:
+    if not reporting_enabled(cfg, "vibration"):
+        return {"enabled": False}
+
+    rows = load_sheet_rows(resolve_existing_file(stats_root, fallback_stats_root, "accel_stats.xlsx"))
+    valid_rows = [r for r in rows if r.get("PointID")]
+    max_abs = max((max(abs(r["Min"]), abs(r["Max"])) for r in valid_rows if r.get("Min") is not None and r.get("Max") is not None), default=None)
+    max_rms = max((r["RMS10minMax"] for r in valid_rows if r.get("RMS10minMax") is not None), default=None)
+
+    order = get_report_order(cfg, "vibration", "order", cfg.get("points", {}).get("acceleration", []))
+    reporting_cfg = get_reporting_section(cfg, "vibration")
+    accel_dir = reporting_cfg.get("accel_output_dir", "时程曲线_加速度")
+    rms_dir = reporting_cfg.get("rms_output_dir", "时程曲线_加速度_RMS10min")
+    spec_dir = reporting_cfg.get("spec_output_dir", "频谱峰值曲线_加速度")
+
+    ts_items: list[ImageItem] = []
+    freq_items: list[ImageItem] = []
+    for pid in order:
+        raw_path, raw_lookup = find_latest_image(image_root, accel_dir, f"{pid}_")
+        ts_items.append(ImageItem(f"{pid} 加速度", raw_path, raw_lookup))
+        rms_path, rms_lookup = find_latest_image(image_root, rms_dir, f"AccelRMS10_{pid}_")
+        ts_items.append(ImageItem(f"{pid} RMS10min", rms_path, rms_lookup))
+        freq_path, freq_lookup = find_latest_image(image_root, spec_dir, f"SpecFreq_{pid}_")
+        freq_items.append(ImageItem(pid, freq_path, freq_lookup))
+
+    if max_abs is not None and max_rms is not None:
+        timeseries_summary = (
+            f"选取典型监测数据进行分析，监测结果表明，主梁及主塔加速度各测点绝对最大值为{max_abs:.2f}mm/s²，"
+            f"各测点10min加速度均方根值最大为{max_rms:.2f}mm/s²，未超过315mm/s²，均处于超限阈值范围之内，"
+            f"未出现超过各级超限阈值和报警的情况。"
+        )
+    else:
+        timeseries_summary = "选取典型监测数据进行分析，主梁及主塔加速度时程与10min加速度均方根结果见下图。"
+    freq_summary = "选取典型监测数据进行分析，典型测点自振频率时程如图4-11所示，本月主梁及主塔自振频率识别结果整体稳定，未见明显异常漂移。"
+
+    return {
+        "enabled": True,
+        "timeseries_summary": timeseries_summary,
+        "freq_summary": freq_summary,
+        "timeseries_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in ts_items],
+        "freq_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in freq_items],
+        "timeseries_caption": "图 4-10 典型测点振动加速度绝对最大值时程图和10min加速度均方根图",
+        "freq_caption": "图 4-11 典型测点自振频率时程图",
+        "image_lookup": {
+            "timeseries": label_path_dicts(ts_items),
+            "freq": label_path_dicts(freq_items),
+        },
+    }
+
+
+def build_wind_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | None, image_root: Path, assets_dir: Path) -> dict:
+    if not reporting_enabled(cfg, "wind"):
+        return {"enabled": False}
+
+    wind_root = stats_root / "风速风向结果"
+    fallback_wind_root = (fallback_stats_root / "风速风向结果") if fallback_stats_root is not None else None
+    rows = load_sheet_rows(resolve_existing_file(wind_root, fallback_wind_root, "wind_stats.xlsx"))
+
+    order = get_report_order(cfg, "wind", "order", cfg.get("points", {}).get("wind", []))
+    order_map = {pid: idx for idx, pid in enumerate(order)}
+    rows = [r for r in rows if str(r.get("PointID", "")) in order_map]
+    rows.sort(key=lambda r: order_map[str(r.get("PointID", ""))])
+
+    speed_items: list[ImageItem] = []
+    rose_items: list[ImageItem] = []
+    table_rows: list[dict] = []
+    max_10min = None
+    for row in rows:
+        pid = str(row["PointID"])
+        speed_path, speed_lookup = find_latest_image(image_root, "风速风向结果/风速10min", f"{pid}_speed10min_")
+        rose_path, rose_lookup = find_latest_image(image_root, "风速风向结果/风玫瑰", f"{pid}_windrose_")
+        speed_items.append(ImageItem(pid, speed_path, speed_lookup))
+        rose_items.append(ImageItem(pid, rose_path, rose_lookup))
+
+        summary_path, _ = find_latest_file_patterns(image_root, "风速风向结果/风玫瑰", [f"{pid}_windrose_*_summary.txt"])
+        summary_vals = parse_wind_summary(summary_path) if summary_path else {}
+        row_max_10min = parse_float(row.get("Mean10minMax"))
+        if row_max_10min is not None:
+            max_10min = row_max_10min if max_10min is None else max(max_10min, row_max_10min)
+        table_rows.append({
+            "PointID": pid,
+            "mean_dir": summary_vals.get("mean_dir", ""),
+            "dominant_dir": summary_vals.get("dominant_dir", ""),
+            "mean_speed": parse_float(row.get("MeanSpeed")),
+            "max_speed": parse_float(row.get("MaxSpeed")),
+            "main_grade": summary_vals.get("main_grade", ""),
+        })
+
+    if max_10min is not None:
+        summary = (
+            f"监测结果如表4-9所示。监测结果表明，桥面10min平均风速最大值为{max_10min:.2f}m/s，"
+            f"未超过25m/s，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
+        )
+    else:
+        summary = "监测结果如表4-9所示。桥面10min平均风速与风玫瑰结果见下图。"
+
+    return {
+        "enabled": True,
+        "summary": summary,
+        "speed_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in speed_items],
+        "rose_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in rose_items],
+        "speed_caption": "图 4-12 桥面10min平均风速时程图",
+        "rose_caption": "图 4-13 风玫瑰图",
+        "table_rows": table_rows,
+        "image_lookup": {
+            "speed": label_path_dicts(speed_items),
+            "rose": label_path_dicts(rose_items),
+        },
+    }
+
+
+def build_eq_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | None, image_root: Path, assets_dir: Path) -> dict:
+    if not reporting_enabled(cfg, "eq"):
+        return {"enabled": False}
+
+    order = get_report_order(cfg, "eq", "order", cfg.get("points", {}).get("eq", ["EQ-X", "EQ-Y", "EQ-Z"]))
+    output_cfg = cfg.get("plot_styles", {}).get("eq", {}).get("output", {})
+    eq_dir = f"{output_cfg.get('root_dir', '地震动结果')}/{output_cfg.get('series_dir', '地震动时程')}"
+    prefix = output_cfg.get("prefix", "EQ")
+
+    items: list[ImageItem] = []
+    peak_map: dict[str, float] = {}
+    per_point_eq = cfg.get("per_point", {}).get("eq", {})
+    for pid in order:
+        comp = pid.split("-")[-1] if "-" in pid else pid[-1]
+        img_path, lookup = find_latest_image(image_root, eq_dir, f"{prefix}_{comp}_")
+        items.append(ImageItem(pid, img_path, lookup))
+        point_cfg = per_point_eq.get(pid, {})
+        file_id = point_cfg.get("file_id")
+        peak = 0.0
+        if file_id:
+            matches = sorted(image_root.rglob(f"{file_id}.csv"))
+            for csv_path in matches:
+                values = read_numeric_series_csv(csv_path)
+                if values:
+                    peak = max(peak, max(abs(v) for v in values))
+        peak_map[pid] = peak
+
+    horizontal_peak = max(peak_map.get("EQ-X", 0.0), peak_map.get("EQ-Y", 0.0))
+    vertical_peak = peak_map.get("EQ-Z", 0.0)
+    hx = per_point_eq.get("EQ-X", {}).get("alarm_levels", [])
+    hy = per_point_eq.get("EQ-Y", {}).get("alarm_levels", [])
+    hz = per_point_eq.get("EQ-Z", {}).get("alarm_levels", [])
+    e1_h = parse_float(hx[0]) if isinstance(hx, list) and hx else parse_float(hy[0]) if isinstance(hy, list) and hy else None
+    e1_v = parse_float(hz[0]) if isinstance(hz, list) and hz else None
+    h_text = "未达到设计E1地震作用加速度峰值" if e1_h is None or horizontal_peak < e1_h else "达到或超过设计E1地震作用加速度峰值"
+    v_text = "未达到设计E1地震作用加速度峰值" if e1_v is None or vertical_peak < e1_v else "达到或超过设计E1地震作用加速度峰值"
+    summary = (
+        f"监测结果表明，水平地震动作用加速度峰值为{horizontal_peak:.3f}m/s²，{h_text}，"
+        f"竖向地震动作用加速度峰值为{vertical_peak:.3f}m/s²，{v_text}，未出现超过各级超限阈值和报警的情况。"
+    )
+    return {
+        "enabled": True,
+        "summary": summary,
+        "images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in items],
+        "caption": "图 4-14 地震动时程图",
+        "image_lookup": label_path_dicts(items),
+        "peaks": peak_map,
     }
 
 
@@ -562,44 +986,147 @@ def build_manifest(cfg: dict, stats_root: Path, fallback_stats_root: Path | None
             "strain": build_strain_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
             "tilt": build_tilt_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
             "bearing_displacement": build_bearing_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
+            "cable_force": build_cable_force_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
+            "vibration": build_vibration_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
+            "wind": build_wind_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
+            "eq": build_eq_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
         },
     }
+
+
+def update_cable_force_table(doc: Document, table_rows: list[dict]) -> None:
+    if not table_rows:
+        return
+    table = find_table_by_header(doc, "线密度ρ")
+    for row in table.rows:
+        for cell in row.cells:
+            center_cell(cell)
+    row_map = {str(row.cells[0].text).strip(): row for row in table.rows[1:]}
+    for item in table_rows:
+        row = row_map.get(item["PointID"])
+        if row is None:
+            continue
+        row.cells[1].text = "" if item["rho"] is None else f"{item['rho']:.1f}"
+        row.cells[2].text = "" if item["L"] is None else f"{item['L']:.3f}"
+        row.cells[3].text = "" if item["freq"] is None else f"{item['freq']:.3f}"
+        row.cells[4].text = "" if item["current_force"] is None else f"{item['current_force']:.2f}"
+        if item["built_force"] is not None:
+            row.cells[5].text = f"{item['built_force']:.2f}"
+        row.cells[6].text = "" if item["change_rate"] is None else f"{item['change_rate']:+.2f}%"
+        for cell in row.cells:
+            center_cell(cell)
+
+
+def update_wind_table(doc: Document, table_rows: list[dict]) -> None:
+    if not table_rows:
+        return
+    table = find_table_by_header(doc, "平均风向")
+    row_map = {str(row.cells[0].text).strip(): row for row in table.rows[1:]}
+    for item in table_rows:
+        row = row_map.get(item["PointID"])
+        if row is None:
+            continue
+        row.cells[1].text = item.get("mean_dir", "")
+        row.cells[2].text = item.get("dominant_dir", "")
+        row.cells[3].text = "" if item["mean_speed"] is None else f"{item['mean_speed']:.2f}"
+        row.cells[4].text = "" if item["max_speed"] is None else f"{item['max_speed']:.2f}"
+        row.cells[5].text = item.get("main_grade", "")
+        for cell in row.cells:
+            center_cell(cell)
 
 
 def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
     update_common_metadata(doc, manifest["period_label"], manifest["monitoring_range"], manifest["report_date"])
 
     strain = manifest["sections"]["strain"]
-    replace_next_nonempty_after_exact(doc, "主梁应变", strain["chapter_girder"], use_last=True, skip=1)
-    replace_next_nonempty_after_exact(doc, "桥塔应变", strain["chapter_tower"], use_last=True, skip=1)
-    replace_last_paragraph_contains(doc, "图 4-4 主梁各截面位置应变时程曲线图", strain["girder_caption"])
-    replace_last_paragraph_contains(doc, "图 4-5 桥塔各截面位置应变时程曲线图", strain["tower_caption"])
-    insert_labeled_images_before_caption_contains(
-        doc,
-        strain["girder_caption"],
-        [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in strain["girder_images"]],
-    )
-    insert_labeled_images_before_caption_contains(
-        doc,
-        strain["tower_caption"],
-        [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in strain["tower_images"]],
-    )
+    if strain.get("enabled", True):
+        replace_next_nonempty_after_exact(doc, "主梁应变", strain["chapter_girder"], use_last=True, skip=1)
+        replace_next_nonempty_after_exact(doc, "桥塔应变", strain["chapter_tower"], use_last=True, skip=1)
+        replace_last_paragraph_contains(doc, "图 4-4 主梁各截面位置应变时程曲线图", strain["girder_caption"])
+        replace_last_paragraph_contains(doc, "图 4-5 桥塔各截面位置应变时程曲线图", strain["tower_caption"])
+        insert_labeled_images_before_caption_contains(
+            doc,
+            strain["girder_caption"],
+            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in strain["girder_images"]],
+        )
+        insert_labeled_images_before_caption_contains(
+            doc,
+            strain["tower_caption"],
+            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in strain["tower_images"]],
+        )
 
     tilt = manifest["sections"]["tilt"]
-    replace_last_paragraph_contains(doc, "主塔倾角偏移的方向以闽侯上街-农林大学为纵桥向", "主塔倾角偏移的方向以闽侯上街-农林大学为纵桥向，上游-下游为横桥向。其中朝农林大学方向为正、闽侯上街方向为负，朝上游方向为正、朝下游方向为负。各测点的倾斜幅值如下图所示。" + tilt["chapter"])
-    insert_labeled_images_before_caption_contains(
-        doc,
-        tilt["caption"],
-        [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in tilt["images"]],
-    )
+    if tilt.get("enabled", True):
+        replace_last_paragraph_contains(doc, "主塔倾角偏移的方向以闽侯上街-农林大学为纵桥向", "主塔倾角偏移的方向以闽侯上街-农林大学为纵桥向，上游-下游为横桥向。其中朝农林大学方向为正、闽侯上街方向为负，朝上游方向为正、朝下游方向为负。各测点的倾斜幅值如下图所示。" + tilt["chapter"])
+        insert_labeled_images_before_caption_contains(
+            doc,
+            tilt["caption"],
+            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in tilt["images"]],
+        )
 
     bearing = manifest["sections"]["bearing_displacement"]
-    replace_last_paragraph_contains(doc, "支座变位的方向以闽侯上街-农林大学为纵桥向", "支座变位的方向以闽侯上街-农林大学为纵桥向，上游-下游为横桥向。其中朝农林大学方向为正、闽侯上街方向为负，朝上游方向为正、朝下游方向为负。各测点的支座位移时程如下图所示。" + bearing["chapter"])
-    insert_labeled_images_before_caption_contains(
-        doc,
-        bearing["caption"],
-        [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in bearing["images"]],
-    )
+    if bearing.get("enabled", True):
+        replace_last_paragraph_contains(doc, "支座变位的方向以闽侯上街-农林大学为纵桥向", "支座变位的方向以闽侯上街-农林大学为纵桥向，上游-下游为横桥向。其中朝农林大学方向为正、闽侯上街方向为负，朝上游方向为正、朝下游方向为负。各测点的支座位移时程如下图所示。" + bearing["chapter"])
+        insert_labeled_images_before_caption_contains(
+            doc,
+            bearing["caption"],
+            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in bearing["images"]],
+        )
+
+    cable = manifest["sections"]["cable_force"]
+    if cable.get("enabled", False):
+        replace_next_nonempty_after_exact(doc, "（1）索力加速度时程数据", cable["accel_summary"], use_last=True)
+        replace_next_nonempty_after_exact(doc, "（2）索力时程数据", cable["force_summary"], use_last=True, skip=4)
+        insert_labeled_images_before_caption_contains(
+            doc,
+            cable["accel_caption"],
+            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in cable["accel_images"]],
+        )
+        insert_labeled_images_before_caption_contains(
+            doc,
+            cable["force_caption"],
+            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in cable["force_images"]],
+        )
+        update_cable_force_table(doc, cable["table_rows"])
+
+    vibration = manifest["sections"]["vibration"]
+    if vibration.get("enabled", False):
+        replace_next_nonempty_after_exact(doc, "（1）振动时程数据", vibration["timeseries_summary"], use_last=True)
+        replace_next_nonempty_after_exact(doc, "（2）自振频率", vibration["freq_summary"], use_last=True, skip=1)
+        insert_labeled_images_before_caption_contains(
+            doc,
+            vibration["timeseries_caption"],
+            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in vibration["timeseries_images"]],
+        )
+        insert_labeled_images_before_caption_contains(
+            doc,
+            vibration["freq_caption"],
+            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in vibration["freq_images"]],
+        )
+
+    wind = manifest["sections"]["wind"]
+    if wind.get("enabled", False):
+        replace_next_nonempty_after_exact(doc, "风向风速监测", wind["summary"], use_last=True)
+        insert_labeled_images_before_caption_contains(
+            doc,
+            wind["speed_caption"],
+            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in wind["speed_images"]],
+        )
+        insert_labeled_images_before_caption_contains(
+            doc,
+            wind["rose_caption"],
+            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in wind["rose_images"]],
+        )
+        update_wind_table(doc, wind["table_rows"])
+
+    eq = manifest["sections"]["eq"]
+    if eq.get("enabled", False):
+        replace_next_nonempty_after_exact(doc, "地震动监测", eq["summary"], use_last=True)
+        insert_labeled_images_before_caption_contains(
+            doc,
+            eq["caption"],
+            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in eq["images"]],
+        )
 
 
 def summarize_missing_images(manifest: dict) -> list[str]:
@@ -622,36 +1149,62 @@ def summarize_missing_images(manifest: dict) -> list[str]:
     return missing
 
 
+def build_report(
+    template: Path,
+    config_path: Path,
+    result_root: Path | None = None,
+    analysis_root: Path | None = None,
+    image_root: Path | None = None,
+    output_dir: Path | None = None,
+    period_label: str = "2025年12月",
+    monitoring_range: str = "2025.12.01～2025.12.31",
+    report_date: str | None = None,
+) -> tuple[Path, Path, list[str]]:
+    if report_date is None:
+        report_date = datetime.now().strftime("%Y年%m月%d日")
+    if analysis_root is None:
+        analysis_root = Path(__file__).resolve().parents[1]
+
+    stats_root = result_root if result_root is not None else analysis_root
+    fallback_stats_root = analysis_root if result_root is not None else None
+    image_root = image_root if image_root is not None else (result_root if result_root is not None else analysis_root)
+    output_dir = output_dir if output_dir is not None else ((result_root / "自动报告") if result_root is not None else (Path(__file__).resolve().parents[1] / "outputs" / "reports"))
+    output_dir = ensure_dir(output_dir)
+    assets_dir = ensure_dir(output_dir / "generated_assets")
+
+    cfg = load_json(config_path)
+    manifest = build_manifest(cfg, stats_root, fallback_stats_root, image_root, template, assets_dir, period_label, monitoring_range, report_date)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    manifest_path = output_dir / f"report_manifest_{timestamp}.json"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    doc = Document(str(template))
+    apply_manifest_to_doc(doc, manifest)
+
+    output_docx = output_dir / f"{template.stem}_自动生成_{timestamp}.docx"
+    doc.save(str(output_docx))
+    missing = summarize_missing_images(manifest)
+    return manifest_path, output_docx, missing
+
+
 def main() -> None:
     args = parse_args()
     if args.template is None or not args.template.exists():
         raise SystemExit("Template docx not found.")
     if not args.config.exists():
         raise SystemExit("Config file not found.")
-
-    result_root = args.result_root
-    stats_root = result_root if result_root is not None else args.analysis_root
-    fallback_stats_root = args.analysis_root if result_root is not None else None
-    image_root = args.image_root if args.image_root is not None else (result_root if result_root is not None else args.analysis_root)
-    output_dir = args.output_dir if args.output_dir is not None else ((result_root / "自动报告") if result_root is not None else (Path(__file__).resolve().parents[1] / "outputs" / "reports"))
-    output_dir = ensure_dir(output_dir)
-    assets_dir = ensure_dir(output_dir / "generated_assets")
-
-    cfg = load_json(args.config)
-    manifest = build_manifest(cfg, stats_root, fallback_stats_root, image_root, args.template, assets_dir, args.period_label, args.monitoring_range, args.report_date)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    manifest_path = output_dir / f"report_manifest_{timestamp}.json"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-    doc = Document(str(args.template))
-    apply_manifest_to_doc(doc, manifest)
-
-    template_stem = args.template.stem
-    output_docx = output_dir / f"{template_stem}_自动生成_{timestamp}.docx"
-    doc.save(str(output_docx))
-
-    missing = summarize_missing_images(manifest)
+    manifest_path, output_docx, missing = build_report(
+        template=args.template,
+        config_path=args.config,
+        result_root=args.result_root,
+        analysis_root=args.analysis_root,
+        image_root=args.image_root,
+        output_dir=args.output_dir,
+        period_label=args.period_label,
+        monitoring_range=args.monitoring_range,
+        report_date=args.report_date,
+    )
     print(f"Manifest written to: {manifest_path}")
     print(f"Report written to:   {output_docx}")
     if missing:

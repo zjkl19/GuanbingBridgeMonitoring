@@ -50,3 +50,6 @@ tes1t.m
 tilt_stats.xlsx
 tests/data/_samples/jlj/**/cache/
 reporting/.venv/
+reporting/build/
+reporting/dist/
+reporting/*.spec

@@ -3076,6 +3076,125 @@
     ],
     "tolerance": 0.15
   },
+  "reporting": {
+    "strain": {
+      "enabled": true,
+      "girder_order": [
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H"
+      ],
+      "tower_order": [
+        "K",
+        "L"
+      ],
+      "include": [],
+      "exclude": []
+    },
+    "tilt": {
+      "enabled": true,
+      "order": [
+        "Q1-Z",
+        "Q1-H",
+        "Q2-Z",
+        "Q2-H"
+      ],
+      "include": [],
+      "exclude": []
+    },
+    "bearing_displacement": {
+      "enabled": true,
+      "order": [
+        "Z11-1",
+        "Z11-2",
+        "Z12-1",
+        "Z12-2",
+        "Z13-1",
+        "Z13-2",
+        "Z14-1",
+        "Z14-2",
+        "Z15-1",
+        "Z15-2"
+      ],
+      "include": [],
+      "exclude": []
+    },
+    "cable_force": {
+      "enabled": true,
+      "order": [
+        "CS4",
+        "CX4",
+        "CS5",
+        "CX5",
+        "CS6",
+        "CX6",
+        "CS7",
+        "CX7",
+        "CS8",
+        "CX8",
+        "CS9",
+        "CX9"
+      ],
+      "force_order": [
+        "CS4",
+        "CX4",
+        "CS5",
+        "CX5",
+        "CS6",
+        "CX6",
+        "CS7",
+        "CX7",
+        "CS8",
+        "CX8",
+        "CS9",
+        "CX9"
+      ],
+      "include": [],
+      "exclude": []
+    },
+    "vibration": {
+      "enabled": true,
+      "order": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "A9-X",
+        "A9-Y",
+        "A10-X",
+        "A10-Y"
+      ],
+      "include": [],
+      "exclude": []
+    },
+    "wind": {
+      "enabled": true,
+      "order": [
+        "W1",
+        "W2"
+      ],
+      "include": [],
+      "exclude": []
+    },
+    "eq": {
+      "enabled": true,
+      "order": [
+        "EQ-X",
+        "EQ-Y",
+        "EQ-Z"
+      ],
+      "include": [],
+      "exclude": []
+    }
+  },
   "eq_params": {
     "alarm_levels": [
       1,
