@@ -1123,7 +1123,14 @@
         }
       },
       "Q1_H": {
-        "thresholds": [],
+        "thresholds": [
+          {
+            "min": -0.038,
+            "max": 0.038,
+            "t_range_start": "",
+            "t_range_end": ""
+          }
+        ],
         "offset_correction": -1.185,
         "alarm_bounds": {
           "level2": [
@@ -2841,7 +2848,8 @@
       "boxplot_output_dir": "箱线图_应变",
       "group_output_dir": "时程曲线_应变_组图",
       "show_warn_lines_point": false,
-      "show_warn_lines_boxplot": true
+      "show_warn_lines_boxplot": true,
+      "show_boxplot_outliers": false
     }
   },
   "wind_params": {

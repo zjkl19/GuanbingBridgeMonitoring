@@ -248,7 +248,12 @@ function plot_group_boxplot(root_dir, data_list, start_date, end_date, group_nam
     [data_mat, max_len] = build_boxplot_matrix(data_list); %#ok<ASGLU>
 
     fig = figure('Position', [100 100 1200 520]);
-    boxplot(data_mat, 'Labels', labels, 'LabelOrientation', 'inline');
+    show_outliers = get_style_field(style, 'show_boxplot_outliers', false);
+    if (islogical(show_outliers) && show_outliers) || (isnumeric(show_outliers) && show_outliers ~= 0)
+        boxplot(data_mat, 'Labels', labels, 'LabelOrientation', 'inline');
+    else
+        boxplot(data_mat, 'Labels', labels, 'LabelOrientation', 'inline', 'Symbol', '');
+    end
     hold on;
     xtickangle(45);
 

@@ -170,7 +170,7 @@ function plot_bearing_curve(times_list, vals_list, pid_list, root_dir, start_dat
     ax.XTick = ticks;
     xtickformat('yyyy-MM-dd');
 
-    xlabel('Time');
+    xlabel('时间');
     ylabel(get_style_field(style, 'ylabel', 'Bearing displacement (mm)'));
     title(sprintf('%s %s %s', get_style_field(style, 'title_prefix', 'Bearing displacement'), char(string(name_tag)), suffix));
 

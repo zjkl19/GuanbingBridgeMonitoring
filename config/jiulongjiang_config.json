@@ -1175,7 +1175,8 @@
         ]
       },
       "ylabel": "主梁应变 (με)",
-      "title_prefix": "应变时程曲线"
+      "title_prefix": "应变时程曲线",
+      "show_boxplot_outliers": false
     },
     "tilt": {
       "colors_3": [
