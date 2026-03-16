@@ -791,7 +791,14 @@
         }
       },
       "CX1": {
-        "thresholds": [],
+        "thresholds": [
+          {
+            "min": -3,
+            "max": 3,
+            "t_range_start": "",
+            "t_range_end": ""
+          }
+        ],
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
@@ -811,7 +818,14 @@
         }
       },
       "CX2": {
-        "thresholds": [],
+        "thresholds": [
+          {
+            "min": -3,
+            "max": 3,
+            "t_range_start": "",
+            "t_range_end": ""
+          }
+        ],
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
@@ -831,7 +845,14 @@
         }
       },
       "CX3": {
-        "thresholds": [],
+        "thresholds": [
+          {
+            "min": -3,
+            "max": 3,
+            "t_range_start": "",
+            "t_range_end": ""
+          }
+        ],
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
@@ -851,7 +872,14 @@
         }
       },
       "CX4": {
-        "thresholds": [],
+        "thresholds": [
+          {
+            "min": -3,
+            "max": 3,
+            "t_range_start": "",
+            "t_range_end": ""
+          }
+        ],
         "rho": 23.9,
         "L": 14.963,
         "force_decimals": 2,
@@ -877,7 +905,14 @@
         }
       },
       "CX5": {
-        "thresholds": [],
+        "thresholds": [
+          {
+            "min": -3,
+            "max": 3,
+            "t_range_start": "",
+            "t_range_end": ""
+          }
+        ],
         "rho": 23.9,
         "L": 29.113,
         "force_decimals": 2,
@@ -904,6 +939,12 @@
       },
       "CX6": {
         "thresholds": [
+          {
+            "min": -3,
+            "max": 3,
+            "t_range_start": "",
+            "t_range_end": ""
+          },
           {
             "min": 1000,
             "max": -1000,
@@ -936,7 +977,14 @@
         }
       },
       "CX7": {
-        "thresholds": [],
+        "thresholds": [
+          {
+            "min": -3,
+            "max": 3,
+            "t_range_start": "",
+            "t_range_end": ""
+          }
+        ],
         "rho": 27.7,
         "L": 48.756,
         "force_decimals": 2,
@@ -962,7 +1010,14 @@
         }
       },
       "CX8": {
-        "thresholds": [],
+        "thresholds": [
+          {
+            "min": -3,
+            "max": 3,
+            "t_range_start": "",
+            "t_range_end": ""
+          }
+        ],
         "rho": 23.9,
         "L": 29.113,
         "force_decimals": 2,

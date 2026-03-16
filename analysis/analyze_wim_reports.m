@@ -2085,6 +2085,9 @@ function plot_bar_chart(out_path, plot_title, y_label, xlabels, yvals, show_pct,
     drawnow;
     [p, n, ~] = fileparts(out_path);
     fig_path = fullfile(p, [n '.fig']);
+    set(findall(f, 'Visible', 'off'), 'Visible', 'on');
+    set(f, 'Visible', 'on');
+    drawnow;
     if plot_cfg.save_fig
         savefig(f, fig_path);
     else

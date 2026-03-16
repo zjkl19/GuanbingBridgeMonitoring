@@ -309,6 +309,9 @@ function [ampRow, freqRow] = process_one_day(day, pid, root_dir, subfolder, targ
     title(sprintf('%s %s  %s',style.psd_title_prefix,pid,dayStr));
     fnamePSD = fullfile(psdDir,sprintf('PSD_%s_%s',pid,dayStr));
     saveas(figPSD,[fnamePSD '.jpg']);
+    set(findall(figPSD, 'Visible', 'off'), 'Visible', 'on');
+    set(figPSD, 'Visible', 'on');
+    drawnow;
     savefig(figPSD,[fnamePSD '.fig'],'compact');
     close(figPSD);
 
@@ -391,6 +394,9 @@ function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, 
              datestr(dates_all(end),'yyyymmdd')));
     saveas(fig, [fname '.jpg']);
     saveas(fig, [fname '.emf']);
+    set(findall(fig, 'Visible', 'off'), 'Visible', 'on');
+    set(fig, 'Visible', 'on');
+    drawnow;
     savefig(fig,[fname '.fig'],'compact');
     close(fig);
 end
@@ -545,6 +551,9 @@ function plot_force_timeseries(times_list, force_list, labels, name_tag, out_dir
         datestr(dt1,'yyyymmdd')));
     saveas(fig, [fname '.jpg']);
     saveas(fig, [fname '.emf']);
+    set(findall(fig, 'Visible', 'off'), 'Visible', 'on');
+    set(fig, 'Visible', 'on');
+    drawnow;
     savefig(fig,[fname '.fig'],'compact');
     close(fig);
 end

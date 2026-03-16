@@ -1,0 +1,1 @@
+set(findall(gcf, 'Visible', 'off'), 'Visible', 'on');
