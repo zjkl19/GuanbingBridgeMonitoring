@@ -572,7 +572,7 @@
         "L": 14.963,
         "force_decimals": 2,
         "force_ylim": [
-          1400,
+          1600,
           2500
         ],
         "target_freqs": [
@@ -584,10 +584,10 @@
         "force_alarm_bounds": {
           "level2": [
             1877.74,
-            2065.51
+            2295.02
           ],
           "level3": [
-            1596.08,
+            1773.42,
             2399.34
           ]
         }
@@ -598,7 +598,7 @@
         "L": 29.113,
         "force_decimals": 2,
         "force_ylim": [
-          1000,
+          1100,
           1800
         ],
         "target_freqs": [
@@ -610,10 +610,10 @@
         "force_alarm_bounds": {
           "level2": [
             1298.05,
-            1427.86
+            1586.51
           ],
           "level3": [
-            1103.34,
+            1225.94,
             1658.62
           ]
         }
@@ -624,7 +624,7 @@
         "L": 48.756,
         "force_decimals": 2,
         "force_ylim": [
-          800,
+          900,
           1600
         ],
         "target_freqs": [
@@ -636,10 +636,10 @@
         "force_alarm_bounds": {
           "level2": [
             1114.18,
-            1225.6
+            1361.78
           ],
           "level3": [
-            947.05,
+            1052.28,
             1423.68
           ]
         }
@@ -650,7 +650,7 @@
         "L": 48.756,
         "force_decimals": 2,
         "force_ylim": [
-          800,
+          900,
           1500
         ],
         "target_freqs": [
@@ -662,10 +662,10 @@
         "force_alarm_bounds": {
           "level2": [
             1093.73,
-            1203.1
+            1336.78
           ],
           "level3": [
-            929.67,
+            1032.96,
             1397.54
           ]
         }
@@ -676,7 +676,7 @@
         "L": 29.113,
         "force_decimals": 2,
         "force_ylim": [
-          800,
+          900,
           1500
         ],
         "target_freqs": [
@@ -688,10 +688,10 @@
         "force_alarm_bounds": {
           "level2": [
             1084.86,
-            1193.35
+            1325.94
           ],
           "level3": [
-            922.13,
+            1024.59,
             1386.21
           ]
         },
@@ -703,7 +703,7 @@
         "L": 14.963,
         "force_decimals": 2,
         "force_ylim": [
-          1400,
+          1600,
           2500
         ],
         "target_freqs": [
@@ -715,10 +715,10 @@
         "force_alarm_bounds": {
           "level2": [
             1855.37,
-            2040.91
+            2267.67
           ],
           "level3": [
-            1577.06,
+            1752.29,
             2370.75
           ]
         }
@@ -849,7 +849,7 @@
         "L": 14.963,
         "force_decimals": 2,
         "force_ylim": [
-          1200,
+          1400,
           2200
         ],
         "target_freqs": [
@@ -861,10 +861,10 @@
         "force_alarm_bounds": {
           "level2": [
             1616.33,
-            1777.96
+            1975.51
           ],
           "level3": [
-            1373.88,
+            1526.53,
             2065.31
           ]
         }
@@ -875,7 +875,7 @@
         "L": 29.113,
         "force_decimals": 2,
         "force_ylim": [
-          900,
+          1100,
           1800
         ],
         "target_freqs": [
@@ -887,21 +887,28 @@
         "force_alarm_bounds": {
           "level2": [
             1291.91,
-            1421.1
+            1579.01
           ],
           "level3": [
-            1098.12,
+            1220.14,
             1650.78
           ]
         }
       },
       "CX6": {
-        "thresholds": [],
+        "thresholds": [
+          {
+            "min": 1000,
+            "max": -1000,
+            "t_range_start": "2025-12-15 00:00:00",
+            "t_range_end": "2025-12-31 23:59:59"
+          }
+        ],
         "rho": 27.7,
         "L": 48.756,
         "force_decimals": 2,
         "force_ylim": [
-          800,
+          900,
           1600
         ],
         "target_freqs": [
@@ -913,10 +920,10 @@
         "force_alarm_bounds": {
           "level2": [
             1124.49,
-            1236.94
+            1374.37
           ],
           "level3": [
-            955.82,
+            1062.02,
             1436.84
           ]
         }
@@ -927,7 +934,7 @@
         "L": 48.756,
         "force_decimals": 2,
         "force_ylim": [
-          700,
+          800,
           1500
         ],
         "target_freqs": [
@@ -939,10 +946,10 @@
         "force_alarm_bounds": {
           "level2": [
             1045.39,
-            1149.93
+            1277.69
           ],
           "level3": [
-            888.58,
+            987.31,
             1335.77
           ]
         }
@@ -953,7 +960,7 @@
         "L": 29.113,
         "force_decimals": 2,
         "force_ylim": [
-          1000,
+          1100,
           1800
         ],
         "target_freqs": [
@@ -965,10 +972,10 @@
         "force_alarm_bounds": {
           "level2": [
             1304.22,
-            1434.64
+            1594.04
           ],
           "level3": [
-            1108.59,
+            1231.76,
             1666.5
           ]
         }
@@ -979,7 +986,7 @@
         "L": 14.963,
         "force_decimals": 2,
         "force_ylim": [
-          1300,
+          1500,
           2400
         ],
         "target_freqs": [
@@ -991,10 +998,10 @@
         "force_alarm_bounds": {
           "level2": [
             1735.61,
-            1909.17
+            2121.31
           ],
           "level3": [
-            1475.27,
+            1639.19,
             2217.73
           ]
         }
@@ -1603,7 +1610,15 @@
             -172,
             132
           ]
-        }
+        },
+        "thresholds": [
+          {
+            "min": 1000,
+            "max": -1000,
+            "t_range_start": "",
+            "t_range_end": ""
+          }
+        ]
       },
       "SH_1": {
         "alarm_bounds": {
@@ -1759,7 +1774,15 @@
             -204,
             98
           ]
-        }
+        },
+        "thresholds": [
+          {
+            "min": -136,
+            "max": null,
+            "t_range_start": "",
+            "t_range_end": ""
+          }
+        ]
       },
       "SL_10": {
         "alarm_bounds": {
@@ -2673,16 +2696,9 @@
       "ylabel": "振动加速度 (m/s^2)",
       "title_prefix": "加速度时程",
       "ylim": [
-        -2,
-        2
+        -3,
+        3
       ],
-      "ylims": {
-        "name": "CS8",
-        "ylim": [
-          2,
-          -2
-        ]
-      },
       "colors": [
         [
           0,
