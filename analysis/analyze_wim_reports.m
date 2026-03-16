@@ -16,6 +16,16 @@ function analyze_wim_reports(root_dir, start_date, end_date, cfg)
         cfg = load_config();
     end
 
+    [month_start_dates, month_end_dates] = split_month_ranges(start_date, end_date);
+    for i = 1:numel(month_start_dates)
+        month_start = datestr(month_start_dates(i), 'yyyy-mm-dd');
+        month_end = datestr(month_end_dates(i), 'yyyy-mm-dd');
+        fprintf('[WIM] Processing %s to %s\n', month_start, month_end);
+        analyze_wim_reports_single_month(root_dir, month_start, month_end, cfg);
+    end
+end
+
+function analyze_wim_reports_single_month(root_dir, start_date, end_date, cfg)
     wim = get_wim_cfg(cfg);
     pipeline = get_field_default(wim, 'pipeline', 'direct');
     vendor = resolve_vendor(wim);
@@ -64,6 +74,26 @@ function analyze_wim_reports(root_dir, start_date, end_date, cfg)
 
     fprintf('WIM reports done: %s\n', excel_path);
     maybe_generate_wim_plots(csv_paths, out_dir, wim, cfg, bridge, yyyymm);
+end
+
+function [month_starts, month_ends] = split_month_ranges(start_date, end_date)
+    start_dt = datetime(start_date, 'InputFormat', 'yyyy-MM-dd');
+    end_dt = datetime(end_date, 'InputFormat', 'yyyy-MM-dd');
+    if end_dt < start_dt
+        error('end_date must be on or after start_date.');
+    end
+
+    cursor = dateshift(start_dt, 'start', 'month');
+    last_month = dateshift(end_dt, 'start', 'month');
+    month_starts = datetime.empty(0, 1);
+    month_ends = datetime.empty(0, 1);
+    while cursor <= last_month
+        seg_start = max(cursor, start_dt);
+        seg_end = min(dateshift(cursor, 'end', 'month'), end_dt);
+        month_starts(end+1, 1) = seg_start; %#ok<AGROW>
+        month_ends(end+1, 1) = seg_end; %#ok<AGROW>
+        cursor = cursor + calmonths(1);
+    end
 end
 
 % =========================
