@@ -5,6 +5,7 @@ function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfold
     if nargin < 2 || isempty(start_date), error('start_date is required'); end
     if nargin < 3 || isempty(end_date), error('end_date is required'); end
     if nargin < 4 || isempty(excel_file), excel_file = 'tilt_stats.xlsx'; end
+    excel_file = resolve_data_output_path(root_dir, excel_file, 'stats');
     if nargin < 6 || isempty(cfg), cfg = load_config(); end
 
     if nargin < 5 || isempty(subfolder)

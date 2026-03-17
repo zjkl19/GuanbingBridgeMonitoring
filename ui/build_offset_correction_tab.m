@@ -49,7 +49,7 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
     saveAsBtn.Layout.Row = 5; saveAsBtn.Layout.Column = 4;
 
     msgBox = uitextarea(grid, 'Editable', 'off', ...
-        'Value', {'仅保存 per_point.<module>.<point_id>.offset_correction；运行后会在 outputs/run_logs 生成修正记录表。'});
+        'Value', {'仅保存 per_point.<module>.<point_id>.offset_correction；运行后会在数据目录/run_logs 生成修正记录表。'});
     msgBox.Layout.Row = [6 7]; msgBox.Layout.Column = [1 4];
 
     refresh_table();
@@ -106,7 +106,7 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
             '- 每个点单独设置 offset_correction。\n', ...
             '- 计算时执行: vals = vals + offset_correction。\n', ...
             '- 该修正先于阈值清洗、滤波和统计。\n', ...
-            '- 每次 run_all 结束后，会在 outputs/run_logs 输出修正记录表。']);
+            '- 每次 run_all 结束后，会在当前数据根目录/run_logs 输出修正记录表。']);
         uialert(f, msg, '零点修正说明');
     end
 

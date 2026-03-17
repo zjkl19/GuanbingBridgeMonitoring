@@ -5,6 +5,7 @@ function analyze_temperature_points(root_dir, point_ids, start_date, end_date, e
     if nargin<3||isempty(start_date),   start_date = input('开始日期(yyyy-MM-dd): ','s'); end
     if nargin<4||isempty(end_date),     end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
     if nargin<5||isempty(excel_file),   excel_file = 'temperature_stats.xlsx'; end
+    excel_file = resolve_data_output_path(root_dir, excel_file, 'stats');
     if nargin<6||isempty(subfolder)
         cfg_tmp = load_config();
         if isfield(cfg_tmp,'subfolders') && isfield(cfg_tmp.subfolders,'temperature')

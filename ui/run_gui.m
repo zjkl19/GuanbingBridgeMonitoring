@@ -14,7 +14,7 @@ function run_gui()
         fullfile(projRoot,'analysis'), fullfile(projRoot,'scripts'));
 
     defaultCfgPath = fullfile(projRoot,'config','default_config.json');
-    defaultLogDir  = fullfile(projRoot,'outputs','run_logs');
+    defaultLogDir  = fullfile(projRoot,'run_logs');
     if ~exist(defaultLogDir,'dir'), mkdir(defaultLogDir); end
 
     primaryBlue = [0 94 172]/255;
@@ -171,6 +171,7 @@ function run_gui()
                 'doTemp',cbTemp.Value,'doHumidity',cbHum.Value,'doWind',cbWind.Value,'doEq',cbEq.Value,'doWIM',cbWim.Value,'doDeflect',cbDef.Value,'doBearingDisplacement',cbBearing.Value,'doTilt',cbTilt.Value,'doAccel',cbAccel.Value,'doAccelSpectrum',cbSpec.Value,'doCableAccel',cbCableAccel.Value,'doCableAccelSpectrum',cbCableSpec.Value, ...
                 'doRenameCrk',false,'doCrack',cbCrack.Value,'doStrain',cbStrain.Value,'doDynStrainBoxplot',cbDynBox.Value);
             root = rootEdit.Value; start_date = datestr(startPicker.Value,'yyyy-mm-dd'); end_date = datestr(endPicker.Value,'yyyy-mm-dd');
+            logEdit.Value = fullfile(root, 'run_logs');
             if exist(logEdit.Value,'dir')==0, mkdir(logEdit.Value); end
             save_last_preset(struct('root',root,'start_date',start_date,'end_date',end_date,'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value), ...
                 'preproc',struct('precheck',cbPrecheck.Value,'unzip',cbUnzip.Value,'rename',cbRename.Value,'rmheader',cbRmHeader.Value,'resample',cbResample.Value), ...

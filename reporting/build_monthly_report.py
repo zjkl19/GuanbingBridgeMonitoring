@@ -133,10 +133,14 @@ def resolve_existing_file(primary_root: Path | None, fallback_root: Path | None,
     candidates: list[Path] = []
     if primary_root is not None:
         candidates.append(primary_root / filename)
+        candidates.append(primary_root / "stats" / filename)
     if fallback_root is not None:
         fallback = fallback_root / filename
         if fallback not in candidates:
             candidates.append(fallback)
+        fallback_stats = fallback_root / "stats" / filename
+        if fallback_stats not in candidates:
+            candidates.append(fallback_stats)
     for path in candidates:
         if path.exists():
             return path
@@ -1042,9 +1046,7 @@ def build_wind_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
     if not reporting_enabled(cfg, "wind"):
         return {"enabled": False}
 
-    wind_root = stats_root / "风速风向结果"
-    fallback_wind_root = (fallback_stats_root / "风速风向结果") if fallback_stats_root is not None else None
-    rows = load_sheet_rows(resolve_existing_file(wind_root, fallback_wind_root, "wind_stats.xlsx"))
+    rows = load_sheet_rows(resolve_existing_file(stats_root, fallback_stats_root, "wind_stats.xlsx"))
 
     order = get_report_order(cfg, "wind", "order", cfg.get("points", {}).get("wind", []))
     order_map = {pid: idx for idx, pid in enumerate(order)}

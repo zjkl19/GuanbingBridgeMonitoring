@@ -22,6 +22,7 @@ function analyze_wind_points(root_dir, start_date, end_date, subfolder, cfg)
     points = get_points(cfg, 'wind', {'W1','W2'});
     style = get_wind_style(cfg);
     stats = cell(numel(points), 6);
+    stats_file = resolve_data_output_path(root_dir, get_wind_stats_file(cfg), 'stats');
 
     out_root = fullfile(root_dir, style.output.root_dir);
     ensure_dir(out_root);
@@ -59,8 +60,8 @@ function analyze_wind_points(root_dir, start_date, end_date, subfolder, cfg)
     end
 
     T = cell2table(stats, 'VariableNames', {'PointID','MinSpeed','MaxSpeed','MeanSpeed','Mean10minMax','Mean10minTime'});
-    writetable(T, fullfile(out_root, style.output.stats_file));
-    fprintf('统计结果已保存至 %s\n', fullfile(out_root, style.output.stats_file));
+    writetable(T, stats_file);
+    fprintf('Wind stats saved to %s\n', stats_file);
 
     time_end = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
     fprintf('结束时间: %s\n', char(time_end));
@@ -68,6 +69,18 @@ function analyze_wind_points(root_dir, start_date, end_date, subfolder, cfg)
     fprintf('总用时: %.2f 秒\n', elapsed);
 end
 
+
+function stats_file = get_wind_stats_file(cfg)
+    stats_file = 'wind_stats.xlsx';
+    if isfield(cfg, 'plot_styles') && isfield(cfg.plot_styles, 'wind') ...
+            && isstruct(cfg.plot_styles.wind) ...
+            && isfield(cfg.plot_styles.wind, 'output') ...
+            && isstruct(cfg.plot_styles.wind.output) ...
+            && isfield(cfg.plot_styles.wind.output, 'stats_file') ...
+            && ~isempty(cfg.plot_styles.wind.output.stats_file)
+        stats_file = cfg.plot_styles.wind.output.stats_file;
+    end
+end
 function fs = estimate_fs(times)
     fs = 1;
     if numel(times) < 2

@@ -11,6 +11,7 @@ function analyze_acceleration_points(root_dir, start_date, end_date, excel_file,
     if nargin<2||isempty(start_date),  start_date = input('开始日期(yyyy-MM-dd): ','s'); end
     if nargin<3||isempty(end_date),    end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
     if nargin<4||isempty(excel_file),  excel_file = 'accel_stats.xlsx'; end
+    excel_file = resolve_data_output_path(root_dir, excel_file, 'stats');
     if nargin<5||isempty(subfolder)
         cfg_tmp = load_config();
         if isfield(cfg_tmp,'subfolders') && isfield(cfg_tmp.subfolders,'acceleration')

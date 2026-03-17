@@ -23,6 +23,8 @@ notify_cfg = cfg;
 log_records = {};
 start_ts = datetime('now');
 offset_correction_registry('reset');
+stats_dir = fullfile(root, 'stats');
+logdir = fullfile(root, 'run_logs');
 
 % Config warnings
 if isfield(cfg,'warnings') && ~isempty(cfg.warnings)
@@ -78,7 +80,7 @@ if opts.doTemp && ~should_stop()
     if isempty(pts)
         results{end+1} = struct('label','temperature','status','skip','message','No temperature points configured');
     else
-        results{end+1} = run_step('温度分析', @() analyze_temperature_points(root, pts, start_date, end_date, 'temp_stats.xlsx', sub.temperature, cfg));
+        results{end+1} = run_step('温度分析', @() analyze_temperature_points(root, pts, start_date, end_date, fullfile(stats_dir, 'temp_stats.xlsx'), sub.temperature, cfg));
     end
 end
 
@@ -88,7 +90,7 @@ if opts.doHumidity && ~should_stop()
     if isempty(pts)
         results{end+1} = struct('label','humidity','status','skip','message','No humidity points configured');
     else
-        results{end+1} = run_step('湿度分析', @() analyze_humidity_points(root, pts, start_date, end_date, 'humidity_stats.xlsx', sub.humidity, cfg));
+        results{end+1} = run_step('湿度分析', @() analyze_humidity_points(root, pts, start_date, end_date, fullfile(stats_dir, 'humidity_stats.xlsx'), sub.humidity, cfg));
     end
 end
 
@@ -106,25 +108,25 @@ end
 
 if opts.doDeflect && ~should_stop()
     results{end+1} = run_step('挠度分析', @() analyze_deflection_points(root, start_date, end_date, ...
-        'deflection_stats.xlsx', sub.deflection, cfg));
+        fullfile(stats_dir, 'deflection_stats.xlsx'), sub.deflection, cfg));
 end
 
 if isfield(opts,'doBearingDisplacement') && opts.doBearingDisplacement && ~should_stop()
     results{end+1} = run_step('支座位移分析', @() analyze_bearing_displacement_points( ...
-        root, start_date, end_date, 'bearing_displacement_stats.xlsx', sub.bearing_displacement, cfg));
+        root, start_date, end_date, fullfile(stats_dir, 'bearing_displacement_stats.xlsx'), sub.bearing_displacement, cfg));
 end
 
 if opts.doTilt && ~should_stop()
-    results{end+1} = run_step('倾角分析', @() analyze_tilt_points(root, start_date, end_date, 'tilt_stats.xlsx', sub.tilt, cfg));
+    results{end+1} = run_step('倾角分析', @() analyze_tilt_points(root, start_date, end_date, fullfile(stats_dir, 'tilt_stats.xlsx'), sub.tilt, cfg));
 end
 if opts.doAccel && ~should_stop()
     results{end+1} = run_step('加速度分析', @() analyze_acceleration_points(root, start_date, end_date, ...
-        'accel_stats.xlsx', sub.accel, true, cfg));
+        fullfile(stats_dir, 'accel_stats.xlsx'), sub.accel, true, cfg));
 end
 
 if isfield(opts,'doCableAccel') && opts.doCableAccel && ~should_stop()
     results{end+1} = run_step('索力加速度分析', @() analyze_cable_acceleration_points(root, start_date, end_date, ...
-        'cable_accel_stats.xlsx', sub.cable_accel, true, cfg));
+        fullfile(stats_dir, 'cable_accel_stats.xlsx'), sub.cable_accel, true, cfg));
 end
 
 % -------- Acceleration spectrum analysis --------
@@ -138,7 +140,7 @@ if opts.doAccelSpectrum && ~should_stop()
     [spec_freqs, spec_tol] = get_accel_spec_params(cfg);
     results{end+1} = run_step('加速度频谱', @() analyze_accel_spectrum_points( ...
         root, start_date, end_date, accel_pts, ...
-        'accel_spec_stats.xlsx', sub.accel_raw, ...   % use raw waveform
+        fullfile(stats_dir, 'accel_spec_stats.xlsx'), sub.accel_raw, ...   % use raw waveform
         spec_freqs, spec_tol, false, cfg));
 end
 
@@ -153,7 +155,7 @@ if isfield(opts,'doCableAccelSpectrum') && opts.doCableAccelSpectrum && ~should_
     [spec_freqs, spec_tol] = get_cable_spec_params(cfg);
     results{end+1} = run_step('索力加速度频谱', @() analyze_cable_accel_spectrum_points( ...
         root, start_date, end_date, cable_pts, ...
-        'cable_accel_spec_stats.xlsx', sub.cable_accel_raw, ...
+        fullfile(stats_dir, 'cable_accel_spec_stats.xlsx'), sub.cable_accel_raw, ...
         spec_freqs, spec_tol, false, cfg));
 end
 
@@ -161,10 +163,10 @@ if opts.doRenameCrk && ~should_stop()
     batch_rename_crk_T_to_t(root, start_date, end_date, true);
 end
 if opts.doCrack && ~should_stop()
-    results{end+1} = run_step('裂缝分析', @() analyze_crack_points(root, start_date, end_date, 'crack_stats.xlsx', sub.crack, cfg));
+    results{end+1} = run_step('裂缝分析', @() analyze_crack_points(root, start_date, end_date, fullfile(stats_dir, 'crack_stats.xlsx'), sub.crack, cfg));
 end
 if opts.doStrain && ~should_stop()
-    results{end+1} = run_step('应变分析', @() analyze_strain_points(root, start_date, end_date, 'strain_stats.xlsx', sub.strain, cfg));
+    results{end+1} = run_step('应变分析', @() analyze_strain_points(root, start_date, end_date, fullfile(stats_dir, 'strain_stats.xlsx'), sub.strain, cfg));
 end
 
 if isfield(opts,'doDynStrainBoxplot') && opts.doDynStrainBoxplot && ~should_stop()
@@ -187,14 +189,14 @@ end
 % Restore warning
 warning(ws);
 elapsed = toc;
-offsetLog = write_offset_correction_report(start_ts);
+offsetLog = write_offset_correction_report(start_ts, logdir);
 if ~isempty(offsetLog)
     log_records{end+1} = offsetLog; %#ok<AGROW>
 end
 fprintf('Total elapsed: %.2f sec\n', elapsed);
 all_logs = [log_records, results];
 print_summary(all_logs);
-write_log(all_logs, start_ts, elapsed);
+write_log(all_logs, start_ts, elapsed, logdir);
 kind = select_notify_kind(notify_cfg, has_failures(all_logs));
 if ~isempty(kind)
     safe_notify(kind, notify_cfg);
@@ -202,7 +204,7 @@ end
 catch ME
     warning(ws);
     if exist('start_ts', 'var')
-        offsetLog = write_offset_correction_report(start_ts);
+        offsetLog = write_offset_correction_report(start_ts, logdir);
         if ~isempty(offsetLog) && exist('log_records', 'var')
             log_records{end+1} = offsetLog; %#ok<AGROW>
         end
@@ -215,10 +217,9 @@ catch ME
 end
 end
 
-function logRecord = write_offset_correction_report(start_ts)
+function logRecord = write_offset_correction_report(start_ts, logdir)
     logRecord = [];
     try
-        logdir = fullfile(pwd,'outputs','run_logs');
         [filepath, count] = offset_correction_registry('write', logdir, start_ts);
         logRecord = struct('label', 'offset_correction_report', 'status', 'ok', ...
             'message', sprintf('%d point(s); %s', count, filepath));
@@ -346,9 +347,8 @@ function print_summary(logs)
     fprintf('----------------\n');
 end
 
-function write_log(logs, start_ts, elapsed)
+function write_log(logs, start_ts, elapsed, logdir)
     if isempty(logs), return; end
-    logdir = fullfile(pwd,'outputs','run_logs');
     if ~exist(logdir,'dir'), mkdir(logdir); end
     ts = datestr(start_ts,'yyyymmdd_HHMMSS');
     logfile = fullfile(logdir, ['run_log_' ts '.txt']);

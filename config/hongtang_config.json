@@ -3057,7 +3057,7 @@
   "wim": {
     "vendor": "zhichen",
     "bridge": "hongtang",
-    "output_root": "data/output",
+    "output_root": "WIM/results",
     "excel_name": "WIM_Report_{bridge}_{yyyymm}.xlsx",
     "pipeline": "database",
     "pipeline_note": "direct=process files directly; database=import into SQL Server then run reports",

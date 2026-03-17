@@ -139,7 +139,7 @@ class ReportGui(QMainWindow):
         self.config_edit = QLineEdit(str((repo_root / "config" / "hongtang_config.json").resolve()))
         self.result_root_edit = QLineEdit(r"E:\洪塘大桥数据\2026年1-3月")
         self.analysis_root_edit = QLineEdit(str(repo_root.resolve()))
-        self.wim_root_edit = QLineEdit(str((repo_root / "outputs" / "wim_quarter_sql" / "hongtang").resolve()))
+        self.wim_root_edit = QLineEdit(r"E:\洪塘大桥数据\2026年1-3月\WIM\results\hongtang")
         self.output_dir_edit = QLineEdit(r"E:\洪塘大桥数据\2026年1-3月\自动报告")
         self.period_edit = QLineEdit("2026年1-3月")
         self.range_edit = QLineEdit("2026.01.01~2026.03.16")
@@ -212,6 +212,13 @@ class ReportGui(QMainWindow):
         path = QFileDialog.getExistingDirectory(self, "选择结果目录", self.result_root_edit.text())
         if path:
             self.result_root_edit.setText(path)
+            result_root = Path(path)
+            current_wim = Path(self.wim_root_edit.text()).expanduser() if self.wim_root_edit.text().strip() else None
+            current_out = Path(self.output_dir_edit.text()).expanduser() if self.output_dir_edit.text().strip() else None
+            if current_wim is None or "outputs" in current_wim.parts:
+                self.wim_root_edit.setText(str(result_root / "WIM" / "results" / "hongtang"))
+            if current_out is None:
+                self.output_dir_edit.setText(str(result_root / "自动报告"))
 
     def _browse_analysis_root(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "选择分析根目录", self.analysis_root_edit.text())

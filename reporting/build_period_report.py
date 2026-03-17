@@ -85,6 +85,8 @@ def resolve_wim_root(result_root: Path, analysis_root: Path, explicit_root: Path
         candidates.append(explicit_root)
     candidates.extend(
         [
+            result_root / "WIM" / "results" / "hongtang",
+            result_root / "WIM" / "results",
             result_root / "WIM_results",
             result_root / "wim_results",
             analysis_root / "outputs" / "wim_quarter_sql" / "hongtang",

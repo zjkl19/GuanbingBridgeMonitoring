@@ -33,8 +33,7 @@ function analyze_wim_reports_single_month(root_dir, start_date, end_date, cfg)
     yyyymm = datestr(datetime(start_date, 'InputFormat', 'yyyy-MM-dd'), 'yyyymm');
 
     proj_root = fileparts(fileparts(mfilename('fullpath')));
-    output_root = get_field_default(wim, 'output_root', fullfile(proj_root, 'data', 'output'));
-    output_root = resolve_path(proj_root, output_root);
+    output_root = resolve_wim_output_root(root_dir, wim, proj_root);
     out_dir = fullfile(output_root, bridge, yyyymm);
     if ~exist(out_dir, 'dir'), mkdir(out_dir); end
 
@@ -149,9 +148,21 @@ function p = resolve_path(base, p)
     if isempty(p), return; end
     if isstring(p), p = char(p); end
     if ~ischar(p), return; end
-    if ~(numel(p) >= 2 && p(2) == ':') && ~startsWith(p, filesep)
+    if ~is_absolute_path_local(p)
         p = fullfile(base, p);
     end
+end
+
+function tf = is_absolute_path_local(p)
+    tf = false;
+    if isempty(p)
+        return;
+    end
+    if isstring(p), p = char(p); end
+    if ~ischar(p)
+        return;
+    end
+    tf = (numel(p) >= 2 && p(2) == ':') || startsWith(p, filesep) || startsWith(p, '\\');
 end
 
 function v = get_field_default(s, field, defaultVal)
@@ -1136,8 +1147,7 @@ function run_wim_database_pipeline(root_dir, start_date, end_date, wim, cfg)
     bridge = get_field_default(wim, 'bridge', get_field_default(cfg, 'vendor', 'bridge'));
     yyyymm = datestr(datetime(start_date, 'InputFormat', 'yyyy-MM-dd'), 'yyyymm');
 
-    output_root = get_field_default(wim, 'output_root', fullfile(proj_root, 'data', 'output'));
-    output_root = resolve_path(proj_root, output_root);
+    output_root = resolve_wim_output_root(root_dir, wim, proj_root);
     out_dir = fullfile(output_root, bridge, yyyymm);
     if ~exist(out_dir, 'dir'), mkdir(out_dir); end
 
@@ -1217,6 +1227,22 @@ function db = get_wim_db_cfg(wim, cfg, proj_root)
     db = fill_default(db, 'sqlcmd_utf8', true);
     db = fill_default(db, 'trust_server_cert', true);
     db.scripts_dir = resolve_path(proj_root, db.scripts_dir);
+end
+
+function output_root = resolve_wim_output_root(root_dir, wim, proj_root)
+    configured = get_field_default(wim, 'output_root', '');
+    if isempty(configured)
+        output_root = fullfile(root_dir, 'WIM', 'results');
+        return;
+    end
+    if is_absolute_path_local(configured)
+        output_root = configured;
+        return;
+    end
+    output_root = resolve_path(root_dir, configured);
+    if strcmp(output_root, configured)
+        output_root = resolve_path(proj_root, configured);
+    end
 end
 
 function ensure_sql_service_running(db)

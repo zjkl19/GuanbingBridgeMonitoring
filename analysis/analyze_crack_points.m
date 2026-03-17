@@ -5,6 +5,7 @@ function analyze_crack_points(root_dir, start_date, end_date, excel_file, subfol
     if nargin < 2 || isempty(start_date), error('start_date is required'); end
     if nargin < 3 || isempty(end_date),   error('end_date is required'); end
     if nargin < 4 || isempty(excel_file), excel_file = 'crack_stats.xlsx'; end
+    excel_file = resolve_data_output_path(root_dir, excel_file, 'stats');
     if nargin < 5 || isempty(subfolder)
         cfg_tmp = load_config();
         if isfield(cfg_tmp,'subfolders') && isfield(cfg_tmp.subfolders,'crack')

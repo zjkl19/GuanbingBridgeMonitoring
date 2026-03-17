@@ -21,6 +21,7 @@
         end
     end
     if nargin<5||isempty(excel_file),  excel_file = 'accel_spec_stats.xlsx'; end
+    excel_file = resolve_data_output_path(root_dir, excel_file, 'stats');
     if nargin<6||isempty(subfolder)
         cfg_tmp = load_config();
         if isfield(cfg_tmp,'subfolders') && isfield(cfg_tmp.subfolders,'acceleration_raw')

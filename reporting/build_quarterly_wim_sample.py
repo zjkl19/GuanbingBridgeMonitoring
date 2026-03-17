@@ -84,9 +84,9 @@ def parse_args() -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description="Build quarterly WIM report section from monthly template.")
     parser.add_argument("--template", type=Path, default=repo_root / "reports" / "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2025\u5e7412\u6708\u4efd\u6708\u62a5 - \u65b0\u6a21\u677f2.docx")
-    parser.add_argument("--wim-root", type=Path, default=repo_root / "outputs" / "wim_quarter_sql" / "hongtang")
+    parser.add_argument("--wim-root", type=Path, default=None)
     parser.add_argument("--months", nargs="+", default=["202601", "202602", "202603"])
-    parser.add_argument("--output-dir", type=Path, default=repo_root / "outputs" / "quarter_reports")
+    parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--period-label", default="2026\u5e74\u7b2c\u4e00\u5b63\u5ea6")
     parser.add_argument("--report-date", default=datetime.now().strftime("%Y\u5e74%m\u6708%d\u65e5"))
     return parser.parse_args()
@@ -549,11 +549,13 @@ def build_quarterly_wim_sample(template: Path, wim_root: Path, months: list[str]
 
 def main() -> None:
     args = parse_args()
+    wim_root = args.wim_root or (Path.cwd() / "WIM" / "results" / "hongtang")
+    output_dir = args.output_dir or (wim_root.parents[2] / "自动报告" if len(wim_root.parents) >= 3 else (Path.cwd() / "自动报告"))
     output = build_quarterly_wim_sample(
         template=args.template,
-        wim_root=args.wim_root,
+        wim_root=wim_root,
         months=args.months,
-        output_dir=args.output_dir,
+        output_dir=output_dir,
         period_label=args.period_label,
         report_date=args.report_date,
     )
