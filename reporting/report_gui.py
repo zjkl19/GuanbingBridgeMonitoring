@@ -28,6 +28,28 @@ from build_monthly_report import build_report
 from build_period_report import build_period_report
 
 
+MONTHLY_REPORT = "月报"
+PERIOD_REPORT = "周期报（含WIM）"
+
+
+def detect_default_config(repo_root: Path) -> Path:
+    config_dir = repo_root / "config"
+    computer_name = os.environ.get("COMPUTERNAME", "").strip()
+    if computer_name:
+        machine_cfg = config_dir / f"hongtang_config_{computer_name}.json"
+        if machine_cfg.exists():
+            return machine_cfg.resolve()
+    return (config_dir / "hongtang_config.json").resolve()
+
+
+def derive_wim_root(result_root: Path) -> Path:
+    return result_root / "WIM" / "results" / "hongtang"
+
+
+def derive_output_dir(result_root: Path) -> Path:
+    return result_root / "自动报告"
+
+
 class ReportWorker(QObject):
     log = Signal(str)
     finished = Signal(str, str)
@@ -68,11 +90,11 @@ class ReportWorker(QObject):
             self.log.emit(f"配置: {self.config_path}")
             self.log.emit(f"结果目录: {self.result_root}")
             self.log.emit(f"报告类型: {self.report_type}")
-            if self.report_type == "周期报（含WIM）" and self.wim_root is not None:
+            if self.report_type == PERIOD_REPORT and self.wim_root is not None:
                 self.log.emit(f"WIM结果目录: {self.wim_root}")
             self.log.emit("开始生成报告...")
 
-            if self.report_type == "周期报（含WIM）":
+            if self.report_type == PERIOD_REPORT:
                 manifest_path, report_path, missing = build_period_report(
                     template=self.template,
                     config_path=self.config_path,
@@ -101,7 +123,7 @@ class ReportWorker(QObject):
             self.log.emit(f"Manifest: {manifest_path}")
             self.log.emit(f"Report:   {report_path}")
             if missing:
-                self.log.emit("告警/缺失资源:")
+                self.log.emit("警告/缺失资源:")
                 for item in missing:
                     self.log.emit(f"  - {item}")
             self.log.emit("完成")
@@ -119,6 +141,7 @@ class ReportGui(QMainWindow):
         self.setWindowTitle("报告生成器")
         self.resize(980, 720)
         self._last_output_dir: Path | None = None
+        self._last_result_root: Path | None = None
         self._thread: QThread | None = None
         self._worker: ReportWorker | None = None
         self._build_ui()
@@ -133,14 +156,16 @@ class ReportGui(QMainWindow):
         outer.addLayout(grid)
 
         repo_root = Path(__file__).resolve().parents[1]
+        default_result_root = Path(r"E:\洪塘大桥数据\2026年1-3月")
+
         self.report_type_combo = QComboBox()
-        self.report_type_combo.addItems(["月报", "周期报（含WIM）"])
+        self.report_type_combo.addItems([MONTHLY_REPORT, PERIOD_REPORT])
         self.template_edit = QLineEdit(str(self._find_default_template()))
-        self.config_edit = QLineEdit(str((repo_root / "config" / "hongtang_config.json").resolve()))
-        self.result_root_edit = QLineEdit(r"E:\洪塘大桥数据\2026年1-3月")
+        self.config_edit = QLineEdit(str(detect_default_config(repo_root)))
+        self.result_root_edit = QLineEdit(str(default_result_root))
         self.analysis_root_edit = QLineEdit(str(repo_root.resolve()))
-        self.wim_root_edit = QLineEdit(r"E:\洪塘大桥数据\2026年1-3月\WIM\results\hongtang")
-        self.output_dir_edit = QLineEdit(r"E:\洪塘大桥数据\2026年1-3月\自动报告")
+        self.wim_root_edit = QLineEdit(str(derive_wim_root(default_result_root)))
+        self.output_dir_edit = QLineEdit(str(derive_output_dir(default_result_root)))
         self.period_edit = QLineEdit("2026年1-3月")
         self.range_edit = QLineEdit("2026.01.01~2026.03.16")
         self.start_edit = QLineEdit("2026-01-01")
@@ -182,6 +207,10 @@ class ReportGui(QMainWindow):
         self.open_btn.clicked.connect(self._open_output_dir)
         action_row.addWidget(self.open_btn)
 
+        sync_btn = QPushButton("按结果目录同步路径")
+        sync_btn.clicked.connect(lambda: self._sync_result_dependent_paths(force=True))
+        action_row.addWidget(sync_btn)
+
         action_row.addStretch(1)
         self.status_label = QLabel("就绪")
         action_row.addWidget(self.status_label)
@@ -192,6 +221,7 @@ class ReportGui(QMainWindow):
         outer.addWidget(self.log_edit, 1)
 
         self._on_report_type_changed(self.report_type_combo.currentText())
+        self._last_result_root = default_result_root
 
     def _find_default_template(self) -> Path:
         reports_dir = Path("reports")
@@ -211,14 +241,9 @@ class ReportGui(QMainWindow):
     def _browse_result_root(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "选择结果目录", self.result_root_edit.text())
         if path:
+            previous_root = Path(self.result_root_edit.text()).expanduser() if self.result_root_edit.text().strip() else None
             self.result_root_edit.setText(path)
-            result_root = Path(path)
-            current_wim = Path(self.wim_root_edit.text()).expanduser() if self.wim_root_edit.text().strip() else None
-            current_out = Path(self.output_dir_edit.text()).expanduser() if self.output_dir_edit.text().strip() else None
-            if current_wim is None or "outputs" in current_wim.parts:
-                self.wim_root_edit.setText(str(result_root / "WIM" / "results" / "hongtang"))
-            if current_out is None:
-                self.output_dir_edit.setText(str(result_root / "自动报告"))
+            self._sync_result_dependent_paths(previous_root=previous_root, force=False)
 
     def _browse_analysis_root(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "选择分析根目录", self.analysis_root_edit.text())
@@ -235,8 +260,38 @@ class ReportGui(QMainWindow):
         if path:
             self.output_dir_edit.setText(path)
 
+    def _sync_result_dependent_paths(self, previous_root: Path | None = None, force: bool = False) -> None:
+        result_root = Path(self.result_root_edit.text()).expanduser()
+        if not str(result_root).strip():
+            return
+
+        old_wim = Path(self.wim_root_edit.text()).expanduser() if self.wim_root_edit.text().strip() else None
+        old_out = Path(self.output_dir_edit.text()).expanduser() if self.output_dir_edit.text().strip() else None
+        previous_root = previous_root or self._last_result_root
+        new_wim = derive_wim_root(result_root)
+        new_out = derive_output_dir(result_root)
+
+        should_update_wim = force or old_wim is None or "outputs" in old_wim.parts
+        should_update_out = force or old_out is None
+
+        if previous_root is not None:
+            if old_wim == derive_wim_root(previous_root):
+                should_update_wim = True
+            if old_out == derive_output_dir(previous_root):
+                should_update_out = True
+        if old_wim == derive_wim_root(result_root):
+            should_update_wim = True
+        if old_out == derive_output_dir(result_root):
+            should_update_out = True
+
+        if should_update_wim:
+            self.wim_root_edit.setText(str(new_wim))
+        if should_update_out or not self.output_dir_edit.text().strip():
+            self.output_dir_edit.setText(str(new_out))
+        self._last_result_root = result_root
+
     def _on_report_type_changed(self, text: str) -> None:
-        period_mode = text == "周期报（含WIM）"
+        period_mode = text == PERIOD_REPORT
         self.wim_root_edit.setEnabled(period_mode)
         self.start_edit.setEnabled(period_mode)
         self.end_edit.setEnabled(period_mode)
@@ -266,7 +321,7 @@ class ReportGui(QMainWindow):
         if not result_root.exists():
             QMessageBox.critical(self, "错误", f"结果目录不存在:\n{result_root}")
             return
-        if report_type == "周期报（含WIM）" and wim_root is not None and not wim_root.exists():
+        if report_type == PERIOD_REPORT and wim_root is not None and not wim_root.exists():
             QMessageBox.critical(self, "错误", f"WIM结果目录不存在:\n{wim_root}")
             return
 
