@@ -202,10 +202,7 @@ function make_boxplot_and_stats(dataMat, labels, groupName, outdir, ds_cfg, tag,
     if ds_cfg.YLimManual, ylim(ds_cfg.YLimRange); end
 
     base = sprintf('boxplot_%s_%s', groupName, tag);
-    saveas(f, fullfile(outdir, [base '_' ts '.jpg']));
-    saveas(f, fullfile(outdir, [base '_' ts '.emf']));
-    savefig(f, fullfile(outdir, [base '_' ts '.fig']), 'compact');
-    close(f);
+    save_plot_bundle(f, outdir, [base '_' ts]);
 
     statsTbl = calc_stats_table(dataMat, labels);
     txtPath  = fullfile(outdir, sprintf('boxplot_stats_%s_%s.txt', groupName, tag));
@@ -252,10 +249,7 @@ function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, d
     legend(hLines, labels, 'Location','northeast','Box','off');
 
     base = sprintf('dynstrain_hp_%s_%s', groupName, tag);
-    saveas(f, fullfile(outdir_ts, [base '_' ts '.jpg']));
-    saveas(f, fullfile(outdir_ts, [base '_' ts '.emf']));
-    savefig(f, fullfile(outdir_ts, [base '_' ts '.fig']), 'compact');
-    close(f);
+    save_plot_bundle(f, outdir_ts, [base '_' ts]);
 end
 
 function T = calc_stats_table(dataMat, labels)

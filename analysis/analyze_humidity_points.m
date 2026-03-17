@@ -67,10 +67,7 @@ timestamp = char(datetime('now','Format','yyyy-MM-dd_HH-mm-ss'));
 output_dir = fullfile(root_dir,'时程曲线_湿度');
 if ~exist(output_dir,'dir'), mkdir(output_dir); end
 base = sprintf('%s_%s_%s', pid, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
-saveas(fig, fullfile(output_dir,[base '_' timestamp '.jpg']));
-saveas(fig, fullfile(output_dir,[base '_' timestamp '.emf']));
-savefig(fig,fullfile(output_dir,[base '_' timestamp '.fig']),'compact');
-close(fig);
+save_plot_bundle(fig, output_dir, [base '_' timestamp]);
 end
 
 function plot_humidity_frequency(vals, point_id, root_dir, start_date, end_date)
@@ -95,10 +92,7 @@ outdir = fullfile(root_dir,'频次分布_湿度'); if ~exist(outdir,'dir'), mkdi
 dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd');
 dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
 fname = sprintf('%s_freq_%s_%s', point_id, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
-saveas(fig, fullfile(outdir,[fname '_' timestamp '.jpg']));
-saveas(fig, fullfile(outdir,[fname '_' timestamp '.emf']));
-savefig(fig,fullfile(outdir,[fname '_' timestamp '.fig']),'compact');
-close(fig);
+save_plot_bundle(fig, outdir, [fname '_' timestamp]);
 end
 
 % helpers

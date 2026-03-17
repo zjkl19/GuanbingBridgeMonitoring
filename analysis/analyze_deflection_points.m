@@ -199,10 +199,7 @@ grid on; grid minor;
 ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir, '时程曲线_挠度'); if ~exist(out,'dir'), mkdir(out); end
 fname = sprintf('Defl_%s_%s_%s', name_tag, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
-saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
-saveas(fig, fullfile(out, [fname '_' ts '.emf']));
-savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
-close(fig);
+save_plot_bundle(fig, out, [fname '_' ts]);
 end
 
 % helpers

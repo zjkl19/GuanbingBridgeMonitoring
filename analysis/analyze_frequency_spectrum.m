@@ -88,9 +88,7 @@ function save_spectrum_plot()
     file_base_name = fullfile(folder_name, ['spectrum_plot_' timestamp_str]);
 
     % 保存为不同格式
-    saveas(gcf, [file_base_name, '.fig']);  % 保存为 MATLAB .fig 文件
-    saveas(gcf, [file_base_name, '.jpg']);  % 保存为 JPG 文件
-    saveas(gcf, [file_base_name, '.emf']);  % 保存为 EMF 文件
+    save_plot_bundle(gcf, folder_name, ['spectrum_plot_' timestamp_str]);
 
     disp(['频谱图已保存至: ' folder_name]);
 end

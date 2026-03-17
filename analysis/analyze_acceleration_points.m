@@ -162,10 +162,7 @@ title([style.title_prefix ' ' pid]);
 ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir,'时程曲线_加速度'); if ~exist(out,'dir'), mkdir(out); end
 fname = [pid '_' datestr(times(1),'yyyymmdd') '_' datestr(times(end),'yyyymmdd')];
-saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
-saveas(fig, fullfile(out, [fname '_' ts '.emf']));
-savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
-close(fig);
+save_plot_bundle(fig, out, [fname '_' ts]);
 end
 
 function plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date, style)
@@ -234,10 +231,7 @@ ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir,'时程曲线_加速度_RMS10min');
 if ~exist(out,'dir'), mkdir(out); end
 fname = sprintf('AccelRMS10_%s_%s_%s', pid, datestr(min(times),'yyyymmdd'), datestr(max(times),'yyyymmdd'));
-saveas(fig, fullfile(out, [fname '_' ts '.jpg']));
-saveas(fig, fullfile(out, [fname '_' ts '.emf']));
-savefig(fig, fullfile(out, [fname '_' ts '.fig']), 'compact');
-close(fig);
+save_plot_bundle(fig, out, [fname '_' ts]);
 end
 
 function yl = resolve_point_ylim(ylims, pid, default_ylim)

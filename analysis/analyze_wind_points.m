@@ -455,10 +455,7 @@ end
 
 function save_plot(fig, out_dir, base_name)
     ts = datestr(now, 'yyyymmdd_HHMMSS');
-    saveas(fig, fullfile(out_dir, [base_name '_' ts '.jpg']));
-    saveas(fig, fullfile(out_dir, [base_name '_' ts '.emf']));
-    savefig(fig, fullfile(out_dir, [base_name '_' ts '.fig']), 'compact');
-    close(fig);
+    save_plot_bundle(fig, out_dir, [base_name '_' ts]);
 end
 
 function ensure_dir(p)

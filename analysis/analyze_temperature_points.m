@@ -51,10 +51,7 @@ function analyze_temperature_points(root_dir, point_ids, start_date, end_date, e
         grid on; grid minor;
         title(sprintf('%s %s', get_style_field(style,'title_prefix','温度时程'), pid));
         base = sprintf('%s_%s_%s', pid, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
-        saveas(fig, fullfile(outDir,[base '_' timestamp '.jpg']));
-        saveas(fig, fullfile(outDir,[base '_' timestamp '.emf']));
-        savefig(fig, fullfile(outDir,[base '_' timestamp '.fig']), 'compact');
-        close(fig);
+        save_plot_bundle(fig, outDir, [base '_' timestamp]);
         mn = min(all_val);
         mx = max(all_val);
         stats{i,1} = pid;

@@ -173,10 +173,7 @@ function plot_point_curve(root_dir, times, vals, start_date, end_date, pid, styl
         mkdir(out_dir);
     end
     fname = sanitize_filename(sprintf('Strain_%s_%s_%s', char(string(pid)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    saveas(fig, fullfile(out_dir, [fname '_' ts '.jpg']));
-    saveas(fig, fullfile(out_dir, [fname '_' ts '.emf']));
-    savefig(fig, fullfile(out_dir, [fname '_' ts '.fig']), 'compact');
-    close(fig);
+    save_plot_bundle(fig, out_dir, [fname '_' ts]);
 end
 
 function plot_group_timeseries(root_dir, data_list, start_date, end_date, group_name, style)
@@ -233,10 +230,7 @@ function plot_group_timeseries(root_dir, data_list, start_date, end_date, group_
         mkdir(out_dir);
     end
     fname = sanitize_filename(sprintf('Strain_%s_%s_%s', char(string(group_name)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    saveas(fig, fullfile(out_dir, [fname '_' ts '.jpg']));
-    saveas(fig, fullfile(out_dir, [fname '_' ts '.emf']));
-    savefig(fig, fullfile(out_dir, [fname '_' ts '.fig']), 'compact');
-    close(fig);
+    save_plot_bundle(fig, out_dir, [fname '_' ts]);
 end
 
 function plot_group_boxplot(root_dir, data_list, start_date, end_date, group_name, style, cfg)
@@ -299,10 +293,7 @@ function plot_group_boxplot(root_dir, data_list, start_date, end_date, group_nam
         mkdir(out_dir);
     end
     fname = sanitize_filename(sprintf('StrainBox_%s_%s_%s', char(string(group_name)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    saveas(fig, fullfile(out_dir, [fname '_' ts '.jpg']));
-    saveas(fig, fullfile(out_dir, [fname '_' ts '.emf']));
-    savefig(fig, fullfile(out_dir, [fname '_' ts '.fig']), 'compact');
-    close(fig);
+    save_plot_bundle(fig, out_dir, [fname '_' ts]);
 end
 
 function [data_mat, max_len] = build_boxplot_matrix(data_list)

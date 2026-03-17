@@ -213,10 +213,7 @@ function plot_bearing_curve(times_list, vals_list, pid_list, root_dir, start_dat
     end
     ts = datestr(now, 'yyyymmdd_HHMMSS');
     fname = sanitize_filename(sprintf('BearingDisp_%s_%s_%s_%s', char(string(name_tag)), datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'), suffix));
-    saveas(fig, fullfile(out_dir, [fname '_' ts '.jpg']));
-    saveas(fig, fullfile(out_dir, [fname '_' ts '.emf']));
-    savefig(fig, fullfile(out_dir, [fname '_' ts '.fig']), 'compact');
-    close(fig);
+    save_plot_bundle(fig, out_dir, [fname '_' ts]);
 end
 
 function warn_lines = resolve_warn_lines(style, cfg, pid)

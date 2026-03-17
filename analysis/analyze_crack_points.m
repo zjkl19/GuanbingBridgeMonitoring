@@ -219,10 +219,7 @@ function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, title_prefi
 
     ts = datestr(now, 'yyyymmdd_HHMMSS');
     base = sanitize_filename(sprintf('%s_%s_%s_%s', title_prefix, group_name, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd')));
-    saveas(fig, fullfile(out_dir, [base '_' ts '.jpg']));
-    saveas(fig, fullfile(out_dir, [base '_' ts '.emf']));
-    savefig(fig, fullfile(out_dir, [base '_' ts '.fig']), 'compact');
-    close(fig);
+    save_plot_bundle(fig, out_dir, [base '_' ts]);
 end
 
 function tf = is_valid_ylim(v)

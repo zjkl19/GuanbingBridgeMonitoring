@@ -248,13 +248,7 @@ function [ampRow, freqRow] = process_one_day(day, pid, root_dir, subfolder, targ
     xline(target_freqs,'--r');
     xlabel('频率 (Hz)'); ylabel(style.psd_ylabel);
     title(sprintf('%s %s  %s',style.psd_title_prefix,pid,dayStr));
-    fnamePSD = fullfile(psdDir,sprintf('PSD_%s_%s',pid,dayStr));
-    saveas(figPSD,[fnamePSD '.jpg']);
-    set(findall(figPSD, 'Visible', 'off'), 'Visible', 'on');
-    set(figPSD, 'Visible', 'on');
-    drawnow;
-    savefig(figPSD,[fnamePSD '.fig'],'compact');
-    close(figPSD);
+    save_plot_bundle(figPSD, psdDir, sprintf('PSD_%s_%s',pid,dayStr), struct('save_emf', false));
 
     for fi = 1:numel(target_freqs)
         f0 = target_freqs(fi);
@@ -333,13 +327,8 @@ function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, 
              sprintf('SpecFreq_%s_%s_%s', pid, ...
              datestr(dates_all(1),'yyyymmdd'), ...
              datestr(dates_all(end),'yyyymmdd')));
-    saveas(fig, [fname '.jpg']);
-    saveas(fig, [fname '.emf']);
-    set(findall(fig, 'Visible', 'off'), 'Visible', 'on');
-    set(fig, 'Visible', 'on');
-    drawnow;
-    savefig(fig,[fname '.fig'],'compact');
-    close(fig);
+    [freq_dir, freq_name] = fileparts(fname);
+    save_plot_bundle(fig, freq_dir, freq_name);
 end
 
 function ccell = normalize_colors(c)

@@ -188,10 +188,7 @@ function plot_tilt_curve(root_dir, data_list, start_date, end_date, suffix, styl
         mkdir(out_dir);
     end
     fname = sanitize_filename(sprintf('Tilt_%s_%s_%s', char(string(suffix)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    saveas(fig, fullfile(out_dir, [fname '_' ts '.jpg']));
-    saveas(fig, fullfile(out_dir, [fname '_' ts '.emf']));
-    savefig(fig, fullfile(out_dir, [fname '_' ts '.fig']), 'compact');
-    close(fig);
+    save_plot_bundle(fig, out_dir, [fname '_' ts]);
 end
 
 function warn_lines = resolve_warn_lines(style, cfg, pid)
