@@ -197,6 +197,11 @@ fprintf('Total elapsed: %.2f sec\n', elapsed);
 all_logs = [log_records, results];
 print_summary(all_logs);
 write_log(all_logs, start_ts, elapsed, logdir);
+try
+    configure_result_folder_views(root, cfg);
+catch MEcfg
+    warning('Result folder view setup failed: %s', MEcfg.message);
+end
 kind = select_notify_kind(notify_cfg, has_failures(all_logs));
 if ~isempty(kind)
     safe_notify(kind, notify_cfg);
@@ -212,6 +217,12 @@ catch ME
     kind = select_notify_kind(notify_cfg, true);
     if ~isempty(kind)
         safe_notify(kind, notify_cfg);
+    end
+    if exist('root', 'var') && exist('cfg', 'var')
+        try
+            configure_result_folder_views(root, cfg);
+        catch
+        end
     end
     rethrow(ME);
 end
