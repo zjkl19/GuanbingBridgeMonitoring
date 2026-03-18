@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import traceback
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, Signal, Qt
@@ -94,6 +95,32 @@ def derive_wim_root(result_root: Path) -> Path:
 
 def derive_output_dir(result_root: Path) -> Path:
     return result_root / "\u81ea\u52a8\u62a5\u544a"
+
+
+def parse_iso_date(text: str) -> date:
+    return datetime.strptime(text, "%Y-%m-%d").date()
+
+
+def iter_months(start_date: date, end_date: date) -> list[str]:
+    months: list[str] = []
+    year = start_date.year
+    month = start_date.month
+    while (year, month) <= (end_date.year, end_date.month):
+        months.append(f"{year:04d}{month:02d}")
+        if month == 12:
+            year += 1
+            month = 1
+        else:
+            month += 1
+    return months
+
+
+def has_dated_raw_dirs(result_root: Path) -> bool:
+    pattern = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+    for child in result_root.iterdir():
+        if child.is_dir() and pattern.match(child.name):
+            return True
+    return False
 
 
 def top_help_text() -> str:
@@ -387,6 +414,54 @@ class ReportGui(QMainWindow):
         self.end_edit.setEnabled(period_mode)
         self._maybe_update_template_for_type()
 
+    def _validate_period_inputs(self, result_root: Path, wim_root: Path | None) -> bool:
+        try:
+            start_date = parse_iso_date(self.start_edit.text().strip())
+            end_date = parse_iso_date(self.end_edit.text().strip())
+        except ValueError:
+            QMessageBox.critical(self, "\u9519\u8bef", "\u5f00\u59cb/\u7ed3\u675f\u65e5\u671f\u683c\u5f0f\u5fc5\u987b\u662f YYYY-MM-DD\u3002")
+            return False
+
+        if end_date < start_date:
+            QMessageBox.critical(self, "\u9519\u8bef", "\u7ed3\u675f\u65e5\u671f\u4e0d\u80fd\u65e9\u4e8e\u5f00\u59cb\u65e5\u671f\u3002")
+            return False
+
+        warnings: list[str] = []
+
+        lowfreq_file = result_root / "lowfreq" / "data.xlsx"
+        if not lowfreq_file.exists():
+            warnings.append("`lowfreq/data.xlsx` \u4e0d\u5b58\u5728\uff0c`1.4 \u5065\u5eb7\u76d1\u6d4b\u7cfb\u7edf\u8fd0\u884c\u72b6\u51b5` \u4f1a\u628a\u4f4e\u9891\u539f\u59cb\u6570\u636e\u89c6\u4e3a\u7f3a\u5931\u3002")
+
+        if not has_dated_raw_dirs(result_root):
+            warnings.append("\u672a\u5728\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55\u4e0b\u627e\u5230 `YYYY-MM-DD` \u5f62\u5f0f\u7684\u539f\u59cb\u9ad8\u9891\u6570\u636e\u76ee\u5f55\uff0c`1.4` \u4f1a\u5c06\u9ad8\u9891\u539f\u59cb\u6570\u636e\u89c6\u4e3a\u7f3a\u5931\u3002")
+
+        stats_dir = result_root / "stats"
+        if not stats_dir.exists():
+            warnings.append("`stats/` \u4e0d\u5b58\u5728\uff0c\u975e WIM \u7ae0\u8282\u53ef\u80fd\u7f3a\u5c11\u7edf\u8ba1\u8868\u6216\u65e0\u6cd5\u751f\u6210\u3002")
+
+        if wim_root is None or not wim_root.exists():
+            warnings.append("WIM \u7ed3\u679c\u76ee\u5f55\u4e0d\u5b58\u5728\uff0cWIM \u7ae0\u8282\u65e0\u6cd5\u6309\u6708\u63d2\u5165\u3002")
+        else:
+            missing_months = [m for m in iter_months(start_date, end_date) if not (wim_root / m).exists()]
+            if missing_months:
+                warnings.append(f"WIM \u7ed3\u679c\u76ee\u5f55\u7f3a\u5c11\u6708\u4efd\uff1a{', '.join(missing_months)}\u3002")
+
+        if not warnings:
+            return True
+
+        detail = "\n".join(f"- {item}" for item in warnings)
+        ret = QMessageBox.warning(
+            self,
+            "\u5468\u671f\u62a5\u8f93\u5165\u6821\u9a8c",
+            "\u53d1\u73b0\u4ee5\u4e0b\u95ee\u9898\uff1a\n\n"
+            f"{detail}\n\n"
+            "\u53ef\u4ee5\u7ee7\u7eed\u751f\u6210\uff0c\u4f46\u62a5\u544a\u5185\u5bb9\u53ef\u80fd\u4e0d\u5b8c\u6574\u6216 1.4 \u7ae0\u8282\u4f1a\u4ea7\u751f\u8f83\u591a\u7f3a\u5931\u63d0\u793a\u3002\n\n"
+            "\u662f\u5426\u7ee7\u7eed\uff1f",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return ret == QMessageBox.StandardButton.Yes
+
     def _log(self, text: str) -> None:
         self.log_edit.appendPlainText(text)
 
@@ -414,6 +489,8 @@ class ReportGui(QMainWindow):
             return
         if report_type == PERIOD_REPORT and wim_root is not None and not wim_root.exists():
             QMessageBox.critical(self, "\u9519\u8bef", f"WIM\u7ed3\u679c\u76ee\u5f55\u4e0d\u5b58\u5728:\n{wim_root}")
+            return
+        if report_type == PERIOD_REPORT and not self._validate_period_inputs(result_root, wim_root):
             return
 
         self._set_busy(True)

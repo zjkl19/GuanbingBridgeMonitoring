@@ -122,6 +122,19 @@ Important note for period reports:
 - WIM 仍按月从 `WIM/results/hongtang/<yyyymm>/` 插入。
 - `1.4 健康监测系统运行状况` 统计的是原始缺失/无文件/无记录。如果结果根目录只有处理结果而没有原始数据，该节会显示大量缺失。
 
+The GUI performs a preflight check before generating a period report and warns when:
+生成周期报前，GUI 会做输入校验，并在以下情况给出警告：
+
+- `lowfreq/data.xlsx` is missing
+- no raw `YYYY-MM-DD` directories are found under the selected data root
+- `stats/` is missing
+- WIM monthly result folders are missing for some months
+
+- 缺少 `lowfreq/data.xlsx`
+- 所选数据根目录下没有 `YYYY-MM-DD` 形式的原始数据目录
+- 缺少 `stats/`
+- 部分月份缺少 WIM 月结果目录
+
 ## Output Locations / 输出位置
 
 - Report document / 报告文档: `<result-root>/自动报告/`

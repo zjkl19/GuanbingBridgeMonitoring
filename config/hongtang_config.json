@@ -1,7 +1,8 @@
 {
   "vendor": "hongtang",
   "gui": {
-    "show_warnings": false
+    "show_warnings": false,
+    "auto_configure_result_folders": true
   },
   "notify": {
     "enabled": true,
@@ -1786,7 +1787,14 @@
             200
           ]
         },
-        "offset_correction": 180
+        "offset_correction": 180,
+        "thresholds": [
+          {
+            "max": 100,
+            "t_range_start": "2026-02-25 00:00:00",
+            "t_range_end": "2026-03-15 23:59:59"
+          }
+        ]
       },
       "SL_6": {
         "alarm_bounds": {
@@ -1864,12 +1872,14 @@
             200
           ]
         },
-        "thresholds": {
-          "min": -100,
-          "max": 100,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
+        "thresholds": [
+          {
+            "min": 1000,
+            "max": -1000,
+            "t_range_start": "",
+            "t_range_end": ""
+          }
+        ],
         "offset_correction": 100
       },
       "SL_10": {
@@ -2752,7 +2762,8 @@
           0.447,
           0.741
         ]
-      }
+      },
+      "ylim_auto": false
     },
     "accel_spectrum": {
       "psd_ylabel": "PSD (dB)",
@@ -2855,7 +2866,16 @@
           0.447,
           0.741
         ]
-      }
+      },
+      "ylims": [
+        {
+          "name": "CS5",
+          "ylim": [
+            -4,
+            4
+          ]
+        }
+      ]
     },
     "cable_accel_spectrum": {
       "psd_ylabel": "PSD (dB)",
@@ -3364,5 +3384,10 @@
       1,
       2
     ]
+  },
+  "plot_common": {
+    "save_fig": true,
+    "lightweight_fig": true,
+    "fig_max_points": 50000
   }
 }
