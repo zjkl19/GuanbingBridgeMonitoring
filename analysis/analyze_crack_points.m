@@ -82,7 +82,8 @@ function analyze_crack_points(root_dir, start_date, end_date, excel_file, subfol
             pid = point_list{i};
             S = fetch_point_series(cache, root_dir, subfolder, start_date, end_date, cfg, pid, opt.temp_enabled);
             if ~isempty(S.crack_times)
-                plot_single_curve(S.crack_times, S.crack_vals, pid, crack_ylabel, crack_title, crack_dir, start_date, end_date, []);
+                plot_single_curve(S.crack_times, S.crack_vals, pid, crack_ylabel, crack_title, crack_dir, start_date, end_date, ...
+                    get_named_ylim(style, pid, get_default_ylim(style)));
             end
             if opt.temp_enabled && ~isempty(S.temp_times)
                 plot_single_curve(S.temp_times, S.temp_vals, pid, temp_ylabel, temp_title, temp_dir, start_date, end_date, []);
@@ -122,17 +123,16 @@ function analyze_crack_points(root_dir, start_date, end_date, excel_file, subfol
                 end
             end
 
-            ylim_group = get_group_ylim(style, grp_name);
-
             if ~isempty(crack_labels)
-                plot_group_curve(crack_times, crack_vals, crack_labels, crack_ylabel, crack_title, crack_dir, grp_name, start_date, end_date, ylim_group, style);
+                plot_group_curve(crack_times, crack_vals, crack_labels, crack_ylabel, crack_title, crack_dir, grp_name, start_date, end_date, ...
+                    get_named_ylim(style, grp_name, get_default_ylim(style)), style);
             elseif ~opt.skip_group_if_missing
                 warning('Crack group %s has no valid data.', grp_name);
             end
 
             if opt.temp_enabled
                 if ~isempty(temp_labels)
-                    plot_group_curve(temp_times, temp_vals, temp_labels, temp_ylabel, temp_title, temp_dir, grp_name, start_date, end_date, ylim_group, style);
+                    plot_group_curve(temp_times, temp_vals, temp_labels, temp_ylabel, temp_title, temp_dir, grp_name, start_date, end_date, [], style);
                 elseif ~opt.skip_group_if_missing
                     warning('Crack temp group %s has no valid data.', grp_name);
                 end
@@ -325,10 +325,52 @@ function val = get_style_field(style, field, default)
     end
 end
 
-function ylim_val = get_group_ylim(style, grp_name)
+function ylim_val = get_named_ylim(style, grp_name, default_ylim)
+    ylim_val = default_ylim;
+    if ~isstruct(style) || ~isfield(style,'ylims') || isempty(style.ylims) || isempty(grp_name)
+        return;
+    end
+    ylims = style.ylims;
+    safe_name = strrep(grp_name, '-', '_');
+    if isstruct(ylims)
+        if isfield(ylims, grp_name)
+            ylim_val = ylims.(grp_name);
+            return;
+        end
+        if isfield(ylims, safe_name)
+            ylim_val = ylims.(safe_name);
+            return;
+        end
+        if isfield(ylims, 'name') && isfield(ylims, 'ylim')
+            for i = 1:numel(ylims)
+                if strcmp(to_char(ylims(i).name), grp_name)
+                    ylim_val = ylims(i).ylim;
+                    return;
+                end
+            end
+        end
+    elseif iscell(ylims)
+        for i = 1:numel(ylims)
+            item = ylims{i};
+            if isstruct(item) && isfield(item,'name') && isfield(item,'ylim') && strcmp(to_char(item.name), grp_name)
+                ylim_val = item.ylim;
+                return;
+            end
+        end
+    end
+end
+
+function ylim_val = get_default_ylim(style)
     ylim_val = [];
-    if isstruct(style) && isfield(style,'ylims') && isstruct(style.ylims) && isfield(style.ylims, grp_name)
-        ylim_val = style.ylims.(grp_name);
+    if ~isstruct(style)
+        return;
+    end
+    ylim_auto = false;
+    if isfield(style,'ylim_auto') && ~isempty(style.ylim_auto)
+        ylim_auto = logical(style.ylim_auto);
+    end
+    if ~ylim_auto && isfield(style,'ylim')
+        ylim_val = style.ylim;
     end
 end
 
@@ -372,4 +414,14 @@ function g = default_crack_groups()
         'G05', {{'GB-CRK-G05-001-01','GB-CRK-G05-001-02','GB-CRK-G05-001-03','GB-CRK-G05-001-04'}}, ...
         'G06', {{'GB-CRK-G06-001-01','GB-CRK-G06-001-02','GB-CRK-G06-001-03','GB-CRK-G06-001-04'}} ...
     );
+end
+
+function txt = to_char(v)
+    if isstring(v)
+        txt = char(v);
+    elseif ischar(v)
+        txt = v;
+    else
+        txt = char(string(v));
+    end
 end

@@ -19,6 +19,8 @@ if nargin < 5 || isempty(cfg)
     cfg = load_config();
 end
 notify_cfg = cfg;
+plot_runtime_settings('reset');
+plot_runtime_settings('set', extract_plot_common(cfg));
 
 log_records = {};
 start_ts = datetime('now');
@@ -268,6 +270,19 @@ function pts = get_sensor_points(cfg, key, fallback)
         shared = get_points(cfg, 'temp_humidity', {});
         pts = merge_point_lists(pts, shared);
     end
+end
+
+function pc = extract_plot_common(cfg)
+pc = struct();
+if ~isstruct(cfg)
+    return;
+end
+if isfield(cfg,'plot_common') && isstruct(cfg.plot_common)
+    src = cfg.plot_common;
+    if isfield(src,'save_fig'), pc.save_fig = src.save_fig; end
+    if isfield(src,'lightweight_fig'), pc.lightweight_fig = src.lightweight_fig; end
+    if isfield(src,'fig_max_points'), pc.fig_max_points = src.fig_max_points; end
+end
 end
 
 function pts = merge_point_lists(a, b)

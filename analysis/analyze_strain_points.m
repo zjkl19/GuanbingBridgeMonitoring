@@ -573,6 +573,23 @@ function y = get_group_ylim(style, group_name, default)
     ylims = style.ylims;
     if isstruct(ylims) && isfield(ylims, group_name)
         y = ylims.(group_name);
+        return;
+    end
+    if isstruct(ylims) && isfield(ylims, 'name') && isfield(ylims, 'ylim')
+        for i = 1:numel(ylims)
+            if strcmp(to_char(ylims(i).name), group_name)
+                y = ylims(i).ylim;
+                return;
+            end
+        end
+    elseif iscell(ylims)
+        for i = 1:numel(ylims)
+            item = ylims{i};
+            if isstruct(item) && isfield(item, 'name') && isfield(item, 'ylim') && strcmp(to_char(item.name), group_name)
+                y = item.ylim;
+                return;
+            end
+        end
     end
 end
 
@@ -593,6 +610,16 @@ end
 
 function out = sanitize_filename(name)
     out = regexprep(char(string(name)), '[\\/:*?"<>|]', '_');
+end
+
+function txt = to_char(v)
+    if isstring(v)
+        txt = char(v);
+    elseif ischar(v)
+        txt = v;
+    else
+        txt = char(string(v));
+    end
 end
 
 function colors = get_group_colors(style, n_series)

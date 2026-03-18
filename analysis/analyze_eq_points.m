@@ -62,8 +62,15 @@ function plot_eq_timeseries(times, vals, pid, comp, params, style, out_root, sta
     ylabel(style.ylabel);
     title(sprintf('%s %s [%s-%s]', style.title_prefix, pid, start_date, end_date));
     grid on; grid minor; hold on;
-    if ~isempty(style.ylim)
-        ylim(style.ylim);
+    if is_truthy(style.ylim_auto)
+        ylim auto;
+    else
+        yl = resolve_named_ylim(style.ylims, pid, style.ylim);
+        if is_valid_ylim(yl)
+            ylim(yl);
+        elseif ~isempty(style.ylim)
+            ylim(style.ylim);
+        end
     end
     set_time_axis(times);
 
@@ -160,7 +167,9 @@ function style = get_eq_style(cfg)
         end
         if isfield(ps, 'ylabel'), style.ylabel = ps.ylabel; end
         if isfield(ps, 'title_prefix'), style.title_prefix = ps.title_prefix; end
+        if isfield(ps, 'ylim_auto'), style.ylim_auto = ps.ylim_auto; end
         if isfield(ps, 'ylim'), style.ylim = ps.ylim; end
+        if isfield(ps, 'ylims'), style.ylims = ps.ylims; end
         if isfield(ps, 'color'), style.main_color = ps.color; end
     end
 end
@@ -194,5 +203,58 @@ function out = merge_struct(base, override)
     for i = 1:numel(fns)
         fn = fns{i};
         out.(fn) = override.(fn);
+    end
+end
+
+function yl = resolve_named_ylim(ylims, name, default_ylim)
+    yl = default_ylim;
+    if isempty(ylims) || isempty(name)
+        return;
+    end
+    safe_name = strrep(name, '-', '_');
+    if isstruct(ylims)
+        if isfield(ylims, name)
+            yl = ylims.(name);
+            return;
+        end
+        if isfield(ylims, safe_name)
+            yl = ylims.(safe_name);
+            return;
+        end
+        if isfield(ylims, 'name') && isfield(ylims, 'ylim')
+            for i = 1:numel(ylims)
+                if strcmp(to_char(ylims(i).name), name)
+                    yl = ylims(i).ylim;
+                    return;
+                end
+            end
+        end
+    elseif iscell(ylims)
+        for i = 1:numel(ylims)
+            item = ylims{i};
+            if isstruct(item) && isfield(item, 'name') && isfield(item, 'ylim') && strcmp(to_char(item.name), name)
+                yl = item.ylim;
+                return;
+            end
+        end
+    end
+end
+
+function ok = is_valid_ylim(v)
+    ok = isnumeric(v) && numel(v) == 2 && all(isfinite(v)) && v(2) > v(1);
+end
+
+function tf = is_truthy(v)
+    tf = (islogical(v) && isscalar(v) && v) || ...
+        (isnumeric(v) && isscalar(v) && ~isnan(v) && v ~= 0);
+end
+
+function txt = to_char(v)
+    if isstring(v)
+        txt = char(v);
+    elseif ischar(v)
+        txt = v;
+    else
+        txt = char(string(v));
     end
 end

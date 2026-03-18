@@ -8,10 +8,13 @@ function save_plot_bundle(fig, out_dir, file_stub, opts)
         opts = struct();
     end
 
+    runtime = get_runtime_settings();
+
     save_jpg = get_opt(opts, 'save_jpg', true);
     save_emf = get_opt(opts, 'save_emf', true);
-    save_fig = get_opt(opts, 'save_fig', true);
-    fig_max_points = get_opt(opts, 'fig_max_points', 50000);
+    save_fig = get_opt(opts, 'save_fig', runtime.save_fig);
+    lightweight_fig = get_opt(opts, 'lightweight_fig', runtime.lightweight_fig);
+    fig_max_points = get_opt(opts, 'fig_max_points', runtime.fig_max_points);
 
     if ~exist(out_dir, 'dir')
         mkdir(out_dir);
@@ -27,7 +30,9 @@ function save_plot_bundle(fig, out_dir, file_stub, opts)
     if save_fig
         fig_path = fullfile(out_dir, [file_stub '.fig']);
         try
-            simplify_figure_lines(fig, fig_max_points);
+            if lightweight_fig
+                simplify_figure_lines(fig, fig_max_points);
+            end
             make_figure_visible_for_save(fig);
             drawnow;
             savefig(fig, fig_path, 'compact');
@@ -144,5 +149,20 @@ function val = get_opt(opts, field_name, default_val)
         val = opts.(field_name);
     else
         val = default_val;
+    end
+end
+
+function runtime = get_runtime_settings()
+    runtime = struct('save_fig', true, 'lightweight_fig', true, 'fig_max_points', 50000);
+    try
+        candidate = plot_runtime_settings('get');
+        if isstruct(candidate)
+            if isfield(candidate, 'save_fig'), runtime.save_fig = logical(candidate.save_fig); end
+            if isfield(candidate, 'lightweight_fig'), runtime.lightweight_fig = logical(candidate.lightweight_fig); end
+            if isfield(candidate, 'fig_max_points') && ~isempty(candidate.fig_max_points)
+                runtime.fig_max_points = candidate.fig_max_points;
+            end
+        end
+    catch
     end
 end

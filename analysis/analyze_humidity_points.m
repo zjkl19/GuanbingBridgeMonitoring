@@ -57,8 +57,16 @@ yl.Label = sprintf('平均值 %.1f%%', avg_val);
 yl.LabelHorizontalAlignment = 'center';
 yl.LabelVerticalAlignment = 'bottom';
 yl.FontSize = 12;
-ylim_cfg = get_style_field(style,'ylim', []);
-if ~isempty(ylim_cfg), ylim(ylim_cfg); else, ylim auto; end
+yl = resolve_named_ylim(get_style_field(style,'ylims', []), pid, get_style_field(style,'ylim', []));
+if is_truthy(get_style_field(style,'ylim_auto', false))
+    ylim auto;
+elseif is_valid_ylim(yl)
+    ylim(yl);
+elseif ~isempty(get_style_field(style,'ylim', []))
+    ylim(get_style_field(style,'ylim', []));
+else
+    ylim auto;
+end
 grid on; grid minor;
 title(sprintf('%s %s', get_style_field(style,'title_prefix','湿度时程'), pid));
 xlabel('时间');
@@ -122,5 +130,58 @@ function c = get_color(style, idx)
     if isempty(c)
         cmap = lines(3);
         c = cmap(idx,:);
+    end
+end
+
+function yl = resolve_named_ylim(ylims, name, default_ylim)
+    yl = default_ylim;
+    if isempty(ylims) || isempty(name)
+        return;
+    end
+    safe_name = strrep(name, '-', '_');
+    if isstruct(ylims)
+        if isfield(ylims, name)
+            yl = ylims.(name);
+            return;
+        end
+        if isfield(ylims, safe_name)
+            yl = ylims.(safe_name);
+            return;
+        end
+        if isfield(ylims, 'name') && isfield(ylims, 'ylim')
+            for i = 1:numel(ylims)
+                if strcmp(to_char(ylims(i).name), name)
+                    yl = ylims(i).ylim;
+                    return;
+                end
+            end
+        end
+    elseif iscell(ylims)
+        for i = 1:numel(ylims)
+            item = ylims{i};
+            if isstruct(item) && isfield(item, 'name') && isfield(item, 'ylim') && strcmp(to_char(item.name), name)
+                yl = item.ylim;
+                return;
+            end
+        end
+    end
+end
+
+function ok = is_valid_ylim(v)
+    ok = isnumeric(v) && numel(v) == 2 && all(isfinite(v)) && v(2) > v(1);
+end
+
+function tf = is_truthy(v)
+    tf = (islogical(v) && isscalar(v) && v) || ...
+        (isnumeric(v) && isscalar(v) && ~isnan(v) && v ~= 0);
+end
+
+function txt = to_char(v)
+    if isstring(v)
+        txt = char(v);
+    elseif ischar(v)
+        txt = v;
+    else
+        txt = char(string(v));
     end
 end
