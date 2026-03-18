@@ -807,7 +807,7 @@ def build_tilt_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
         "enabled": reporting_enabled(cfg, "tilt"),
         "chapter": summary,
         "images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in items],
-        "caption": "图 4-8 桥塔各截面位置倾角时程曲线图",
+        "caption": "图 4-7 桥塔各截面位置倾角时程曲线图",
         "image_lookup": [deepcopy(item.lookup) | {"label": item.label} for item in items],
     }
 
@@ -867,7 +867,7 @@ def build_bearing_section(cfg: dict, stats_root: Path, fallback_stats_root: Path
         "min_val": min_val,
         "max_val": max_val,
         "images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in items],
-        "caption": "图 4-9 典型测点支座变位时程曲线图",
+        "caption": "图 4-8 典型测点支座变位时程曲线图",
         "image_lookup": [deepcopy(item.lookup) | {"label": item.label} for item in items],
     }
 
@@ -982,8 +982,8 @@ def build_cable_force_section(cfg: dict, stats_root: Path, fallback_stats_root: 
         "max_change": max(change_rates) if change_rates else None,
         "accel_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in accel_items],
         "force_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in force_items],
-        "accel_caption": "\u56fe 4-10 \u5178\u578b\u6d4b\u70b9\u632f\u52a8\u52a0\u901f\u5ea6\u7edd\u5bf9\u6700\u5927\u503c\u65f6\u7a0b\u56fe\u548c10min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u56fe",
-        "force_caption": "\u56fe 4-11 \u5178\u578b\u6d4b\u70b9\u7d22\u529b\u65f6\u7a0b\u56fe",
+        "accel_caption": "\u56fe 4-9 \u5178\u578b\u6d4b\u70b9\u632f\u52a8\u52a0\u901f\u5ea6\u7edd\u5bf9\u6700\u5927\u503c\u65f6\u7a0b\u56fe\u548c10min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u56fe",
+        "force_caption": "\u56fe 4-10 \u5178\u578b\u6d4b\u70b9\u7d22\u529b\u65f6\u7a0b\u56fe",
         "table_rows": table_rows,
         "image_lookup": {
             "accel": label_path_dicts(accel_items),
@@ -1025,7 +1025,7 @@ def build_vibration_section(cfg: dict, stats_root: Path, fallback_stats_root: Pa
         )
     else:
         timeseries_summary = "选取典型监测数据进行分析，主梁及主塔加速度时程与10min加速度均方根结果见下图。"
-    freq_summary = "选取典型监测数据进行分析，典型测点自振频率时程如图4-13所示，本月主梁及主塔自振频率识别结果整体稳定，未见明显异常漂移。"
+    freq_summary = "选取典型监测数据进行分析，典型测点自振频率时程如图4-12所示，本月主梁及主塔自振频率识别结果整体稳定，未见明显异常漂移。"
 
     return {
         "enabled": True,
@@ -1033,8 +1033,8 @@ def build_vibration_section(cfg: dict, stats_root: Path, fallback_stats_root: Pa
         "freq_summary": freq_summary,
         "timeseries_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in ts_items],
         "freq_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in freq_items],
-        "timeseries_caption": "图 4-12 典型测点振动加速度绝对最大值时程图和10min加速度均方根图",
-        "freq_caption": "图 4-13 典型测点自振频率时程图",
+        "timeseries_caption": "图 4-11 典型测点振动加速度绝对最大值时程图和10min加速度均方根图",
+        "freq_caption": "图 4-12 典型测点自振频率时程图",
         "image_lookup": {
             "timeseries": label_path_dicts(ts_items),
             "freq": label_path_dicts(freq_items),
@@ -1080,11 +1080,11 @@ def build_wind_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
 
     if max_10min is not None:
         summary = (
-            f"监测结果如表4-8所示。监测结果表明，桥面10min平均风速最大值为{max_10min:.2f}m/s，"
+            f"监测结果如表4-12所示。监测结果表明，桥面10min平均风速最大值为{max_10min:.2f}m/s，"
             f"未超过25m/s，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
         )
     else:
-        summary = "监测结果如表4-8所示。桥面10min平均风速与风玫瑰结果见下图。"
+        summary = "监测结果如表4-12所示。桥面10min平均风速与风玫瑰结果见下图。"
 
     return {
         "enabled": True,
@@ -1092,8 +1092,8 @@ def build_wind_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
         "max_10min": max_10min,
         "speed_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in speed_items],
         "rose_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in rose_items],
-        "speed_caption": "图 4-14 桥面10min平均风速时程图",
-        "rose_caption": "图 4-15 风玫瑰图",
+        "speed_caption": "图 4-13 桥面10min平均风速时程图",
+        "rose_caption": "图 4-14 风玫瑰图",
         "table_rows": table_rows,
         "image_lookup": {
             "speed": label_path_dicts(speed_items),
@@ -1146,7 +1146,7 @@ def build_eq_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | No
         "enabled": True,
         "summary": summary,
         "images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in items],
-        "caption": "图 4-16 地震动时程图",
+        "caption": "图 4-15 地震动时程图",
         "image_lookup": label_path_dicts(items),
         "peaks": peak_map,
         "horizontal_peak": horizontal_peak,
@@ -1227,10 +1227,10 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
     if strain.get("enabled", True):
         replace_next_nonempty_after_exact(doc, "\u4e3b\u6881\u5e94\u53d8", strain["chapter_girder"], use_last=True, skip=1)
         replace_next_nonempty_after_exact(doc, "\u6865\u5854\u5e94\u53d8", strain["chapter_tower"], use_last=True, skip=1)
-        replace_last_paragraph_contains(doc, "\u56fe 4-4 \u4e3b\u6881\u5404\u622a\u9762\u4f4d\u7f6e\u5e94\u53d8\u65f6\u7a0b\u66f2\u7ebf\u56fe", strain["girder_timeseries_caption"])
-        replace_last_paragraph_contains(doc, "\u56fe 4-5 \u4e3b\u6881\u5404\u622a\u9762\u4f4d\u7f6e\u5e94\u53d8\u7bb1\u7ebf\u56fe", strain["girder_boxplot_caption"])
-        replace_last_paragraph_contains(doc, "\u56fe 4-6 \u6865\u5854\u5404\u622a\u9762\u4f4d\u7f6e\u5e94\u53d8\u65f6\u7a0b\u66f2\u7ebf\u56fe", strain["tower_timeseries_caption"])
-        replace_last_paragraph_contains(doc, "\u56fe 4-7 \u6865\u5854\u5404\u622a\u9762\u4f4d\u7f6e\u5e94\u53d8\u7bb1\u7ebf\u66f2\u7ebf\u56fe", strain["tower_boxplot_caption"])
+        replace_last_paragraph_contains(doc, "主梁各截面位置应变时程曲线图", strain["girder_timeseries_caption"])
+        replace_last_paragraph_contains(doc, "主梁各截面位置应变箱线", strain["girder_boxplot_caption"])
+        replace_last_paragraph_contains(doc, "桥塔各截面位置应变时程曲线图", strain["tower_timeseries_caption"])
+        replace_last_paragraph_contains(doc, "桥塔各截面位置应变箱线", strain["tower_boxplot_caption"])
         insert_labeled_images_before_caption_contains(
             doc,
             strain["girder_timeseries_caption"],

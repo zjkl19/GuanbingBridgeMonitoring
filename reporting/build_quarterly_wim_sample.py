@@ -44,14 +44,18 @@ PLOT_LABELS = [
 @dataclass
 class MonthWimSummary:
     yyyymm: str
+    start_date: datetime | None
+    end_date: datetime | None
     total_count: int
     up_count: int
     down_count: int
     days_in_month: int
     max_gross_t: float
     max_axle_t: float
-    total_over_count: int
-    axle_over_count: int
+    total_over_1_5_count: int
+    total_over_2_0_count: int
+    axle_over_1_5_count: int
+    axle_over_2_0_count: int
     daily_rows: list[dict]
     top_gross_rows: list[dict]
     top_axle_rows: list[dict]
@@ -83,7 +87,7 @@ class ParagraphTemplate:
 def parse_args() -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description="Build quarterly WIM report section from monthly template.")
-    parser.add_argument("--template", type=Path, default=repo_root / "reports" / "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2025\u5e7412\u6708\u4efd\u6708\u62a5 - \u65b0\u6a21\u677f2.docx")
+    parser.add_argument("--template", type=Path, default=repo_root / "reports" / "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f0318.docx")
     parser.add_argument("--wim-root", type=Path, default=None)
     parser.add_argument("--months", nargs="+", default=["202601", "202602", "202603"])
     parser.add_argument("--output-dir", type=Path, default=None)
@@ -146,33 +150,54 @@ def parse_month_summary(root: Path, yyyymm: str) -> MonthWimSummary:
             axle = float(row.get(col) or 0)
             max_axle_t = max(max_axle_t, axle / 1000.0)
 
-    total_over_count = 0
-    axle_over_count = 0
-    total_thresholds = []
-    axle_thresholds = []
+    total_over_1_5_count = 0
+    total_over_2_0_count = 0
+    axle_over_1_5_count = 0
+    axle_over_2_0_count = 0
     for row in overload:
         row_type = str(row.get("type") or "")
         count = int(row.get("count") or 0)
         threshold = float(row.get("threshold_kg") or 0)
         if row_type == "total":
-            total_thresholds.append((threshold, count))
+            if threshold >= 110000:
+                total_over_2_0_count = count
+            elif threshold >= 82500:
+                total_over_1_5_count = count
         elif row_type == "axle":
-            axle_thresholds.append((threshold, count))
-    if total_thresholds:
-        total_over_count = max(total_thresholds, key=lambda x: x[0])[1]
-    if axle_thresholds:
-        axle_over_count = max(axle_thresholds, key=lambda x: x[0])[1]
+            if threshold >= 56000:
+                axle_over_2_0_count = count
+            elif threshold >= 42000:
+                axle_over_1_5_count = count
+
+    daily_dates = []
+    for row in daily:
+        date_val = row.get("date")
+        if isinstance(date_val, datetime):
+            daily_dates.append(date_val)
+        elif hasattr(date_val, "year") and hasattr(date_val, "month") and hasattr(date_val, "day"):
+            daily_dates.append(datetime(date_val.year, date_val.month, date_val.day))
+        elif date_val:
+            try:
+                daily_dates.append(datetime.fromisoformat(str(date_val)))
+            except ValueError:
+                pass
+    start_date = min(daily_dates) if daily_dates else None
+    end_date = max(daily_dates) if daily_dates else None
 
     return MonthWimSummary(
         yyyymm=yyyymm,
+        start_date=start_date,
+        end_date=end_date,
         total_count=total_count,
         up_count=up_count,
         down_count=down_count,
         days_in_month=len(daily),
         max_gross_t=max_gross_t,
         max_axle_t=max_axle_t,
-        total_over_count=total_over_count,
-        axle_over_count=axle_over_count,
+        total_over_1_5_count=total_over_1_5_count,
+        total_over_2_0_count=total_over_2_0_count,
+        axle_over_1_5_count=axle_over_1_5_count,
+        axle_over_2_0_count=axle_over_2_0_count,
         daily_rows=daily,
         top_gross_rows=top_gross[:10],
         top_axle_rows=top_axle[:10],
@@ -189,6 +214,13 @@ def find_last_paragraph(doc: Document, text: str) -> Paragraph:
 
 def find_exact_paragraphs(doc: Document, text: str) -> list[Paragraph]:
     return [para for para in doc.paragraphs if para.text.strip() == text]
+
+
+def find_last_paragraph_contains(doc: Document, fragment: str) -> Paragraph:
+    matches = [para for para in doc.paragraphs if fragment in para.text.strip()]
+    if not matches:
+        raise ValueError(f"Paragraph containing '{fragment}' not found")
+    return matches[-1]
 
 
 def replace_paragraph_text(paragraph: Paragraph, text: str) -> None:
@@ -286,11 +318,27 @@ def add_text_paragraph_before(anchor: Paragraph, text: str, template: ParagraphT
 
 def style_table(table: Table, left: bool = False) -> None:
     table.style = "Table Grid"
+    table.autofit = False
     for row in table.rows:
         for cell in row.cells:
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
             for para in cell.paragraphs:
                 para.alignment = WD_ALIGN_PARAGRAPH.LEFT if left else WD_ALIGN_PARAGRAPH.CENTER
+
+
+def set_table_column_widths(table: Table, widths_mm: list[float]) -> None:
+    for row in table.rows:
+        for idx, width in enumerate(widths_mm):
+            if idx < len(row.cells):
+                row.cells[idx].width = Mm(width)
+
+
+def set_header_bold(table: Table, header_rows: int = 1) -> None:
+    for row in table.rows[:header_rows]:
+        for cell in row.cells:
+            for para in cell.paragraphs:
+                for run in para.runs:
+                    run.bold = True
 
 
 def remove_table_borders(table: Table) -> None:
@@ -316,9 +364,31 @@ def max_or_zero(values: Iterable[float]) -> float:
     return max(vals) if vals else 0.0
 
 
+def sum_or_zero(values: Iterable[int]) -> int:
+    return sum(values)
+
+
+def format_date_range(item: MonthWimSummary) -> tuple[str, str]:
+    if item.start_date is not None:
+        start_text = f"{item.start_date.year}\u5e74{item.start_date.month}\u6708{item.start_date.day}\u65e5"
+    else:
+        start_text = f"{item.yyyymm[:4]}\u5e74{int(item.yyyymm[4:]):d}\u67081\u65e5"
+    if item.end_date is not None:
+        end_text = f"{item.end_date.year}\u5e74{item.end_date.month}\u6708{item.end_date.day}\u65e5"
+    else:
+        end_text = f"{item.yyyymm[:4]}\u5e74{int(item.yyyymm[4:]):d}\u6708{item.days_in_month}\u65e5"
+    return start_text, end_text
+
+
+def overload_cell_text(item: MonthWimSummary) -> str:
+    return (
+        f"{item.total_over_1_5_count}/{item.total_over_2_0_count}\uff1b"
+        f"{item.axle_over_1_5_count}/{item.axle_over_2_0_count}"
+    )
+
+
 def make_month_narrative(item: MonthWimSummary) -> str:
-    start_text = f"{item.yyyymm[:4]}\u5e74{int(item.yyyymm[4:]):d}\u67081\u65e5"
-    end_text = f"{item.yyyymm[:4]}\u5e74{int(item.yyyymm[4:]):d}\u6708{item.days_in_month}\u65e5"
+    start_text, end_text = format_date_range(item)
     daily_avg = round(item.total_count / item.days_in_month) if item.days_in_month else 0
     total_threshold = 110.0
     axle_threshold = 42.0
@@ -330,6 +400,10 @@ def make_month_narrative(item: MonthWimSummary) -> str:
         f"\u4e0b\u884c\u65b9\u5411\uff08\u519c\u5927-\u95fd\u4faf\uff0c\u8f66\u90535\uff5e\u8f66\u90538\uff09\u6240\u901a\u8fc7\u8f66\u8f86\u4e3a{item.down_count}\u8f86\u3002"
         f"\u671f\u95f4\u7cfb\u7edf\u8bb0\u5f55\u5230\u7684\u6700\u5927\u8f66\u91cd\u4e3a{item.max_gross_t:.2f}t\uff0c{gross_text}\u3002"
         f"\u6700\u5927\u8f74\u91cd{item.max_axle_t:.2f}t\uff0c{axle_text}\u3002"
+        f"\u671f\u95f4\u603b\u91cd\u8d85\u8fc71.5\u500d\u8bbe\u8ba1\u8377\u8f7d82.5t\u7684\u8f66\u8f86\u5171{item.total_over_1_5_count}\u8f86\uff0c"
+        f"\u5176\u4e2d\u8d85\u8fc72.0\u500d\u8bbe\u8ba1\u8377\u8f7d110t\u7684\u8f66\u8f86\u5171{item.total_over_2_0_count}\u8f86\uff1b"
+        f"\u8f74\u91cd\u8d85\u8fc71.5\u500d\u8bbe\u8ba1\u8377\u8f7d42t\u7684\u8f66\u8f86\u5171{item.axle_over_1_5_count}\u8f86\uff0c"
+        f"\u5176\u4e2d\u8d85\u8fc72.0\u500d\u8bbe\u8ba1\u8377\u8f7d56t\u7684\u8f66\u8f86\u5171{item.axle_over_2_0_count}\u8f86\u3002"
     )
 
 
@@ -341,6 +415,10 @@ def make_quarter_summary(summaries: list[MonthWimSummary]) -> str:
     daily_avg = round(total / total_days) if total_days else 0
     max_gross = max_or_zero(x.max_gross_t for x in summaries)
     max_axle = max_or_zero(x.max_axle_t for x in summaries)
+    total_over_1_5 = sum_or_zero(x.total_over_1_5_count for x in summaries)
+    total_over_2_0 = sum_or_zero(x.total_over_2_0_count for x in summaries)
+    axle_over_1_5 = sum_or_zero(x.axle_over_1_5_count for x in summaries)
+    axle_over_2_0 = sum_or_zero(x.axle_over_2_0_count for x in summaries)
     total_threshold = 110.0
     axle_threshold = 42.0
     gross_text = f"\u8d85\u8fc72.0\u500d\u8bbe\u8ba1\u8f66\u8f86\u8377\u8f7d{total_threshold:.0f}t" if max_gross >= total_threshold else f"\u672a\u8fbe\u52302.0\u500d\u8bbe\u8ba1\u8f66\u8f86\u8377\u8f7d{total_threshold:.0f}t"
@@ -351,6 +429,10 @@ def make_quarter_summary(summaries: list[MonthWimSummary]) -> str:
         f"\u4e0b\u884c\u65b9\u5411\uff08\u519c\u5927-\u95fd\u4faf\uff0c\u8f66\u90535\uff5e\u8f66\u90538\uff09\u6240\u901a\u8fc7\u8f66\u8f86\u4e3a{down}\u8f86\u3002"
         f"\u671f\u95f4\u7cfb\u7edf\u8bb0\u5f55\u5230\u7684\u6700\u5927\u8f66\u91cd\u4e3a{max_gross:.2f}t\uff0c{gross_text}\u3002"
         f"\u6700\u5927\u8f74\u91cd{max_axle:.2f}t\uff0c{axle_text}\u3002"
+        f"\u671f\u95f4\u603b\u91cd\u8d85\u8fc71.5\u500d\u8bbe\u8ba1\u8377\u8f7d82.5t\u7684\u8f66\u8f86\u5171{total_over_1_5}\u8f86\uff0c"
+        f"\u5176\u4e2d\u8d85\u8fc72.0\u500d\u8bbe\u8ba1\u8377\u8f7d110t\u7684\u8f66\u8f86\u5171{total_over_2_0}\u8f86\uff1b"
+        f"\u8f74\u91cd\u8d85\u8fc71.5\u500d\u8bbe\u8ba1\u8377\u8f7d42t\u7684\u8f66\u8f86\u5171{axle_over_1_5}\u8f86\uff0c"
+        f"\u5176\u4e2d\u8d85\u8fc72.0\u500d\u8bbe\u8ba1\u8377\u8f7d56t\u7684\u8f66\u8f86\u5171{axle_over_2_0}\u8f86\u3002"
     )
 
 
@@ -358,18 +440,26 @@ def set_summary_table(doc: Document, summary_text: str) -> None:
     for table in doc.tables:
         if len(table.rows) >= 4 and table.rows[3].cells and table.rows[3].cells[0].text.strip() == T_SUMMARY:
             cell = table.rows[3].cells[min(2, len(table.rows[3].cells) - 1)]
-            if len(cell.paragraphs) >= 9:
-                replace_paragraph_text(cell.paragraphs[7], "4\u3001\u4ea4\u901a\u72b6\u51b5\u76d1\u6d4b")
-                replace_paragraph_text(cell.paragraphs[8], summary_text)
+            if len(cell.paragraphs) >= 3:
+                replace_paragraph_text(cell.paragraphs[1], "1\u3001\u4ea4\u901a\u72b6\u51b5\u76d1\u6d4b")
+                replace_paragraph_text(cell.paragraphs[2], summary_text)
                 return
     raise ValueError("Summary result cell not found")
 
 
 def add_quarter_overview(anchor: Paragraph, summaries: list[MonthWimSummary], caption_tpl: ParagraphTemplate) -> None:
-    add_text_paragraph_before(anchor, "\u8868 4-4 \u5b63\u5ea6\u4ea4\u901a\u72b6\u51b5\u5206\u6708\u7edf\u8ba1\u8868", caption_tpl)
+    add_text_paragraph_before(anchor, "\u8868 4-1 \u5b63\u5ea6\u4ea4\u901a\u72b6\u51b5\u5206\u6708\u7edf\u8ba1\u8868", caption_tpl)
     table = insert_table_before(anchor, rows=len(summaries) + 2, cols=8)
-    style_table(table)
-    headers = ["\u6708\u4efd", "\u603b\u8f66\u6d41\u91cf", "\u4e0a\u884c\u8f66\u6570", "\u4e0b\u884c\u8f66\u6570", "\u65e5\u5747\u8f66\u6d41\u91cf", "\u6700\u5927\u8f66\u91cd(t)", "\u6700\u5927\u8f74\u91cd(t)", "\u603b\u91cd/\u8f74\u91cd\u8d85\u9650\u8f66\u6b21"]
+    headers = [
+        "\u6708\u4efd",
+        "\u603b\u8f66\u6d41\u91cf",
+        "\u4e0a\u884c\u8f66\u6570",
+        "\u4e0b\u884c\u8f66\u6570",
+        "\u65e5\u5747\u8f66\u6d41\u91cf",
+        "\u6700\u5927\u8f66\u91cd(t)",
+        "\u6700\u5927\u8f74\u91cd(t)",
+        "\u603b\u91cd>82.5/110t\uff0c\u8f74\u91cd>42/56t\uff08\u8f66\u6b21\uff09",
+    ]
     for i, header in enumerate(headers):
         table.cell(0, i).text = header
     for r, item in enumerate(summaries, start=1):
@@ -382,7 +472,7 @@ def add_quarter_overview(anchor: Paragraph, summaries: list[MonthWimSummary], ca
             str(daily_avg),
             f"{item.max_gross_t:.2f}",
             f"{item.max_axle_t:.2f}",
-            f"{item.total_over_count}/{item.axle_over_count}",
+            overload_cell_text(item),
         ]
         for c, value in enumerate(values):
             table.cell(r, c).text = value
@@ -394,16 +484,23 @@ def add_quarter_overview(anchor: Paragraph, summaries: list[MonthWimSummary], ca
         str(round(sum(item.total_count for item in summaries) / max(1, sum(item.days_in_month for item in summaries)))),
         f"{max_or_zero(item.max_gross_t for item in summaries):.2f}",
         f"{max_or_zero(item.max_axle_t for item in summaries):.2f}",
-        f"{sum(item.total_over_count for item in summaries)}/{sum(item.axle_over_count for item in summaries)}",
+        (
+            f"{sum(item.total_over_1_5_count for item in summaries)}/"
+            f"{sum(item.total_over_2_0_count for item in summaries)}\uff1b"
+            f"{sum(item.axle_over_1_5_count for item in summaries)}/"
+            f"{sum(item.axle_over_2_0_count for item in summaries)}"
+        ),
     ]
     for c, value in enumerate(totals):
         table.cell(len(summaries) + 1, c).text = value
-
-
-def add_daily_traffic_table(anchor: Paragraph, item: MonthWimSummary, caption_tpl: ParagraphTemplate) -> None:
-    add_text_paragraph_before(anchor, f"\u8868 4-4-{int(item.yyyymm[4:])} {month_label(item.yyyymm)}\u8f66\u6d41\u91cf\u7edf\u8ba1\u8868", caption_tpl)
-    table = insert_table_before(anchor, rows=len(item.daily_rows) + 1, cols=4)
     style_table(table)
+    set_header_bold(table)
+    set_table_column_widths(table, [20, 18, 18, 18, 18, 18, 18, 32])
+
+
+def add_daily_traffic_table(anchor: Paragraph, item: MonthWimSummary, caption_tpl: ParagraphTemplate, table_no: int) -> None:
+    add_text_paragraph_before(anchor, f"\u8868 4-{table_no} {month_label(item.yyyymm)}\u8f66\u6d41\u91cf\u7edf\u8ba1\u8868", caption_tpl)
+    table = insert_table_before(anchor, rows=len(item.daily_rows) + 1, cols=4)
     headers = ["\u65e5\u671f", "\u4e0a\u884c\u8f66\u6570", "\u4e0b\u884c\u8f66\u6570", "\u603b\u8f66\u6570"]
     for i, header in enumerate(headers):
         table.cell(0, i).text = header
@@ -413,12 +510,14 @@ def add_daily_traffic_table(anchor: Paragraph, item: MonthWimSummary, caption_tp
         values = [date_text, str(int(row.get("up_cnt") or 0)), str(int(row.get("down_cnt") or 0)), str(int(row.get("total") or 0))]
         for c, value in enumerate(values):
             table.cell(r, c).text = value
+    style_table(table)
+    set_header_bold(table)
+    set_table_column_widths(table, [55, 30, 30, 30])
 
 
 def add_topn_main_table(anchor: Paragraph, title: str, rows: list[dict], caption_tpl: ParagraphTemplate) -> None:
     add_text_paragraph_before(anchor, title, caption_tpl)
     table = insert_table_before(anchor, rows=len(rows) + 1, cols=6)
-    style_table(table)
     headers = ["\u5e8f\u53f7", "\u8f66\u9053", "\u65f6\u95f4", "\u8f74\u6570", "\u603b\u91cd\uff08kg\uff09", "\u901f\u5ea6\uff08km/h\uff09"]
     for i, header in enumerate(headers):
         table.cell(0, i).text = header
@@ -433,12 +532,14 @@ def add_topn_main_table(anchor: Paragraph, title: str, rows: list[dict], caption
         ]
         for c, value in enumerate(values):
             table.cell(r, c).text = value
+    style_table(table)
+    set_header_bold(table)
+    set_table_column_widths(table, [12, 12, 52, 12, 32, 22])
 
 
 def add_topn_cont_table(anchor: Paragraph, title: str, rows: list[dict], caption_tpl: ParagraphTemplate) -> None:
     add_text_paragraph_before(anchor, title, caption_tpl)
     table = insert_table_before(anchor, rows=len(rows) + 1, cols=12)
-    style_table(table)
     headers = [
         "\u5e8f\u53f7", "\u8f741\u91cd\uff08kg\uff09", "\u8f742\u91cd\uff08kg\uff09", "\u8f743\u91cd\uff08kg\uff09", "\u8f744\u91cd\uff08kg\uff09", "\u8f745\u91cd\uff08kg\uff09", "\u8f746\u91cd\uff08kg\uff09",
         "\u8f74\u8ddd1\uff08m\uff09", "\u8f74\u8ddd2\uff08m\uff09", "\u8f74\u8ddd3\uff08m\uff09", "\u8f74\u8ddd4\uff08m\uff09", "\u8f74\u8ddd5\uff08m\uff09",
@@ -454,6 +555,9 @@ def add_topn_cont_table(anchor: Paragraph, title: str, rows: list[dict], caption
             values.append(f"{dist:.3f}" if dist else "0")
         for c, value in enumerate(values):
             table.cell(r, c).text = value
+    style_table(table)
+    set_header_bold(table)
+    set_table_column_widths(table, [10, 12, 12, 12, 12, 12, 12, 13, 13, 13, 13, 13])
 
 
 def add_plot_grid(anchor: Paragraph, item: MonthWimSummary, fig_tpl: ParagraphTemplate, subcap_tpl: ParagraphTemplate) -> None:
@@ -478,15 +582,42 @@ def add_plot_grid(anchor: Paragraph, item: MonthWimSummary, fig_tpl: ParagraphTe
         p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 
-def add_month_block(anchor: Paragraph, item: MonthWimSummary, heading_tpl: ParagraphTemplate, body_tpl: ParagraphTemplate, caption_tpl: ParagraphTemplate, fig_tpl: ParagraphTemplate, subcap_tpl: ParagraphTemplate) -> None:
-    add_text_paragraph_before(anchor, f"4.4.{int(item.yyyymm[4:]):d} {month_label(item.yyyymm)}\u4ea4\u901a\u72b6\u51b5\u76d1\u6d4b", heading_tpl)
+def add_month_block(
+    anchor: Paragraph,
+    item: MonthWimSummary,
+    heading_tpl: ParagraphTemplate,
+    body_tpl: ParagraphTemplate,
+    caption_tpl: ParagraphTemplate,
+    fig_tpl: ParagraphTemplate,
+    subcap_tpl: ParagraphTemplate,
+    section_index: int,
+    base_table_no: int,
+    figure_no: int,
+) -> None:
+    add_text_paragraph_before(anchor, f"4.1.{section_index} {month_label(item.yyyymm)}\u4ea4\u901a\u72b6\u51b5\u76d1\u6d4b", heading_tpl)
     add_text_paragraph_before(anchor, make_month_narrative(item), body_tpl)
-    add_daily_traffic_table(anchor, item, caption_tpl)
-    add_topn_main_table(anchor, f"\u8868 4-5-{int(item.yyyymm[4:])} {month_label(item.yyyymm)}\u524d10\u603b\u91cd\u6700\u91cd\u8f66\u8f86\u53c2\u6570", item.top_gross_rows, caption_tpl)
-    add_topn_cont_table(anchor, f"\u7eed\u8868 4-5-{int(item.yyyymm[4:])}", item.top_gross_rows, caption_tpl)
-    add_topn_main_table(anchor, f"\u8868 4-6-{int(item.yyyymm[4:])} {month_label(item.yyyymm)}\u524d10\u6700\u5927\u8f74\u91cd\u8f66\u8f86\u53c2\u6570", item.top_axle_rows, caption_tpl)
-    add_topn_cont_table(anchor, f"\u7eed\u8868 4-6-{int(item.yyyymm[4:])}", item.top_axle_rows, caption_tpl)
-    add_plot_grid(anchor, item, fig_tpl, subcap_tpl)
+    add_daily_traffic_table(anchor, item, caption_tpl, base_table_no)
+    add_topn_main_table(anchor, f"\u8868 4-{base_table_no + 1} {month_label(item.yyyymm)}\u524d10\u603b\u91cd\u6700\u91cd\u8f66\u8f86\u53c2\u6570", item.top_gross_rows, caption_tpl)
+    add_topn_cont_table(anchor, f"\u7eed\u8868 4-{base_table_no + 1}", item.top_gross_rows, caption_tpl)
+    add_topn_main_table(anchor, f"\u8868 4-{base_table_no + 2} {month_label(item.yyyymm)}\u524d10\u6700\u5927\u8f74\u91cd\u8f66\u8f86\u53c2\u6570", item.top_axle_rows, caption_tpl)
+    add_topn_cont_table(anchor, f"\u7eed\u8868 4-{base_table_no + 2}", item.top_axle_rows, caption_tpl)
+    table = insert_table_before(anchor, rows=(len(item.plot_paths) + 1) // 2, cols=2)
+    remove_table_borders(table)
+    for r in range(len(table.rows)):
+        for c in range(2):
+            cell = table.cell(r, c)
+            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
+            cell.width = Mm(80)
+    for idx, (label, path) in enumerate(item.plot_paths):
+        cell = table.cell(idx // 2, idx % 2)
+        p_img = cell.paragraphs[0]
+        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_img.add_run().add_picture(str(path), width=Mm(78))
+        p_cap = cell.add_paragraph()
+        p_cap.add_run(label)
+        apply_paragraph_template(p_cap, subcap_tpl)
+        p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    add_text_paragraph_before(anchor, f"\u56fe 4-{figure_no} {month_label(item.yyyymm)}\u6865\u6881\u4ea4\u901a\u6d41\u53c2\u6570\u5206\u6790", fig_tpl)
 
 
 def update_cover_and_metadata(doc: Document, period_label: str, report_date: str, months: list[str]) -> None:
@@ -524,12 +655,12 @@ def build_quarterly_wim_sample(template: Path, wim_root: Path, months: list[str]
 
     wim_heading = find_last_paragraph(doc, T_WIM)
     next_heading = find_last_paragraph(doc, T_NEXT)
-    table4_caption = find_last_paragraph(doc, T_TABLE4)
-    cont5_caption = find_last_paragraph(doc, T_CONT5)
-    fig_caption = find_last_paragraph(doc, T_FIG)
+    table4_caption = find_last_paragraph(doc, "\u8868 4-1 \u5b63\u5ea6\u4ea4\u901a\u72b6\u51b5\u5206\u6708\u7edf\u8ba1\u8868")
+    cont5_caption = find_last_paragraph(doc, "\u7eed\u8868 4-3")
+    fig_caption = find_last_paragraph(doc, "\u56fe 4-3 2026\u5e743\u6708\u6865\u6881\u4ea4\u901a\u6d41\u53c2\u6570\u5206\u6790")
 
-    heading_tpl = capture_paragraph_template(wim_heading)
-    body_tpl = capture_paragraph_template(doc.tables[1].rows[3].cells[2].paragraphs[8])
+    heading_tpl = capture_paragraph_template(find_last_paragraph(doc, "2026年3月交通状况监测"))
+    body_tpl = capture_paragraph_template(find_last_paragraph_contains(doc, "桥梁共通过车辆1047517辆"))
     caption_tpl = capture_paragraph_template(table4_caption)
     subcap_tpl = capture_paragraph_template(cont5_caption)
     fig_tpl = capture_paragraph_template(fig_caption)
@@ -537,8 +668,19 @@ def build_quarterly_wim_sample(template: Path, wim_root: Path, months: list[str]
     clear_section_between(wim_heading, next_heading)
     add_text_paragraph_before(next_heading, make_quarter_summary(summaries), body_tpl)
     add_quarter_overview(next_heading, summaries, caption_tpl)
-    for item in summaries:
-        add_month_block(next_heading, item, heading_tpl, body_tpl, caption_tpl, fig_tpl, subcap_tpl)
+    for idx, item in enumerate(summaries, start=1):
+        add_month_block(
+            next_heading,
+            item,
+            heading_tpl,
+            body_tpl,
+            caption_tpl,
+            fig_tpl,
+            subcap_tpl,
+            section_index=idx,
+            base_table_no=2 + (idx - 1) * 3,
+            figure_no=idx,
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
