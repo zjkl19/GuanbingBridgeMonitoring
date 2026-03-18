@@ -1,0 +1,3386 @@
+{
+  "vendor": "hongtang",
+  "gui": {
+    "show_warnings": false
+  },
+  "notify": {
+    "enabled": true,
+    "on_analysis_done": true,
+    "on_task_done": true,
+    "on_error": true,
+    "mode": "beep"
+  },
+  "data_adapter": {
+    "hongtang_lowfreq": {
+      "enabled": true,
+      "file": "lowfreq/data.xlsx",
+      "sheet": "auto_first_non_empty",
+      "time_column": "SamplingTime",
+      "missing_tokens": [
+        "--",
+        ""
+      ],
+      "abs_max_valid": 500,
+      "cache": {
+        "enabled": true,
+        "dir": "cache",
+        "validate": "mtime_size"
+      },
+      "sensor_types": [
+        "bearing_displacement",
+        "tilt",
+        "strain"
+      ]
+    }
+  },
+  "defaults": {
+    "header_marker": "[绝对时间]",
+    "deflection": {
+      "thresholds": [],
+      "zero_to_nan": true,
+      "outlier": {
+        "window_sec": 15,
+        "threshold_factor": 3
+      }
+    },
+    "bearing_displacement": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "acceleration": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "accel_spectrum": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "strain": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "tilt": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "crack": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "humidity": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "temperature": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "cable_accel": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "wind_speed": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "wind_direction": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "eq_x": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "eq_y": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "eq_z": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    }
+  },
+  "per_point": {
+    "bearing_displacement": {
+      "Z11_1": {
+        "alarm_bounds": {
+          "level2": [
+            -240,
+            240
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        }
+      },
+      "Z11_2": {
+        "alarm_bounds": {
+          "level2": [
+            -240,
+            240
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        }
+      },
+      "Z12_1": {
+        "alarm_bounds": {
+          "level2": [
+            -240,
+            240
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        }
+      },
+      "Z12_2": {
+        "alarm_bounds": {
+          "level2": [
+            -240,
+            240
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        }
+      },
+      "Z13_1": {
+        "alarm_bounds": {
+          "level2": [
+            -240,
+            240
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        }
+      },
+      "Z13_2": {
+        "alarm_bounds": {
+          "level2": [
+            -240,
+            240
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        }
+      },
+      "Z14_1": {
+        "alarm_bounds": {
+          "level2": [
+            -240,
+            240
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        }
+      },
+      "Z14_2": {
+        "alarm_bounds": {
+          "level2": [
+            -240,
+            240
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        }
+      },
+      "Z15_1": {
+        "alarm_bounds": {
+          "level2": [
+            -240,
+            240
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        }
+      },
+      "Z15_2": {
+        "alarm_bounds": {
+          "level2": [
+            -240,
+            240
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        }
+      }
+    },
+    "acceleration": {
+      "A1": {
+        "thresholds": []
+      },
+      "A2": {
+        "thresholds": []
+      },
+      "A3": {
+        "thresholds": []
+      },
+      "A4": {
+        "thresholds": []
+      },
+      "A5": {
+        "thresholds": []
+      },
+      "A6": {
+        "thresholds": []
+      },
+      "A7": {
+        "thresholds": []
+      },
+      "A8": {
+        "thresholds": []
+      },
+      "A9-X": {
+        "thresholds": []
+      },
+      "A9-Y": {
+        "thresholds": []
+      },
+      "A10-X": {
+        "thresholds": []
+      },
+      "A10-Y": {
+        "thresholds": []
+      }
+    },
+    "accel_spectrum": {
+      "A1": {
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
+      },
+      "A2": {
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
+      },
+      "A3": {
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
+      },
+      "A4": {
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
+      },
+      "A5": {
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.534
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
+      },
+      "A6": {
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
+      },
+      "A7": {
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
+      },
+      "A8": {
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
+      },
+      "A9-X": {
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.566
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
+      },
+      "A9-Y": {
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.46,
+          2.544
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
+      },
+      "A10-X": {
+        "thresholds": [],
+        "target_freqs": [
+          0.872,
+          1.46,
+          2.737
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
+      },
+      "A10-Y": {
+        "thresholds": [],
+        "target_freqs": [
+          0.898,
+          1.536,
+          2.446
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          0.733,
+          1.378,
+          1.965
+        ],
+        "theor_labels": [
+          "理论一阶自振频率 0.733Hz",
+          "理论二阶自振频率 1.378Hz",
+          "理论三阶自振频率 1.965Hz"
+        ]
+      }
+    },
+    "cable_accel": {
+      "CS1": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
+      },
+      "CS2": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
+      },
+      "CS3": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
+      },
+      "CS4": {
+        "thresholds": [],
+        "rho": 23.9,
+        "L": 14.963,
+        "force_decimals": 2,
+        "force_ylim": [
+          1600,
+          2500
+        ],
+        "target_freqs": [
+          9.502,
+          11,
+          12
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [
+            1877.74,
+            2295.02
+          ],
+          "level3": [
+            1773.42,
+            2399.34
+          ]
+        }
+      },
+      "CS5": {
+        "thresholds": [],
+        "rho": 23.9,
+        "L": 29.113,
+        "force_decimals": 2,
+        "force_ylim": [
+          1100,
+          1800
+        ],
+        "target_freqs": [
+          4.209,
+          6,
+          7
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [
+            1298.05,
+            1586.51
+          ],
+          "level3": [
+            1225.94,
+            1658.62
+          ]
+        }
+      },
+      "CS6": {
+        "thresholds": [],
+        "rho": 27.7,
+        "L": 48.756,
+        "force_decimals": 2,
+        "force_ylim": [
+          900,
+          1600
+        ],
+        "target_freqs": [
+          2.139,
+          4,
+          6
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [
+            1114.18,
+            1361.78
+          ],
+          "level3": [
+            1052.28,
+            1423.68
+          ]
+        }
+      },
+      "CS7": {
+        "thresholds": [],
+        "rho": 27.7,
+        "L": 48.756,
+        "force_decimals": 2,
+        "force_ylim": [
+          900,
+          1500
+        ],
+        "target_freqs": [
+          2.07,
+          4,
+          6
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [
+            1093.73,
+            1336.78
+          ],
+          "level3": [
+            1032.96,
+            1397.54
+          ]
+        }
+      },
+      "CS8": {
+        "thresholds": {
+          "min": -3,
+          "max": 3,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
+        "rho": 23.9,
+        "L": 29.113,
+        "force_decimals": 2,
+        "force_ylim": [
+          900,
+          1500
+        ],
+        "target_freqs": [
+          3.799,
+          5,
+          8
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [
+            1084.86,
+            1325.94
+          ],
+          "level3": [
+            1024.59,
+            1386.21
+          ]
+        },
+        "offset_correction": 7
+      },
+      "CS9": {
+        "thresholds": [],
+        "rho": 23.9,
+        "L": 14.963,
+        "force_decimals": 2,
+        "force_ylim": [
+          1600,
+          2500
+        ],
+        "target_freqs": [
+          9.814,
+          13,
+          15
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [
+            1855.37,
+            2267.67
+          ],
+          "level3": [
+            1752.29,
+            2370.75
+          ]
+        }
+      },
+      "CS10": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
+      },
+      "CS11": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
+      },
+      "CS12": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
+      },
+      "CX1": {
+        "thresholds": {
+          "min": -3,
+          "max": 3,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
+      },
+      "CX2": {
+        "thresholds": {
+          "min": -3,
+          "max": 3,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
+      },
+      "CX3": {
+        "thresholds": {
+          "min": -3,
+          "max": 3,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
+      },
+      "CX4": {
+        "thresholds": {
+          "min": -3,
+          "max": 3,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
+        "rho": 23.9,
+        "L": 14.963,
+        "force_decimals": 2,
+        "force_ylim": [
+          1400,
+          2200
+        ],
+        "target_freqs": [
+          9.229,
+          11,
+          13
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [
+            1616.33,
+            1975.51
+          ],
+          "level3": [
+            1526.53,
+            2065.31
+          ]
+        }
+      },
+      "CX5": {
+        "thresholds": {
+          "min": -3,
+          "max": 3,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
+        "rho": 23.9,
+        "L": 29.113,
+        "force_decimals": 2,
+        "force_ylim": [
+          1100,
+          1800
+        ],
+        "target_freqs": [
+          4.209,
+          6,
+          8
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [
+            1291.91,
+            1579.01
+          ],
+          "level3": [
+            1220.14,
+            1650.78
+          ]
+        }
+      },
+      "CX6": {
+        "thresholds": [
+          {
+            "min": -3,
+            "max": 3,
+            "t_range_start": "",
+            "t_range_end": ""
+          },
+          {
+            "min": 1000,
+            "max": -1000,
+            "t_range_start": "2025-12-15 00:00:00",
+            "t_range_end": "2025-12-31 23:59:59"
+          }
+        ],
+        "rho": 27.7,
+        "L": 48.756,
+        "force_decimals": 2,
+        "force_ylim": [
+          900,
+          1600
+        ],
+        "target_freqs": [
+          2.178,
+          4,
+          6
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [
+            1124.49,
+            1374.37
+          ],
+          "level3": [
+            1062.02,
+            1436.84
+          ]
+        }
+      },
+      "CX7": {
+        "thresholds": {
+          "min": -3,
+          "max": 3,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
+        "rho": 27.7,
+        "L": 48.756,
+        "force_decimals": 2,
+        "force_ylim": [
+          800,
+          1500
+        ],
+        "target_freqs": [
+          2.08,
+          4,
+          6
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [
+            1045.39,
+            1277.69
+          ],
+          "level3": [
+            987.31,
+            1335.77
+          ]
+        }
+      },
+      "CX8": {
+        "thresholds": {
+          "min": -3,
+          "max": 3,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
+        "rho": 23.9,
+        "L": 29.113,
+        "force_decimals": 2,
+        "force_ylim": [
+          1100,
+          1800
+        ],
+        "target_freqs": [
+          4.219,
+          6,
+          8
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [
+            1304.22,
+            1594.04
+          ],
+          "level3": [
+            1231.76,
+            1666.5
+          ]
+        }
+      },
+      "CX9": {
+        "thresholds": [],
+        "rho": 23.9,
+        "L": 14.963,
+        "force_decimals": 2,
+        "force_ylim": [
+          1500,
+          2400
+        ],
+        "target_freqs": [
+          9.512,
+          12,
+          14
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [
+            1735.61,
+            2121.31
+          ],
+          "level3": [
+            1639.19,
+            2217.73
+          ]
+        }
+      },
+      "CX10": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
+      },
+      "CX11": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
+      },
+      "CX12": {
+        "thresholds": [],
+        "rho": 1,
+        "L": 1,
+        "force_decimals": 2,
+        "force_ylim": [
+          1000,
+          2200
+        ],
+        "target_freqs": [
+          1,
+          2,
+          3
+        ],
+        "tolerance": 0.15,
+        "force_alarm_bounds": {
+          "level2": [],
+          "level3": []
+        }
+      }
+    },
+    "wind": {
+      "W1": {
+        "speed_point_id": "风速_162",
+        "dir_point_id": "风向_163",
+        "alarm_levels": [
+          25,
+          29.92,
+          37.4
+        ],
+        "window_minutes": 10,
+        "decimals": 2
+      },
+      "W2": {
+        "speed_point_id": "塔顶风速_178",
+        "dir_point_id": "塔顶风向_179",
+        "alarm_levels": [
+          25,
+          29.92,
+          37.4
+        ],
+        "window_minutes": 10,
+        "decimals": 2
+      }
+    },
+    "eq": {
+      "EQ-X": {
+        "file_id": "X_144",
+        "alarm_levels": [
+          4.5,
+          9
+        ]
+      },
+      "EQ-Y": {
+        "file_id": "Y_145",
+        "alarm_levels": [
+          4.5,
+          9
+        ]
+      },
+      "EQ-Z": {
+        "file_id": "Z_146",
+        "alarm_levels": [
+          2.925,
+          5.85
+        ]
+      }
+    },
+    "tilt": {
+      "Q1_Z": {
+        "thresholds": [],
+        "offset_correction": -1.422,
+        "alarm_bounds": {
+          "level2": [
+            -0.038,
+            0.038
+          ],
+          "level3": [
+            -0.057,
+            0.057
+          ]
+        }
+      },
+      "Q1_H": {
+        "thresholds": {
+          "min": -0.038,
+          "max": 0.038,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
+        "offset_correction": -1.185,
+        "alarm_bounds": {
+          "level2": [
+            -0.038,
+            0.038
+          ],
+          "level3": [
+            -0.057,
+            0.057
+          ]
+        }
+      },
+      "Q2_Z": {
+        "thresholds": [],
+        "offset_correction": -1.796,
+        "alarm_bounds": {
+          "level2": [
+            -0.038,
+            0.038
+          ],
+          "level3": [
+            -0.057,
+            0.057
+          ]
+        }
+      },
+      "Q2_H": {
+        "thresholds": [],
+        "offset_correction": -0.507,
+        "alarm_bounds": {
+          "level2": [
+            -0.038,
+            0.038
+          ],
+          "level3": [
+            -0.057,
+            0.057
+          ]
+        }
+      }
+    },
+    "strain": {
+      "SB_1": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 84
+      },
+      "SB_2": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 76
+      },
+      "SB_3": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 89
+      },
+      "SB_4": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 82
+      },
+      "SB_5": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 94
+      },
+      "SB_6": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 52
+      },
+      "SC_1": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 45
+      },
+      "SC_2": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 60
+      },
+      "SC_3": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 67
+      },
+      "SC_4": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 72
+      },
+      "SC_5": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": -71
+      },
+      "SC_6": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 58
+      },
+      "SD_1": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 78
+      },
+      "SD_2": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 54
+      },
+      "SD_3": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 70
+      },
+      "SD_4": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 82
+      },
+      "SD_5": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 63
+      },
+      "SD_6": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 81
+      },
+      "SE_1": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 60
+      },
+      "SE_2": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 56
+      },
+      "SE_3": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 63
+      },
+      "SE_4": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 61
+      },
+      "SE_5": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 49
+      },
+      "SE_6": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 68
+      },
+      "SF_1": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 81
+      },
+      "SF_2": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 53
+      },
+      "SF_3": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 45
+      },
+      "SF_4": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 58
+      },
+      "SF_5": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 63
+      },
+      "SF_6": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 68
+      },
+      "SG_1": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 44
+      },
+      "SG_2": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 60
+      },
+      "SG_3": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 68
+      },
+      "SG_4": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 93
+      },
+      "SG_5": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 58
+      },
+      "SG_6": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "thresholds": {
+          "min": 1000,
+          "max": -1000,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
+      },
+      "SH_1": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 39
+      },
+      "SH_2": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 78
+      },
+      "SH_3": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 63
+      },
+      "SH_4": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 90
+      },
+      "SH_5": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 61
+      },
+      "SH_6": {
+        "alarm_bounds": {
+          "level2": [
+            -200,
+            200
+          ],
+          "level3": [
+            -300,
+            300
+          ]
+        },
+        "offset_correction": 89
+      },
+      "SL_1": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 180,
+        "thresholds": [
+          {
+            "max": 100,
+            "t_range_start": "2026-02-25 00:00:00",
+            "t_range_end": "2026-03-15 23:59:59"
+          }
+        ]
+      },
+      "SL_6": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 113
+      },
+      "SL_2": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 17
+      },
+      "SL_7": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 64
+      },
+      "SL_3": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 173
+      },
+      "SL_5": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 43
+      },
+      "SL_8": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "thresholds": [
+          {
+            "min": 1000,
+            "max": -1000,
+            "t_range_start": "",
+            "t_range_end": ""
+          }
+        ],
+        "offset_correction": 100
+      },
+      "SL_10": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": -4
+      },
+      "SL_4": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 34
+      },
+      "SL_9": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        }
+      },
+      "SK_1": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 45
+      },
+      "SK_7": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 76
+      },
+      "SK_2": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 107
+      },
+      "SK_8": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 22
+      },
+      "SK_3": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 54
+      },
+      "SK_9": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 144
+      },
+      "SK_4": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 94
+      },
+      "SK_10": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 126
+      },
+      "SK_5": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 54
+      },
+      "SK_11": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 84
+      },
+      "SK_6": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 47
+      },
+      "SK_12": {
+        "alarm_bounds": {
+          "level2": [
+            -150,
+            150
+          ],
+          "level3": [
+            -200,
+            200
+          ]
+        },
+        "offset_correction": 80
+      }
+    }
+  },
+  "subfolders": {
+    "deflection": "特征值_重采样",
+    "bearing_displacement": "特征值_重采样",
+    "acceleration": "波形",
+    "acceleration_raw": "波形",
+    "strain": "特征值",
+    "tilt": "波形_重采样",
+    "crack": "特征值",
+    "humidity": "特征值",
+    "temperature": "特征值",
+    "cable_accel": "波形",
+    "cable_accel_raw": "波形",
+    "wind_raw": "波形",
+    "eq_raw": "波形"
+  },
+  "file_patterns": {
+    "wind_speed": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    },
+    "wind_direction": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    },
+    "acceleration": {
+      "default": [
+        "{point}_*.csv"
+      ],
+      "per_point": {
+        "A1": "{point}_174.csv",
+        "A2": "{point}_172.csv",
+        "A3": "{point}_173.csv",
+        "A4": "{point}_175.csv",
+        "A5": "{point}_168.csv",
+        "A6": "{point}_169.csv",
+        "A7": "{point}_170.csv",
+        "A8": "{point}_171.csv",
+        "A9-X": "{point}_176.csv",
+        "A9-Y": "{point}_177.csv",
+        "A10-X": "{point}_156.csv",
+        "A10-Y": "{point}_157.csv"
+      }
+    },
+    "accel_spectrum": {
+      "default": [
+        "{point}_*.csv"
+      ],
+      "per_point": {
+        "A1": "{point}_174.csv",
+        "A2": "{point}_172.csv",
+        "A3": "{point}_173.csv",
+        "A4": "{point}_175.csv",
+        "A5": "{point}_168.csv",
+        "A6": "{point}_169.csv",
+        "A7": "{point}_170.csv",
+        "A8": "{point}_171.csv",
+        "A9-X": "{point}_176.csv",
+        "A9-Y": "{point}_177.csv",
+        "A10-X": "{point}_156.csv",
+        "A10-Y": "{point}_157.csv"
+      }
+    },
+    "cable_accel": {
+      "default": [
+        "{point}_*.csv"
+      ],
+      "per_point": {
+        "CS1": "{point}_148.csv",
+        "CS2": "{point}_149.csv",
+        "CS3": "{point}_150.csv",
+        "CS4": "{point}_151.csv",
+        "CS5": "{point}_152.csv",
+        "CS6": "{point}_153.csv",
+        "CS7": "{point}_154.csv",
+        "CS8": "{point}_155.csv",
+        "CS9": "{point}_167.csv",
+        "CS10": "{point}_166.csv",
+        "CS11": "{point}_164.csv",
+        "CS12": "{point}_165.csv",
+        "CX1": "{point}_122.csv",
+        "CX2": "{point}_123.csv",
+        "CX3": "{point}_120.csv",
+        "CX4": "{point}_121.csv",
+        "CX5": "{point}_127.csv",
+        "CX6": "{point}_126.csv",
+        "CX7": "{point}_124.csv",
+        "CX8": "{point}_125.csv",
+        "CX9": "{point}_139.csv",
+        "CX10": "{point}_138.csv",
+        "CX11": "{point}_136.csv",
+        "CX12": "{point}_137.csv"
+      }
+    },
+    "cable_accel_spectrum": {
+      "default": [
+        "{point}_*.csv"
+      ],
+      "per_point": {
+        "CS1": "{point}_148.csv",
+        "CS2": "{point}_149.csv",
+        "CS3": "{point}_150.csv",
+        "CS4": "{point}_151.csv",
+        "CS5": "{point}_152.csv",
+        "CS6": "{point}_153.csv",
+        "CS7": "{point}_154.csv",
+        "CS8": "{point}_155.csv",
+        "CS9": "{point}_167.csv",
+        "CS10": "{point}_166.csv",
+        "CS11": "{point}_164.csv",
+        "CS12": "{point}_165.csv",
+        "CX1": "{point}_122.csv",
+        "CX2": "{point}_123.csv",
+        "CX3": "{point}_120.csv",
+        "CX4": "{point}_121.csv",
+        "CX5": "{point}_127.csv",
+        "CX6": "{point}_126.csv",
+        "CX7": "{point}_124.csv",
+        "CX8": "{point}_125.csv",
+        "CX9": "{point}_139.csv",
+        "CX10": "{point}_138.csv",
+        "CX11": "{point}_136.csv",
+        "CX12": "{point}_137.csv"
+      }
+    },
+    "eq_x": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    },
+    "eq_y": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    },
+    "eq_z": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    }
+  },
+  "points": {
+    "wind": [
+      "W1",
+      "W2"
+    ],
+    "bearing_displacement": [
+      "Z11-1",
+      "Z11-2",
+      "Z12-1",
+      "Z12-2",
+      "Z13-1",
+      "Z13-2",
+      "Z14-1",
+      "Z14-2",
+      "Z15-1",
+      "Z15-2"
+    ],
+    "acceleration": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6",
+      "A7",
+      "A8",
+      "A9-X",
+      "A9-Y",
+      "A10-X",
+      "A10-Y"
+    ],
+    "accel_spectrum": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6",
+      "A7",
+      "A8",
+      "A9-X",
+      "A9-Y",
+      "A10-X",
+      "A10-Y"
+    ],
+    "cable_accel": [
+      "CS1",
+      "CS2",
+      "CS3",
+      "CS4",
+      "CS5",
+      "CS6",
+      "CS7",
+      "CS8",
+      "CS9",
+      "CS10",
+      "CS11",
+      "CS12",
+      "CX1",
+      "CX2",
+      "CX3",
+      "CX4",
+      "CX5",
+      "CX6",
+      "CX7",
+      "CX8",
+      "CX9",
+      "CX10",
+      "CX11",
+      "CX12"
+    ],
+    "cable_accel_spectrum": [
+      "CS1",
+      "CS2",
+      "CS3",
+      "CS4",
+      "CS5",
+      "CS6",
+      "CS7",
+      "CS8",
+      "CS9",
+      "CS10",
+      "CS11",
+      "CS12",
+      "CX1",
+      "CX2",
+      "CX3",
+      "CX4",
+      "CX5",
+      "CX6",
+      "CX7",
+      "CX8",
+      "CX9",
+      "CX10",
+      "CX11",
+      "CX12"
+    ],
+    "eq": [
+      "EQ-X",
+      "EQ-Y",
+      "EQ-Z"
+    ],
+    "tilt": [
+      "Q1-Z",
+      "Q1-H",
+      "Q2-Z",
+      "Q2-H"
+    ],
+    "strain": [
+      "SB-1",
+      "SB-2",
+      "SB-3",
+      "SB-4",
+      "SB-5",
+      "SB-6",
+      "SC-1",
+      "SC-2",
+      "SC-3",
+      "SC-4",
+      "SC-5",
+      "SC-6",
+      "SD-1",
+      "SD-2",
+      "SD-3",
+      "SD-4",
+      "SD-5",
+      "SD-6",
+      "SE-1",
+      "SE-2",
+      "SE-3",
+      "SE-4",
+      "SE-5",
+      "SE-6",
+      "SF-1",
+      "SF-2",
+      "SF-3",
+      "SF-4",
+      "SF-5",
+      "SF-6",
+      "SG-1",
+      "SG-2",
+      "SG-3",
+      "SG-4",
+      "SG-5",
+      "SG-6",
+      "SH-1",
+      "SH-2",
+      "SH-3",
+      "SH-4",
+      "SH-5",
+      "SH-6",
+      "SL-1",
+      "SL-2",
+      "SL-3",
+      "SL-4",
+      "SL-5",
+      "SL-6",
+      "SL-7",
+      "SL-8",
+      "SL-9",
+      "SL-10",
+      "SK-1",
+      "SK-2",
+      "SK-3",
+      "SK-4",
+      "SK-5",
+      "SK-6",
+      "SK-7",
+      "SK-8",
+      "SK-9",
+      "SK-10",
+      "SK-11",
+      "SK-12"
+    ]
+  },
+  "groups": {
+    "bearing_displacement": [],
+    "cable_force": {
+      "C4": [
+        "CS4",
+        "CX4"
+      ],
+      "C5": [
+        "CS5",
+        "CX5"
+      ],
+      "C6": [
+        "CS6",
+        "CX6"
+      ],
+      "C7": [
+        "CS7",
+        "CX7"
+      ],
+      "C8": [
+        "CS8",
+        "CX8"
+      ],
+      "C9": [
+        "CS9",
+        "CX9"
+      ]
+    },
+    "tilt": [],
+    "strain": {
+      "B": [
+        "SB-1",
+        "SB-2",
+        "SB-3",
+        "SB-4",
+        "SB-5",
+        "SB-6"
+      ],
+      "C": [
+        "SC-1",
+        "SC-2",
+        "SC-3",
+        "SC-4",
+        "SC-5",
+        "SC-6"
+      ],
+      "D": [
+        "SD-1",
+        "SD-2",
+        "SD-3",
+        "SD-4",
+        "SD-5",
+        "SD-6"
+      ],
+      "E": [
+        "SE-1",
+        "SE-2",
+        "SE-3",
+        "SE-4",
+        "SE-5",
+        "SE-6"
+      ],
+      "F": [
+        "SF-1",
+        "SF-2",
+        "SF-3",
+        "SF-4",
+        "SF-5",
+        "SF-6"
+      ],
+      "G": [
+        "SG-1",
+        "SG-2",
+        "SG-3",
+        "SG-4",
+        "SG-5",
+        "SG-6"
+      ],
+      "H": [
+        "SH-1",
+        "SH-2",
+        "SH-3",
+        "SH-4",
+        "SH-5",
+        "SH-6"
+      ],
+      "L": [
+        "SL-1",
+        "SL-2",
+        "SL-3",
+        "SL-4",
+        "SL-5",
+        "SL-6",
+        "SL-7",
+        "SL-8",
+        "SL-9",
+        "SL-10"
+      ],
+      "K": [
+        "SK-1",
+        "SK-2",
+        "SK-3",
+        "SK-4",
+        "SK-5",
+        "SK-6",
+        "SK-7",
+        "SK-8",
+        "SK-9",
+        "SK-10",
+        "SK-11",
+        "SK-12"
+      ]
+    },
+    "strain_timeseries": {
+      "B": [
+        "SB-1",
+        "SB-2",
+        "SB-3",
+        "SB-4",
+        "SB-5",
+        "SB-6"
+      ],
+      "C": [
+        "SC-1",
+        "SC-2",
+        "SC-3",
+        "SC-4",
+        "SC-5",
+        "SC-6"
+      ],
+      "D": [
+        "SD-1",
+        "SD-2",
+        "SD-3",
+        "SD-4",
+        "SD-5",
+        "SD-6"
+      ],
+      "E": [
+        "SE-1",
+        "SE-2",
+        "SE-3",
+        "SE-4",
+        "SE-5",
+        "SE-6"
+      ],
+      "F": [
+        "SF-1",
+        "SF-2",
+        "SF-3",
+        "SF-4",
+        "SF-5",
+        "SF-6"
+      ],
+      "G": [
+        "SG-1",
+        "SG-2",
+        "SG-3",
+        "SG-4",
+        "SG-5",
+        "SG-6"
+      ],
+      "H": [
+        "SH-1",
+        "SH-2",
+        "SH-3",
+        "SH-4",
+        "SH-5",
+        "SH-6"
+      ],
+      "L": [
+        "SL-1",
+        "SL-2",
+        "SL-3",
+        "SL-4",
+        "SL-5",
+        "SL-6",
+        "SL-7",
+        "SL-8",
+        "SL-9",
+        "SL-10"
+      ],
+      "K": [
+        "SK-1",
+        "SK-2",
+        "SK-3",
+        "SK-4",
+        "SK-5",
+        "SK-6",
+        "SK-7",
+        "SK-8",
+        "SK-9",
+        "SK-10",
+        "SK-11",
+        "SK-12"
+      ]
+    }
+  },
+  "plot_styles": {
+    "bearing_displacement": {
+      "warn_lines": [],
+      "alarm_colors": [
+        [
+          0.929,
+          0.694,
+          0.125
+        ],
+        [
+          0.85,
+          0.1,
+          0.1
+        ]
+      ],
+      "ylim_auto": false,
+      "output_dir": "时程曲线_支座位移",
+      "ylim": [
+        -400,
+        400
+      ],
+      "ylims": [
+        {
+          "name": "Z11-1",
+          "ylim": [
+            -400,
+            400
+          ]
+        },
+        {
+          "name": "Z11-2",
+          "ylim": [
+            -400,
+            400
+          ]
+        },
+        {
+          "name": "Z12-1",
+          "ylim": [
+            -400,
+            400
+          ]
+        },
+        {
+          "name": "Z12-2",
+          "ylim": [
+            -400,
+            400
+          ]
+        },
+        {
+          "name": "Z13-1",
+          "ylim": [
+            -400,
+            400
+          ]
+        },
+        {
+          "name": "Z13-2",
+          "ylim": [
+            -400,
+            400
+          ]
+        },
+        {
+          "name": "Z14-1",
+          "ylim": [
+            -400,
+            400
+          ]
+        },
+        {
+          "name": "Z14-2",
+          "ylim": [
+            -400,
+            400
+          ]
+        },
+        {
+          "name": "Z15-1",
+          "ylim": [
+            -400,
+            400
+          ]
+        },
+        {
+          "name": "Z15-2",
+          "ylim": [
+            -400,
+            400
+          ]
+        }
+      ],
+      "ylabel": "支座位移 (mm)",
+      "title_prefix": "支座位移时程"
+    },
+    "crack": {
+      "ylabel_crack": "Crack Width (mm)",
+      "ylabel_temp": "Crack Temp (degC)",
+      "title_prefix_crack": "Crack Width",
+      "title_prefix_temp": "Crack Temp",
+      "per_point_plot": false,
+      "group_plot": true,
+      "temp_enabled": true,
+      "skip_group_if_missing": true,
+      "output_dir_crack": "????_????",
+      "output_dir_temp": "????_????"
+    },
+    "acceleration": {
+      "ylabel": "主梁竖向振动加速度 (m/s^2)",
+      "title_prefix": "加速度时程",
+      "ylim": [
+        -2,
+        2
+      ],
+      "ylims": [
+        {
+          "name": "A9-X",
+          "ylim": [
+            -0.1,
+            0.1
+          ]
+        },
+        {
+          "name": "A9-Y",
+          "ylim": [
+            -0.1,
+            0.1
+          ]
+        },
+        {
+          "name": "A10-X",
+          "ylim": [
+            -0.2,
+            0.2
+          ]
+        },
+        {
+          "name": "A10-Y",
+          "ylim": [
+            -0.2,
+            0.2
+          ]
+        }
+      ],
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ]
+      ],
+      "rms": {
+        "ylabel": "10 min RMS (m/s^2)",
+        "title_prefix": "10 min RMS 时程",
+        "ylim": [
+          0,
+          0.1
+        ],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
+      }
+    },
+    "accel_spectrum": {
+      "psd_ylabel": "PSD (dB)",
+      "psd_title_prefix": "PSD",
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "峰值频率时程",
+      "colors": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          0.5,
+          0,
+          0.7
+        ]
+      ],
+      "force_ylabel": "索力 (kN)",
+      "force_title_prefix": "索力时程",
+      "force_color": [
+        0,
+        0.447,
+        0.741
+      ]
+    },
+    "cable_accel": {
+      "ylabel": "振动加速度 (m/s^2)",
+      "title_prefix": "加速度时程",
+      "ylim": [
+        -3,
+        3
+      ],
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ]
+      ],
+      "rms": {
+        "ylabel": "10 min RMS (m/s^2)",
+        "title_prefix": "10 min RMS 时程",
+        "ylim": [
+          0,
+          1
+        ],
+        "ylims": [
+          {
+            "name": "A9-X",
+            "ylim": [
+              0,
+              0.05
+            ]
+          },
+          {
+            "name": "A9-Y",
+            "ylim": [
+              0,
+              0.05
+            ]
+          },
+          {
+            "name": "A10-X",
+            "ylim": [
+              0,
+              0.05
+            ]
+          },
+          {
+            "name": "A10-Y",
+            "ylim": [
+              0,
+              0.05
+            ]
+          }
+        ],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
+      },
+      "ylims": [
+        {
+          "name": "CS5",
+          "ylim": [
+            -4,
+            4
+          ]
+        }
+      ]
+    },
+    "cable_accel_spectrum": {
+      "psd_ylabel": "PSD (dB)",
+      "psd_title_prefix": "PSD",
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "峰值频率时程",
+      "colors": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          0.5,
+          0,
+          0.7
+        ]
+      ],
+      "force_ylabel": "索力 (kN)",
+      "force_title_prefix": "索力时程",
+      "force_color": [
+        0,
+        0.447,
+        0.741
+      ],
+      "force_ylim": [
+        1000,
+        2200
+      ],
+      "force_alarm_colors": [
+        [
+          0.929,
+          0.694,
+          0.125
+        ],
+        [
+          0.85,
+          0.1,
+          0.1
+        ]
+      ]
+    },
+    "eq": {
+      "ylabel": "地震动加速度 (m/s^2)",
+      "title_prefix": "地震动时程",
+      "color": [
+        0,
+        0.447,
+        0.741
+      ],
+      "output": {
+        "root_dir": "地震动结果",
+        "series_dir": "地震动时程",
+        "prefix": "EQ"
+      }
+    },
+    "tilt": {
+      "alarm_colors": [
+        [
+          0.929,
+          0.694,
+          0.125
+        ],
+        [
+          0.85,
+          0.1,
+          0.1
+        ]
+      ],
+      "ylim_auto": true,
+      "ylabel": "倾斜 (°)",
+      "title_prefix": "倾斜时程",
+      "output_dir": "时程曲线_倾斜"
+    },
+    "strain": {
+      "alarm_colors": [
+        [
+          0.929,
+          0.694,
+          0.125
+        ],
+        [
+          0.85,
+          0.1,
+          0.1
+        ]
+      ],
+      "ylim_auto": true,
+      "ylabel": "主梁应变 (με)",
+      "title_prefix": "应变时程曲线",
+      "output_dir": "时程曲线_应变",
+      "boxplot_title_prefix": "应变箱线图",
+      "boxplot_output_dir": "箱线图_应变",
+      "group_output_dir": "时程曲线_应变_组图",
+      "show_warn_lines_point": false,
+      "show_warn_lines_boxplot": true,
+      "show_boxplot_outliers": false,
+      "ylims": {
+        "B": [
+          -350,
+          350
+        ],
+        "C": [
+          -350,
+          350
+        ],
+        "D": [
+          -350,
+          350
+        ],
+        "E": [
+          -350,
+          350
+        ],
+        "F": [
+          -350,
+          350
+        ],
+        "G": [
+          -350,
+          350
+        ],
+        "H": [
+          -350,
+          350
+        ],
+        "K": [
+          -250,
+          250
+        ],
+        "L": [
+          -250,
+          250
+        ]
+      }
+    }
+  },
+  "wind_params": {
+    "speed_bins": [
+      0,
+      2,
+      4,
+      6,
+      8,
+      10,
+      15,
+      20,
+      25,
+      30,
+      35,
+      40
+    ],
+    "sector_deg": 22.5,
+    "alarm_levels": [
+      25,
+      29.92,
+      37.4
+    ],
+    "window_minutes": 10,
+    "decimals": 2
+  },
+  "wim": {
+    "vendor": "zhichen",
+    "bridge": "hongtang",
+    "output_root": "WIM/results",
+    "excel_name": "WIM_Report_{bridge}_{yyyymm}.xlsx",
+    "pipeline": "database",
+    "pipeline_note": "direct=process files directly; database=import into SQL Server then run reports",
+    "design_total_kg": 55000,
+    "design_axle_kg": 28000,
+    "overload_factors": [
+      1.5,
+      2
+    ],
+    "topn": 10,
+    "lanes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "up_lanes": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "speed_bins": [
+      0,
+      30,
+      50,
+      70,
+      9999
+    ],
+    "gross_bins": [
+      0,
+      10000,
+      30000,
+      50000,
+      999999
+    ],
+    "hour_bins": [
+      0,
+      2,
+      4,
+      6,
+      8,
+      10,
+      12,
+      14,
+      16,
+      18,
+      20,
+      22,
+      24
+    ],
+    "custom_weights": [
+      30000,
+      50000
+    ],
+    "critical_lanes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "hourly_critical_weight_kg": 50000,
+    "input": {
+      "zhichen": {
+        "dir": "E:/洪塘大桥数据/2026年1-3月/WIM",
+        "bcp": "HS_Data_{yyyymm}.bcp",
+        "fmt": "HS_Data_{yyyymm}.fmt",
+        "encoding": "gbk"
+      },
+      "jiulongjiang": {
+        "files": [
+          "data/_samples/wim/jiulongjiang/九龙江过车记录2025-04-04~2025-04-10(1).xlsx"
+        ]
+      }
+    }
+  },
+  "wim_db": {
+    "server": ".",
+    "database": "HighSpeed_PROC",
+    "schema": "dbo",
+    "table_prefix": "HS_Data_",
+    "raw_table_prefix": "WIM_Raw_",
+    "import_mode": "truncate",
+    "import_mode_note": "truncate=truncate and reload; skip_if_exists=skip import when table already has rows",
+    "scripts_dir": "scripts/wim_sql",
+    "auth": "windows",
+    "sqlcmd_utf8": true,
+    "trust_server_cert": true,
+    "service_name": "MSSQLSERVER"
+  },
+  "wim_plot": {
+    "enabled": true,
+    "output_dir": "plots",
+    "format": "png",
+    "excel_path": "data/python/动态称重.xlsx",
+    "sheet": "Sheet1",
+    "fig_size_px": [
+      900,
+      600
+    ],
+    "y_decimals": 0,
+    "value_label": true,
+    "percent_on_newline": true,
+    "font_tick": 11,
+    "font_xlabel": 12,
+    "font_ylabel": 12,
+    "font_title": 14,
+    "font_value_label": 11,
+    "x_label_rotation": 0,
+    "save_fig": true,
+    "xlabels": {},
+    "ylabels": {},
+    "fig_size_per_plot": {},
+    "xlabels_list": [
+      {
+        "name": "不同车速区间车辆数",
+        "labels": [
+          "0~30km/h",
+          "30~50km/h",
+          "50~70km/h",
+          "70km/h以上"
+        ]
+      },
+      {
+        "name": "不同车重区间车辆数",
+        "labels": [
+          "0～10t",
+          "10～30t",
+          "30～50t",
+          "50t以上"
+        ]
+      },
+      {
+        "name": "不同小时区间车辆数",
+        "labels": [
+          "0～2",
+          "2～4",
+          "4～6",
+          "6～8",
+          "8～10",
+          "10～12",
+          "12～14",
+          "14～16",
+          "16～18",
+          "18～20",
+          "20～22",
+          "22～24"
+        ]
+      },
+      {
+        "name": "不同小时区间平均车速",
+        "labels": [
+          "0～2",
+          "2～4",
+          "4～6",
+          "6～8",
+          "8～10",
+          "10～12",
+          "12～14",
+          "14～16",
+          "16～18",
+          "18～20",
+          "20～22",
+          "22～24"
+        ]
+      }
+    ],
+    "ylabels_list": [],
+    "fig_size_list": []
+  },
+  "accel_spectrum_params": {
+    "target_freqs": [
+      0.898,
+      1.46,
+      2.737
+    ],
+    "tolerance": 0.15,
+    "theor_freqs": [
+      0.733,
+      1.378,
+      1.965
+    ],
+    "theor_labels": [
+      "理论一阶自振频率 0.733Hz",
+      "理论二阶自振频率 1.378Hz",
+      "理论三阶自振频率 1.965Hz"
+    ]
+  },
+  "cable_accel_spectrum_params": {
+    "target_freqs": [
+      1,
+      2,
+      3
+    ],
+    "tolerance": 0.15
+  },
+  "reporting": {
+    "strain": {
+      "enabled": true,
+      "girder_order": [
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H"
+      ],
+      "tower_order": [
+        "K",
+        "L"
+      ],
+      "include": [],
+      "exclude": []
+    },
+    "tilt": {
+      "enabled": true,
+      "order": [
+        "Q1-Z",
+        "Q1-H",
+        "Q2-Z",
+        "Q2-H"
+      ],
+      "include": [],
+      "exclude": []
+    },
+    "bearing_displacement": {
+      "enabled": true,
+      "order": [
+        "Z11-1",
+        "Z11-2",
+        "Z12-1",
+        "Z12-2",
+        "Z13-1",
+        "Z13-2",
+        "Z14-1",
+        "Z14-2",
+        "Z15-1",
+        "Z15-2"
+      ],
+      "include": [],
+      "exclude": []
+    },
+    "cable_force": {
+      "enabled": true,
+      "order": [
+        "CS4",
+        "CX4",
+        "CS5",
+        "CX5",
+        "CS6",
+        "CX6",
+        "CS7",
+        "CX7",
+        "CS8",
+        "CX8",
+        "CS9",
+        "CX9"
+      ],
+      "force_order": [
+        "CS4",
+        "CX4",
+        "CS5",
+        "CX5",
+        "CS6",
+        "CX6",
+        "CS7",
+        "CX7",
+        "CS8",
+        "CX8",
+        "CS9",
+        "CX9"
+      ],
+      "include": [],
+      "exclude": []
+    },
+    "vibration": {
+      "enabled": true,
+      "order": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "A9-X",
+        "A9-Y",
+        "A10-X",
+        "A10-Y"
+      ],
+      "include": [],
+      "exclude": []
+    },
+    "wind": {
+      "enabled": true,
+      "order": [
+        "W1",
+        "W2"
+      ],
+      "include": [],
+      "exclude": []
+    },
+    "eq": {
+      "enabled": true,
+      "order": [
+        "EQ-X",
+        "EQ-Y",
+        "EQ-Z"
+      ],
+      "include": [],
+      "exclude": []
+    }
+  },
+  "eq_params": {
+    "alarm_levels": [
+      1,
+      2
+    ]
+  }
+}

@@ -53,3 +53,4 @@ reporting/.venv/
 reporting/build/
 reporting/dist/
 reporting/*.spec
+/*.spec

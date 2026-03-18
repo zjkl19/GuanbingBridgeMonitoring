@@ -3,7 +3,7 @@
 ## Overview / 概述
 
 This repository contains the MATLAB analysis workflow and the Python report builder used for bridge monitoring projects.
-本仓库包含桥梁健康监测项目的 MATLAB 分析流程和 Python 报告生成程序。
+本仓库包含桥梁健康监测项目使用的 MATLAB 分析流程和 Python 报告生成程序。
 
 ## Main Entry Points / 主要入口
 
@@ -22,11 +22,11 @@ Run the packaged executable when available.
 优先使用打包后的可执行程序。
 
 ```text
-reporting/dist/MonthlyReportBuilder/MonthlyReportBuilder.exe
+reporting/dist/BridgeReportBuilder/BridgeReportBuilder.exe
 ```
 
 Or run the Python GUI directly.
-或直接运行 Python GUI。
+也可以直接运行 Python GUI。
 
 ```powershell
 reporting/.venv/Scripts/python reporting/report_gui.py
@@ -52,14 +52,26 @@ Recommended example.
 
 ```text
 E:/洪塘大桥数据/2026年1-3月/
-  lowfreq\data.xlsx
-  WIM\
-  stats\
-  run_logs\
-  自动报告\
-  时程曲线_倾斜\
-  时程曲线_支座位移\
-  箱线图_应变\
+  lowfreq/
+    data.xlsx
+  WIM/
+    HS_Data_202601.bcp
+    HS_Data_202601.fmt
+    HS_Data_202602.bcp
+    HS_Data_202602.fmt
+    HS_Data_202603.bcp
+    HS_Data_202603.fmt
+    results/
+      hongtang/
+        202601/
+        202602/
+        202603/
+  stats/
+  run_logs/
+  自动报告/
+  时程曲线_倾斜/
+  时程曲线_支座位移/
+  箱线图_应变/
 ```
 
 ## Config Files / 配置文件
@@ -74,6 +86,11 @@ Common files.
 Machine-specific overrides may be stored as `config/hongtang_config_<COMPUTERNAME>.json`.
 机器专用覆盖配置可保存为 `config/hongtang_config_<COMPUTERNAME>.json`。
 
+Tracked production example:
+当前已纳入版本库的生产机示例：
+
+- `config/hongtang_config_DESKTOP_21RTG63.json`
+
 ## Reporting / 报告生成
 
 Monthly reports use the monthly template and a single result directory.
@@ -81,6 +98,9 @@ Monthly reports use the monthly template and a single result directory.
 
 Period reports use the period template, a date range, and WIM monthly results.
 周期报使用周期报模板、起止日期以及 WIM 月结果。
+
+For period reports, section `1.4 健康监测系统运行状况` only counts raw missing/no-file/no-record conditions.
+对周期报，`1.4 健康监测系统运行状况` 只统计原始缺失/无文件/无记录。
 
 See `reporting/README.md` for report GUI details.
 报告 GUI 细节见 `reporting/README.md`。
