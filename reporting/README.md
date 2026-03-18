@@ -141,3 +141,34 @@ The GUI performs a preflight check before generating a period report and warns w
 - Stats workbooks / 统计表: `<result-root>/stats/`
 - Run logs / 运行日志: `<result-root>/run_logs/`
 - WIM monthly results / WIM 月结果: `<result-root>/WIM/results/hongtang/<yyyymm>/`
+
+## WIM SQL Troubleshooting / WIM SQL 故障排查
+
+Common WIM SQL failures are classified explicitly.
+WIM SQL 常见故障现在会明确分类显示。
+
+- `WIM:SQL:Instance`
+  - Cannot connect to the SQL Server instance.
+  - Check `wim_db.server`, `wim_db.service_name`, and whether the SQL Server service is running.
+  - 无法连接 SQL Server 实例；检查 `wim_db.server`、`wim_db.service_name` 和 SQL Server 服务状态。
+
+- `WIM:SQL:Permission`
+  - The current Windows user does not have enough SQL Server or bulk import permissions.
+  - Re-run `scripts/setup_wim_sql.ps1` or grant SQL permissions manually.
+  - 当前 Windows 用户缺少 SQL Server 或 bulk import 权限；可重新运行 `scripts/setup_wim_sql.ps1` 或手工授权。
+
+- `WIM:SQL:DatabaseMissing`
+  - The configured database cannot be opened or does not exist.
+  - Check `wim_db.database` and create `HighSpeed_PROC` first.
+  - 目标数据库不存在或无法打开；检查 `wim_db.database` 并先创建 `HighSpeed_PROC`。
+
+- `WIM:Input:MissingFmt`
+  - The monthly `HS_Data_YYYYMM.fmt` file is missing.
+  - Check `wim.input.zhichen.dir` and the month-specific input files.
+  - 缺少当月 `HS_Data_YYYYMM.fmt`；检查 `wim.input.zhichen.dir` 和对应月份文件。
+
+- `WIM:Input:MissingBcp`
+  - The monthly `HS_Data_YYYYMM.bcp` file is missing.
+  - Check `wim.input.zhichen.dir` and the month-specific input files.
+  - 缺少当月 `HS_Data_YYYYMM.bcp`；检查 `wim.input.zhichen.dir` 和对应月份文件。
+
