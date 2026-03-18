@@ -20,4 +20,8 @@ if (-not (Test-Path $PythonExe)) {
   --workpath reporting\build `
   reporting\report_gui.py | Out-Host
 
+Copy-Item -Recurse -Force reports reporting\dist\MonthlyReportBuilder\reports
+Copy-Item -Force reporting\README.md reporting\dist\MonthlyReportBuilder\README.md
+Copy-Item -Force reporting\REPORTING_LOGIC.md reporting\dist\MonthlyReportBuilder\REPORTING_LOGIC.md
+
 Write-Host "GUI exe built at reporting\\dist\\MonthlyReportBuilder\\MonthlyReportBuilder.exe"

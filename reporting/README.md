@@ -1,30 +1,43 @@
-# Reporting
+# Reporting / 报告生成
 
-报告生成支持两类入口：
+## Scope / 范围
 
-- 月报
-- 周期报（含 WIM）
+The report builder supports both monthly reports and period reports.
+报告生成程序同时支持月报和周期报。
 
-当前口径已经统一到**数据目录**。模板仍放程序目录 `reports/`，其他统计表、图片、报告产物都放在数据目录。
+- `月报 / Monthly Report`
+- `周期报（含 WIM） / Period Report (with WIM)`
 
-## 1. 环境
+## Packaged GUI / 打包 GUI
 
-安装依赖：
-
-```powershell
-reporting/.venv/Scripts/python -m pip install -r reporting/requirements.txt
-```
-
-如果直接使用打包好的 GUI，可跳过这一步。
-
-## 2. 数据目录约定
-
-建议的数据目录结构：
+The packaged directory should contain at least the following files.
+打包目录至少应包含以下文件。
 
 ```text
-E:\洪塘大桥数据\2026年1-3月\
-  lowfreq\
-    data.xlsx
+MonthlyReportBuilder/
+  MonthlyReportBuilder.exe
+  _internal/
+  reports/
+    洪塘大桥健康监测月报模板.docx
+    洪塘大桥健康监测周期报模板.docx
+  README.md
+  REPORTING_LOGIC.md
+```
+
+Keep `MonthlyReportBuilder.exe` and `_internal/` together.
+`MonthlyReportBuilder.exe` 和 `_internal/` 必须一起保留。
+
+## Data Root / 数据根目录
+
+Templates stay under `reports/`. Runtime outputs stay under the data root.
+模板放在 `reports/`，运行产物放在数据根目录。
+
+Recommended layout.
+推荐目录如下。
+
+```text
+E:/洪塘大桥数据/2026年1-3月/
+  lowfreq\data.xlsx
   WIM\
     HS_Data_202601.bcp
     HS_Data_202601.fmt
@@ -42,101 +55,59 @@ E:\洪塘大桥数据\2026年1-3月\
     tilt_stats.xlsx
     bearing_displacement_stats.xlsx
     wind_stats.xlsx
-    ...
+  run_logs\
   自动报告\
-  时程曲线_倾斜\
-  时程曲线_支座位移\
-  箱线图_应变\
-  ...
 ```
 
-说明：
+## GUI Fields / GUI 字段说明
 
-- 模板继续放程序目录 `reports/`
-- 统计表统一放数据目录 `stats/`
-- 报告默认输出到数据目录 `自动报告/`
-- WIM 月结果统一放数据目录 `WIM/results/hongtang/<yyyymm>/`
+- `报告类型 / Report Type`
+  - `月报` 或 `周期报（含 WIM）`
+- `模板文件 / Template`
+  - Monthly default: `洪塘大桥健康监测月报模板.docx`
+  - Period default: `洪塘大桥健康监测周期报模板.docx`
+- `配置文件 / Config`
+  - Prefer machine-specific override when present.
+  - 存在机器专用配置时优先使用。
+- `数据/结果根目录 / Data and Result Root`
+  - Contains plots, `stats/`, `run_logs/`, and `自动报告/`.
+  - 用于存放图片、`stats/`、`run_logs/` 和 `自动报告/`。
+- `程序根目录（高级） / Program Root (Advanced)`
+  - Compatibility fallback for code and template lookup.
+  - 用于代码、模板的兼容查找。
+- `WIM 结果目录 / WIM Result Root`
+  - Usually `<数据/结果根目录>/WIM/results/hongtang`.
+- `输出目录 / Output Directory`
+  - Usually `<数据/结果根目录>/自动报告`.
 
-## 3. 月报命令行
+## Config Keys Used Directly / 直接影响报告生成的配置项
 
-```powershell
-reporting/.venv/Scripts/python reporting/build_monthly_report.py `
-  --template "reports\洪塘大桥健康监测2025年12月份月报 - 新模板2.docx" `
-  --config "config\hongtang_config.json" `
-  --result-root "E:\洪塘大桥数据\2026年1-3月" `
-  --analysis-root "."
-```
+The report generator reads these config sections directly.
+报告程序会直接读取以下配置项。
 
-默认输出：
+- `plot_styles.*.output_dir`
+- `plot_styles.*.boxplot_output_dir`
+- `plot_styles.*.group_output_dir`
+- `reporting.*`
+- `wim.*`
+- `wim_db.*`
 
-- `E:\洪塘大桥数据\2026年1-3月\自动报告`
+Thresholds, zero-offset corrections, and alarm bounds affect reports indirectly through regenerated analysis outputs.
+阈值、零点修正和预警值通过分析结果间接影响报告。
 
-## 4. 周期报（含 WIM）命令行
+## Monthly Report / 月报
 
-```powershell
-reporting/.venv/Scripts/python reporting/build_period_report.py `
-  --template "reports\洪塘大桥健康监测2025年12月份月报 - 新模板2.docx" `
-  --config "config\hongtang_config.json" `
-  --result-root "E:\洪塘大桥数据\2026年1-3月" `
-  --wim-root "E:\洪塘大桥数据\2026年1-3月\WIM\results\hongtang" `
-  --period-label "2026年1-3月" `
-  --monitoring-range "2026.01.01~2026.03.16" `
-  --report-date "2026年03月17日" `
-  --start-date "2026-01-01" `
-  --end-date "2026-03-16"
-```
+Use a single result directory for one monitoring period.
+月报使用单个监测周期的结果目录。
 
-说明：
+## Period Report / 周期报
 
-- 非 WIM 模块默认直接从 `result-root` 读取统计表和图片
-- WIM 默认从 `wim-root` 读取已处理好的月结果
-- 周期报第一版假设分析结果已经提前算好，报告程序不负责重算
+Use the period template, result root, WIM monthly results, and a date range.
+周期报需要周期模板、结果根目录、WIM 月结果和起止日期。
 
-## 5. GUI
+## Output Locations / 输出位置
 
-启动：
-
-```powershell
-reporting/.venv/Scripts/python reporting/report_gui.py
-```
-
-GUI 当前行为：
-
-- 默认结果目录：`E:\洪塘大桥数据\2026年1-3月`
-- 默认输出目录：`<结果目录>\自动报告`
-- 默认 WIM 结果目录：`<结果目录>\WIM\results\hongtang`
-- 如果存在机器专用配置：
-  - `config\hongtang_config_<COMPUTERNAME>.json`
-  - GUI 会优先选它
-
-报告类型：
-
-- `月报`
-- `周期报（含WIM）`
-
-## 6. 打包 GUI
-
-```powershell
-powershell -ExecutionPolicy Bypass -File reporting/build_gui_exe.ps1
-```
-
-输出：
-
-- `reporting/dist/MonthlyReportBuilder/MonthlyReportBuilder.exe`
-
-## 7. 配置说明
-
-`config/hongtang_config.json` 中 `reporting` 配置当前支持：
-
-- `enabled`
-- `order`
-- `girder_order` / `tower_order`
-- `force_order`
-- `include`
-- `exclude`
-
-机器专用配置建议单独放：
-
-- `config/hongtang_config_<COMPUTERNAME>.json`
-
-这样可以保留生产机路径、SQL Server 实例等环境差异，同时继续跟随主线业务配置更新。
+- Report document / 报告文档: `<result-root>/自动报告/`
+- Stats workbooks / 统计表: `<result-root>/stats/`
+- Run logs / 运行日志: `<result-root>/run_logs/`
+- WIM monthly results / WIM 月结果: `<result-root>/WIM/results/hongtang/<yyyymm>/`

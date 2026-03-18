@@ -6,7 +6,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, Signal, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -28,18 +28,64 @@ from build_monthly_report import build_report
 from build_period_report import build_period_report
 
 
-MONTHLY_REPORT = "月报"
-PERIOD_REPORT = "周期报（含WIM）"
+MONTHLY_REPORT = "\u6708\u62a5"
+PERIOD_REPORT = "\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
+MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
+PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f.docx"
+DEFAULT_RESULT_ROOT = Path("E:" + "\\" + "\u6d2a\u5858\u5927\u6865\u6570\u636e" + "\\" + "2026\u5e741-3\u6708")
 
 
-def detect_default_config(repo_root: Path) -> Path:
-    config_dir = repo_root / "config"
+def app_root() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parents[1]
+
+
+def candidate_config_roots() -> list[Path]:
+    roots = [app_root() / "config", Path.cwd() / "config"]
+    unique: list[Path] = []
+    for root in roots:
+        if root not in unique:
+            unique.append(root)
+    return unique
+
+
+def candidate_report_roots() -> list[Path]:
+    roots = [app_root() / "reports", Path.cwd() / "reports"]
+    unique: list[Path] = []
+    for root in roots:
+        if root not in unique:
+            unique.append(root)
+    return unique
+
+
+def detect_default_config() -> Path:
     computer_name = os.environ.get("COMPUTERNAME", "").strip()
-    if computer_name:
-        machine_cfg = config_dir / f"hongtang_config_{computer_name}.json"
-        if machine_cfg.exists():
-            return machine_cfg.resolve()
-    return (config_dir / "hongtang_config.json").resolve()
+    for config_dir in candidate_config_roots():
+        if computer_name:
+            machine_cfg = config_dir / f"hongtang_config_{computer_name}.json"
+            if machine_cfg.exists():
+                return machine_cfg.resolve()
+        default_cfg = config_dir / "hongtang_config.json"
+        if default_cfg.exists():
+            return default_cfg.resolve()
+    return (app_root() / "config" / "hongtang_config.json").resolve()
+
+
+def find_default_template(report_type: str) -> Path:
+    preferred = PERIOD_TEMPLATE_NAME if report_type == PERIOD_REPORT else MONTHLY_TEMPLATE_NAME
+    fallback = MONTHLY_TEMPLATE_NAME if report_type == PERIOD_REPORT else PERIOD_TEMPLATE_NAME
+    for reports_dir in candidate_report_roots():
+        preferred_path = reports_dir / preferred
+        if preferred_path.exists():
+            return preferred_path.resolve()
+        fallback_path = reports_dir / fallback
+        if fallback_path.exists():
+            return fallback_path.resolve()
+        candidates = sorted(reports_dir.glob("*.docx"))
+        if candidates:
+            return candidates[0].resolve()
+    return (app_root() / "reports" / preferred).resolve()
 
 
 def derive_wim_root(result_root: Path) -> Path:
@@ -47,7 +93,17 @@ def derive_wim_root(result_root: Path) -> Path:
 
 
 def derive_output_dir(result_root: Path) -> Path:
-    return result_root / "自动报告"
+    return result_root / "\u81ea\u52a8\u62a5\u544a"
+
+
+def top_help_text() -> str:
+    return (
+        "\u6a21\u677f\u6587\u4ef6\uff1a\u6708\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\u201d\uff0c"
+        "\u5468\u671f\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f.docx\u201d\u3002\n"
+        "\u914d\u7f6e\u6587\u4ef6\uff1a\u76f4\u63a5\u5f71\u54cd\u62a5\u544a\u751f\u6210\u7684\u4e3b\u8981\u662f plot_styles.* \u8f93\u51fa\u76ee\u5f55\u3001reporting.* \u63d2\u56fe\u987a\u5e8f/\u542f\u7528\u3001wim.* \u548c wim_db.*\u3002\n"
+        "\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55\uff1a\u6307\u653e\u56fe\u7247\u3001stats\u3001\u81ea\u52a8\u62a5\u544a\u7684\u6839\u76ee\u5f55\u3002\n"
+        "\u7a0b\u5e8f\u6839\u76ee\u5f55\uff08\u9ad8\u7ea7\uff09\uff1a\u4e3b\u8981\u7528\u4e8e\u517c\u5bb9\u65e7\u8def\u5f84\u548c\u56de\u9000\u67e5\u627e\uff0c\u901a\u5e38\u4fdd\u6301\u7a0b\u5e8f\u6240\u5728\u76ee\u5f55\u5373\u53ef\u3002"
+    )
 
 
 class ReportWorker(QObject):
@@ -86,13 +142,13 @@ class ReportWorker(QObject):
 
     def run(self) -> None:
         try:
-            self.log.emit(f"模板: {self.template}")
-            self.log.emit(f"配置: {self.config_path}")
-            self.log.emit(f"结果目录: {self.result_root}")
-            self.log.emit(f"报告类型: {self.report_type}")
+            self.log.emit(f"\u6a21\u677f: {self.template}")
+            self.log.emit(f"\u914d\u7f6e: {self.config_path}")
+            self.log.emit(f"\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55: {self.result_root}")
+            self.log.emit(f"\u62a5\u544a\u7c7b\u578b: {self.report_type}")
             if self.report_type == PERIOD_REPORT and self.wim_root is not None:
-                self.log.emit(f"WIM结果目录: {self.wim_root}")
-            self.log.emit("开始生成报告...")
+                self.log.emit(f"WIM\u7ed3\u679c\u76ee\u5f55: {self.wim_root}")
+            self.log.emit("\u5f00\u59cb\u751f\u6210\u62a5\u544a...")
 
             if self.report_type == PERIOD_REPORT:
                 manifest_path, report_path, missing = build_period_report(
@@ -123,13 +179,13 @@ class ReportWorker(QObject):
             self.log.emit(f"Manifest: {manifest_path}")
             self.log.emit(f"Report:   {report_path}")
             if missing:
-                self.log.emit("警告/缺失资源:")
+                self.log.emit("\u8b66\u544a/\u7f3a\u5931\u8d44\u6e90:")
                 for item in missing:
                     self.log.emit(f"  - {item}")
-            self.log.emit("完成")
+            self.log.emit("\u5b8c\u6210")
             self.finished.emit(str(manifest_path), str(report_path))
         except Exception as exc:  # noqa: BLE001
-            self.log.emit("生成失败")
+            self.log.emit("\u751f\u6210\u5931\u8d25")
             self.log.emit(str(exc))
             self.log.emit(traceback.format_exc())
             self.failed.emit(str(exc))
@@ -138,8 +194,8 @@ class ReportWorker(QObject):
 class ReportGui(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("报告生成器")
-        self.resize(980, 720)
+        self.setWindowTitle("\u62a5\u544a\u751f\u6210\u5668")
+        self.resize(1040, 820)
         self._last_output_dir: Path | None = None
         self._last_result_root: Path | None = None
         self._thread: QThread | None = None
@@ -151,68 +207,87 @@ class ReportGui(QMainWindow):
         self.setCentralWidget(central)
         outer = QVBoxLayout(central)
 
+        help_label = QLabel(top_help_text())
+        help_label.setWordWrap(True)
+        help_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        help_label.setStyleSheet("QLabel { background: #f5f7fa; border: 1px solid #d0d7de; padding: 8px; }")
+        outer.addWidget(help_label)
+
+        top_actions = QHBoxLayout()
+        doc_btn = QPushButton("\u6253\u5f00\u81ea\u52a8\u62a5\u544a\u8bf4\u660e")
+        doc_btn.clicked.connect(self._open_logic_doc)
+        top_actions.addWidget(doc_btn)
+        top_actions.addStretch(1)
+        outer.addLayout(top_actions)
+
         grid = QGridLayout()
         grid.setColumnStretch(1, 1)
         outer.addLayout(grid)
 
-        repo_root = Path(__file__).resolve().parents[1]
-        default_result_root = Path(r"E:\洪塘大桥数据\2026年1-3月")
+        repo_root = app_root()
+        default_result_root = DEFAULT_RESULT_ROOT
 
         self.report_type_combo = QComboBox()
         self.report_type_combo.addItems([MONTHLY_REPORT, PERIOD_REPORT])
-        self.template_edit = QLineEdit(str(self._find_default_template()))
-        self.config_edit = QLineEdit(str(detect_default_config(repo_root)))
+        self.template_edit = QLineEdit(str(find_default_template(MONTHLY_REPORT)))
+        self.config_edit = QLineEdit(str(detect_default_config()))
         self.result_root_edit = QLineEdit(str(default_result_root))
         self.analysis_root_edit = QLineEdit(str(repo_root.resolve()))
         self.wim_root_edit = QLineEdit(str(derive_wim_root(default_result_root)))
         self.output_dir_edit = QLineEdit(str(derive_output_dir(default_result_root)))
-        self.period_edit = QLineEdit("2026年1-3月")
+        self.period_edit = QLineEdit("2026\u5e741-3\u6708")
         self.range_edit = QLineEdit("2026.01.01~2026.03.16")
         self.start_edit = QLineEdit("2026-01-01")
         self.end_edit = QLineEdit("2026-03-16")
-        self.date_edit = QLineEdit(datetime.now().strftime("%Y年%m月%d日"))
+        self.date_edit = QLineEdit(datetime.now().strftime("%Y\u5e74%m\u6708%d\u65e5"))
 
         rows = [
-            ("报告类型", self.report_type_combo, None),
-            ("模板文件", self.template_edit, self._browse_template),
-            ("配置文件", self.config_edit, self._browse_config),
-            ("结果目录", self.result_root_edit, self._browse_result_root),
-            ("分析根目录", self.analysis_root_edit, self._browse_analysis_root),
-            ("WIM结果目录", self.wim_root_edit, self._browse_wim_root),
-            ("输出目录", self.output_dir_edit, self._browse_output_dir),
-            ("报告期", self.period_edit, None),
-            ("监测时间", self.range_edit, None),
-            ("开始日期", self.start_edit, None),
-            ("结束日期", self.end_edit, None),
-            ("报告日期", self.date_edit, None),
+            ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, "\u6708\u62a5\u6216\u5468\u671f\u62a5\uff08\u542bWIM\uff09\u3002\u5207\u6362\u540e\u4f1a\u81ea\u52a8\u5207\u6362\u9ed8\u8ba4\u6a21\u677f\u3002"),
+            ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6708\u62a5\u9ed8\u8ba4\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u5468\u671f\u62a5\u9ed8\u8ba4\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f.docx\u3002"),
+            ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "\u4f18\u5148\u8bfb\u53d6\u673a\u5668\u4e13\u7528\u914d\u7f6e hongtang_config_<COMPUTERNAME>.json\u3002"),
+            ("\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55", self.result_root_edit, self._browse_result_root, "\u8fd9\u91cc\u653e\u56fe\u7247\u3001stats\u3001\u81ea\u52a8\u62a5\u544a\u3002\u5468\u671f\u62a5\u4e5f\u4ece\u8fd9\u91cc\u8bfb\u53d6 WIM/results\u3002"),
+            ("\u7a0b\u5e8f\u6839\u76ee\u5f55\uff08\u9ad8\u7ea7\uff09", self.analysis_root_edit, self._browse_analysis_root, "\u517c\u5bb9\u65e7\u8def\u5f84\u548c\u5c11\u91cf\u56de\u9000\u67e5\u627e\uff0c\u901a\u5e38\u4fdd\u6301\u7a0b\u5e8f\u6240\u5728\u76ee\u5f55\u5373\u53ef\u3002"),
+            ("WIM\u7ed3\u679c\u76ee\u5f55", self.wim_root_edit, self._browse_wim_root, "\u5468\u671f\u62a5\u4f7f\u7528\uff0c\u9ed8\u8ba4\u662f <\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55>/WIM/results/hongtang\u3002"),
+            ("\u8f93\u51fa\u76ee\u5f55", self.output_dir_edit, self._browse_output_dir, "\u62a5\u544a\u8f93\u51fa\u76ee\u5f55\uff0c\u9ed8\u8ba4\u662f <\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55>/\u81ea\u52a8\u62a5\u544a\u3002"),
+            ("\u62a5\u544a\u671f", self.period_edit, None, "\u663e\u793a\u5728\u62a5\u544a\u4e2d\u7684\u62a5\u544a\u671f\u6587\u5b57\uff0c\u4f8b\u5982 2026\u5e741-3\u6708\u3002"),
+            ("\u76d1\u6d4b\u65f6\u95f4", self.range_edit, None, "\u663e\u793a\u5728\u62a5\u544a\u4e2d\u7684\u76d1\u6d4b\u65f6\u95f4\u6587\u5b57\uff0c\u4f8b\u5982 2026.01.01~2026.03.16\u3002"),
+            ("\u5f00\u59cb\u65e5\u671f", self.start_edit, None, "\u5468\u671f\u62a5\u4f7f\u7528\uff0c\u7528\u4e8e\u63a8\u5bfc WIM \u5904\u7406\u6708\u4efd\u8303\u56f4\u3002"),
+            ("\u7ed3\u675f\u65e5\u671f", self.end_edit, None, "\u5468\u671f\u62a5\u4f7f\u7528\uff0c\u7528\u4e8e\u63a8\u5bfc WIM \u5904\u7406\u6708\u4efd\u8303\u56f4\u3002"),
+            ("\u62a5\u544a\u65e5\u671f", self.date_edit, None, "\u663e\u793a\u5728\u5c01\u9762\u548c\u6b63\u6587\u4e2d\u7684\u62a5\u544a\u65e5\u671f\u3002"),
         ]
 
-        for row_idx, (label, edit, callback) in enumerate(rows):
-            grid.addWidget(QLabel(label), row_idx, 0)
+        for row_idx, (label, edit, callback, tip) in enumerate(rows):
+            base_row = row_idx * 2
+            lab = QLabel(label)
+            grid.addWidget(lab, base_row, 0)
             edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            grid.addWidget(edit, row_idx, 1)
+            grid.addWidget(edit, base_row, 1)
             if callback is not None:
-                btn = QPushButton("浏览")
+                btn = QPushButton("\u6d4f\u89c8")
                 btn.clicked.connect(callback)
-                grid.addWidget(btn, row_idx, 2)
+                grid.addWidget(btn, base_row, 2)
+            tip_label = QLabel(tip)
+            tip_label.setWordWrap(True)
+            tip_label.setStyleSheet("QLabel { color: #6b7280; font-size: 12px; }")
+            grid.addWidget(tip_label, base_row + 1, 1, 1, 2)
 
         self.report_type_combo.currentTextChanged.connect(self._on_report_type_changed)
 
         action_row = QHBoxLayout()
-        self.generate_btn = QPushButton("生成报告")
+        self.generate_btn = QPushButton("\u751f\u6210\u62a5\u544a")
         self.generate_btn.clicked.connect(self._on_generate)
         action_row.addWidget(self.generate_btn)
 
-        self.open_btn = QPushButton("打开输出目录")
+        self.open_btn = QPushButton("\u6253\u5f00\u8f93\u51fa\u76ee\u5f55")
         self.open_btn.clicked.connect(self._open_output_dir)
         action_row.addWidget(self.open_btn)
 
-        sync_btn = QPushButton("按结果目录同步路径")
+        sync_btn = QPushButton("\u6309\u7ed3\u679c\u76ee\u5f55\u540c\u6b65\u8def\u5f84")
         sync_btn.clicked.connect(lambda: self._sync_result_dependent_paths(force=True))
         action_row.addWidget(sync_btn)
 
         action_row.addStretch(1)
-        self.status_label = QLabel("就绪")
+        self.status_label = QLabel("\u5c31\u7eea")
         action_row.addWidget(self.status_label)
         outer.addLayout(action_row)
 
@@ -223,40 +298,53 @@ class ReportGui(QMainWindow):
         self._on_report_type_changed(self.report_type_combo.currentText())
         self._last_result_root = default_result_root
 
-    def _find_default_template(self) -> Path:
-        reports_dir = Path("reports")
-        candidates = sorted(reports_dir.glob("*.docx"))
-        return candidates[0].resolve() if candidates else reports_dir.resolve()
+    def _open_logic_doc(self) -> None:
+        candidates = [app_root() / "REPORTING_LOGIC.md", app_root() / "reporting" / "REPORTING_LOGIC.md"]
+        doc_path = next((p for p in candidates if p.exists()), None)
+        if doc_path is None:
+            QMessageBox.warning(self, "\u672a\u627e\u5230\u8bf4\u660e", "\u672a\u627e\u5230 REPORTING_LOGIC.md\u3002")
+            return
+        try:
+            os.startfile(str(doc_path))
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "\u6253\u5f00\u5931\u8d25", str(exc))
+
+    def _maybe_update_template_for_type(self) -> None:
+        current = self.template_edit.text().strip()
+        names = {MONTHLY_TEMPLATE_NAME, PERIOD_TEMPLATE_NAME}
+        should_replace = (not current) or (Path(current).name in names) or (not Path(current).exists())
+        if should_replace:
+            self.template_edit.setText(str(find_default_template(self.report_type_combo.currentText())))
 
     def _browse_template(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "选择模板文件", str(Path.cwd()), "Word files (*.docx)")
+        path, _ = QFileDialog.getOpenFileName(self, "\u9009\u62e9\u6a21\u677f\u6587\u4ef6", str(app_root()), "Word files (*.docx)")
         if path:
             self.template_edit.setText(path)
 
     def _browse_config(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "选择配置文件", str(Path.cwd()), "JSON files (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, "\u9009\u62e9\u914d\u7f6e\u6587\u4ef6", str(app_root()), "JSON files (*.json)")
         if path:
             self.config_edit.setText(path)
 
     def _browse_result_root(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "选择结果目录", self.result_root_edit.text())
+        path = QFileDialog.getExistingDirectory(self, "\u9009\u62e9\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55", self.result_root_edit.text())
         if path:
             previous_root = Path(self.result_root_edit.text()).expanduser() if self.result_root_edit.text().strip() else None
             self.result_root_edit.setText(path)
             self._sync_result_dependent_paths(previous_root=previous_root, force=False)
 
     def _browse_analysis_root(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "选择分析根目录", self.analysis_root_edit.text())
+        path = QFileDialog.getExistingDirectory(self, "\u9009\u62e9\u7a0b\u5e8f\u6839\u76ee\u5f55", self.analysis_root_edit.text())
         if path:
             self.analysis_root_edit.setText(path)
 
     def _browse_wim_root(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "选择WIM结果目录", self.wim_root_edit.text())
+        path = QFileDialog.getExistingDirectory(self, "\u9009\u62e9WIM\u7ed3\u679c\u76ee\u5f55", self.wim_root_edit.text())
         if path:
             self.wim_root_edit.setText(path)
 
     def _browse_output_dir(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "选择输出目录", self.output_dir_edit.text())
+        path = QFileDialog.getExistingDirectory(self, "\u9009\u62e9\u8f93\u51fa\u76ee\u5f55", self.output_dir_edit.text())
         if path:
             self.output_dir_edit.setText(path)
 
@@ -295,13 +383,14 @@ class ReportGui(QMainWindow):
         self.wim_root_edit.setEnabled(period_mode)
         self.start_edit.setEnabled(period_mode)
         self.end_edit.setEnabled(period_mode)
+        self._maybe_update_template_for_type()
 
     def _log(self, text: str) -> None:
         self.log_edit.appendPlainText(text)
 
     def _set_busy(self, busy: bool) -> None:
         self.generate_btn.setEnabled(not busy)
-        self.status_label.setText("运行中..." if busy else "就绪")
+        self.status_label.setText("\u8fd0\u884c\u4e2d..." if busy else "\u5c31\u7eea")
 
     def _on_generate(self) -> None:
         template = Path(self.template_edit.text()).expanduser()
@@ -313,16 +402,16 @@ class ReportGui(QMainWindow):
         wim_root = Path(self.wim_root_edit.text()).expanduser() if self.wim_root_edit.text().strip() else None
 
         if not template.exists():
-            QMessageBox.critical(self, "错误", f"模板不存在:\n{template}")
+            QMessageBox.critical(self, "\u9519\u8bef", f"\u6a21\u677f\u4e0d\u5b58\u5728:\n{template}")
             return
         if not config_path.exists():
-            QMessageBox.critical(self, "错误", f"配置不存在:\n{config_path}")
+            QMessageBox.critical(self, "\u9519\u8bef", f"\u914d\u7f6e\u4e0d\u5b58\u5728:\n{config_path}")
             return
         if not result_root.exists():
-            QMessageBox.critical(self, "错误", f"结果目录不存在:\n{result_root}")
+            QMessageBox.critical(self, "\u9519\u8bef", f"\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55\u4e0d\u5b58\u5728:\n{result_root}")
             return
         if report_type == PERIOD_REPORT and wim_root is not None and not wim_root.exists():
-            QMessageBox.critical(self, "错误", f"WIM结果目录不存在:\n{wim_root}")
+            QMessageBox.critical(self, "\u9519\u8bef", f"WIM\u7ed3\u679c\u76ee\u5f55\u4e0d\u5b58\u5728:\n{wim_root}")
             return
 
         self._set_busy(True)
@@ -355,11 +444,11 @@ class ReportGui(QMainWindow):
     def _on_finished(self, manifest_path: str, report_path: str) -> None:
         self._last_output_dir = Path(report_path).parent
         self._set_busy(False)
-        QMessageBox.information(self, "完成", f"报告已生成:\n{report_path}\n\nManifest:\n{manifest_path}")
+        QMessageBox.information(self, "\u5b8c\u6210", f"\u62a5\u544a\u5df2\u751f\u6210:\n{report_path}\n\nManifest:\n{manifest_path}")
 
     def _on_failed(self, message: str) -> None:
         self._set_busy(False)
-        QMessageBox.critical(self, "生成失败", message)
+        QMessageBox.critical(self, "\u751f\u6210\u5931\u8d25", message)
 
     def _cleanup_thread(self) -> None:
         if self._worker is not None:
@@ -375,7 +464,7 @@ class ReportGui(QMainWindow):
         try:
             os.startfile(str(out_dir))
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "打开失败", str(exc))
+            QMessageBox.critical(self, "\u6253\u5f00\u5931\u8d25", str(exc))
 
 
 def main() -> None:
