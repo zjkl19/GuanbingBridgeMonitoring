@@ -54,3 +54,11 @@ reporting/build/
 reporting/dist/
 reporting/*.spec
 /*.spec
+reporting/__pycache__/
+reports_paras.txt
+config/*_backup_*.json
+config/default_config_production0310.json
+/桥隧管养平台需求确认单2026_02.xlsx
+/线上平台两个月实施计划_20260309.xlsx
+/线上平台汇报口径_截至20260430.md
+/线上平台通用化实施计划_截至20260430.xlsx
