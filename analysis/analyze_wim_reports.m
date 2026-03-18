@@ -192,10 +192,12 @@ function [fmt_path, bcp_path] = resolve_zhichen_paths(input_cfg, base, yyyymm)
     fmt_path = fullfile(input_dir, fmt_name);
     bcp_path = fullfile(input_dir, bcp_name);
     if ~exist(fmt_path, 'file')
-        error('Fmt file not found: %s', fmt_path);
+        error('WIM:Input:MissingFmt', ...
+            'WIM input file missing for %s: fmt file not found: %s', yyyymm, fmt_path);
     end
     if ~exist(bcp_path, 'file')
-        error('BCP file not found: %s', bcp_path);
+        error('WIM:Input:MissingBcp', ...
+            'WIM input file missing for %s: bcp file not found: %s', yyyymm, bcp_path);
     end
 end
 
@@ -1655,14 +1657,14 @@ function run_sqlcmd_file(db, script_path, out_path, vars)
     args = sprintf('-i \"%s\" -o \"%s\" -s , -W -h -1 -w 65535', script_path, out_path);
     [status, out] = run_sqlcmd_system(db, args, vars);
     if status ~= 0
-        error('sqlcmd failed: %s', out);
+        throw_sqlcmd_error(db, out, sprintf('script %s', script_path));
     end
 end
 
 function run_sqlcmd_query(db, sql)
     [status, out] = run_sqlcmd_system(db, sprintf('-Q \"%s\" -h -1 -W', escape_cmd_sql(sql)), struct());
     if status ~= 0
-        error('sqlcmd failed: %s', out);
+        throw_sqlcmd_error(db, out, 'query');
     end
 end
 
@@ -1670,7 +1672,7 @@ function run_sqlcmd_query_to_file(db, sql, out_path)
     [status, out] = run_sqlcmd_system(db, sprintf('-Q \"%s\" -o \"%s\" -s , -W -h -1 -w 65535', ...
         escape_cmd_sql(sql), out_path), struct());
     if status ~= 0
-        error('sqlcmd failed: %s', out);
+        throw_sqlcmd_error(db, out, sprintf('query output %s', out_path));
     end
 end
 
@@ -1758,7 +1760,7 @@ end
 function out = run_sqlcmd_capture(db, sql)
     [status, out] = run_sqlcmd_system(db, sprintf('-Q \"%s\" -h -1 -W', escape_cmd_sql(sql)), struct());
     if status ~= 0
-        error('sqlcmd failed: %s', out);
+        throw_sqlcmd_error(db, out, 'scalar query');
     end
     out = strtrim(out);
     % sqlcmd may include localized "(x rows affected)" lines; keep first numeric token.
@@ -1774,6 +1776,68 @@ function [status, out] = run_sqlcmd_system(db, args, vars)
     if status ~= 0 && db.sqlcmd_utf8
         cmd = build_sqlcmd_cmd(db, args, vars, false);
         [status, out] = system(cmd);
+    end
+end
+
+function throw_sqlcmd_error(db, out, context)
+    [err_id, err_msg] = classify_sqlcmd_error(db, out, context);
+    error(err_id, '%s\n\nDetails:\n%s', err_msg, strtrim(char(string(out))));
+end
+
+function [err_id, err_msg] = classify_sqlcmd_error(db, out, context)
+    raw = char(string(out));
+    raw_lower = lower(raw);
+    server = get_field_default(db, 'server', '(unset)');
+    database = get_field_default(db, 'database', '(unset)');
+    service = get_field_default(db, 'service_name', '(auto)');
+
+    if contains_any(raw, {'无法打开登录所请求的数据库', '找不到数据库'}) || ...
+            contains_any(raw_lower, {'cannot open database', 'database does not exist'})
+        err_id = 'WIM:SQL:DatabaseMissing';
+        err_msg = sprintf([ ...
+            'WIM SQL database error while running %s. Database "%s" cannot be opened or does not exist. ' ...
+            'Check wim_db.database and create the database before importing WIM data.'], ...
+            context, database);
+        return;
+    end
+
+    if contains_any(raw, {'登录失败', '没有所需的权限', '拒绝访问', '无法执行 批量加载', '无法执行 BULK LOAD'}) || ...
+            contains_any(raw_lower, {'login failed for user', 'permission denied', 'access is denied', ...
+            'you do not have permission', 'bulk load', 'operating system error code 5'})
+        err_id = 'WIM:SQL:Permission';
+        err_msg = sprintf([ ...
+            'WIM SQL permission error while running %s. Current Windows login cannot access server "%s" ' ...
+            'or database "%s". Check SQL Server permissions, bulk import rights, and Windows authentication.'], ...
+            context, server, database);
+        return;
+    end
+
+    if contains_any(raw, {'未与 SQL Server 建立连接', '与 SQL Server 建立连接时发生了与网络相关的或特定于实例的错误', ...
+            '服务器不存在或拒绝访问', '命名管道提供程序', 'SQL Server 不存在或访问被拒绝'}) || ...
+            contains_any(raw_lower, {'network-related or instance-specific error', 'server does not exist or access denied', ...
+            'sql server does not exist or access denied', 'named pipes provider', 'error: 40', ...
+            'login timeout expired', 'server was not found or was not accessible'})
+        err_id = 'WIM:SQL:Instance';
+        err_msg = sprintf([ ...
+            'WIM SQL instance/connectivity error while running %s. Cannot connect to server "%s". ' ...
+            'Check wim_db.server, SQL Server service "%s", and local instance availability.'], ...
+            context, server, service);
+        return;
+    end
+
+    err_id = 'WIM:SQL:CommandFailed';
+    err_msg = sprintf([ ...
+        'WIM SQL command failed while running %s on server "%s", database "%s". ' ...
+        'See sqlcmd details below.'], context, server, database);
+end
+
+function tf = contains_any(text, patterns)
+    tf = false;
+    for i = 1:numel(patterns)
+        if contains(text, patterns{i})
+            tf = true;
+            return;
+        end
     end
 end
 
