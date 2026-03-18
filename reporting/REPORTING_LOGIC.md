@@ -37,6 +37,11 @@ The generator does not rebuild the whole document. It looks for existing section
   - Period reports insert WIM month by month.
   - Each month includes summary text, traffic table, top-10 gross weight table, top-10 axle weight table, and six traffic figures.
   - 周期报中 WIM 按月插入。每个月包含摘要、车流量统计表、前 10 总重表、前 10 轴重表及六张交通图。
+- `1.4 健康监测系统运行状况 / System Health Status`
+  - Only raw missing/no-file/no-record conditions are counted.
+  - This section is accurate only when the selected result root also contains the raw source data required by the missing-data scan.
+  - 只统计原始缺失/无文件/无记录。
+  - 只有当所选结果根目录同时包含原始数据时，这一节才是准确的。
 
 ## Config Keys Used Directly / 直接读取的配置项
 

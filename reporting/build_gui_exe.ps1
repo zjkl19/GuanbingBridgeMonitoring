@@ -15,13 +15,13 @@ if (-not (Test-Path $PythonExe)) {
   --noconfirm `
   --clean `
   --noconsole `
-  --name MonthlyReportBuilder `
+  --name BridgeReportBuilder `
   --distpath reporting\dist `
   --workpath reporting\build `
   reporting\report_gui.py | Out-Host
 
-Copy-Item -Recurse -Force reports reporting\dist\MonthlyReportBuilder\reports
-Copy-Item -Force reporting\README.md reporting\dist\MonthlyReportBuilder\README.md
-Copy-Item -Force reporting\REPORTING_LOGIC.md reporting\dist\MonthlyReportBuilder\REPORTING_LOGIC.md
+Copy-Item -Recurse -Force reports reporting\dist\BridgeReportBuilder\reports
+Copy-Item -Force reporting\README.md reporting\dist\BridgeReportBuilder\README.md
+Copy-Item -Force reporting\REPORTING_LOGIC.md reporting\dist\BridgeReportBuilder\REPORTING_LOGIC.md
 
-Write-Host "GUI exe built at reporting\\dist\\MonthlyReportBuilder\\MonthlyReportBuilder.exe"
+Write-Host "GUI exe built at reporting\\dist\\BridgeReportBuilder\\BridgeReportBuilder.exe"
