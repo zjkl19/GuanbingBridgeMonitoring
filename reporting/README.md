@@ -67,7 +67,7 @@ E:/洪塘大桥数据/2026年1-3月/
   - `月报` 或 `周期报（含 WIM）`
 - `模板文件 / Template`
   - Monthly default: `洪塘大桥健康监测月报模板.docx`
-  - Period default: `洪塘大桥健康监测周期报模板.docx`
+  - Period default: `洪塘大桥健康监测周期报模板0318.docx`
 - `配置文件 / Config`
   - Prefer machine-specific override when present.
   - 存在机器专用配置时优先使用。

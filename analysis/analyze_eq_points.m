@@ -21,20 +21,31 @@ function analyze_eq_points(root_dir, start_date, end_date, subfolder, cfg)
     style = get_eq_style(cfg);
     out_root = fullfile(root_dir, style.output.root_dir);
     ensure_dir(out_root);
+    records = repmat(init_eq_record(), numel(points), 1);
+    parallel_plan = get_parallel_plan(cfg, numel(points), 'eq');
+
+    if parallel_plan.enabled
+        fprintf('地震动分析使用并行数据收集 (%d workers)\n', parallel_plan.worker_count);
+        parfor i = 1:numel(points)
+            records(i) = collect_eq_record(root_dir, subfolder, points{i}, start_date, end_date, cfg);
+        end
+    else
+        for i = 1:numel(points)
+            records(i) = collect_eq_record(root_dir, subfolder, points{i}, start_date, end_date, cfg);
+        end
+    end
 
     for i = 1:numel(points)
-        pid = points{i};
-        [sensor_type, comp] = get_eq_component(pid);
-        fprintf('处理测点 %s ...', pid);
-
-        [times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, sensor_type);
-        if isempty(vals)
-            warning('测点 %s 无数据，跳过', pid);
+        rec = records(i);
+        fprintf('处理测点 %s ...', rec.pid);
+        if ~rec.has_data
+            warning('测点 %s 无数据，跳过', rec.pid);
             continue;
         end
-
-        params = get_eq_params(cfg, pid);
-        plot_eq_timeseries(times, vals, pid, comp, params, style, out_root, start_date, end_date);
+        if parallel_plan.enabled
+            record_parallel_offset_correction(cfg, rec.sensor_type, rec.pid, rec.times, rec.vals);
+        end
+        plot_eq_timeseries(rec.times, rec.vals, rec.pid, rec.comp, rec.params, style, out_root, start_date, end_date);
     end
 
     time_end = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
@@ -257,4 +268,23 @@ function txt = to_char(v)
     else
         txt = char(string(v));
     end
+end
+
+function rec = init_eq_record()
+rec = struct('pid', '', 'sensor_type', '', 'comp', '', ...
+    'times', [], 'vals', [], 'params', struct(), 'has_data', false);
+end
+
+function rec = collect_eq_record(root_dir, subfolder, pid, start_date, end_date, cfg)
+rec = init_eq_record();
+rec.pid = pid;
+[rec.sensor_type, rec.comp] = get_eq_component(pid);
+[times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, rec.sensor_type);
+rec.params = get_eq_params(cfg, pid);
+if isempty(vals)
+    return;
+end
+rec.times = times;
+rec.vals = vals;
+rec.has_data = true;
 end

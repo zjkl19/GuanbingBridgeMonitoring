@@ -807,7 +807,7 @@ def build_tilt_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
         "enabled": reporting_enabled(cfg, "tilt"),
         "chapter": summary,
         "images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in items],
-        "caption": "图 4-7 桥塔各截面位置倾角时程曲线图",
+        "caption": "桥塔各截面位置倾角时程曲线图",
         "image_lookup": [deepcopy(item.lookup) | {"label": item.label} for item in items],
     }
 
@@ -867,7 +867,7 @@ def build_bearing_section(cfg: dict, stats_root: Path, fallback_stats_root: Path
         "min_val": min_val,
         "max_val": max_val,
         "images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in items],
-        "caption": "图 4-8 典型测点支座变位时程曲线图",
+        "caption": "典型测点支座变位时程曲线图",
         "image_lookup": [deepcopy(item.lookup) | {"label": item.label} for item in items],
     }
 
@@ -982,8 +982,8 @@ def build_cable_force_section(cfg: dict, stats_root: Path, fallback_stats_root: 
         "max_change": max(change_rates) if change_rates else None,
         "accel_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in accel_items],
         "force_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in force_items],
-        "accel_caption": "\u56fe 4-9 \u5178\u578b\u6d4b\u70b9\u632f\u52a8\u52a0\u901f\u5ea6\u7edd\u5bf9\u6700\u5927\u503c\u65f6\u7a0b\u56fe\u548c10min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u56fe",
-        "force_caption": "\u56fe 4-10 \u5178\u578b\u6d4b\u70b9\u7d22\u529b\u65f6\u7a0b\u56fe",
+        "accel_caption": "\u5178\u578b\u6d4b\u70b9\u632f\u52a8\u52a0\u901f\u5ea6\u7edd\u5bf9\u6700\u5927\u503c\u65f6\u7a0b\u56fe\u548c10min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u56fe",
+        "force_caption": "\u5178\u578b\u6d4b\u70b9\u7d22\u529b\u65f6\u7a0b\u56fe",
         "table_rows": table_rows,
         "image_lookup": {
             "accel": label_path_dicts(accel_items),
@@ -1033,8 +1033,8 @@ def build_vibration_section(cfg: dict, stats_root: Path, fallback_stats_root: Pa
         "freq_summary": freq_summary,
         "timeseries_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in ts_items],
         "freq_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in freq_items],
-        "timeseries_caption": "图 4-11 典型测点振动加速度绝对最大值时程图和10min加速度均方根图",
-        "freq_caption": "图 4-12 典型测点自振频率时程图",
+        "timeseries_caption": "典型测点振动加速度绝对最大值时程图和10min加速度均方根图",
+        "freq_caption": "典型测点自振频率时程图",
         "image_lookup": {
             "timeseries": label_path_dicts(ts_items),
             "freq": label_path_dicts(freq_items),
@@ -1092,8 +1092,8 @@ def build_wind_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
         "max_10min": max_10min,
         "speed_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in speed_items],
         "rose_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in rose_items],
-        "speed_caption": "图 4-13 桥面10min平均风速时程图",
-        "rose_caption": "图 4-14 风玫瑰图",
+        "speed_caption": "桥面10min平均风速时程图",
+        "rose_caption": "风玫瑰图",
         "table_rows": table_rows,
         "image_lookup": {
             "speed": label_path_dicts(speed_items),
@@ -1146,7 +1146,7 @@ def build_eq_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | No
         "enabled": True,
         "summary": summary,
         "images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in items],
-        "caption": "图 4-15 地震动时程图",
+        "caption": "地震动时程图",
         "image_lookup": label_path_dicts(items),
         "peaks": peak_map,
         "horizontal_peak": horizontal_peak,

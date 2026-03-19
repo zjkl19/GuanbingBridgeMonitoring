@@ -1,15 +1,15 @@
 ﻿function analyze_cable_acceleration_points(root_dir, start_date, end_date, excel_file, subfolder, auto_detect_fs, cfg)
-% analyze_cable_acceleration_points 鎵归噺缁樺埗绱㈠姏鍔犻€熷害鏃剁▼鍙婄粺璁?
-%   root_dir: 鏍圭洰褰?
+% analyze_cable_acceleration_points 批量绘制索力加速度时程及统计
+%   root_dir: 根目录
 %   start_date,end_date: 'yyyy-MM-dd'
-%   excel_file: 杈撳嚭 Excel
-%   subfolder: 鏁版嵁瀛愮洰褰曪紝榛樿閰嶇疆閲岀殑 acceleration 瀛愮洰褰?
-%   auto_detect_fs: true 鏃舵牴鎹椂闂存埑浼拌閲囨牱鐜囷紝鍚﹀垯 100 Hz
-%   cfg: load_config() 缁撴瀯
+%   excel_file: 输出 Excel
+%   subfolder: 数据子目录，默认配置里的 cable_accel 子目录
+%   auto_detect_fs: true 时根据时间戳估计采样率，否则 100 Hz
+%   cfg: load_config() 结构
 
     if nargin<1||isempty(root_dir),    root_dir = pwd; end
-    if nargin<2||isempty(start_date),  start_date = input('寮€濮嬫棩鏈?yyyy-MM-dd): ','s'); end
-    if nargin<3||isempty(end_date),    end_date   = input('缁撴潫鏃ユ湡 (yyyy-MM-dd): ','s'); end
+    if nargin<2||isempty(start_date),  start_date = input('开始日期 (yyyy-MM-dd): ','s'); end
+    if nargin<3||isempty(end_date),    end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
     if nargin<4||isempty(excel_file),  excel_file = 'cable_accel_stats.xlsx'; end
     excel_file = resolve_data_output_path(root_dir, excel_file, 'stats');
     if nargin<5||isempty(subfolder)
@@ -17,7 +17,7 @@
         if isfield(cfg_tmp,'subfolders') && isfield(cfg_tmp.subfolders,'cable_accel')
             subfolder = cfg_tmp.subfolders.cable_accel;
         else
-            subfolder = '?????_???';
+            subfolder = '索力加速度_重采样';
         end
     end
     if nargin<6 || isempty(auto_detect_fs)
@@ -28,7 +28,7 @@
     end
 
     time_start = datetime('now','Format','yyyy-MM-dd HH:mm:ss');
-    fprintf('寮€濮嬫椂闂?%s\n', char(time_start));
+    fprintf('开始时间: %s\n', char(time_start));
 
     tpts = get_points(cfg, 'cable_accel', {});
     if isempty(tpts)
@@ -42,50 +42,49 @@
 
     style = get_style(cfg, 'cable_accel');
     stats = cell(numel(tpts),6);
+    records = repmat(init_cable_accel_record(), numel(tpts), 1);
+    parallel_plan = get_parallel_plan(cfg, numel(tpts), 'cable_accel');
+
+    if parallel_plan.enabled
+        fprintf('索力加速度分析使用并行数据收集 (%d workers)\n', parallel_plan.worker_count);
+        parfor i = 1:numel(tpts)
+            records(i) = collect_cable_accel_record(root_dir, subfolder, tpts{i}, start_date, end_date, cfg, auto_detect_fs);
+        end
+    else
+        for i = 1:numel(tpts)
+            records(i) = collect_cable_accel_record(root_dir, subfolder, tpts{i}, start_date, end_date, cfg, auto_detect_fs);
+        end
+    end
 
     for i = 1:numel(tpts)
-        pid = tpts{i}; fprintf('澶勭悊娴嬬偣 %s ...\n', pid);
-        [times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'cable_accel');
-        if isempty(vals)
-            warning('娴嬬偣 %s 鏃犳暟鎹紝璺宠繃', pid);
+        rec = records(i);
+        pid = rec.pid;
+        fprintf('处理测点 %s ...\n', pid);
+        if ~rec.has_data
+            warning('测点 %s 无数据，跳过', pid);
             continue;
         end
-        if auto_detect_fs
-            dts = seconds(diff(times));
-            fs = 1 / median(dts);
-            fprintf('鑷姩妫€娴嬮噰鏍风巼 %.2f Hz\n', fs);
+        if parallel_plan.enabled
+            fprintf('并行收集完成，采样率 %.2f Hz\n', rec.fs);
+            record_parallel_offset_correction(cfg, 'cable_accel', pid, rec.times, rec.vals);
+        elseif auto_detect_fs
+            fprintf('自动检测采样率 %.2f Hz\n', rec.fs);
         else
-            fs = 100;
-            fprintf('浣跨敤榛樿閲囨牱鐜? %d Hz\n', fs);
+            fprintf('使用默认采样率 %d Hz\n', round(rec.fs));
         end
-        window_sec = 10 * 60;          % 10 鍒嗛挓
-        win_len    = round(window_sec * fs);
-
-        mn = round(min(vals),3);
-        mx = round(max(vals),3);
-        av = round(mean(vals),3);
-        if numel(vals) >= win_len
-            rms_vals = sqrt(movmean(vals.^2, win_len, 'Endpoints','shrink'));
-            [rms_max, idx] = max(rms_vals);
-            rms_max = round(rms_max,3);
-            rms_time = times(idx);
-        else
-            rms_max = NaN;
-            rms_time = NaT;
-        end
-        stats(i,:) = {pid, mn, mx, av, rms_max,rms_time};
-        plot_accel_curve(root_dir,pid, times, vals, mn, mx, style);
-        plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date, style);
+        stats(i,:) = {pid, rec.mn, rec.mx, rec.av, rec.rms_max, rec.rms_time};
+        plot_accel_curve(root_dir, pid, rec.times, rec.vals, rec.mn, rec.mx, style);
+        plot_accel_rms_curve(root_dir, pid, rec.times, rec.vals, rec.fs, start_date, end_date, style);
     end
 
     T = cell2table(stats, 'VariableNames',{'PointID','Min','Max','Mean','RMS10minMax','RMSStartTime'});
     writetable(T, excel_file);
-    fprintf('缁熻缁撴灉宸蹭繚瀛樿嚦 %s\n', excel_file);
+    fprintf('统计结果已保存至 %s\n', excel_file);
 
     time_end = datetime('now','Format','yyyy-MM-dd HH:mm:ss');
-    fprintf('缁撴潫鏃堕棿: %s\n', char(time_end));
+    fprintf('结束时间: %s\n', char(time_end));
     elapsed = seconds(time_end - time_start);
-    fprintf('鎬荤敤鏃?%.2f 绉抃n', elapsed);
+    fprintf('总用时 %.2f 秒\n', elapsed);
 end
 
 function pts = get_points(cfg, key, fallback)
@@ -99,14 +98,14 @@ function pts = get_points(cfg, key, fallback)
 end
 
 function style = get_style(cfg, key)
-    style = struct('ylabel','绱㈠姏鍔犻€熷害 (mm/s^2)', ...
-                   'title_prefix','绱㈠姏鍔犻€熷害鏃剁▼', ...
+    style = struct('ylabel','索力加速度 (mm/s^2)', ...
+                   'title_prefix','索力加速度时程', ...
                    'ylim', [], ...
                    'ylims', [], ...
                    'color_main',[0 0.447 0.741], ...
                    'color_rms',[0.8500 0.3250 0.0980], ...
                    'rms_ylabel','10 min RMS (mm/s^2)', ...
-                   'rms_title_prefix','10 min RMS 鏃剁▼', ...
+                   'rms_title_prefix','10 min RMS 时程', ...
                    'rms_ylim', [], ...
                    'rms_ylims', []);
     if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,key)
@@ -136,10 +135,10 @@ function style = get_style(cfg, key)
 end
 
 function plot_accel_curve(root_dir,pid, times, vals, mn, mx, style)
-% 缁樺埗绱㈠姏鍔犻€熷害鏃剁▼鏇茬嚎鍙婃爣灏?
+% 绘制索力加速度时程曲线及标注
 fig = figure('Position',[100 100 1000 469]);
 plot(times, vals, 'LineWidth',1, 'Color', style.color_main);
-xlabel('鏃堕棿');
+xlabel('时间');
 ylabel(style.ylabel);
 if is_truthy(style.ylim_auto)
     ylim auto;
@@ -159,9 +158,9 @@ else
     end
 end
 hold on;
-h1 = yline(mx, '--r'); h1.Label = sprintf('鏈€澶у€?%.3f', mx);
+h1 = yline(mx, '--r'); h1.Label = sprintf('最大值 %.3f', mx);
 h1.LabelHorizontalAlignment = 'left';
-h2 = yline(mn, '--r'); h2.Label = sprintf('鏈€灏忓€?%.3f', mn);
+h2 = yline(mn, '--r'); h2.Label = sprintf('最小值 %.3f', mn);
 h2.LabelHorizontalAlignment = 'left';
 dn0 = datenum(times(1)); dn1 = datenum(times(end));
 numDiv = 4;
@@ -170,13 +169,13 @@ ax = gca; ax.XLim = ticks([1 end]); ax.XTick = ticks; xtickformat('yyyy-MM-dd');
 grid on; grid minor;
 title([style.title_prefix ' ' pid]);
 ts = datestr(now,'yyyymmdd_HHMMSS');
-out = fullfile(root_dir,'鏃剁▼鏇茬嚎_绱㈠姏鍔犻€熷害'); if ~exist(out,'dir'), mkdir(out); end
+out = fullfile(root_dir,'时程曲线_索力加速度'); if ~exist(out,'dir'), mkdir(out); end
 fname = [pid '_' datestr(times(1),'yyyymmdd') '_' datestr(times(end),'yyyymmdd')];
 save_plot_bundle(fig, out, [fname '_' ts]);
 end
 
 function plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date, style)
-% 10 min RMS 鍏ㄦ椂绋嬫洸绾匡紙鍚嘲鍊兼爣娉級
+% 10 min RMS 全时程曲线（含峰值标注）
 if isempty(vals) || numel(times) ~= numel(vals)
     return;
 end
@@ -195,7 +194,7 @@ end
 
 fig = figure('Position',[100 100 1000 469]);
 plot(times, rms_series, 'LineWidth', 1.2, 'Color', style.color_rms);
-xlabel('鏃堕棿'); ylabel(style.rms_ylabel);
+xlabel('时间'); ylabel(style.rms_ylabel);
 yl_rms = resolve_point_ylim(style.rms_ylims, pid, style.rms_ylim);
 if is_valid_ylim(yl_rms)
     ylim(yl_rms);
@@ -210,7 +209,7 @@ grid on; grid minor; hold on;
 
 if ~isnan(rms_max)
     h1 = yline(rms_max, '--r');
-    h1.Label = sprintf('鏈€澶у€?%.3f', rms_max);
+    h1.Label = sprintf('最大值 %.3f', rms_max);
     h1.LabelHorizontalAlignment = 'left';
     if ~isnat(t_max)
         plot(t_max, rms_max, 'ro', 'MarkerFaceColor','r');
@@ -238,7 +237,7 @@ else
 end
 
 ts = datestr(now,'yyyymmdd_HHMMSS');
-out = fullfile(root_dir,'鏃剁▼鏇茬嚎_绱㈠姏鍔犻€熷害_RMS10min');
+out = fullfile(root_dir,'时程曲线_索力加速度_RMS10min');
 if ~exist(out,'dir'), mkdir(out); end
 fname = sprintf('CableAccelRMS10_%s_%s_%s', pid, datestr(min(times),'yyyymmdd'), datestr(max(times),'yyyymmdd'));
 save_plot_bundle(fig, out, [fname '_' ts]);
@@ -292,5 +291,47 @@ end
 function tf = is_truthy(v)
 tf = (islogical(v) && isscalar(v) && v) || ...
     (isnumeric(v) && isscalar(v) && ~isnan(v) && v ~= 0);
+end
+
+function rec = init_cable_accel_record()
+rec = struct('pid', '', 'times', [], 'vals', [], 'fs', NaN, ...
+    'mn', NaN, 'mx', NaN, 'av', NaN, 'rms_max', NaN, ...
+    'rms_time', NaT, 'has_data', false);
+end
+
+function rec = collect_cable_accel_record(root_dir, subfolder, pid, start_date, end_date, cfg, auto_detect_fs)
+rec = init_cable_accel_record();
+rec.pid = pid;
+[times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'cable_accel');
+if isempty(vals)
+    return;
+end
+
+if auto_detect_fs
+    dts = seconds(diff(times));
+    fs = 1 / median(dts);
+else
+    fs = 100;
+end
+
+window_sec = 10 * 60;
+win_len = round(window_sec * fs);
+
+rec.times = times;
+rec.vals = vals;
+rec.fs = fs;
+rec.mn = round(min(vals), 3);
+rec.mx = round(max(vals), 3);
+rec.av = round(mean(vals), 3);
+rec.rms_max = NaN;
+rec.rms_time = NaT;
+rec.has_data = true;
+
+if numel(vals) >= win_len
+    rms_vals = sqrt(movmean(vals.^2, win_len, 'Endpoints', 'shrink'));
+    [rms_max, idx] = max(rms_vals);
+    rec.rms_max = round(rms_max, 3);
+    rec.rms_time = times(idx);
+end
 end
 

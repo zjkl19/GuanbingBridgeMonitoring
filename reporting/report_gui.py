@@ -32,7 +32,8 @@ from build_period_report import build_period_report
 MONTHLY_REPORT = "\u6708\u62a5"
 PERIOD_REPORT = "\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
-PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f.docx"
+PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f0318.docx"
+PERIOD_TEMPLATE_FALLBACK_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f.docx"
 DEFAULT_RESULT_ROOT = Path("E:" + "\\" + "\u6d2a\u5858\u5927\u6865\u6570\u636e" + "\\" + "2026\u5e741-3\u6708")
 
 
@@ -75,14 +76,18 @@ def detect_default_config() -> Path:
 
 def find_default_template(report_type: str) -> Path:
     preferred = PERIOD_TEMPLATE_NAME if report_type == PERIOD_REPORT else MONTHLY_TEMPLATE_NAME
-    fallback = MONTHLY_TEMPLATE_NAME if report_type == PERIOD_REPORT else PERIOD_TEMPLATE_NAME
+    if report_type == PERIOD_REPORT:
+        fallback_candidates = [PERIOD_TEMPLATE_FALLBACK_NAME, MONTHLY_TEMPLATE_NAME]
+    else:
+        fallback_candidates = [PERIOD_TEMPLATE_NAME, PERIOD_TEMPLATE_FALLBACK_NAME]
     for reports_dir in candidate_report_roots():
         preferred_path = reports_dir / preferred
         if preferred_path.exists():
             return preferred_path.resolve()
-        fallback_path = reports_dir / fallback
-        if fallback_path.exists():
-            return fallback_path.resolve()
+        for fallback in fallback_candidates:
+            fallback_path = reports_dir / fallback
+            if fallback_path.exists():
+                return fallback_path.resolve()
         candidates = sorted(reports_dir.glob("*.docx"))
         if candidates:
             return candidates[0].resolve()
