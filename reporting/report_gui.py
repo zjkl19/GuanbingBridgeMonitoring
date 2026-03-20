@@ -31,8 +31,10 @@ from build_period_report import build_period_report
 
 MONTHLY_REPORT = "\u6708\u62a5"
 PERIOD_REPORT = "\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
+APP_VERSION = "v1.5.4"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
-PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f0318.docx"
+PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f-\u81ea\u52a8\u62a5\u544a.docx"
+PERIOD_TEMPLATE_LEGACY_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f0318.docx"
 PERIOD_TEMPLATE_FALLBACK_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f.docx"
 DEFAULT_RESULT_ROOT = Path("E:" + "\\" + "\u6d2a\u5858\u5927\u6865\u6570\u636e" + "\\" + "2026\u5e741-3\u6708")
 
@@ -77,7 +79,7 @@ def detect_default_config() -> Path:
 def find_default_template(report_type: str) -> Path:
     preferred = PERIOD_TEMPLATE_NAME if report_type == PERIOD_REPORT else MONTHLY_TEMPLATE_NAME
     if report_type == PERIOD_REPORT:
-        fallback_candidates = [PERIOD_TEMPLATE_FALLBACK_NAME, MONTHLY_TEMPLATE_NAME]
+        fallback_candidates = [PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME, MONTHLY_TEMPLATE_NAME]
     else:
         fallback_candidates = [PERIOD_TEMPLATE_NAME, PERIOD_TEMPLATE_FALLBACK_NAME]
     for reports_dir in candidate_report_roots():
@@ -131,7 +133,7 @@ def has_dated_raw_dirs(result_root: Path) -> bool:
 def top_help_text() -> str:
     return (
         "\u6a21\u677f\u6587\u4ef6\uff1a\u6708\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\u201d\uff0c"
-        "\u5468\u671f\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f.docx\u201d\u3002\n"
+        "\u5468\u671f\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f-\u81ea\u52a8\u62a5\u544a.docx\u201d\u3002\n"
         "\u914d\u7f6e\u6587\u4ef6\uff1a\u76f4\u63a5\u5f71\u54cd\u62a5\u544a\u751f\u6210\u7684\u4e3b\u8981\u662f plot_styles.* \u8f93\u51fa\u76ee\u5f55\u3001reporting.* \u63d2\u56fe\u987a\u5e8f/\u542f\u7528\u3001wim.* \u548c wim_db.*\u3002\n"
         "\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55\uff1a\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\n"
         "\u5468\u671f\u62a5\u8bf4\u660e\uff1a1.4\u201c\u5065\u5eb7\u76d1\u6d4b\u7cfb\u7edf\u8fd0\u884c\u72b6\u51b5\u201d\u53ea\u7edf\u8ba1\u539f\u59cb\u6570\u636e\u7f3a\u5931/\u65e0\u6587\u4ef6/\u65e0\u8bb0\u5f55\u3002"
@@ -228,7 +230,7 @@ class ReportWorker(QObject):
 class ReportGui(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("\u6865\u6881\u62a5\u544a\u751f\u6210\u5668")
+        self.setWindowTitle(f"\u6865\u6881\u62a5\u544a\u751f\u6210\u5668 {APP_VERSION}")
         self.resize(1040, 820)
         self._last_output_dir: Path | None = None
         self._last_result_root: Path | None = None
@@ -277,7 +279,7 @@ class ReportGui(QMainWindow):
 
         rows = [
             ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, "\u6708\u62a5\u6216\u5468\u671f\u62a5\uff08\u542bWIM\uff09\u3002\u5207\u6362\u540e\u4f1a\u81ea\u52a8\u5207\u6362\u9ed8\u8ba4\u6a21\u677f\u3002"),
-            ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6708\u62a5\u9ed8\u8ba4\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u5468\u671f\u62a5\u9ed8\u8ba4\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f.docx\u3002"),
+            ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6708\u62a5\u9ed8\u8ba4\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u5468\u671f\u62a5\u9ed8\u8ba4\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f-\u81ea\u52a8\u62a5\u544a.docx\u3002"),
             ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "\u4f18\u5148\u8bfb\u53d6\u673a\u5668\u4e13\u7528\u914d\u7f6e hongtang_config_<COMPUTERNAME>.json\u3002"),
             ("\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55", self.result_root_edit, self._browse_result_root, "\u8fd9\u91cc\u5e94\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\u5bf9\u5468\u671f\u62a5\uff0c\u8fd9\u4e2a\u76ee\u5f55\u6700\u597d\u540c\u65f6\u5305\u542b raw \u539f\u59cb\u6570\u636e\uff0c\u5426\u5219 1.4 \u7ae0\u8282\u4f1a\u5c06\u7f3a\u5c11\u539f\u59cb\u6570\u636e\u89c6\u4e3a\u7f3a\u5931\u3002"),
             ("\u7a0b\u5e8f\u6839\u76ee\u5f55\uff08\u9ad8\u7ea7\uff09", self.analysis_root_edit, self._browse_analysis_root, "\u517c\u5bb9\u65e7\u8def\u5f84\u548c\u5c11\u91cf\u56de\u9000\u67e5\u627e\uff0c\u901a\u5e38\u4fdd\u6301\u7a0b\u5e8f\u6240\u5728\u76ee\u5f55\u5373\u53ef\u3002"),
@@ -345,7 +347,7 @@ class ReportGui(QMainWindow):
 
     def _maybe_update_template_for_type(self) -> None:
         current = self.template_edit.text().strip()
-        names = {MONTHLY_TEMPLATE_NAME, PERIOD_TEMPLATE_NAME}
+        names = {MONTHLY_TEMPLATE_NAME, PERIOD_TEMPLATE_NAME, PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME}
         should_replace = (not current) or (Path(current).name in names) or (not Path(current).exists())
         if should_replace:
             self.template_edit.setText(str(find_default_template(self.report_type_combo.currentText())))

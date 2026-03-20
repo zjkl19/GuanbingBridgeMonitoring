@@ -19,8 +19,8 @@ BridgeReportBuilder/
   _internal/
   reports/
     洪塘大桥健康监测月报模板.docx
+    洪塘大桥健康监测周期报模板-自动报告.docx
     洪塘大桥健康监测周期报模板.docx
-    洪塘大桥健康监测周期报模板0318.docx
   README.md
   REPORTING_LOGIC.md
 ```
@@ -67,7 +67,9 @@ E:/洪塘大桥数据/2026年1-3月/
   - `月报` 或 `周期报（含 WIM）`
 - `模板文件 / Template`
   - Monthly default: `洪塘大桥健康监测月报模板.docx`
-  - Period default: `洪塘大桥健康监测周期报模板0318.docx`
+  - Period default: `洪塘大桥健康监测周期报模板-自动报告.docx`
+  - The current automatic period-report layout assumes this default template.
+  - 当前自动周期报布局默认按这份模板适配。
 - `配置文件 / Config`
   - Prefer machine-specific override when present.
   - 存在机器专用配置时优先使用。

@@ -356,6 +356,21 @@ def find_paragraph_indices_contains(doc: Document, fragment: str) -> list[int]:
     return indices
 
 
+def find_paragraph_indices_contains_between(
+    doc: Document,
+    fragment: str,
+    start_idx: int = 0,
+    end_idx: int | None = None,
+) -> list[int]:
+    if end_idx is None:
+        end_idx = len(doc.paragraphs)
+    indices = []
+    for idx in range(start_idx, min(end_idx, len(doc.paragraphs))):
+        if fragment in doc.paragraphs[idx].text.strip():
+            indices.append(idx)
+    return indices
+
+
 def find_last_paragraph(doc: Document, text: str) -> Paragraph:
     indices = find_paragraph_indices(doc, text)
     if not indices:
@@ -374,6 +389,34 @@ def find_last_paragraph_contains(doc: Document, fragment: str) -> Paragraph:
     indices = find_paragraph_indices_contains(doc, fragment)
     if not indices:
         raise ValueError(f'Paragraph containing "{fragment}" not found in template')
+    return doc.paragraphs[indices[-1]]
+
+
+def find_last_paragraph_contains_scoped(
+    doc: Document,
+    fragment: str,
+    anchor_text: str | None = None,
+    stop_text: str | None = None,
+) -> Paragraph:
+    start_idx = 0
+    if anchor_text:
+        anchor_indices = find_paragraph_indices(doc, anchor_text)
+        if not anchor_indices:
+            raise ValueError(f'Anchor "{anchor_text}" not found in template')
+        start_idx = anchor_indices[-1] + 1
+
+    end_idx = len(doc.paragraphs)
+    if stop_text:
+        stop_indices = [idx for idx in find_paragraph_indices(doc, stop_text) if idx > start_idx]
+        if stop_indices:
+            end_idx = stop_indices[0]
+
+    indices = find_paragraph_indices_contains_between(doc, fragment, start_idx, end_idx)
+    if not indices:
+        scope = f' after "{anchor_text}"' if anchor_text else ""
+        if stop_text:
+            scope += f' before "{stop_text}"'
+        raise ValueError(f'Paragraph containing "{fragment}" not found in template{scope}')
     return doc.paragraphs[indices[-1]]
 
 
@@ -432,8 +475,10 @@ def insert_labeled_images_before_caption_contains(
     caption_fragment: str,
     items: list[ImageItem],
     width_mm: float = 165.0,
+    anchor_text: str | None = None,
+    stop_text: str | None = None,
 ) -> None:
-    caption = find_last_paragraph_contains(doc, caption_fragment)
+    caption = find_last_paragraph_contains_scoped(doc, caption_fragment, anchor_text=anchor_text, stop_text=stop_text)
     for item in items:
         if item.path is None or not item.path.exists():
             continue
@@ -640,8 +685,9 @@ def set_row_summary_text(row, start_col: int, text: str) -> None:
         row.cells[idx].text = text
 
 
-def build_overview_items(manifest: dict) -> dict[int, str]:
+def build_overview_items(manifest: dict) -> dict[str, list[str]]:
     sections = manifest["sections"]
+    traffic = sections.get("wim", {}) if sections.get("wim", {}).get("enabled") else sections.get("traffic", {})
     strain = sections["strain"]
     tilt = sections["tilt"]
     bearing = sections["bearing_displacement"]
@@ -650,80 +696,89 @@ def build_overview_items(manifest: dict) -> dict[int, str]:
     eq = sections["eq"]
 
     return {
-        5: (
-            "5、结构应变监测\n"
+        "交通状况监测": [
+            (
+                f"监测结果表明，桥梁共通过车辆{traffic.get('vehicle_total', 0)}辆，日均{traffic.get('daily_avg', 0)}辆。"
+                f"其中上行方向（闽侯-农大，车道1～车道4）所通过车辆为{traffic.get('up_total', 0)}辆，"
+                f"下行方向（农大-闽侯，车道5～车道8）所通过车辆为{traffic.get('down_total', 0)}辆。"
+                f"期间系统记录到的最大车重为{traffic.get('max_gross_t', 0):.2f}t，{traffic.get('gross_limit_text', '未达到2.0倍设计车辆荷载110t')}。"
+                f"最大轴重{traffic.get('max_axle_t', 0):.2f}t，{traffic.get('axle_limit_text', '未达到1.5倍设计车辆荷载42t')}。"
+                f"期间总重超过1.5倍设计荷载82.5t的车辆共{traffic.get('gross_over_1_5', 0)}辆，"
+                f"其中超过2.0倍设计荷载110t的车辆共{traffic.get('gross_over_2_0', 0)}辆；"
+                f"轴重超过1.5倍设计荷载42t的车辆共{traffic.get('axle_over_1_5', 0)}辆，"
+                f"其中超过2.0倍设计荷载56t的车辆共{traffic.get('axle_over_2_0', 0)}辆。"
+            )
+        ],
+        "结构应变监测": [
             f"箱梁监测结果表明，各测点应变值在{format_range(strain.get('girder_min'), strain.get('girder_max'), 1, 'με')}之间，"
             "均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。\n"
             f"桥塔监测结果表明，各测点应变值在{format_range(strain.get('tower_min'), strain.get('tower_max'), 1, 'με')}之间，"
             "均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
-        ),
-        6: "6、主塔倾斜监测\n监测结果表明，各测点变化幅度不大，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。",
-        7: (
-            "7、支座变位监测\n"
+        ],
+        "主塔倾斜监测": [
+            f"监测结果表明，倾角纵桥向位移在{format_range(tilt.get('z_min'), tilt.get('z_max'), 3, '°')}之间，"
+            f"横桥向位移在{format_range(tilt.get('h_min'), tilt.get('h_max'), 3, '°')}之间，"
+            "均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
+        ],
+        "支座变位监测": [
             "选取典型监测数据进行分析。"
             f"监测结果表明，各测点支座位移在{format_range(bearing.get('min_val'), bearing.get('max_val'), 1, 'mm')}之间，"
             "未出现超过各级超限阈值和报警的情况。"
-        ),
-        8: (
-            "8、吊索索力监测\n"
+        ],
+        "吊索索力监测": [
             "选取典型监测数据进行分析。"
             f"监测结果表明吊索加速度各测点绝对最大值为{cable.get('max_abs', 0):.2f}mm/s²，"
             f"各测点10min加速度均方根值最大为{cable.get('max_rms', 0):.2f}mm/s²，"
             "未超过1000mm/s²，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
             f"与成桥索力相比，索力变化范围在{cable.get('min_change', 0):.2f}%~{cable.get('max_change', 0):.2f}%之间，"
             "与成桥索力相比变化范围在10%以内，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
-        ),
-        9: (
-            "9、风向风速监测\n"
+        ],
+        "风向风速监测": [
             f"监测结果表明，桥面10min平均风速最大值为{wind.get('max_10min', 0):.2f}m/s，"
             "未超过25m/s，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
-        ),
-        10: (
-            "10、地震动监测\n"
+        ],
+        "地震动监测": [
             f"监测结果表明，水平地震动作用加速度峰值为{eq.get('horizontal_peak', 0):.3f}m/s²，"
             f"{eq.get('horizontal_text', '未达到设计E1地震作用加速度峰值')}，"
             f"竖向地震动作用加速度峰值为{eq.get('vertical_peak', 0):.3f}m/s²，"
             f"{eq.get('vertical_text', '未达到设计E1地震作用加速度峰值')}，未出现超过各级超限阈值和报警的情况。"
-        ),
+        ],
     }
 
 
 def update_overview_tables(doc: Document, manifest: dict) -> None:
-    items = build_overview_items(manifest)
+    replacements = build_overview_items(manifest)
+    section_names = tuple(replacements.keys())
 
-    summary_table = None
-    for table in doc.tables:
-        if table.rows and table.rows[0].cells and table.rows[0].cells[0].text.strip() == "委托单位":
-            summary_table = table
-            break
-    if summary_table is not None:
-        for row in summary_table.rows:
-            if row.cells and row.cells[0].text.strip() == "监测结果":
-                cell = row.cells[min(2, len(row.cells) - 1)]
-                if len(cell.paragraphs) >= 14:
-                    replace_paragraph_text(cell.paragraphs[9], "5、结构应变监测")
-                    replace_paragraph_text(cell.paragraphs[10], items[5].split("\n", 1)[1].split("\n", 1)[0])
-                    replace_paragraph_text(cell.paragraphs[11], items[5].split("\n", 2)[2])
-                    replace_paragraph_text(cell.paragraphs[12], "6、主塔倾斜监测")
-                    replace_paragraph_text(cell.paragraphs[13], items[6].split("\n", 1)[1])
-                break
+    def replace_in_cell(cell) -> None:
+        paragraphs = cell.paragraphs
+        idx = 0
+        while idx < len(paragraphs):
+            text = paragraphs[idx].text.strip()
+            matched = next((name for name in section_names if name in text), None)
+            if matched is None:
+                idx += 1
+                continue
+            targets = []
+            j = idx + 1
+            while j < len(paragraphs):
+                next_text = paragraphs[j].text.strip()
+                if next_text and any(name in next_text for name in section_names):
+                    break
+                if next_text:
+                    targets.append(paragraphs[j])
+                j += 1
+            for target, new_text in zip(targets, replacements[matched]):
+                replace_paragraph_text(target, new_text)
+            for extra in targets[len(replacements[matched]):]:
+                replace_paragraph_text(extra, "")
+            idx = j
 
-    continuation_table = None
     for table in doc.tables:
-        if len(table.rows) >= 2 and table.rows[0].cells and table.rows[0].cells[0].text.strip() == "监测结果" and table.rows[1].cells and table.rows[1].cells[0].text.strip() == "建  议":
-            continuation_table = table
-            break
-    if continuation_table is not None:
-        cell = continuation_table.rows[0].cells[min(1, len(continuation_table.rows[0].cells) - 1)]
-        if len(cell.paragraphs) >= 8:
-            replace_paragraph_text(cell.paragraphs[0], "7、支座变位监测")
-            replace_paragraph_text(cell.paragraphs[1], items[7].split("\n", 1)[1])
-            replace_paragraph_text(cell.paragraphs[2], "8、吊索索力监测")
-            replace_paragraph_text(cell.paragraphs[3], items[8].split("\n", 1)[1])
-            replace_paragraph_text(cell.paragraphs[4], "9、风向风速监测")
-            replace_paragraph_text(cell.paragraphs[5], items[9].split("\n", 1)[1])
-            replace_paragraph_text(cell.paragraphs[6], "10、地震动监测")
-            replace_paragraph_text(cell.paragraphs[7], items[10].split("\n", 1)[1])
+        for row in table.rows:
+            for cell in row.cells:
+                if any(name in cell.text for name in section_names):
+                    replace_in_cell(cell)
 
 
 def build_strain_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | None, image_root: Path, assets_dir: Path) -> dict:
@@ -806,6 +861,10 @@ def build_tilt_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
     return {
         "enabled": reporting_enabled(cfg, "tilt"),
         "chapter": summary,
+        "z_min": z_min,
+        "z_max": z_max,
+        "h_min": h_min,
+        "h_max": h_max,
         "images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in items],
         "caption": "桥塔各截面位置倾角时程曲线图",
         "image_lookup": [deepcopy(item.lookup) | {"label": item.label} for item in items],
@@ -893,9 +952,34 @@ def build_cable_force_section(cfg: dict, stats_root: Path, fallback_stats_root: 
 
     accel_items: list[ImageItem] = []
     for pid in point_order:
-        raw_path, raw_lookup = find_latest_image(image_root, accel_dir, f"{pid}_")
-        accel_items.append(ImageItem(f"{pid} \u52a0\u901f\u5ea6", raw_path, raw_lookup))
-        rms_path, rms_lookup = find_latest_image(image_root, rms_dir, f"CableAccelRMS10_{pid}_")
+        raw_path, raw_lookup = find_latest_image_patterns(
+            image_root,
+            accel_dir,
+            [
+                f"{pid}_*.jpg",
+                f"{pid}_*.png",
+                f"{pid}_*.jpeg",
+                f"CableAccel_{pid}_*.jpg",
+                f"CableAccel_{pid}_*.png",
+                f"CableAccel_{pid}_*.jpeg",
+                f"*{pid}*.jpg",
+                f"*{pid}*.png",
+                f"*{pid}*.jpeg",
+            ],
+        )
+        accel_items.append(ImageItem(f"{pid} 加速度", raw_path, raw_lookup))
+        rms_path, rms_lookup = find_latest_image_patterns(
+            image_root,
+            rms_dir,
+            [
+                f"CableAccelRMS10_{pid}_*.jpg",
+                f"CableAccelRMS10_{pid}_*.png",
+                f"CableAccelRMS10_{pid}_*.jpeg",
+                f"*{pid}*RMS10*.jpg",
+                f"*{pid}*RMS10*.png",
+                f"*{pid}*RMS10*.jpeg",
+            ],
+        )
         accel_items.append(ImageItem(f"{pid} RMS10min", rms_path, rms_lookup))
 
     force_order = get_report_order(cfg, "cable_force", "force_order", point_order)
@@ -1279,11 +1363,15 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
             doc,
             cable["accel_caption"],
             [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in cable["accel_images"]],
+            anchor_text="（1）索力加速度时程数据",
+            stop_text="（2）索力时程数据",
         )
         insert_labeled_images_before_caption_contains(
             doc,
             cable["force_caption"],
             [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in cable["force_images"]],
+            anchor_text="（2）索力时程数据",
+            stop_text="4.6 主梁、主塔振动监测",
         )
         update_cable_force_table(doc, cable["table_rows"])
 
@@ -1295,11 +1383,15 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
             doc,
             vibration["timeseries_caption"],
             [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in vibration["timeseries_images"]],
+            anchor_text="（1）振动时程数据",
+            stop_text="（2）自振频率",
         )
         insert_labeled_images_before_caption_contains(
             doc,
             vibration["freq_caption"],
             [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in vibration["freq_images"]],
+            anchor_text="（2）自振频率",
+            stop_text="4.7 风向风速监测",
         )
 
     wind = manifest["sections"]["wind"]

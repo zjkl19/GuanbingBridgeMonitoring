@@ -99,6 +99,11 @@ Monthly reports use the monthly template and a single result directory.
 Period reports use the period template, a date range, and WIM monthly results.
 周期报使用周期报模板、起止日期以及 WIM 月结果。
 
+Default period-report template:
+默认周期报模板：
+
+- `reports/洪塘大桥健康监测周期报模板-自动报告.docx`
+
 For period reports, section `1.4 健康监测系统运行状况` only counts raw missing/no-file/no-record conditions.
 对周期报，`1.4 健康监测系统运行状况` 只统计原始缺失/无文件/无记录。
 

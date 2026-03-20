@@ -86,8 +86,11 @@ class ParagraphTemplate:
 
 def parse_args() -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
+    default_template = repo_root / "reports" / "洪塘大桥健康监测周期报模板-自动报告.docx"
+    if not default_template.exists():
+        default_template = repo_root / "reports" / "洪塘大桥健康监测周期报模板0318.docx"
     parser = argparse.ArgumentParser(description="Build quarterly WIM report section from monthly template.")
-    parser.add_argument("--template", type=Path, default=repo_root / "reports" / "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f0318.docx")
+    parser.add_argument("--template", type=Path, default=default_template)
     parser.add_argument("--wim-root", type=Path, default=None)
     parser.add_argument("--months", nargs="+", default=["202601", "202602", "202603"])
     parser.add_argument("--output-dir", type=Path, default=None)
@@ -534,15 +537,15 @@ def add_topn_main_table(anchor: Paragraph, title: str, rows: list[dict], caption
             table.cell(r, c).text = value
     style_table(table)
     set_header_bold(table)
-    set_table_column_widths(table, [12, 12, 52, 12, 32, 22])
+    set_table_column_widths(table, [15.63, 16.93, 47.45, 26.67, 26.67, 26.67])
 
 
 def add_topn_cont_table(anchor: Paragraph, title: str, rows: list[dict], caption_tpl: ParagraphTemplate) -> None:
     add_text_paragraph_before(anchor, title, caption_tpl)
     table = insert_table_before(anchor, rows=len(rows) + 1, cols=12)
     headers = [
-        "\u5e8f\u53f7", "\u8f741\u91cd\uff08kg\uff09", "\u8f742\u91cd\uff08kg\uff09", "\u8f743\u91cd\uff08kg\uff09", "\u8f744\u91cd\uff08kg\uff09", "\u8f745\u91cd\uff08kg\uff09", "\u8f746\u91cd\uff08kg\uff09",
-        "\u8f74\u8ddd1\uff08m\uff09", "\u8f74\u8ddd2\uff08m\uff09", "\u8f74\u8ddd3\uff08m\uff09", "\u8f74\u8ddd4\uff08m\uff09", "\u8f74\u8ddd5\uff08m\uff09",
+        "序号", "轴1重", "轴2重", "轴3重", "轴4重", "轴5重", "轴6重",
+        "轴距1", "轴距2", "轴距3", "轴距4", "轴距5",
     ]
     for i, header in enumerate(headers):
         table.cell(0, i).text = header
@@ -557,7 +560,7 @@ def add_topn_cont_table(anchor: Paragraph, title: str, rows: list[dict], caption
             table.cell(r, c).text = value
     style_table(table)
     set_header_bold(table)
-    set_table_column_widths(table, [10, 12, 12, 12, 12, 12, 12, 13, 13, 13, 13, 13])
+    set_table_column_widths(table, [10.00, 11.99, 11.99, 11.99, 11.99, 11.99, 11.99, 13.00, 13.00, 13.00, 13.00, 13.00])
 
 
 def add_plot_grid(anchor: Paragraph, item: MonthWimSummary, fig_tpl: ParagraphTemplate, subcap_tpl: ParagraphTemplate) -> None:
@@ -594,13 +597,13 @@ def add_month_block(
     base_table_no: int,
     figure_no: int,
 ) -> None:
-    add_text_paragraph_before(anchor, f"4.1.{section_index} {month_label(item.yyyymm)}\u4ea4\u901a\u72b6\u51b5\u76d1\u6d4b", heading_tpl)
+    add_text_paragraph_before(anchor, f"{month_label(item.yyyymm)}\u4ea4\u901a\u72b6\u51b5\u76d1\u6d4b", heading_tpl)
     add_text_paragraph_before(anchor, make_month_narrative(item), body_tpl)
     add_daily_traffic_table(anchor, item, caption_tpl, base_table_no)
     add_topn_main_table(anchor, f"\u8868 4-{base_table_no + 1} {month_label(item.yyyymm)}\u524d10\u603b\u91cd\u6700\u91cd\u8f66\u8f86\u53c2\u6570", item.top_gross_rows, caption_tpl)
-    add_topn_cont_table(anchor, f"\u7eed\u8868 4-{base_table_no + 1}", item.top_gross_rows, caption_tpl)
+    add_topn_cont_table(anchor, f"\u7eed\u8868 4-{base_table_no + 1}\uff08\u8f74\u91cd\u5355\u4f4d\uff1akg\uff0c\u8f74\u8ddd\u5355\u4f4d\uff1am\uff09", item.top_gross_rows, caption_tpl)
     add_topn_main_table(anchor, f"\u8868 4-{base_table_no + 2} {month_label(item.yyyymm)}\u524d10\u6700\u5927\u8f74\u91cd\u8f66\u8f86\u53c2\u6570", item.top_axle_rows, caption_tpl)
-    add_topn_cont_table(anchor, f"\u7eed\u8868 4-{base_table_no + 2}", item.top_axle_rows, caption_tpl)
+    add_topn_cont_table(anchor, f"\u7eed\u8868 4-{base_table_no + 2}\uff08\u8f74\u91cd\u5355\u4f4d\uff1akg\uff0c\u8f74\u8ddd\u5355\u4f4d\uff1am\uff09", item.top_axle_rows, caption_tpl)
     table = insert_table_before(anchor, rows=(len(item.plot_paths) + 1) // 2, cols=2)
     remove_table_borders(table)
     for r in range(len(table.rows)):

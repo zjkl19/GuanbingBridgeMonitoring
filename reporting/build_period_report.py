@@ -27,9 +27,13 @@ from build_quarterly_wim_sample import (
     capture_paragraph_template,
     clear_section_between,
     find_last_paragraph,
+    insert_table_before,
     make_quarter_summary,
     parse_month_summary,
     set_summary_table,
+    set_header_bold,
+    set_table_column_widths,
+    style_table,
 )
 
 
@@ -47,9 +51,22 @@ HIGHFREQ_MODULES = {
 }
 
 
+def default_period_template(repo_root: Path) -> Path:
+    reports_dir = repo_root / "reports"
+    candidates = [
+        reports_dir / "洪塘大桥健康监测周期报模板-自动报告.docx",
+        reports_dir / "洪塘大桥健康监测周期报模板0318.docx",
+        reports_dir / "洪塘大桥健康监测周期报模板.docx",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
 def parse_args() -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
-    default_template = repo_root / "reports" / "洪塘大桥健康监测周期报模板0318.docx"
+    default_template = default_period_template(repo_root)
     parser = argparse.ArgumentParser(description="Build full period monitoring report, including WIM.")
     parser.add_argument("--template", type=Path, default=default_template)
     parser.add_argument("--config", type=Path, default=repo_root / "config" / "hongtang_config.json")
@@ -210,6 +227,239 @@ def _format_day_range(start_day: date, end_day: date) -> str:
     if start_day == end_day:
         return start_day.strftime("%Y-%m-%d")
     return f"{start_day:%Y-%m-%d}~{end_day:%Y-%m-%d}"
+
+
+def _parse_range_bounds(range_text: str) -> tuple[date, date]:
+    parts = range_text.split("~", 1)
+    start_part = parts[0][:10]
+    end_part = (parts[1][:10] if len(parts) == 2 else parts[0][:10])
+    return (
+        datetime.strptime(start_part, "%Y-%m-%d").date(),
+        datetime.strptime(end_part, "%Y-%m-%d").date(),
+    )
+
+
+def _format_range_short(range_text: str) -> str:
+    start_day, end_day = _parse_range_bounds(range_text)
+    if start_day == end_day:
+        return start_day.strftime("%Y-%m-%d")
+    if start_day.year == end_day.year and start_day.month == end_day.month:
+        return f"{start_day:%Y-%m-%d}~{end_day:%m-%d}"
+    return f"{start_day:%Y-%m-%d}~{end_day:%Y-%m-%d}"
+
+
+def _point_sort_key(point: str) -> tuple[int, str]:
+    import re
+
+    tokens = re.split(r"(\d+)", point)
+    key: list[object] = []
+    for token in tokens:
+        if not token:
+            continue
+        key.append(int(token) if token.isdigit() else token)
+    return (0, str(key))
+
+
+def _join_points(points: Iterable[str], max_names: int = 4) -> str:
+    ordered = sorted(dict.fromkeys(points), key=_point_sort_key)
+    if len(ordered) <= max_names:
+        return "、".join(ordered)
+    return f"{'、'.join(ordered[:max_names])}等{len(ordered)}个测点"
+
+
+def _join_module_names(names: Iterable[str]) -> str:
+    ordered = []
+    for module in list(LOWFREQ_MODULES.values()) + list(HIGHFREQ_MODULES.values()):
+        if module in names and module not in ordered:
+            ordered.append(module)
+    return "、".join(ordered)
+
+
+def _summarize_ranges(range_texts: Iterable[str], max_ranges: int = 3) -> str:
+    ordered = sorted(dict.fromkeys(range_texts), key=_parse_range_bounds)
+    formatted = [_format_range_short(item) for item in ordered]
+    if not formatted:
+        return ""
+    if len(formatted) <= max_ranges:
+        return "、".join(formatted)
+    return f"{'、'.join(formatted[:max_ranges])}等{len(formatted)}段时段"
+
+
+def _full_period_text(start_date: date, end_date: date) -> str:
+    return _format_dt_range(datetime.combine(start_date, datetime.min.time()), datetime.combine(end_date, datetime.max.time()))
+
+
+def _summarize_lowfreq_module(module: str, module_events: list[dict], start_date: date, end_date: date) -> str:
+    full_period = _full_period_text(start_date, end_date)
+    reason_priority = {"原始记录缺失": 0, "lowfreq/data.xlsx 缺失": 1, "lowfreq 数据期内无原始记录": 2}
+    grouped_by_range: dict[tuple[str, str], set[str]] = {}
+    for event in module_events:
+        grouped_by_range.setdefault((event["range"], event["reason"]), set()).update(event["points"])
+
+    grouped: dict[tuple[tuple[str, ...], str], list[str]] = {}
+    for (range_text, reason), points in grouped_by_range.items():
+        point_key = tuple(sorted(points, key=_point_sort_key))
+        grouped.setdefault((point_key, reason), []).append(range_text)
+
+    persistent_parts: list[str] = []
+    intermittent_parts: list[str] = []
+    for (points, reason), ranges in sorted(
+        grouped.items(),
+        key=lambda item: (reason_priority.get(item[0][1], 99), -len(item[0][0]), item[0][0]),
+    ):
+        unique_ranges = sorted(dict.fromkeys(ranges), key=_parse_range_bounds)
+        point_text = _join_points(points)
+        if len(unique_ranges) == 1 and unique_ranges[0] == full_period:
+            if points == ("全测点",):
+                persistent_parts.append(reason)
+            else:
+                persistent_parts.append(f"{point_text}全周期{reason}")
+            continue
+        range_text = _summarize_ranges(unique_ranges)
+        if points == ("全测点",):
+            intermittent_parts.append(f"{range_text}{reason}")
+        else:
+            intermittent_parts.append(f"{point_text}在{range_text}{reason}")
+
+    parts: list[str] = []
+    if persistent_parts:
+        parts.append("；".join(persistent_parts))
+    if intermittent_parts:
+        parts.append("；".join(intermittent_parts))
+    if not parts:
+        return ""
+    return f"{module}中，" + "；".join(parts)
+
+
+def _summarize_highfreq_events(module_events: list[dict]) -> str:
+    if not module_events:
+        return ""
+
+    range_reason_modules: dict[tuple[str, str], dict[str, set[str]]] = {}
+    for event in module_events:
+        key = (event["range"], event["reason"])
+        bucket = range_reason_modules.setdefault(key, {})
+        bucket.setdefault(event["module"], set()).update(event["points"])
+
+    common_parts: list[str] = []
+    common_keys: set[tuple[str, str]] = set()
+    for (range_text, reason), modules in sorted(range_reason_modules.items(), key=lambda item: _parse_range_bounds(item[0][0])):
+        if len(modules) < 2:
+            continue
+        common_keys.add((range_text, reason))
+        common_parts.append(f"{_format_range_short(range_text)}出现{reason}，影响{_join_module_names(modules.keys())}")
+
+    residual_by_module: dict[str, list[tuple[str, str, set[str]]]] = {}
+    for (range_text, reason), modules in range_reason_modules.items():
+        if (range_text, reason) in common_keys:
+            continue
+        for module, points in modules.items():
+            residual_by_module.setdefault(module, []).append((range_text, reason, points))
+
+    residual_parts: list[str] = []
+    for module in HIGHFREQ_MODULES.values():
+        entries = residual_by_module.get(module, [])
+        if not entries:
+            continue
+        grouped: dict[tuple[tuple[str, ...], str], list[str]] = {}
+        for range_text, reason, points in entries:
+            grouped.setdefault((tuple(sorted(points, key=_point_sort_key)), reason), []).append(range_text)
+        module_parts = []
+        for (points, reason), ranges in sorted(grouped.items(), key=lambda item: _parse_range_bounds(item[1][0])):
+            point_text = _join_points(points)
+            range_text = _summarize_ranges(ranges)
+            module_parts.append(f"{point_text}在{range_text}{reason}")
+        residual_parts.append(f"{module}中，" + "；".join(module_parts))
+
+    parts: list[str] = []
+    if common_parts:
+        parts.append("高频监测系统在" + "；".join(common_parts))
+    if residual_parts:
+        parts.append("此外，" + "；".join(residual_parts))
+    return "。".join(parts)
+
+
+def _build_lowfreq_health_rows(module: str, module_events: list[dict], start_date: date, end_date: date) -> list[dict[str, str]]:
+    full_period = _full_period_text(start_date, end_date)
+    grouped_by_range: dict[tuple[str, str], set[str]] = {}
+    for event in module_events:
+        grouped_by_range.setdefault((event["range"], event["reason"]), set()).update(event["points"])
+
+    grouped: dict[tuple[tuple[str, ...], str], list[str]] = {}
+    for (range_text, reason), points in grouped_by_range.items():
+        grouped.setdefault((tuple(sorted(points, key=_point_sort_key)), reason), []).append(range_text)
+
+    rows: list[dict[str, str]] = []
+    for (points, reason), ranges in sorted(grouped.items(), key=lambda item: (_parse_range_bounds(item[1][0])[0], item[0][0])):
+        unique_ranges = sorted(dict.fromkeys(ranges), key=_parse_range_bounds)
+        rows.append(
+            {
+                "module": module,
+                "points": "全测点" if points == ("全测点",) else _join_points(points, max_names=6),
+                "range": "全周期" if len(unique_ranges) == 1 and unique_ranges[0] == full_period else _summarize_ranges(unique_ranges, max_ranges=4),
+                "reason": reason,
+            }
+        )
+    return rows
+
+
+def _build_highfreq_health_rows(module_events: list[dict]) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    range_reason_modules: dict[tuple[str, str], dict[str, set[str]]] = {}
+    for event in module_events:
+        key = (event["range"], event["reason"])
+        range_reason_modules.setdefault(key, {}).setdefault(event["module"], set()).update(event["points"])
+
+    common_keys: set[tuple[str, str]] = set()
+    for (range_text, reason), modules in sorted(range_reason_modules.items(), key=lambda item: _parse_range_bounds(item[0][0])):
+        if len(modules) < 2:
+            continue
+        common_keys.add((range_text, reason))
+        rows.append(
+            {
+                "module": _join_module_names(modules.keys()),
+                "points": "相关测点",
+                "range": _format_range_short(range_text),
+                "reason": reason,
+            }
+        )
+
+    residual_by_module: dict[str, list[tuple[str, str, set[str]]]] = {}
+    for (range_text, reason), modules in range_reason_modules.items():
+        if (range_text, reason) in common_keys:
+            continue
+        for module, points in modules.items():
+            residual_by_module.setdefault(module, []).append((range_text, reason, points))
+
+    for module in HIGHFREQ_MODULES.values():
+        entries = residual_by_module.get(module, [])
+        if not entries:
+            continue
+        grouped: dict[tuple[tuple[str, ...], str], list[str]] = {}
+        for range_text, reason, points in entries:
+            grouped.setdefault((tuple(sorted(points, key=_point_sort_key)), reason), []).append(range_text)
+        for (points, reason), ranges in sorted(grouped.items(), key=lambda item: _parse_range_bounds(item[1][0])):
+            rows.append(
+                {
+                    "module": module,
+                    "points": _join_points(points, max_names=6),
+                    "range": _summarize_ranges(ranges, max_ranges=4),
+                    "reason": reason,
+                }
+            )
+    return rows
+
+
+def build_health_status_rows(cfg: dict, result_root: Path, start_date: date, end_date: date) -> list[dict[str, str]]:
+    lowfreq_events = collect_lowfreq_missing_events(cfg, result_root, start_date, end_date)
+    highfreq_events = collect_highfreq_missing_events(cfg, result_root, start_date, end_date)
+
+    rows: list[dict[str, str]] = []
+    for module in LOWFREQ_MODULES.values():
+        module_events = [event for event in lowfreq_events if event["module"] == module]
+        rows.extend(_build_lowfreq_health_rows(module, module_events, start_date, end_date))
+    rows.extend(_build_highfreq_health_rows(highfreq_events))
+    return rows
 
 
 def _pattern_for_point(cfg: dict, module: str, point_id: str, file_id: str | None = None) -> str:
@@ -409,34 +659,45 @@ def collect_highfreq_missing_events(cfg: dict, result_root: Path, start_date: da
 
 
 def build_health_status_summary(cfg: dict, result_root: Path, start_date: date, end_date: date) -> str:
-    events = collect_lowfreq_missing_events(cfg, result_root, start_date, end_date)
-    events.extend(collect_highfreq_missing_events(cfg, result_root, start_date, end_date))
-    if not events:
+    lowfreq_events = collect_lowfreq_missing_events(cfg, result_root, start_date, end_date)
+    highfreq_events = collect_highfreq_missing_events(cfg, result_root, start_date, end_date)
+    if not lowfreq_events and not highfreq_events:
         return "监测周期内未发现原始数据缺失、无文件或无记录情况。"
 
-    grouped: dict[str, dict[tuple[str, str], set[str]]] = {}
-    for event in events:
-        module = event["module"]
-        grouped.setdefault(module, {})
-        key = (event["range"], event["reason"])
-        grouped[module].setdefault(key, set()).update(event["points"])
-
     parts: list[str] = []
-    for module in list(LOWFREQ_MODULES.values()) + list(HIGHFREQ_MODULES.values()):
-        bucket = grouped.get(module)
-        if not bucket:
-            continue
-        item_texts = []
-        for (range_text, reason), points in sorted(bucket.items(), key=lambda x: x[0][0]):
-            points_text = "、".join(sorted(points))
-            item_texts.append(f"{points_text}（{range_text}，{reason}）")
-        parts.append(f"{module}：{'；'.join(item_texts)}")
-    return "监测周期内原始数据缺失/无文件/无记录情况如下：" + "；".join(parts) + "。"
+    if lowfreq_events:
+        lowfreq_parts = []
+        for module in LOWFREQ_MODULES.values():
+            module_events = [event for event in lowfreq_events if event["module"] == module]
+            text = _summarize_lowfreq_module(module, module_events, start_date, end_date)
+            if text:
+                lowfreq_parts.append(text)
+        if lowfreq_parts:
+            parts.append("低频监测系统存在持续性和阶段性原始记录缺失。" + "；".join(lowfreq_parts) + "。")
+
+    highfreq_text = _summarize_highfreq_events(highfreq_events)
+    if highfreq_text:
+        parts.append(highfreq_text + "。")
+
+    return "监测周期内原始数据缺失、无文件或无记录情况见下表。"
 
 
-def apply_health_status_to_doc(doc: Document, summary_text: str) -> None:
+def apply_health_status_to_doc(doc: Document, summary_text: str, rows: list[dict[str, str]]) -> None:
     paragraph = _next_nonempty_paragraph_after(doc, "健康监测系统运行状况")
     replace_paragraph_text(paragraph, summary_text)
+    if not rows:
+        return
+    table = insert_table_before(paragraph, rows=len(rows) + 1, cols=4)
+    headers = ["监测项目", "异常测点/测点组", "时间段", "异常类型"]
+    for idx, header in enumerate(headers):
+        table.cell(0, idx).text = header
+    for ridx, row in enumerate(rows, start=1):
+        values = [row["module"], row["points"], row["range"], row["reason"]]
+        for cidx, value in enumerate(values):
+            table.cell(ridx, cidx).text = value
+    style_table(table, left=True)
+    set_header_bold(table)
+    set_table_column_widths(table, [28, 66, 42, 24])
 
 
 def find_last_paragraph_contains(doc: Document, fragment: str):
@@ -538,6 +799,7 @@ def build_period_report(
     cfg = load_json(config_path)
     manifest = build_manifest(cfg, stats_root, fallback_stats_root, image_root, template, assets_dir, period_label, monitoring_range, report_date)
     manifest["health_status_summary"] = build_health_status_summary(cfg, result_root, start_dt, end_dt)
+    manifest["health_status_rows"] = build_health_status_rows(cfg, result_root, start_dt, end_dt)
     wim_months = months_between(start_dt, end_dt)
     manifest["wim"] = build_wim_period_section(resolve_wim_root(result_root, analysis_root, wim_root), wim_months)
 
@@ -547,7 +809,7 @@ def build_period_report(
 
     doc = Document(str(template))
     apply_manifest_to_doc(doc, manifest)
-    apply_health_status_to_doc(doc, manifest["health_status_summary"])
+    apply_health_status_to_doc(doc, manifest["health_status_summary"], manifest["health_status_rows"])
     apply_wim_period_to_doc(doc, manifest["wim"])
 
     output_docx = output_dir / f"{template.stem}_周期报_{timestamp}.docx"
