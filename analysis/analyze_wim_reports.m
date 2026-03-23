@@ -1,4 +1,4 @@
-function analyze_wim_reports(root_dir, start_date, end_date, cfg)
+﻿function analyze_wim_reports(root_dir, start_date, end_date, cfg)
 % analyze_wim_reports  Process WIM (dynamic weighing) data and generate CSV+Excel reports.
 %   Supports vendor adapters: zhichen (bcp/fmt native) and jiulongjiang (Excel).
 %   Outputs all reports as CSV and merges them into one Excel workbook.
@@ -48,7 +48,7 @@ function analyze_wim_reports_single_month(root_dir, start_date, end_date, cfg)
     switch lower(vendor)
         case 'zhichen'
             input_cfg = get_vendor_input(wim, 'zhichen');
-            [fmt_path, bcp_path] = resolve_zhichen_paths(input_cfg, proj_root, yyyymm);
+            [fmt_path, bcp_path] = resolve_zhichen_paths(input_cfg, proj_root, yyyymm, root_dir);
             acc = process_zhichen_bcp(fmt_path, bcp_path, acc, wim);
         case 'jiulongjiang'
             input_cfg = get_vendor_input(wim, 'jiulongjiang');
@@ -182,23 +182,59 @@ end
 % =========================
 % Input resolvers
 % =========================
-function [fmt_path, bcp_path] = resolve_zhichen_paths(input_cfg, base, yyyymm)
+function [fmt_path, bcp_path] = resolve_zhichen_paths(input_cfg, base, yyyymm, root_dir)
     fmt_name = get_field_default(input_cfg, 'fmt', ['HS_Data_' yyyymm '.fmt']);
     bcp_name = get_field_default(input_cfg, 'bcp', ['HS_Data_' yyyymm '.bcp']);
     fmt_name = strrep(fmt_name, '{yyyymm}', yyyymm);
     bcp_name = strrep(bcp_name, '{yyyymm}', yyyymm);
+    candidate_dirs = {};
     input_dir = get_field_default(input_cfg, 'dir', '');
-    input_dir = resolve_path(base, input_dir);
-    fmt_path = fullfile(input_dir, fmt_name);
-    bcp_path = fullfile(input_dir, bcp_name);
-    if ~exist(fmt_path, 'file')
+    if ~isempty(input_dir)
+        candidate_dirs{end+1} = resolve_path(base, input_dir); %#ok<AGROW>
+    end
+    if nargin >= 4 && ~isempty(root_dir)
+        candidate_dirs{end+1} = fullfile(root_dir, 'WIM'); %#ok<AGROW>
+    end
+    candidate_dirs = unique(candidate_dirs, 'stable');
+
+    fmt_path = '';
+    bcp_path = '';
+    fmt_candidates = {};
+    bcp_candidates = {};
+    for i = 1:numel(candidate_dirs)
+        fmt_i = fullfile(candidate_dirs{i}, fmt_name);
+        bcp_i = fullfile(candidate_dirs{i}, bcp_name);
+        fmt_candidates{end+1} = fmt_i; %#ok<AGROW>
+        bcp_candidates{end+1} = bcp_i; %#ok<AGROW>
+        if exist(fmt_i, 'file') && exist(bcp_i, 'file')
+            fmt_path = fmt_i;
+            bcp_path = bcp_i;
+            return;
+        end
+    end
+
+    for i = 1:numel(fmt_candidates)
+        if exist(fmt_candidates{i}, 'file')
+            error('WIM:Input:MissingBcp', ...
+                'WIM input file missing for %s: bcp file not found: %s', yyyymm, bcp_candidates{i});
+        end
+    end
+
+    for i = 1:numel(bcp_candidates)
+        if exist(bcp_candidates{i}, 'file')
+            error('WIM:Input:MissingFmt', ...
+                'WIM input file missing for %s: fmt file not found: %s', yyyymm, fmt_candidates{i});
+        end
+    end
+
+    if isempty(fmt_candidates)
         error('WIM:Input:MissingFmt', ...
-            'WIM input file missing for %s: fmt file not found: %s', yyyymm, fmt_path);
+            'WIM input file missing for %s: no candidate input directory resolved.', yyyymm);
     end
-    if ~exist(bcp_path, 'file')
-        error('WIM:Input:MissingBcp', ...
-            'WIM input file missing for %s: bcp file not found: %s', yyyymm, bcp_path);
-    end
+
+    error('WIM:Input:MissingFmt', ...
+        'WIM input file missing for %s: fmt file not found. Searched: %s', ...
+        yyyymm, strjoin(fmt_candidates, '; '));
 end
 
 function files = resolve_jiulongjiang_files(input_cfg, base)
@@ -1166,7 +1202,7 @@ function run_wim_database_pipeline(root_dir, start_date, end_date, wim, cfg)
     switch lower(vendor)
         case 'zhichen'
             input_cfg = get_vendor_input(wim, 'zhichen');
-            [fmt_path, bcp_path] = resolve_zhichen_paths(input_cfg, proj_root, yyyymm);
+            [fmt_path, bcp_path] = resolve_zhichen_paths(input_cfg, proj_root, yyyymm, root_dir);
             ensure_zhichen_table(db, src_table, fmt_path);
             if should_import(db, src_table)
                 import_bcp_with_fmt(db, src_table, bcp_path, fmt_path);

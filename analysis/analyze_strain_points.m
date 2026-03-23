@@ -47,11 +47,12 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
                 continue;
             end
 
+            [vmin, vmax, vmean] = summarize_vals(vals);
             stats_rows(end+1, :) = { ... %#ok<AGROW>
                 pid, ...
-                round(min(vals), 3), ...
-                round(max(vals), 3), ...
-                round(mean(vals, 'omitnan'), 3)};
+                round(vmin, 3), ...
+                round(vmax, 3), ...
+                round(vmean, 3)};
 
             warn_lines = resolve_warn_lines(style, cfg, pid);
             plot_point_curve(root_dir, times, vals, start_date, end_date, pid, style, warn_lines);
@@ -109,12 +110,26 @@ function [data_list, stats_rows] = collect_group_data(root_dir, subfolder, pids,
             continue;
         end
         data_list(end+1, 1) = struct('pid', pid, 'times', times, 'vals', vals); %#ok<AGROW>
+        [vmin, vmax, vmean] = summarize_vals(vals);
         stats_rows(end+1, :) = { ... %#ok<AGROW>
             pid, ...
-            round(min(vals), 3), ...
-            round(max(vals), 3), ...
-            round(mean(vals, 'omitnan'), 3)};
+            round(vmin, 3), ...
+            round(vmax, 3), ...
+            round(vmean, 3)};
     end
+end
+
+function [vmin, vmax, vmean] = summarize_vals(vals)
+    vals = vals(isfinite(vals));
+    if isempty(vals)
+        vmin = NaN;
+        vmax = NaN;
+        vmean = NaN;
+        return;
+    end
+    vmin = min(vals);
+    vmax = max(vals);
+    vmean = mean(vals);
 end
 
 function plot_point_curve(root_dir, times, vals, start_date, end_date, pid, style, warn_lines)

@@ -168,7 +168,9 @@ function style = get_eq_style(cfg)
         'prefix', 'EQ');
     style.ylabel = '地震动加速度 (m/s^2)';
     style.title_prefix = '地震动时程';
+    style.ylim_auto = false;
     style.ylim = [];
+    style.ylims = [];
     style.main_color = [0 0.447 0.741];
 
     if isfield(cfg, 'plot_styles') && isfield(cfg.plot_styles, 'eq')

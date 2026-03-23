@@ -394,7 +394,7 @@ def find_last_paragraph_contains(doc: Document, fragment: str) -> Paragraph:
 
 def find_last_paragraph_contains_scoped(
     doc: Document,
-    fragment: str,
+    fragment: str | list[str] | tuple[str, ...],
     anchor_text: str | None = None,
     stop_text: str | None = None,
 ) -> Paragraph:
@@ -411,13 +411,17 @@ def find_last_paragraph_contains_scoped(
         if stop_indices:
             end_idx = stop_indices[0]
 
-    indices = find_paragraph_indices_contains_between(doc, fragment, start_idx, end_idx)
-    if not indices:
-        scope = f' after "{anchor_text}"' if anchor_text else ""
-        if stop_text:
-            scope += f' before "{stop_text}"'
-        raise ValueError(f'Paragraph containing "{fragment}" not found in template{scope}')
-    return doc.paragraphs[indices[-1]]
+    fragments = [fragment] if isinstance(fragment, str) else list(fragment)
+    for frag in fragments:
+        indices = find_paragraph_indices_contains_between(doc, frag, start_idx, end_idx)
+        if indices:
+            return doc.paragraphs[indices[-1]]
+
+    scope = f' after "{anchor_text}"' if anchor_text else ""
+    if stop_text:
+        scope += f' before "{stop_text}"'
+    joined = " / ".join(fragments)
+    raise ValueError(f'Paragraph containing "{joined}" not found in template{scope}')
 
 
 def replace_next_nonempty_paragraph(doc: Document, anchor_fragment: str, new_text: str, use_last: bool = True, skip: int = 0) -> None:
@@ -472,7 +476,7 @@ def insert_picture_before_caption_contains(doc: Document, caption_fragment: str,
 
 def insert_labeled_images_before_caption_contains(
     doc: Document,
-    caption_fragment: str,
+    caption_fragment: str | list[str] | tuple[str, ...],
     items: list[ImageItem],
     width_mm: float = 165.0,
     anchor_text: str | None = None,
@@ -1066,7 +1070,10 @@ def build_cable_force_section(cfg: dict, stats_root: Path, fallback_stats_root: 
         "max_change": max(change_rates) if change_rates else None,
         "accel_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in accel_items],
         "force_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in force_items],
-        "accel_caption": "\u5178\u578b\u6d4b\u70b9\u632f\u52a8\u52a0\u901f\u5ea6\u7edd\u5bf9\u6700\u5927\u503c\u65f6\u7a0b\u56fe\u548c10min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u56fe",
+        "accel_caption": [
+            "\u5178\u578b\u540a\u7d22\u7d22\u529b\u6d4b\u70b9\u632f\u52a8\u52a0\u901f\u5ea6\u7edd\u5bf9\u6700\u5927\u503c\u65f6\u7a0b\u56fe\u548c10min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u56fe",
+            "\u5178\u578b\u6d4b\u70b9\u632f\u52a8\u52a0\u901f\u5ea6\u7edd\u5bf9\u6700\u5927\u503c\u65f6\u7a0b\u56fe\u548c10min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u56fe",
+        ],
         "force_caption": "\u5178\u578b\u6d4b\u70b9\u7d22\u529b\u65f6\u7a0b\u56fe",
         "table_rows": table_rows,
         "image_lookup": {
@@ -1117,7 +1124,10 @@ def build_vibration_section(cfg: dict, stats_root: Path, fallback_stats_root: Pa
         "freq_summary": freq_summary,
         "timeseries_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in ts_items],
         "freq_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in freq_items],
-        "timeseries_caption": "典型测点振动加速度绝对最大值时程图和10min加速度均方根图",
+        "timeseries_caption": [
+            "典型主梁、主塔测点振动加速度绝对最大值时程图和10min加速度均方根图",
+            "典型测点振动加速度绝对最大值时程图和10min加速度均方根图",
+        ],
         "freq_caption": "典型测点自振频率时程图",
         "image_lookup": {
             "timeseries": label_path_dicts(ts_items),

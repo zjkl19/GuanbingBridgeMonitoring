@@ -44,6 +44,15 @@
     stats = cell(numel(tpts),6);
     records = repmat(init_cable_accel_record(), numel(tpts), 1);
     parallel_plan = get_parallel_plan(cfg, numel(tpts), 'cable_accel');
+    if parallel_plan.enabled
+        day_count = days(datetime(end_date,'InputFormat','yyyy-MM-dd') - datetime(start_date,'InputFormat','yyyy-MM-dd')) + 1;
+        if day_count > 7
+            fprintf('索力加速度分析时间跨度为 %d 天，禁用并行数据收集以避免内存峰值。\n', round(day_count));
+            parallel_plan.enabled = false;
+            parallel_plan.worker_count = 0;
+            parallel_plan.reason = 'disabled for long-span cable_accel run';
+        end
+    end
 
     if parallel_plan.enabled
         fprintf('索力加速度分析使用并行数据收集 (%d workers)\n', parallel_plan.worker_count);
@@ -64,17 +73,22 @@
             warning('测点 %s 无数据，跳过', pid);
             continue;
         end
+        [times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'cable_accel');
+        if isempty(vals)
+            warning('测点 %s 在绘图阶段无数据，跳过', pid);
+            continue;
+        end
         if parallel_plan.enabled
             fprintf('并行收集完成，采样率 %.2f Hz\n', rec.fs);
-            record_parallel_offset_correction(cfg, 'cable_accel', pid, rec.times, rec.vals);
+            record_parallel_offset_correction(cfg, 'cable_accel', pid, times, vals);
         elseif auto_detect_fs
             fprintf('自动检测采样率 %.2f Hz\n', rec.fs);
         else
             fprintf('使用默认采样率 %d Hz\n', round(rec.fs));
         end
         stats(i,:) = {pid, rec.mn, rec.mx, rec.av, rec.rms_max, rec.rms_time};
-        plot_accel_curve(root_dir, pid, rec.times, rec.vals, rec.mn, rec.mx, style);
-        plot_accel_rms_curve(root_dir, pid, rec.times, rec.vals, rec.fs, start_date, end_date, style);
+        plot_accel_curve(root_dir, pid, times, vals, rec.mn, rec.mx, style);
+        plot_accel_rms_curve(root_dir, pid, times, vals, rec.fs, start_date, end_date, style);
     end
 
     T = cell2table(stats, 'VariableNames',{'PointID','Min','Max','Mean','RMS10minMax','RMSStartTime'});
@@ -100,6 +114,7 @@ end
 function style = get_style(cfg, key)
     style = struct('ylabel','索力加速度 (mm/s^2)', ...
                    'title_prefix','索力加速度时程', ...
+                   'ylim_auto', false, ...
                    'ylim', [], ...
                    'ylims', [], ...
                    'color_main',[0 0.447 0.741], ...
@@ -294,7 +309,7 @@ tf = (islogical(v) && isscalar(v) && v) || ...
 end
 
 function rec = init_cable_accel_record()
-rec = struct('pid', '', 'times', [], 'vals', [], 'fs', NaN, ...
+rec = struct('pid', '', 'fs', NaN, ...
     'mn', NaN, 'mx', NaN, 'av', NaN, 'rms_max', NaN, ...
     'rms_time', NaT, 'has_data', false);
 end
@@ -317,8 +332,6 @@ end
 window_sec = 10 * 60;
 win_len = round(window_sec * fs);
 
-rec.times = times;
-rec.vals = vals;
 rec.fs = fs;
 rec.mn = round(min(vals), 3);
 rec.mx = round(max(vals), 3);
