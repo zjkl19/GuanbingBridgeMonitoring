@@ -11,6 +11,7 @@ from docx import Document
 from openpyxl import load_workbook
 
 from build_monthly_report import (
+    SECTION_TITLES,
     apply_manifest_to_doc,
     build_manifest,
     ensure_dir,
@@ -462,6 +463,57 @@ def build_health_status_rows(cfg: dict, result_root: Path, start_date: date, end
     return rows
 
 
+def build_report_missing_rows(manifest: dict, wim_section: dict) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for key, title in SECTION_TITLES.items():
+        section = manifest.get("sections", {}).get(key, {})
+        if not section.get("enabled", True):
+            continue
+        if section.get("available", True):
+            continue
+        rows.append(
+            {
+                "module": title,
+                "points": "-",
+                "range": "本周期",
+                "reason": "本周期未获取到有效数据",
+            }
+        )
+
+    if not wim_section.get("enabled"):
+        rows.append(
+            {
+                "module": "交通状况监测",
+                "points": "-",
+                "range": "本周期",
+                "reason": "本周期未获取到有效数据",
+            }
+        )
+        return rows
+
+    available_months = {item.yyyymm for item in wim_section.get("month_summaries", [])}
+    missing_months = [month for month in wim_section.get("months", []) if month not in available_months]
+    if missing_months:
+        rows.append(
+            {
+                "module": "交通状况监测",
+                "points": "-",
+                "range": "、".join(missing_months),
+                "reason": "部分月份WIM结果缺失",
+            }
+        )
+    return rows
+
+
+def merge_health_status_summary(summary_text: str, missing_rows: list[dict[str, str]]) -> str:
+    if not missing_rows:
+        return summary_text
+    extra = "此外，部分监测内容缺失，详见下表。"
+    if not summary_text or "未发现原始数据缺失" in summary_text:
+        return extra
+    return summary_text.rstrip("。") + "。" + extra
+
+
 def _pattern_for_point(cfg: dict, module: str, point_id: str, file_id: str | None = None) -> str:
     patterns = cfg.get("file_patterns", {}).get(module, {})
     per_point = patterns.get("per_point", {})
@@ -798,10 +850,25 @@ def build_period_report(
 
     cfg = load_json(config_path)
     manifest = build_manifest(cfg, stats_root, fallback_stats_root, image_root, template, assets_dir, period_label, monitoring_range, report_date)
-    manifest["health_status_summary"] = build_health_status_summary(cfg, result_root, start_dt, end_dt)
-    manifest["health_status_rows"] = build_health_status_rows(cfg, result_root, start_dt, end_dt)
     wim_months = months_between(start_dt, end_dt)
-    manifest["wim"] = build_wim_period_section(resolve_wim_root(result_root, analysis_root, wim_root), wim_months)
+    try:
+        resolved_wim_root = resolve_wim_root(result_root, analysis_root, wim_root)
+        manifest["wim"] = build_wim_period_section(resolved_wim_root, wim_months)
+    except FileNotFoundError as exc:
+        fallback_wim_root = wim_root if wim_root is not None else (result_root / "WIM" / "results" / "hongtang")
+        manifest["wim"] = {
+            "enabled": False,
+            "wim_root": str(fallback_wim_root),
+            "months": wim_months,
+            "warnings": [str(exc)],
+            "summary": "",
+            "month_summaries": [],
+        }
+    raw_health_summary = build_health_status_summary(cfg, result_root, start_dt, end_dt)
+    raw_health_rows = build_health_status_rows(cfg, result_root, start_dt, end_dt)
+    missing_rows = build_report_missing_rows(manifest, manifest["wim"])
+    manifest["health_status_summary"] = merge_health_status_summary(raw_health_summary, missing_rows)
+    manifest["health_status_rows"] = raw_health_rows + missing_rows
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     manifest_path = output_dir / f"period_report_manifest_{timestamp}.json"

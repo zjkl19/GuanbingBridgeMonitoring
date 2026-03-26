@@ -689,6 +689,121 @@ def set_row_summary_text(row, start_col: int, text: str) -> None:
         row.cells[idx].text = text
 
 
+SECTION_TITLES = {
+    "strain": "结构应变监测",
+    "tilt": "主塔倾斜监测",
+    "bearing_displacement": "支座变位监测",
+    "cable_force": "吊索索力监测",
+    "vibration": "主梁、主塔振动监测",
+    "wind": "风向风速监测",
+    "eq": "地震动监测",
+}
+
+OVERVIEW_SECTION_NAMES = (
+    "交通状况监测",
+    "结构应变监测",
+    "主塔倾斜监测",
+    "支座变位监测",
+    "吊索索力监测",
+    "风向风速监测",
+    "地震动监测",
+)
+
+
+def _image_list_has_content(items: object) -> bool:
+    if not isinstance(items, list):
+        return False
+    return any(isinstance(item, dict) and item.get("path") for item in items)
+
+
+def _section_has_content(section_name: str, section: dict) -> bool:
+    if not section or not section.get("enabled", True):
+        return False
+
+    if section_name == "strain":
+        return (
+            any(section.get(key) is not None for key in ("girder_min", "girder_max", "tower_min", "tower_max"))
+            or _image_list_has_content(section.get("girder_timeseries_images"))
+            or _image_list_has_content(section.get("girder_boxplot_images"))
+            or _image_list_has_content(section.get("tower_timeseries_images"))
+            or _image_list_has_content(section.get("tower_boxplot_images"))
+        )
+    if section_name == "tilt":
+        return (
+            any(section.get(key) is not None for key in ("z_min", "z_max", "h_min", "h_max"))
+            or _image_list_has_content(section.get("images"))
+        )
+    if section_name == "bearing_displacement":
+        return (
+            any(section.get(key) is not None for key in ("min_val", "max_val"))
+            or _image_list_has_content(section.get("images"))
+        )
+    if section_name == "cable_force":
+        return (
+            any(section.get(key) is not None for key in ("max_abs", "max_rms", "min_change", "max_change"))
+            or bool(section.get("table_rows"))
+            or _image_list_has_content(section.get("accel_images"))
+            or _image_list_has_content(section.get("force_images"))
+        )
+    if section_name == "vibration":
+        return (
+            any(section.get(key) is not None for key in ("max_abs", "max_rms"))
+            or _image_list_has_content(section.get("timeseries_images"))
+            or _image_list_has_content(section.get("freq_images"))
+        )
+    if section_name == "wind":
+        return bool(section.get("table_rows")) or section.get("max_10min") is not None or _image_list_has_content(section.get("speed_images")) or _image_list_has_content(section.get("rose_images"))
+    if section_name == "eq":
+        return _image_list_has_content(section.get("images"))
+    return True
+
+
+def section_is_available(section_name: str, section: dict | None) -> bool:
+    if not isinstance(section, dict):
+        return False
+    if not section.get("enabled", True):
+        return False
+    return bool(section.get("available", True))
+
+
+def _missing_section(section_name: str, cfg: dict, exc: FileNotFoundError) -> dict:
+    enabled = reporting_enabled(cfg, section_name)
+    section = {
+        "enabled": enabled,
+        "available": False,
+        "missing_error": str(exc),
+    }
+    if enabled:
+        title = SECTION_TITLES.get(section_name, section_name)
+        section["missing_notice"] = f"本周期未获取到{title}有效数据"
+    return section
+
+
+def _build_section_safe(
+    section_name: str,
+    builder,
+    cfg: dict,
+    stats_root: Path,
+    fallback_stats_root: Path | None,
+    image_root: Path,
+    assets_dir: Path,
+) -> dict:
+    try:
+        section = builder(cfg, stats_root, fallback_stats_root, image_root, assets_dir)
+    except FileNotFoundError as exc:
+        return _missing_section(section_name, cfg, exc)
+
+    if not isinstance(section, dict):
+        section = {"enabled": False}
+    if not section.get("enabled", True):
+        section["available"] = False
+        return section
+    section["available"] = _section_has_content(section_name, section)
+    if not section["available"]:
+        section.setdefault("missing_notice", f"本周期未获取到{SECTION_TITLES.get(section_name, section_name)}有效数据")
+    return section
+
+
 def build_overview_items(manifest: dict) -> dict[str, list[str]]:
     sections = manifest["sections"]
     traffic = sections.get("wim", {}) if sections.get("wim", {}).get("enabled") else sections.get("traffic", {})
@@ -699,8 +814,10 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
     wind = sections["wind"]
     eq = sections["eq"]
 
-    return {
-        "交通状况监测": [
+    replacements: dict[str, list[str]] = {}
+
+    if traffic:
+        replacements["交通状况监测"] = [
             (
                 f"监测结果表明，桥梁共通过车辆{traffic.get('vehicle_total', 0)}辆，日均{traffic.get('daily_avg', 0)}辆。"
                 f"其中上行方向（闽侯-农大，车道1～车道4）所通过车辆为{traffic.get('up_total', 0)}辆，"
@@ -712,54 +829,62 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
                 f"轴重超过1.5倍设计荷载42t的车辆共{traffic.get('axle_over_1_5', 0)}辆，"
                 f"其中超过2.0倍设计荷载56t的车辆共{traffic.get('axle_over_2_0', 0)}辆。"
             )
-        ],
-        "结构应变监测": [
+        ]
+
+    if section_is_available("strain", strain):
+        replacements["结构应变监测"] = [
             f"箱梁监测结果表明，各测点应变值在{format_range(strain.get('girder_min'), strain.get('girder_max'), 1, 'με')}之间，"
             "均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。\n"
             f"桥塔监测结果表明，各测点应变值在{format_range(strain.get('tower_min'), strain.get('tower_max'), 1, 'με')}之间，"
             "均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
-        ],
-        "主塔倾斜监测": [
+        ]
+    if section_is_available("tilt", tilt):
+        replacements["主塔倾斜监测"] = [
             f"监测结果表明，倾角纵桥向位移在{format_range(tilt.get('z_min'), tilt.get('z_max'), 3, '°')}之间，"
             f"横桥向位移在{format_range(tilt.get('h_min'), tilt.get('h_max'), 3, '°')}之间，"
             "均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
-        ],
-        "支座变位监测": [
+        ]
+    if section_is_available("bearing_displacement", bearing):
+        replacements["支座变位监测"] = [
             "选取典型监测数据进行分析。"
             f"监测结果表明，各测点支座位移在{format_range(bearing.get('min_val'), bearing.get('max_val'), 1, 'mm')}之间，"
             "未出现超过各级超限阈值和报警的情况。"
-        ],
-        "吊索索力监测": [
+        ]
+    if section_is_available("cable_force", cable):
+        replacements["吊索索力监测"] = [
             "选取典型监测数据进行分析。"
             f"监测结果表明吊索加速度各测点绝对最大值为{cable.get('max_abs', 0):.2f}mm/s²，"
             f"各测点10min加速度均方根值最大为{cable.get('max_rms', 0):.2f}mm/s²，"
             "未超过1000mm/s²，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
             f"与成桥索力相比，索力变化范围在{cable.get('min_change', 0):.2f}%~{cable.get('max_change', 0):.2f}%之间，"
             "与成桥索力相比变化范围在10%以内，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
-        ],
-        "风向风速监测": [
+        ]
+    if section_is_available("wind", wind):
+        replacements["风向风速监测"] = [
             f"监测结果表明，桥面10min平均风速最大值为{wind.get('max_10min', 0):.2f}m/s，"
             "未超过25m/s，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
-        ],
-        "地震动监测": [
+        ]
+    if section_is_available("eq", eq):
+        replacements["地震动监测"] = [
             f"监测结果表明，水平地震动作用加速度峰值为{eq.get('horizontal_peak', 0):.3f}m/s²，"
             f"{eq.get('horizontal_text', '未达到设计E1地震作用加速度峰值')}，"
             f"竖向地震动作用加速度峰值为{eq.get('vertical_peak', 0):.3f}m/s²，"
             f"{eq.get('vertical_text', '未达到设计E1地震作用加速度峰值')}，未出现超过各级超限阈值和报警的情况。"
-        ],
-    }
+        ]
+
+    return replacements
 
 
 def update_overview_tables(doc: Document, manifest: dict) -> None:
     replacements = build_overview_items(manifest)
-    section_names = tuple(replacements.keys())
+    replacement_names = tuple(replacements.keys())
 
     def replace_in_cell(cell) -> None:
         paragraphs = cell.paragraphs
         idx = 0
         while idx < len(paragraphs):
             text = paragraphs[idx].text.strip()
-            matched = next((name for name in section_names if name in text), None)
+            matched = next((name for name in OVERVIEW_SECTION_NAMES if name in text), None)
             if matched is None:
                 idx += 1
                 continue
@@ -767,21 +892,23 @@ def update_overview_tables(doc: Document, manifest: dict) -> None:
             j = idx + 1
             while j < len(paragraphs):
                 next_text = paragraphs[j].text.strip()
-                if next_text and any(name in next_text for name in section_names):
+                if next_text and any(name in next_text for name in OVERVIEW_SECTION_NAMES):
                     break
                 if next_text:
                     targets.append(paragraphs[j])
                 j += 1
-            for target, new_text in zip(targets, replacements[matched]):
-                replace_paragraph_text(target, new_text)
-            for extra in targets[len(replacements[matched]):]:
-                replace_paragraph_text(extra, "")
+            if matched in replacements:
+                new_blocks = replacements[matched]
+                for target, new_text in zip(targets, new_blocks):
+                    replace_paragraph_text(target, new_text)
+                for extra in targets[len(new_blocks):]:
+                    replace_paragraph_text(extra, "")
             idx = j
 
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
-                if any(name in cell.text for name in section_names):
+                if any(name in cell.text for name in OVERVIEW_SECTION_NAMES):
                     replace_in_cell(cell)
 
 
@@ -1261,13 +1388,13 @@ def build_manifest(cfg: dict, stats_root: Path, fallback_stats_root: Path | None
         "monitoring_range": monitoring_range,
         "report_date": report_date,
         "sections": {
-            "strain": build_strain_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
-            "tilt": build_tilt_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
-            "bearing_displacement": build_bearing_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
-            "cable_force": build_cable_force_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
-            "vibration": build_vibration_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
-            "wind": build_wind_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
-            "eq": build_eq_section(cfg, stats_root, fallback_stats_root, image_root, assets_dir),
+            "strain": _build_section_safe("strain", build_strain_section, cfg, stats_root, fallback_stats_root, image_root, assets_dir),
+            "tilt": _build_section_safe("tilt", build_tilt_section, cfg, stats_root, fallback_stats_root, image_root, assets_dir),
+            "bearing_displacement": _build_section_safe("bearing_displacement", build_bearing_section, cfg, stats_root, fallback_stats_root, image_root, assets_dir),
+            "cable_force": _build_section_safe("cable_force", build_cable_force_section, cfg, stats_root, fallback_stats_root, image_root, assets_dir),
+            "vibration": _build_section_safe("vibration", build_vibration_section, cfg, stats_root, fallback_stats_root, image_root, assets_dir),
+            "wind": _build_section_safe("wind", build_wind_section, cfg, stats_root, fallback_stats_root, image_root, assets_dir),
+            "eq": _build_section_safe("eq", build_eq_section, cfg, stats_root, fallback_stats_root, image_root, assets_dir),
         },
     }
 
@@ -1318,7 +1445,7 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
     update_overview_tables(doc, manifest)
 
     strain = manifest["sections"]["strain"]
-    if strain.get("enabled", True):
+    if section_is_available("strain", strain):
         replace_next_nonempty_after_exact(doc, "\u4e3b\u6881\u5e94\u53d8", strain["chapter_girder"], use_last=True, skip=1)
         replace_next_nonempty_after_exact(doc, "\u6865\u5854\u5e94\u53d8", strain["chapter_tower"], use_last=True, skip=1)
         replace_last_paragraph_contains(doc, "主梁各截面位置应变时程曲线图", strain["girder_timeseries_caption"])
@@ -1348,7 +1475,7 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
 
 
     tilt = manifest["sections"]["tilt"]
-    if tilt.get("enabled", True):
+    if section_is_available("tilt", tilt):
         replace_last_paragraph_contains(doc, "主塔倾角偏移的方向以闽侯上街-农林大学为纵桥向", "主塔倾角偏移的方向以闽侯上街-农林大学为纵桥向，上游-下游为横桥向。其中朝农林大学方向为正、闽侯上街方向为负，朝上游方向为正、朝下游方向为负。各测点的倾斜幅值如下图所示。" + tilt["chapter"])
         insert_labeled_images_before_caption_contains(
             doc,
@@ -1357,7 +1484,7 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
         )
 
     bearing = manifest["sections"]["bearing_displacement"]
-    if bearing.get("enabled", True):
+    if section_is_available("bearing_displacement", bearing):
         replace_last_paragraph_contains(doc, "支座变位的方向以闽侯上街-农林大学为纵桥向", "支座变位的方向以闽侯上街-农林大学为纵桥向，上游-下游为横桥向。其中朝农林大学方向为正、闽侯上街方向为负，朝上游方向为正、朝下游方向为负。各测点的支座位移时程如下图所示。" + bearing["chapter"])
         insert_labeled_images_before_caption_contains(
             doc,
@@ -1366,7 +1493,7 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
         )
 
     cable = manifest["sections"]["cable_force"]
-    if cable.get("enabled", False):
+    if section_is_available("cable_force", cable):
         replace_next_nonempty_after_exact(doc, "（1）索力加速度时程数据", cable["accel_summary"], use_last=True)
         replace_next_nonempty_after_exact(doc, "（2）索力时程数据", cable["force_summary"], use_last=True, skip=4)
         insert_labeled_images_before_caption_contains(
@@ -1386,7 +1513,7 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
         update_cable_force_table(doc, cable["table_rows"])
 
     vibration = manifest["sections"]["vibration"]
-    if vibration.get("enabled", False):
+    if section_is_available("vibration", vibration):
         replace_next_nonempty_after_exact(doc, "（1）振动时程数据", vibration["timeseries_summary"], use_last=True)
         replace_next_nonempty_after_exact(doc, "（2）自振频率", vibration["freq_summary"], use_last=True, skip=1)
         insert_labeled_images_before_caption_contains(
@@ -1405,7 +1532,7 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
         )
 
     wind = manifest["sections"]["wind"]
-    if wind.get("enabled", False):
+    if section_is_available("wind", wind):
         replace_next_nonempty_after_exact(doc, "风向风速监测", wind["summary"], use_last=True)
         insert_labeled_images_before_caption_contains(
             doc,
@@ -1420,7 +1547,7 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
         update_wind_table(doc, wind["table_rows"])
 
     eq = manifest["sections"]["eq"]
-    if eq.get("enabled", False):
+    if section_is_available("eq", eq):
         replace_next_nonempty_after_exact(doc, "地震动监测", eq["summary"], use_last=True, skip=2)
         insert_labeled_images_before_caption_contains(
             doc,
@@ -1432,6 +1559,10 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
 def summarize_missing_images(manifest: dict) -> list[str]:
     missing: list[str] = []
     for section_name, section in manifest.get("sections", {}).items():
+        if section.get("enabled", True) and not section.get("available", True):
+            notice = section.get("missing_notice") or f"{SECTION_TITLES.get(section_name, section_name)}内容缺失"
+            missing.append(f"section:{section_name}:{notice}")
+            continue
         lookup = section.get("image_lookup", {})
         if isinstance(lookup, dict):
             groups = lookup.values()

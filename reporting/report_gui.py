@@ -265,7 +265,8 @@ class ReportGui(QMainWindow):
 
         self.report_type_combo = QComboBox()
         self.report_type_combo.addItems([MONTHLY_REPORT, PERIOD_REPORT])
-        self.template_edit = QLineEdit(str(find_default_template(MONTHLY_REPORT)))
+        self.report_type_combo.setCurrentText(PERIOD_REPORT)
+        self.template_edit = QLineEdit(str(find_default_template(PERIOD_REPORT)))
         self.config_edit = QLineEdit(str(detect_default_config()))
         self.result_root_edit = QLineEdit(str(default_result_root))
         self.analysis_root_edit = QLineEdit(str(repo_root.resolve()))
