@@ -109,6 +109,10 @@ function run_gui()
         try
             preset = jsondecode(fileread(autoPreset));
             apply_preset(preset);
+            if exist(cfgEdit.Value,'file')
+                cfgCache = load_config(cfgEdit.Value);
+                cfgPath = cfgEdit.Value;
+            end
             addLog(['已自动加载上次参数: ' autoPreset]);
         catch
         end

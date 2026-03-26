@@ -377,6 +377,13 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
     end
 
     function onShow()
+        if exist(cfgEdit.Value, 'file')
+            try
+                cfgCache = load_config(cfgEdit.Value);
+                cfgPath = cfgEdit.Value;
+            catch
+            end
+        end
         refresh_tables();
         if isstruct(figBrowser) && isfield(figBrowser,'refresh')
             figBrowser.refresh();
