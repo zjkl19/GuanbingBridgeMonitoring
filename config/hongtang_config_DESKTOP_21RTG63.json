@@ -3135,7 +3135,7 @@
     "hourly_critical_weight_kg": 50000,
     "input": {
       "zhichen": {
-        "dir": "E:/洪塘大桥数据/2026年1-3月/WIM",
+        "dir": "WIM",
         "bcp": "HS_Data_{yyyymm}.bcp",
         "fmt": "HS_Data_{yyyymm}.fmt",
         "encoding": "gbk"

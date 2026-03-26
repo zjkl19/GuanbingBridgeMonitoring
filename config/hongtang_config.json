@@ -1368,8 +1368,8 @@
         },
         "offset_correction": -71,
         "thresholds": {
-          "min": -88.415274598930438,
-          "max": 67.165718716577516,
+          "min": -88.41527459893044,
+          "max": 67.16571871657752,
           "t_range_start": "2026-03-03 06:09:15",
           "t_range_end": "2026-03-16 19:59:59"
         },
@@ -3145,7 +3145,7 @@
     "hourly_critical_weight_kg": 50000,
     "input": {
       "zhichen": {
-        "dir": "data/_samples/wim/zhichen/202512",
+        "dir": "WIM",
         "bcp": "HS_Data_{yyyymm}.bcp",
         "fmt": "HS_Data_{yyyymm}.fmt",
         "encoding": "gbk"

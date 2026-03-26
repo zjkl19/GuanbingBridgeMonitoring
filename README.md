@@ -132,11 +132,13 @@ WIM SQL 常见故障现在会明确分类显示。
 
 - `WIM:Input:MissingFmt`
   - The monthly `HS_Data_YYYYMM.fmt` file is missing.
+  - For Hongtang, the default raw WIM directory is `<data-root>/WIM`.
   - Check `wim.input.zhichen.dir` and the month-specific input files.
-  - 缺少当月 `HS_Data_YYYYMM.fmt`；检查 `wim.input.zhichen.dir` 和对应月份文件。
+  - 缺少当月 `HS_Data_YYYYMM.fmt`；洪塘默认原始称重目录为 `<数据根目录>/WIM`，请检查 `wim.input.zhichen.dir` 和对应月份文件。
 
 - `WIM:Input:MissingBcp`
   - The monthly `HS_Data_YYYYMM.bcp` file is missing.
+  - For Hongtang, the default raw WIM directory is `<data-root>/WIM`.
   - Check `wim.input.zhichen.dir` and the month-specific input files.
-  - 缺少当月 `HS_Data_YYYYMM.bcp`；检查 `wim.input.zhichen.dir` 和对应月份文件。
+  - 缺少当月 `HS_Data_YYYYMM.bcp`；洪塘默认原始称重目录为 `<数据根目录>/WIM`，请检查 `wim.input.zhichen.dir` 和对应月份文件。
 

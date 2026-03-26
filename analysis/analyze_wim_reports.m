@@ -190,7 +190,13 @@ function [fmt_path, bcp_path] = resolve_zhichen_paths(input_cfg, base, yyyymm, r
     candidate_dirs = {};
     input_dir = get_field_default(input_cfg, 'dir', '');
     if ~isempty(input_dir)
-        candidate_dirs{end+1} = resolve_path(base, input_dir); %#ok<AGROW>
+        if is_absolute_path_local(input_dir)
+            candidate_dirs{end+1} = input_dir; %#ok<AGROW>
+        elseif nargin >= 4 && ~isempty(root_dir)
+            candidate_dirs{end+1} = resolve_path(root_dir, input_dir); %#ok<AGROW>
+        else
+            candidate_dirs{end+1} = resolve_path(base, input_dir); %#ok<AGROW>
+        end
     end
     if nargin >= 4 && ~isempty(root_dir)
         candidate_dirs{end+1} = fullfile(root_dir, 'WIM'); %#ok<AGROW>
