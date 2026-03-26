@@ -93,6 +93,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
 
     figBrowser = build_fig_browser_panel(bodyPanel, f, @(p) onPickFromFigLines(p));
 
+    currentVisibleSafeIds = {};
     refresh_tables();
 
     % collapse state
@@ -121,6 +122,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
 
     % callbacks
     function refresh_tables()
+        currentVisibleSafeIds = {};
         sensors = list_sensors(cfgCache);
         if isempty(sensors)
             sensors = {'deflection'};
@@ -160,6 +162,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
                 end
                 pidKey = lower(pidDisp);
                 if ~isempty(filterStr) && isempty(strfind(pidKey, filterStr)), continue; end %#ok<STREMP>
+                currentVisibleSafeIds{end+1,1} = pid; %#ok<AGROW>
                 rule = pts.(pid); ths = []; if isfield(rule,'thresholds'), ths = rule.thresholds; end
                 if isempty(ths)
                     perRows(end+1,:) = {pidDisp, [], [], '', '', bool_or_empty(rule,'zero_to_nan'), num_or_empty_out(rule,'outlier','window_sec'), num_or_empty_out(rule,'outlier','threshold_factor')}; %#ok<AGROW>
@@ -170,6 +173,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
                 end
             end
         end
+        currentVisibleSafeIds = unique(currentVisibleSafeIds, 'stable');
         perTable.Data = perRows;
     end
     function add_default_row(), defaultsTable.Data = [defaultsTable.Data; {[], [], '', ''}]; end
@@ -264,12 +268,31 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
 
             % per_point
             pData = perTable.Data;
-            perStruct = struct();
+            if isfield(cfgNew,'per_point') && isfield(cfgNew.per_point, sensor) && isstruct(cfgNew.per_point.(sensor))
+                perStruct = cfgNew.per_point.(sensor);
+            else
+                perStruct = struct();
+            end
             th_map = struct(); meta_map = struct();
             if isfield(cfgCache,'name_map_global') && isstruct(cfgCache.name_map_global)
                 name_map = cfgCache.name_map_global;
             else
                 name_map = struct();
+            end
+            visibleIds = unique(currentVisibleSafeIds, 'stable');
+            for ii = 1:numel(visibleIds)
+                pid = visibleIds{ii};
+                if ~isfield(perStruct, pid) || ~isstruct(perStruct.(pid))
+                    continue;
+                end
+                for fn = {'thresholds','zero_to_nan','outlier'}
+                    if isfield(perStruct.(pid), fn{1})
+                        perStruct.(pid) = rmfield(perStruct.(pid), fn{1});
+                    end
+                end
+                if isempty(fieldnames(perStruct.(pid)))
+                    perStruct = rmfield(perStruct, pid);
+                end
             end
             for i = 1:size(pData,1)
                 pidOrig = strtrim(pData{i,1}); if isempty(pidOrig), continue; end
@@ -299,22 +322,8 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
                 else
                     perStruct.(pid).outlier = [];
                 end
-
-                % preserve extra per-point fields (e.g., rho/L/force_decimals)
-                if isfield(cfgCache,'per_point') && isfield(cfgCache.per_point, sensor) ...
-                        && isfield(cfgCache.per_point.(sensor), pid)
-                    old = cfgCache.per_point.(sensor).(pid);
-                    fns = fieldnames(old);
-                    for fi = 1:numel(fns)
-                        fn = fns{fi};
-                        if any(strcmp(fn, {'thresholds','zero_to_nan','outlier'}))
-                            continue;
-                        end
-                        perStruct.(pid).(fn) = old.(fn);
-                    end
-                end
             end
-            cfgNew.per_point.(sensor) = prune_per_struct(perStruct);
+            cfgNew.per_point.(sensor) = perStruct;
             if ~isempty(fieldnames(name_map))
                 cfgNew.name_map_global = name_map;
             end
@@ -347,32 +356,6 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
         if ~isempty(t0), ths.t_range_start = t0; end
         if ~isempty(t1), ths.t_range_end   = t1; end
     end
-    function cleaned = prune_per_struct(perStruct)
-        cleaned = struct();
-        if isempty(perStruct) || ~isstruct(perStruct), return; end
-        pnames = fieldnames(perStruct);
-        for i = 1:numel(pnames)
-            pid = pnames{i};
-            ths = perStruct.(pid).thresholds;
-            if isempty(ths) || ~isstruct(ths), continue; end
-            newThs = struct('min', {}, 'max', {}, 't_range_start', {}, 't_range_end', {});
-            for k = 1:numel(ths)
-                if isfield(ths(k),'min') && isfield(ths(k),'max') ...
-                        && ~isempty(ths(k).min) && ~isempty(ths(k).max) ...
-                        && isnumeric(ths(k).min) && isnumeric(ths(k).max)
-                    newThs(end+1) = make_threshold( ...
-                        ths(k).min, ths(k).max, ...
-                        str_or_empty(ths(k),'t_range_start'), ...
-                        str_or_empty(ths(k),'t_range_end')); %#ok<AGROW>
-                end
-            end
-            if ~isempty(newThs)
-                cleaned.(pid) = perStruct.(pid);
-                cleaned.(pid).thresholds = newThs;
-            end
-        end
-    end
-
     function [tableRef, rowIdx, startCol, endCol] = get_selected_time_target(defTable, ptTable, defStartCol, defEndCol, ptStartCol, ptEndCol)
         tableRef = [];
         rowIdx = [];

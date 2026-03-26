@@ -71,9 +71,11 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
         'Value', {'仅对模块滤波后的结果生效；规则按 defaults + per_point 顺序叠加执行。'});
     msgBox.Layout.Row = 8; msgBox.Layout.Column = [1 4];
 
+    currentVisibleSafeIds = {};
     refresh_tables();
 
     function refresh_tables()
+        currentVisibleSafeIds = {};
         sensorList = list_supported_sensors(cfgCache);
         if isempty(sensorList), sensorList = {'deflection'}; end
         sensorDrop.Items = sensorList;
@@ -103,12 +105,14 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
                 if ~isempty(filterStr) && isempty(strfind(lower(dispId), filterStr)) %#ok<STREMP>
                     continue;
                 end
+                currentVisibleSafeIds{end+1,1} = safeId; %#ok<AGROW>
                 rows = thresholds_to_rows(get_post_thresholds(pts.(safeId)));
                 for k = 1:size(rows, 1)
                     perRows(end+1, :) = [{dispId}, rows(k, :)]; %#ok<AGROW>
                 end
             end
         end
+        currentVisibleSafeIds = unique(currentVisibleSafeIds, 'stable');
         perTable.Data = perRows;
     end
 
@@ -206,11 +210,14 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
                 cfgNew.per_point.(sensor) = struct();
             end
             perStruct = cfgNew.per_point.(sensor);
-            perNames = fieldnames(perStruct);
-            for i = 1:numel(perNames)
-                pid = perNames{i};
-                if isfield(perStruct.(pid), 'post_filter_thresholds')
+            visibleIds = unique(currentVisibleSafeIds, 'stable');
+            for i = 1:numel(visibleIds)
+                pid = visibleIds{i};
+                if isfield(perStruct, pid) && isfield(perStruct.(pid), 'post_filter_thresholds')
                     perStruct.(pid) = rmfield(perStruct.(pid), 'post_filter_thresholds');
+                    if isempty(fieldnames(perStruct.(pid)))
+                        perStruct = rmfield(perStruct, pid);
+                    end
                 end
             end
 

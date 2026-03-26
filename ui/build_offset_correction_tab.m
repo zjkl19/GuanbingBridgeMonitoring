@@ -52,9 +52,11 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
         'Value', {'仅保存 per_point.<module>.<point_id>.offset_correction；运行后会在数据目录/run_logs 生成修正记录表。'});
     msgBox.Layout.Row = [6 7]; msgBox.Layout.Column = [1 4];
 
+    currentVisibleSafeIds = {};
     refresh_table();
 
     function refresh_table()
+        currentVisibleSafeIds = {};
         [sensorItems, sensorValues] = list_supported_sensors(cfgCache);
         if isempty(sensorValues)
             sensorItems = {'deflection'};
@@ -82,9 +84,11 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
                 if ~isempty(filterStr) && isempty(strfind(lower(dispId), filterStr)) %#ok<STREMP>
                     continue;
                 end
+                currentVisibleSafeIds{end+1,1} = safeId; %#ok<AGROW>
                 rows(end+1, :) = {dispId, pt.offset_correction}; %#ok<AGROW>
             end
         end
+        currentVisibleSafeIds = unique(currentVisibleSafeIds, 'stable');
         table.Data = rows;
         table.Selection = [];
     end
@@ -134,11 +138,14 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
             end
 
             perStruct = cfgNew.per_point.(sensor);
-            perNames = fieldnames(perStruct);
-            for i = 1:numel(perNames)
-                pid = perNames{i};
-                if isfield(perStruct.(pid), 'offset_correction')
+            visibleIds = unique(currentVisibleSafeIds, 'stable');
+            for i = 1:numel(visibleIds)
+                pid = visibleIds{i};
+                if isfield(perStruct, pid) && isfield(perStruct.(pid), 'offset_correction')
                     perStruct.(pid) = rmfield(perStruct.(pid), 'offset_correction');
+                    if isempty(fieldnames(perStruct.(pid)))
+                        perStruct = rmfield(perStruct, pid);
+                    end
                 end
             end
 

@@ -31,7 +31,7 @@ from build_period_report import build_period_report
 
 MONTHLY_REPORT = "\u6708\u62a5"
 PERIOD_REPORT = "\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
-APP_VERSION = "v1.5.4"
+APP_VERSION = "v1.5.5"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f-\u81ea\u52a8\u62a5\u544a.docx"
 PERIOD_TEMPLATE_LEGACY_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f0318.docx"

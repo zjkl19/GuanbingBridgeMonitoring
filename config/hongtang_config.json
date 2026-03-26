@@ -1366,7 +1366,15 @@
             300
           ]
         },
-        "offset_correction": -71
+        "offset_correction": -71,
+        "thresholds": {
+          "min": -88.415274598930438,
+          "max": 67.165718716577516,
+          "t_range_start": "2026-03-03 06:09:15",
+          "t_range_end": "2026-03-16 19:59:59"
+        },
+        "zero_to_nan": false,
+        "outlier": []
       },
       "SC_6": {
         "alarm_bounds": {
@@ -1696,7 +1704,9 @@
           "max": -1000,
           "t_range_start": "",
           "t_range_end": ""
-        }
+        },
+        "zero_to_nan": false,
+        "outlier": []
       },
       "SH_1": {
         "alarm_bounds": {
@@ -1787,14 +1797,7 @@
             200
           ]
         },
-        "offset_correction": 180,
-        "thresholds": [
-          {
-            "max": 100,
-            "t_range_start": "2026-02-25 00:00:00",
-            "t_range_end": "2026-03-15 23:59:59"
-          }
-        ]
+        "offset_correction": 180
       },
       "SL_6": {
         "alarm_bounds": {
@@ -1872,15 +1875,15 @@
             200
           ]
         },
-        "thresholds": [
-          {
-            "min": 1000,
-            "max": -1000,
-            "t_range_start": "",
-            "t_range_end": ""
-          }
-        ],
-        "offset_correction": 100
+        "offset_correction": 100,
+        "thresholds": {
+          "min": 1000,
+          "max": -1000,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
+        "zero_to_nan": false,
+        "outlier": []
       },
       "SL_10": {
         "alarm_bounds": {
@@ -1944,7 +1947,15 @@
             200
           ]
         },
-        "offset_correction": 76
+        "offset_correction": 76,
+        "thresholds": {
+          "min": -31.334224331550793,
+          "max": -14.01707767379677,
+          "t_range_start": "2026-01-18 10:12:41",
+          "t_range_end": "2026-02-20 13:34:58"
+        },
+        "zero_to_nan": false,
+        "outlier": []
       },
       "SK_2": {
         "alarm_bounds": {
@@ -2061,7 +2072,15 @@
             200
           ]
         },
-        "offset_correction": 47
+        "offset_correction": 47,
+        "thresholds": {
+          "min": -7.8361117647058816,
+          "max": 24.098647058823538,
+          "t_range_start": "2026-02-05 19:48:42",
+          "t_range_end": "2026-02-25 04:47:17"
+        },
+        "zero_to_nan": false,
+        "outlier": []
       },
       "SK_12": {
         "alarm_bounds": {
@@ -2867,15 +2886,13 @@
           0.741
         ]
       },
-      "ylims": [
-        {
-          "name": "CS5",
-          "ylim": [
-            -4,
-            4
-          ]
-        }
-      ]
+      "ylims": {
+        "name": "CS5",
+        "ylim": [
+          -4,
+          4
+        ]
+      }
     },
     "cable_accel_spectrum": {
       "psd_ylabel": "PSD (dB)",
