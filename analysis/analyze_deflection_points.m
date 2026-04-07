@@ -130,7 +130,8 @@ for i = 1:N
         c = cmap(i,:);
     end
 if isempty(vals_list{i}), continue; end
-    plot(times_list{i}, vals_list{i}, 'LineWidth', 1.0, 'Color', c);
+    [times_plot, vals_plot] = prepare_plot_series(times_list{i}, vals_list{i});
+    plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', c);
 end
 valid = ~cellfun(@isempty, vals_list);
 if ~any(valid), close(fig); return; end

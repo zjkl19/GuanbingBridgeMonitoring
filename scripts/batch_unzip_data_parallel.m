@@ -18,7 +18,7 @@ if nargin<4
     silent = false;
 end
 
-% 转日期为 datenum 并筛选日期文件夹
+% 转日期为 datenum 并筛选日期文件夹 / 按天 ZIP
 dn0 = datenum(start_date, 'yyyy-mm-dd');
 dn1 = datenum(end_date,   'yyyy-mm-dd');
 info = dir(fullfile(root_dir, '20??-??-??'));
@@ -29,9 +29,6 @@ for i = 1:numel(folders)
     if dn>=dn0 && dn<=dn1
         selected{end+1} = folders{i}; %#ok<AGROW>
     end
-end
-if isempty(selected)
-    error('指定日期范围内未找到日期文件夹');
 end
 
 % 收集 ZIP 列表
@@ -54,8 +51,30 @@ for i = 1:numel(selected)
         fprintf('警告: 日期 %s 未找到 ZIP, 已跳过\n', day);
     end
 end
+
+% 九龙江新口径：根目录下直接是 data_jlj_YYYY-MM-DD.zip
+if isempty(zipList)
+    jljZips = dir(fullfile(root_dir, 'data_jlj_*.zip'));
+    for i = 1:numel(jljZips)
+        tok = regexp(jljZips(i).name, '^data_jlj_(\d{4})-(\d{2})-(\d{2})\.zip$', 'tokens', 'once');
+        if isempty(tok)
+            continue;
+        end
+        day = sprintf('%s-%s-%s', tok{1}, tok{2}, tok{3});
+        dn = datenum(day, 'yyyy-mm-dd');
+        if dn < dn0 || dn > dn1
+            continue;
+        end
+        zipList{end+1} = fullfile(jljZips(i).folder, jljZips(i).name); %#ok<AGROW>
+        outDirs{end+1} = fullfile(root_dir, sprintf('data_jlj_%s', day)); %#ok<AGROW>
+    end
+end
+
 N = numel(zipList);
 if N == 0
+    if isempty(selected)
+        error('指定日期范围内未找到日期文件夹，且未找到 data_jlj_YYYY-MM-DD.zip');
+    end
     error('未发现任何 ZIP 文件，终止执行');
 end
 
@@ -119,6 +138,9 @@ end
 
 function [zf, status] = unzip_one(zf, out)
     status = '成功';
+    if ~exist(out, 'dir')
+        mkdir(out);
+    end
     cmd = sprintf(['powershell -NoProfile -Command "Expand-Archive -Path ''%s'' ' ...
                    '-DestinationPath ''%s'' -Force"'], zf, out);
     [s,~] = system(cmd);

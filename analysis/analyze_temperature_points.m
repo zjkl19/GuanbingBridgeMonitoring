@@ -35,7 +35,8 @@ function analyze_temperature_points(root_dir, point_ids, start_date, end_date, e
             continue;
         end
         fig = figure('Position',[100 100 1000 469]); hold on;
-        plot(all_time, all_val,'LineWidth',1, 'Color', get_color(style,1));
+        [time_plot, val_plot] = prepare_plot_series(all_time, all_val);
+        plot(time_plot, val_plot,'LineWidth',1, 'Color', get_color(style,1));
         avg_val = round(mean(all_val),1);
         yline(avg_val,'--r',sprintf('平均值 %.1f',avg_val),...
             'LabelHorizontalAlignment','center','LabelVerticalAlignment','bottom');

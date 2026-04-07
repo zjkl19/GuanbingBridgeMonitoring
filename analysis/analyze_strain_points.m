@@ -135,7 +135,8 @@ end
 function plot_point_curve(root_dir, times, vals, start_date, end_date, pid, style, warn_lines)
     fig = figure('Position', [100 100 1000 469]);
     hold on;
-    plot(times, vals, 'LineWidth', 1.0, 'Color', [0 0.447 0.741]);
+    [times_plot, vals_plot] = prepare_plot_series(times, vals);
+    plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', [0 0.447 0.741]);
 
     dt0 = datetime(start_date, 'InputFormat', 'yyyy-MM-dd');
     dt1 = datetime(end_date, 'InputFormat', 'yyyy-MM-dd');
@@ -209,7 +210,8 @@ function plot_group_timeseries(root_dir, data_list, start_date, end_date, group_
     h_lines = gobjects(n_series, 1);
     for i = 1:n_series
         c = colors(i, :);
-        h_lines(i) = plot(data_list(i).times, data_list(i).vals, 'LineWidth', 1.0, 'Color', c);
+        [times_plot, vals_plot] = prepare_plot_series(data_list(i).times, data_list(i).vals);
+        h_lines(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', c);
     end
     labels = {data_list.pid};
     lg = legend(h_lines, labels, 'Location', 'northeast', 'Box', 'off');

@@ -185,10 +185,11 @@ function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, title_prefi
 
     h = gobjects(n,1);
     for i = 1:n
+        [times_plot, vals_plot] = prepare_plot_series(times_cell{i}, vals_cell{i});
         if i <= numel(colors)
-            h(i) = plot(times_cell{i}, vals_cell{i}, 'LineWidth', 1.0, 'Color', colors{i});
+            h(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', colors{i});
         else
-            h(i) = plot(times_cell{i}, vals_cell{i}, 'LineWidth', 1.0);
+            h(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0);
         end
     end
 
@@ -197,7 +198,7 @@ function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, title_prefi
         legend(good, labels, 'Location','northeast', 'Box','off');
     end
 
-    xlabel('Time');
+    xlabel('时间');
     ylabel(ylabel_str);
     title(sprintf('%s %s', title_prefix, group_name));
     grid on;

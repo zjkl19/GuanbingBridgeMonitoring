@@ -157,6 +157,7 @@ function run_gui()
                 addLog('指定配置文件不存在，使用默认配置');
                 cfg = load_config();
             end
+            cfg = apply_live_cfg(cfg);
             showWarnings = false;
             if isfield(cfg,'gui') && isstruct(cfg.gui) && isfield(cfg.gui,'show_warnings')
                 showWarnings = logical(cfg.gui.show_warnings);
@@ -179,6 +180,14 @@ function run_gui()
             root = rootEdit.Value; start_date = datestr(startPicker.Value,'yyyy-mm-dd'); end_date = datestr(endPicker.Value,'yyyy-mm-dd');
             logEdit.Value = fullfile(root, 'run_logs');
             if exist(logEdit.Value,'dir')==0, mkdir(logEdit.Value); end
+            if isfield(cfg,'plot_common') && isstruct(cfg.plot_common)
+                if isfield(cfg.plot_common,'gap_mode')
+                    addLog(sprintf('plot_common.gap_mode=%s', char(string(cfg.plot_common.gap_mode))));
+                end
+                if isfield(cfg.plot_common,'gap_break_factor')
+                    addLog(sprintf('plot_common.gap_break_factor=%.3g', double(cfg.plot_common.gap_break_factor)));
+                end
+            end
             save_last_preset(struct('root',root,'start_date',start_date,'end_date',end_date,'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value), ...
                 'preproc',struct('precheck',cbPrecheck.Value,'unzip',cbUnzip.Value,'rename',cbRename.Value,'rmheader',cbRmHeader.Value,'resample',cbResample.Value), ...
                 'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value)));
@@ -252,6 +261,15 @@ function run_gui()
             fid = fopen(lastPath,'wt'); if fid<0, return; end
             fwrite(fid, jsonencode(preset),'char'); fclose(fid);
         catch
+        end
+    end
+    function cfg = apply_live_cfg(cfg)
+        tabs = {th, pf, oc, pp};
+        for ii = 1:numel(tabs)
+            tabState = tabs{ii};
+            if isstruct(tabState) && isfield(tabState,'applyToCfg')
+                cfg = tabState.applyToCfg(cfg);
+            end
         end
     end
     function restore_warnings(warnState, btState)

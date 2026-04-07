@@ -127,61 +127,7 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
 
     function onSaveCfg(doSaveAs)
         try
-            cfgNew = cfgCache;
-            sensor = sensorDrop.Value;
-
-            if ~isfield(cfgNew, 'per_point') || ~isstruct(cfgNew.per_point)
-                cfgNew.per_point = struct();
-            end
-            if ~isfield(cfgNew.per_point, sensor) || ~isstruct(cfgNew.per_point.(sensor))
-                cfgNew.per_point.(sensor) = struct();
-            end
-
-            perStruct = cfgNew.per_point.(sensor);
-            visibleIds = unique(currentVisibleSafeIds, 'stable');
-            for i = 1:numel(visibleIds)
-                pid = visibleIds{i};
-                if isfield(perStruct, pid) && isfield(perStruct.(pid), 'offset_correction')
-                    perStruct.(pid) = rmfield(perStruct.(pid), 'offset_correction');
-                    if isempty(fieldnames(perStruct.(pid)))
-                        perStruct = rmfield(perStruct, pid);
-                    end
-                end
-            end
-
-            if isfield(cfgCache, 'name_map_global') && isstruct(cfgCache.name_map_global)
-                nameMap = cfgCache.name_map_global;
-            else
-                nameMap = struct();
-            end
-
-            data = table.Data;
-            for i = 1:size(data, 1)
-                pidOrig = strtrim(to_char(data{i,1}));
-                offset = parse_offset(data{i,2});
-                if isempty(pidOrig) || isempty(offset)
-                    continue;
-                end
-                pidSafe = strrep(pidOrig, '-', '_');
-                if ~isfield(perStruct, pidSafe) || ~isstruct(perStruct.(pidSafe))
-                    perStruct.(pidSafe) = struct();
-                end
-                perStruct.(pidSafe).offset_correction = offset;
-                nameMap.(pidSafe) = pidOrig;
-            end
-
-            perNames = fieldnames(perStruct);
-            for i = numel(perNames):-1:1
-                pid = perNames{i};
-                if isempty(fieldnames(perStruct.(pid)))
-                    perStruct = rmfield(perStruct, pid);
-                end
-            end
-
-            cfgNew.per_point.(sensor) = perStruct;
-            if ~isempty(fieldnames(nameMap))
-                cfgNew.name_map_global = nameMap;
-            end
+            cfgNew = applyToCfg(cfgCache);
 
             targetPath = cfgPath;
             if doSaveAs
@@ -202,6 +148,65 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
         end
     end
 
+    function cfgNew = applyToCfg(baseCfg)
+        cfgNew = baseCfg;
+        sensor = sensorDrop.Value;
+
+        if ~isfield(cfgNew, 'per_point') || ~isstruct(cfgNew.per_point)
+            cfgNew.per_point = struct();
+        end
+        if ~isfield(cfgNew.per_point, sensor) || ~isstruct(cfgNew.per_point.(sensor))
+            cfgNew.per_point.(sensor) = struct();
+        end
+
+        perStruct = cfgNew.per_point.(sensor);
+        visibleIds = unique(currentVisibleSafeIds, 'stable');
+        for i = 1:numel(visibleIds)
+            pid = visibleIds{i};
+            if isfield(perStruct, pid) && isfield(perStruct.(pid), 'offset_correction')
+                perStruct.(pid) = rmfield(perStruct.(pid), 'offset_correction');
+                if isempty(fieldnames(perStruct.(pid)))
+                    perStruct = rmfield(perStruct, pid);
+                end
+            end
+        end
+
+        if isfield(cfgNew, 'name_map_global') && isstruct(cfgNew.name_map_global)
+            nameMap = cfgNew.name_map_global;
+        else
+            nameMap = struct();
+        end
+
+        data = table.Data;
+        for i = 1:size(data, 1)
+            pidOrig = strtrim(to_char(data{i,1}));
+            offset = parse_offset(data{i,2});
+            if isempty(pidOrig) || isempty(offset)
+                continue;
+            end
+            pidSafe = strrep(pidOrig, '-', '_');
+            if ~isfield(perStruct, pidSafe) || ~isstruct(perStruct.(pidSafe))
+                perStruct.(pidSafe) = struct();
+            end
+            perStruct.(pidSafe).offset_correction = offset;
+            nameMap.(pidSafe) = pidOrig;
+        end
+
+        perNames = fieldnames(perStruct);
+        for i = numel(perNames):-1:1
+            pid = perNames{i};
+            if isempty(fieldnames(perStruct.(pid)))
+                perStruct = rmfield(perStruct, pid);
+            end
+        end
+
+        cfgNew.per_point.(sensor) = perStruct;
+        if ~isempty(fieldnames(nameMap))
+            cfgNew.name_map_global = nameMap;
+        end
+        cfgCache = cfgNew;
+    end
+
     function onShow()
         if exist(cfgEdit.Value, 'file')
             try
@@ -213,7 +218,7 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
         refresh_table();
     end
 
-    oc = struct('grid', grid, 'onShow', @onShow);
+    oc = struct('grid', grid, 'onShow', @onShow, 'applyToCfg', @applyToCfg);
 end
 
 function [sensorItems, sensorValues] = list_supported_sensors(cfg)

@@ -254,79 +254,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
     end
     function onSaveCfg(doSaveAs)
         try
-            cfgNew = cfgCache; sensor = sensorDrop.Value;
-            % --- defaults ---
-            dData = defaultsTable.Data; ths = struct('min',{},'max',{},'t_range_start',{},'t_range_end',{});
-            for i = 1:size(dData,1)
-                mn = str2num_safe(dData{i,1}); mx = str2num_safe(dData{i,2}); if isempty(mn) || isempty(mx), continue; end
-                t0 = strtrim(dData{i,3}); t1 = strtrim(dData{i,4});
-                ths(end+1) = make_threshold(mn, mx, t0, t1); %#ok<AGROW>
-            end
-            cfgNew.defaults.(sensor).thresholds = ths;
-            cfgNew.defaults.(sensor).zero_to_nan = logical(zeroChk.Value);
-            ow = outWin.Value; ot = outTh.Value; if ~isempty(ow) || ~isempty(ot), cfgNew.defaults.(sensor).outlier = struct('window_sec', ow, 'threshold_factor', ot); else, cfgNew.defaults.(sensor).outlier = []; end
-
-            % per_point
-            pData = perTable.Data;
-            if isfield(cfgNew,'per_point') && isfield(cfgNew.per_point, sensor) && isstruct(cfgNew.per_point.(sensor))
-                perStruct = cfgNew.per_point.(sensor);
-            else
-                perStruct = struct();
-            end
-            th_map = struct(); meta_map = struct();
-            if isfield(cfgCache,'name_map_global') && isstruct(cfgCache.name_map_global)
-                name_map = cfgCache.name_map_global;
-            else
-                name_map = struct();
-            end
-            visibleIds = unique(currentVisibleSafeIds, 'stable');
-            for ii = 1:numel(visibleIds)
-                pid = visibleIds{ii};
-                if ~isfield(perStruct, pid) || ~isstruct(perStruct.(pid))
-                    continue;
-                end
-                for fn = {'thresholds','zero_to_nan','outlier'}
-                    if isfield(perStruct.(pid), fn{1})
-                        perStruct.(pid) = rmfield(perStruct.(pid), fn{1});
-                    end
-                end
-                if isempty(fieldnames(perStruct.(pid)))
-                    perStruct = rmfield(perStruct, pid);
-                end
-            end
-            for i = 1:size(pData,1)
-                pidOrig = strtrim(pData{i,1}); if isempty(pidOrig), continue; end
-                pidSafe = strrep(pidOrig,'-','_');
-                mn = str2num_safe(pData{i,2}); mx = str2num_safe(pData{i,3}); if isempty(mn) || isempty(mx), continue; end
-                t0 = strtrim(pData{i,4}); t1 = strtrim(pData{i,5});
-                th = make_threshold(mn, mx, t0, t1);
-                if ~isfield(th_map, pidSafe)
-                    th_map.(pidSafe) = th;
-                    meta_map.(pidSafe) = struct( ...
-                        'zero_to_nan', logical(pData{i,6}), ...
-                        'ow', str2num_safe(pData{i,7}), ...
-                        'ot', str2num_safe(pData{i,8}));
-                    name_map.(pidSafe) = pidOrig;
-                else
-                    th_map.(pidSafe)(end+1) = th; %#ok<AGROW>
-                end
-            end
-            pnames = fieldnames(th_map);
-            for ii = 1:numel(pnames)
-                pid = pnames{ii};
-                perStruct.(pid).thresholds = th_map.(pid);
-                perStruct.(pid).zero_to_nan = meta_map.(pid).zero_to_nan;
-                owv = meta_map.(pid).ow; otv = meta_map.(pid).ot;
-                if ~isempty(owv) || ~isempty(otv)
-                    perStruct.(pid).outlier = struct('window_sec', owv, 'threshold_factor', otv);
-                else
-                    perStruct.(pid).outlier = [];
-                end
-            end
-            cfgNew.per_point.(sensor) = perStruct;
-            if ~isempty(fieldnames(name_map))
-                cfgNew.name_map_global = name_map;
-            end
+            cfgNew = applyToCfg(cfgCache);
 
             targetPath = cfgPath;
             if doSaveAs
@@ -338,6 +266,99 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
         catch ME
             cfgMsg.Value = {['保存失败: ' ME.message]};
         end
+    end
+
+    function cfgNew = applyToCfg(baseCfg)
+        cfgNew = baseCfg;
+        sensor = sensorDrop.Value;
+
+        dData = defaultsTable.Data;
+        ths = struct('min',{},'max',{},'t_range_start',{},'t_range_end',{});
+        for i = 1:size(dData,1)
+            mn = str2num_safe(dData{i,1});
+            mx = str2num_safe(dData{i,2});
+            if isempty(mn) || isempty(mx), continue; end
+            t0 = strtrim(dData{i,3});
+            t1 = strtrim(dData{i,4});
+            ths(end+1) = make_threshold(mn, mx, t0, t1); %#ok<AGROW>
+        end
+        cfgNew.defaults.(sensor).thresholds = ths;
+        cfgNew.defaults.(sensor).zero_to_nan = logical(zeroChk.Value);
+        ow = outWin.Value;
+        ot = outTh.Value;
+        if ~isempty(ow) || ~isempty(ot)
+            cfgNew.defaults.(sensor).outlier = struct('window_sec', ow, 'threshold_factor', ot);
+        else
+            cfgNew.defaults.(sensor).outlier = [];
+        end
+
+        pData = perTable.Data;
+        if isfield(cfgNew,'per_point') && isfield(cfgNew.per_point, sensor) && isstruct(cfgNew.per_point.(sensor))
+            perStruct = cfgNew.per_point.(sensor);
+        else
+            perStruct = struct();
+        end
+        th_map = struct();
+        meta_map = struct();
+        if isfield(cfgNew,'name_map_global') && isstruct(cfgNew.name_map_global)
+            name_map = cfgNew.name_map_global;
+        else
+            name_map = struct();
+        end
+        visibleIds = unique(currentVisibleSafeIds, 'stable');
+        for ii = 1:numel(visibleIds)
+            pid = visibleIds{ii};
+            if ~isfield(perStruct, pid) || ~isstruct(perStruct.(pid))
+                continue;
+            end
+            for fn = {'thresholds','zero_to_nan','outlier'}
+                if isfield(perStruct.(pid), fn{1})
+                    perStruct.(pid) = rmfield(perStruct.(pid), fn{1});
+                end
+            end
+            if isempty(fieldnames(perStruct.(pid)))
+                perStruct = rmfield(perStruct, pid);
+            end
+        end
+        for i = 1:size(pData,1)
+            pidOrig = strtrim(pData{i,1});
+            if isempty(pidOrig), continue; end
+            pidSafe = strrep(pidOrig,'-','_');
+            mn = str2num_safe(pData{i,2});
+            mx = str2num_safe(pData{i,3});
+            if isempty(mn) || isempty(mx), continue; end
+            t0 = strtrim(pData{i,4});
+            t1 = strtrim(pData{i,5});
+            th = make_threshold(mn, mx, t0, t1);
+            if ~isfield(th_map, pidSafe)
+                th_map.(pidSafe) = th;
+                meta_map.(pidSafe) = struct( ...
+                    'zero_to_nan', logical(pData{i,6}), ...
+                    'ow', str2num_safe(pData{i,7}), ...
+                    'ot', str2num_safe(pData{i,8}));
+                name_map.(pidSafe) = pidOrig;
+            else
+                th_map.(pidSafe)(end+1) = th; %#ok<AGROW>
+            end
+        end
+        pnames = fieldnames(th_map);
+        for ii = 1:numel(pnames)
+            pid = pnames{ii};
+            perStruct.(pid).thresholds = th_map.(pid);
+            perStruct.(pid).zero_to_nan = meta_map.(pid).zero_to_nan;
+            owv = meta_map.(pid).ow;
+            otv = meta_map.(pid).ot;
+            if ~isempty(owv) || ~isempty(otv)
+                perStruct.(pid).outlier = struct('window_sec', owv, 'threshold_factor', otv);
+            else
+                perStruct.(pid).outlier = [];
+            end
+        end
+        cfgNew.per_point.(sensor) = perStruct;
+        if ~isempty(fieldnames(name_map))
+            cfgNew.name_map_global = name_map;
+        end
+        cfgCache = cfgNew;
     end
 
     % 工具
@@ -390,5 +411,5 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
         end
     end
 
-    th = struct('grid', cfgGrid, 'perTable', perTable, 'onShow', @onShow);
+    th = struct('grid', cfgGrid, 'perTable', perTable, 'onShow', @onShow, 'applyToCfg', @applyToCfg);
 end

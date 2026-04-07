@@ -221,7 +221,8 @@ function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, d
         t = tsList(i).times; v = tsList(i).vals;
         if isempty(t) || isempty(v), continue; end
         c = colors_6{ min(i, numel(colors_6)) };
-        hLines(i) = plot(t, v, 'LineWidth', 1.0, 'Color', c);
+        [times_plot, vals_plot] = prepare_plot_series(t, v);
+        hLines(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', c);
     end
 
     xlabel('时间'); ylabel('应变 (με)');
@@ -315,11 +316,8 @@ function [groups, names, style] = get_groups_and_style(cfg)
     end
 
     if isempty(groups)
-        names = {'G05','G06'};
-        groups = {
-            {'GB-RSG-G05-001-01','GB-RSG-G05-001-02','GB-RSG-G05-001-03','GB-RSG-G05-001-04','GB-RSG-G05-001-05','GB-RSG-G05-001-06'}, ...
-            {'GB-RSG-G06-001-01','GB-RSG-G06-001-02','GB-RSG-G06-001-03','GB-RSG-G06-001-04','GB-RSG-G06-001-05','GB-RSG-G06-001-06'}};
-        warning_once('dynamic_strain:groups', '未在配置中找到 groups.dynamic_strain，使用内置 G05/G06 默认分组。');
+        error(['??????? dynamic_strain ???????????? groups.dynamic_strain ' ...
+               '? groups_dynamic_strain ???????????']);
     end
 
     if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,'dynamic_strain')
@@ -342,11 +340,10 @@ function ds = get_dynamic_cfg(cfg)
     ds = struct('Fs',[], 'Fc',0.1, 'Whisker',300, 'ShowOutliers',false, ...
         'YLimManual',true, 'YLimRange',[-30 30], ...
         'LowerBound',-150, 'UpperBound',150, 'EdgeTrimSec',5);
-    found = false;
     if isfield(cfg,'defaults') && isfield(cfg.defaults,'dynamic_strain')
-        d = cfg.defaults.dynamic_strain; found = true;
+        d = cfg.defaults.dynamic_strain;
     elseif isfield(cfg,'defaults_dynamic_strain')
-        d = cfg.defaults_dynamic_strain; found = true;
+        d = cfg.defaults_dynamic_strain;
     else
         d = struct();
     end
@@ -356,9 +353,6 @@ function ds = get_dynamic_cfg(cfg)
         if isfield(d,f) && ~isempty(d.(f))
             ds.(f) = d.(f);
         end
-    end
-    if ~found
-        warning_once('dynamic_strain:config', 'defaults.dynamic_strain 缺失，已使用内置默认值。');
     end
 end
 

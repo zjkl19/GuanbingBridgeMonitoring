@@ -127,9 +127,11 @@ function plot_tilt_curve(root_dir, data_list, start_date, end_date, suffix, styl
             continue;
         end
         if numel(data_list) == 3 && i <= numel(colors_3)
-            h_lines(i) = plot(d.times, d.vals, 'LineWidth', 1.0, 'Color', colors_3{i});
+            [times_plot, vals_plot] = prepare_plot_series(d.times, d.vals);
+            h_lines(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', colors_3{i});
         else
-            h_lines(i) = plot(d.times, d.vals, 'LineWidth', 1.0);
+            [times_plot, vals_plot] = prepare_plot_series(d.times, d.vals);
+            h_lines(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0);
         end
     end
 

@@ -1368,8 +1368,8 @@
         },
         "offset_correction": -71,
         "thresholds": {
-          "min": -88.41527459893044,
-          "max": 67.16571871657752,
+          "min": -88.415274598930438,
+          "max": 67.165718716577516,
           "t_range_start": "2026-03-03 06:09:15",
           "t_range_end": "2026-03-16 19:59:59"
         },
@@ -1786,7 +1786,7 @@
         },
         "offset_correction": 89
       },
-      "SL_1": {
+      "SL-1": {
         "alarm_bounds": {
           "level2": [
             -150,
@@ -1797,7 +1797,15 @@
             200
           ]
         },
-        "offset_correction": 180
+        "offset_correction": 180,
+        "thresholds": {
+          "min": -35.68906203208558,
+          "max": 121.0953732620321,
+          "t_range_start": "2026-03-04 10:10:08",
+          "t_range_end": "2026-03-10 23:00:00"
+        },
+        "zero_to_nan": false,
+        "outlier": []
       },
       "SL_6": {
         "alarm_bounds": {
@@ -3405,6 +3413,8 @@
   "plot_common": {
     "save_fig": true,
     "lightweight_fig": true,
-    "fig_max_points": 50000
+    "fig_max_points": 50000,
+    "gap_mode": "break",
+    "gap_break_factor": 5
   }
 }

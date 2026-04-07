@@ -36,7 +36,9 @@ function settings = default_settings()
     settings = struct( ...
         'save_fig', true, ...
         'lightweight_fig', true, ...
-        'fig_max_points', 50000);
+        'fig_max_points', 50000, ...
+        'gap_mode', 'break', ...
+        'gap_break_factor', 5);
 end
 
 function merged = merge_settings(base, values)
@@ -61,5 +63,19 @@ function merged = merge_settings(base, values)
         merged.fig_max_points = 50000;
     else
         merged.fig_max_points = round(merged.fig_max_points);
+    end
+    if ~isfield(merged, 'gap_mode') || isempty(merged.gap_mode)
+        merged.gap_mode = 'break';
+    else
+        merged.gap_mode = lower(char(string(merged.gap_mode)));
+        if ~ismember(merged.gap_mode, {'break','connect'})
+            merged.gap_mode = 'break';
+        end
+    end
+    if ~isfield(merged, 'gap_break_factor') || isempty(merged.gap_break_factor) || ...
+            ~isfinite(merged.gap_break_factor) || merged.gap_break_factor <= 1
+        merged.gap_break_factor = 5;
+    else
+        merged.gap_break_factor = double(merged.gap_break_factor);
     end
 end

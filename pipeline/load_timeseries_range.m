@@ -829,9 +829,9 @@ function adapter = get_jlj_adapter(cfg)
     if ~isfield(adapter, 'csv') || ~isstruct(adapter.csv)
         adapter.csv = struct();
     end
-    adapter.zip.glob = get_field_default(adapter.zip, 'glob', 'jljData*.zip');
-    adapter.zip.date_pattern = get_field_default(adapter.zip, 'date_pattern', 'jljData(\\d{8})-(\\d{8})');
-    adapter.zip.subdir = get_field_default(adapter.zip, 'subdir', fullfile('data','csv'));
+    adapter.zip.glob = get_field_default(adapter.zip, 'glob', 'data_jlj_*.zip');
+    adapter.zip.date_pattern = get_field_default(adapter.zip, 'date_pattern', 'data_jlj_(\\d{4})-(\\d{2})-(\\d{2})');
+    adapter.zip.subdir = get_field_default(adapter.zip, 'subdir', fullfile('data','jlj','csv'));
     adapter.zip.staging_root = get_field_default(adapter.zip, 'staging_root', fullfile('outputs','_staging','jlj'));
     adapter.csv.encoding = get_field_default(adapter.csv, 'encoding', 'UTF-8');
     adapter.csv.delimiter = get_field_default(adapter.csv, 'delimiter', ',');
@@ -857,48 +857,102 @@ function [dirp, meta] = jlj_get_day_dir(root_dir, day, adapter, meta)
     dt = datetime(day, 'InputFormat','yyyy-MM-dd');
     start_str = datestr(dt, 'yyyymmdd');
     end_str = datestr(dt + days(1), 'yyyymmdd');
-    folder_name = sprintf('jljData%s-%s', start_str, end_str);
-    direct_folder = fullfile(root_dir, folder_name, adapter.zip.subdir);
-    if exist(direct_folder, 'dir')
-        dirp = direct_folder;
-        meta.cache_dir = resolve_jlj_cache_dir(direct_folder, adapter);
-        return;
+    layouts = get_jlj_layout_candidates(dt, start_str, end_str, adapter);
+
+    for i = 1:numel(layouts)
+        direct_folder = fullfile(root_dir, layouts(i).folder_name, layouts(i).subdir);
+        if exist(direct_folder, 'dir')
+            dirp = direct_folder;
+            meta.cache_dir = resolve_jlj_cache_dir(direct_folder, adapter);
+            return;
+        end
     end
-    zip_path = fullfile(root_dir, [folder_name '.zip']);
-    if ~exist(zip_path, 'file')
-        zip_path = find_jlj_zip(root_dir, start_str, adapter.zip);
+
+    for i = 1:numel(layouts)
+        zip_path = fullfile(root_dir, [layouts(i).folder_name '.zip']);
+        if exist(zip_path, 'file')
+            [dirp, meta] = extract_jlj_zip(zip_path, layouts(i).subdir, adapter, meta);
+            if ~isempty(dirp)
+                return;
+            end
+        end
     end
-    if isempty(zip_path)
-        return;
+
+    zip_path = find_jlj_zip(root_dir, dt, adapter.zip);
+    if ~isempty(zip_path)
+        [~, base, ~] = fileparts(zip_path);
+        subdir = adapter.zip.subdir;
+        if startsWith(base, 'jljData', 'IgnoreCase', true)
+            subdir = fullfile('data', 'csv');
+        end
+        [dirp, meta] = extract_jlj_zip(zip_path, subdir, adapter, meta);
     end
+end
+
+function layouts = get_jlj_layout_candidates(dt, start_str, end_str, adapter)
+    day_str = datestr(dt, 'yyyy-mm-dd');
+    layouts = struct( ...
+        'folder_name', { ...
+            sprintf('data_jlj_%s', day_str), ...
+            sprintf('jljData%s-%s', start_str, end_str)}, ...
+        'subdir', { ...
+            adapter.zip.subdir, ...
+            fullfile('data', 'csv')});
+end
+
+function [dirp, meta] = extract_jlj_zip(zip_path, subdir, adapter, meta)
+    dirp = '';
     staging_root = resolve_jlj_path(adapter.zip.staging_root);
     if ~exist(staging_root, 'dir'), mkdir(staging_root); end
     [~, base, ~] = fileparts(zip_path);
     dest = fullfile(staging_root, base);
-    if ~exist(fullfile(dest, adapter.zip.subdir), 'dir')
+    if ~exist(fullfile(dest, subdir), 'dir')
         if ~exist(dest, 'dir'), mkdir(dest); end
         unzip(zip_path, dest);
     end
-    dirp = fullfile(dest, adapter.zip.subdir);
-    meta.cache_dir = resolve_jlj_cache_dir(dirp, adapter);
+    candidate = fullfile(dest, subdir);
+    if exist(candidate, 'dir')
+        dirp = candidate;
+        meta.cache_dir = resolve_jlj_cache_dir(dirp, adapter);
+    end
 end
 
-function zip_path = find_jlj_zip(root_dir, start_str, zip_cfg)
+function zip_path = find_jlj_zip(root_dir, dt, zip_cfg)
     zip_path = '';
-    files = dir(fullfile(root_dir, zip_cfg.glob));
-    if isempty(files)
-        return;
+    globs = normalize_patterns(zip_cfg.glob);
+    if isempty(globs)
+        globs = {'*.zip'};
     end
-    pat = zip_cfg.date_pattern;
-    for i = 1:numel(files)
-        name = files(i).name;
-        tokens = regexp(name, pat, 'tokens', 'once');
-        if isempty(tokens)
-            continue;
-        end
-        if numel(tokens) >= 1 && strcmp(tokens{1}, start_str)
-            zip_path = fullfile(files(i).folder, name);
-            return;
+    pats = normalize_patterns(zip_cfg.date_pattern);
+    start_str = datestr(dt, 'yyyymmdd');
+    day_str = datestr(dt, 'yyyy-mm-dd');
+
+    for g = 1:numel(globs)
+        files = dir(fullfile(root_dir, globs{g}));
+        for i = 1:numel(files)
+            name = files(i).name;
+            matched = false;
+            for p = 1:numel(pats)
+                tokens = regexp(name, pats{p}, 'tokens', 'once');
+                if isempty(tokens)
+                    continue;
+                end
+                if numel(tokens) == 1 && strcmp(tokens{1}, start_str)
+                    matched = true;
+                    break;
+                end
+                if numel(tokens) >= 3
+                    iso = sprintf('%s-%s-%s', tokens{1}, tokens{2}, tokens{3});
+                    if strcmp(iso, day_str)
+                        matched = true;
+                        break;
+                    end
+                end
+            end
+            if matched
+                zip_path = fullfile(files(i).folder, name);
+                return;
+            end
         end
     end
 end

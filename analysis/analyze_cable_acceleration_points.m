@@ -152,7 +152,8 @@ end
 function plot_accel_curve(root_dir,pid, times, vals, mn, mx, style)
 % 绘制索力加速度时程曲线及标注
 fig = figure('Position',[100 100 1000 469]);
-plot(times, vals, 'LineWidth',1, 'Color', style.color_main);
+[times_plot, vals_plot] = prepare_plot_series(times, vals);
+plot(times_plot, vals_plot, 'LineWidth',1, 'Color', style.color_main);
 xlabel('时间');
 ylabel(style.ylabel);
 if is_truthy(style.ylim_auto)
@@ -208,7 +209,8 @@ if ~isempty(idx_max) && ~isnan(rms_max)
 end
 
 fig = figure('Position',[100 100 1000 469]);
-plot(times, rms_series, 'LineWidth', 1.2, 'Color', style.color_rms);
+[times_plot, rms_plot] = prepare_plot_series(times, rms_series);
+plot(times_plot, rms_plot, 'LineWidth', 1.2, 'Color', style.color_rms);
 xlabel('时间'); ylabel(style.rms_ylabel);
 yl_rms = resolve_point_ylim(style.rms_ylims, pid, style.rms_ylim);
 if is_valid_ylim(yl_rms)

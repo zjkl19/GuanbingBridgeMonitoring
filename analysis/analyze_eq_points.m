@@ -68,7 +68,8 @@ end
 
 function plot_eq_timeseries(times, vals, pid, comp, params, style, out_root, start_date, end_date)
     fig = figure('Position', [100 100 1100 500]);
-    plot(times, vals, 'LineWidth', 1.1, 'Color', style.main_color);
+    [times_plot, vals_plot] = prepare_plot_series(times, vals);
+    plot(times_plot, vals_plot, 'LineWidth', 1.1, 'Color', style.main_color);
     xlabel('时间');
     ylabel(style.ylabel);
     title(sprintf('%s %s [%s-%s]', style.title_prefix, pid, start_date, end_date));

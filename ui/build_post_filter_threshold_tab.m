@@ -198,70 +198,7 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
 
     function onSaveCfg(doSaveAs)
         try
-            cfgNew = cfgCache;
-            sensor = sensorDrop.Value;
-
-            cfgNew.defaults.(sensor).post_filter_thresholds = rows_to_thresholds(defaultsTable.Data);
-
-            if ~isfield(cfgNew, 'per_point') || ~isstruct(cfgNew.per_point)
-                cfgNew.per_point = struct();
-            end
-            if ~isfield(cfgNew.per_point, sensor) || ~isstruct(cfgNew.per_point.(sensor))
-                cfgNew.per_point.(sensor) = struct();
-            end
-            perStruct = cfgNew.per_point.(sensor);
-            visibleIds = unique(currentVisibleSafeIds, 'stable');
-            for i = 1:numel(visibleIds)
-                pid = visibleIds{i};
-                if isfield(perStruct, pid) && isfield(perStruct.(pid), 'post_filter_thresholds')
-                    perStruct.(pid) = rmfield(perStruct.(pid), 'post_filter_thresholds');
-                    if isempty(fieldnames(perStruct.(pid)))
-                        perStruct = rmfield(perStruct, pid);
-                    end
-                end
-            end
-
-            pData = perTable.Data;
-            if isfield(cfgCache, 'name_map_global') && isstruct(cfgCache.name_map_global)
-                nameMap = cfgCache.name_map_global;
-            else
-                nameMap = struct();
-            end
-
-            pointMap = struct();
-            for i = 1:size(pData, 1)
-                pidOrig = strtrim(to_char(pData{i,1}));
-                if isempty(pidOrig), continue; end
-                pidSafe = strrep(pidOrig, '-', '_');
-                rowThreshold = row_to_threshold(pData(i, 2:5));
-                if isempty(rowThreshold), continue; end
-                if ~isfield(pointMap, pidSafe)
-                    pointMap.(pidSafe) = rowThreshold;
-                else
-                    pointMap.(pidSafe)(end+1, 1) = rowThreshold; %#ok<AGROW>
-                end
-                nameMap.(pidSafe) = pidOrig;
-            end
-
-            pointNames = fieldnames(pointMap);
-            for i = 1:numel(pointNames)
-                pid = pointNames{i};
-                if ~isfield(perStruct, pid) || ~isstruct(perStruct.(pid))
-                    perStruct.(pid) = struct();
-                end
-                perStruct.(pid).post_filter_thresholds = pointMap.(pid);
-            end
-            perNames = fieldnames(perStruct);
-            for i = numel(perNames):-1:1
-                pid = perNames{i};
-                if isempty(fieldnames(perStruct.(pid)))
-                    perStruct = rmfield(perStruct, pid);
-                end
-            end
-            cfgNew.per_point.(sensor) = perStruct;
-            if ~isempty(fieldnames(nameMap))
-                cfgNew.name_map_global = nameMap;
-            end
+            cfgNew = applyToCfg(cfgCache);
 
             targetPath = cfgPath;
             if doSaveAs
@@ -280,6 +217,74 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
         end
     end
 
+    function cfgNew = applyToCfg(baseCfg)
+        cfgNew = baseCfg;
+        sensor = sensorDrop.Value;
+
+        cfgNew.defaults.(sensor).post_filter_thresholds = rows_to_thresholds(defaultsTable.Data);
+
+        if ~isfield(cfgNew, 'per_point') || ~isstruct(cfgNew.per_point)
+            cfgNew.per_point = struct();
+        end
+        if ~isfield(cfgNew.per_point, sensor) || ~isstruct(cfgNew.per_point.(sensor))
+            cfgNew.per_point.(sensor) = struct();
+        end
+        perStruct = cfgNew.per_point.(sensor);
+        visibleIds = unique(currentVisibleSafeIds, 'stable');
+        for i = 1:numel(visibleIds)
+            pid = visibleIds{i};
+            if isfield(perStruct, pid) && isfield(perStruct.(pid), 'post_filter_thresholds')
+                perStruct.(pid) = rmfield(perStruct.(pid), 'post_filter_thresholds');
+                if isempty(fieldnames(perStruct.(pid)))
+                    perStruct = rmfield(perStruct, pid);
+                end
+            end
+        end
+
+        pData = perTable.Data;
+        if isfield(cfgNew, 'name_map_global') && isstruct(cfgNew.name_map_global)
+            nameMap = cfgNew.name_map_global;
+        else
+            nameMap = struct();
+        end
+
+        pointMap = struct();
+        for i = 1:size(pData, 1)
+            pidOrig = strtrim(to_char(pData{i,1}));
+            if isempty(pidOrig), continue; end
+            pidSafe = strrep(pidOrig, '-', '_');
+            rowThreshold = row_to_threshold(pData(i, 2:5));
+            if isempty(rowThreshold), continue; end
+            if ~isfield(pointMap, pidSafe)
+                pointMap.(pidSafe) = rowThreshold;
+            else
+                pointMap.(pidSafe)(end+1, 1) = rowThreshold; %#ok<AGROW>
+            end
+            nameMap.(pidSafe) = pidOrig;
+        end
+
+        pointNames = fieldnames(pointMap);
+        for i = 1:numel(pointNames)
+            pid = pointNames{i};
+            if ~isfield(perStruct, pid) || ~isstruct(perStruct.(pid))
+                perStruct.(pid) = struct();
+            end
+            perStruct.(pid).post_filter_thresholds = pointMap.(pid);
+        end
+        perNames = fieldnames(perStruct);
+        for i = numel(perNames):-1:1
+            pid = perNames{i};
+            if isempty(fieldnames(perStruct.(pid)))
+                perStruct = rmfield(perStruct, pid);
+            end
+        end
+        cfgNew.per_point.(sensor) = perStruct;
+        if ~isempty(fieldnames(nameMap))
+            cfgNew.name_map_global = nameMap;
+        end
+        cfgCache = cfgNew;
+    end
+
     function onShow()
         if exist(cfgEdit.Value, 'file')
             try
@@ -291,7 +296,7 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
         refresh_tables();
     end
 
-    pf = struct('grid', grid, 'onShow', @onShow);
+    pf = struct('grid', grid, 'onShow', @onShow, 'applyToCfg', @applyToCfg);
 end
 
 function [tableRef, rowIdx, startCol, endCol] = get_selected_time_target(defTable, ptTable, defStartCol, defEndCol, ptStartCol, ptEndCol)

@@ -150,7 +150,8 @@ function plot_bearing_curve(times_list, vals_list, pid_list, root_dir, start_dat
             cmap = lines(N);
             c = cmap(i,:);
         end
-        h(i) = plot(times_list{i}, vals_list{i}, 'LineWidth', 1.0, 'Color', c);
+        [times_plot, vals_plot] = prepare_plot_series(times_list{i}, vals_list{i});
+        h(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', c);
     end
 
     good_lines = h(isgraphics(h));

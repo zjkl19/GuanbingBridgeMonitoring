@@ -25,7 +25,9 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
     updating = false;
 
     grid = uigridlayout(tabCfg, [8 4]);
-    grid.RowHeight = {110, 32, 96, 32, 230, 32, 32, '1x'};
+    % The global plot-settings panel now has three rows; give it enough
+    % height so the gap controls are not clipped.
+    grid.RowHeight = {145, 32, 96, 32, 230, 32, 32, '1x'};
     grid.ColumnWidth = {'1x', '1x', '1x', 160};
     grid.Padding = [8 8 8 8];
     grid.RowSpacing = 8;
@@ -33,8 +35,8 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
 
     globalPanel = uipanel(grid, 'Title', '全局绘图保存设置');
     globalPanel.Layout.Row = 1; globalPanel.Layout.Column = [1 4];
-    globalGrid = uigridlayout(globalPanel, [2 4]);
-    globalGrid.RowHeight = {28, 28};
+    globalGrid = uigridlayout(globalPanel, [3 4]);
+    globalGrid.RowHeight = {28, 28, 28};
     globalGrid.ColumnWidth = {'1x', '1x', 160, '1x'};
 
     cbSaveFig = uicheckbox(globalGrid, 'Text', '保存 .fig', ...
@@ -59,6 +61,21 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
 
     globalHint = uilabel(globalGrid, 'Text', '仅影响绘图保存与结果目录展示，不影响原始数据处理。');
     globalHint.Layout.Row = 2; globalHint.Layout.Column = [3 4];
+
+    gapModeLabel = uilabel(globalGrid, 'Text', 'Gap mode', 'HorizontalAlignment', 'right', ...
+        'Tooltip', 'connect: 缺口直接连线; break: 缺口留空');
+    gapModeLabel.Layout.Row = 3; gapModeLabel.Layout.Column = 1;
+    gapModeDrop = uidropdown(globalGrid, 'Items', {'break', 'connect'}, ...
+        'ValueChangedFcn', @(~,~) onGlobalChanged());
+    gapModeDrop.Layout.Row = 3; gapModeDrop.Layout.Column = 2;
+
+    gapFactorLabel = uilabel(globalGrid, 'Text', 'Gap factor', 'HorizontalAlignment', 'right', ...
+        'Tooltip', '相邻时间差超过 median(diff)*该倍数时，break 模式断线');
+    gapFactorLabel.Layout.Row = 3; gapFactorLabel.Layout.Column = 3;
+    gapFactorEdit = uieditfield(globalGrid, 'numeric', 'Limits', [1.1 Inf], ...
+        'ValueDisplayFormat', '%.1f', 'RoundFractionalValues', false, ...
+        'ValueChangedFcn', @(~,~) onGlobalChanged());
+    gapFactorEdit.Layout.Row = 3; gapFactorEdit.Layout.Column = 4;
 
     moduleLabel = uilabel(grid, 'Text', '模块', 'HorizontalAlignment', 'right');
     moduleLabel.Layout.Row = 2; moduleLabel.Layout.Column = 1;
@@ -208,8 +225,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
 
     function onSaveCfg(doSaveAs)
         try
-            persist_global_to_draft();
-            persist_current_module_to_draft();
+            cfgNew = applyToCfg(cfgCache);
 
             targetPath = cfgPath;
             if doSaveAs
@@ -220,7 +236,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
                 targetPath = fullfile(fpath, fname);
             end
 
-            save_config(draftCfg, targetPath, true);
+            save_config(cfgNew, targetPath, true);
             cfgCache = load_config(targetPath);
             draftCfg = cfgCache;
             cfgPath = targetPath;
@@ -249,6 +265,18 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         refresh_all_controls();
     end
 
+    function cfgOut = applyToCfg(baseCfg)
+        if nargin < 1 || isempty(baseCfg)
+            cfgOut = draftCfg;
+        else
+            cfgOut = baseCfg;
+        end
+        draftCfg = cfgOut;
+        persist_global_to_draft();
+        persist_current_module_to_draft();
+        cfgOut = draftCfg;
+    end
+
     function refresh_all_controls()
         updating = true;
         refresh_global_controls();
@@ -261,6 +289,8 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         cbSaveFig.Value = common.save_fig;
         cbLightFig.Value = common.lightweight_fig;
         figMaxEdit.Value = common.fig_max_points;
+        gapModeDrop.Value = common.gap_mode;
+        gapFactorEdit.Value = common.gap_break_factor;
         cbAutoFolders.Value = get_auto_folder_setting(draftCfg);
     end
 
@@ -303,6 +333,8 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         draftCfg.plot_common.save_fig = logical(cbSaveFig.Value);
         draftCfg.plot_common.lightweight_fig = logical(cbLightFig.Value);
         draftCfg.plot_common.fig_max_points = round(figMaxEdit.Value);
+        draftCfg.plot_common.gap_mode = char(string(gapModeDrop.Value));
+        draftCfg.plot_common.gap_break_factor = double(gapFactorEdit.Value);
 
         if ~isfield(draftCfg, 'gui') || ~isstruct(draftCfg.gui)
             draftCfg.gui = struct();
@@ -350,11 +382,16 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         draftCfg.plot_styles.(module) = style;
     end
 
-    psTab = struct('grid', grid, 'onShow', @onShow);
+    psTab = struct('grid', grid, 'onShow', @onShow, 'applyToCfg', @applyToCfg);
 end
 
 function common = get_plot_common(cfg)
-    common = struct('save_fig', true, 'lightweight_fig', true, 'fig_max_points', 50000);
+    common = struct( ...
+        'save_fig', true, ...
+        'lightweight_fig', true, ...
+        'fig_max_points', 50000, ...
+        'gap_mode', 'break', ...
+        'gap_break_factor', 5);
     if isstruct(cfg) && isfield(cfg, 'plot_common') && isstruct(cfg.plot_common)
         src = cfg.plot_common;
         if isfield(src, 'save_fig') && ~isempty(src.save_fig)
@@ -365,6 +402,15 @@ function common = get_plot_common(cfg)
         end
         if isfield(src, 'fig_max_points') && isnumeric(src.fig_max_points) && isscalar(src.fig_max_points) && isfinite(src.fig_max_points)
             common.fig_max_points = max(1000, round(src.fig_max_points));
+        end
+        if isfield(src, 'gap_mode') && ~isempty(src.gap_mode)
+            mode = lower(char(string(src.gap_mode)));
+            if ismember(mode, {'break', 'connect'})
+                common.gap_mode = mode;
+            end
+        end
+        if isfield(src, 'gap_break_factor') && isnumeric(src.gap_break_factor) && isscalar(src.gap_break_factor) && isfinite(src.gap_break_factor)
+            common.gap_break_factor = max(1.1, double(src.gap_break_factor));
         end
     end
 end

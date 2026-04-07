@@ -139,7 +139,8 @@ function plot_speed_timeseries(times, vals, pid, style, out_root, start_date, en
         return;
     end
     fig = figure('Position', [100 100 1100 500]);
-    plot(times, vals, 'LineWidth', 1.1, 'Color', style.speed.color);
+    [times_plot, vals_plot] = prepare_plot_series(times, vals);
+    plot(times_plot, vals_plot, 'LineWidth', 1.1, 'Color', style.speed.color);
     xlabel('时间');
     ylabel(style.speed.ylabel);
     title(sprintf('%s %s [%s-%s]', style.speed.title_prefix, pid, start_date, end_date));
@@ -159,7 +160,8 @@ function plot_direction_timeseries(times, vals, pid, style, out_root, start_date
         return;
     end
     fig = figure('Position', [100 100 1100 500]);
-    plot(times, vals, 'LineWidth', 1.0, 'Color', style.direction.color);
+    [times_plot, vals_plot] = prepare_plot_series(times, vals);
+    plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', style.direction.color);
     xlabel('时间');
     ylabel(style.direction.ylabel);
     title(sprintf('%s %s [%s-%s]', style.direction.title_prefix, pid, start_date, end_date));
@@ -177,7 +179,8 @@ function plot_speed_10min(times, v10, pid, params, style, out_root, start_date, 
         return;
     end
     fig = figure('Position', [100 100 1100 500]);
-    plot(times, v10, 'LineWidth', 1.2, 'Color', style.speed10.color);
+    [times_plot, v10_plot] = prepare_plot_series(times, v10);
+    plot(times_plot, v10_plot, 'LineWidth', 1.2, 'Color', style.speed10.color);
     xlabel('时间');
     ylabel(style.speed10.ylabel);
     title(sprintf('%s %s [%s-%s]', style.speed10.title_prefix, pid, start_date, end_date));

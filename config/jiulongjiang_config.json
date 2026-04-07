@@ -50,20 +50,6 @@
       },
       "zero_to_nan": false
     },
-    "dynamic_strain": {
-      "Fs": 20,
-      "Fc": 0.1,
-      "Whisker": 300,
-      "ShowOutliers": false,
-      "YLimManual": true,
-      "YLimRange": [
-        -30,
-        30
-      ],
-      "LowerBound": -150,
-      "UpperBound": 30,
-      "EdgeTrimSec": 5
-    },
     "cable_accel": {
       "thresholds": [],
       "zero_to_nan": false
@@ -80,316 +66,11 @@
     }
   },
   "per_point": {
-    "deflection": {
-      "GB-DIS-G05-001-01Y": {
-        "thresholds": [
-          {
-            "min": -6,
-            "max": 14,
-            "t_range_start": "",
-            "t_range_end": ""
-          },
-          {
-            "min": -10,
-            "max": 30,
-            "t_range_start": "2025-08-03 11:10:54",
-            "t_range_end": "2025-08-03 22:05:27"
-          }
-        ],
-        "zero_to_nan": false,
-        "outlier": []
-      },
-      "GB-DIS-G05-001-02Y": {
-        "thresholds": [
-          {
-            "min": -6,
-            "max": 10,
-            "t_range_start": "",
-            "t_range_end": ""
-          },
-          {
-            "min": -10,
-            "max": 30,
-            "t_range_start": "2025-08-03 11:10:54",
-            "t_range_end": "2025-08-03 22:05:27"
-          }
-        ],
-        "zero_to_nan": false,
-        "outlier": []
-      },
-      "GB-DIS-G05-002-01Y": {
-        "thresholds": {
-          "min": 4,
-          "max": 20,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
-      },
-      "GB-DIS-G05-002-02Y": {
-        "thresholds": {
-          "min": 0,
-          "max": 25,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
-      },
-      "GB-DIS-G05-003-01Y": {
-        "thresholds": {
-          "min": -2,
-          "max": 10,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
-      },
-      "GB-DIS-G05-003-02Y": {
-        "thresholds": {
-          "min": -5.7,
-          "max": 12,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
-      },
-      "GB-DIS-G06-001-01Y": {
-        "thresholds": [
-          {
-            "min": -4,
-            "max": 10,
-            "t_range_start": "2025-08-04 06:00:00",
-            "t_range_end": "2025-08-13 08:00:00"
-          },
-          {
-            "min": -10,
-            "max": 10,
-            "t_range_start": "2025-08-14 06:00:00",
-            "t_range_end": "2025-08-23 08:00:00"
-          }
-        ],
-        "zero_to_nan": false,
-        "outlier": []
-      },
-      "GB-DIS-G06-003-01Y": {
-        "thresholds": {
-          "min": -6,
-          "max": 10,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
-      },
-      "GB-DIS-G06-003-03Y": {
-        "thresholds": {
-          "min": -10,
-          "max": 19,
-          "t_range_start": "2025-08-13 06:00:00",
-          "t_range_end": "2025-08-23 08:00:00"
-        },
-        "zero_to_nan": false,
-        "outlier": []
-      }
-    },
-    "acceleration": {
-      "GB-VIB-G06-002-01": {
-        "thresholds": {
-          "min": -500,
-          "max": 400
-        }
-      },
-      "GB-VIB-G04-001-01": {
-        "thresholds": [
-          {
-            "min": -400,
-            "max": 400
-          },
-          {
-            "min": -500,
-            "max": 500,
-            "t_range_start": "2025-05-12 20:00:00",
-            "t_range_end": "2025-05-15 22:00:00"
-          }
-        ]
-      },
-      "GB-VIB-G05-001-01": {
-        "thresholds": {
-          "min": -300,
-          "max": 300
-        }
-      },
-      "GB-VIB-G05-002-01": {
-        "thresholds": [
-          {
-            "min": -300,
-            "max": 300
-          },
-          {
-            "min": -500,
-            "max": 500,
-            "t_range_start": "2025-05-12 20:00:00",
-            "t_range_end": "2025-05-15 22:00:00"
-          }
-        ]
-      },
-      "GB-VIB-G05-003-01": {
-        "thresholds": [
-          {
-            "min": -500,
-            "max": 300
-          },
-          {
-            "min": -500,
-            "max": 300,
-            "t_range_start": "2025-04-26 20:00:00",
-            "t_range_end": "2025-05-18 22:00:00"
-          }
-        ]
-      },
-      "GB-VIB-G06-001-01": {
-        "thresholds": [
-          {
-            "min": -300,
-            "max": 300
-          },
-          {
-            "min": -500,
-            "max": 500,
-            "t_range_start": "2025-05-12 20:00:00",
-            "t_range_end": "2025-05-15 22:00:00"
-          }
-        ]
-      },
-      "GB-VIB-G06-003-01": {
-        "thresholds": [
-          {
-            "min": -300,
-            "max": 300
-          },
-          {
-            "min": -500,
-            "max": 500,
-            "t_range_start": "2025-05-12 20:00:00",
-            "t_range_end": "2025-05-15 22:00:00"
-          }
-        ]
-      },
-      "GB-VIB-G07-001-01": {
-        "thresholds": [
-          {
-            "min": -400,
-            "max": 400
-          },
-          {
-            "min": -500,
-            "max": 420
-          }
-        ]
-      }
-    },
-    "strain": {
-      "GB-RSG-G06-001-02": {
-        "thresholds": {
-          "min": -350,
-          "max": 5,
-          "t_range_start": "",
-          "t_range_end": ""
-        },
-        "zero_to_nan": false,
-        "outlier": []
-      },
-      "GB-RSG-G05-001-02": {
-        "thresholds": [
-          {
-            "min": -350,
-            "max": 20,
-            "t_range_start": "",
-            "t_range_end": ""
-          },
-          {
-            "min": -30,
-            "max": 20,
-            "t_range_start": "",
-            "t_range_end": ""
-          }
-        ],
-        "zero_to_nan": false,
-        "outlier": []
-      },
-      "GB-RSG-G05-001-06": {
-        "thresholds": {
-          "min": 50,
-          "max": 70,
-          "t_range_start": "2025-05-13 15:00:00",
-          "t_range_end": "2025-05-13 16:00:00"
-        },
-        "zero_to_nan": false,
-        "outlier": []
-      }
-    },
-    "tilt": {
-      "GB-DIS-P04-001-01-X": {
-        "thresholds": {
-          "min": -0.5,
-          "max": 0.05
-        }
-      },
-      "GB-DIS-P05-001-01-X": {
-        "thresholds": {
-          "min": -0.1,
-          "max": 0.05
-        }
-      },
-      "GB-DIS-P06-001-01-X": {
-        "thresholds": {
-          "min": -0.1,
-          "max": 0.05
-        }
-      },
-      "GB-DIS-P04-001-01-Y": {
-        "thresholds": {
-          "min": -0.05,
-          "max": 0.056
-        }
-      },
-      "GB-DIS-P05-001-01-Y": {
-        "thresholds": {
-          "min": -0.05,
-          "max": 0.056
-        }
-      },
-      "GB-DIS-P06-001-01-Y": {
-        "thresholds": {
-          "min": -0.05,
-          "max": 0.056
-        }
-      }
-    },
-    "crack": {
-      "GB-CRK-G05-001-01": {
-        "thresholds": {
-          "min": -0.22,
-          "max": -0.1
-        }
-      },
-      "GB-CRK-G05-001-02": {
-        "thresholds": {
-          "min": -100,
-          "max": -0.05
-        }
-      },
-      "GB-CRK-G06-001-01": {
-        "thresholds": {
-          "min": -0.25,
-          "max": 0.05
-        }
-      }
-    },
+    "deflection": {},
+    "acceleration": {},
+    "strain": {},
+    "tilt": {},
+    "crack": {},
     "cable_accel": {
       "SLCGQ-01-K16-ZDG1": {
         "thresholds": [],
@@ -901,24 +582,6 @@
         "GB-RSG-G06-001-06"
       ]
     },
-    "dynamic_strain": {
-      "G05": [
-        "GB-RSG-G05-001-01",
-        "GB-RSG-G05-001-02",
-        "GB-RSG-G05-001-03",
-        "GB-RSG-G05-001-04",
-        "GB-RSG-G05-001-05",
-        "GB-RSG-G05-001-06"
-      ],
-      "G06": [
-        "GB-RSG-G06-001-01",
-        "GB-RSG-G06-001-02",
-        "GB-RSG-G06-001-03",
-        "GB-RSG-G06-001-04",
-        "GB-RSG-G06-001-05",
-        "GB-RSG-G06-001-06"
-      ]
-    },
     "tilt": {
       "X": [
         "QJJ-01-CZD-PC20-X",
@@ -956,6 +619,7 @@
     "acceleration": {
       "ylabel": "主梁竖向振动加速度 (mm/s^2)",
       "title_prefix": "加速度时程",
+      "ylim_auto": true,
       "ylim": [
         -500,
         500
@@ -984,7 +648,8 @@
           0.447,
           0.741
         ]
-      }
+      },
+      "ylim_auto": false
     },
     "accel_spectrum": {
       "psd_ylabel": "PSD (dB)",
@@ -1494,51 +1159,6 @@
       ]
     }
   },
-  "defaults_dynamic_strain_note": "下方 dynamic_strain 为动应变专用参数；缺失则代码使用内置默认。",
-  "defaults_dynamic_strain": {
-    "Fs": 20,
-    "Fc": 0.1,
-    "Whisker": 300,
-    "ShowOutliers": false,
-    "YLimManual": true,
-    "YLimRange": [
-      -30,
-      30
-    ],
-    "LowerBound": -150,
-    "UpperBound": 30,
-    "EdgeTrimSec": 5
-  },
-  "groups_dynamic_strain": {
-    "G05": [
-      "GB-RSG-G05-001-01",
-      "GB-RSG-G05-001-02",
-      "GB-RSG-G05-001-03",
-      "GB-RSG-G05-001-04",
-      "GB-RSG-G05-001-05",
-      "GB-RSG-G05-001-06"
-    ],
-    "G06": [
-      "GB-RSG-G06-001-01",
-      "GB-RSG-G06-001-02",
-      "GB-RSG-G06-001-03",
-      "GB-RSG-G06-001-04",
-      "GB-RSG-G06-001-05",
-      "GB-RSG-G06-001-06"
-    ]
-  },
-  "plot_styles_dynamic_strain": {
-    "ylims": {
-      "G05": [
-        -30,
-        30
-      ],
-      "G06": [
-        -30,
-        30
-      ]
-    }
-  },
   "wind_params": {
     "speed_bins": [
       0,
@@ -1728,9 +1348,9 @@
   "data_adapter": {
     "vendor": "jiulongjiang",
     "zip": {
-      "glob": "jljData*.zip",
-      "date_pattern": "jljData(\\\\d{8})-(\\\\d{8})",
-      "subdir": "data/csv",
+      "glob": "data_jlj_*.zip",
+      "date_pattern": "data_jlj_(\\\\d{4})-(\\\\d{2})-(\\\\d{2})",
+      "subdir": "data/jlj/csv",
       "staging_root": "outputs/_staging/jlj"
     },
     "csv": {
@@ -1783,5 +1403,12 @@
       "WYJ",
       "YLJ"
     ]
+  },
+  "plot_common": {
+    "save_fig": true,
+    "lightweight_fig": true,
+    "fig_max_points": 50000,
+    "gap_mode": "break",
+    "gap_break_factor": 5
   }
 }

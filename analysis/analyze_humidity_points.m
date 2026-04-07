@@ -44,7 +44,8 @@ dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd');
 dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
 
 fig = figure('Position',[100 100 1000 469]);
-plot(times, vals, 'LineWidth',1, 'Color', get_color(style,1));
+[times_plot, vals_plot] = prepare_plot_series(times, vals);
+plot(times_plot, vals_plot, 'LineWidth',1, 'Color', get_color(style,1));
 numDivisions = 4;
 ticks = dt0 + (dt1 - dt0) * (0:numDivisions) / numDivisions;
 ax = gca;
