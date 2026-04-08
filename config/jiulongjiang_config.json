@@ -619,7 +619,7 @@
     "acceleration": {
       "ylabel": "主梁竖向振动加速度 (mm/s^2)",
       "title_prefix": "加速度时程",
-      "ylim_auto": true,
+      "ylim_auto": false,
       "ylim": [
         -500,
         500
@@ -648,8 +648,7 @@
           0.447,
           0.741
         ]
-      },
-      "ylim_auto": false
+      }
     },
     "accel_spectrum": {
       "psd_ylabel": "PSD (dB)",
@@ -1034,8 +1033,8 @@
       "group_plot": true,
       "temp_enabled": false,
       "skip_group_if_missing": true,
-      "output_dir_crack": "????_????",
-      "output_dir_temp": "????_????"
+      "output_dir_crack": "时程曲线_裂缝宽度",
+      "output_dir_temp": "时程曲线_裂缝温度"
     },
     "temperature": {
       "ylabel": "温度 (°C)",

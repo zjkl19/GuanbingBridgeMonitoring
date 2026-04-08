@@ -2706,8 +2706,8 @@
       "group_plot": true,
       "temp_enabled": true,
       "skip_group_if_missing": true,
-      "output_dir_crack": "????_????",
-      "output_dir_temp": "????_????"
+      "output_dir_crack": "时程曲线_裂缝宽度",
+      "output_dir_temp": "时程曲线_裂缝温度"
     },
     "acceleration": {
       "ylabel": "主梁竖向振动加速度 (m/s^2)",

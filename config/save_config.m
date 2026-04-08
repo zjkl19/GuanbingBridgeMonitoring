@@ -58,7 +58,7 @@ function save_config(cfg, filepath, make_backup)
             txt = regexprep(txt, pat, rep);
         end
     end
-    fid = fopen(filepath,'wt');
+    fid = fopen(filepath,'wt', 'n', 'UTF-8');
     if fid < 0
         error('无法写入配置文件: %s', filepath);
     end
