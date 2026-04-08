@@ -1182,6 +1182,12 @@
     "window_minutes": 10,
     "decimals": 2
   },
+  "eq_params": {
+    "alarm_levels": [
+      1.5,
+      2.55
+    ]
+  },
   "wim": {
     "vendor": "jiulongjiang",
     "bridge": "jiulongjiang",

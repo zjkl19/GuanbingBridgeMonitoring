@@ -990,10 +990,22 @@ function [t, v] = jlj_read_file(fp, sensor_type, point_id, adapter, varargin)
         cache_path = fullfile(cache_dir, [base '.mat']);
     end
 
+    cache_ok = false;
     if ~isempty(cache_path) && use_jlj_cache(cache_path, fp, adapter.cache.validate)
-        S = load(cache_path, 'ts', 'valx', 'valy', 'valz', 'meta');
-        [t, v] = pick_cached_channel(S, sensor_type, point_id);
-    else
+        try
+            S = load(cache_path, 'ts', 'valx', 'valy', 'valz', 'meta');
+            [t, v] = pick_cached_channel(S, sensor_type, point_id);
+            cache_ok = true;
+        catch
+            cache_ok = false;
+            try
+                delete(cache_path);
+            catch
+            end
+        end
+    end
+
+    if ~cache_ok
         T = readtable(fp, 'Delimiter', delim, 'FileEncoding', enc, ...
             'TextType','string', 'VariableNamingRule','preserve');
         vars = T.Properties.VariableNames;
@@ -1061,6 +1073,12 @@ function ok = use_jlj_cache(cache_path, src_path, validate_mode)
         return;
     end
     try
+        warn_state = warning('off', 'all');
+        warn_cleanup = onCleanup(@() warning(warn_state)); %#ok<NASGU>
+        meta_info = whos('-file', cache_path, 'meta');
+        if isempty(meta_info)
+            return;
+        end
         S = load(cache_path, 'meta');
         if ~isfield(S, 'meta') || ~isstruct(S.meta)
             return;
