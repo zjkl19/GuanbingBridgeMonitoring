@@ -66,10 +66,102 @@
     }
   },
   "per_point": {
-    "deflection": {},
+    "deflection": {
+      "NDY-01-K15-X1-G14": {
+        "offset_correction": -274.3572083
+      },
+      "NDY-02-K15-X1-G18": {
+        "offset_correction": -269.1691589
+      },
+      "NDY-03-K15-X1-G15": {
+        "offset_correction": -262.7603455
+      },
+      "NDY-04-K16-X1-G19": {
+        "offset_correction": -243.3813782
+      },
+      "NDY-05-K16-X1-G20": {
+        "offset_correction": -197.6043549
+      },
+      "NDY-06-K16-X1-G21": {
+        "offset_correction": -239.1088562
+      },
+      "NDY-07-K17-X1-G16": {
+        "offset_correction": -219.8824921
+      },
+      "NDY-08-K17-X1-G22": {
+        "offset_correction": -259.2507629
+      },
+      "NDY-09-K17-X1-G17": {
+        "offset_correction": -189.9748383
+      },
+      "NDY-10-K15-X4-G14": {
+        "offset_correction": -271.915802
+      },
+      "NDY-11-K15-X4-G18": {
+        "offset_correction": -232.2422791
+      },
+      "NDY-12-K15-X4-G15": {
+        "offset_correction": -225.5283661
+      },
+      "NDY-13-K16-X4-G19": {
+        "offset_correction": -237.1252136
+      },
+      "NDY-14-K16-X4-G20": {
+        "offset_correction": -251.4686584
+      },
+      "NDY-15-K16-X4-G21": {
+        "offset_correction": -239.8717957
+      },
+      "NDY-16-K17-X4-G16": {
+        "offset_correction": -271.915802
+      },
+      "NDY-17-K17-X4-G22": {
+        "offset_correction": -67.902626
+      },
+      "NDY-18-K17-X4-G17": {
+        "offset_correction": -233.3104553
+      }
+    },
     "acceleration": {},
     "strain": {},
-    "tilt": {},
+    "tilt": {
+      "QJJ-01-CZD-PC20-X": {
+        "offset_correction": 0.686
+      },
+      "QJJ-01-CZD-PC20-Y": {
+        "offset_correction": 1.393
+      },
+      "QJJ-02-AZD-PA2-X": {
+        "offset_correction": 0.434
+      },
+      "QJJ-02-AZD-PA2-Y": {
+        "offset_correction": -0.395
+      },
+      "QJJ-03-AZD-A5-X": {
+        "offset_correction": 0.14
+      },
+      "QJJ-03-AZD-A5-Y": {
+        "offset_correction": -1.02
+      },
+      "QJJ-04-AZD-A6-X": {
+        "offset_correction": 0.141
+      },
+      "QJJ-04-AZD-A6-Y": {
+        "offset_correction": 0.461
+      },
+      "QJJ-05-BZD-B5-X": {
+        "offset_correction": 0.747
+      },
+      "QJJ-05-BZD-B5-Y": {
+        "offset_correction": 0.89
+      },
+      "QJJ-06-BZD-B6-X": {
+        "offset_correction": 0.84
+      },
+      "QJJ-06-BZD-B6-Y": {
+        "offset_correction": 0.879
+      }
+    },
     "crack": {},
     "cable_accel": {
       "SLCGQ-01-K16-ZDG1": {
@@ -1199,7 +1291,7 @@
     "design_axle_kg": 28000,
     "overload_factors": [
       1.5,
-      2.0
+      2
     ],
     "topn": 10,
     "lanes": [
@@ -1330,8 +1422,6 @@
       "理论竖向三阶自振频率 1.528Hz"
     ]
   },
-  "source": "D:\\MatlabProjects\\Guanbing\\config\\default_config.json",
-  "warnings": [],
   "cable_accel_spectrum_params": {
     "target_freqs": [
       1,
