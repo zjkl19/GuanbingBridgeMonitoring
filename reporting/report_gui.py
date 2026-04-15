@@ -33,7 +33,8 @@ MONTHLY_REPORT = "\u6708\u62a5"
 PERIOD_REPORT = "\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
 APP_VERSION = "v1.5.7"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
-PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f-\u81ea\u52a8\u62a5\u544a.docx"
+PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
+PERIOD_TEMPLATE_AUTO_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f-\u81ea\u52a8\u62a5\u544a.docx"
 PERIOD_TEMPLATE_LEGACY_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f0318.docx"
 PERIOD_TEMPLATE_FALLBACK_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f.docx"
 DEFAULT_RESULT_ROOT = Path("E:" + "\\" + "\u6d2a\u5858\u5927\u6865\u6570\u636e" + "\\" + "2026\u5e741-3\u6708")
@@ -79,9 +80,9 @@ def detect_default_config() -> Path:
 def find_default_template(report_type: str) -> Path:
     preferred = PERIOD_TEMPLATE_NAME if report_type == PERIOD_REPORT else MONTHLY_TEMPLATE_NAME
     if report_type == PERIOD_REPORT:
-        fallback_candidates = [PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME, MONTHLY_TEMPLATE_NAME]
+        fallback_candidates = [PERIOD_TEMPLATE_AUTO_NAME, PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME, MONTHLY_TEMPLATE_NAME]
     else:
-        fallback_candidates = [PERIOD_TEMPLATE_NAME, PERIOD_TEMPLATE_FALLBACK_NAME]
+        fallback_candidates = [PERIOD_TEMPLATE_AUTO_NAME, PERIOD_TEMPLATE_FALLBACK_NAME]
     for reports_dir in candidate_report_roots():
         preferred_path = reports_dir / preferred
         if preferred_path.exists():
@@ -273,21 +274,21 @@ class ReportGui(QMainWindow):
         self.wim_root_edit = QLineEdit(str(derive_wim_root(default_result_root)))
         self.output_dir_edit = QLineEdit(str(derive_output_dir(default_result_root)))
         self.period_edit = QLineEdit("2026\u5e741-3\u6708")
-        self.range_edit = QLineEdit("2026.01.01~2026.03.16")
+        self.range_edit = QLineEdit("2026年01月01日~2026年03月31日")
         self.start_edit = QLineEdit("2026-01-01")
-        self.end_edit = QLineEdit("2026-03-16")
+        self.end_edit = QLineEdit("2026-03-31")
         self.date_edit = QLineEdit(datetime.now().strftime("%Y\u5e74%m\u6708%d\u65e5"))
 
         rows = [
             ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, "\u6708\u62a5\u6216\u5468\u671f\u62a5\uff08\u542bWIM\uff09\u3002\u5207\u6362\u540e\u4f1a\u81ea\u52a8\u5207\u6362\u9ed8\u8ba4\u6a21\u677f\u3002"),
-            ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6708\u62a5\u9ed8\u8ba4\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u5468\u671f\u62a5\u9ed8\u8ba4\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f-\u81ea\u52a8\u62a5\u544a.docx\u3002"),
+            ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6708\u62a5\u9ed8\u8ba4\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u5468\u671f\u62a5\u9ed8\u8ba4\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\u3002"),
             ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "\u4f18\u5148\u8bfb\u53d6\u673a\u5668\u4e13\u7528\u914d\u7f6e hongtang_config_<COMPUTERNAME>.json\u3002"),
             ("\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55", self.result_root_edit, self._browse_result_root, "\u8fd9\u91cc\u5e94\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\u5bf9\u5468\u671f\u62a5\uff0c\u8fd9\u4e2a\u76ee\u5f55\u6700\u597d\u540c\u65f6\u5305\u542b raw \u539f\u59cb\u6570\u636e\uff0c\u5426\u5219 1.4 \u7ae0\u8282\u4f1a\u5c06\u7f3a\u5c11\u539f\u59cb\u6570\u636e\u89c6\u4e3a\u7f3a\u5931\u3002"),
             ("\u7a0b\u5e8f\u6839\u76ee\u5f55\uff08\u9ad8\u7ea7\uff09", self.analysis_root_edit, self._browse_analysis_root, "\u517c\u5bb9\u65e7\u8def\u5f84\u548c\u5c11\u91cf\u56de\u9000\u67e5\u627e\uff0c\u901a\u5e38\u4fdd\u6301\u7a0b\u5e8f\u6240\u5728\u76ee\u5f55\u5373\u53ef\u3002"),
             ("WIM\u7ed3\u679c\u76ee\u5f55", self.wim_root_edit, self._browse_wim_root, "\u5468\u671f\u62a5\u4f7f\u7528\uff0c\u9ed8\u8ba4\u662f <\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55>/WIM/results/hongtang\u3002WIM \u4ecd\u6309\u6708\u63d2\u5165\uff0c\u4e0d\u662f\u628a 1~3 \u4e2a\u6708\u76f4\u63a5\u5408\u6210\u4e00\u5f20\u8868\u3002"),
             ("\u8f93\u51fa\u76ee\u5f55", self.output_dir_edit, self._browse_output_dir, "\u62a5\u544a\u8f93\u51fa\u76ee\u5f55\uff0c\u9ed8\u8ba4\u662f <\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55>/\u81ea\u52a8\u62a5\u544a\u3002"),
             ("\u62a5\u544a\u671f", self.period_edit, None, "\u663e\u793a\u5728\u62a5\u544a\u4e2d\u7684\u62a5\u544a\u671f\u6587\u5b57\uff0c\u4f8b\u5982 2026\u5e741-3\u6708\u3002"),
-            ("\u76d1\u6d4b\u65f6\u95f4", self.range_edit, None, "\u663e\u793a\u5728\u62a5\u544a\u4e2d\u7684\u76d1\u6d4b\u65f6\u95f4\u6587\u5b57\uff0c\u4f8b\u5982 2026.01.01~2026.03.16\u3002"),
+            ("\u76d1\u6d4b\u65f6\u95f4", self.range_edit, None, "\u663e\u793a\u5728\u62a5\u544a\u4e2d\u7684\u76d1\u6d4b\u65f6\u95f4\u6587\u5b57\uff0c\u4f8b\u5982 2026\u5e7401\u670801\u65e5~2026\u5e7403\u670831\u65e5\u3002"),
             ("\u5f00\u59cb\u65e5\u671f", self.start_edit, None, "\u5468\u671f\u62a5\u4f7f\u7528\uff0c\u7528\u4e8e\u63a8\u5bfc WIM \u5904\u7406\u6708\u4efd\u8303\u56f4\u3002"),
             ("\u7ed3\u675f\u65e5\u671f", self.end_edit, None, "\u5468\u671f\u62a5\u4f7f\u7528\uff0c\u7528\u4e8e\u63a8\u5bfc WIM \u5904\u7406\u6708\u4efd\u8303\u56f4\u3002"),
             ("\u62a5\u544a\u65e5\u671f", self.date_edit, None, "\u663e\u793a\u5728\u5c01\u9762\u548c\u6b63\u6587\u4e2d\u7684\u62a5\u544a\u65e5\u671f\u3002"),
@@ -348,7 +349,7 @@ class ReportGui(QMainWindow):
 
     def _maybe_update_template_for_type(self) -> None:
         current = self.template_edit.text().strip()
-        names = {MONTHLY_TEMPLATE_NAME, PERIOD_TEMPLATE_NAME, PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME}
+        names = {MONTHLY_TEMPLATE_NAME, PERIOD_TEMPLATE_NAME, PERIOD_TEMPLATE_AUTO_NAME, PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME}
         should_replace = (not current) or (Path(current).name in names) or (not Path(current).exists())
         if should_replace:
             self.template_edit.setText(str(find_default_template(self.report_type_combo.currentText())))

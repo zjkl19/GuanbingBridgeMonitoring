@@ -19,6 +19,7 @@ BridgeReportBuilder/
   _internal/
   reports/
     洪塘大桥健康监测月报模板.docx
+    洪塘大桥健康监测2026年第一季季报-改4.docx
     洪塘大桥健康监测周期报模板-自动报告.docx
     洪塘大桥健康监测周期报模板.docx
   README.md
@@ -67,7 +68,7 @@ E:/洪塘大桥数据/2026年1-3月/
   - `月报` 或 `周期报（含 WIM）`
 - `模板文件 / Template`
   - Monthly default: `洪塘大桥健康监测月报模板.docx`
-  - Period default: `洪塘大桥健康监测周期报模板-自动报告.docx`
+  - Period default: `洪塘大桥健康监测2026年第一季季报-改4.docx`
   - The current automatic period-report layout assumes this default template.
   - 当前自动周期报布局默认按这份模板适配。
 - `配置文件 / Config`
@@ -123,6 +124,25 @@ Important note for period reports:
 - 非 WIM 章节从结果根目录读取。
 - WIM 仍按月从 `WIM/results/hongtang/<yyyymm>/` 插入。
 - `1.4 健康监测系统运行状况` 统计的是原始缺失/无文件/无记录。如果结果根目录只有处理结果而没有原始数据，该节会显示大量缺失。
+- GUI 中的 `监测时间` 是报告显示文字，可人工调整，例如 `2026年01月01日~2026年03月31日`；`开始日期` 和 `结束日期` 用于推导 WIM 月份范围。
+
+CLI debugging example:
+CLI 调试示例：
+
+```powershell
+python reporting\build_period_report.py `
+  --template reports\洪塘大桥健康监测2026年第一季季报-改4.docx `
+  --config config\hongtang_config.json `
+  --result-root "E:\洪塘大桥数据\2026年1-3月" `
+  --wim-root "E:\洪塘大桥数据\2026年1-3月\WIM\results\hongtang" `
+  --monitoring-range "2026年01月01日~2026年03月31日" `
+  --start-date 2026-01-01 `
+  --end-date 2026-03-31 `
+  --debug-section cable_force
+```
+
+`--debug-section` can print `cable_force`, `vibration`, `wim`, or `health_status` from the generated manifest.
+`--debug-section` 可输出生成清单中的 `cable_force`、`vibration`、`wim` 或 `health_status`，便于核查图片路径、统计值和缺失项。
 
 The GUI performs a preflight check before generating a period report and warns when:
 生成周期报前，GUI 会做输入校验，并在以下情况给出警告：

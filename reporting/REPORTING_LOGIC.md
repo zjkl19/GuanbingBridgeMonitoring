@@ -22,8 +22,8 @@ The generator does not rebuild the whole document. It looks for existing section
   - Replaces the bearing summary and inserts bearing time-series figures.
   - 替换支座摘要，插入支座时程图。
 - `吊索索力 / Cable Force`
-  - Replaces the cable force summary, fills the cable force table, and inserts cable force figures.
-  - 替换索力摘要，填充索力表，插入索力图。
+  - Cable acceleration and cable force are controlled separately by config. Cable acceleration inserts under `（1）索力加速度时程数据`; cable force inserts under `（2）索力时程数据` only when `reporting.cable_force.force_enabled` is true.
+  - 索力加速度与索力时程由配置分别控制。索力加速度贴入 `（1）索力加速度时程数据`；只有 `reporting.cable_force.force_enabled` 为 true 时才贴入 `（2）索力时程数据`、填表并改写索力结论。
 - `主梁、主塔振动 / Vibration`
   - Replaces the vibration summary and inserts acceleration, RMS, and frequency figures.
   - 替换振动摘要，插入加速度、RMS 和频率图。

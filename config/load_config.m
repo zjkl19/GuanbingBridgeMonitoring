@@ -15,6 +15,10 @@ function cfg = load_config(path)
         error('Config file not found: %s', path);
     end
     txt = fileread(path);
+    % Tolerate UTF-8 BOM introduced by external editors/scripts.
+    if ~isempty(txt) && double(txt(1)) == 65279
+        txt = txt(2:end);
+    end
     cfg = jsondecode(txt);
 
     % 记录原始字段名映射（point_id 可能含连字符），便于保存时还原

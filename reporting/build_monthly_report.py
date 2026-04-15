@@ -458,6 +458,21 @@ def replace_next_nonempty_after_exact(doc: Document, anchor_text: str, new_text:
     raise ValueError(f'No non-empty paragraph found after anchor "{anchor_text}"')
 
 
+def clear_paragraph(paragraph: Paragraph) -> None:
+    for run in paragraph.runs:
+        run.text = ""
+
+
+def ensure_note_before_caption(doc: Document, caption_fragment: str, note_text: str) -> None:
+    for para in doc.paragraphs:
+        if para.text.strip() == note_text:
+            clear_paragraph(para)
+    caption = find_last_paragraph_contains(doc, caption_fragment)
+    note_para = insert_paragraph_before(caption)
+    note_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    note_para.add_run(note_text)
+
+
 def insert_picture_before_caption(doc: Document, caption_text: str, image_path: Path, width_mm: float = 165.0) -> None:
     caption = find_last_paragraph(doc, caption_text)
     pic_para = insert_paragraph_before(caption)
@@ -523,15 +538,22 @@ def update_common_metadata(doc: Document, period_label: str, monitoring_range: s
     for para in doc.paragraphs:
         txt = para.text.strip()
         if txt.startswith(old_period_prefix) and txt.endswith("）"):
-            replace_paragraph_text(para, f"（监测时间：{period_label}）")
+            replace_paragraph_text(para, f"（监测时间：{monitoring_range}）")
+        elif txt.startswith("监测时间："):
+            replace_paragraph_text(para, f"监测时间：{monitoring_range}")
         elif txt.startswith("报告日期："):
             replace_paragraph_text(para, f"报告日期：{report_date}")
 
     for table in doc.tables:
         for row in table.rows:
-            for cell in row.cells:
+            cells = row.cells
+            for idx, cell in enumerate(cells):
                 txt = cell.text.strip()
-                if txt == "2025.12.01～2025.12.31":
+                if txt == "监测时间" and idx + 1 < len(cells):
+                    cells[idx + 1].text = monitoring_range
+                elif txt.startswith("监测时间："):
+                    cell.text = f"监测时间：{monitoring_range}"
+                elif txt in {"2025.12.01～2025.12.31", "2026.01.01~2026.03.31", "2026年01月01日~2026年03月31日"}:
                     cell.text = monitoring_range
                 elif txt.startswith("报告日期："):
                     cell.text = f"报告日期：{report_date}"
@@ -744,6 +766,8 @@ def _section_has_content(section_name: str, section: dict) -> bool:
             or bool(section.get("table_rows"))
             or _image_list_has_content(section.get("accel_images"))
             or _image_list_has_content(section.get("force_images"))
+            or bool(section.get("accel_available"))
+            or bool(section.get("force_available"))
         )
     if section_name == "vibration":
         return (
@@ -804,6 +828,17 @@ def _build_section_safe(
     return section
 
 
+def _format_threshold_tons(value: object, default: float) -> str:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        numeric = float(default)
+    rounded = round(numeric)
+    if abs(numeric - rounded) < 1e-9:
+        return str(int(rounded))
+    return f"{numeric:.1f}".rstrip("0").rstrip(".")
+
+
 def build_overview_items(manifest: dict) -> dict[str, list[str]]:
     sections = manifest["sections"]
     traffic = sections.get("wim", {}) if sections.get("wim", {}).get("enabled") else sections.get("traffic", {})
@@ -817,17 +852,21 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
     replacements: dict[str, list[str]] = {}
 
     if traffic:
+        gross_level_1_t = _format_threshold_tons(traffic.get("gross_level_1_t"), 82.5)
+        gross_level_2_t = _format_threshold_tons(traffic.get("gross_level_2_t"), 110.0)
+        axle_level_1_t = _format_threshold_tons(traffic.get("axle_level_1_t"), 42.0)
+        axle_level_2_t = _format_threshold_tons(traffic.get("axle_level_2_t"), 56.0)
         replacements["交通状况监测"] = [
             (
                 f"监测结果表明，桥梁共通过车辆{traffic.get('vehicle_total', 0)}辆，日均{traffic.get('daily_avg', 0)}辆。"
                 f"其中上行方向（闽侯-农大，车道1～车道4）所通过车辆为{traffic.get('up_total', 0)}辆，"
                 f"下行方向（农大-闽侯，车道5～车道8）所通过车辆为{traffic.get('down_total', 0)}辆。"
-                f"期间系统记录到的最大车重为{traffic.get('max_gross_t', 0):.2f}t，{traffic.get('gross_limit_text', '未达到2.0倍设计车辆荷载110t')}。"
-                f"最大轴重{traffic.get('max_axle_t', 0):.2f}t，{traffic.get('axle_limit_text', '未达到1.5倍设计车辆荷载42t')}。"
-                f"期间总重超过1.5倍设计荷载82.5t的车辆共{traffic.get('gross_over_1_5', 0)}辆，"
-                f"其中超过2.0倍设计荷载110t的车辆共{traffic.get('gross_over_2_0', 0)}辆；"
-                f"轴重超过1.5倍设计荷载42t的车辆共{traffic.get('axle_over_1_5', 0)}辆，"
-                f"其中超过2.0倍设计荷载56t的车辆共{traffic.get('axle_over_2_0', 0)}辆。"
+                f"期间系统记录到的最大车重为{traffic.get('max_gross_t', 0):.2f}t，{traffic.get('gross_limit_text', f'未达到2.0倍设计车辆荷载{gross_level_2_t}t')}。"
+                f"最大轴重{traffic.get('max_axle_t', 0):.2f}t，{traffic.get('axle_limit_text', f'未达到1.5倍设计车辆荷载{axle_level_1_t}t')}。"
+                f"期间总重超过1.5倍设计荷载{gross_level_1_t}t的车辆共{traffic.get('gross_over_1_5', 0)}辆，"
+                f"其中超过2.0倍设计荷载{gross_level_2_t}t的车辆共{traffic.get('gross_over_2_0', 0)}辆；"
+                f"轴重超过1.5倍设计荷载{axle_level_1_t}t的车辆共{traffic.get('axle_over_1_5', 0)}辆，"
+                f"其中超过2.0倍设计荷载{axle_level_2_t}t的车辆共{traffic.get('axle_over_2_0', 0)}辆。"
             )
         ]
 
@@ -851,14 +890,29 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
             "未出现超过各级超限阈值和报警的情况。"
         ]
     if section_is_available("cable_force", cable):
-        replacements["吊索索力监测"] = [
-            "选取典型监测数据进行分析。"
-            f"监测结果表明吊索加速度各测点绝对最大值为{cable.get('max_abs', 0):.2f}mm/s²，"
-            f"各测点10min加速度均方根值最大为{cable.get('max_rms', 0):.2f}mm/s²，"
-            "未超过1000mm/s²，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
-            f"与成桥索力相比，索力变化范围在{cable.get('min_change', 0):.2f}%~{cable.get('max_change', 0):.2f}%之间，"
-            "与成桥索力相比变化范围在10%以内，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
-        ]
+        cable_parts: list[str] = ["选取典型监测数据进行分析。"]
+        if cable.get("accel_available"):
+            max_abs = cable.get("max_abs")
+            max_rms = cable.get("max_rms")
+            if max_abs is not None and max_rms is not None:
+                cable_parts.append(
+                    f"监测结果表明吊索加速度各测点绝对最大值为{max_abs:.2f}m/s²，"
+                    f"各测点10min加速度均方根值最大为{max_rms:.2f}m/s²，"
+                    "未超过1000m/s²，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
+                )
+            else:
+                cable_parts.append("吊索加速度时程及10min加速度均方根结果见正文图表。")
+        if cable.get("force_available"):
+            min_change = cable.get("min_change")
+            max_change = cable.get("max_change")
+            if min_change is not None and max_change is not None:
+                cable_parts.append(
+                    f"与成桥索力相比，索力变化范围在{min_change:.2f}%~{max_change:.2f}%之间，"
+                    "与成桥索力相比变化范围在10%以内，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
+                )
+            else:
+                cable_parts.append("索力时程及统计结果见正文图表。")
+        replacements["吊索索力监测"] = ["".join(cable_parts)]
     if section_is_available("wind", wind):
         replacements["风向风速监测"] = [
             f"监测结果表明，桥面10min平均风速最大值为{wind.get('max_10min', 0):.2f}m/s，"
@@ -1066,105 +1120,112 @@ def build_cable_force_section(cfg: dict, stats_root: Path, fallback_stats_root: 
     if not reporting_enabled(cfg, "cable_force"):
         return {"enabled": False}
 
-    rows = load_sheet_rows(resolve_existing_file(stats_root, fallback_stats_root, "cable_accel_stats.xlsx"))
-    valid_rows = [r for r in rows if r.get("PointID")]
-    max_abs = max((max(abs(r["Min"]), abs(r["Max"])) for r in valid_rows if r.get("Min") is not None and r.get("Max") is not None), default=None)
-    max_rms = max((r["RMS10minMax"] for r in valid_rows if r.get("RMS10minMax") is not None), default=None)
-
-    groups_cfg = cfg.get("groups", {}).get("cable_force", {})
-    default_point_order = flatten_group_members(groups_cfg) or cfg.get("points", {}).get("cable_accel", [])
-    point_order = get_report_order(cfg, "cable_force", "order", default_point_order)
-
     reporting_cfg = get_reporting_section(cfg, "cable_force")
+    accel_default_order = cfg.get("points", {}).get("cable_accel", [])
+    accel_order = get_report_order(cfg, "cable_force", "accel_order", accel_default_order)
+    groups_cfg = cfg.get("groups", {}).get("cable_force", {})
+    legacy_force_order = normalize_name_list(reporting_cfg.get("order")) or []
+    default_force_order = normalize_name_list(reporting_cfg.get("force_order")) or legacy_force_order or flatten_group_members(groups_cfg) or cfg.get("points", {}).get("cable_force", [])
+    force_order = get_report_order(cfg, "cable_force", "force_order", default_force_order)
+    accel_enabled = bool(reporting_cfg.get("accel_enabled", True))
+    force_enabled = bool(reporting_cfg.get("force_enabled", bool(force_order)))
+
     accel_dir = reporting_cfg.get("accel_output_dir", "\u65f6\u7a0b\u66f2\u7ebf_\u7d22\u529b\u52a0\u901f\u5ea6")
     rms_dir = reporting_cfg.get("rms_output_dir", "\u65f6\u7a0b\u66f2\u7ebf_\u7d22\u529b\u52a0\u901f\u5ea6_RMS10min")
     force_dir = reporting_cfg.get("force_output_dir", "\u7d22\u529b\u65f6\u7a0b\u56fe")
     force_group_dir = reporting_cfg.get("force_group_output_dir", "\u7d22\u529b\u65f6\u7a0b\u56fe_\u7ec4\u56fe")
 
+    max_abs = None
+    max_rms = None
     accel_items: list[ImageItem] = []
-    for pid in point_order:
-        raw_path, raw_lookup = find_latest_image_patterns(
-            image_root,
-            accel_dir,
-            [
-                f"{pid}_*.jpg",
-                f"{pid}_*.png",
-                f"{pid}_*.jpeg",
-                f"CableAccel_{pid}_*.jpg",
-                f"CableAccel_{pid}_*.png",
-                f"CableAccel_{pid}_*.jpeg",
-                f"*{pid}*.jpg",
-                f"*{pid}*.png",
-                f"*{pid}*.jpeg",
-            ],
-        )
-        accel_items.append(ImageItem(f"{pid} 加速度", raw_path, raw_lookup))
-        rms_path, rms_lookup = find_latest_image_patterns(
-            image_root,
-            rms_dir,
-            [
-                f"CableAccelRMS10_{pid}_*.jpg",
-                f"CableAccelRMS10_{pid}_*.png",
-                f"CableAccelRMS10_{pid}_*.jpeg",
-                f"*{pid}*RMS10*.jpg",
-                f"*{pid}*RMS10*.png",
-                f"*{pid}*RMS10*.jpeg",
-            ],
-        )
-        accel_items.append(ImageItem(f"{pid} RMS10min", rms_path, rms_lookup))
+    if accel_enabled:
+        rows = load_sheet_rows(resolve_existing_file(stats_root, fallback_stats_root, "cable_accel_stats.xlsx"))
+        valid_rows = [r for r in rows if r.get("PointID")]
+        max_abs = max((max(abs(r["Min"]), abs(r["Max"])) for r in valid_rows if r.get("Min") is not None and r.get("Max") is not None), default=None)
+        max_rms = max((r["RMS10minMax"] for r in valid_rows if r.get("RMS10minMax") is not None), default=None)
+        for pid in accel_order:
+            raw_path, raw_lookup = find_latest_image_patterns(
+                image_root,
+                accel_dir,
+                [
+                    f"{pid}_*.jpg",
+                    f"{pid}_*.png",
+                    f"{pid}_*.jpeg",
+                    f"CableAccel_{pid}_*.jpg",
+                    f"CableAccel_{pid}_*.png",
+                    f"CableAccel_{pid}_*.jpeg",
+                    f"*{pid}*.jpg",
+                    f"*{pid}*.png",
+                    f"*{pid}*.jpeg",
+                ],
+            )
+            accel_items.append(ImageItem(f"{pid} 加速度", raw_path, raw_lookup))
+            rms_path, rms_lookup = find_latest_image_patterns(
+                image_root,
+                rms_dir,
+                [
+                    f"CableAccelRMS10_{pid}_*.jpg",
+                    f"CableAccelRMS10_{pid}_*.png",
+                    f"CableAccelRMS10_{pid}_*.jpeg",
+                    f"*{pid}*RMS10*.jpg",
+                    f"*{pid}*RMS10*.png",
+                    f"*{pid}*RMS10*.jpeg",
+                ],
+            )
+            accel_items.append(ImageItem(f"{pid} RMS10min", rms_path, rms_lookup))
 
-    force_order = get_report_order(cfg, "cable_force", "force_order", point_order)
     force_items: list[ImageItem] = []
-    for label in force_order:
-        img_path, lookup = find_latest_image(image_root, force_dir, f"CableForce_{label}_")
-        if img_path is None and "-" in label:
-            img_path, lookup = find_latest_image(image_root, force_group_dir, f"CableForce_{label}_")
-        force_items.append(ImageItem(label, img_path, lookup))
-
-    spec_rows_by_sheet = load_workbook_rows_by_sheet(resolve_existing_file(stats_root, fallback_stats_root, "cable_accel_spec_stats.xlsx"))
-    per_point_cfg = cfg.get("per_point", {}).get("cable_accel", {})
     table_rows: list[dict] = []
     change_rates: list[float] = []
-    for pid in force_order:
-        point_cfg = per_point_cfg.get(pid, {})
-        sheet_rows = spec_rows_by_sheet.get(pid, [])
-        freq_values: list[float] = []
-        force_values: list[float] = []
-        for row in sheet_rows:
-            freq_val = None
-            for key, value in row.items():
-                if str(key).startswith("Freq_"):
-                    freq_val = parse_float(value)
-                    if freq_val is not None:
-                        break
-            if freq_val is not None:
-                freq_values.append(freq_val)
-            force_val = parse_float(row.get("CableForce_kN"))
-            if force_val is not None:
-                force_values.append(force_val)
-        freq = median_safe(freq_values)
-        current_force = median_safe(force_values)
-        rho = parse_float(point_cfg.get("rho"))
-        length_m = parse_float(point_cfg.get("L"))
-        built_force = HONGTANG_CABLE_BUILT_FORCE.get(pid)
-        change_rate = None
-        if current_force is not None and built_force not in (None, 0):
-            change_rate = (current_force - built_force) / built_force * 100.0
-            change_rates.append(change_rate)
-        table_rows.append({
-            "PointID": pid,
-            "rho": rho,
-            "L": length_m,
-            "freq": freq,
-            "current_force": current_force,
-            "built_force": built_force,
-            "change_rate": change_rate,
-        })
+    if force_enabled:
+        for label in force_order:
+            img_path, lookup = find_latest_image(image_root, force_dir, f"CableForce_{label}_")
+            if img_path is None and "-" in label:
+                img_path, lookup = find_latest_image(image_root, force_group_dir, f"CableForce_{label}_")
+            force_items.append(ImageItem(label, img_path, lookup))
+
+        spec_rows_by_sheet = load_workbook_rows_by_sheet(resolve_existing_file(stats_root, fallback_stats_root, "cable_accel_spec_stats.xlsx"))
+        per_point_cfg = cfg.get("per_point", {}).get("cable_accel", {})
+        for pid in force_order:
+            point_cfg = per_point_cfg.get(pid, {})
+            sheet_rows = spec_rows_by_sheet.get(pid, [])
+            freq_values: list[float] = []
+            force_values: list[float] = []
+            for row in sheet_rows:
+                freq_val = None
+                for key, value in row.items():
+                    if str(key).startswith("Freq_"):
+                        freq_val = parse_float(value)
+                        if freq_val is not None:
+                            break
+                if freq_val is not None:
+                    freq_values.append(freq_val)
+                force_val = parse_float(row.get("CableForce_kN"))
+                if force_val is not None:
+                    force_values.append(force_val)
+            freq = median_safe(freq_values)
+            current_force = median_safe(force_values)
+            rho = parse_float(point_cfg.get("rho"))
+            length_m = parse_float(point_cfg.get("L"))
+            built_force = HONGTANG_CABLE_BUILT_FORCE.get(pid)
+            change_rate = None
+            if current_force is not None and built_force not in (None, 0):
+                change_rate = (current_force - built_force) / built_force * 100.0
+                change_rates.append(change_rate)
+            table_rows.append({
+                "PointID": pid,
+                "rho": rho,
+                "L": length_m,
+                "freq": freq,
+                "current_force": current_force,
+                "built_force": built_force,
+                "change_rate": change_rate,
+            })
 
     if max_abs is not None and max_rms is not None:
         accel_summary = (
-            f"\u9009\u53d6\u5178\u578b\u76d1\u6d4b\u6570\u636e\u8fdb\u884c\u5206\u6790\uff0c\u76d1\u6d4b\u7ed3\u679c\u8868\u660e\uff0c\u540a\u7d22\u52a0\u901f\u5ea6\u5404\u6d4b\u70b9\u7edd\u5bf9\u6700\u5927\u503c\u4e3a{max_abs:.2f}mm/s\xb2\uff0c"
-            f"\u5404\u6d4b\u70b910min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u503c\u6700\u5927\u4e3a{max_rms:.2f}mm/s\xb2\uff0c\u672a\u8d85\u8fc71000mm/s\xb2\uff0c\u5747\u5904\u4e8e\u8d85\u9650\u9608\u503c\u8303\u56f4\u4e4b\u5185\uff0c"
+            f"\u9009\u53d6\u5178\u578b\u76d1\u6d4b\u6570\u636e\u8fdb\u884c\u5206\u6790\uff0c\u76d1\u6d4b\u7ed3\u679c\u8868\u660e\uff0c\u540a\u7d22\u52a0\u901f\u5ea6\u5404\u6d4b\u70b9\u7edd\u5bf9\u6700\u5927\u503c\u4e3a{max_abs:.2f}m/s\xb2\uff0c"
+            f"\u5404\u6d4b\u70b910min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u503c\u6700\u5927\u4e3a{max_rms:.2f}m/s\xb2\uff0c\u672a\u8d85\u8fc71000m/s\xb2\uff0c\u5747\u5904\u4e8e\u8d85\u9650\u9608\u503c\u8303\u56f4\u4e4b\u5185\uff0c"
             f"\u672a\u51fa\u73b0\u8d85\u8fc7\u5404\u7ea7\u8d85\u9650\u9608\u503c\u548c\u62a5\u8b66\u7684\u60c5\u51b5\u3002"
         )
     else:
@@ -1189,6 +1250,10 @@ def build_cable_force_section(cfg: dict, stats_root: Path, fallback_stats_root: 
 
     return {
         "enabled": True,
+        "accel_enabled": accel_enabled,
+        "force_enabled": force_enabled,
+        "accel_available": accel_enabled and (max_abs is not None or max_rms is not None or _image_list_has_content([{"path": str(item.path) if item.path else None} for item in accel_items])),
+        "force_available": force_enabled and (bool(change_rates) or bool(table_rows) or _image_list_has_content([{"path": str(item.path) if item.path else None} for item in force_items])),
         "accel_summary": accel_summary,
         "force_summary": force_summary,
         "max_abs": max_abs,
@@ -1237,8 +1302,8 @@ def build_vibration_section(cfg: dict, stats_root: Path, fallback_stats_root: Pa
 
     if max_abs is not None and max_rms is not None:
         timeseries_summary = (
-            f"选取典型监测数据进行分析，监测结果表明，主梁及主塔加速度各测点绝对最大值为{max_abs:.2f}mm/s²，"
-            f"各测点10min加速度均方根值最大为{max_rms:.2f}mm/s²，未超过315mm/s²，均处于超限阈值范围之内，"
+            f"选取典型监测数据进行分析，监测结果表明，主梁及主塔加速度各测点绝对最大值为{max_abs:.2f}m/s²，"
+            f"各测点10min加速度均方根值最大为{max_rms:.2f}m/s²，未超过315m/s²，均处于超限阈值范围之内，"
             f"未出现超过各级超限阈值和报警的情况。"
         )
     else:
@@ -1482,6 +1547,7 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
             tilt["caption"],
             [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in tilt["images"]],
         )
+        ensure_note_before_caption(doc, tilt["caption"], "注：后缀-Z表示纵向，后缀-H表示横向")
 
     bearing = manifest["sections"]["bearing_displacement"]
     if section_is_available("bearing_displacement", bearing):
@@ -1494,23 +1560,32 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
 
     cable = manifest["sections"]["cable_force"]
     if section_is_available("cable_force", cable):
-        replace_next_nonempty_after_exact(doc, "（1）索力加速度时程数据", cable["accel_summary"], use_last=True)
-        replace_next_nonempty_after_exact(doc, "（2）索力时程数据", cable["force_summary"], use_last=True, skip=4)
-        insert_labeled_images_before_caption_contains(
-            doc,
-            cable["accel_caption"],
-            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in cable["accel_images"]],
-            anchor_text="（1）索力加速度时程数据",
-            stop_text="（2）索力时程数据",
-        )
-        insert_labeled_images_before_caption_contains(
-            doc,
-            cable["force_caption"],
-            [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in cable["force_images"]],
-            anchor_text="（2）索力时程数据",
-            stop_text="4.6 主梁、主塔振动监测",
-        )
-        update_cable_force_table(doc, cable["table_rows"])
+        if cable.get("accel_available"):
+            replace_next_nonempty_after_exact(doc, "（1）索力加速度时程数据", cable["accel_summary"], use_last=True)
+            insert_labeled_images_before_caption_contains(
+                doc,
+                cable["accel_caption"],
+                [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in cable["accel_images"]],
+                anchor_text="（1）索力加速度时程数据",
+                stop_text="（2）索力时程数据",
+            )
+        if cable.get("force_available"):
+            replace_next_nonempty_after_exact(
+                doc,
+                "（2）索力时程数据",
+                "选取典型监测数据进行分析，典型测点索力时程图如下图所示。",
+                use_last=True,
+                skip=2,
+            )
+            replace_next_nonempty_after_exact(doc, "（2）索力时程数据", cable["force_summary"], use_last=True, skip=4)
+            insert_labeled_images_before_caption_contains(
+                doc,
+                cable["force_caption"],
+                [ImageItem(item["label"], Path(item["path"]) if item.get("path") else None) for item in cable["force_images"]],
+                anchor_text="（2）索力时程数据",
+                stop_text="4.6 主梁、主塔振动监测",
+            )
+            update_cable_force_table(doc, cable["table_rows"])
 
     vibration = manifest["sections"]["vibration"]
     if section_is_available("vibration", vibration):
@@ -1548,7 +1623,7 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
 
     eq = manifest["sections"]["eq"]
     if section_is_available("eq", eq):
-        replace_next_nonempty_after_exact(doc, "地震动监测", eq["summary"], use_last=True, skip=2)
+        replace_next_nonempty_after_exact(doc, "地震动监测", eq["summary"], use_last=True)
         insert_labeled_images_before_caption_contains(
             doc,
             eq["caption"],

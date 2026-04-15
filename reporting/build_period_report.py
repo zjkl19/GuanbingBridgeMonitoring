@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable
 
 from docx import Document
+from docx.shared import Mm
 from openpyxl import load_workbook
 
 from build_monthly_report import (
@@ -31,6 +32,7 @@ from build_quarterly_wim_sample import (
     insert_table_before,
     make_quarter_summary,
     parse_month_summary,
+    resolve_wim_thresholds,
     set_summary_table,
     set_header_bold,
     set_table_column_widths,
@@ -55,6 +57,7 @@ HIGHFREQ_MODULES = {
 def default_period_template(repo_root: Path) -> Path:
     reports_dir = repo_root / "reports"
     candidates = [
+        reports_dir / "洪塘大桥健康监测2026年第一季季报-改4.docx",
         reports_dir / "洪塘大桥健康监测周期报模板-自动报告.docx",
         reports_dir / "洪塘大桥健康监测周期报模板0318.docx",
         reports_dir / "洪塘大桥健康监测周期报模板.docx",
@@ -77,10 +80,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--wim-root", type=Path, default=None, help="Processed monthly WIM result root, e.g. <result-root>/WIM/results/hongtang")
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--period-label", default="2026年1-3月")
-    parser.add_argument("--monitoring-range", default="2026.01.01~2026.03.16")
+    parser.add_argument("--monitoring-range", default="2026年01月01日~2026年03月31日")
     parser.add_argument("--report-date", default=datetime.now().strftime("%Y年%m月%d日"))
     parser.add_argument("--start-date", default="2026-01-01")
-    parser.add_argument("--end-date", default="2026-03-16")
+    parser.add_argument("--end-date", default="2026-03-31")
+    parser.add_argument(
+        "--debug-section",
+        default=None,
+        help="Print a generated manifest section for debugging, e.g. cable_force, vibration, wim, health_status.",
+    )
     return parser.parse_args()
 
 
@@ -91,7 +99,7 @@ def parse_date_str(text: str) -> date:
 def extract_dates_from_range(text: str) -> tuple[date, date] | None:
     import re
 
-    pattern = re.compile(r"(\d{4})[.-](\d{1,2})[.-](\d{1,2}).*?(\d{4})[.-](\d{1,2})[.-](\d{1,2})")
+    pattern = re.compile(r"(\d{4})[年.-](\d{1,2})[月.-](\d{1,2})日?.*?(\d{4})[年.-](\d{1,2})[月.-](\d{1,2})日?")
     match = pattern.search(text)
     if not match:
         return None
@@ -135,7 +143,8 @@ def resolve_wim_root(result_root: Path, analysis_root: Path, explicit_root: Path
     raise FileNotFoundError(f"Processed WIM result root not found. Checked: {checked}")
 
 
-def build_wim_period_section(wim_root: Path, months: list[str]) -> dict:
+def build_wim_period_section(wim_root: Path, months: list[str], cfg: dict | None = None) -> dict:
+    thresholds = resolve_wim_thresholds(cfg)
     summaries = []
     warnings: list[str] = []
     for yyyymm in months:
@@ -143,7 +152,7 @@ def build_wim_period_section(wim_root: Path, months: list[str]) -> dict:
         if not month_dir.exists():
             warnings.append(f"Missing WIM month directory: {month_dir}")
             continue
-        summaries.append(parse_month_summary(wim_root, yyyymm))
+        summaries.append(parse_month_summary(wim_root, yyyymm, thresholds))
     return {
         "enabled": bool(summaries),
         "wim_root": str(wim_root),
@@ -163,6 +172,13 @@ def _next_nonempty_paragraph_after(doc: Document, heading_text: str) -> object:
                     return nxt
             break
     raise ValueError(f'Paragraph after "{heading_text}" not found')
+
+
+def insert_table_after(paragraph, rows: int, cols: int):
+    body = paragraph._parent
+    table = body.add_table(rows=rows, cols=cols, width=Mm(160))
+    paragraph._p.addnext(table._tbl)
+    return table
 
 
 def _normalize_missing_value(value: object) -> bool:
@@ -736,10 +752,9 @@ def build_health_status_summary(cfg: dict, result_root: Path, start_date: date, 
 
 def apply_health_status_to_doc(doc: Document, summary_text: str, rows: list[dict[str, str]]) -> None:
     paragraph = _next_nonempty_paragraph_after(doc, "健康监测系统运行状况")
-    replace_paragraph_text(paragraph, summary_text)
     if not rows:
         return
-    table = insert_table_before(paragraph, rows=len(rows) + 1, cols=4)
+    table = insert_table_after(paragraph, rows=len(rows) + 1, cols=4)
     headers = ["监测项目", "异常测点/测点组", "时间段", "异常类型"]
     for idx, header in enumerate(headers):
         table.cell(0, idx).text = header
@@ -822,7 +837,7 @@ def build_period_report(
     wim_root: Path | None = None,
     output_dir: Path | None = None,
     period_label: str = "2026年1-3月",
-    monitoring_range: str = "2026.01.01~2026.03.16",
+    monitoring_range: str = "2026年01月01日~2026年03月31日",
     report_date: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
@@ -853,7 +868,7 @@ def build_period_report(
     wim_months = months_between(start_dt, end_dt)
     try:
         resolved_wim_root = resolve_wim_root(result_root, analysis_root, wim_root)
-        manifest["wim"] = build_wim_period_section(resolved_wim_root, wim_months)
+        manifest["wim"] = build_wim_period_section(resolved_wim_root, wim_months, cfg)
     except FileNotFoundError as exc:
         fallback_wim_root = wim_root if wim_root is not None else (result_root / "WIM" / "results" / "hongtang")
         manifest["wim"] = {
@@ -923,6 +938,20 @@ def main() -> None:
     )
     print(f"Manifest written to: {manifest_path}")
     print(f"Report written to:   {report_path}")
+    if args.debug_section:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        key = args.debug_section
+        if key == "wim":
+            payload = manifest.get("wim", {})
+        elif key == "health_status":
+            payload = {
+                "summary": manifest.get("health_status_summary", ""),
+                "rows": manifest.get("health_status_rows", []),
+            }
+        else:
+            payload = manifest.get("sections", {}).get(key, {})
+        print(f"Debug section [{key}]:")
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     if missing:
         print("Warnings / missing assets:")
         for item in missing:

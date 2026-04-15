@@ -24,10 +24,13 @@ Copy-Item -Recurse -Force reports reporting\dist\BridgeReportBuilder\reports
 Copy-Item -Force reporting\README.md reporting\dist\BridgeReportBuilder\README.md
 Copy-Item -Force reporting\REPORTING_LOGIC.md reporting\dist\BridgeReportBuilder\REPORTING_LOGIC.md
 
+$periodQ1 = "reporting\\dist\\BridgeReportBuilder\\reports\\洪塘大桥健康监测2026年第一季季报-改4.docx"
 $periodAuto = "reporting\\dist\\BridgeReportBuilder\\reports\\洪塘大桥健康监测周期报模板-自动报告.docx"
 $period0318 = "reporting\\dist\\BridgeReportBuilder\\reports\\洪塘大桥健康监测周期报模板0318.docx"
 $periodAlias = "reporting\\dist\\BridgeReportBuilder\\reports\\洪塘大桥健康监测周期报模板.docx"
-if (Test-Path -LiteralPath $periodAuto) {
+if (Test-Path -LiteralPath $periodQ1) {
+    Copy-Item -LiteralPath $periodQ1 -Destination $periodAlias -Force
+} elseif (Test-Path -LiteralPath $periodAuto) {
     Copy-Item -LiteralPath $periodAuto -Destination $periodAlias -Force
 } elseif (Test-Path -LiteralPath $period0318) {
     Copy-Item -LiteralPath $period0318 -Destination $periodAlias -Force

@@ -3345,7 +3345,35 @@
         "CX9"
       ],
       "include": [],
-      "exclude": []
+      "exclude": [],
+      "accel_enabled": true,
+      "force_enabled": true,
+      "accel_order": [
+        "CS1",
+        "CS2",
+        "CS3",
+        "CS4",
+        "CS5",
+        "CS6",
+        "CS7",
+        "CS8",
+        "CS9",
+        "CS10",
+        "CS11",
+        "CS12",
+        "CX1",
+        "CX2",
+        "CX3",
+        "CX4",
+        "CX5",
+        "CX6",
+        "CX7",
+        "CX8",
+        "CX9",
+        "CX10",
+        "CX11",
+        "CX12"
+      ]
     },
     "vibration": {
       "enabled": true,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -56,10 +57,88 @@ class MonthWimSummary:
     total_over_2_0_count: int
     axle_over_1_5_count: int
     axle_over_2_0_count: int
+    gross_level_1_t: float
+    gross_level_2_t: float
+    axle_level_1_t: float
+    axle_level_2_t: float
     daily_rows: list[dict]
     top_gross_rows: list[dict]
     top_axle_rows: list[dict]
     plot_paths: list[tuple[str, Path]]
+
+
+@dataclass(frozen=True)
+class WimThresholds:
+    gross_level_1_kg: float
+    gross_level_2_kg: float
+    axle_level_1_kg: float
+    axle_level_2_kg: float
+
+    @property
+    def gross_level_1_t(self) -> float:
+        return self.gross_level_1_kg / 1000.0
+
+    @property
+    def gross_level_2_t(self) -> float:
+        return self.gross_level_2_kg / 1000.0
+
+    @property
+    def axle_level_1_t(self) -> float:
+        return self.axle_level_1_kg / 1000.0
+
+    @property
+    def axle_level_2_t(self) -> float:
+        return self.axle_level_2_kg / 1000.0
+
+
+def resolve_wim_thresholds(cfg: dict | None) -> WimThresholds:
+    wim_cfg = cfg.get("wim", {}) if isinstance(cfg, dict) else {}
+    factors = list(wim_cfg.get("overload_factors") or [1.5, 2.0])
+    if len(factors) < 2:
+        factors = [1.5, 2.0]
+    factor_1 = float(factors[0])
+    factor_2 = float(factors[1])
+    design_total_kg = float(wim_cfg.get("design_total_kg") or 55000)
+    design_axle_kg = float(wim_cfg.get("design_axle_kg") or 28000)
+    return WimThresholds(
+        gross_level_1_kg=design_total_kg * factor_1,
+        gross_level_2_kg=design_total_kg * factor_2,
+        axle_level_1_kg=design_axle_kg * factor_1,
+        axle_level_2_kg=design_axle_kg * factor_2,
+    )
+
+
+def format_ton_threshold(value_t: float) -> str:
+    rounded = round(value_t)
+    if abs(value_t - rounded) < 1e-9:
+        return str(int(rounded))
+    return f"{value_t:.1f}".rstrip("0").rstrip(".")
+
+
+def format_percent(count: int, total: int) -> str:
+    if total <= 0:
+        return "0.00000"
+    return f"{count / total * 100:.5f}"
+
+
+def format_load_limit_text(value_t: float, level_1_t: float, level_2_t: float, load_name: str = "设计车辆荷载") -> str:
+    level_1_text = format_ton_threshold(level_1_t)
+    level_2_text = format_ton_threshold(level_2_t)
+    if value_t >= level_2_t:
+        return f"超过2.0倍{load_name}{level_2_text}t"
+    if value_t >= level_1_t:
+        return f"超过1.5倍{load_name}{level_1_text}t，未达到2.0倍{load_name}{level_2_text}t"
+    return f"未达到1.5倍{load_name}{level_1_text}t"
+
+
+def quarter_label_from_summaries(summaries: list["MonthWimSummary"]) -> str:
+    if not summaries:
+        return "季度"
+    first_month = int(summaries[0].yyyymm[4:6])
+    year = summaries[0].yyyymm[:4]
+    quarter = (first_month - 1) // 3 + 1
+    names = {1: "第一季度", 2: "第二季度", 3: "第三季度", 4: "第四季度"}
+    return f"{year}年{names.get(quarter, '季度')}"
 
 
 @dataclass
@@ -86,17 +165,24 @@ class ParagraphTemplate:
 
 def parse_args() -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
-    default_template = repo_root / "reports" / "洪塘大桥健康监测周期报模板-自动报告.docx"
+    default_template = repo_root / "reports" / "洪塘大桥健康监测2026年第一季季报-改4.docx"
+    if not default_template.exists():
+        default_template = repo_root / "reports" / "洪塘大桥健康监测周期报模板-自动报告.docx"
     if not default_template.exists():
         default_template = repo_root / "reports" / "洪塘大桥健康监测周期报模板0318.docx"
     parser = argparse.ArgumentParser(description="Build quarterly WIM report section from monthly template.")
     parser.add_argument("--template", type=Path, default=default_template)
+    parser.add_argument("--config", type=Path, default=repo_root / "config" / "hongtang_config.json")
     parser.add_argument("--wim-root", type=Path, default=None)
     parser.add_argument("--months", nargs="+", default=["202601", "202602", "202603"])
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--period-label", default="2026\u5e74\u7b2c\u4e00\u5b63\u5ea6")
     parser.add_argument("--report-date", default=datetime.now().strftime("%Y\u5e74%m\u6708%d\u65e5"))
     return parser.parse_args()
+
+
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def load_sheet_rows(path: Path, sheet: str) -> list[dict]:
@@ -126,7 +212,8 @@ def find_plot_paths(month_dir: Path, yyyymm: str) -> list[tuple[str, Path]]:
     return items
 
 
-def parse_month_summary(root: Path, yyyymm: str) -> MonthWimSummary:
+def parse_month_summary(root: Path, yyyymm: str, thresholds: WimThresholds | None = None) -> MonthWimSummary:
+    thresholds = thresholds or resolve_wim_thresholds(None)
     month_dir = root / yyyymm
     excel = month_dir / f"WIM_Report_hongtang_{yyyymm}.xlsx"
     if not excel.exists():
@@ -162,14 +249,14 @@ def parse_month_summary(root: Path, yyyymm: str) -> MonthWimSummary:
         count = int(row.get("count") or 0)
         threshold = float(row.get("threshold_kg") or 0)
         if row_type == "total":
-            if threshold >= 110000:
+            if threshold >= thresholds.gross_level_2_kg - 1e-6:
                 total_over_2_0_count = count
-            elif threshold >= 82500:
+            elif threshold >= thresholds.gross_level_1_kg - 1e-6:
                 total_over_1_5_count = count
         elif row_type == "axle":
-            if threshold >= 56000:
+            if threshold >= thresholds.axle_level_2_kg - 1e-6:
                 axle_over_2_0_count = count
-            elif threshold >= 42000:
+            elif threshold >= thresholds.axle_level_1_kg - 1e-6:
                 axle_over_1_5_count = count
 
     daily_dates = []
@@ -201,6 +288,10 @@ def parse_month_summary(root: Path, yyyymm: str) -> MonthWimSummary:
         total_over_2_0_count=total_over_2_0_count,
         axle_over_1_5_count=axle_over_1_5_count,
         axle_over_2_0_count=axle_over_2_0_count,
+        gross_level_1_t=thresholds.gross_level_1_t,
+        gross_level_2_t=thresholds.gross_level_2_t,
+        axle_level_1_t=thresholds.axle_level_1_t,
+        axle_level_2_t=thresholds.axle_level_2_t,
         daily_rows=daily,
         top_gross_rows=top_gross[:10],
         top_axle_rows=top_axle[:10],
@@ -336,6 +427,16 @@ def set_table_column_widths(table: Table, widths_mm: list[float]) -> None:
                 row.cells[idx].width = Mm(width)
 
 
+def set_table_width(table: Table, width_mm: float) -> None:
+    tbl_pr = table._tbl.tblPr
+    tbl_w = tbl_pr.first_child_found_in("w:tblW")
+    if tbl_w is None:
+        tbl_w = OxmlElement("w:tblW")
+        tbl_pr.append(tbl_w)
+    tbl_w.set(qn("w:type"), "dxa")
+    tbl_w.set(qn("w:w"), str(round(width_mm * 56.6929)))
+
+
 def set_header_bold(table: Table, header_rows: int = 1) -> None:
     for row in table.rows[:header_rows]:
         for cell in row.cells:
@@ -384,33 +485,96 @@ def format_date_range(item: MonthWimSummary) -> tuple[str, str]:
 
 
 def overload_cell_text(item: MonthWimSummary) -> str:
-    return (
-        f"{item.total_over_1_5_count}/{item.total_over_2_0_count}\uff1b"
-        f"{item.axle_over_1_5_count}/{item.axle_over_2_0_count}"
+    return overload_counts_text(
+        item.total_over_1_5_count,
+        item.total_over_2_0_count,
+        item.axle_over_1_5_count,
+        item.axle_over_2_0_count,
     )
+
+
+def overload_counts_text(gross_1_5: int, gross_2_0: int, axle_1_5: int, axle_2_0: int) -> str:
+    def pair(first: int, second: int) -> str:
+        if not first and not second:
+            return ""
+        return f"{first if first else ''}/{second if second else ''}"
+
+    parts = []
+    gross_pair = pair(gross_1_5, gross_2_0)
+    axle_pair = pair(axle_1_5, axle_2_0)
+    if gross_pair:
+        parts.append(f"总重：{gross_pair}")
+    if axle_pair:
+        parts.append(f"轴重：{axle_pair}")
+    return "\n".join(parts)
+
+
+def make_overload_sentence(
+    gross_1_5: int,
+    gross_2_0: int,
+    axle_1_5: int,
+    axle_2_0: int,
+    vehicle_count: int,
+    gross_level_1_text: str,
+    gross_level_2_text: str,
+    axle_level_1_text: str,
+    axle_level_2_text: str,
+) -> str:
+    clauses = []
+    if gross_1_5:
+        clauses.append(
+            f"总重超过1.5倍设计荷载{gross_level_1_text}t的车辆共{gross_1_5}辆，占比{format_percent(gross_1_5, vehicle_count)}%"
+        )
+    if gross_2_0:
+        if gross_1_5:
+            clauses.append(f"其中超过2.0倍设计荷载{gross_level_2_text}t的车辆共{gross_2_0}辆")
+        else:
+            clauses.append(f"总重超过2.0倍设计荷载{gross_level_2_text}t的车辆共{gross_2_0}辆")
+    if axle_1_5:
+        clauses.append(f"轴重超过1.5倍设计荷载{axle_level_1_text}t的车辆共{axle_1_5}辆")
+    if axle_2_0:
+        if axle_1_5:
+            clauses.append(f"其中超过2.0倍设计荷载{axle_level_2_text}t的车辆共{axle_2_0}辆")
+        else:
+            clauses.append(f"轴重超过2.0倍设计荷载{axle_level_2_text}t的车辆共{axle_2_0}辆")
+    if not clauses:
+        return ""
+    return "期间" + "；".join(clauses) + "。"
 
 
 def make_month_narrative(item: MonthWimSummary) -> str:
     start_text, end_text = format_date_range(item)
     daily_avg = round(item.total_count / item.days_in_month) if item.days_in_month else 0
-    total_threshold = 110.0
-    axle_threshold = 42.0
-    gross_text = f"\u8d85\u8fc72.0\u500d\u8bbe\u8ba1\u8f66\u8f86\u8377\u8f7d{total_threshold:.0f}t" if item.max_gross_t >= total_threshold else f"\u672a\u8fbe\u52302.0\u500d\u8bbe\u8ba1\u8f66\u8f86\u8377\u8f7d{total_threshold:.0f}t"
-    axle_text = f"\u8fbe\u52301.5\u500d\u8bbe\u8ba1\u8f66\u8f86\u8377\u8f7d{axle_threshold:.0f}t" if item.max_axle_t >= axle_threshold else f"\u672a\u8fbe\u52301.5\u500d\u8bbe\u8ba1\u8f66\u8f86\u8377\u8f7d{axle_threshold:.0f}t"
+    gross_level_1_text = format_ton_threshold(item.gross_level_1_t)
+    gross_level_2_text = format_ton_threshold(item.gross_level_2_t)
+    axle_level_1_text = format_ton_threshold(item.axle_level_1_t)
+    axle_level_2_text = format_ton_threshold(item.axle_level_2_t)
+    gross_text = format_load_limit_text(item.max_gross_t, item.gross_level_1_t, item.gross_level_2_t)
+    axle_text = format_load_limit_text(item.max_axle_t, item.axle_level_1_t, item.axle_level_2_t)
+    overload_text = make_overload_sentence(
+        item.total_over_1_5_count,
+        item.total_over_2_0_count,
+        item.axle_over_1_5_count,
+        item.axle_over_2_0_count,
+        item.total_count,
+        gross_level_1_text,
+        gross_level_2_text,
+        axle_level_1_text,
+        axle_level_2_text,
+    )
     return (
         f"{start_text}\u81f3{end_text}\uff0c\u6865\u6881\u5171\u901a\u8fc7\u8f66\u8f86{item.total_count}\u8f86\uff0c\u65e5\u5747{daily_avg}\u8f86\u3002"
         f"\u5176\u4e2d\u4e0a\u884c\u65b9\u5411\uff08\u95fd\u4faf-\u519c\u5927\uff0c\u8f66\u90531\uff5e\u8f66\u90534\uff09\u6240\u901a\u8fc7\u8f66\u8f86\u4e3a{item.up_count}\u8f86\uff0c"
         f"\u4e0b\u884c\u65b9\u5411\uff08\u519c\u5927-\u95fd\u4faf\uff0c\u8f66\u90535\uff5e\u8f66\u90538\uff09\u6240\u901a\u8fc7\u8f66\u8f86\u4e3a{item.down_count}\u8f86\u3002"
         f"\u671f\u95f4\u7cfb\u7edf\u8bb0\u5f55\u5230\u7684\u6700\u5927\u8f66\u91cd\u4e3a{item.max_gross_t:.2f}t\uff0c{gross_text}\u3002"
         f"\u6700\u5927\u8f74\u91cd{item.max_axle_t:.2f}t\uff0c{axle_text}\u3002"
-        f"\u671f\u95f4\u603b\u91cd\u8d85\u8fc71.5\u500d\u8bbe\u8ba1\u8377\u8f7d82.5t\u7684\u8f66\u8f86\u5171{item.total_over_1_5_count}\u8f86\uff0c"
-        f"\u5176\u4e2d\u8d85\u8fc72.0\u500d\u8bbe\u8ba1\u8377\u8f7d110t\u7684\u8f66\u8f86\u5171{item.total_over_2_0_count}\u8f86\uff1b"
-        f"\u8f74\u91cd\u8d85\u8fc71.5\u500d\u8bbe\u8ba1\u8377\u8f7d42t\u7684\u8f66\u8f86\u5171{item.axle_over_1_5_count}\u8f86\uff0c"
-        f"\u5176\u4e2d\u8d85\u8fc72.0\u500d\u8bbe\u8ba1\u8377\u8f7d56t\u7684\u8f66\u8f86\u5171{item.axle_over_2_0_count}\u8f86\u3002"
+        f"{overload_text}"
     )
 
 
 def make_quarter_summary(summaries: list[MonthWimSummary]) -> str:
+    if not summaries:
+        return ""
     total = sum(x.total_count for x in summaries)
     up = sum(x.up_count for x in summaries)
     down = sum(x.down_count for x in summaries)
@@ -422,20 +586,30 @@ def make_quarter_summary(summaries: list[MonthWimSummary]) -> str:
     total_over_2_0 = sum_or_zero(x.total_over_2_0_count for x in summaries)
     axle_over_1_5 = sum_or_zero(x.axle_over_1_5_count for x in summaries)
     axle_over_2_0 = sum_or_zero(x.axle_over_2_0_count for x in summaries)
-    total_threshold = 110.0
-    axle_threshold = 42.0
-    gross_text = f"\u8d85\u8fc72.0\u500d\u8bbe\u8ba1\u8f66\u8f86\u8377\u8f7d{total_threshold:.0f}t" if max_gross >= total_threshold else f"\u672a\u8fbe\u52302.0\u500d\u8bbe\u8ba1\u8f66\u8f86\u8377\u8f7d{total_threshold:.0f}t"
-    axle_text = f"\u8fbe\u52301.5\u500d\u8bbe\u8ba1\u8f66\u8f86\u8377\u8f7d{axle_threshold:.0f}t" if max_axle >= axle_threshold else f"\u672a\u8fbe\u52301.5\u500d\u8bbe\u8ba1\u8f66\u8f86\u8377\u8f7d{axle_threshold:.0f}t"
+    gross_level_1_text = format_ton_threshold(summaries[0].gross_level_1_t)
+    gross_level_2_text = format_ton_threshold(summaries[0].gross_level_2_t)
+    axle_level_1_text = format_ton_threshold(summaries[0].axle_level_1_t)
+    axle_level_2_text = format_ton_threshold(summaries[0].axle_level_2_t)
+    gross_text = format_load_limit_text(max_gross, summaries[0].gross_level_1_t, summaries[0].gross_level_2_t)
+    axle_text = format_load_limit_text(max_axle, summaries[0].axle_level_1_t, summaries[0].axle_level_2_t)
+    overload_text = make_overload_sentence(
+        total_over_1_5,
+        total_over_2_0,
+        axle_over_1_5,
+        axle_over_2_0,
+        total,
+        gross_level_1_text,
+        gross_level_2_text,
+        axle_level_1_text,
+        axle_level_2_text,
+    )
     return (
         f"\u76d1\u6d4b\u7ed3\u679c\u8868\u660e\uff0c\u6865\u6881\u5171\u901a\u8fc7\u8f66\u8f86{total}\u8f86\uff0c\u65e5\u5747{daily_avg}\u8f86\u3002"
         f"\u5176\u4e2d\u4e0a\u884c\u65b9\u5411\uff08\u95fd\u4faf-\u519c\u5927\uff0c\u8f66\u90531\uff5e\u8f66\u90534\uff09\u6240\u901a\u8fc7\u8f66\u8f86\u4e3a{up}\u8f86\uff0c"
         f"\u4e0b\u884c\u65b9\u5411\uff08\u519c\u5927-\u95fd\u4faf\uff0c\u8f66\u90535\uff5e\u8f66\u90538\uff09\u6240\u901a\u8fc7\u8f66\u8f86\u4e3a{down}\u8f86\u3002"
         f"\u671f\u95f4\u7cfb\u7edf\u8bb0\u5f55\u5230\u7684\u6700\u5927\u8f66\u91cd\u4e3a{max_gross:.2f}t\uff0c{gross_text}\u3002"
         f"\u6700\u5927\u8f74\u91cd{max_axle:.2f}t\uff0c{axle_text}\u3002"
-        f"\u671f\u95f4\u603b\u91cd\u8d85\u8fc71.5\u500d\u8bbe\u8ba1\u8377\u8f7d82.5t\u7684\u8f66\u8f86\u5171{total_over_1_5}\u8f86\uff0c"
-        f"\u5176\u4e2d\u8d85\u8fc72.0\u500d\u8bbe\u8ba1\u8377\u8f7d110t\u7684\u8f66\u8f86\u5171{total_over_2_0}\u8f86\uff1b"
-        f"\u8f74\u91cd\u8d85\u8fc71.5\u500d\u8bbe\u8ba1\u8377\u8f7d42t\u7684\u8f66\u8f86\u5171{axle_over_1_5}\u8f86\uff0c"
-        f"\u5176\u4e2d\u8d85\u8fc72.0\u500d\u8bbe\u8ba1\u8377\u8f7d56t\u7684\u8f66\u8f86\u5171{axle_over_2_0}\u8f86\u3002"
+        f"{overload_text}"
     )
 
 
@@ -451,8 +625,16 @@ def set_summary_table(doc: Document, summary_text: str) -> None:
 
 
 def add_quarter_overview(anchor: Paragraph, summaries: list[MonthWimSummary], caption_tpl: ParagraphTemplate) -> None:
-    add_text_paragraph_before(anchor, "\u8868 4-1 \u5b63\u5ea6\u4ea4\u901a\u72b6\u51b5\u5206\u6708\u7edf\u8ba1\u8868", caption_tpl)
+    add_text_paragraph_before(anchor, f"\u8868 4-1 {quarter_label_from_summaries(summaries)}\u4ea4\u901a\u72b6\u51b5\u5206\u6708\u7edf\u8ba1\u8868", caption_tpl)
     table = insert_table_before(anchor, rows=len(summaries) + 2, cols=8)
+    if summaries:
+        gross_level_1_text = format_ton_threshold(summaries[0].gross_level_1_t)
+        gross_level_2_text = format_ton_threshold(summaries[0].gross_level_2_t)
+        axle_level_1_text = format_ton_threshold(summaries[0].axle_level_1_t)
+        axle_level_2_text = format_ton_threshold(summaries[0].axle_level_2_t)
+        overload_header = f"\u603b\u91cd>{gross_level_1_text}/{gross_level_2_text}t;\n\u8f74\u91cd>{axle_level_1_text}/{axle_level_2_text}t\uff08\u8f66\u6b21\uff09"
+    else:
+        overload_header = "\u603b\u91cd>\u4e00\u7ea7/\u4e8c\u7ea7;\n\u8f74\u91cd>\u4e00\u7ea7/\u4e8c\u7ea7\uff08\u8f66\u6b21\uff09"
     headers = [
         "\u6708\u4efd",
         "\u603b\u8f66\u6d41\u91cf",
@@ -461,7 +643,7 @@ def add_quarter_overview(anchor: Paragraph, summaries: list[MonthWimSummary], ca
         "\u65e5\u5747\u8f66\u6d41\u91cf",
         "\u6700\u5927\u8f66\u91cd(t)",
         "\u6700\u5927\u8f74\u91cd(t)",
-        "\u603b\u91cd>82.5/110t\uff0c\u8f74\u91cd>42/56t\uff08\u8f66\u6b21\uff09",
+        overload_header,
     ]
     for i, header in enumerate(headers):
         table.cell(0, i).text = header
@@ -487,18 +669,19 @@ def add_quarter_overview(anchor: Paragraph, summaries: list[MonthWimSummary], ca
         str(round(sum(item.total_count for item in summaries) / max(1, sum(item.days_in_month for item in summaries)))),
         f"{max_or_zero(item.max_gross_t for item in summaries):.2f}",
         f"{max_or_zero(item.max_axle_t for item in summaries):.2f}",
-        (
-            f"{sum(item.total_over_1_5_count for item in summaries)}/"
-            f"{sum(item.total_over_2_0_count for item in summaries)}\uff1b"
-            f"{sum(item.axle_over_1_5_count for item in summaries)}/"
-            f"{sum(item.axle_over_2_0_count for item in summaries)}"
+        overload_counts_text(
+            sum(item.total_over_1_5_count for item in summaries),
+            sum(item.total_over_2_0_count for item in summaries),
+            sum(item.axle_over_1_5_count for item in summaries),
+            sum(item.axle_over_2_0_count for item in summaries),
         ),
     ]
     for c, value in enumerate(totals):
         table.cell(len(summaries) + 1, c).text = value
     style_table(table)
     set_header_bold(table)
-    set_table_column_widths(table, [20, 18, 18, 18, 18, 18, 18, 32])
+    set_table_width(table, 166.5)
+    set_table_column_widths(table, [22.2, 20.2, 17.0, 17.2, 16.6, 18.7, 19.5, 35.1])
 
 
 def add_daily_traffic_table(anchor: Paragraph, item: MonthWimSummary, caption_tpl: ParagraphTemplate, table_no: int) -> None:
@@ -650,8 +833,17 @@ def month_days(yyyymm: str) -> int:
     return (next_month - datetime(year, month, 1)).days
 
 
-def build_quarterly_wim_sample(template: Path, wim_root: Path, months: list[str], output_dir: Path, period_label: str, report_date: str) -> Path:
-    summaries = [parse_month_summary(wim_root, yyyymm) for yyyymm in months]
+def build_quarterly_wim_sample(
+    template: Path,
+    wim_root: Path,
+    months: list[str],
+    output_dir: Path,
+    period_label: str,
+    report_date: str,
+    cfg: dict | None = None,
+) -> Path:
+    thresholds = resolve_wim_thresholds(cfg)
+    summaries = [parse_month_summary(wim_root, yyyymm, thresholds) for yyyymm in months]
     doc = Document(str(template))
     update_cover_and_metadata(doc, period_label, report_date, months)
     set_summary_table(doc, make_quarter_summary(summaries))
@@ -694,6 +886,7 @@ def build_quarterly_wim_sample(template: Path, wim_root: Path, months: list[str]
 
 def main() -> None:
     args = parse_args()
+    cfg = load_json(args.config) if args.config.exists() else None
     wim_root = args.wim_root or (Path.cwd() / "WIM" / "results" / "hongtang")
     output_dir = args.output_dir or (wim_root.parents[2] / "自动报告" if len(wim_root.parents) >= 3 else (Path.cwd() / "自动报告"))
     output = build_quarterly_wim_sample(
@@ -703,6 +896,7 @@ def main() -> None:
         output_dir=output_dir,
         period_label=args.period_label,
         report_date=args.report_date,
+        cfg=cfg,
     )
     print(f"Quarterly WIM sample report generated: {output}")
 
