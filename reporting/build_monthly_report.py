@@ -188,6 +188,39 @@ def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[s
     return find_latest_file_patterns(root, configured_dir, patterns)
 
 
+def filename_has_point_token(path: Path, point_id: str) -> bool:
+    # Avoid prefix collisions such as CS1 matching CS12 when wildcard fallback is used.
+    token = re.escape(point_id)
+    return re.search(rf"(?<![A-Za-z0-9]){token}(?![A-Za-z0-9])", path.stem) is not None
+
+
+def find_latest_point_image_patterns(root: Path, configured_dir: str, point_id: str, patterns: list[str]) -> tuple[Path | None, dict]:
+    resolved_dirs = resolve_output_dirs(root, configured_dir)
+    matched: list[Path] = []
+    rejected: list[Path] = []
+    for folder in resolved_dirs:
+        for pattern in patterns:
+            for candidate in folder.glob(pattern):
+                if filename_has_point_token(candidate, point_id):
+                    matched.append(candidate)
+                else:
+                    rejected.append(candidate)
+    matched = sorted({p.resolve() for p in matched}, key=lambda p: p.stat().st_mtime, reverse=True)
+    return (
+        matched[0] if matched else None,
+        {
+            "image_root": str(root),
+            "configured_dir": configured_dir,
+            "point_id": point_id,
+            "resolved_dirs": [str(p) for p in resolved_dirs],
+            "patterns": patterns,
+            "matched_files": [str(p) for p in matched[:10]],
+            "rejected_prefix_collisions": [str(p.resolve()) for p in rejected[:10]],
+            "selected_file": str(matched[0]) if matched else None,
+        },
+    )
+
+
 def find_latest_file_patterns(root: Path, configured_dir: str, patterns: list[str]) -> tuple[Path | None, dict]:
     resolved_dirs = resolve_output_dirs(root, configured_dir)
     matched: list[Path] = []
@@ -971,24 +1004,26 @@ def build_strain_section(cfg: dict, stats_root: Path, fallback_stats_root: Path 
     girder_rows = [r for r in rows if str(r.get("PointID", "")).startswith(("SB-", "SC-", "SD-", "SE-", "SF-", "SG-", "SH-"))]
     tower_rows = [r for r in rows if str(r.get("PointID", "")).startswith(("SK-", "SL-"))]
 
-    strain_style = cfg["plot_styles"]["strain"]
+    strain_style = cfg.get("plot_styles", {}).get("strain", {})
+    group_output_dir = strain_style.get("group_output_dir", "时程曲线_应变_组图")
+    boxplot_output_dir = strain_style.get("boxplot_output_dir", "箱线图_应变")
     girder_groups = get_report_order(cfg, "strain", "girder_order", ["B", "C", "D", "E", "F", "G", "H"])
     tower_groups = get_report_order(cfg, "strain", "tower_order", ["K", "L"])
 
     girder_ts_imgs: list[ImageItem] = []
     girder_box_imgs: list[ImageItem] = []
     for group in girder_groups:
-        ts_path, ts_lookup = find_latest_image(image_root, strain_style["group_output_dir"], f"Strain_{group}_")
+        ts_path, ts_lookup = find_latest_image(image_root, group_output_dir, f"Strain_{group}_")
         girder_ts_imgs.append(ImageItem(group, ts_path, ts_lookup))
-        box_path, box_lookup = find_latest_image(image_root, strain_style["boxplot_output_dir"], f"StrainBox_{group}_")
+        box_path, box_lookup = find_latest_image(image_root, boxplot_output_dir, f"StrainBox_{group}_")
         girder_box_imgs.append(ImageItem(group, box_path, box_lookup))
 
     tower_ts_imgs: list[ImageItem] = []
     tower_box_imgs: list[ImageItem] = []
     for group in tower_groups:
-        ts_path, ts_lookup = find_latest_image(image_root, strain_style["group_output_dir"], f"Strain_{group}_")
+        ts_path, ts_lookup = find_latest_image(image_root, group_output_dir, f"Strain_{group}_")
         tower_ts_imgs.append(ImageItem(group, ts_path, ts_lookup))
-        box_path, box_lookup = find_latest_image(image_root, strain_style["boxplot_output_dir"], f"StrainBox_{group}_")
+        box_path, box_lookup = find_latest_image(image_root, boxplot_output_dir, f"StrainBox_{group}_")
         tower_box_imgs.append(ImageItem(group, box_path, box_lookup))
 
     girder_min = min((r["Min"] for r in girder_rows if r.get("Min") is not None), default=None)
@@ -1144,9 +1179,10 @@ def build_cable_force_section(cfg: dict, stats_root: Path, fallback_stats_root: 
         max_abs = max((max(abs(r["Min"]), abs(r["Max"])) for r in valid_rows if r.get("Min") is not None and r.get("Max") is not None), default=None)
         max_rms = max((r["RMS10minMax"] for r in valid_rows if r.get("RMS10minMax") is not None), default=None)
         for pid in accel_order:
-            raw_path, raw_lookup = find_latest_image_patterns(
+            raw_path, raw_lookup = find_latest_point_image_patterns(
                 image_root,
                 accel_dir,
+                pid,
                 [
                     f"{pid}_*.jpg",
                     f"{pid}_*.png",
@@ -1160,9 +1196,10 @@ def build_cable_force_section(cfg: dict, stats_root: Path, fallback_stats_root: 
                 ],
             )
             accel_items.append(ImageItem(f"{pid} 加速度", raw_path, raw_lookup))
-            rms_path, rms_lookup = find_latest_image_patterns(
+            rms_path, rms_lookup = find_latest_point_image_patterns(
                 image_root,
                 rms_dir,
+                pid,
                 [
                     f"CableAccelRMS10_{pid}_*.jpg",
                     f"CableAccelRMS10_{pid}_*.png",

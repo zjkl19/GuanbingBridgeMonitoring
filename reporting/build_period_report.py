@@ -27,6 +27,7 @@ from build_quarterly_wim_sample import (
     add_quarter_overview,
     add_text_paragraph_before,
     capture_paragraph_template,
+    capture_wim_table_templates,
     clear_section_between,
     find_last_paragraph,
     insert_table_before,
@@ -785,6 +786,7 @@ def apply_wim_period_to_doc(doc: Document, section: dict) -> None:
 
     wim_heading = find_last_paragraph(doc, T_WIM)
     next_heading = find_last_paragraph(doc, T_NEXT)
+    table_templates = capture_wim_table_templates(wim_heading, next_heading)
     heading_tpl = capture_paragraph_template(find_last_paragraph_contains(doc, "2026年3月交通状况监测"))
     body_tpl = capture_paragraph_template(find_last_paragraph_contains(doc, "桥梁共通过车辆"))
     caption_tpl = capture_paragraph_template(find_last_paragraph_contains(doc, "季度交通状况分月统计表"))
@@ -793,7 +795,7 @@ def apply_wim_period_to_doc(doc: Document, section: dict) -> None:
 
     clear_section_between(wim_heading, next_heading)
     add_text_paragraph_before(next_heading, summary_text, body_tpl)
-    add_quarter_overview(next_heading, summaries, caption_tpl)
+    add_quarter_overview(next_heading, summaries, caption_tpl, table_templates)
     for idx, item in enumerate(summaries, start=1):
         add_month_block(
             next_heading,
@@ -806,6 +808,7 @@ def apply_wim_period_to_doc(doc: Document, section: dict) -> None:
             section_index=idx,
             base_table_no=2 + (idx - 1) * 3,
             figure_no=idx,
+            table_templates=table_templates,
         )
 
 

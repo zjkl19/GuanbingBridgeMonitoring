@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -339,6 +340,44 @@ def insert_table_before(paragraph: Paragraph, rows: int, cols: int) -> Table:
     return table
 
 
+def insert_template_table_before(paragraph: Paragraph, template_tbl) -> Table:
+    table_xml = deepcopy(template_tbl)
+    paragraph._p.addprevious(table_xml)
+    return Table(table_xml, paragraph._parent)
+
+
+def ensure_table_rows(table: Table, target_rows: int) -> None:
+    if target_rows <= 0:
+        return
+    while len(table.rows) < target_rows:
+        source_idx = len(table.rows) - 1 if len(table.rows) > 1 else 0
+        table._tbl.append(deepcopy(table.rows[source_idx]._tr))
+    while len(table.rows) > target_rows:
+        table._tbl.remove(table.rows[-1]._tr)
+
+
+def set_cell_text_preserve(cell, text: str) -> None:
+    paragraphs = cell.paragraphs
+    if not paragraphs:
+        cell.text = text
+        return
+    first = paragraphs[0]
+    if first.runs:
+        for run in first.runs:
+            run.text = ""
+        first.runs[0].text = text
+    else:
+        first.add_run(text)
+    for para in paragraphs[1:]:
+        for run in para.runs:
+            run.text = ""
+
+
+def set_table_cell(table: Table, row_idx: int, col_idx: int, text: str) -> None:
+    if row_idx < len(table.rows) and col_idx < len(table.rows[row_idx].cells):
+        set_cell_text_preserve(table.cell(row_idx, col_idx), text)
+
+
 def clear_section_between(start_paragraph: Paragraph, end_paragraph: Paragraph) -> None:
     parent = start_paragraph._p.getparent()
     current = start_paragraph._p.getnext()
@@ -435,6 +474,54 @@ def set_table_width(table: Table, width_mm: float) -> None:
         tbl_pr.append(tbl_w)
     tbl_w.set(qn("w:type"), "dxa")
     tbl_w.set(qn("w:w"), str(round(width_mm * 56.6929)))
+
+
+def capture_wim_table_templates(wim_heading: Paragraph, next_heading: Paragraph) -> dict[str, list]:
+    templates: dict[str, list] = {
+        "overview": [],
+        "daily": [],
+        "top_gross_main": [],
+        "top_gross_cont": [],
+        "top_axle_main": [],
+        "top_axle_cont": [],
+    }
+    parent = wim_heading._parent
+    current = wim_heading._p.getnext()
+    end = next_heading._p
+    last_caption = ""
+    last_main_type = ""
+    while current is not None and current is not end:
+        if current.tag == qn("w:p"):
+            text = Paragraph(current, parent).text.strip()
+            if text:
+                last_caption = text
+        elif current.tag == qn("w:tbl"):
+            table = Table(current, parent)
+            if "分月统计表" in last_caption:
+                templates["overview"].append(deepcopy(table._tbl))
+            elif "车流量统计表" in last_caption:
+                templates["daily"].append(deepcopy(table._tbl))
+            elif "前10总重最重车辆参数" in last_caption:
+                templates["top_gross_main"].append(deepcopy(table._tbl))
+                last_main_type = "gross"
+            elif "前10最大轴重车辆参数" in last_caption:
+                templates["top_axle_main"].append(deepcopy(table._tbl))
+                last_main_type = "axle"
+            elif "续表" in last_caption and last_main_type == "gross":
+                templates["top_gross_cont"].append(deepcopy(table._tbl))
+            elif "续表" in last_caption and last_main_type == "axle":
+                templates["top_axle_cont"].append(deepcopy(table._tbl))
+        current = current.getnext()
+    return templates
+
+
+def get_wim_table_template(templates: dict[str, list] | None, key: str, index: int = 0):
+    if not templates:
+        return None
+    items = templates.get(key) or []
+    if not items:
+        return None
+    return items[min(index, len(items) - 1)]
 
 
 def set_header_bold(table: Table, header_rows: int = 1) -> None:
@@ -624,9 +711,19 @@ def set_summary_table(doc: Document, summary_text: str) -> None:
     raise ValueError("Summary result cell not found")
 
 
-def add_quarter_overview(anchor: Paragraph, summaries: list[MonthWimSummary], caption_tpl: ParagraphTemplate) -> None:
+def add_quarter_overview(
+    anchor: Paragraph,
+    summaries: list[MonthWimSummary],
+    caption_tpl: ParagraphTemplate,
+    table_templates: dict[str, list] | None = None,
+) -> None:
     add_text_paragraph_before(anchor, f"\u8868 4-1 {quarter_label_from_summaries(summaries)}\u4ea4\u901a\u72b6\u51b5\u5206\u6708\u7edf\u8ba1\u8868", caption_tpl)
-    table = insert_table_before(anchor, rows=len(summaries) + 2, cols=8)
+    template_tbl = get_wim_table_template(table_templates, "overview")
+    if template_tbl is not None:
+        table = insert_template_table_before(anchor, template_tbl)
+        ensure_table_rows(table, len(summaries) + 2)
+    else:
+        table = insert_table_before(anchor, rows=len(summaries) + 2, cols=8)
     if summaries:
         gross_level_1_text = format_ton_threshold(summaries[0].gross_level_1_t)
         gross_level_2_text = format_ton_threshold(summaries[0].gross_level_2_t)
@@ -645,8 +742,9 @@ def add_quarter_overview(anchor: Paragraph, summaries: list[MonthWimSummary], ca
         "\u6700\u5927\u8f74\u91cd(t)",
         overload_header,
     ]
-    for i, header in enumerate(headers):
-        table.cell(0, i).text = header
+    if template_tbl is None:
+        for i, header in enumerate(headers):
+            set_table_cell(table, 0, i, header)
     for r, item in enumerate(summaries, start=1):
         daily_avg = round(item.total_count / item.days_in_month) if item.days_in_month else 0
         values = [
@@ -660,7 +758,7 @@ def add_quarter_overview(anchor: Paragraph, summaries: list[MonthWimSummary], ca
             overload_cell_text(item),
         ]
         for c, value in enumerate(values):
-            table.cell(r, c).text = value
+            set_table_cell(table, r, c, value)
     totals = [
         "\u5408\u8ba1",
         str(sum(item.total_count for item in summaries)),
@@ -677,38 +775,58 @@ def add_quarter_overview(anchor: Paragraph, summaries: list[MonthWimSummary], ca
         ),
     ]
     for c, value in enumerate(totals):
-        table.cell(len(summaries) + 1, c).text = value
-    style_table(table)
-    set_header_bold(table)
-    set_table_width(table, 166.5)
-    set_table_column_widths(table, [22.2, 20.2, 17.0, 17.2, 16.6, 18.7, 19.5, 35.1])
+        set_table_cell(table, len(summaries) + 1, c, value)
+    if template_tbl is None:
+        style_table(table)
+        set_header_bold(table)
+        set_table_width(table, 166.5)
+        set_table_column_widths(table, [22.2, 20.2, 17.0, 17.2, 16.6, 18.7, 19.5, 35.1])
 
 
-def add_daily_traffic_table(anchor: Paragraph, item: MonthWimSummary, caption_tpl: ParagraphTemplate, table_no: int) -> None:
+def add_daily_traffic_table(
+    anchor: Paragraph,
+    item: MonthWimSummary,
+    caption_tpl: ParagraphTemplate,
+    table_no: int,
+    table_template=None,
+) -> None:
     add_text_paragraph_before(anchor, f"\u8868 4-{table_no} {month_label(item.yyyymm)}\u8f66\u6d41\u91cf\u7edf\u8ba1\u8868", caption_tpl)
-    table = insert_table_before(anchor, rows=len(item.daily_rows) + 1, cols=4)
+    if table_template is not None:
+        table = insert_template_table_before(anchor, table_template)
+        ensure_table_rows(table, len(item.daily_rows) + 1)
+    else:
+        table = insert_table_before(anchor, rows=len(item.daily_rows) + 1, cols=4)
     headers = ["\u65e5\u671f", "\u4e0a\u884c\u8f66\u6570", "\u4e0b\u884c\u8f66\u6570", "\u603b\u8f66\u6570"]
-    for i, header in enumerate(headers):
-        table.cell(0, i).text = header
+    if table_template is None:
+        for i, header in enumerate(headers):
+            set_table_cell(table, 0, i, header)
     for r, row in enumerate(item.daily_rows, start=1):
         date_val = row.get("date")
         date_text = date_val.strftime("%Y-%m-%d") if hasattr(date_val, "strftime") else str(date_val or "")
         values = [date_text, str(int(row.get("up_cnt") or 0)), str(int(row.get("down_cnt") or 0)), str(int(row.get("total") or 0))]
         for c, value in enumerate(values):
-            table.cell(r, c).text = value
-    style_table(table)
-    set_header_bold(table)
-    set_table_column_widths(table, [55, 30, 30, 30])
+            set_table_cell(table, r, c, value)
+    if table_template is None:
+        style_table(table)
+        set_header_bold(table)
+        set_table_column_widths(table, [55, 30, 30, 30])
 
 
-def add_topn_main_table(anchor: Paragraph, title: str, rows: list[dict], caption_tpl: ParagraphTemplate) -> None:
+def add_topn_main_table(anchor: Paragraph, title: str, rows: list[dict], caption_tpl: ParagraphTemplate, table_template=None) -> None:
     add_text_paragraph_before(anchor, title, caption_tpl)
-    table = insert_table_before(anchor, rows=len(rows) + 1, cols=6)
+    row_count = max(len(rows), 10) + 1
+    if table_template is not None:
+        table = insert_template_table_before(anchor, table_template)
+        ensure_table_rows(table, row_count)
+    else:
+        table = insert_table_before(anchor, rows=row_count, cols=6)
     headers = ["\u5e8f\u53f7", "\u8f66\u9053", "\u65f6\u95f4", "\u8f74\u6570", "\u603b\u91cd\uff08kg\uff09", "\u901f\u5ea6\uff08km/h\uff09"]
-    for i, header in enumerate(headers):
-        table.cell(0, i).text = header
-    for r, row in enumerate(rows, start=1):
-        values = [
+    if table_template is None:
+        for i, header in enumerate(headers):
+            set_table_cell(table, 0, i, header)
+    for r in range(1, row_count):
+        row = rows[r - 1] if r - 1 < len(rows) else {}
+        values = ["", "", "", "", "", ""] if not row else [
             str(row.get("rank") or r),
             str(row.get("lane") or ""),
             str(row.get("time") or ""),
@@ -717,33 +835,45 @@ def add_topn_main_table(anchor: Paragraph, title: str, rows: list[dict], caption
             str(int(row.get("speed_kmh") or 0)),
         ]
         for c, value in enumerate(values):
-            table.cell(r, c).text = value
-    style_table(table)
-    set_header_bold(table)
-    set_table_column_widths(table, [15.63, 16.93, 47.45, 26.67, 26.67, 26.67])
+            set_table_cell(table, r, c, value)
+    if table_template is None:
+        style_table(table)
+        set_header_bold(table)
+        set_table_column_widths(table, [15.63, 16.93, 47.45, 26.67, 26.67, 26.67])
 
 
-def add_topn_cont_table(anchor: Paragraph, title: str, rows: list[dict], caption_tpl: ParagraphTemplate) -> None:
+def add_topn_cont_table(anchor: Paragraph, title: str, rows: list[dict], caption_tpl: ParagraphTemplate, table_template=None) -> None:
     add_text_paragraph_before(anchor, title, caption_tpl)
-    table = insert_table_before(anchor, rows=len(rows) + 1, cols=12)
+    row_count = max(len(rows), 10) + 1
+    if table_template is not None:
+        table = insert_template_table_before(anchor, table_template)
+        ensure_table_rows(table, row_count)
+    else:
+        table = insert_table_before(anchor, rows=row_count, cols=12)
     headers = [
         "序号", "轴1重", "轴2重", "轴3重", "轴4重", "轴5重", "轴6重",
         "轴距1", "轴距2", "轴距3", "轴距4", "轴距5",
     ]
-    for i, header in enumerate(headers):
-        table.cell(0, i).text = header
-    for r, row in enumerate(rows, start=1):
-        values = [str(row.get("rank") or r)]
-        for idx in range(1, 7):
-            values.append(str(int(row.get(f"axle{idx}") or 0)))
-        for idx in range(1, 6):
-            dist = float(row.get(f"axledis{idx}") or 0) / 1000.0
-            values.append(f"{dist:.3f}" if dist else "0")
+    if table_template is None:
+        for i, header in enumerate(headers):
+            set_table_cell(table, 0, i, header)
+    for r in range(1, row_count):
+        row = rows[r - 1] if r - 1 < len(rows) else {}
+        if row:
+            values = [str(row.get("rank") or r)]
+            for idx in range(1, 7):
+                values.append(str(int(row.get(f"axle{idx}") or 0)))
+            for idx in range(1, 6):
+                dist = float(row.get(f"axledis{idx}") or 0) / 1000.0
+                values.append(f"{dist:.3f}" if dist else "0")
+        else:
+            values = [""] * 12
         for c, value in enumerate(values):
-            table.cell(r, c).text = value
-    style_table(table)
-    set_header_bold(table)
-    set_table_column_widths(table, [10.00, 11.99, 11.99, 11.99, 11.99, 11.99, 11.99, 13.00, 13.00, 13.00, 13.00, 13.00])
+            set_table_cell(table, r, c, value)
+    if table_template is None:
+        style_table(table)
+        set_header_bold(table)
+        set_table_column_widths(table, [10.00, 11.99, 11.99, 11.99, 11.99, 11.99, 11.99, 13.00, 13.00, 13.00, 13.00, 13.00])
 
 
 def add_plot_grid(anchor: Paragraph, item: MonthWimSummary, fig_tpl: ParagraphTemplate, subcap_tpl: ParagraphTemplate) -> None:
@@ -779,14 +909,40 @@ def add_month_block(
     section_index: int,
     base_table_no: int,
     figure_no: int,
+    table_templates: dict[str, list] | None = None,
 ) -> None:
+    template_idx = max(section_index - 1, 0)
     add_text_paragraph_before(anchor, f"{month_label(item.yyyymm)}\u4ea4\u901a\u72b6\u51b5\u76d1\u6d4b", heading_tpl)
     add_text_paragraph_before(anchor, make_month_narrative(item), body_tpl)
-    add_daily_traffic_table(anchor, item, caption_tpl, base_table_no)
-    add_topn_main_table(anchor, f"\u8868 4-{base_table_no + 1} {month_label(item.yyyymm)}\u524d10\u603b\u91cd\u6700\u91cd\u8f66\u8f86\u53c2\u6570", item.top_gross_rows, caption_tpl)
-    add_topn_cont_table(anchor, f"\u7eed\u8868 4-{base_table_no + 1}\uff08\u8f74\u91cd\u5355\u4f4d\uff1akg\uff0c\u8f74\u8ddd\u5355\u4f4d\uff1am\uff09", item.top_gross_rows, caption_tpl)
-    add_topn_main_table(anchor, f"\u8868 4-{base_table_no + 2} {month_label(item.yyyymm)}\u524d10\u6700\u5927\u8f74\u91cd\u8f66\u8f86\u53c2\u6570", item.top_axle_rows, caption_tpl)
-    add_topn_cont_table(anchor, f"\u7eed\u8868 4-{base_table_no + 2}\uff08\u8f74\u91cd\u5355\u4f4d\uff1akg\uff0c\u8f74\u8ddd\u5355\u4f4d\uff1am\uff09", item.top_axle_rows, caption_tpl)
+    add_daily_traffic_table(anchor, item, caption_tpl, base_table_no, get_wim_table_template(table_templates, "daily", template_idx))
+    add_topn_main_table(
+        anchor,
+        f"\u8868 4-{base_table_no + 1} {month_label(item.yyyymm)}\u524d10\u603b\u91cd\u6700\u91cd\u8f66\u8f86\u53c2\u6570",
+        item.top_gross_rows,
+        caption_tpl,
+        get_wim_table_template(table_templates, "top_gross_main", template_idx),
+    )
+    add_topn_cont_table(
+        anchor,
+        f"\u7eed\u8868 4-{base_table_no + 1}\uff08\u8f74\u91cd\u5355\u4f4d\uff1akg\uff0c\u8f74\u8ddd\u5355\u4f4d\uff1am\uff09",
+        item.top_gross_rows,
+        caption_tpl,
+        get_wim_table_template(table_templates, "top_gross_cont", template_idx),
+    )
+    add_topn_main_table(
+        anchor,
+        f"\u8868 4-{base_table_no + 2} {month_label(item.yyyymm)}\u524d10\u6700\u5927\u8f74\u91cd\u8f66\u8f86\u53c2\u6570",
+        item.top_axle_rows,
+        caption_tpl,
+        get_wim_table_template(table_templates, "top_axle_main", template_idx),
+    )
+    add_topn_cont_table(
+        anchor,
+        f"\u7eed\u8868 4-{base_table_no + 2}\uff08\u8f74\u91cd\u5355\u4f4d\uff1akg\uff0c\u8f74\u8ddd\u5355\u4f4d\uff1am\uff09",
+        item.top_axle_rows,
+        caption_tpl,
+        get_wim_table_template(table_templates, "top_axle_cont", template_idx),
+    )
     table = insert_table_before(anchor, rows=(len(item.plot_paths) + 1) // 2, cols=2)
     remove_table_borders(table)
     for r in range(len(table.rows)):
@@ -859,10 +1015,11 @@ def build_quarterly_wim_sample(
     caption_tpl = capture_paragraph_template(table4_caption)
     subcap_tpl = capture_paragraph_template(cont5_caption)
     fig_tpl = capture_paragraph_template(fig_caption)
+    table_templates = capture_wim_table_templates(wim_heading, next_heading)
 
     clear_section_between(wim_heading, next_heading)
     add_text_paragraph_before(next_heading, make_quarter_summary(summaries), body_tpl)
-    add_quarter_overview(next_heading, summaries, caption_tpl)
+    add_quarter_overview(next_heading, summaries, caption_tpl, table_templates)
     for idx, item in enumerate(summaries, start=1):
         add_month_block(
             next_heading,
@@ -875,6 +1032,7 @@ def build_quarterly_wim_sample(
             section_index=idx,
             base_table_no=2 + (idx - 1) * 3,
             figure_no=idx,
+            table_templates=table_templates,
         )
 
     output_dir.mkdir(parents=True, exist_ok=True)
