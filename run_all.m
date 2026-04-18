@@ -40,6 +40,7 @@ end
 sub = struct();
 sub.temperature  = get_subfolder(cfg, 'temperature',  '特征值');
 sub.humidity     = get_subfolder(cfg, 'humidity',     '特征值');
+sub.rainfall     = get_subfolder(cfg, 'rainfall',     '特征值');
 sub.deflection   = get_subfolder(cfg, 'deflection',   '特征值_重采样');
 sub.bearing_displacement = get_subfolder(cfg, 'bearing_displacement', sub.deflection);
 sub.tilt         = get_subfolder(cfg, 'tilt',         '波形_重采样');
@@ -93,6 +94,15 @@ if opts.doHumidity && ~should_stop()
         results{end+1} = struct('label','humidity','status','skip','message','No humidity points configured');
     else
         results{end+1} = run_step('湿度分析', @() analyze_humidity_points(root, pts, start_date, end_date, fullfile(stats_dir, 'humidity_stats.xlsx'), sub.humidity, cfg));
+    end
+end
+
+if isfield(opts,'doRainfall') && opts.doRainfall && ~should_stop()
+    pts = get_sensor_points(cfg, 'rainfall', {});
+    if isempty(pts)
+        results{end+1} = struct('label','rainfall','status','skip','message','No rainfall points configured');
+    else
+        results{end+1} = run_step('雨量分析', @() analyze_rainfall_points(root, pts, start_date, end_date, fullfile(stats_dir, 'rainfall_stats.xlsx'), sub.rainfall, cfg));
     end
 end
 

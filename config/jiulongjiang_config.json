@@ -63,6 +63,10 @@
       "thresholds": [],
       "zero_to_nan": false,
       "outlier": []
+    },
+    "rainfall": {
+      "thresholds": [],
+      "zero_to_nan": false
     }
   },
   "per_point": {
@@ -403,7 +407,8 @@
     "temperature": "特征值",
     "cable_accel": "索力加速度_重采样",
     "cable_accel_raw": "索力加速度",
-    "wind_raw": "波形"
+    "wind_raw": "波形",
+    "rainfall": "特征值"
   },
   "file_patterns": {
     "wind_speed": {
@@ -632,6 +637,9 @@
       "WYJ-24-BZD-B4"
     ],
     "pending_stress": [
+      "YLJ-01-K16-QM-G20"
+    ],
+    "rainfall": [
       "YLJ-01-K16-QM-G20"
     ],
     "acceleration": [
@@ -1247,6 +1255,19 @@
       "force_ylim": [
         1000,
         2200
+      ]
+    },
+    "rainfall": {
+      "ylabel": "降雨强度 (mm/h)",
+      "title_prefix": "降雨强度时程",
+      "output_dir": "时程曲线_雨量",
+      "ylim_auto": true,
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ]
       ]
     }
   },

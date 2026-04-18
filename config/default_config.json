@@ -99,6 +99,10 @@
       "thresholds": [],
       "zero_to_nan": false,
       "outlier": []
+    },
+    "rainfall": {
+      "thresholds": [],
+      "zero_to_nan": false
     }
   },
   "per_point": {
@@ -1394,7 +1398,8 @@
     "temperature": "特征值",
     "cable_accel": "索力加速度_重采样",
     "cable_accel_raw": "索力加速度",
-    "wind_raw": "波形"
+    "wind_raw": "波形",
+    "rainfall": "特征值"
   },
   "file_patterns": {
     "wind_speed": {
@@ -1462,7 +1467,8 @@
       "GB-VIB-G06-002-01",
       "GB-VIB-G06-003-01",
       "GB-VIB-G07-001-01"
-    ]
+    ],
+    "rainfall": []
   },
   "groups": {
     "deflection": [
@@ -2011,6 +2017,19 @@
         0,
         0.447,
         0.741
+      ]
+    },
+    "rainfall": {
+      "ylabel": "降雨强度 (mm/h)",
+      "title_prefix": "降雨强度时程",
+      "output_dir": "时程曲线_雨量",
+      "ylim_auto": true,
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ]
       ]
     }
   },

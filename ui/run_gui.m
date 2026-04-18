@@ -81,6 +81,7 @@ function run_gui()
     cbEq = uicheckbox(gl,'Text','地震动','Value',false); cbEq.Layout.Row=9; cbEq.Layout.Column=1;
     cbWim = uicheckbox(gl,'Text','WIM','Value',false); cbWim.Layout.Row=9; cbWim.Layout.Column=2;
     cbBearing = uicheckbox(gl,'Text','支座位移','Value',false); cbBearing.Layout.Row=9; cbBearing.Layout.Column=3;
+    cbRainfall = uicheckbox(gl,'Text','雨量','Value',false); cbRainfall.Layout.Row=9; cbRainfall.Layout.Column=4;
 
     lblLog = uilabel(gl,'Text','日志目录:','HorizontalAlignment','right'); lblLog.Layout.Row=10; lblLog.Layout.Column=1;
     logEdit = uieditfield(gl,'text','Value',defaultLogDir); logEdit.Layout.Row=10; logEdit.Layout.Column=[2 3];
@@ -175,7 +176,7 @@ function run_gui()
             end
             warnCleanup = onCleanup(@() restore_warnings(warnState, btState)); %#ok<NASGU>
             opts = struct('precheck_zip_count',cbPrecheck.Value,'doUnzip',cbUnzip.Value,'doRenameCsv',cbRename.Value,'doRemoveHeader',cbRmHeader.Value,'doResample',cbResample.Value, ...
-                'doTemp',cbTemp.Value,'doHumidity',cbHum.Value,'doWind',cbWind.Value,'doEq',cbEq.Value,'doWIM',cbWim.Value,'doDeflect',cbDef.Value,'doBearingDisplacement',cbBearing.Value,'doTilt',cbTilt.Value,'doAccel',cbAccel.Value,'doAccelSpectrum',cbSpec.Value,'doCableAccel',cbCableAccel.Value,'doCableAccelSpectrum',cbCableSpec.Value, ...
+                'doTemp',cbTemp.Value,'doHumidity',cbHum.Value,'doRainfall',cbRainfall.Value,'doWind',cbWind.Value,'doEq',cbEq.Value,'doWIM',cbWim.Value,'doDeflect',cbDef.Value,'doBearingDisplacement',cbBearing.Value,'doTilt',cbTilt.Value,'doAccel',cbAccel.Value,'doAccelSpectrum',cbSpec.Value,'doCableAccel',cbCableAccel.Value,'doCableAccelSpectrum',cbCableSpec.Value, ...
                 'doRenameCrk',false,'doCrack',cbCrack.Value,'doStrain',cbStrain.Value,'doDynStrainBoxplot',cbDynBox.Value);
             root = rootEdit.Value; start_date = datestr(startPicker.Value,'yyyy-mm-dd'); end_date = datestr(endPicker.Value,'yyyy-mm-dd');
             logEdit.Value = fullfile(root, 'run_logs');
@@ -190,7 +191,7 @@ function run_gui()
             end
             save_last_preset(struct('root',root,'start_date',start_date,'end_date',end_date,'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value), ...
                 'preproc',struct('precheck',cbPrecheck.Value,'unzip',cbUnzip.Value,'rename',cbRename.Value,'rmheader',cbRmHeader.Value,'resample',cbResample.Value), ...
-                'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value)));
+                'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'rainfall',cbRainfall.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value)));
             addLog(sprintf('root=%s, %s -> %s', root, start_date, end_date));
             run_all(root, start_date, end_date, opts, cfg);
             elapsed = toc(t0);
@@ -207,7 +208,7 @@ function run_gui()
     end
     function onSavePreset()
         preset = struct('root',rootEdit.Value,'start_date',datestr(startPicker.Value,'yyyy-MM-dd'),'end_date',datestr(endPicker.Value,'yyyy-MM-dd'), ...
-            'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value),'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value));
+            'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value),'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'rainfall',cbRainfall.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value));
         [fname,fpath] = uiputfile('*.json','保存预设','preset.json'); if isequal(fname,0), return; end
         fid=fopen(fullfile(fpath,fname),'wt'); if fid<0, addLog('预设保存失败'); return; end
         fwrite(fid,jsonencode(preset),'char'); fclose(fid); addLog(['预设已保存: ' fullfile(fpath,fname)]);
@@ -217,7 +218,7 @@ function run_gui()
         preset = jsondecode(fileread(fullfile(fpath,fname))); apply_preset(preset); addLog(['预设已加载: ' fullfile(fpath,fname)]);
     end
     function onSelectAll(cb)
-        targets = [cbPrecheck, cbUnzip, cbRename, cbRmHeader, cbResample, cbTemp, cbHum, cbWind, cbEq, cbWim, cbBearing, cbDef, cbTilt, cbAccel, cbSpec, cbCableAccel, cbCableSpec, cbCrack, cbStrain, cbDynBox];
+        targets = [cbPrecheck, cbUnzip, cbRename, cbRmHeader, cbResample, cbTemp, cbHum, cbRainfall, cbWind, cbEq, cbWim, cbBearing, cbDef, cbTilt, cbAccel, cbSpec, cbCableAccel, cbCableSpec, cbCrack, cbStrain, cbDynBox];
         for i=1:numel(targets), targets(i).Value = cb.Value; end
     end
     function apply_preset(preset)
@@ -239,6 +240,7 @@ function run_gui()
             m = preset.modules;
             if isfield(m,'temp'),     cbTemp.Value   = m.temp; end
             if isfield(m,'humidity'), cbHum.Value    = m.humidity; end
+            if isfield(m,'rainfall'), cbRainfall.Value = m.rainfall; end
             if isfield(m,'wind'),     cbWind.Value  = m.wind; end
             if isfield(m,'eq'),       cbEq.Value    = m.eq; end
             if isfield(m,'wim'),      cbWim.Value   = m.wim; end
