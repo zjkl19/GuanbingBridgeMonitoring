@@ -236,7 +236,7 @@ function [sensorItems, sensorValues] = list_supported_sensors(cfg)
 
     preferredOrder = { ...
         'deflection', 'bearing_displacement', 'tilt', 'strain', 'crack', ...
-        'temperature', 'humidity', 'acceleration', 'cable_accel', ...
+        'temperature', 'humidity', 'gnss', 'acceleration', 'cable_accel', ...
         'wind_speed', 'wind_direction', 'eq_x', 'eq_y', 'eq_z'};
 
     ordered = {};
@@ -263,6 +263,8 @@ function label = format_sensor_label(sensor)
             label = 'wind_speed (风速)';
         case 'wind_direction'
             label = 'wind_direction (风向)';
+        case 'gnss'
+            label = 'gnss (GNSS)';
         case 'eq_x'
             label = 'eq_x (地震 X)';
         case 'eq_y'

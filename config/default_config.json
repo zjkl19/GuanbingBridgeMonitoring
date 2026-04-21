@@ -103,6 +103,10 @@
     "rainfall": {
       "thresholds": [],
       "zero_to_nan": false
+    },
+    "gnss": {
+      "thresholds": [],
+      "zero_to_nan": false
     }
   },
   "per_point": {
@@ -1399,7 +1403,8 @@
     "cable_accel": "索力加速度_重采样",
     "cable_accel_raw": "索力加速度",
     "wind_raw": "波形",
-    "rainfall": "特征值"
+    "rainfall": "特征值",
+    "gnss": "波形"
   },
   "file_patterns": {
     "wind_speed": {
@@ -1468,7 +1473,8 @@
       "GB-VIB-G06-003-01",
       "GB-VIB-G07-001-01"
     ],
-    "rainfall": []
+    "rainfall": [],
+    "gnss": []
   },
   "groups": {
     "deflection": [
@@ -2029,6 +2035,29 @@
           0,
           0.447,
           0.741
+        ]
+      ]
+    },
+    "gnss": {
+      "ylabel": "GNSS位移 (mm)",
+      "title_prefix": "GNSS位移时程",
+      "output_dir": "时程曲线_GNSS",
+      "ylim_auto": true,
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ],
+        [
+          0.466,
+          0.674,
+          0.188
         ]
       ]
     }

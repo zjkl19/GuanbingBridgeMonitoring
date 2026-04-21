@@ -42,6 +42,29 @@ reporting/.venv/Scripts/python reporting/report_gui.py
 - `reports/` report templates / 报告模板
 - `scripts/` deployment and utility scripts / 部署与辅助脚本
 
+## Supported Modules / 当前已接入模块
+
+Current MATLAB workflow supports the commonly used monitoring modules below.
+当前 MATLAB 流程已接入以下常用监测模块。
+
+- Temperature / 温度
+- Humidity / 湿度
+- Rainfall / 雨量
+- Deflection / 挠度
+- Bearing displacement / 支座位移
+- Tilt / 倾角
+- Acceleration / 加速度
+- Cable acceleration / 索力加速度
+- Strain / 应变
+- Crack / 裂缝
+- Wind / 风速风向
+- Earthquake / 地震动
+- GNSS / GNSS
+- WIM / 称重
+
+Jiulongjiang currently has dedicated support for rainfall and GNSS CSV analysis.
+九龙江项目目前已专项接入雨量与 GNSS 的 CSV 分析流程。
+
 ## Data Layout / 数据目录约定
 
 Templates stay under the program directory. Generated outputs should stay under the data root.
@@ -69,9 +92,13 @@ E:/洪塘大桥数据/2026年1-3月
   stats/
   run_logs/
   自动报告/
+  时程曲线_GNSS/
   时程曲线_倾斜/
   时程曲线_支座位移/
   箱线图_应变/
+
+For Jiulongjiang, GNSS and rainfall outputs also follow the same rule: write figures and stats under the data root.
+对于九龙江，GNSS 和雨量的输出也遵循同样规则：图表和统计结果直接写到数据根目录下。
 ```
 
 ## Config Files / 配置文件
@@ -90,6 +117,16 @@ Tracked production example.
 当前已纳入版本库的生产机示例。
 
 - `config/hongtang_config_DESKTOP_21RTG63.json`
+
+Jiulongjiang GNSS and rainfall keys now use:
+九龙江 GNSS 和雨量目前使用以下配置键：
+
+- `points.gnss`
+- `subfolders.gnss`
+- `plot_styles.gnss`
+- `points.rainfall`
+- `subfolders.rainfall`
+- `plot_styles.rainfall`
 
 ## Reporting / 报告生成
 

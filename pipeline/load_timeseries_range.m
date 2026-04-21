@@ -554,8 +554,18 @@ function rules = build_rules(cfg, sensor_type, point_id)
     rules = struct('thresholds', [], 'zero_to_nan', false, ...
                    'outlier_window_sec', [], 'outlier_threshold_factor', [], ...
                    'offset_correction', []);
+    shared_sensor = resolve_shared_sensor_type(sensor_type);
     if isfield(cfg, 'defaults') && isfield(cfg.defaults, sensor_type)
         def = cfg.defaults.(sensor_type);
+        if isfield(def, 'thresholds'), rules.thresholds = def.thresholds; end
+        if isfield(def, 'zero_to_nan'), rules.zero_to_nan = logical(def.zero_to_nan); end
+        if isfield(def, 'outlier') && isstruct(def.outlier)
+            if isfield(def.outlier, 'window_sec'), rules.outlier_window_sec = def.outlier.window_sec; end
+            if isfield(def.outlier, 'threshold_factor'), rules.outlier_threshold_factor = def.outlier.threshold_factor; end
+        end
+        if isfield(def, 'offset_correction'), rules.offset_correction = parse_offset_value(def.offset_correction); end
+    elseif ~isempty(shared_sensor) && isfield(cfg, 'defaults') && isfield(cfg.defaults, shared_sensor)
+        def = cfg.defaults.(shared_sensor);
         if isfield(def, 'thresholds'), rules.thresholds = def.thresholds; end
         if isfield(def, 'zero_to_nan'), rules.zero_to_nan = logical(def.zero_to_nan); end
         if isfield(def, 'outlier') && isstruct(def.outlier)
@@ -569,6 +579,10 @@ function rules = build_rules(cfg, sensor_type, point_id)
             && isfield(cfg.per_point.(sensor_type), safe_id)
         pt = cfg.per_point.(sensor_type).(safe_id);
         rules = apply_point_rules(rules, pt);
+    elseif ~isempty(shared_sensor) && isfield(cfg, 'per_point') && isfield(cfg.per_point, shared_sensor) ...
+            && isfield(cfg.per_point.(shared_sensor), safe_id)
+        pt = cfg.per_point.(shared_sensor).(safe_id);
+        rules = apply_point_rules(rules, pt);
     end
 
     % Wind mapping lives under per_point.wind; allow shared cleaning rules.
@@ -576,6 +590,13 @@ function rules = build_rules(cfg, sensor_type, point_id)
             && isfield(cfg.per_point, 'wind') && isfield(cfg.per_point.wind, safe_id)
         pt = cfg.per_point.wind.(safe_id);
         rules = apply_point_rules(rules, pt);
+    end
+end
+
+function shared_sensor = resolve_shared_sensor_type(sensor_type)
+    shared_sensor = '';
+    if strncmp(sensor_type, 'gnss_', 5)
+        shared_sensor = 'gnss';
     end
 end
 
@@ -1170,6 +1191,12 @@ function col = resolve_jlj_value_column(sensor_type, point_id)
     elseif st == "eq_y"
         col = 'value_y';
     elseif st == "eq_z"
+        col = 'value_z';
+    elseif st == "gnss_x"
+        col = 'value_x';
+    elseif st == "gnss_y"
+        col = 'value_y';
+    elseif st == "gnss_z"
         col = 'value_z';
     else
         col = 'value_x';

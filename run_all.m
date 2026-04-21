@@ -41,6 +41,7 @@ sub = struct();
 sub.temperature  = get_subfolder(cfg, 'temperature',  '特征值');
 sub.humidity     = get_subfolder(cfg, 'humidity',     '特征值');
 sub.rainfall     = get_subfolder(cfg, 'rainfall',     '特征值');
+sub.gnss         = get_subfolder(cfg, 'gnss',         '波形');
 sub.deflection   = get_subfolder(cfg, 'deflection',   '特征值_重采样');
 sub.bearing_displacement = get_subfolder(cfg, 'bearing_displacement', sub.deflection);
 sub.tilt         = get_subfolder(cfg, 'tilt',         '波形_重采样');
@@ -103,6 +104,15 @@ if isfield(opts,'doRainfall') && opts.doRainfall && ~should_stop()
         results{end+1} = struct('label','rainfall','status','skip','message','No rainfall points configured');
     else
         results{end+1} = run_step('雨量分析', @() analyze_rainfall_points(root, pts, start_date, end_date, fullfile(stats_dir, 'rainfall_stats.xlsx'), sub.rainfall, cfg));
+    end
+end
+
+if isfield(opts,'doGNSS') && opts.doGNSS && ~should_stop()
+    pts = get_sensor_points(cfg, 'gnss', {});
+    if isempty(pts)
+        results{end+1} = struct('label','gnss','status','skip','message','No GNSS points configured');
+    else
+        results{end+1} = run_step('GNSS分析', @() analyze_gnss_points(root, pts, start_date, end_date, fullfile(stats_dir, 'gnss_stats.xlsx'), sub.gnss, cfg));
     end
 end
 
