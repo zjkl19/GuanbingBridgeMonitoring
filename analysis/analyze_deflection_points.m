@@ -26,11 +26,14 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
 
     groups = get_groups(cfg, 'deflection', {});
     style = get_style(cfg, 'deflection');
+    stats = cell(0,7);
+    row = 1;
 
     if ~has_groups(cfg, 'deflection')
         groups = {};
     end
 
+    collect_per_point_stats = is_jiulongjiang(cfg) && isempty(groups);
     if is_jiulongjiang(cfg)
         points = get_points(cfg, 'deflection', groups);
         for i = 1:numel(points)
@@ -53,13 +56,18 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
             vals_f = movmedian(vals, win_len, 'omitnan');
             vals_f = apply_threshold_rules(vals_f, times, ...
                 resolve_post_filter_thresholds(cfg, 'deflection', pid));
+            if collect_per_point_stats
+                stats(row, :) = {
+                    pid, ...
+                    round(min(vals),1), round(max(vals),1), round(mean(vals, 'omitnan'), 1), ...
+                    round(min(vals_f),1), round(max(vals_f),1), round(mean(vals_f, 'omitnan'), 1)};
+                row = row + 1;
+            end
             plot_deflection_curve({times}, {vals}, {pid}, root_dir, start_date, end_date, pid, style, 'Orig');
             plot_deflection_curve({times}, {vals_f}, {pid}, root_dir, start_date, end_date, pid, style, 'Filt');
         end
     end
 
-    stats = cell(0,7);
-    row = 1;
     if ~isempty(groups)
     for g = 1:numel(groups)
         pid_list = groups{g};
