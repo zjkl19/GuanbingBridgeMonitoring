@@ -19,7 +19,7 @@ function plan = get_parallel_plan(cfg, task_count, label)
         parallel_cfg = cfg.parallel;
     end
 
-    enabled = get_bool(parallel_cfg, 'enable', true);
+    enabled = get_bool(parallel_cfg, 'enable', false);
     min_tasks = get_num(parallel_cfg, 'min_tasks', 3);
     num_workers = get_num(parallel_cfg, 'num_workers', []);
 

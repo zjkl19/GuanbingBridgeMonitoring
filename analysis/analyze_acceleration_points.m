@@ -36,32 +36,20 @@
 
     style = get_style(cfg, 'acceleration');
     stats = cell(numel(tpts),6);
-    records = repmat(init_accel_record(), numel(tpts), 1);
     parallel_plan = get_parallel_plan(cfg, numel(tpts), 'acceleration');
-
     if parallel_plan.enabled
-        fprintf('加速度分析使用并行数据收集 (%d workers)\n', parallel_plan.worker_count);
-        parfor i = 1:numel(tpts)
-            records(i) = collect_accel_record(root_dir, subfolder, tpts{i}, start_date, end_date, cfg, auto_detect_fs);
-        end
-    else
-        for i = 1:numel(tpts)
-            records(i) = collect_accel_record(root_dir, subfolder, tpts{i}, start_date, end_date, cfg, auto_detect_fs);
-        end
+        fprintf('加速度分析检测到并行配置，但为避免整段波形累积导致内存不足，改为逐测点顺序处理。\n');
     end
 
     for i = 1:numel(tpts)
-        rec = records(i);
+        rec = collect_accel_record(root_dir, subfolder, tpts{i}, start_date, end_date, cfg, auto_detect_fs);
         pid = rec.pid;
         fprintf('处理测点 %s ...\n', pid);
         if ~rec.has_data
             warning('测点 %s 无数据，跳过', pid);
             continue;
         end
-        if parallel_plan.enabled
-            fprintf('并行收集完成，采样率 %.2f Hz\n', rec.fs);
-            record_parallel_offset_correction(cfg, 'acceleration', pid, rec.times, rec.vals);
-        elseif auto_detect_fs
+        if auto_detect_fs
             fprintf('自动检测采样率 %.2f Hz\n', rec.fs);
         else
             fprintf('使用默认采样率 %d Hz\n', round(rec.fs));
@@ -69,6 +57,7 @@
         stats(i,:) = {pid, rec.mn, rec.mx, rec.av, rec.rms_max, rec.rms_time};
         plot_accel_curve(root_dir, pid, rec.times, rec.vals, rec.mn, rec.mx, style);
         plot_accel_rms_curve(root_dir, pid, rec.times, rec.vals, rec.fs, start_date, end_date, style);
+        rec = [];
     end
 
     T = cell2table(stats, 'VariableNames',{'PointID','Min','Max','Mean','RMS10minMax','RMSStartTime'});
@@ -92,14 +81,14 @@ function pts = get_points(cfg, key, fallback)
 end
 
 function style = get_style(cfg, key)
-    style = struct('ylabel','主梁竖向振动加速度 (mm/s^2)', ...
+    style = struct('ylabel','主梁竖向振动加速度 (m/s^2)', ...
                    'title_prefix','加速度时程', ...
                    'ylim_auto', false, ...
                    'ylim', [], ...
                    'ylims', [], ...
                    'color_main',[0 0.447 0.741], ...
                    'color_rms',[0.8500 0.3250 0.0980], ...
-                   'rms_ylabel','10 min RMS (mm/s^2)', ...
+                   'rms_ylabel','10 min RMS (m/s^2)', ...
                    'rms_title_prefix','10 min RMS 时程', ...
                    'rms_ylim', [], ...
                    'rms_ylims', []);

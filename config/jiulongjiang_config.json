@@ -397,6 +397,296 @@
           3
         ]
       }
+    },
+    "accel_spectrum": {
+      "ZDCQG-01-K15-X1-G18": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-02-K15-X4-G18": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-03-K16-X1-G19": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-04-K16-X4-G19": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-05-K16-X1-G20": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-06-K16-X4-G20": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-07-K16-X1-G21": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-08-K16-X4-G21": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-09-K17-X1-G22": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-10-K17-X4-G22": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-11-K16-ZFGD-A20": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-12-K16-ZFGD-A20": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-13-K16-ZGD-A20": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-14-K16-ZGD-A20": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-15-K16-YFGD-A20": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      },
+      "ZDCQG-16-K16-YFGD-A20": {
+        "target_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "tolerance": 0.15,
+        "theor_freqs": [
+          1.26,
+          2.02,
+          3.13
+        ],
+        "theor_labels": [
+          "目标峰值频率 f1 = 1.26Hz",
+          "目标峰值频率 f2 = 2.02Hz",
+          "目标峰值频率 f3 = 3.13Hz"
+        ]
+      }
     }
   },
   "subfolders": {
@@ -729,12 +1019,12 @@
   },
   "plot_styles": {
     "acceleration": {
-      "ylabel": "主梁竖向振动加速度 (mm/s^2)",
+      "ylabel": "主梁竖向振动加速度 (m/s^2)",
       "title_prefix": "加速度时程",
       "ylim_auto": false,
       "ylim": [
-        -500,
-        500
+        -0.5,
+        0.5
       ],
       "colors": [
         [
@@ -749,11 +1039,11 @@
         ]
       ],
       "rms": {
-        "ylabel": "10 min RMS (mm/s^2)",
+        "ylabel": "10 min RMS (m/s^2)",
         "title_prefix": "10 min RMS 时程",
         "ylim": [
           0,
-          80
+          0.08
         ],
         "color": [
           0,
@@ -1199,7 +1489,7 @@
       ]
     },
     "cable_accel": {
-      "ylabel": "索力加速度 (mm/s^2)",
+      "ylabel": "索力加速度 (m/s^2)",
       "title_prefix": "索力加速度时程",
       "ylim": [],
       "colors": [
@@ -1215,7 +1505,7 @@
         ]
       ],
       "rms": {
-        "ylabel": "10 min RMS (mm/s^2)",
+        "ylabel": "10 min RMS (m/s^2)",
         "title_prefix": "10 min RMS 时程",
         "ylim": [],
         "color": [
@@ -1462,20 +1752,20 @@
   },
   "accel_spectrum_params": {
     "target_freqs": [
-      1.15,
-      1.48,
-      2.31
+      1.26,
+      2.02,
+      3.13
     ],
     "tolerance": 0.15,
     "theor_freqs": [
-      0.975,
-      1.243,
-      1.528
+      1.26,
+      2.02,
+      3.13
     ],
     "theor_labels": [
-      "理论竖向一阶自振频率 0.975Hz",
-      "理论竖向二阶自振频率 1.243Hz",
-      "理论竖向三阶自振频率 1.528Hz"
+      "目标峰值频率 f1 = 1.26Hz",
+      "目标峰值频率 f2 = 2.02Hz",
+      "目标峰值频率 f3 = 3.13Hz"
     ]
   },
   "cable_accel_spectrum_params": {

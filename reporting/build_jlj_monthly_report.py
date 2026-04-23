@@ -8,7 +8,7 @@ import subprocess
 import sys
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -88,6 +88,23 @@ class SectionBlock:
 JLG_REPORT_LIMITS = {
     "wind_10min_avg_mps": 25.0,
 }
+
+JLG_FIRST_MODE_FREQ_HZ = 1.26
+
+JLG_HEALTH_STATUS_MODULES: list[tuple[str, list[str]]] = [
+    ("温度监测", ["temperature", "temp_humidity"]),
+    ("雨量监测", ["rainfall"]),
+    ("主梁挠度监测", ["deflection"]),
+    ("支座、梁段纵向位移监测", ["bearing_displacement"]),
+    ("结构振动监测", ["acceleration"]),
+    ("结构应变监测", ["strain"]),
+    ("墩柱倾斜监测", ["tilt"]),
+    ("裂缝监测", ["crack"]),
+    ("吊杆索力监测", ["cable_force"]),
+    ("风向风速监测", ["wind"]),
+    ("地震动监测", ["eq"]),
+    ("GNSS 位移监测", ["gnss"]),
+]
 
 
 JLG_MONTHLY_SECTIONS: list[tuple[str, str, str, str]] = [
@@ -315,6 +332,253 @@ def discover_csv_points(result_root: Path, prefixes: Iterable[str]) -> list[str]
             if stem.startswith(prefix_tuple):
                 found.append(stem)
     return sorted_point_ids(found)
+
+
+def extract_dates_from_range(text: str) -> tuple[date, date] | None:
+    pattern = re.compile(r"(\d{4})[年./-](\d{1,2})[月./-](\d{1,2})日?.*?(\d{4})[年./-](\d{1,2})[月./-](\d{1,2})日?")
+    match = pattern.search(text)
+    if not match:
+        return None
+    y1, m1, d1, y2, m2, d2 = map(int, match.groups())
+    return date(y1, m1, d1), date(y2, m2, d2)
+
+
+def iter_days(start_date: date, end_date: date) -> Iterable[date]:
+    current = start_date
+    while current <= end_date:
+        yield current
+        current += timedelta(days=1)
+
+
+def format_day_range(start_day: date, end_day: date) -> str:
+    if start_day == end_day:
+        return start_day.strftime("%Y-%m-%d")
+    return f"{start_day:%Y-%m-%d}~{end_day:%Y-%m-%d}"
+
+
+def group_date_ranges(days: Iterable[date]) -> list[tuple[date, date]]:
+    unique_days = sorted(set(days))
+    if not unique_days:
+        return []
+    ranges: list[tuple[date, date]] = []
+    start_day = unique_days[0]
+    prev_day = unique_days[0]
+    for current in unique_days[1:]:
+        if current == prev_day + timedelta(days=1):
+            prev_day = current
+            continue
+        ranges.append((start_day, prev_day))
+        start_day = current
+        prev_day = current
+    ranges.append((start_day, prev_day))
+    return ranges
+
+
+def summarize_day_ranges(days: Iterable[date], max_ranges: int = 6) -> str:
+    ranges = [format_day_range(start_day, end_day) for start_day, end_day in group_date_ranges(days)]
+    if not ranges:
+        return "/"
+    if len(ranges) <= max_ranges:
+        return "；".join(ranges)
+    return "；".join(ranges[:max_ranges]) + "；等"
+
+
+def resolve_jlj_monitoring_dates(monitoring_range: str, result_root: Path) -> tuple[date, date]:
+    parsed = extract_dates_from_range(monitoring_range)
+    if parsed is not None:
+        return parsed
+    days: list[date] = []
+    for daily_dir in sorted(result_root.glob("data_jlj_*")):
+        match = re.search(r"data_jlj_(\d{4})-(\d{2})-(\d{2})$", daily_dir.name)
+        if match:
+            y, m, d = map(int, match.groups())
+            days.append(date(y, m, d))
+    if not days:
+        raise ValueError(f"Unable to resolve monitoring dates from range: {monitoring_range}")
+    return min(days), max(days)
+
+
+def normalize_jlj_raw_point_id(point_id: str) -> str:
+    return re.sub(r"[-_][XYZ]$", "", point_id)
+
+
+def locate_jlj_csv_dir(result_root: Path, current_day: date) -> Path | None:
+    direct = result_root / f"data_jlj_{current_day:%Y-%m-%d}" / "data" / "jlj" / "csv"
+    if direct.exists():
+        return direct
+    legacy = result_root / f"jljData{current_day:%Y%m%d}-{(current_day + timedelta(days=1)):%Y%m%d}" / "data" / "csv"
+    if legacy.exists():
+        return legacy
+    return None
+
+
+def find_jlj_csv_file(csv_dir: Path, point_id: str) -> Path | None:
+    base = normalize_jlj_raw_point_id(point_id)
+    candidate = csv_dir / f"{base}.csv"
+    if candidate.exists():
+        return candidate
+    matches = sorted(csv_dir.glob(f"*{base}*.csv"))
+    return matches[0] if matches else None
+
+
+def csv_has_records(path: Path | None) -> bool:
+    if path is None or not path.exists() or path.stat().st_size <= 0:
+        return False
+    with path.open("r", encoding="utf-8", errors="ignore") as fh:
+        first_line = True
+        for line in fh:
+            if first_line:
+                first_line = False
+                continue
+            if line.strip():
+                return True
+    return False
+
+
+def collect_jlj_health_status_rows(cfg: dict, result_root: Path, start_date: date, end_date: date) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    points_cfg = cfg.get("points", {})
+
+    for module_label, point_keys in JLG_HEALTH_STATUS_MODULES:
+        module_points: list[str] = []
+        for point_key in point_keys:
+            module_points.extend(get_config_points(cfg, point_key))
+        module_points = sorted_point_ids(module_points)
+        if not module_points:
+            continue
+
+        all_missing_days: list[date] = []
+        point_reason_days: dict[tuple[str, str], list[date]] = {}
+        for current_day in iter_days(start_date, end_date):
+            csv_dir = locate_jlj_csv_dir(result_root, current_day)
+            if csv_dir is None:
+                all_missing_days.append(current_day)
+                continue
+            for point_id in module_points:
+                csv_path = find_jlj_csv_file(csv_dir, point_id)
+                if csv_path is None:
+                    point_reason_days.setdefault((point_id, "原始文件缺失"), []).append(current_day)
+                    continue
+                if not csv_has_records(csv_path):
+                    point_reason_days.setdefault((point_id, "无原始记录"), []).append(current_day)
+
+        if all_missing_days:
+            rows.append(
+                {
+                    "module": module_label,
+                    "points": "全测点",
+                    "range": summarize_day_ranges(all_missing_days),
+                    "reason": "原始文件缺失",
+                }
+            )
+
+        grouped: dict[tuple[tuple[date, ...], str], set[str]] = {}
+        for (point_id, reason), days in point_reason_days.items():
+            grouped.setdefault((tuple(sorted(set(days))), reason), set()).add(point_id)
+
+        for (days_key, reason), points in sorted(grouped.items(), key=lambda item: (item[0][0][0] if item[0][0] else start_date, point_sort_key(sorted_point_ids(item[1])[0]))):
+            rows.append(
+                {
+                    "module": module_label,
+                    "points": "、".join(sorted_point_ids(points)),
+                    "range": summarize_day_ranges(days_key),
+                    "reason": reason,
+                }
+            )
+    return rows
+
+
+def apply_health_status_section(doc: Document, cfg: dict, result_root: Path, monitoring_range: str) -> None:
+    start_date, end_date = resolve_jlj_monitoring_dates(monitoring_range, result_root)
+    section_idx, heading_para = find_heading(doc, "健康监测系统运行状况", 2)
+    next_heading = next_heading_at_or_above(doc, section_idx, 2)
+    end_para = next_heading[1] if next_heading is not None else None
+
+    content_template_para = None
+    for para in doc.paragraphs[section_idx + 1 : next_heading[0] if next_heading is not None else len(doc.paragraphs)]:
+        if para.text.strip():
+            content_template_para = para
+            break
+    text_template = capture_paragraph_template(content_template_para or heading_para)
+
+    clear_section_between(heading_para, end_para)
+    anchor = end_para if end_para is not None else doc.add_paragraph()
+    rows = collect_jlj_health_status_rows(cfg, result_root, start_date, end_date)
+
+    intro = "监测周期内原始数据缺失、无文件或无记录情况见下表。" if rows else "监测周期内未发现原始数据缺失、无文件或无记录情况。"
+    add_text_paragraph_before(anchor, intro, text_template)
+    add_text_paragraph_before(
+        anchor,
+        "说明：本节仅统计原始数据缺失、无文件或无记录情况，不包含阈值筛除、异常值剔除及后处理清洗结果。",
+        text_template,
+    )
+
+    if not rows:
+        return
+
+    table = insert_table_before(anchor, rows=len(rows) + 1, cols=4)
+    headers = ["监测项目", "异常测点/测点组", "时间段", "异常类型"]
+    for idx, header in enumerate(headers):
+        set_cell_text_preserve(table.cell(0, idx), header)
+    for ridx, row in enumerate(rows, start=1):
+        values = [row["module"], row["points"], row["range"], row["reason"]]
+        for cidx, value in enumerate(values):
+            set_cell_text_preserve(table.cell(ridx, cidx), value)
+    style_table(table, left=True)
+    set_header_bold(table)
+    set_table_outer_border(table, size_eighth_pt=12)
+    set_table_auto_width(table)
+    set_table_column_widths(table, [28, 98, 34, 24])
+    set_table_font_size(table, 9)
+
+
+def summarize_first_mode_frequency(stats_root: Path, fallback_root: Path | None = None) -> tuple[str, str, list[str]]:
+    try:
+        workbook_path = resolve_existing_file(stats_root, fallback_root, "accel_spec_stats.xlsx")
+    except FileNotFoundError:
+        return "", "", []
+
+    wb = load_workbook(workbook_path, read_only=True, data_only=True)
+    point_means: list[float] = []
+    all_values: list[float] = []
+    point_ids: list[str] = []
+    try:
+        for ws in wb.worksheets:
+            rows = list(ws.iter_rows(values_only=True))
+            if len(rows) < 2:
+                continue
+            header = [safe_text(item) for item in rows[0]]
+            first_freq_idx = next((idx for idx, name in enumerate(header) if name.startswith("Freq_")), None)
+            if first_freq_idx is None:
+                continue
+            values = [parse_float(row[first_freq_idx]) for row in rows[1:] if len(row) > first_freq_idx]
+            values = [value for value in values if value is not None]
+            if not values:
+                continue
+            point_means.append(sum(values) / len(values))
+            all_values.extend(values)
+            point_ids.append(ws.title)
+    finally:
+        wb.close()
+
+    if not all_values:
+        return "", "", []
+
+    min_freq = min(all_values)
+    max_freq = max(all_values)
+    mean_freq = sum(point_means) / len(point_means)
+    detail = (
+        f"已识别到有效一阶频率的{len(point_means)}个测点中，一阶频率范围约为"
+        f"{format_number_fixed(min_freq, 3, 'Hz')}~{format_number_fixed(max_freq, 3, 'Hz')}，"
+        f"平均约为{format_number_fixed(mean_freq, 3, 'Hz')}，与一阶自振频率"
+        f"{format_number_fixed(JLG_FIRST_MODE_FREQ_HZ, 3, 'Hz')}总体接近。"
+    )
+    summary = (
+        f"已识别测点一阶频率约为{format_number_fixed(min_freq, 3, 'Hz')}~"
+        f"{format_number_fixed(max_freq, 3, 'Hz')}，与一阶自振频率"
+        f"{format_number_fixed(JLG_FIRST_MODE_FREQ_HZ, 3, 'Hz')}总体接近。"
+    )
+    return detail, summary, sorted_point_ids(point_ids)
 
 
 def select_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -1560,41 +1824,64 @@ def build_gnss_section(cfg: dict, result_root: Path, stats_root: Path, fallback_
 
 
 def build_vibration_section(cfg: dict, result_root: Path, stats_root: Path, fallback_root: Path | None, image_root: Path) -> SectionContent:
-    rows = load_section_rows(stats_root, fallback_root, "accel_stats.xlsx", lambda row: safe_text(row.get("PointID")) not in {"", "None"})
-    if not rows:
+    try:
+        rows = load_section_rows(stats_root, fallback_root, "accel_stats.xlsx", lambda row: safe_text(row.get("PointID")) not in {"", "None"})
+    except FileNotFoundError:
+        rows = []
+    first_mode_detail, first_mode_summary, first_mode_points = summarize_first_mode_frequency(stats_root, fallback_root)
+    if not rows and not first_mode_detail:
         return build_missing_section("本月未获取到主桥结构振动监测有效数据。")
-    abs_peak = max(abs(parse_float(row.get("Min")) or 0.0) if abs(parse_float(row.get("Min")) or 0.0) > abs(parse_float(row.get("Max")) or 0.0) else abs(parse_float(row.get("Max")) or 0.0) for row in rows)
-    rms_peak = numeric_max(rows, "RMS10minMax")
-    narrative = (
-        f"选取典型监测数据进行分析。主桥振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'mm/s²')}，"
-        f"10min 均方根最大值约为{format_number(rms_peak, 3, 'mm/s²')}。"
-    )
-    summary = f"主桥振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'mm/s²')}，10min 均方根最大值约为{format_number(rms_peak, 3, 'mm/s²')}。"
+
+    narrative_parts: list[str] = []
+    summary_parts: list[str] = []
+    if rows:
+        abs_peak = max(abs(parse_float(row.get("Min")) or 0.0) if abs(parse_float(row.get("Min")) or 0.0) > abs(parse_float(row.get("Max")) or 0.0) else abs(parse_float(row.get("Max")) or 0.0) for row in rows)
+        rms_peak = numeric_max(rows, "RMS10minMax")
+        narrative_parts.append(
+            f"主桥振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，"
+            f"10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}。"
+        )
+        summary_parts.append(
+            f"主桥振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，"
+            f"10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}。"
+        )
+    if first_mode_detail:
+        narrative_parts.append(first_mode_detail)
+    if first_mode_summary:
+        summary_parts.append(first_mode_summary)
+    narrative = "选取典型监测数据进行分析。" + "".join(narrative_parts)
+    summary = "".join(summary_parts)
     columns = [
         ("PointID", "测点编号", None),
-        ("Min", "最小值(mm/s²)", None),
-        ("Max", "最大值(mm/s²)", None),
-        ("RMS10minMax", "10min RMS最大值(mm/s²)", None),
+        ("Min", "最小值(m/s²)", None),
+        ("Max", "最大值(m/s²)", None),
+        ("RMS10minMax", "10min RMS最大值(m/s²)", None),
     ]
-    expected_points = resolve_expected_points(cfg, result_root, "acceleration", ("ZDCQG-",), fallback_rows=rows)
-    table_rows = build_full_point_table_rows(
-        expected_points,
-        rows,
-        columns,
-        formatters=numeric_table_formatters(("Min", "Max", "RMS10minMax"), 3),
+    expected_points = resolve_expected_points(cfg, result_root, "acceleration", ("ZDCQG-",), fallback_rows=rows or [{"PointID": point_id} for point_id in first_mode_points])
+    table_rows = (
+        build_full_point_table_rows(
+            expected_points,
+            rows,
+            columns,
+            formatters=numeric_table_formatters(("Min", "Max", "RMS10minMax"), 3),
+        )
+        if rows
+        else None
     )
     image_items: list[ImageItem] = []
-    for row in choose_representative_points(rows, 2):
+    representative_rows = choose_representative_points(rows, 2) if rows else [{"PointID": point_id} for point_id in pick_evenly([{"PointID": point_id} for point_id in first_mode_points], 2)]
+    for row in representative_rows:
         pid = safe_text(row.get("PointID"))
         image_items.append(ImageItem(f"{pid} 振动时程", image_for_point(image_root, "时程曲线_加速度", pid, [f"{pid}_*.jpg"])))
+        image_items.append(ImageItem(f"{pid} PSD", image_for_point(image_root, f"PSD_备查/{pid}", pid, [f"PSD_{pid}_*.jpg"])))
         image_items.append(ImageItem(f"{pid} 频谱峰值曲线", image_for_point(image_root, "频谱峰值曲线_加速度", pid, [f"SpecFreq_{pid}_*.jpg"])))
     return SectionContent(
         narrative=narrative,
         summary_sentence=summary,
-        table_title="主桥结构振动监测统计表",
-        table_columns=columns,
+        table_title="主桥结构振动监测统计表" if table_rows else None,
+        table_columns=columns if table_rows else None,
         table_rows=table_rows,
-        figure_title="主桥结构振动监测典型图",
+        figure_title="主桥结构振动监测典型图（含 PSD）",
         image_items=image_items,
     )
 
@@ -1678,16 +1965,16 @@ def build_cable_section(cfg: dict, result_root: Path, stats_root: Path, fallback
     abs_peak = max(abs(parse_float(row.get("Min")) or 0.0) if abs(parse_float(row.get("Min")) or 0.0) > abs(parse_float(row.get("Max")) or 0.0) else abs(parse_float(row.get("Max")) or 0.0) for row in rows)
     rms_peak = numeric_max(rows, "RMS10minMax")
     narrative = (
-        f"选取典型监测数据进行分析。吊杆振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'mm/s²')}，"
-        f"10min 均方根最大值约为{format_number(rms_peak, 3, 'mm/s²')}。"
+        f"选取典型监测数据进行分析。吊杆振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，"
+        f"10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}。"
         "当前吊杆参数配置尚未完整校核，索力换算结果暂仅用于时程展示。"
     )
-    summary = f"吊杆振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'mm/s²')}，10min 均方根最大值约为{format_number(rms_peak, 3, 'mm/s²')}。"
+    summary = f"吊杆振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}。"
     columns = [
         ("PointID", "测点编号", None),
-        ("Min", "最小值(mm/s²)", None),
-        ("Max", "最大值(mm/s²)", None),
-        ("RMS10minMax", "10min RMS最大值(mm/s²)", None),
+        ("Min", "最小值(m/s²)", None),
+        ("Max", "最大值(m/s²)", None),
+        ("RMS10minMax", "10min RMS最大值(m/s²)", None),
     ]
     expected_points = resolve_expected_points(cfg, result_root, "cable_accel", ("SLCGQ-",), fallback_rows=rows)
     table_rows = build_full_point_table_rows(
@@ -2053,10 +2340,15 @@ def build_report(
     body_template = capture_paragraph_template(placeholder_para)
 
     update_cover_metadata(doc, monitoring_range, report_date)
+    apply_health_status_section(doc, cfg, result_root, monitoring_range)
     section_map = build_section_map(cfg, result_root, None, result_root, image_root, wim_root)
     for key, parent_heading, child_heading, _ in JLG_MONTHLY_SECTIONS:
         add_section_content(doc, parent_heading, child_heading, section_map[key], body_template, caption_templates, assets_dir)
     update_summary_table(doc, section_map)
+    ending_para = doc.add_paragraph()
+    ending_para.add_run("（以下无正文）")
+    apply_paragraph_template(ending_para, body_template)
+    ending_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_docx = output_dir / f"{template.stem}_{period_label}_自动生成_{timestamp}.docx"
