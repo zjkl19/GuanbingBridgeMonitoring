@@ -20,8 +20,10 @@ function analyze_temperature_points(root_dir, point_ids, start_date, end_date, e
     nPts = numel(point_ids);
     stats = cell(nPts,4);
 
-    dn0 = datenum(start_date,'yyyy-mm-dd');
-    dn1 = datenum(end_date,  'yyyy-mm-dd');
+    start_date_str = normalize_ymd_input(start_date);
+    end_date_str = normalize_ymd_input(end_date);
+    dn0 = datenum(start_date_str,'yyyy-mm-dd');
+    dn1 = datenum(end_date_str,  'yyyy-mm-dd');
     timestamp = datestr(now,'yyyymmdd_HHMMSS');
     outDir = fullfile(root_dir,'时程曲线_温度');
     if ~exist(outDir,'dir'), mkdir(outDir); end
@@ -29,7 +31,7 @@ function analyze_temperature_points(root_dir, point_ids, start_date, end_date, e
     for i = 1:nPts
         pid = point_ids{i};
         fprintf('Processing %s...\n', pid);
-        [all_time, all_val] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'temperature');
+        [all_time, all_val] = load_timeseries_range(root_dir, subfolder, pid, start_date_str, end_date_str, cfg, 'temperature');
         if isempty(all_val)
             warning('测点 %s 无数据，跳过', pid);
             continue;
@@ -48,11 +50,11 @@ function analyze_temperature_points(root_dir, point_ids, start_date, end_date, e
         ax.XTick = xt;
         xtickformat('yyyy-MM-dd');
         xlabel('时间'); ylabel(get_style_field(style,'ylabel','温度 (°C)'));
-                yl = resolve_named_ylim(get_style_field(style,'ylims', []), pid, get_style_field(style,'ylim', []));
-if is_truthy(get_style_field(style,'ylim_auto', false))
-    ylim auto;
-elseif is_valid_ylim(yl)
+        yl = resolve_named_ylim(get_style_field(style,'ylims', []), pid, get_style_field(style,'ylim', []));
+if is_valid_ylim(yl)
     ylim(yl);
+elseif is_truthy(get_style_field(style,'ylim_auto', false))
+    ylim auto;
 elseif ~isempty(get_style_field(style,'ylim', []))
     ylim(get_style_field(style,'ylim', []));
 else
@@ -72,6 +74,17 @@ title(sprintf('%s %s', get_style_field(style,'title_prefix','温度时程'), pid
     T = cell2table(stats,'VariableNames',{'PointID','Min','Max','Mean'});
     writetable(T,excel_file);
     fprintf('统计结果已保存至 %s\n',excel_file);
+end
+
+function out = normalize_ymd_input(value)
+    if isa(value, 'datetime')
+        out = datestr(value, 'yyyy-mm-dd');
+        return;
+    end
+    if isstring(value)
+        value = char(value);
+    end
+    out = value;
 end
 
 % helpers

@@ -17,18 +17,25 @@ function analyze_humidity_points(root_dir, point_ids, start_date, end_date, exce
     end
     if nargin<7||isempty(cfg),          cfg = load_config(); end
 
+    start_date_str = normalize_ymd_input(start_date);
+    end_date_str = normalize_ymd_input(end_date);
+
     style = get_style(cfg,'humidity');
     stats = cell(numel(point_ids),4);
     for i = 1:numel(point_ids)
         pid = point_ids{i}; fprintf('处理测点 %s ...\n', pid);
-        [times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'humidity');
+        [times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date_str, end_date_str, cfg, 'humidity');
         if isempty(vals)
             warning('测点 %s 无数据，跳过', pid); continue;
         end
-        plot_humidity_point_curve(times, vals, pid, root_dir, start_date, end_date, style);
-        mn = min(vals); mx = max(vals); av = round(mean(vals),1);
+        valid_vals = vals(~isnan(vals));
+        if isempty(valid_vals)
+            warning('Point %s contains only NaN values, skipping', pid); continue;
+        end
+        plot_humidity_point_curve(times, vals, pid, root_dir, start_date_str, end_date_str, style);
+        mn = min(valid_vals); mx = max(valid_vals); av = round(mean(valid_vals),1);
         stats{i,1} = pid; stats{i,2} = mn; stats{i,3} = mx; stats{i,4} = av;
-        plot_humidity_frequency(vals, pid, root_dir, start_date, end_date);
+        plot_humidity_frequency(valid_vals, pid, root_dir, start_date_str, end_date_str);
     end
     T = cell2table(stats,'VariableNames',{'PointID','Min','Max','Mean'});
     writetable(T, excel_file);
@@ -52,17 +59,19 @@ ax = gca;
 ax.XLim = [dt0 dt1]; ax.XTick = ticks;
 xtickformat('yyyy-MM-dd');
 hold on;
-avg_val = mean(vals);
-yl = yline(avg_val,'--r');
-yl.Label = sprintf('平均值 %.1f%%', avg_val);
-yl.LabelHorizontalAlignment = 'center';
-yl.LabelVerticalAlignment = 'bottom';
-yl.FontSize = 12;
+avg_val = mean(vals, 'omitnan');
+if ~isnan(avg_val)
+    yl = yline(avg_val,'--r');
+    yl.Label = sprintf('平均值 %.1f%%', avg_val);
+    yl.LabelHorizontalAlignment = 'center';
+    yl.LabelVerticalAlignment = 'bottom';
+    yl.FontSize = 12;
+end
 yl = resolve_named_ylim(get_style_field(style,'ylims', []), pid, get_style_field(style,'ylim', []));
-if is_truthy(get_style_field(style,'ylim_auto', false))
-    ylim auto;
-elseif is_valid_ylim(yl)
+if is_valid_ylim(yl)
     ylim(yl);
+elseif is_truthy(get_style_field(style,'ylim_auto', false))
+    ylim auto;
 elseif ~isempty(get_style_field(style,'ylim', []))
     ylim(get_style_field(style,'ylim', []));
 else
@@ -103,6 +112,17 @@ dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd');
 dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
 fname = sprintf('%s_freq_%s_%s', point_id, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
 save_plot_bundle(fig, outdir, [fname '_' timestamp]);
+end
+
+function out = normalize_ymd_input(value)
+    if isa(value, 'datetime')
+        out = datestr(value, 'yyyy-mm-dd');
+        return;
+    end
+    if isstring(value)
+        value = char(value);
+    end
+    out = value;
 end
 
 % helpers

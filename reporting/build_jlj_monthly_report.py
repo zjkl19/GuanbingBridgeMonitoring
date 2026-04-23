@@ -1498,9 +1498,12 @@ def build_wind_section(cfg: dict, result_root: Path, stats_root: Path, fallback_
         summary["Mean10minTime"] = row.get("Mean10minTime")
         summaries.append(summary)
 
-    max_speed = numeric_max(summaries, "MaxSpeed")
-    mean_speed = numeric_mean(summaries, "MeanSpeed")
-    max_10m = numeric_max(summaries, "Mean10minMax")
+    deck_point_id = "CSFSY-02-K16-QM-G20"
+    deck_summary = next((item for item in summaries if safe_text(item.get("PointID")) == deck_point_id), None)
+    source_rows = [deck_summary] if deck_summary is not None else summaries
+    max_speed = numeric_max(source_rows, "MaxSpeed")
+    mean_speed = numeric_mean(source_rows, "MeanSpeed")
+    max_10m = numeric_max(source_rows, "Mean10minMax")
     wind_limit = JLG_REPORT_LIMITS["wind_10min_avg_mps"]
     if max_10m is not None and max_10m <= wind_limit:
         limit_text = f"未超过{format_number_fixed(wind_limit, 0, 'm/s')}，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
@@ -1509,11 +1512,11 @@ def build_wind_section(cfg: dict, result_root: Path, stats_root: Path, fallback_
     else:
         limit_text = "暂不具备预警判定条件。"
     narrative = (
-        f"选取典型监测数据进行分析。主桥桥位平均风速约为{format_number(mean_speed, 2, 'm/s')}，"
+        f"选取典型监测数据进行分析。主桥桥面平均风速约为{format_number(mean_speed, 2, 'm/s')}，"
         f"瞬时最大风速为{format_number(max_speed, 2, 'm/s')}，"
         f"桥面10min平均风速最大值为{format_number(max_10m, 2, 'm/s')}，{limit_text}"
     )
-    summary = f"主桥桥位风速监测中，桥面10min平均风速最大值为{format_number(max_10m, 2, 'm/s')}，{limit_text}"
+    summary = f"主桥桥面风速监测中，桥面10min平均风速最大值为{format_number(max_10m, 2, 'm/s')}，{limit_text}"
     columns = [
         ("PointID", "测点编号", 22.0),
         ("DominantDir", "主导风向", 24.0),
@@ -1635,12 +1638,13 @@ def build_eq_section(result_root: Path, image_root: Path) -> SectionContent:
         table_rows=table_rows,
         figure_title="主桥地震动监测典型时程曲线图",
         image_items=image_items,
+        table_width_mm=None,
     )
 
 
 def build_traffic_section(wim_root: Path | None) -> SectionContent:
     if wim_root is None or not wim_root.exists():
-        return build_missing_section("本月未获取到车辆荷载监测结果，车辆荷载监测章节暂保留为待补充状态。")
+        return build_missing_section("本月未获取到车辆荷载监测结果。")
     narrative = "本月已检测到车辆荷载监测结果目录，后续将接入九龙江月报的车辆荷载统计与图表。"
     return SectionContent(
         narrative=narrative,
@@ -1670,13 +1674,13 @@ def build_deflection_section(cfg: dict, result_root: Path, stats_root: Path, fal
         expected_points,
         rows,
         orig_columns,
-        formatters=numeric_table_formatters(("OrigMin_mm", "OrigMax_mm", "OrigMean_mm"), 3),
+        formatters=numeric_table_formatters(("OrigMin_mm", "OrigMax_mm", "OrigMean_mm"), 1),
     )
     filt_table_rows = build_full_point_table_rows(
         expected_points,
         rows,
         filt_columns,
-        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm", "FiltMean_mm"), 3),
+        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm", "FiltMean_mm"), 1),
     )
     orig_lo = numeric_min(rows, "OrigMin_mm")
     orig_hi = numeric_max(rows, "OrigMax_mm")
@@ -1692,14 +1696,14 @@ def build_deflection_section(cfg: dict, result_root: Path, stats_root: Path, fal
         orig_images.append(ImageItem(pid, orig_path))
         filt_images.append(ImageItem(pid, filt_path))
     narrative = (
-        f"选取典型监测数据进行分析。主桥挠度原始数据监测值范围为{format_range(orig_lo, orig_hi, 3, 'mm')}，"
-        f"平均值约为{format_number(orig_mean, 3, 'mm')}；"
-        f"滤波后监测值范围为{format_range(filt_lo, filt_hi, 3, 'mm')}，"
-        f"平均值约为{format_number(filt_mean, 3, 'mm')}。"
+        f"选取典型监测数据进行分析。主桥挠度原始数据监测值范围为{format_range(orig_lo, orig_hi, 1, 'mm')}，"
+        f"平均值约为{format_number(orig_mean, 1, 'mm')}；"
+        f"滤波后监测值范围为{format_range(filt_lo, filt_hi, 1, 'mm')}，"
+        f"平均值约为{format_number(filt_mean, 1, 'mm')}。"
     )
     summary = (
-        f"主桥挠度原始数据监测值范围为{format_range(orig_lo, orig_hi, 3, 'mm')}；"
-        f"滤波后监测值范围为{format_range(filt_lo, filt_hi, 3, 'mm')}。"
+        f"主桥挠度原始数据监测值范围为{format_range(orig_lo, orig_hi, 1, 'mm')}；"
+        f"滤波后监测值范围为{format_range(filt_lo, filt_hi, 1, 'mm')}。"
     )
     return SectionContent(
         narrative=narrative,
@@ -2294,24 +2298,54 @@ def update_summary_table(doc: Document, section_map: dict[str, SectionContent]) 
     summary_table = doc.tables[2]
     result_lines = [
         "1、主桥环境与作用监测",
-        f"{section_map['main_env'].summary_sentence}{section_map['main_humidity'].summary_sentence}{section_map['main_rainfall'].summary_sentence}{section_map['main_wind'].summary_sentence}{section_map['main_eq'].summary_sentence}{section_map['main_traffic'].summary_sentence}",
+        "1.1 温度监测",
+        section_map["main_env"].summary_sentence,
+        "1.2 湿度监测",
+        section_map["main_humidity"].summary_sentence,
+        "1.3 雨量监测",
+        section_map["main_rainfall"].summary_sentence,
+        "1.4 风向风速监测",
+        section_map["main_wind"].summary_sentence,
+        "1.5 地震动监测",
+        section_map["main_eq"].summary_sentence,
+        "1.6 车辆荷载监测",
+        section_map["main_traffic"].summary_sentence,
         "2、主桥结构响应与结构变化监测",
-        f"{section_map['main_deflection'].summary_sentence}{section_map['main_bearing'].summary_sentence}{section_map['main_gnss'].summary_sentence}{section_map['main_vibration'].summary_sentence}{section_map['main_strain'].summary_sentence}{section_map['main_crack'].summary_sentence}{section_map['main_cable'].summary_sentence}",
+        "2.1 主梁挠度监测",
+        section_map["main_deflection"].summary_sentence,
+        "2.2 支座、梁段纵向位移监测",
+        section_map["main_bearing"].summary_sentence,
+        "2.3 拱顶、拱脚位移监测（GNSS）",
+        section_map["main_gnss"].summary_sentence,
+        "2.4 结构振动监测",
+        section_map["main_vibration"].summary_sentence,
+        "2.5 结构应变监测",
+        section_map["main_strain"].summary_sentence,
+        "2.6 裂缝监测",
+        section_map["main_crack"].summary_sentence,
+        "2.7 吊杆索力监测",
+        section_map["main_cable"].summary_sentence,
         "3、北江滨匝道桥监测",
-        f"{section_map['north_strain'].summary_sentence}{section_map['north_bearing'].summary_sentence}{section_map['north_tilt'].summary_sentence}",
+        "3.1 结构应变监测",
+        section_map["north_strain"].summary_sentence,
+        "3.2 支座位移监测",
+        section_map["north_bearing"].summary_sentence,
+        "3.3 墩柱倾斜监测",
+        section_map["north_tilt"].summary_sentence,
         "4、南江滨匝道桥监测",
-        f"{section_map['south_strain'].summary_sentence}{section_map['south_bearing'].summary_sentence}{section_map['south_tilt'].summary_sentence}",
+        "4.1 结构应变监测",
+        section_map["south_strain"].summary_sentence,
+        "4.2 支座位移监测",
+        section_map["south_bearing"].summary_sentence,
+        "4.3 墩柱倾斜监测",
+        section_map["south_tilt"].summary_sentence,
     ]
-    set_cell_paragraphs(summary_table.cell(0, 1), result_lines, bold_indices={0, 2, 4, 6})
-
-    suggestion_lines = [
-        "针对目前的监测状况，建议如下：",
-        "1、继续按月开展主桥与匝道桥监测数据的常态化分析与趋势跟踪；",
-        "2、对车辆荷载监测等尚未接入的月报内容，结合后续处理结果及时补充；",
-        "3、对原始数据缺测或异常波动测点持续跟踪，并结合后续运维记录复核原因；",
-        "4、在吊杆参数校核完成后，再对索力换算结果开展定量分析与预警复核。",
-    ]
-    set_cell_paragraphs(summary_table.cell(1, 1), suggestion_lines, bold_indices={0})
+    bold_indices = {0, 1, 3, 5, 7, 9, 11, 12, 13, 15, 17, 19, 21, 23, 25, 26, 27, 29, 31, 33, 34, 35, 37, 39}
+    set_cell_paragraphs(summary_table.cell(0, 1), result_lines, bold_indices=bold_indices)
+    if len(summary_table.rows) > 1:
+        for row in summary_table.rows[1:]:
+            for cell in row.cells:
+                set_cell_text_preserve(cell, "")
 
 
 def build_report(

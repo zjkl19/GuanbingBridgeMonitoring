@@ -136,6 +136,13 @@ Monthly reports use the monthly template and a single result directory.
 Period reports use the period template, a date range, and WIM monthly results.
 周期报使用周期报模板、起止日期以及 WIM 月结果。
 
+Jiulongjiang monthly reports use a dedicated builder and logic path instead of the Hongtang monthly-report pipeline.
+九龙江月报使用独立的生成脚本和专用逻辑，不复用洪塘月报第 4 章/结论页装配逻辑。
+
+```powershell
+python reporting/build_jlj_monthly_report.py --template <template.docx> --config config/jiulongjiang_config.json --result-root <data-root>
+```
+
 Default period-report template.
 默认周期报模板。
 
@@ -146,6 +153,11 @@ For period reports, section `1.4 健康监测系统运行状况` only counts raw
 
 See `reporting/README.md` for report GUI details.
 报告 GUI 细节见 `reporting/README.md`。
+
+## Runtime Notes / 运行说明
+
+Parallel analysis is now disabled by default to avoid memory exhaustion on large datasets.
+当前默认关闭并行分析，以避免大数据量场景下的内存溢出。
 
 ## WIM SQL Troubleshooting / WIM SQL 故障排查
 

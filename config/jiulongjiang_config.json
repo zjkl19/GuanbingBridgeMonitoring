@@ -1461,7 +1461,18 @@
       "ylim": [
         0,
         40
-      ]
+      ],
+      "ylim_auto": true,
+      "ylims": {
+        "JGWD-01-K16-ZFQM-G20": [
+          0,
+          100
+        ],
+        "WSDJ-04-K16-QM-G20": [
+          0,
+          100
+        ]
+      }
     },
     "humidity": {
       "ylabel": "相对湿度 (%)",
