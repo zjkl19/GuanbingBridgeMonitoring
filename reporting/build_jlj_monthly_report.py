@@ -765,6 +765,7 @@ def set_cell_paragraphs(cell, lines: list[str], bold_indices: set[int] | None = 
             para.add_run("")
         for run in para.runs:
             run.text = ""
+            run.bold = False
         para.runs[0].text = text
         para.runs[0].bold = idx in bold_indices
 
@@ -2192,11 +2193,13 @@ def build_section_map(cfg: dict, stats_root: Path, fallback_root: Path | None, r
 def find_caption_templates(doc: Document) -> CaptionTemplates:
     figure_para = None
     table_para = None
+    figure_token = "SEQ " + "\u56fe"
+    table_token = "SEQ " + "\u8868"
     for para in doc.paragraphs:
-        text = para.text.strip()
-        if figure_para is None and text.startswith("图 1-1"):
+        fields = "".join(node.text or "" for node in para._p.iter() if node.tag.endswith("}instrText"))
+        if figure_para is None and figure_token in fields:
             figure_para = para
-        if table_para is None and text.startswith("表 1-1"):
+        if table_para is None and table_token in fields:
             table_para = para
         if figure_para is not None and table_para is not None:
             break
@@ -2340,12 +2343,11 @@ def update_summary_table(doc: Document, section_map: dict[str, SectionContent]) 
         "4.3 墩柱倾斜监测",
         section_map["south_tilt"].summary_sentence,
     ]
-    bold_indices = {0, 1, 3, 5, 7, 9, 11, 12, 13, 15, 17, 19, 21, 23, 25, 26, 27, 29, 31, 33, 34, 35, 37, 39}
+    bold_indices = {
+        idx for idx, line in enumerate(result_lines)
+        if re.match(r"^\d+、", line) or re.match(r"^\d+\.\d+\s", line)
+    }
     set_cell_paragraphs(summary_table.cell(0, 1), result_lines, bold_indices=bold_indices)
-    if len(summary_table.rows) > 1:
-        for row in summary_table.rows[1:]:
-            for cell in row.cells:
-                set_cell_text_preserve(cell, "")
 
 
 def build_report(
@@ -2382,7 +2384,7 @@ def build_report(
     ending_para = doc.add_paragraph()
     ending_para.add_run("（以下无正文）")
     apply_paragraph_template(ending_para, body_template)
-    ending_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    ending_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_docx = output_dir / f"{template.stem}_{period_label}_自动生成_{timestamp}.docx"
