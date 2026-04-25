@@ -86,6 +86,24 @@
       "EdgeTrimSec": 5,
       "post_filter_thresholds": []
     },
+    "dynamic_strain_lowpass": {
+      "Fs": 20,
+      "Fc": null,
+      "CutoffPeriodMinutes": 60,
+      "FilterOrder": 2,
+      "Whisker": 300,
+      "ShowOutliers": false,
+      "YLimManual": false,
+      "YLimRange": [
+        -150,
+        150
+      ],
+      "LowerBound": -150,
+      "UpperBound": 150,
+      "EdgeTrimSec": 5,
+      "MaxGapSec": null,
+      "post_filter_thresholds": []
+    },
     "cable_accel": {
       "thresholds": [],
       "zero_to_nan": false
@@ -1542,6 +1560,24 @@
         "GB-RSG-G06-001-06"
       ]
     },
+    "dynamic_strain_lowpass": {
+      "G05": [
+        "GB-RSG-G05-001-01",
+        "GB-RSG-G05-001-02",
+        "GB-RSG-G05-001-03",
+        "GB-RSG-G05-001-04",
+        "GB-RSG-G05-001-05",
+        "GB-RSG-G05-001-06"
+      ],
+      "G06": [
+        "GB-RSG-G06-001-01",
+        "GB-RSG-G06-001-02",
+        "GB-RSG-G06-001-03",
+        "GB-RSG-G06-001-04",
+        "GB-RSG-G06-001-05",
+        "GB-RSG-G06-001-06"
+      ]
+    },
     "tilt": {
       "X": [
         "GB-DIS-P04-001-01-X",
@@ -1794,6 +1830,22 @@
       "ylabel": "主梁应变 (με)",
       "title_prefix": "应变时程曲线",
       "show_boxplot_outliers": false
+    },
+    "dynamic_strain": {
+      "ylims": {
+        "G05": [
+          -30,
+          30
+        ],
+        "G06": [
+          -30,
+          30
+        ]
+      }
+    },
+    "dynamic_strain_lowpass": {
+      "ylim_auto": true,
+      "ylims": {}
     },
     "tilt": {
       "colors_3": [
@@ -2077,7 +2129,42 @@
     "UpperBound": 30,
     "EdgeTrimSec": 5
   },
+  "defaults_dynamic_strain_lowpass": {
+    "Fs": 20,
+    "Fc": null,
+    "CutoffPeriodMinutes": 60,
+    "FilterOrder": 2,
+    "Whisker": 300,
+    "ShowOutliers": false,
+    "YLimManual": false,
+    "YLimRange": [
+      -150,
+      150
+    ],
+    "LowerBound": -150,
+    "UpperBound": 150,
+    "EdgeTrimSec": 5,
+    "MaxGapSec": null
+  },
   "groups_dynamic_strain": {
+    "G05": [
+      "GB-RSG-G05-001-01",
+      "GB-RSG-G05-001-02",
+      "GB-RSG-G05-001-03",
+      "GB-RSG-G05-001-04",
+      "GB-RSG-G05-001-05",
+      "GB-RSG-G05-001-06"
+    ],
+    "G06": [
+      "GB-RSG-G06-001-01",
+      "GB-RSG-G06-001-02",
+      "GB-RSG-G06-001-03",
+      "GB-RSG-G06-001-04",
+      "GB-RSG-G06-001-05",
+      "GB-RSG-G06-001-06"
+    ]
+  },
+  "groups_dynamic_strain_lowpass": {
     "G05": [
       "GB-RSG-G05-001-01",
       "GB-RSG-G05-001-02",
@@ -2106,6 +2193,10 @@
         30
       ]
     }
+  },
+  "plot_styles_dynamic_strain_lowpass": {
+    "ylim_auto": true,
+    "ylims": {}
   },
   "wind_params": {
     "speed_bins": [

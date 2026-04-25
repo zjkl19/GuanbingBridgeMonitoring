@@ -192,10 +192,10 @@ if opts.doStrain && ~should_stop()
 end
 
 if isfield(opts,'doDynStrainBoxplot') && opts.doDynStrainBoxplot && ~should_stop()
-    results{end+1} = run_step('动应变箱线图', @() analyze_dynamic_strain_boxplot( ...
+    results{end+1} = run_step('动应变分析（高通+含箱线图）', @() analyze_dynamic_strain_boxplot( ...
         root, start_date, end_date, ...
         'Subfolder',   sub.strain, ...                 % folder: root>\YYYY-MM-DD\特征值\*.csv
-        'OutputDir',   '箱线图结果_高通滤波', ...     % output root
+        'OutputDir',   '动应变箱线图_高通滤波', ...   % output root
         'Fs',          20, ...                       % sample rate: 20 Hz
         'Fc',          0.1, ...                      % high-pass cutoff: 0.1 Hz
         'Whisker',     300, ...                      % boxplot whisker control
@@ -205,6 +205,13 @@ if isfield(opts,'doDynStrainBoxplot') && opts.doDynStrainBoxplot && ~should_stop
         'LowerBound',  -150, ...                     % remove outliers threshold (NaN)
         'UpperBound',   30, ...
         'EdgeTrimSec',   5 ...                       % trim edges after filtfilt (seconds)
+        ));
+end
+
+if isfield(opts,'doDynStrainLowpassBoxplot') && opts.doDynStrainLowpassBoxplot && ~should_stop()
+    results{end+1} = run_step('动应变分析（低通+含箱线图）', @() analyze_dynamic_strain_lowpass_boxplot( ...
+        root, start_date, end_date, ...
+        'Subfolder', sub.strain ...
         ));
 end
 

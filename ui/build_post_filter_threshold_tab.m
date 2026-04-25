@@ -320,7 +320,7 @@ function [tableRef, rowIdx, startCol, endCol] = get_selected_time_target(defTabl
 end
 
 function sensorList = list_supported_sensors(cfg)
-    supported = {'deflection', 'bearing_displacement', 'dynamic_strain'};
+    supported = {'deflection', 'bearing_displacement', 'dynamic_strain', 'dynamic_strain_lowpass'};
     sensorList = {};
     if isfield(cfg, 'defaults') && isstruct(cfg.defaults)
         defaultsFields = fieldnames(cfg.defaults);

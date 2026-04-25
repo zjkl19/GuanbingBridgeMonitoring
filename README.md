@@ -66,6 +66,8 @@ Current MATLAB workflow supports the commonly used monitoring modules below.
 - Acceleration / 加速度
 - Cable acceleration / 索力加速度
 - Strain / 应变
+- Dynamic strain high-pass / 动应变分析（高通+含箱线图）
+- Dynamic strain low-pass / 动应变分析（低通+含箱线图）
 - Crack / 裂缝
 - Wind / 风速风向
 - Earthquake / 地震动

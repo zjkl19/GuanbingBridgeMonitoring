@@ -76,13 +76,14 @@ function run_gui()
     cbStrain = uicheckbox(gl,'Text','应变','Value',false);   cbStrain.Layout.Row=7; cbStrain.Layout.Column=4;
     cbCableAccel = uicheckbox(gl,'Text','索力加速度','Value',false); cbCableAccel.Layout.Row=8; cbCableAccel.Layout.Column=1;
     cbCableSpec  = uicheckbox(gl,'Text','索力加速度频谱','Value',false); cbCableSpec.Layout.Row=8; cbCableSpec.Layout.Column=2;
-    cbDynBox = uicheckbox(gl,'Text','动应变箱线图','Value',false); cbDynBox.Layout.Row=8; cbDynBox.Layout.Column=3;
+    cbDynBox = uicheckbox(gl,'Text','动应变分析（高通+含箱线图）','Value',false); cbDynBox.Layout.Row=8; cbDynBox.Layout.Column=3;
     cbWind = uicheckbox(gl,'Text','风速风向','Value',false); cbWind.Layout.Row=8; cbWind.Layout.Column=4;
     cbEq = uicheckbox(gl,'Text','地震动','Value',false); cbEq.Layout.Row=9; cbEq.Layout.Column=1;
     cbWim = uicheckbox(gl,'Text','WIM','Value',false); cbWim.Layout.Row=9; cbWim.Layout.Column=2;
     cbBearing = uicheckbox(gl,'Text','支座位移','Value',false); cbBearing.Layout.Row=9; cbBearing.Layout.Column=3;
     cbRainfall = uicheckbox(gl,'Text','雨量','Value',false); cbRainfall.Layout.Row=9; cbRainfall.Layout.Column=4;
     cbGNSS = uicheckbox(gl,'Text','GNSS','Value',false); cbGNSS.Layout.Row=10; cbGNSS.Layout.Column=1;
+    cbDynLowpass = uicheckbox(gl,'Text','动应变分析（低通+含箱线图）','Value',false); cbDynLowpass.Layout.Row=10; cbDynLowpass.Layout.Column=2;
 
     lblLog = uilabel(gl,'Text','日志目录:','HorizontalAlignment','right'); lblLog.Layout.Row=11; lblLog.Layout.Column=1;
     logEdit = uieditfield(gl,'text','Value',defaultLogDir); logEdit.Layout.Row=11; logEdit.Layout.Column=[2 3];
@@ -178,7 +179,7 @@ function run_gui()
             warnCleanup = onCleanup(@() restore_warnings(warnState, btState)); %#ok<NASGU>
             opts = struct('precheck_zip_count',cbPrecheck.Value,'doUnzip',cbUnzip.Value,'doRenameCsv',cbRename.Value,'doRemoveHeader',cbRmHeader.Value,'doResample',cbResample.Value, ...
                 'doTemp',cbTemp.Value,'doHumidity',cbHum.Value,'doRainfall',cbRainfall.Value,'doGNSS',cbGNSS.Value,'doWind',cbWind.Value,'doEq',cbEq.Value,'doWIM',cbWim.Value,'doDeflect',cbDef.Value,'doBearingDisplacement',cbBearing.Value,'doTilt',cbTilt.Value,'doAccel',cbAccel.Value,'doAccelSpectrum',cbSpec.Value,'doCableAccel',cbCableAccel.Value,'doCableAccelSpectrum',cbCableSpec.Value, ...
-                'doRenameCrk',false,'doCrack',cbCrack.Value,'doStrain',cbStrain.Value,'doDynStrainBoxplot',cbDynBox.Value);
+                'doRenameCrk',false,'doCrack',cbCrack.Value,'doStrain',cbStrain.Value,'doDynStrainBoxplot',cbDynBox.Value,'doDynStrainLowpassBoxplot',cbDynLowpass.Value);
             root = rootEdit.Value; start_date = datestr(startPicker.Value,'yyyy-mm-dd'); end_date = datestr(endPicker.Value,'yyyy-mm-dd');
             logEdit.Value = fullfile(root, 'run_logs');
             if exist(logEdit.Value,'dir')==0, mkdir(logEdit.Value); end
@@ -192,7 +193,7 @@ function run_gui()
             end
             save_last_preset(struct('root',root,'start_date',start_date,'end_date',end_date,'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value), ...
                 'preproc',struct('precheck',cbPrecheck.Value,'unzip',cbUnzip.Value,'rename',cbRename.Value,'rmheader',cbRmHeader.Value,'resample',cbResample.Value), ...
-                'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'rainfall',cbRainfall.Value,'gnss',cbGNSS.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value)));
+                'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'rainfall',cbRainfall.Value,'gnss',cbGNSS.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value,'dynlowpass',cbDynLowpass.Value)));
             addLog(sprintf('root=%s, %s -> %s', root, start_date, end_date));
             run_all(root, start_date, end_date, opts, cfg);
             elapsed = toc(t0);
@@ -209,7 +210,7 @@ function run_gui()
     end
     function onSavePreset()
         preset = struct('root',rootEdit.Value,'start_date',datestr(startPicker.Value,'yyyy-MM-dd'),'end_date',datestr(endPicker.Value,'yyyy-MM-dd'), ...
-            'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value),'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'rainfall',cbRainfall.Value,'gnss',cbGNSS.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value));
+            'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value),'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'rainfall',cbRainfall.Value,'gnss',cbGNSS.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value,'dynlowpass',cbDynLowpass.Value));
         [fname,fpath] = uiputfile('*.json','保存预设','preset.json'); if isequal(fname,0), return; end
         fid=fopen(fullfile(fpath,fname),'wt'); if fid<0, addLog('预设保存失败'); return; end
         fwrite(fid,jsonencode(preset),'char'); fclose(fid); addLog(['预设已保存: ' fullfile(fpath,fname)]);
@@ -219,7 +220,7 @@ function run_gui()
         preset = jsondecode(fileread(fullfile(fpath,fname))); apply_preset(preset); addLog(['预设已加载: ' fullfile(fpath,fname)]);
     end
     function onSelectAll(cb)
-        targets = [cbPrecheck, cbUnzip, cbRename, cbRmHeader, cbResample, cbTemp, cbHum, cbRainfall, cbGNSS, cbWind, cbEq, cbWim, cbBearing, cbDef, cbTilt, cbAccel, cbSpec, cbCableAccel, cbCableSpec, cbCrack, cbStrain, cbDynBox];
+        targets = [cbPrecheck, cbUnzip, cbRename, cbRmHeader, cbResample, cbTemp, cbHum, cbRainfall, cbGNSS, cbWind, cbEq, cbWim, cbBearing, cbDef, cbTilt, cbAccel, cbSpec, cbCableAccel, cbCableSpec, cbCrack, cbStrain, cbDynBox, cbDynLowpass];
         for i=1:numel(targets), targets(i).Value = cb.Value; end
     end
     function apply_preset(preset)
@@ -256,6 +257,7 @@ function run_gui()
             if isfield(m,'crack'),    cbCrack.Value  = m.crack; end
             if isfield(m,'strain'),   cbStrain.Value = m.strain; end
             if isfield(m,'dynbox'),   cbDynBox.Value = m.dynbox; end
+            if isfield(m,'dynlowpass'), cbDynLowpass.Value = m.dynlowpass; end
         end
     end
     function save_last_preset(preset)
