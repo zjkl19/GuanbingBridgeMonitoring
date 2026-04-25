@@ -32,6 +32,16 @@ Or run the Python GUI directly.
 reporting/.venv/Scripts/python reporting/report_gui.py
 ```
 
+Build a standardized report-builder release package.
+生成标准化报告生成器发布包。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/package_report_builder.ps1
+```
+
+The release package is written under `archive/` and includes `VERSION.txt`, templates, README files, `BridgeReportBuilder.exe`, and `_internal/`.
+发布包输出到 `archive/`，包含 `VERSION.txt`、模板、README、`BridgeReportBuilder.exe` 和 `_internal/`。
+
 ## Repository Layout / 仓库结构
 
 - `analysis/` MATLAB analysis modules / MATLAB 分析模块

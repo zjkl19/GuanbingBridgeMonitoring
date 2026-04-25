@@ -23,10 +23,36 @@ BridgeReportBuilder/
     九龙江大桥健康监测2026年3月份月报_修订5.docx
   README.md
   REPORTING_LOGIC.md
+  VERSION.txt
 ```
 
 Keep `BridgeReportBuilder.exe` and `_internal/` together.
 `BridgeReportBuilder.exe` 和 `_internal/` 必须一起保留。
+
+Build a standardized release package from the repository root.
+在仓库根目录执行以下命令生成标准发布包。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\package_report_builder.ps1
+```
+
+The package script runs Python unit tests, report smoke precheck, exe packaging, required-file validation, and writes `VERSION.txt`.
+该脚本会运行 Python 单元测试、报告冒烟预检、exe 打包、必需文件校验，并写入 `VERSION.txt`。
+
+Production update procedure.
+生产机更新流程。
+
+1. Extract the generated `BridgeReportBuilder_vX.Y.Z_YYYYMMDD_HHMMSS.zip`.
+2. Replace the old `BridgeReportBuilder` directory as a whole.
+3. Do not overwrite production `config/` files unless explicitly intended.
+4. Keep data and generated reports under the data/result root.
+5. Start the GUI and click `检查模板/目录` before generation.
+
+1. 解压生成的 `BridgeReportBuilder_vX.Y.Z_YYYYMMDD_HHMMSS.zip`。
+2. 整体替换旧的 `BridgeReportBuilder` 目录。
+3. 不要覆盖生产机 `config/`，除非明确要同步配置。
+4. 数据和生成报告仍放在数据/结果根目录。
+5. 打开 GUI 后先点击 `检查模板/目录`。
 
 ## Data Root / 数据根目录
 
