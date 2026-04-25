@@ -15,6 +15,7 @@ if (-not (Test-Path $PythonExe)) {
   --noconfirm `
   --clean `
   --noconsole `
+  --icon reporting\assets\BridgeReportBuilder.ico `
   --name BridgeReportBuilder `
   --distpath reporting\dist `
   --workpath reporting\build `
