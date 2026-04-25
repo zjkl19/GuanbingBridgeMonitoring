@@ -162,6 +162,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.6.2`: writes missing-content txt/xlsx summaries next to generated reports.
+- `v1.6.2`：在生成报告同目录输出缺失内容 txt/xlsx 清单。
 - `v1.6.1`: writes txt/json template precheck reports and keeps the custom exe icon in packaged builds.
 - `v1.6.1`：输出 txt/json 模板预检报告，并在打包 exe 中保留自定义图标。
 - `v1.6.0`: separates Hongtang monthly, Hongtang period, and Jiulongjiang monthly modes; adds clearer report-type hints and stronger result-directory checks.

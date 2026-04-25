@@ -19,6 +19,8 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+from missing_summary import write_missing_summary
+
 
 @dataclass
 class ImageItem:
@@ -1728,6 +1730,12 @@ def build_report(
     output_docx = output_dir / f"{template.stem}_自动生成_{timestamp}.docx"
     doc.save(str(output_docx))
     missing = summarize_missing_images(manifest)
+    write_missing_summary(
+        "洪塘月报",
+        output_docx,
+        missing,
+        context={"manifest": str(manifest_path), "result_root": str(result_root or "")},
+    )
     return manifest_path, output_docx, missing
 
 

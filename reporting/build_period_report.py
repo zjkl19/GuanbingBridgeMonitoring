@@ -40,6 +40,7 @@ from build_quarterly_wim_sample import (
     style_table,
 )
 from template_precheck import raise_for_template
+from missing_summary import write_missing_summary
 
 
 LOWFREQ_MODULES = {
@@ -909,6 +910,12 @@ def build_period_report(
     missing = summarize_missing_images(manifest) + summarize_missing_wim_images(manifest["wim"])
     warnings = manifest["wim"].get("warnings", [])
     missing.extend(f"warning:{msg}" for msg in warnings)
+    write_missing_summary(
+        "洪塘周期报",
+        output_docx,
+        missing,
+        context={"manifest": str(manifest_path), "result_root": str(result_root), "wim_root": str(wim_root or "")},
+    )
     return manifest_path, output_docx, missing
 
 

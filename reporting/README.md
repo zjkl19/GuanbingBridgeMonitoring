@@ -159,8 +159,8 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
-Version `v1.6.1` separates report modes explicitly and writes template precheck reports.
-版本 `v1.6.1` 已明确拆分报告类型，并会输出模板预检报告。
+Version `v1.6.2` separates report modes explicitly, writes template precheck reports, and writes missing-content summaries after generation.
+版本 `v1.6.2` 已明确拆分报告类型，会输出模板预检报告，并在生成后输出缺失内容清单。
 
 1. Select report type first: `洪塘月报`, `洪塘周期报（含WIM）`, or `九龙江月报`.
 2. Confirm the auto-switched template, config, and data/result root.
@@ -189,6 +189,7 @@ Report mode notes.
 
 - Report document / 报告文档: `<result-root>/自动报告/`
 - Precheck reports / 模板预检报告: `<result-root>/自动报告/precheck/`
+- Missing-content summaries / 缺失内容清单: next to the generated report as `*_missing_summary.txt` and `*_missing_summary.xlsx`
 - Stats workbooks / 统计表: `<result-root>/stats/`
 - Run logs / 运行日志: `<result-root>/run_logs/`
 - WIM monthly results / WIM 月结果: `<result-root>/WIM/results/hongtang/<yyyymm>/`
@@ -212,6 +213,14 @@ python reporting\template_precheck.py `
 
 python reporting\smoke_report_generation.py --kind all
 ```
+
+## Missing Content Summary / 缺失内容清单
+
+After a report is generated, the builder writes a txt and an xlsx summary next to the generated docx.
+报告生成后，程序会在生成的 docx 同目录输出 txt 和 xlsx 缺失内容清单。
+
+The summary lists sections with no effective data, missing images/resources, and WIM warnings.
+清单会列出无有效数据章节、缺失图片/资源和 WIM 警告。
 
 ## WIM SQL Troubleshooting / WIM SQL 故障排查
 

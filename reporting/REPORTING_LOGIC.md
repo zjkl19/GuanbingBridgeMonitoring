@@ -65,3 +65,6 @@ Run `检查模板/目录` in the GUI or `python reporting/template_precheck.py -
 
 Precheck reports are written as txt/json files and list missing headings, table captions, figure-caption anchors, and auto-number fields.
 预检报告会输出 txt/json，列出缺失的标题、表题、图题锚点和自动编号域。
+
+After generation, the report builder writes `*_missing_summary.txt` and `*_missing_summary.xlsx` next to the generated docx.
+报告生成后，程序会在生成的 docx 同目录输出 `*_missing_summary.txt` 和 `*_missing_summary.xlsx`。

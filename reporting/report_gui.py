@@ -28,13 +28,14 @@ from PySide6.QtWidgets import (
 from build_jlj_monthly_report import build_report as build_jlj_monthly_report
 from build_monthly_report import build_report as build_hongtang_monthly_report
 from build_period_report import build_period_report
+from missing_summary import missing_summary_paths
 from template_precheck import TemplateIssue, check_template, write_precheck_report
 
 
 MONTHLY_REPORT = "\u6d2a\u5858\u6708\u62a5"
 PERIOD_REPORT = "\u6d2a\u5858\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
 JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
-APP_VERSION = "v1.6.1"
+APP_VERSION = "v1.6.2"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx"
@@ -174,7 +175,7 @@ def report_type_description(report_type: str) -> str:
 
 class ReportWorker(QObject):
     log = Signal(str)
-    finished = Signal(str, str)
+    finished = Signal(str, str, str)
     failed = Signal(str)
 
     def __init__(
@@ -263,8 +264,13 @@ class ReportWorker(QObject):
                 self.log.emit("\u8b66\u544a/\u7f3a\u5931\u8d44\u6e90:")
                 for item in missing:
                     self.log.emit(f"  - {item}")
+            summary_files = [path for path in missing_summary_paths(report_path) if path.exists()]
+            if summary_files:
+                self.log.emit("\u7f3a\u5931\u5185\u5bb9\u6e05\u5355:")
+                for path in summary_files:
+                    self.log.emit(f"  - {path}")
             self.log.emit("\u5b8c\u6210")
-            self.finished.emit(str(manifest_path or ""), str(report_path))
+            self.finished.emit(str(manifest_path or ""), str(report_path), "\n".join(str(path) for path in summary_files))
         except Exception as exc:  # noqa: BLE001
             self.log.emit("\u751f\u6210\u5931\u8d25")
             self.log.emit(str(exc))
@@ -830,12 +836,14 @@ class ReportGui(QMainWindow):
         self._thread.finished.connect(self._cleanup_thread)
         self._thread.start()
 
-    def _on_finished(self, manifest_path: str, report_path: str) -> None:
+    def _on_finished(self, manifest_path: str, report_path: str, summary_paths: str) -> None:
         self._last_output_dir = Path(report_path).parent
         self._set_busy(False)
         message = f"\u62a5\u544a\u5df2\u751f\u6210:\n{report_path}"
         if manifest_path:
             message += f"\n\nManifest:\n{manifest_path}"
+        if summary_paths:
+            message += f"\n\n\u7f3a\u5931\u5185\u5bb9\u6e05\u5355:\n{summary_paths}"
         QMessageBox.information(self, "\u5b8c\u6210", message)
 
     def _on_failed(self, message: str) -> None:

@@ -23,6 +23,7 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+from missing_summary import write_missing_summary
 from template_precheck import raise_for_template
 
 
@@ -2353,6 +2354,49 @@ def update_summary_table(doc: Document, section_map: dict[str, SectionContent]) 
     set_cell_paragraphs(summary_table.cell(0, 1), result_lines, bold_indices=bold_indices)
 
 
+def collect_missing_items(section_map: dict[str, SectionContent]) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    labels = {
+        key: f"{number} {parent} - {child}"
+        for key, parent, child, number in JLG_MONTHLY_SECTIONS
+    }
+    for key, content in section_map.items():
+        section_label = labels.get(key, key)
+        if not content.available:
+            items.append(
+                {
+                    "category": "章节内容缺失",
+                    "section": section_label,
+                    "item": key,
+                    "detail": content.summary_sentence or content.narrative or "本月未获取到有效数据。",
+                    "severity": "warning",
+                    "source": key,
+                }
+            )
+            continue
+
+        image_items: list[ImageItem] = []
+        if content.image_items:
+            image_items.extend(content.image_items)
+        for block in content.blocks or []:
+            if block.image_items:
+                image_items.extend(block.image_items)
+        for image_item in image_items:
+            if image_item.path is not None and image_item.path.exists():
+                continue
+            items.append(
+                {
+                    "category": "图表/资源缺失",
+                    "section": section_label,
+                    "item": image_item.label,
+                    "detail": "报告生成时未找到对应图片。",
+                    "severity": "warning",
+                    "source": str(image_item.path or ""),
+                }
+            )
+    return items
+
+
 def build_report(
     template: Path,
     config_path: Path,
@@ -2397,6 +2441,13 @@ def build_report(
     output_docx = output_dir / f"{template.stem}_{period_label}_自动生成_{timestamp}.docx"
     doc.save(str(output_docx))
     update_fields_with_word(output_docx)
+    missing_items = collect_missing_items(section_map)
+    write_missing_summary(
+        "九龙江月报",
+        output_docx,
+        missing_items,
+        context={"result_root": str(result_root), "image_root": str(image_root), "wim_root": str(wim_root or "")},
+    )
     return output_docx
 
 
