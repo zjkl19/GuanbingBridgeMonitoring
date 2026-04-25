@@ -34,7 +34,7 @@ from template_precheck import TemplateIssue, check_template
 MONTHLY_REPORT = "\u6d2a\u5858\u6708\u62a5"
 PERIOD_REPORT = "\u6d2a\u5858\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
 JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
-APP_VERSION = "v1.5.9"
+APP_VERSION = "v1.6.0"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx"
@@ -162,6 +162,14 @@ def top_help_text() -> str:
         "\u56e0\u6b64\u5468\u671f\u62a5\u6240\u9009\u7684\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55\uff0c\u5e94\u540c\u65f6\u5305\u542b\u539f\u59cb\u6570\u636e\u548c\u5904\u7406\u7ed3\u679c\u3002\n"
         "\u7a0b\u5e8f\u6839\u76ee\u5f55\uff08\u9ad8\u7ea7\uff09\uff1a\u4e3b\u8981\u7528\u4e8e\u517c\u5bb9\u65e7\u8def\u5f84\u548c\u56de\u9000\u67e5\u627e\uff0c\u901a\u5e38\u4fdd\u6301\u7a0b\u5e8f\u6240\u5728\u76ee\u5f55\u5373\u53ef\u3002"
     )
+
+
+def report_type_description(report_type: str) -> str:
+    if report_type == PERIOD_REPORT:
+        return "\u6d2a\u5858\u5468\u671f\u62a5\uff1a\u4f7f\u7528\u6d2a\u5858\u5468\u671f/\u5b63\u62a5\u6a21\u677f\uff0c\u6309\u65e5\u671f\u8303\u56f4\u7ec4\u88c5\u975e WIM \u7ed3\u679c\uff0cWIM \u6309\u6708\u4ece WIM/results/hongtang \u63d2\u5165\uff0c\u5e76\u7edf\u8ba1 1.4 \u539f\u59cb\u6570\u636e\u7f3a\u5931\u3002"
+    if report_type == JLJ_MONTHLY_REPORT:
+        return "\u4e5d\u9f99\u6c5f\u6708\u62a5\uff1a\u4f7f\u7528\u4e5d\u9f99\u6c5f\u72ec\u7acb\u751f\u6210\u903b\u8f91\uff0c\u6309\u4e3b\u6865/\u5317\u6c5f\u6ee8\u531d\u9053/\u5357\u6c5f\u6ee8\u531d\u9053\u7ae0\u8282\u7ec4\u88c5\u7b2c 4 \u7ae0\u548c\u7ed3\u8bba\u9875\u3002"
+    return "\u6d2a\u5858\u6708\u62a5\uff1a\u4f7f\u7528\u65e7\u6d2a\u5858\u6708\u62a5\u6a21\u677f\u548c\u6708\u62a5\u751f\u6210\u6d41\u7a0b\uff0c\u9002\u7528\u5355\u6708\u5df2\u8ba1\u7b97\u597d\u7684\u7ed3\u679c\u76ee\u5f55\u3002"
 
 
 class ReportWorker(QObject):
@@ -303,6 +311,7 @@ class ReportGui(QMainWindow):
         self.report_type_combo = QComboBox()
         self.report_type_combo.addItems([MONTHLY_REPORT, PERIOD_REPORT, JLJ_MONTHLY_REPORT])
         self.report_type_combo.setCurrentText(PERIOD_REPORT)
+        self.report_type_desc_label: QLabel | None = None
         self.template_edit = QLineEdit(str(find_default_template(PERIOD_REPORT)))
         self.config_edit = QLineEdit(str(detect_default_config(PERIOD_REPORT)))
         self.result_root_edit = QLineEdit(str(initial_result_root))
@@ -316,7 +325,7 @@ class ReportGui(QMainWindow):
         self.date_edit = QLineEdit(datetime.now().strftime("%Y\u5e74%m\u6708%d\u65e5"))
 
         rows = [
-            ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, "\u6d2a\u5858\u6708\u62a5\u3001\u6d2a\u5858\u5468\u671f\u62a5\uff08\u542bWIM\uff09\u6216\u4e5d\u9f99\u6c5f\u6708\u62a5\u3002\u5207\u6362\u540e\u4f1a\u81ea\u52a8\u5207\u6362\u9ed8\u8ba4\u6a21\u677f\u548c\u914d\u7f6e\u3002"),
+            ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, report_type_description(PERIOD_REPORT)),
             ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6d2a\u5858\u6708\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u6d2a\u5858\u5468\u671f\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\uff1b\u4e5d\u9f99\u6c5f\u6708\u62a5\uff1a\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx\u3002"),
             ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "\u6d2a\u5858\u4f18\u5148\u8bfb\u53d6\u673a\u5668\u4e13\u7528\u914d\u7f6e hongtang_config_<COMPUTERNAME>.json\uff1b\u4e5d\u9f99\u6c5f\u9ed8\u8ba4\u4f7f\u7528 jiulongjiang_config.json\u3002"),
             ("\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55", self.result_root_edit, self._browse_result_root, "\u8fd9\u91cc\u5e94\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\u5bf9\u5468\u671f\u62a5\uff0c\u8fd9\u4e2a\u76ee\u5f55\u6700\u597d\u540c\u65f6\u5305\u542b raw \u539f\u59cb\u6570\u636e\uff0c\u5426\u5219 1.4 \u7ae0\u8282\u4f1a\u5c06\u7f3a\u5c11\u539f\u59cb\u6570\u636e\u89c6\u4e3a\u7f3a\u5931\u3002"),
@@ -344,6 +353,8 @@ class ReportGui(QMainWindow):
             tip_label.setWordWrap(True)
             tip_label.setStyleSheet("QLabel { color: #6b7280; font-size: 12px; }")
             grid.addWidget(tip_label, base_row + 1, 1, 1, 2)
+            if edit is self.report_type_combo:
+                self.report_type_desc_label = tip_label
 
         self.report_type_combo.currentTextChanged.connect(self._on_report_type_changed)
 
@@ -484,6 +495,8 @@ class ReportGui(QMainWindow):
         self.wim_root_edit.setEnabled(period_mode)
         self.start_edit.setEnabled(period_mode)
         self.end_edit.setEnabled(period_mode)
+        if self.report_type_desc_label is not None:
+            self.report_type_desc_label.setText(report_type_description(text))
         self._maybe_update_template_for_type()
         self._maybe_update_config_for_type()
         self._maybe_update_result_root_for_type()

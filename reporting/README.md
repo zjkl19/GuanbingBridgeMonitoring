@@ -157,6 +157,33 @@ The GUI performs a preflight check before generating a period report and warns w
 - 缺少 `stats/`
 - 部分月份缺少 WIM 月结果目录
 
+
+## Report GUI Workflow / 报告 GUI 使用步骤
+
+Version `v1.6.0` separates report modes explicitly.
+版本 `v1.6.0` 已明确拆分报告类型。
+
+1. Select report type first: `洪塘月报`, `洪塘周期报（含WIM）`, or `九龙江月报`.
+2. Confirm the auto-switched template, config, and data/result root.
+3. Click `检查模板/目录` before generation.
+4. If the check has no blocking error, click `生成报告`.
+
+1. 先选择报告类型：`洪塘月报`、`洪塘周期报（含WIM）` 或 `九龙江月报`。
+2. 确认程序自动切换后的模板、配置和数据/结果根目录。
+3. 生产机生成前先点击 `检查模板/目录`。
+4. 没有阻断错误后再点击 `生成报告`。
+
+Report mode notes.
+报告类型说明。
+
+- `洪塘月报`: legacy Hongtang monthly-report pipeline for one calculated month.
+- `洪塘周期报（含WIM）`: Hongtang period/quarter report, including WIM monthly insertion and section 1.4 raw-missing checks.
+- `九龙江月报`: independent Jiulongjiang monthly-report pipeline for main bridge and ramp-bridge sections.
+
+- `洪塘月报`：旧洪塘月报流程，适用于单月已计算结果。
+- `洪塘周期报（含WIM）`：洪塘周期/季报流程，包含 WIM 按月插入和 1.4 原始数据缺失统计。
+- `九龙江月报`：九龙江独立月报流程，按主桥和匝道桥章节生成。
+
 ## Output Locations / 输出位置
 
 - Report document / 报告文档: `<result-root>/自动报告/`

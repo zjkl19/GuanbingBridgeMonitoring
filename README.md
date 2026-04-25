@@ -160,6 +160,11 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang monthly report modes; use `检查模板/目录` before generating on production machines.
 报告 GUI 已区分洪塘月报、洪塘周期报和九龙江月报；生产机生成前建议先点击 `检查模板/目录`。
 
+Report GUI release / 报告 GUI 版本:
+
+- `v1.6.0`: separates Hongtang monthly, Hongtang period, and Jiulongjiang monthly modes; adds clearer report-type hints and stronger result-directory checks.
+- `v1.6.0`：拆分洪塘月报、洪塘周期报、九龙江月报；增加报告类型说明和更明确的结果目录检查。
+
 Template precheck and smoke test.
 模板预检与冒烟测试。
 
