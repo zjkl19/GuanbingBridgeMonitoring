@@ -28,13 +28,13 @@ from PySide6.QtWidgets import (
 from build_jlj_monthly_report import build_report as build_jlj_monthly_report
 from build_monthly_report import build_report as build_hongtang_monthly_report
 from build_period_report import build_period_report
-from template_precheck import TemplateIssue, check_template
+from template_precheck import TemplateIssue, check_template, write_precheck_report
 
 
 MONTHLY_REPORT = "\u6d2a\u5858\u6708\u62a5"
 PERIOD_REPORT = "\u6d2a\u5858\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
 JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
-APP_VERSION = "v1.6.0"
+APP_VERSION = "v1.6.1"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx"
@@ -624,14 +624,46 @@ class ReportGui(QMainWindow):
     def _format_template_issues(self, issues: list[TemplateIssue]) -> str:
         return "\n".join(f"- [{issue.code}] {issue.message}" for issue in issues)
 
-    def _run_template_precheck(self, template: Path, report_type: str) -> list[str]:
-        kind = self._template_check_kind(report_type)
-        if kind is None:
-            return ["\u6708\u62a5\u6682\u672a\u914d\u7f6e\u6a21\u677f\u951a\u70b9\u9884\u68c0\uff0c\u672c\u6b21\u4ec5\u68c0\u67e5\u6587\u4ef6\u548c\u7ed3\u679c\u76ee\u5f55\u3002"]
-        issues = check_template(kind, template)
-        if issues:
-            raise ValueError(self._format_template_issues(issues))
-        return []
+    def _precheck_output_dir(self) -> Path:
+        output_text = self.output_dir_edit.text().strip()
+        if output_text:
+            return Path(output_text).expanduser() / "precheck"
+        result_text = self.result_root_edit.text().strip()
+        if result_text:
+            return derive_output_dir(Path(result_text).expanduser()) / "precheck"
+        return app_root() / "outputs" / "report_precheck"
+
+    def _write_precheck_report(
+        self,
+        template: Path,
+        report_type: str,
+        issues: list[TemplateIssue],
+        warnings: list[str] | None = None,
+    ) -> tuple[Path, Path] | None:
+        kind = self._template_check_kind(report_type) or "hongtang_monthly"
+        context = {
+            "report_type": report_type,
+            "config_path": self.config_edit.text().strip(),
+            "result_root": self.result_root_edit.text().strip(),
+            "wim_root": self.wim_root_edit.text().strip(),
+            "output_dir": self.output_dir_edit.text().strip(),
+            "period_label": self.period_edit.text().strip(),
+            "monitoring_range": self.range_edit.text().strip(),
+            "start_date": self.start_edit.text().strip(),
+            "end_date": self.end_edit.text().strip(),
+        }
+        try:
+            return write_precheck_report(
+                kind=kind,
+                template=template,
+                issues=issues,
+                warnings=warnings or [],
+                output_dir=self._precheck_output_dir(),
+                context=context,
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._log(f"预检报告写入失败: {exc}")
+            return None
 
     def _validate_period_inputs(self, result_root: Path, wim_root: Path | None) -> bool:
         try:
@@ -677,11 +709,15 @@ class ReportGui(QMainWindow):
             QMessageBox.critical(self, "\u68c0\u67e5\u5931\u8d25", "\n".join(f"- {item}" for item in errors))
             return
 
-        try:
-            warnings.extend(self._run_template_precheck(template, report_type))
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "\u6a21\u677f\u9884\u68c0\u5931\u8d25", str(exc))
-            return
+        template_issues: list[TemplateIssue] = []
+        kind = self._template_check_kind(report_type)
+        if kind is None:
+            warnings.append("\u6708\u62a5\u6682\u672a\u914d\u7f6e\u6a21\u677f\u951a\u70b9\u9884\u68c0\uff0c\u672c\u6b21\u4ec5\u68c0\u67e5\u6587\u4ef6\u548c\u7ed3\u679c\u76ee\u5f55\u3002")
+        else:
+            try:
+                template_issues = check_template(kind, template)
+            except Exception as exc:  # noqa: BLE001
+                template_issues = [TemplateIssue("precheck-error", str(exc))]
 
         if report_type == PERIOD_REPORT:
             try:
@@ -692,13 +728,26 @@ class ReportGui(QMainWindow):
         elif report_type == JLJ_MONTHLY_REPORT:
             warnings.extend(self._collect_jlj_warnings(result_root))
 
+        report_paths = self._write_precheck_report(template, report_type, template_issues, warnings)
+        report_note = ""
+        if report_paths is not None:
+            txt_path, json_path = report_paths
+            report_note = f"\n\n预检报告:\n{txt_path}\n{json_path}"
+
+        if template_issues:
+            QMessageBox.critical(
+                self,
+                "\u6a21\u677f\u9884\u68c0\u5931\u8d25",
+                self._format_template_issues(template_issues) + report_note,
+            )
+            return
         if errors:
             QMessageBox.critical(self, "\u68c0\u67e5\u5931\u8d25", "\n".join(f"- {item}" for item in errors))
             return
         if warnings:
-            QMessageBox.warning(self, "\u68c0\u67e5\u5b8c\u6210\uff08\u6709\u63d0\u793a\uff09", "\n".join(f"- {item}" for item in warnings))
+            QMessageBox.warning(self, "\u68c0\u67e5\u5b8c\u6210\uff08\u6709\u63d0\u793a\uff09", "\n".join(f"- {item}" for item in warnings) + report_note)
             return
-        QMessageBox.information(self, "\u68c0\u67e5\u901a\u8fc7", "\u6a21\u677f\u3001\u914d\u7f6e\u548c\u7ed3\u679c\u76ee\u5f55\u68c0\u67e5\u901a\u8fc7\u3002")
+        QMessageBox.information(self, "\u68c0\u67e5\u901a\u8fc7", "\u6a21\u677f\u3001\u914d\u7f6e\u548c\u7ed3\u679c\u76ee\u5f55\u68c0\u67e5\u901a\u8fc7\u3002" + report_note)
 
     def _log(self, text: str) -> None:
         self.log_edit.appendPlainText(text)
@@ -731,10 +780,27 @@ class ReportGui(QMainWindow):
             return
         if report_type == PERIOD_REPORT and not self._validate_period_inputs(result_root, wim_root):
             return
-        try:
-            self._run_template_precheck(template, report_type)
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "\u6a21\u677f\u9884\u68c0\u5931\u8d25", str(exc))
+        kind = self._template_check_kind(report_type)
+        template_warnings: list[str] = []
+        template_issues: list[TemplateIssue] = []
+        if kind is None:
+            template_warnings.append("\u6708\u62a5\u6682\u672a\u914d\u7f6e\u6a21\u677f\u951a\u70b9\u9884\u68c0\uff0c\u672c\u6b21\u4ec5\u8bb0\u5f55\u6587\u4ef6\u68c0\u67e5\u7ed3\u679c\u3002")
+        else:
+            try:
+                template_issues = check_template(kind, template)
+            except Exception as exc:  # noqa: BLE001
+                template_issues = [TemplateIssue("precheck-error", str(exc))]
+        report_paths = self._write_precheck_report(template, report_type, template_issues, template_warnings)
+        report_note = ""
+        if report_paths is not None:
+            txt_path, json_path = report_paths
+            report_note = f"\n\n预检报告:\n{txt_path}\n{json_path}"
+        if template_issues:
+            QMessageBox.critical(
+                self,
+                "\u6a21\u677f\u9884\u68c0\u5931\u8d25",
+                self._format_template_issues(template_issues) + report_note,
+            )
             return
 
         self._set_busy(True)

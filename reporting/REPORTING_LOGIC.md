@@ -59,3 +59,9 @@ The report generator reads these config sections directly.
 
 If section titles, figure captions, or table titles in the template change, the anchor-matching logic may need to be updated as well.
 如果模板中的章节标题、图题或表题发生变化，锚点匹配逻辑也需要同步调整。
+
+Run `检查模板/目录` in the GUI or `python reporting/template_precheck.py --output-dir <dir>` after template edits.
+修改模板后，应先在 GUI 点击 `检查模板/目录`，或运行 `python reporting/template_precheck.py --output-dir <dir>`。
+
+Precheck reports are written as txt/json files and list missing headings, table captions, figure-caption anchors, and auto-number fields.
+预检报告会输出 txt/json，列出缺失的标题、表题、图题锚点和自动编号域。

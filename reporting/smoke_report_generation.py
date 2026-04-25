@@ -9,7 +9,7 @@ from docx import Document
 
 from build_jlj_monthly_report import build_report as build_jlj_monthly_report
 from build_period_report import build_period_report as build_hongtang_period_report
-from template_precheck import raise_for_template
+from template_precheck import TemplatePrecheckError, check_template, write_precheck_report
 
 
 def _repo_root() -> Path:
@@ -54,7 +54,17 @@ def _assert_generated_docx(path: Path, fragments: list[str]) -> None:
 
 def smoke_hongtang(args: argparse.Namespace, output_root: Path) -> None:
     print(f"[hongtang] template: {args.hongtang_template}")
-    raise_for_template("hongtang_period", args.hongtang_template)
+    issues = check_template("hongtang_period", args.hongtang_template)
+    txt_path, json_path = write_precheck_report(
+        "hongtang_period",
+        args.hongtang_template,
+        issues,
+        output_root / "precheck",
+        context={"smoke_generate": args.generate},
+    )
+    print(f"[hongtang] precheck report: {txt_path}")
+    if issues:
+        raise TemplatePrecheckError(args.hongtang_template, issues)
     print("[hongtang] template precheck OK")
     if not args.generate:
         return
@@ -84,7 +94,17 @@ def smoke_hongtang(args: argparse.Namespace, output_root: Path) -> None:
 
 def smoke_jlj(args: argparse.Namespace, output_root: Path) -> None:
     print(f"[jlj] template: {args.jlj_template}")
-    raise_for_template("jlj_monthly", args.jlj_template)
+    issues = check_template("jlj_monthly", args.jlj_template)
+    txt_path, json_path = write_precheck_report(
+        "jlj_monthly",
+        args.jlj_template,
+        issues,
+        output_root / "precheck",
+        context={"smoke_generate": args.generate},
+    )
+    print(f"[jlj] precheck report: {txt_path}")
+    if issues:
+        raise TemplatePrecheckError(args.jlj_template, issues)
     print("[jlj] template precheck OK")
     if not args.generate:
         return

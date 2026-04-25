@@ -146,7 +146,7 @@ python reporting/build_jlj_monthly_report.py --template <template.docx> --config
 Default period-report template.
 默认周期报模板。
 
-- `reports/洪塘大桥健康监测周期报模板-自动报告.docx`
+- `reports/洪塘大桥健康监测2026年第一季季报-改4.docx`
 
 For period reports, section `1.4 健康监测系统运行状况` only counts raw missing / no-file / no-record conditions.
 对于周期报，`1.4 健康监测系统运行状况` 只统计原始缺失、无文件、无记录。
@@ -162,6 +162,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.6.1`: writes txt/json template precheck reports and keeps the custom exe icon in packaged builds.
+- `v1.6.1`：输出 txt/json 模板预检报告，并在打包 exe 中保留自定义图标。
 - `v1.6.0`: separates Hongtang monthly, Hongtang period, and Jiulongjiang monthly modes; adds clearer report-type hints and stronger result-directory checks.
 - `v1.6.0`：拆分洪塘月报、洪塘周期报、九龙江月报；增加报告类型说明和更明确的结果目录检查。
 
@@ -169,8 +171,8 @@ Template precheck and smoke test.
 模板预检与冒烟测试。
 
 ```powershell
-python reporting/template_precheck.py --kind hongtang_period --template reports/洪塘大桥健康监测2026年第一季季报-改4.docx
-python reporting/template_precheck.py --kind jlj_monthly --template reports/九龙江大桥健康监测2026年3月份月报_修订5.docx
+python reporting/template_precheck.py --kind hongtang_period --template reports/洪塘大桥健康监测2026年第一季季报-改4.docx --output-dir tmp/report_precheck
+python reporting/template_precheck.py --kind jlj_monthly --template reports/九龙江大桥健康监测2026年3月份月报_修订5.docx --output-dir tmp/report_precheck
 python reporting/smoke_report_generation.py --kind all
 python reporting/smoke_report_generation.py --kind all --generate
 ```

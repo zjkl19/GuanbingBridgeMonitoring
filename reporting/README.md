@@ -20,8 +20,7 @@ BridgeReportBuilder/
   reports/
     洪塘大桥健康监测月报模板.docx
     洪塘大桥健康监测2026年第一季季报-改4.docx
-    洪塘大桥健康监测周期报模板-自动报告.docx
-    洪塘大桥健康监测周期报模板.docx
+    九龙江大桥健康监测2026年3月份月报_修订5.docx
   README.md
   REPORTING_LOGIC.md
 ```
@@ -160,18 +159,20 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
-Version `v1.6.0` separates report modes explicitly.
-版本 `v1.6.0` 已明确拆分报告类型。
+Version `v1.6.1` separates report modes explicitly and writes template precheck reports.
+版本 `v1.6.1` 已明确拆分报告类型，并会输出模板预检报告。
 
 1. Select report type first: `洪塘月报`, `洪塘周期报（含WIM）`, or `九龙江月报`.
 2. Confirm the auto-switched template, config, and data/result root.
 3. Click `检查模板/目录` before generation.
 4. If the check has no blocking error, click `生成报告`.
+5. Review `<输出目录>/precheck/` when the GUI reports template anchors or result folders are missing.
 
 1. 先选择报告类型：`洪塘月报`、`洪塘周期报（含WIM）` 或 `九龙江月报`。
 2. 确认程序自动切换后的模板、配置和数据/结果根目录。
 3. 生产机生成前先点击 `检查模板/目录`。
 4. 没有阻断错误后再点击 `生成报告`。
+5. 如果提示模板锚点或结果目录缺失，到 `<输出目录>/precheck/` 查看 txt/json 预检报告。
 
 Report mode notes.
 报告类型说明。
@@ -187,9 +188,30 @@ Report mode notes.
 ## Output Locations / 输出位置
 
 - Report document / 报告文档: `<result-root>/自动报告/`
+- Precheck reports / 模板预检报告: `<result-root>/自动报告/precheck/`
 - Stats workbooks / 统计表: `<result-root>/stats/`
 - Run logs / 运行日志: `<result-root>/run_logs/`
 - WIM monthly results / WIM 月结果: `<result-root>/WIM/results/hongtang/<yyyymm>/`
+
+## Template Precheck / 模板预检
+
+The precheck verifies key headings, table captions, figure-caption anchors, and auto-number fields before generation.
+预检会在生成前检查关键标题、表题、图题插入锚点和自动编号域。
+
+GUI checks write both text and JSON reports under `<输出目录>/precheck/`.
+GUI 检查会在 `<输出目录>/precheck/` 同时写入 txt 和 json 报告。
+
+CLI examples.
+CLI 示例。
+
+```powershell
+python reporting\template_precheck.py `
+  --kind hongtang_period `
+  --template reports\洪塘大桥健康监测2026年第一季季报-改4.docx `
+  --output-dir tmp\report_precheck
+
+python reporting\smoke_report_generation.py --kind all
+```
 
 ## WIM SQL Troubleshooting / WIM SQL 故障排查
 

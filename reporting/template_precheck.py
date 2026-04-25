@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Any
 
 from docx import Document
 from docx.document import Document as DocxDocument
@@ -21,6 +23,85 @@ class TemplatePrecheckError(RuntimeError):
         self.issues = issues
         details = "\n".join(f"- [{issue.code}] {issue.message}" for issue in issues)
         super().__init__(f"Template precheck failed: {template}\n{details}")
+
+
+def issue_to_dict(issue: TemplateIssue) -> dict[str, str]:
+    return {"code": issue.code, "message": issue.message}
+
+
+def build_precheck_payload(
+    kind: str,
+    template: Path,
+    issues: list[TemplateIssue],
+    warnings: list[str] | None = None,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    warnings = warnings or []
+    if issues:
+        status = "failed"
+    elif warnings:
+        status = "warning"
+    else:
+        status = "ok"
+    return {
+        "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "kind": kind,
+        "template": str(template),
+        "status": status,
+        "issue_count": len(issues),
+        "warning_count": len(warnings),
+        "issues": [issue_to_dict(issue) for issue in issues],
+        "warnings": warnings,
+        "context": context or {},
+    }
+
+
+def write_precheck_report(
+    kind: str,
+    template: Path,
+    issues: list[TemplateIssue],
+    output_dir: Path,
+    warnings: list[str] | None = None,
+    context: dict[str, Any] | None = None,
+    prefix: str = "template_precheck",
+) -> tuple[Path, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    payload = build_precheck_payload(kind, template, issues, warnings=warnings, context=context)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_kind = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in kind)
+    json_path = output_dir / f"{prefix}_{safe_kind}_{timestamp}.json"
+    txt_path = output_dir / f"{prefix}_{safe_kind}_{timestamp}.txt"
+
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    lines = [
+        f"检查时间: {payload['checked_at']}",
+        f"检查类型: {kind}",
+        f"模板文件: {template}",
+        f"状态: {payload['status']}",
+        f"问题数量: {len(issues)}",
+        f"提示数量: {len(payload['warnings'])}",
+    ]
+    if context:
+        lines.append("")
+        lines.append("上下文:")
+        for key, value in context.items():
+            lines.append(f"- {key}: {value}")
+    if issues:
+        lines.append("")
+        lines.append("模板问题:")
+        for issue in issues:
+            lines.append(f"- [{issue.code}] {issue.message}")
+    if payload["warnings"]:
+        lines.append("")
+        lines.append("目录/结果提示:")
+        for warning in payload["warnings"]:
+            lines.append(f"- {warning}")
+    if not issues and not payload["warnings"]:
+        lines.append("")
+        lines.append("检查通过：未发现模板锚点或结果目录问题。")
+    txt_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return txt_path, json_path
 
 
 def _paragraph_texts(doc: DocxDocument) -> list[str]:
@@ -236,9 +317,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Precheck bridge report DOCX templates.")
     parser.add_argument("--kind", choices=["hongtang_period", "jlj_monthly"], required=True)
     parser.add_argument("--template", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path, default=None, help="Optional directory for txt/json precheck reports.")
     args = parser.parse_args()
 
     issues = check_template(args.kind, args.template)
+    if args.output_dir is not None:
+        txt_path, json_path = write_precheck_report(args.kind, args.template, issues, args.output_dir)
+        print(f"Precheck report: {txt_path}")
+        print(f"Precheck JSON:   {json_path}")
     if issues:
         raise TemplatePrecheckError(args.template, issues)
     print(f"Template precheck OK: {args.template}")
