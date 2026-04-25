@@ -173,6 +173,7 @@ Template precheck and smoke test.
 模板预检与冒烟测试。
 
 ```powershell
+.\reporting\.venv\Scripts\python.exe -m unittest discover -s tests_py -v
 python reporting/template_precheck.py --kind hongtang_period --template reports/洪塘大桥健康监测2026年第一季季报-改4.docx --output-dir tmp/report_precheck
 python reporting/template_precheck.py --kind jlj_monthly --template reports/九龙江大桥健康监测2026年3月份月报_修订5.docx --output-dir tmp/report_precheck
 python reporting/smoke_report_generation.py --kind all

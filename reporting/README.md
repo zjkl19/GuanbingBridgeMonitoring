@@ -222,6 +222,16 @@ After a report is generated, the builder writes a txt and an xlsx summary next t
 The summary lists sections with no effective data, missing images/resources, and WIM warnings.
 清单会列出无有效数据章节、缺失图片/资源和 WIM 警告。
 
+## Unit Tests / 单元测试
+
+Run the lightweight Python tests before packaging report-builder changes.
+报告生成器改动打包前，先运行轻量 Python 单元测试。
+
+```powershell
+.\reporting\.venv\Scripts\python.exe -m unittest discover -s tests_py -v
+python reporting\smoke_report_generation.py --kind all
+```
+
 ## WIM SQL Troubleshooting / WIM SQL 故障排查
 
 Common WIM SQL failures are classified explicitly.
