@@ -39,6 +39,7 @@ from build_quarterly_wim_sample import (
     set_table_column_widths,
     style_table,
 )
+from template_precheck import raise_for_template
 
 
 LOWFREQ_MODULES = {
@@ -90,6 +91,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Print a generated manifest section for debugging, e.g. cable_force, vibration, wim, health_status.",
     )
+    parser.add_argument("--skip-template-precheck", action="store_true", help="Skip DOCX template anchor precheck.")
     return parser.parse_args()
 
 
@@ -844,6 +846,7 @@ def build_period_report(
     report_date: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
+    precheck_template: bool = True,
 ) -> tuple[Path, Path, list[str]]:
     if analysis_root is None:
         analysis_root = Path(__file__).resolve().parents[1]
@@ -892,6 +895,9 @@ def build_period_report(
     manifest_path = output_dir / f"period_report_manifest_{timestamp}.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, default=_json_default) + "\n", encoding="utf-8")
 
+    if precheck_template:
+        raise_for_template("hongtang_period", template, manifest)
+
     doc = Document(str(template))
     apply_manifest_to_doc(doc, manifest)
     apply_health_status_to_doc(doc, manifest["health_status_summary"], manifest["health_status_rows"])
@@ -938,6 +944,7 @@ def main() -> None:
         report_date=args.report_date,
         start_date=args.start_date,
         end_date=args.end_date,
+        precheck_template=not args.skip_template_precheck,
     )
     print(f"Manifest written to: {manifest_path}")
     print(f"Report written to:   {report_path}")

@@ -23,6 +23,8 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+from template_precheck import raise_for_template
+
 
 @dataclass
 class ImageItem:
@@ -143,6 +145,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--period-label", default="2026年3月份")
     parser.add_argument("--monitoring-range", default="2026.03.23~2026.03.31")
     parser.add_argument("--report-date", default=datetime.now().strftime("%Y年%m月%d日"))
+    parser.add_argument("--skip-template-precheck", action="store_true", help="Skip DOCX template anchor precheck.")
     return parser.parse_args()
 
 
@@ -2360,6 +2363,7 @@ def build_report(
     period_label: str = "2026年3月份",
     monitoring_range: str = "2026.03.23~2026.03.31",
     report_date: str | None = None,
+    precheck_template: bool = True,
 ) -> Path:
     if report_date is None:
         report_date = datetime.now().strftime("%Y年%m月%d日")
@@ -2369,6 +2373,9 @@ def build_report(
     output_dir = output_dir or (result_root / "自动报告")
     output_dir = ensure_dir(output_dir)
     assets_dir = ensure_dir(output_dir / "generated_assets_jlj")
+
+    if precheck_template:
+        raise_for_template("jlj_monthly", template)
 
     doc = Document(str(template))
     caption_templates = find_caption_templates(doc)
@@ -2411,6 +2418,7 @@ def main() -> None:
         period_label=args.period_label,
         monitoring_range=args.monitoring_range,
         report_date=args.report_date,
+        precheck_template=not args.skip_template_precheck,
     )
     print(f"Jiulongjiang monthly report generated: {output}")
 

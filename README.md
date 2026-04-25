@@ -154,6 +154,24 @@ For period reports, section `1.4 健康监测系统运行状况` only counts raw
 See `reporting/README.md` for report GUI details.
 报告 GUI 细节见 `reporting/README.md`。
 
+Template precheck and smoke test.
+模板预检与冒烟测试。
+
+```powershell
+python reporting/template_precheck.py --kind hongtang_period --template reports/洪塘大桥健康监测2026年第一季季报-改4.docx
+python reporting/template_precheck.py --kind jlj_monthly --template reports/九龙江大桥健康监测2026年3月份月报_修订5.docx
+python reporting/smoke_report_generation.py --kind all
+python reporting/smoke_report_generation.py --kind all --generate
+```
+
+Generated artifacts should stay out of Git.
+生成产物不应纳入版本库。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/clean_generated_artifacts.ps1
+powershell -ExecutionPolicy Bypass -File scripts/clean_generated_artifacts.ps1 -Apply
+```
+
 ## Runtime Notes / 运行说明
 
 Parallel analysis is now disabled by default to avoid memory exhaustion on large datasets.

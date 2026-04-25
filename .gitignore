@@ -1,7 +1,12 @@
 # Generated outputs and caches
 outputs/
+output/
+run_logs/
+tmp/
 archive/
 **/cache/
+**/__pycache__/
+*.pyc
 
 # Editor / OS artefacts
 *.tmp
@@ -58,6 +63,11 @@ reporting/__pycache__/
 reports_paras.txt
 config/*_backup_*.json
 config/default_config_production0310.json
+reports/__tmp*/
+reports/*_20??????_??????.docx
+reports/*_backup_*.xlsx
+reports/period_template*_auto_clean.docx
+tmp_doc_check.py
 /桥隧管养平台需求确认单2026_02.xlsx
 /线上平台两个月实施计划_20260309.xlsx
 /线上平台汇报口径_截至20260430.md
