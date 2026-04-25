@@ -63,6 +63,8 @@ reporting/__pycache__/
 reports_paras.txt
 config/*_backup_*.json
 config/default_config_production0310.json
+config/default_config_g.json
+scripts/build_online_plan_xlsx.py
 
 # Report source policy: track only current official templates.
 reports/*.docx

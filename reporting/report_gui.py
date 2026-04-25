@@ -25,20 +25,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from build_monthly_report import build_report
+from build_jlj_monthly_report import build_report as build_jlj_monthly_report
+from build_monthly_report import build_report as build_hongtang_monthly_report
 from build_period_report import build_period_report
 from template_precheck import TemplateIssue, check_template
 
 
-MONTHLY_REPORT = "\u6708\u62a5"
-PERIOD_REPORT = "\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
+MONTHLY_REPORT = "\u6d2a\u5858\u6708\u62a5"
+PERIOD_REPORT = "\u6d2a\u5858\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
+JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
 APP_VERSION = "v1.5.9"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
+JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx"
 PERIOD_TEMPLATE_AUTO_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f-\u81ea\u52a8\u62a5\u544a.docx"
 PERIOD_TEMPLATE_LEGACY_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f0318.docx"
 PERIOD_TEMPLATE_FALLBACK_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f.docx"
 DEFAULT_RESULT_ROOT = Path("E:" + "\\" + "\u6d2a\u5858\u5927\u6865\u6570\u636e" + "\\" + "2026\u5e741-3\u6708")
+DEFAULT_JLJ_RESULT_ROOT = Path("E:" + "\\" + "\u4e5d\u9f99\u6c5f\u6570\u636e" + "\\" + "2026\u5e743\u6708")
 
 
 def app_root() -> Path:
@@ -65,7 +69,14 @@ def candidate_report_roots() -> list[Path]:
     return unique
 
 
-def detect_default_config() -> Path:
+def detect_default_config(report_type: str = PERIOD_REPORT) -> Path:
+    if report_type == JLJ_MONTHLY_REPORT:
+        for config_dir in candidate_config_roots():
+            jlj_cfg = config_dir / "jiulongjiang_config.json"
+            if jlj_cfg.exists():
+                return jlj_cfg.resolve()
+        return (app_root() / "config" / "jiulongjiang_config.json").resolve()
+
     computer_name = os.environ.get("COMPUTERNAME", "").strip()
     for config_dir in candidate_config_roots():
         if computer_name:
@@ -78,11 +89,19 @@ def detect_default_config() -> Path:
     return (app_root() / "config" / "hongtang_config.json").resolve()
 
 
+def default_result_root(report_type: str) -> Path:
+    return DEFAULT_JLJ_RESULT_ROOT if report_type == JLJ_MONTHLY_REPORT else DEFAULT_RESULT_ROOT
+
+
 def find_default_template(report_type: str) -> Path:
-    preferred = PERIOD_TEMPLATE_NAME if report_type == PERIOD_REPORT else MONTHLY_TEMPLATE_NAME
-    if report_type == PERIOD_REPORT:
+    if report_type == JLJ_MONTHLY_REPORT:
+        preferred = JLJ_TEMPLATE_NAME
+        fallback_candidates = [JLJ_TEMPLATE_NAME]
+    elif report_type == PERIOD_REPORT:
+        preferred = PERIOD_TEMPLATE_NAME
         fallback_candidates = [PERIOD_TEMPLATE_AUTO_NAME, PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME, MONTHLY_TEMPLATE_NAME]
     else:
+        preferred = MONTHLY_TEMPLATE_NAME
         fallback_candidates = [PERIOD_TEMPLATE_AUTO_NAME, PERIOD_TEMPLATE_FALLBACK_NAME]
     for reports_dir in candidate_report_roots():
         preferred_path = reports_dir / preferred
@@ -135,7 +154,8 @@ def has_dated_raw_dirs(result_root: Path) -> bool:
 def top_help_text() -> str:
     return (
         "\u6a21\u677f\u6587\u4ef6\uff1a\u6708\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\u201d\uff0c"
-        "\u5468\u671f\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\u201d\u3002\n"
+        "\u5468\u671f\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\u201d\uff0c"
+        "\u4e5d\u9f99\u6c5f\u6708\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx\u201d\u3002\n"
         "\u914d\u7f6e\u6587\u4ef6\uff1a\u76f4\u63a5\u5f71\u54cd\u62a5\u544a\u751f\u6210\u7684\u4e3b\u8981\u662f plot_styles.* \u8f93\u51fa\u76ee\u5f55\u3001reporting.* \u63d2\u56fe\u987a\u5e8f/\u542f\u7528\u3001wim.* \u548c wim_db.*\u3002\n"
         "\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55\uff1a\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\n"
         "\u5468\u671f\u62a5\u8bf4\u660e\uff1a1.4\u201c\u5065\u5eb7\u76d1\u6d4b\u7cfb\u7edf\u8fd0\u884c\u72b6\u51b5\u201d\u53ea\u7edf\u8ba1\u539f\u59cb\u6570\u636e\u7f3a\u5931/\u65e0\u6587\u4ef6/\u65e0\u8bb0\u5f55\u3002"
@@ -202,8 +222,22 @@ class ReportWorker(QObject):
                     start_date=self.start_date,
                     end_date=self.end_date,
                 )
+            elif self.report_type == JLJ_MONTHLY_REPORT:
+                report_path = build_jlj_monthly_report(
+                    template=self.template,
+                    config_path=self.config_path,
+                    result_root=self.result_root,
+                    image_root=self.result_root,
+                    output_dir=self.output_dir,
+                    wim_root=self.wim_root,
+                    period_label=self.period_label,
+                    monitoring_range=self.monitoring_range,
+                    report_date=self.report_date,
+                )
+                manifest_path = None
+                missing = []
             else:
-                manifest_path, report_path, missing = build_report(
+                manifest_path, report_path, missing = build_hongtang_monthly_report(
                     template=self.template,
                     config_path=self.config_path,
                     result_root=self.result_root,
@@ -214,14 +248,15 @@ class ReportWorker(QObject):
                     report_date=self.report_date,
                 )
 
-            self.log.emit(f"Manifest: {manifest_path}")
+            if manifest_path is not None:
+                self.log.emit(f"Manifest: {manifest_path}")
             self.log.emit(f"Report:   {report_path}")
             if missing:
                 self.log.emit("\u8b66\u544a/\u7f3a\u5931\u8d44\u6e90:")
                 for item in missing:
                     self.log.emit(f"  - {item}")
             self.log.emit("\u5b8c\u6210")
-            self.finished.emit(str(manifest_path), str(report_path))
+            self.finished.emit(str(manifest_path or ""), str(report_path))
         except Exception as exc:  # noqa: BLE001
             self.log.emit("\u751f\u6210\u5931\u8d25")
             self.log.emit(str(exc))
@@ -263,17 +298,17 @@ class ReportGui(QMainWindow):
         outer.addLayout(grid)
 
         repo_root = app_root()
-        default_result_root = DEFAULT_RESULT_ROOT
+        initial_result_root = default_result_root(PERIOD_REPORT)
 
         self.report_type_combo = QComboBox()
-        self.report_type_combo.addItems([MONTHLY_REPORT, PERIOD_REPORT])
+        self.report_type_combo.addItems([MONTHLY_REPORT, PERIOD_REPORT, JLJ_MONTHLY_REPORT])
         self.report_type_combo.setCurrentText(PERIOD_REPORT)
         self.template_edit = QLineEdit(str(find_default_template(PERIOD_REPORT)))
-        self.config_edit = QLineEdit(str(detect_default_config()))
-        self.result_root_edit = QLineEdit(str(default_result_root))
+        self.config_edit = QLineEdit(str(detect_default_config(PERIOD_REPORT)))
+        self.result_root_edit = QLineEdit(str(initial_result_root))
         self.analysis_root_edit = QLineEdit(str(repo_root.resolve()))
-        self.wim_root_edit = QLineEdit(str(derive_wim_root(default_result_root)))
-        self.output_dir_edit = QLineEdit(str(derive_output_dir(default_result_root)))
+        self.wim_root_edit = QLineEdit(str(derive_wim_root(initial_result_root)))
+        self.output_dir_edit = QLineEdit(str(derive_output_dir(initial_result_root)))
         self.period_edit = QLineEdit("2026\u5e741-3\u6708")
         self.range_edit = QLineEdit("2026年01月01日~2026年03月31日")
         self.start_edit = QLineEdit("2026-01-01")
@@ -281,9 +316,9 @@ class ReportGui(QMainWindow):
         self.date_edit = QLineEdit(datetime.now().strftime("%Y\u5e74%m\u6708%d\u65e5"))
 
         rows = [
-            ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, "\u6708\u62a5\u6216\u5468\u671f\u62a5\uff08\u542bWIM\uff09\u3002\u5207\u6362\u540e\u4f1a\u81ea\u52a8\u5207\u6362\u9ed8\u8ba4\u6a21\u677f\u3002"),
-            ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6708\u62a5\u9ed8\u8ba4\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u5468\u671f\u62a5\u9ed8\u8ba4\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\u3002"),
-            ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "\u4f18\u5148\u8bfb\u53d6\u673a\u5668\u4e13\u7528\u914d\u7f6e hongtang_config_<COMPUTERNAME>.json\u3002"),
+            ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, "\u6d2a\u5858\u6708\u62a5\u3001\u6d2a\u5858\u5468\u671f\u62a5\uff08\u542bWIM\uff09\u6216\u4e5d\u9f99\u6c5f\u6708\u62a5\u3002\u5207\u6362\u540e\u4f1a\u81ea\u52a8\u5207\u6362\u9ed8\u8ba4\u6a21\u677f\u548c\u914d\u7f6e\u3002"),
+            ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6d2a\u5858\u6708\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u6d2a\u5858\u5468\u671f\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\uff1b\u4e5d\u9f99\u6c5f\u6708\u62a5\uff1a\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx\u3002"),
+            ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "\u6d2a\u5858\u4f18\u5148\u8bfb\u53d6\u673a\u5668\u4e13\u7528\u914d\u7f6e hongtang_config_<COMPUTERNAME>.json\uff1b\u4e5d\u9f99\u6c5f\u9ed8\u8ba4\u4f7f\u7528 jiulongjiang_config.json\u3002"),
             ("\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55", self.result_root_edit, self._browse_result_root, "\u8fd9\u91cc\u5e94\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\u5bf9\u5468\u671f\u62a5\uff0c\u8fd9\u4e2a\u76ee\u5f55\u6700\u597d\u540c\u65f6\u5305\u542b raw \u539f\u59cb\u6570\u636e\uff0c\u5426\u5219 1.4 \u7ae0\u8282\u4f1a\u5c06\u7f3a\u5c11\u539f\u59cb\u6570\u636e\u89c6\u4e3a\u7f3a\u5931\u3002"),
             ("\u7a0b\u5e8f\u6839\u76ee\u5f55\uff08\u9ad8\u7ea7\uff09", self.analysis_root_edit, self._browse_analysis_root, "\u517c\u5bb9\u65e7\u8def\u5f84\u548c\u5c11\u91cf\u56de\u9000\u67e5\u627e\uff0c\u901a\u5e38\u4fdd\u6301\u7a0b\u5e8f\u6240\u5728\u76ee\u5f55\u5373\u53ef\u3002"),
             ("WIM\u7ed3\u679c\u76ee\u5f55", self.wim_root_edit, self._browse_wim_root, "\u5468\u671f\u62a5\u4f7f\u7528\uff0c\u9ed8\u8ba4\u662f <\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55>/WIM/results/hongtang\u3002WIM \u4ecd\u6309\u6708\u63d2\u5165\uff0c\u4e0d\u662f\u628a 1~3 \u4e2a\u6708\u76f4\u63a5\u5408\u6210\u4e00\u5f20\u8868\u3002"),
@@ -339,7 +374,7 @@ class ReportGui(QMainWindow):
         outer.addWidget(self.log_edit, 1)
 
         self._on_report_type_changed(self.report_type_combo.currentText())
-        self._last_result_root = default_result_root
+        self._last_result_root = initial_result_root
 
     def _open_logic_doc(self) -> None:
         candidates = [app_root() / "REPORTING_LOGIC.md", app_root() / "reporting" / "REPORTING_LOGIC.md"]
@@ -354,10 +389,33 @@ class ReportGui(QMainWindow):
 
     def _maybe_update_template_for_type(self) -> None:
         current = self.template_edit.text().strip()
-        names = {MONTHLY_TEMPLATE_NAME, PERIOD_TEMPLATE_NAME, PERIOD_TEMPLATE_AUTO_NAME, PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME}
+        names = {MONTHLY_TEMPLATE_NAME, PERIOD_TEMPLATE_NAME, JLJ_TEMPLATE_NAME, PERIOD_TEMPLATE_AUTO_NAME, PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME}
         should_replace = (not current) or (Path(current).name in names) or (not Path(current).exists())
         if should_replace:
             self.template_edit.setText(str(find_default_template(self.report_type_combo.currentText())))
+
+    def _maybe_update_config_for_type(self) -> None:
+        current = self.config_edit.text().strip()
+        names = {
+            "hongtang_config.json",
+            "jiulongjiang_config.json",
+        }
+        computer_name = os.environ.get("COMPUTERNAME", "").strip()
+        if computer_name:
+            names.add(f"hongtang_config_{computer_name}.json")
+        should_replace = (not current) or (Path(current).name in names) or (not Path(current).exists())
+        if should_replace:
+            self.config_edit.setText(str(detect_default_config(self.report_type_combo.currentText())))
+
+    def _maybe_update_result_root_for_type(self) -> None:
+        current = self.result_root_edit.text().strip()
+        known_roots = {DEFAULT_RESULT_ROOT, DEFAULT_JLJ_RESULT_ROOT}
+        current_path = Path(current).expanduser() if current else None
+        should_replace = (current_path is None) or (current_path in known_roots) or (not current_path.exists())
+        if should_replace:
+            new_root = default_result_root(self.report_type_combo.currentText())
+            self.result_root_edit.setText(str(new_root))
+            self._sync_result_dependent_paths(previous_root=current_path, force=True)
 
     def _browse_template(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "\u9009\u62e9\u6a21\u677f\u6587\u4ef6", str(app_root()), "Word files (*.docx)")
@@ -427,6 +485,8 @@ class ReportGui(QMainWindow):
         self.start_edit.setEnabled(period_mode)
         self.end_edit.setEnabled(period_mode)
         self._maybe_update_template_for_type()
+        self._maybe_update_config_for_type()
+        self._maybe_update_result_root_for_type()
 
     def _read_period_dates(self) -> tuple[date, date]:
         start_date = parse_iso_date(self.start_edit.text().strip())
@@ -455,11 +515,97 @@ class ReportGui(QMainWindow):
             missing_months = [m for m in iter_months(start_date, end_date) if not (wim_root / m).exists()]
             if missing_months:
                 warnings.append(f"WIM \u7ed3\u679c\u76ee\u5f55\u7f3a\u5c11\u6708\u4efd\uff1a{', '.join(missing_months)}\u3002")
+        missing_stats = self._missing_stats_files(
+            result_root,
+            [
+                "strain_stats.xlsx",
+                "tilt_stats.xlsx",
+                "bearing_displacement_stats.xlsx",
+                "cable_accel_stats.xlsx",
+                "accel_stats.xlsx",
+                "accel_spec_stats.xlsx",
+                "cable_accel_spec_stats.xlsx",
+                "wind_stats.xlsx",
+            ],
+        )
+        if missing_stats:
+            warnings.append(f"\u7f3a\u5c11\u7edf\u8ba1\u8868\uff1a{', '.join(missing_stats)}\u3002\u5bf9\u5e94\u7ae0\u8282\u53ef\u80fd\u4fdd\u6301\u6a21\u677f\u539f\u72b6\u6216\u663e\u793a\u7f3a\u5931\u3002")
+        missing_dirs = self._missing_result_dirs(
+            result_root,
+            [
+                "\u65f6\u7a0b\u66f2\u7ebf_\u5e94\u53d8",
+                "\u7bb1\u7ebf\u56fe_\u5e94\u53d8",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u503e\u659c",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u652f\u5ea7\u4f4d\u79fb",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u7d22\u529b\u52a0\u901f\u5ea6",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u52a0\u901f\u5ea6",
+                "\u98ce\u901f\u98ce\u5411\u7ed3\u679c",
+            ],
+        )
+        if missing_dirs:
+            warnings.append(f"\u7f3a\u5c11\u5173\u952e\u56fe\u7247\u76ee\u5f55\uff1a{', '.join(missing_dirs)}\u3002")
+        return warnings
+
+    def _missing_stats_files(self, result_root: Path, names: list[str]) -> list[str]:
+        stats_dir = result_root / "stats"
+        return [name for name in names if not (stats_dir / name).exists()]
+
+    def _missing_result_dirs(self, result_root: Path, names: list[str]) -> list[str]:
+        return [name for name in names if not (result_root / name).exists()]
+
+    def _collect_jlj_warnings(self, result_root: Path) -> list[str]:
+        warnings: list[str] = []
+        if not (result_root / "stats").exists():
+            warnings.append("`stats/` \u4e0d\u5b58\u5728\uff0c\u4e5d\u9f99\u6c5f\u6708\u62a5\u7edd\u5927\u90e8\u5206\u7edf\u8ba1\u8868\u65e0\u6cd5\u586b\u5145\u3002")
+        missing_stats = self._missing_stats_files(
+            result_root,
+            [
+                "temp_stats.xlsx",
+                "humidity_stats.xlsx",
+                "rainfall_stats.xlsx",
+                "wind_stats.xlsx",
+                "deflection_stats.xlsx",
+                "bearing_displacement_stats.xlsx",
+                "gnss_stats.xlsx",
+                "accel_stats.xlsx",
+                "accel_spec_stats.xlsx",
+                "strain_stats.xlsx",
+                "crack_stats.xlsx",
+                "cable_accel_stats.xlsx",
+                "cable_accel_spec_stats.xlsx",
+                "tilt_stats.xlsx",
+            ],
+        )
+        if missing_stats:
+            warnings.append(f"\u7f3a\u5c11\u4e5d\u9f99\u6c5f\u6708\u62a5\u7edf\u8ba1\u8868\uff1a{', '.join(missing_stats)}\u3002")
+        missing_dirs = self._missing_result_dirs(
+            result_root,
+            [
+                "\u65f6\u7a0b\u66f2\u7ebf_\u6e29\u5ea6",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u6e7f\u5ea6",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u96e8\u91cf",
+                "\u98ce\u901f\u98ce\u5411\u7ed3\u679c",
+                "\u5730\u9707\u52a8\u7ed3\u679c",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u6320\u5ea6",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u652f\u5ea7\u4f4d\u79fb",
+                "\u65f6\u7a0b\u66f2\u7ebf_GNSS",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u52a0\u901f\u5ea6",
+                "\u9891\u8c31\u5cf0\u503c\u66f2\u7ebf_\u52a0\u901f\u5ea6",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u5e94\u53d8",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u88c2\u7f1d\u5bbd\u5ea6",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u7d22\u529b\u52a0\u901f\u5ea6",
+                "\u65f6\u7a0b\u66f2\u7ebf_\u503e\u89d2",
+            ],
+        )
+        if missing_dirs:
+            warnings.append(f"\u7f3a\u5c11\u4e5d\u9f99\u6c5f\u6708\u62a5\u5173\u952e\u56fe\u7247\u76ee\u5f55\uff1a{', '.join(missing_dirs)}\u3002")
         return warnings
 
     def _template_check_kind(self, report_type: str) -> str | None:
         if report_type == PERIOD_REPORT:
             return "hongtang_period"
+        if report_type == JLJ_MONTHLY_REPORT:
+            return "jlj_monthly"
         return None
 
     def _format_template_issues(self, issues: list[TemplateIssue]) -> str:
@@ -530,6 +676,8 @@ class ReportGui(QMainWindow):
                 warnings.extend(self._collect_period_warnings(result_root, wim_root, start_date, end_date))
             except ValueError:
                 errors.append("\u5f00\u59cb/\u7ed3\u675f\u65e5\u671f\u683c\u5f0f\u5fc5\u987b\u662f YYYY-MM-DD\uff0c\u4e14\u7ed3\u675f\u65e5\u671f\u4e0d\u80fd\u65e9\u4e8e\u5f00\u59cb\u65e5\u671f\u3002")
+        elif report_type == JLJ_MONTHLY_REPORT:
+            warnings.extend(self._collect_jlj_warnings(result_root))
 
         if errors:
             QMessageBox.critical(self, "\u68c0\u67e5\u5931\u8d25", "\n".join(f"- {item}" for item in errors))
@@ -606,7 +754,10 @@ class ReportGui(QMainWindow):
     def _on_finished(self, manifest_path: str, report_path: str) -> None:
         self._last_output_dir = Path(report_path).parent
         self._set_busy(False)
-        QMessageBox.information(self, "\u5b8c\u6210", f"\u62a5\u544a\u5df2\u751f\u6210:\n{report_path}\n\nManifest:\n{manifest_path}")
+        message = f"\u62a5\u544a\u5df2\u751f\u6210:\n{report_path}"
+        if manifest_path:
+            message += f"\n\nManifest:\n{manifest_path}"
+        QMessageBox.information(self, "\u5b8c\u6210", message)
 
     def _on_failed(self, message: str) -> None:
         self._set_busy(False)
