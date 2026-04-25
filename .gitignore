@@ -63,6 +63,14 @@ reporting/__pycache__/
 reports_paras.txt
 config/*_backup_*.json
 config/default_config_production0310.json
+
+# Report source policy: track only current official templates.
+reports/*.docx
+!reports/洪塘大桥健康监测2026年第一季季报-改4.docx
+!reports/洪塘大桥健康监测月报模板.docx
+!reports/九龙江大桥健康监测2026年3月份月报_修订5.docx
+reports/*.xlsx
+reports/*.pdf
 reports/__tmp*/
 reports/*_20??????_??????.docx
 reports/*_backup_*.xlsx

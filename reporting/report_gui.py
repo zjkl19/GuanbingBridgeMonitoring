@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from build_monthly_report import build_report
 from build_period_report import build_period_report
+from template_precheck import TemplateIssue, check_template
 
 
 MONTHLY_REPORT = "\u6708\u62a5"
@@ -134,7 +135,7 @@ def has_dated_raw_dirs(result_root: Path) -> bool:
 def top_help_text() -> str:
     return (
         "\u6a21\u677f\u6587\u4ef6\uff1a\u6708\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\u201d\uff0c"
-        "\u5468\u671f\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f-\u81ea\u52a8\u62a5\u544a.docx\u201d\u3002\n"
+        "\u5468\u671f\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\u201d\u3002\n"
         "\u914d\u7f6e\u6587\u4ef6\uff1a\u76f4\u63a5\u5f71\u54cd\u62a5\u544a\u751f\u6210\u7684\u4e3b\u8981\u662f plot_styles.* \u8f93\u51fa\u76ee\u5f55\u3001reporting.* \u63d2\u56fe\u987a\u5e8f/\u542f\u7528\u3001wim.* \u548c wim_db.*\u3002\n"
         "\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55\uff1a\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\n"
         "\u5468\u671f\u62a5\u8bf4\u660e\uff1a1.4\u201c\u5065\u5eb7\u76d1\u6d4b\u7cfb\u7edf\u8fd0\u884c\u72b6\u51b5\u201d\u53ea\u7edf\u8ba1\u539f\u59cb\u6570\u636e\u7f3a\u5931/\u65e0\u6587\u4ef6/\u65e0\u8bb0\u5f55\u3002"
@@ -316,6 +317,10 @@ class ReportGui(QMainWindow):
         self.generate_btn.clicked.connect(self._on_generate)
         action_row.addWidget(self.generate_btn)
 
+        self.check_btn = QPushButton("\u68c0\u67e5\u6a21\u677f/\u76ee\u5f55")
+        self.check_btn.clicked.connect(self._on_check_inputs)
+        action_row.addWidget(self.check_btn)
+
         self.open_btn = QPushButton("\u6253\u5f00\u8f93\u51fa\u76ee\u5f55")
         self.open_btn.clicked.connect(self._open_output_dir)
         action_row.addWidget(self.open_btn)
@@ -423,18 +428,14 @@ class ReportGui(QMainWindow):
         self.end_edit.setEnabled(period_mode)
         self._maybe_update_template_for_type()
 
-    def _validate_period_inputs(self, result_root: Path, wim_root: Path | None) -> bool:
-        try:
-            start_date = parse_iso_date(self.start_edit.text().strip())
-            end_date = parse_iso_date(self.end_edit.text().strip())
-        except ValueError:
-            QMessageBox.critical(self, "\u9519\u8bef", "\u5f00\u59cb/\u7ed3\u675f\u65e5\u671f\u683c\u5f0f\u5fc5\u987b\u662f YYYY-MM-DD\u3002")
-            return False
-
+    def _read_period_dates(self) -> tuple[date, date]:
+        start_date = parse_iso_date(self.start_edit.text().strip())
+        end_date = parse_iso_date(self.end_edit.text().strip())
         if end_date < start_date:
-            QMessageBox.critical(self, "\u9519\u8bef", "\u7ed3\u675f\u65e5\u671f\u4e0d\u80fd\u65e9\u4e8e\u5f00\u59cb\u65e5\u671f\u3002")
-            return False
+            raise ValueError("\u7ed3\u675f\u65e5\u671f\u4e0d\u80fd\u65e9\u4e8e\u5f00\u59cb\u65e5\u671f\u3002")
+        return start_date, end_date
 
+    def _collect_period_warnings(self, result_root: Path, wim_root: Path | None, start_date: date, end_date: date) -> list[str]:
         warnings: list[str] = []
 
         lowfreq_file = result_root / "lowfreq" / "data.xlsx"
@@ -454,6 +455,33 @@ class ReportGui(QMainWindow):
             missing_months = [m for m in iter_months(start_date, end_date) if not (wim_root / m).exists()]
             if missing_months:
                 warnings.append(f"WIM \u7ed3\u679c\u76ee\u5f55\u7f3a\u5c11\u6708\u4efd\uff1a{', '.join(missing_months)}\u3002")
+        return warnings
+
+    def _template_check_kind(self, report_type: str) -> str | None:
+        if report_type == PERIOD_REPORT:
+            return "hongtang_period"
+        return None
+
+    def _format_template_issues(self, issues: list[TemplateIssue]) -> str:
+        return "\n".join(f"- [{issue.code}] {issue.message}" for issue in issues)
+
+    def _run_template_precheck(self, template: Path, report_type: str) -> list[str]:
+        kind = self._template_check_kind(report_type)
+        if kind is None:
+            return ["\u6708\u62a5\u6682\u672a\u914d\u7f6e\u6a21\u677f\u951a\u70b9\u9884\u68c0\uff0c\u672c\u6b21\u4ec5\u68c0\u67e5\u6587\u4ef6\u548c\u7ed3\u679c\u76ee\u5f55\u3002"]
+        issues = check_template(kind, template)
+        if issues:
+            raise ValueError(self._format_template_issues(issues))
+        return []
+
+    def _validate_period_inputs(self, result_root: Path, wim_root: Path | None) -> bool:
+        try:
+            start_date, end_date = self._read_period_dates()
+        except ValueError:
+            QMessageBox.critical(self, "\u9519\u8bef", "\u5f00\u59cb/\u7ed3\u675f\u65e5\u671f\u683c\u5f0f\u5fc5\u987b\u662f YYYY-MM-DD\uff0c\u4e14\u7ed3\u675f\u65e5\u671f\u4e0d\u80fd\u65e9\u4e8e\u5f00\u59cb\u65e5\u671f\u3002")
+            return False
+
+        warnings = self._collect_period_warnings(result_root, wim_root, start_date, end_date)
 
         if not warnings:
             return True
@@ -471,11 +499,52 @@ class ReportGui(QMainWindow):
         )
         return ret == QMessageBox.StandardButton.Yes
 
+    def _on_check_inputs(self) -> None:
+        template = Path(self.template_edit.text()).expanduser()
+        config_path = Path(self.config_edit.text()).expanduser()
+        result_root = Path(self.result_root_edit.text()).expanduser()
+        report_type = self.report_type_combo.currentText()
+        wim_root = Path(self.wim_root_edit.text()).expanduser() if self.wim_root_edit.text().strip() else None
+
+        errors: list[str] = []
+        warnings: list[str] = []
+        if not template.exists():
+            errors.append(f"\u6a21\u677f\u4e0d\u5b58\u5728: {template}")
+        if not config_path.exists():
+            errors.append(f"\u914d\u7f6e\u4e0d\u5b58\u5728: {config_path}")
+        if not result_root.exists():
+            errors.append(f"\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55\u4e0d\u5b58\u5728: {result_root}")
+        if errors:
+            QMessageBox.critical(self, "\u68c0\u67e5\u5931\u8d25", "\n".join(f"- {item}" for item in errors))
+            return
+
+        try:
+            warnings.extend(self._run_template_precheck(template, report_type))
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "\u6a21\u677f\u9884\u68c0\u5931\u8d25", str(exc))
+            return
+
+        if report_type == PERIOD_REPORT:
+            try:
+                start_date, end_date = self._read_period_dates()
+                warnings.extend(self._collect_period_warnings(result_root, wim_root, start_date, end_date))
+            except ValueError:
+                errors.append("\u5f00\u59cb/\u7ed3\u675f\u65e5\u671f\u683c\u5f0f\u5fc5\u987b\u662f YYYY-MM-DD\uff0c\u4e14\u7ed3\u675f\u65e5\u671f\u4e0d\u80fd\u65e9\u4e8e\u5f00\u59cb\u65e5\u671f\u3002")
+
+        if errors:
+            QMessageBox.critical(self, "\u68c0\u67e5\u5931\u8d25", "\n".join(f"- {item}" for item in errors))
+            return
+        if warnings:
+            QMessageBox.warning(self, "\u68c0\u67e5\u5b8c\u6210\uff08\u6709\u63d0\u793a\uff09", "\n".join(f"- {item}" for item in warnings))
+            return
+        QMessageBox.information(self, "\u68c0\u67e5\u901a\u8fc7", "\u6a21\u677f\u3001\u914d\u7f6e\u548c\u7ed3\u679c\u76ee\u5f55\u68c0\u67e5\u901a\u8fc7\u3002")
+
     def _log(self, text: str) -> None:
         self.log_edit.appendPlainText(text)
 
     def _set_busy(self, busy: bool) -> None:
         self.generate_btn.setEnabled(not busy)
+        self.check_btn.setEnabled(not busy)
         self.status_label.setText("\u8fd0\u884c\u4e2d..." if busy else "\u5c31\u7eea")
 
     def _on_generate(self) -> None:
@@ -500,6 +569,11 @@ class ReportGui(QMainWindow):
             QMessageBox.critical(self, "\u9519\u8bef", f"WIM\u7ed3\u679c\u76ee\u5f55\u4e0d\u5b58\u5728:\n{wim_root}")
             return
         if report_type == PERIOD_REPORT and not self._validate_period_inputs(result_root, wim_root):
+            return
+        try:
+            self._run_template_precheck(template, report_type)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "\u6a21\u677f\u9884\u68c0\u5931\u8d25", str(exc))
             return
 
         self._set_busy(True)

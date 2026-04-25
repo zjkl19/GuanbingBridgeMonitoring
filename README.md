@@ -154,6 +154,9 @@ For period reports, section `1.4 健康监测系统运行状况` only counts raw
 See `reporting/README.md` for report GUI details.
 报告 GUI 细节见 `reporting/README.md`。
 
+Current official templates are listed in `reports/README.md`; old drafts and generated reports should not be committed.
+当前正式模板清单见 `reports/README.md`；历史草稿和自动生成报告不应提交。
+
 Template precheck and smoke test.
 模板预检与冒烟测试。
 
