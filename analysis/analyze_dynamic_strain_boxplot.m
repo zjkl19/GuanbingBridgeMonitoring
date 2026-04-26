@@ -216,13 +216,22 @@ function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, d
     colors_6 = {[0 0 0],[0 0 1],[0 0.7 0],[1 0.4 0.8],[1 0.6 0],[1 0 0]};
 
     n = numel(tsList);
+    labels = labels(:);
     hLines = gobjects(n,1);
+    hasLine = false(n,1);
     for i = 1:n
         t = tsList(i).times; v = tsList(i).vals;
         if isempty(t) || isempty(v), continue; end
         c = colors_6{ min(i, numel(colors_6)) };
         [times_plot, vals_plot] = prepare_plot_series(t, v);
-        hLines(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', c);
+        if isempty(times_plot) || isempty(vals_plot) || ~any(isfinite(vals_plot))
+            continue;
+        end
+        h = plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', c);
+        if ~isempty(h)
+            hLines(i) = h(1);
+            hasLine(i) = true;
+        end
     end
 
     xlabel('时间'); ylabel('应变 (με)');
@@ -247,7 +256,9 @@ function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, d
         ylim(ds_cfg.YLimRange);
     end
 
-    legend(hLines, labels, 'Location','northeast','Box','off');
+    if any(hasLine)
+        legend(hLines(hasLine), labels(hasLine), 'Location','northeast','Box','off');
+    end
 
     base = sprintf('dynstrain_hp_%s_%s', groupName, tag);
     save_plot_bundle(f, outdir_ts, [base '_' ts]);
