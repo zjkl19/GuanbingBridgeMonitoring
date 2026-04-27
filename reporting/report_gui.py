@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from build_jlj_monthly_report import build_report as build_jlj_monthly_report
+from build_guanbing_monthly_report import build_report as build_guanbing_monthly_report
 from build_monthly_report import build_report as build_hongtang_monthly_report
 from build_period_report import build_period_report
 from missing_summary import missing_summary_paths
@@ -35,15 +36,18 @@ from template_precheck import TemplateIssue, check_template, write_precheck_repo
 MONTHLY_REPORT = "\u6d2a\u5858\u6708\u62a5"
 PERIOD_REPORT = "\u6d2a\u5858\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
 JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
+GUANBING_MONTHLY_REPORT = "管柄月报"
 APP_VERSION = "v1.6.2"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx"
+GUANBING_TEMPLATE_NAME = "G104线管柄大桥监测月报模板-自动报告.docx"
 PERIOD_TEMPLATE_AUTO_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f-\u81ea\u52a8\u62a5\u544a.docx"
 PERIOD_TEMPLATE_LEGACY_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f0318.docx"
 PERIOD_TEMPLATE_FALLBACK_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f.docx"
 DEFAULT_RESULT_ROOT = Path("E:" + "\\" + "\u6d2a\u5858\u5927\u6865\u6570\u636e" + "\\" + "2026\u5e741-3\u6708")
 DEFAULT_JLJ_RESULT_ROOT = Path("E:" + "\\" + "\u4e5d\u9f99\u6c5f\u6570\u636e" + "\\" + "2026\u5e743\u6708")
+DEFAULT_GUANBING_RESULT_ROOT = Path("F:" + "\\" + "管柄大桥数据" + "\\" + "2026年3月")
 
 
 def app_root() -> Path:
@@ -77,6 +81,12 @@ def detect_default_config(report_type: str = PERIOD_REPORT) -> Path:
             if jlj_cfg.exists():
                 return jlj_cfg.resolve()
         return (app_root() / "config" / "jiulongjiang_config.json").resolve()
+    if report_type == GUANBING_MONTHLY_REPORT:
+        for config_dir in candidate_config_roots():
+            default_cfg = config_dir / "default_config.json"
+            if default_cfg.exists():
+                return default_cfg.resolve()
+        return (app_root() / "config" / "default_config.json").resolve()
 
     computer_name = os.environ.get("COMPUTERNAME", "").strip()
     for config_dir in candidate_config_roots():
@@ -91,13 +101,20 @@ def detect_default_config(report_type: str = PERIOD_REPORT) -> Path:
 
 
 def default_result_root(report_type: str) -> Path:
-    return DEFAULT_JLJ_RESULT_ROOT if report_type == JLJ_MONTHLY_REPORT else DEFAULT_RESULT_ROOT
+    if report_type == JLJ_MONTHLY_REPORT:
+        return DEFAULT_JLJ_RESULT_ROOT
+    if report_type == GUANBING_MONTHLY_REPORT:
+        return DEFAULT_GUANBING_RESULT_ROOT
+    return DEFAULT_RESULT_ROOT
 
 
 def find_default_template(report_type: str) -> Path:
     if report_type == JLJ_MONTHLY_REPORT:
         preferred = JLJ_TEMPLATE_NAME
         fallback_candidates = [JLJ_TEMPLATE_NAME]
+    elif report_type == GUANBING_MONTHLY_REPORT:
+        preferred = GUANBING_TEMPLATE_NAME
+        fallback_candidates = [GUANBING_TEMPLATE_NAME]
     elif report_type == PERIOD_REPORT:
         preferred = PERIOD_TEMPLATE_NAME
         fallback_candidates = [PERIOD_TEMPLATE_AUTO_NAME, PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME, MONTHLY_TEMPLATE_NAME]
@@ -156,7 +173,8 @@ def top_help_text() -> str:
     return (
         "\u6a21\u677f\u6587\u4ef6\uff1a\u6708\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\u201d\uff0c"
         "\u5468\u671f\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\u201d\uff0c"
-        "\u4e5d\u9f99\u6c5f\u6708\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx\u201d\u3002\n"
+        "\u4e5d\u9f99\u6c5f\u6708\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx\u201d\uff0c"
+        "管柄月报默认使用“G104线管柄大桥监测月报模板-自动报告.docx”。\n"
         "\u914d\u7f6e\u6587\u4ef6\uff1a\u76f4\u63a5\u5f71\u54cd\u62a5\u544a\u751f\u6210\u7684\u4e3b\u8981\u662f plot_styles.* \u8f93\u51fa\u76ee\u5f55\u3001reporting.* \u63d2\u56fe\u987a\u5e8f/\u542f\u7528\u3001wim.* \u548c wim_db.*\u3002\n"
         "\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55\uff1a\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\n"
         "\u5468\u671f\u62a5\u8bf4\u660e\uff1a1.4\u201c\u5065\u5eb7\u76d1\u6d4b\u7cfb\u7edf\u8fd0\u884c\u72b6\u51b5\u201d\u53ea\u7edf\u8ba1\u539f\u59cb\u6570\u636e\u7f3a\u5931/\u65e0\u6587\u4ef6/\u65e0\u8bb0\u5f55\u3002"
@@ -170,6 +188,8 @@ def report_type_description(report_type: str) -> str:
         return "\u6d2a\u5858\u5468\u671f\u62a5\uff1a\u4f7f\u7528\u6d2a\u5858\u5468\u671f/\u5b63\u62a5\u6a21\u677f\uff0c\u6309\u65e5\u671f\u8303\u56f4\u7ec4\u88c5\u975e WIM \u7ed3\u679c\uff0cWIM \u6309\u6708\u4ece WIM/results/hongtang \u63d2\u5165\uff0c\u5e76\u7edf\u8ba1 1.4 \u539f\u59cb\u6570\u636e\u7f3a\u5931\u3002"
     if report_type == JLJ_MONTHLY_REPORT:
         return "\u4e5d\u9f99\u6c5f\u6708\u62a5\uff1a\u4f7f\u7528\u4e5d\u9f99\u6c5f\u72ec\u7acb\u751f\u6210\u903b\u8f91\uff0c\u6309\u4e3b\u6865/\u5317\u6c5f\u6ee8\u531d\u9053/\u5357\u6c5f\u6ee8\u531d\u9053\u7ae0\u8282\u7ec4\u88c5\u7b2c 4 \u7ae0\u548c\u7ed3\u8bba\u9875\u3002"
+    if report_type == GUANBING_MONTHLY_REPORT:
+        return "管柄月报：使用管柄自动报告模板，按2026-02-26~2026-03-25这类月度周期从结果目录插入图片和统计文字；缺少挠度/倾角/加速度时程结果时保留模板原内容。"
     return "\u6d2a\u5858\u6708\u62a5\uff1a\u4f7f\u7528\u65e7\u6d2a\u5858\u6708\u62a5\u6a21\u677f\u548c\u6708\u62a5\u751f\u6210\u6d41\u7a0b\uff0c\u9002\u7528\u5355\u6708\u5df2\u8ba1\u7b97\u597d\u7684\u7ed3\u679c\u76ee\u5f55\u3002"
 
 
@@ -245,6 +265,19 @@ class ReportWorker(QObject):
                 )
                 manifest_path = None
                 missing = []
+            elif self.report_type == GUANBING_MONTHLY_REPORT:
+                report_path, manifest_path = build_guanbing_monthly_report(
+                    template=self.template,
+                    config_path=self.config_path,
+                    result_root=self.result_root,
+                    output_dir=self.output_dir,
+                    period_label=self.period_label,
+                    monitoring_range=self.monitoring_range,
+                    report_date=self.report_date,
+                    start_date=self.start_date,
+                    end_date=self.end_date,
+                )
+                missing = []
             else:
                 manifest_path, report_path, missing = build_hongtang_monthly_report(
                     template=self.template,
@@ -315,7 +348,7 @@ class ReportGui(QMainWindow):
         initial_result_root = default_result_root(PERIOD_REPORT)
 
         self.report_type_combo = QComboBox()
-        self.report_type_combo.addItems([MONTHLY_REPORT, PERIOD_REPORT, JLJ_MONTHLY_REPORT])
+        self.report_type_combo.addItems([MONTHLY_REPORT, PERIOD_REPORT, JLJ_MONTHLY_REPORT, GUANBING_MONTHLY_REPORT])
         self.report_type_combo.setCurrentText(PERIOD_REPORT)
         self.report_type_desc_label: QLabel | None = None
         self.template_edit = QLineEdit(str(find_default_template(PERIOD_REPORT)))
@@ -332,8 +365,8 @@ class ReportGui(QMainWindow):
 
         rows = [
             ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, report_type_description(PERIOD_REPORT)),
-            ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6d2a\u5858\u6708\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u6d2a\u5858\u5468\u671f\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\uff1b\u4e5d\u9f99\u6c5f\u6708\u62a5\uff1a\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx\u3002"),
-            ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "\u6d2a\u5858\u4f18\u5148\u8bfb\u53d6\u673a\u5668\u4e13\u7528\u914d\u7f6e hongtang_config_<COMPUTERNAME>.json\uff1b\u4e5d\u9f99\u6c5f\u9ed8\u8ba4\u4f7f\u7528 jiulongjiang_config.json\u3002"),
+            ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6d2a\u5858\u6708\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u6d2a\u5858\u5468\u671f\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\uff1b\u4e5d\u9f99\u6c5f\u6708\u62a5\uff1a\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx\uff1b管柄月报：G104线管柄大桥监测月报模板-自动报告.docx。"),
+            ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "\u6d2a\u5858\u4f18\u5148\u8bfb\u53d6\u673a\u5668\u4e13\u7528\u914d\u7f6e hongtang_config_<COMPUTERNAME>.json\uff1b\u4e5d\u9f99\u6c5f\u9ed8\u8ba4\u4f7f\u7528 jiulongjiang_config.json；管柄默认使用 default_config.json。"),
             ("\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55", self.result_root_edit, self._browse_result_root, "\u8fd9\u91cc\u5e94\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\u5bf9\u5468\u671f\u62a5\uff0c\u8fd9\u4e2a\u76ee\u5f55\u6700\u597d\u540c\u65f6\u5305\u542b raw \u539f\u59cb\u6570\u636e\uff0c\u5426\u5219 1.4 \u7ae0\u8282\u4f1a\u5c06\u7f3a\u5c11\u539f\u59cb\u6570\u636e\u89c6\u4e3a\u7f3a\u5931\u3002"),
             ("\u7a0b\u5e8f\u6839\u76ee\u5f55\uff08\u9ad8\u7ea7\uff09", self.analysis_root_edit, self._browse_analysis_root, "\u517c\u5bb9\u65e7\u8def\u5f84\u548c\u5c11\u91cf\u56de\u9000\u67e5\u627e\uff0c\u901a\u5e38\u4fdd\u6301\u7a0b\u5e8f\u6240\u5728\u76ee\u5f55\u5373\u53ef\u3002"),
             ("WIM\u7ed3\u679c\u76ee\u5f55", self.wim_root_edit, self._browse_wim_root, "\u5468\u671f\u62a5\u4f7f\u7528\uff0c\u9ed8\u8ba4\u662f <\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55>/WIM/results/hongtang\u3002WIM \u4ecd\u6309\u6708\u63d2\u5165\uff0c\u4e0d\u662f\u628a 1~3 \u4e2a\u6708\u76f4\u63a5\u5408\u6210\u4e00\u5f20\u8868\u3002"),
@@ -406,7 +439,7 @@ class ReportGui(QMainWindow):
 
     def _maybe_update_template_for_type(self) -> None:
         current = self.template_edit.text().strip()
-        names = {MONTHLY_TEMPLATE_NAME, PERIOD_TEMPLATE_NAME, JLJ_TEMPLATE_NAME, PERIOD_TEMPLATE_AUTO_NAME, PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME}
+        names = {MONTHLY_TEMPLATE_NAME, PERIOD_TEMPLATE_NAME, JLJ_TEMPLATE_NAME, GUANBING_TEMPLATE_NAME, PERIOD_TEMPLATE_AUTO_NAME, PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME}
         should_replace = (not current) or (Path(current).name in names) or (not Path(current).exists())
         if should_replace:
             self.template_edit.setText(str(find_default_template(self.report_type_combo.currentText())))
@@ -416,6 +449,7 @@ class ReportGui(QMainWindow):
         names = {
             "hongtang_config.json",
             "jiulongjiang_config.json",
+            "default_config.json",
         }
         computer_name = os.environ.get("COMPUTERNAME", "").strip()
         if computer_name:
@@ -426,7 +460,7 @@ class ReportGui(QMainWindow):
 
     def _maybe_update_result_root_for_type(self) -> None:
         current = self.result_root_edit.text().strip()
-        known_roots = {DEFAULT_RESULT_ROOT, DEFAULT_JLJ_RESULT_ROOT}
+        known_roots = {DEFAULT_RESULT_ROOT, DEFAULT_JLJ_RESULT_ROOT, DEFAULT_GUANBING_RESULT_ROOT}
         current_path = Path(current).expanduser() if current else None
         should_replace = (current_path is None) or (current_path in known_roots) or (not current_path.exists())
         if should_replace:
@@ -498,14 +532,20 @@ class ReportGui(QMainWindow):
 
     def _on_report_type_changed(self, text: str) -> None:
         period_mode = text == PERIOD_REPORT
+        date_range_mode = text in (PERIOD_REPORT, GUANBING_MONTHLY_REPORT)
         self.wim_root_edit.setEnabled(period_mode)
-        self.start_edit.setEnabled(period_mode)
-        self.end_edit.setEnabled(period_mode)
+        self.start_edit.setEnabled(date_range_mode)
+        self.end_edit.setEnabled(date_range_mode)
         if self.report_type_desc_label is not None:
             self.report_type_desc_label.setText(report_type_description(text))
         self._maybe_update_template_for_type()
         self._maybe_update_config_for_type()
         self._maybe_update_result_root_for_type()
+        if text == GUANBING_MONTHLY_REPORT:
+            self.period_edit.setText("2026年03月")
+            self.range_edit.setText("2026年02月26日~2026年03月25日")
+            self.start_edit.setText("2026-02-26")
+            self.end_edit.setText("2026-03-25")
 
     def _read_period_dates(self) -> tuple[date, date]:
         start_date = parse_iso_date(self.start_edit.text().strip())
