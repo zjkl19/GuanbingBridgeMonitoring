@@ -87,9 +87,13 @@
       "post_filter_thresholds": []
     },
     "dynamic_strain_lowpass": {
-      "Fs": 20,
+      "FilterMode": "auto",
+      "AutoPreset": "temperature",
+      "AutoCutoffPeriodMinutes": 720,
+      "MinSamplesPerCutoff": 20,
+      "Fs": null,
       "Fc": null,
-      "CutoffPeriodMinutes": 60,
+      "CutoffPeriodMinutes": null,
       "FilterOrder": 2,
       "Whisker": 300,
       "ShowOutliers": false,
@@ -2130,9 +2134,13 @@
     "EdgeTrimSec": 5
   },
   "defaults_dynamic_strain_lowpass": {
-    "Fs": 20,
+    "FilterMode": "auto",
+    "AutoPreset": "temperature",
+    "AutoCutoffPeriodMinutes": 720,
+    "MinSamplesPerCutoff": 20,
+    "Fs": null,
     "Fc": null,
-    "CutoffPeriodMinutes": 60,
+    "CutoffPeriodMinutes": null,
     "FilterOrder": 2,
     "Whisker": 300,
     "ShowOutliers": false,

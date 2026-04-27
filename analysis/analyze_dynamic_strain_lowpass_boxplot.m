@@ -149,7 +149,7 @@ function [vals_all, times_all] = process_one_pid(root_dir, subfolder, start_str,
     % end
 
     fs_local = estimate_sample_rate(times_all, ds_cfg.Fs);
-    fc_local = resolve_lowpass_cutoff(ds_cfg);
+    [fc_local, cutoff_minutes] = resolve_lowpass_cutoff(ds_cfg, fs_local);
     filter_order = max(1, min(6, round(ds_cfg.FilterOrder)));
 
     v2 = vals_all;
@@ -158,6 +158,9 @@ function [vals_all, times_all] = process_one_pid(root_dir, subfolder, start_str,
         nyq = fs_local / 2;
         if nyq > 0 && fc_local < nyq
             v2 = lowpass_by_segments(times_all, v2, fs_local, fc_local, filter_order, ds_cfg);
+            if ~isempty(cutoff_minutes)
+                fprintf('    低通截止周期: %.3g min (fs=%.6g Hz)\n', cutoff_minutes, fs_local);
+            end
         else
             warning_once('dynamic_strain_lowpass:fc', ...
                 sprintf('低通截止频率 %.6g Hz 不小于 Nyquist %.6g Hz，跳过滤波。', fc_local, nyq));
@@ -352,7 +355,9 @@ function sub = get_subfolder(cfg, key, fallback)
 end
 
 function ds = get_dynamic_lowpass_cfg(cfg)
-    ds = struct('Fs',[], 'Fc',[], 'CutoffPeriodMinutes',60, 'FilterOrder',2, ...
+    ds = struct('FilterMode','auto', 'AutoPreset','temperature', ...
+        'AutoCutoffPeriodMinutes',720, 'MinSamplesPerCutoff',20, ...
+        'Fs',[], 'Fc',[], 'CutoffPeriodMinutes',[], 'FilterOrder',2, ...
         'Whisker',300, 'ShowOutliers',false, ...
         'YLimManual',false, 'YLimRange',[-150 150], ...
         'LowerBound',-150, 'UpperBound',150, 'EdgeTrimSec',5, ...
@@ -392,16 +397,60 @@ function fs = estimate_sample_rate(times, fs_cfg)
     fs = 1 / median(dt);
 end
 
-function fc = resolve_lowpass_cutoff(ds_cfg)
+function [fc, cutoff_minutes] = resolve_lowpass_cutoff(ds_cfg, fs)
+    cutoff_minutes = [];
     if isfield(ds_cfg, 'Fc') && ~isempty(ds_cfg.Fc) && isfinite(ds_cfg.Fc) && ds_cfg.Fc > 0
         fc = double(ds_cfg.Fc);
         return;
     end
     if isfield(ds_cfg, 'CutoffPeriodMinutes') && ~isempty(ds_cfg.CutoffPeriodMinutes) && ...
             isfinite(ds_cfg.CutoffPeriodMinutes) && ds_cfg.CutoffPeriodMinutes > 0
-        fc = 1 / (double(ds_cfg.CutoffPeriodMinutes) * 60);
+        cutoff_minutes = double(ds_cfg.CutoffPeriodMinutes);
+        fc = 1 / (cutoff_minutes * 60);
+        return;
+    end
+
+    mode = lower(char(string(get_field_default(ds_cfg, 'FilterMode', 'auto'))));
+    if strcmp(mode, 'auto')
+        cutoff_minutes = auto_cutoff_period_minutes(ds_cfg, fs);
+        fc = 1 / (cutoff_minutes * 60);
     else
         fc = [];
+    end
+end
+
+function minutes_val = auto_cutoff_period_minutes(ds_cfg, fs)
+    preset = lower(char(string(get_field_default(ds_cfg, 'AutoPreset', 'temperature'))));
+    switch preset
+        case {'temperature','temp','thermal','temperature_strain'}
+            minutes_val = get_numeric_field_default(ds_cfg, 'AutoCutoffPeriodMinutes', 720);
+        otherwise
+            minutes_val = get_numeric_field_default(ds_cfg, 'AutoCutoffPeriodMinutes', 720);
+    end
+
+    if ~isfinite(minutes_val) || minutes_val <= 0
+        minutes_val = 720;
+    end
+    min_samples = get_numeric_field_default(ds_cfg, 'MinSamplesPerCutoff', 20);
+    if isfinite(fs) && fs > 0 && isfinite(min_samples) && min_samples > 0
+        sample_minutes = 1 / fs / 60;
+        minutes_val = max(minutes_val, min_samples * sample_minutes);
+    end
+end
+
+function val = get_field_default(s, name, default_val)
+    if isstruct(s) && isfield(s, name) && ~isempty(s.(name))
+        val = s.(name);
+    else
+        val = default_val;
+    end
+end
+
+function val = get_numeric_field_default(s, name, default_val)
+    val = default_val;
+    if isstruct(s) && isfield(s, name) && ~isempty(s.(name)) && ...
+            isnumeric(s.(name)) && isscalar(s.(name)) && isfinite(s.(name))
+        val = double(s.(name));
     end
 end
 
