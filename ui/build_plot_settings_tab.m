@@ -1,4 +1,4 @@
-﻿function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog, primaryBlue)
+function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog, primaryBlue)
 % build_plot_settings_tab Build plot-settings editor UI.
 
     if nargin < 6 || isempty(addLog)
@@ -6,19 +6,19 @@
     end
 
     moduleDefs = { ...
-        struct('value', 'acceleration', 'label', '鍔犻€熷害'), ...
-        struct('value', 'cable_accel', 'label', '绱㈠姏鍔犻€熷害'), ...
-        struct('value', 'strain', 'label', '搴斿彉'), ...
-        struct('value', 'dynamic_strain', 'label', '鍔ㄥ簲鍙橀珮閫?), ...
-        struct('value', 'dynamic_strain_lowpass', 'label', '鍔ㄥ簲鍙樹綆閫?), ...
-        struct('value', 'tilt', 'label', '鍊捐'), ...
-        struct('value', 'bearing_displacement', 'label', '鏀骇浣嶇Щ'), ...
-        struct('value', 'deflection', 'label', '鎸犲害'), ...
-        struct('value', 'eq', 'label', '鍦伴渿鍔?), ...
-        struct('value', 'crack', 'label', '瑁傜紳'), ...
-        struct('value', 'temperature', 'label', '娓╁害'), ...
-        struct('value', 'humidity', 'label', '婀垮害'), ...
-        struct('value', 'rainfall', 'label', '闆ㄩ噺'), ...
+        struct('value', 'acceleration', 'label', '加速度'), ...
+        struct('value', 'cable_accel', 'label', '索力加速度'), ...
+        struct('value', 'strain', 'label', '应变'), ...
+        struct('value', 'dynamic_strain', 'label', '动应变高通'), ...
+        struct('value', 'dynamic_strain_lowpass', 'label', '动应变低通'), ...
+        struct('value', 'tilt', 'label', '倾角'), ...
+        struct('value', 'bearing_displacement', 'label', '支座位移'), ...
+        struct('value', 'deflection', 'label', '挠度'), ...
+        struct('value', 'eq', 'label', '地震动'), ...
+        struct('value', 'crack', 'label', '裂缝'), ...
+        struct('value', 'temperature', 'label', '温度'), ...
+        struct('value', 'humidity', 'label', '湿度'), ...
+        struct('value', 'rainfall', 'label', '雨量'), ...
         struct('value', 'gnss', 'label', 'GNSS')};
     moduleValues = cellfun(@(x) x.value, moduleDefs, 'UniformOutput', false);
     moduleLabels = cellfun(@(x) x.label, moduleDefs, 'UniformOutput', false);
@@ -37,71 +37,71 @@
     grid.RowSpacing = 8;
     grid.ColumnSpacing = 8;
 
-    globalPanel = uipanel(grid, 'Title', '鍏ㄥ眬缁樺浘淇濆瓨璁剧疆');
+    globalPanel = uipanel(grid, 'Title', '全局绘图保存设置');
     globalPanel.Layout.Row = 1; globalPanel.Layout.Column = [1 4];
     globalGrid = uigridlayout(globalPanel, [4 4]);
     globalGrid.RowHeight = {28, 28, 28, 28};
     globalGrid.ColumnWidth = {'1x', '1x', 160, '1x'};
 
-    cbSaveFig = uicheckbox(globalGrid, 'Text', '淇濆瓨 .fig', ...
+    cbSaveFig = uicheckbox(globalGrid, 'Text', '保存 .fig', ...
         'ValueChangedFcn', @(~,~) onGlobalChanged());
     cbSaveFig.Layout.Row = 1; cbSaveFig.Layout.Column = 1;
 
-    cbLightFig = uicheckbox(globalGrid, 'Text', '杞婚噺 .fig', ...
+    cbLightFig = uicheckbox(globalGrid, 'Text', '轻量 .fig', ...
         'ValueChangedFcn', @(~,~) onGlobalChanged());
     cbLightFig.Layout.Row = 1; cbLightFig.Layout.Column = 2;
 
     figMaxLabel = uilabel(globalGrid, 'Text', 'fig_max_points', 'HorizontalAlignment', 'right', ...
-        'Tooltip', '鍗曟潯鏇茬嚎鐐规暟瓒呰繃姝ら槇鍊兼椂锛屼繚瀛?.fig 鍓嶅仛淇濆嘲闄嶉噰鏍枫€?);
+        'Tooltip', '单条曲线点数超过此阈值时，保存 .fig 前做保峰降采样。');
     figMaxLabel.Layout.Row = 1; figMaxLabel.Layout.Column = 3;
     figMaxEdit = uieditfield(globalGrid, 'numeric', 'Limits', [1000 Inf], ...
         'RoundFractionalValues', true, 'ValueDisplayFormat', '%.0f', ...
         'ValueChangedFcn', @(~,~) onGlobalChanged());
     figMaxEdit.Layout.Row = 1; figMaxEdit.Layout.Column = 4;
 
-    cbAutoFolders = uicheckbox(globalGrid, 'Text', '鑷姩鏁寸悊缁撴灉鐩綍瑙嗗浘', ...
+    cbAutoFolders = uicheckbox(globalGrid, 'Text', '自动整理结果目录视图', ...
         'ValueChangedFcn', @(~,~) onGlobalChanged());
     cbAutoFolders.Layout.Row = 2; cbAutoFolders.Layout.Column = [1 2];
 
-    cbAppendTimestamp = uicheckbox(globalGrid, 'Text', '鍥剧墖杩藉姞杩愯鏃堕棿鎴?, ...
-        'Tooltip', '鍙栨秷鍚庝繚鐣欐暟鎹懆鏈燂紝浣嗗幓鎺夎繍琛屾椂闂存埑锛涘悓涓€鍛ㄦ湡閲嶇畻浼氳鐩栨棫鍥剧墖銆?, ...
+    cbAppendTimestamp = uicheckbox(globalGrid, 'Text', '图片追加运行时间戳', ...
+        'Tooltip', '取消后保留数据周期，但去掉运行时间戳；同一周期重算会覆盖旧图片。', ...
         'ValueChangedFcn', @(~,~) onGlobalChanged());
     cbAppendTimestamp.Layout.Row = 2; cbAppendTimestamp.Layout.Column = [3 4];
 
-    globalHint = uilabel(globalGrid, 'Text', '浠呭奖鍝嶇粯鍥句繚瀛樹笌缁撴灉鐩綍灞曠ず锛屼笉褰卞搷鍘熷鏁版嵁澶勭悊銆?);
+    globalHint = uilabel(globalGrid, 'Text', '仅影响绘图保存与结果目录展示，不影响原始数据处理。');
     globalHint.Layout.Row = 4; globalHint.Layout.Column = [1 4];
 
     gapModeLabel = uilabel(globalGrid, 'Text', 'Gap mode', 'HorizontalAlignment', 'right', ...
-        'Tooltip', 'connect: 缂哄彛鐩存帴杩炵嚎; break: 缂哄彛鐣欑┖');
+        'Tooltip', 'connect: 缺口直接连线; break: 缺口留空');
     gapModeLabel.Layout.Row = 3; gapModeLabel.Layout.Column = 1;
     gapModeDrop = uidropdown(globalGrid, 'Items', {'break', 'connect'}, ...
         'ValueChangedFcn', @(~,~) onGlobalChanged());
     gapModeDrop.Layout.Row = 3; gapModeDrop.Layout.Column = 2;
 
     gapFactorLabel = uilabel(globalGrid, 'Text', 'Gap factor', 'HorizontalAlignment', 'right', ...
-        'Tooltip', '鐩搁偦鏃堕棿宸秴杩?median(diff)*璇ュ€嶆暟鏃讹紝break 妯″紡鏂嚎');
+        'Tooltip', '相邻时间差超过 median(diff)*该倍数时，break 模式断线');
     gapFactorLabel.Layout.Row = 3; gapFactorLabel.Layout.Column = 3;
     gapFactorEdit = uieditfield(globalGrid, 'numeric', 'Limits', [1.1 Inf], ...
         'ValueDisplayFormat', '%.1f', 'RoundFractionalValues', false, ...
         'ValueChangedFcn', @(~,~) onGlobalChanged());
     gapFactorEdit.Layout.Row = 3; gapFactorEdit.Layout.Column = 4;
 
-    moduleLabel = uilabel(grid, 'Text', '妯″潡', 'HorizontalAlignment', 'right');
+    moduleLabel = uilabel(grid, 'Text', '模块', 'HorizontalAlignment', 'right');
     moduleLabel.Layout.Row = 2; moduleLabel.Layout.Column = 1;
     moduleDrop = uidropdown(grid, 'Items', moduleLabels, 'ItemsData', moduleValues, ...
         'Value', currentModule, 'ValueChangedFcn', @(~,~) onModuleChanged());
     moduleDrop.Layout.Row = 2; moduleDrop.Layout.Column = 2;
 
-    reloadBtn = uibutton(grid, 'Text', '閲嶆柊鍔犺浇閰嶇疆', 'ButtonPushedFcn', @(~,~) onReloadCfg());
+    reloadBtn = uibutton(grid, 'Text', '重新加载配置', 'ButtonPushedFcn', @(~,~) onReloadCfg());
     reloadBtn.Layout.Row = 2; reloadBtn.Layout.Column = 4;
 
-    modulePanel = uipanel(grid, 'Title', '妯″潡绾х粯鍥惧弬鏁?);
+    modulePanel = uipanel(grid, 'Title', '模块级绘图参数');
     modulePanel.Layout.Row = 3; modulePanel.Layout.Column = [1 4];
     moduleGrid = uigridlayout(modulePanel, [3 4]);
     moduleGrid.RowHeight = {28, 28, 28};
     moduleGrid.ColumnWidth = {130, 110, 110, '1x'};
 
-    cbYlimAuto = uicheckbox(moduleGrid, 'Text', 'Y杞磋嚜鍔?, ...
+    cbYlimAuto = uicheckbox(moduleGrid, 'Text', 'Y轴自动', ...
         'ValueChangedFcn', @(~,~) onModuleFieldChanged());
     cbYlimAuto.Layout.Row = 1; cbYlimAuto.Layout.Column = 1;
 
@@ -115,22 +115,22 @@
     ylimMaxEdit = uieditfield(moduleGrid, 'text', 'ValueChangedFcn', @(~,~) onModuleFieldChanged());
     ylimMaxEdit.Layout.Row = 2; ylimMaxEdit.Layout.Column = 3;
 
-    moduleHint = uilabel(moduleGrid, 'Text', '褰撳墠妯″潡鐨勫叏灞€ Y 杞磋寖鍥淬€傝嫢鍚敤 Y杞磋嚜鍔紝鍒欐澶勫彧浣滃閫変繚瀛樸€?);
+    moduleHint = uilabel(moduleGrid, 'Text', '当前模块的全局 Y 轴范围。若启用 Y轴自动，则此处只作备选保存。');
     moduleHint.Layout.Row = [1 2]; moduleHint.Layout.Column = 4;
 
-    cbShowOutliers = uicheckbox(moduleGrid, 'Text', '绠辩嚎鍥炬樉绀虹缇ゅ€?, ...
+    cbShowOutliers = uicheckbox(moduleGrid, 'Text', '箱线图显示离群值', ...
         'ValueChangedFcn', @(~,~) onModuleFieldChanged());
     cbShowOutliers.Layout.Row = 3; cbShowOutliers.Layout.Column = 1;
 
-    cbShowWarnPoint = uicheckbox(moduleGrid, 'Text', '鍗曠偣鍥炬樉绀洪璀︾嚎', ...
+    cbShowWarnPoint = uicheckbox(moduleGrid, 'Text', '单点图显示预警线', ...
         'ValueChangedFcn', @(~,~) onModuleFieldChanged());
     cbShowWarnPoint.Layout.Row = 3; cbShowWarnPoint.Layout.Column = 2;
 
-    cbShowWarnBox = uicheckbox(moduleGrid, 'Text', '绠辩嚎鍥炬樉绀洪璀︾嚎', ...
+    cbShowWarnBox = uicheckbox(moduleGrid, 'Text', '箱线图显示预警线', ...
         'ValueChangedFcn', @(~,~) onModuleFieldChanged());
     cbShowWarnBox.Layout.Row = 3; cbShowWarnBox.Layout.Column = 3;
 
-    ylimsLabel = uilabel(grid, 'Text', 'ylims 瑕嗙洊', 'FontWeight', 'bold');
+    ylimsLabel = uilabel(grid, 'Text', 'ylims 覆盖', 'FontWeight', 'bold');
     ylimsLabel.Layout.Row = 4; ylimsLabel.Layout.Column = 1;
     ylimsTable = uitable(grid, ...
         'ColumnName', {'name', 'ylim_min', 'ylim_max'}, ...
@@ -139,20 +139,20 @@
         'CellEditCallback', @(~,~) onTableEdited());
     ylimsTable.Layout.Row = 5; ylimsTable.Layout.Column = [1 4];
 
-    addRowBtn = uibutton(grid, 'Text', '鏂板涓€琛?, 'ButtonPushedFcn', @(~,~) add_row());
+    addRowBtn = uibutton(grid, 'Text', '新增一行', 'ButtonPushedFcn', @(~,~) add_row());
     addRowBtn.Layout.Row = 6; addRowBtn.Layout.Column = 1;
-    delRowBtn = uibutton(grid, 'Text', '鍒犻櫎閫変腑琛?, 'ButtonPushedFcn', @(~,~) delete_rows());
+    delRowBtn = uibutton(grid, 'Text', '删除选中行', 'ButtonPushedFcn', @(~,~) delete_rows());
     delRowBtn.Layout.Row = 6; delRowBtn.Layout.Column = 2;
 
-    saveBtn = uibutton(grid, 'Text', '淇濆瓨', 'BackgroundColor', primaryBlue, ...
+    saveBtn = uibutton(grid, 'Text', '保存', 'BackgroundColor', primaryBlue, ...
         'FontColor', [1 1 1], 'ButtonPushedFcn', @(~,~) onSaveCfg(false));
     saveBtn.Layout.Row = 6; saveBtn.Layout.Column = 3;
-    saveAsBtn = uibutton(grid, 'Text', '鍙﹀瓨涓?, 'ButtonPushedFcn', @(~,~) onSaveCfg(true));
+    saveAsBtn = uibutton(grid, 'Text', '另存为', 'ButtonPushedFcn', @(~,~) onSaveCfg(true));
     saveAsBtn.Layout.Row = 6; saveAsBtn.Layout.Column = 4;
 
     msgBox = uitextarea(grid, 'Editable', 'off', 'Value', { ...
-        '璇ラ〉浠呯紪杈戠粯鍥惧弬鏁帮細妯″潡绾?ylim / ylims 瑕嗙洊 / strain 鏄剧ず寮€鍏?/ .fig 淇濆瓨琛屼负銆?, ...
-        '涓嶄慨鏀归槇鍊兼竻娲椼€佹护娉㈠悗浜屾娓呮礂鎴栭浂鐐逛慨姝ｃ€?});
+        '该页仅编辑绘图参数：模块级 ylim / ylims 覆盖 / strain 显示开关 / .fig 保存行为。', ...
+        '不修改阈值清洗、滤波后二次清洗或零点修正。'});
     msgBox.Layout.Row = [7 8]; msgBox.Layout.Column = [1 4];
 
     refresh_all_controls();
@@ -164,9 +164,9 @@
             cfgPath = cfgEdit.Value;
             currentModule = moduleDrop.Value;
             refresh_all_controls();
-            msgBox.Value = {'宸查噸鏂板姞杞介厤缃€?};
+            msgBox.Value = {'已重新加载配置。'};
         catch ME
-            msgBox.Value = {['鍔犺浇澶辫触: ' ME.message]};
+            msgBox.Value = {['加载失败: ' ME.message]};
         end
     end
 
@@ -238,7 +238,7 @@
 
             targetPath = cfgPath;
             if doSaveAs
-                [fname, fpath] = uiputfile('*.json', '鍙﹀瓨涓?, cfgPath);
+                [fname, fpath] = uiputfile('*.json', '另存为', cfgPath);
                 if isequal(fname, 0)
                     return;
                 end
@@ -251,10 +251,10 @@
             cfgPath = targetPath;
             cfgEdit.Value = targetPath;
             refresh_all_controls();
-            msgBox.Value = {['宸蹭繚瀛橀厤缃埌 ' targetPath]};
-            addLog(['缁樺浘鍙傛暟宸蹭繚瀛? ' targetPath]);
+            msgBox.Value = {['已保存配置到 ' targetPath]};
+            addLog(['绘图参数已保存: ' targetPath]);
         catch ME
-            msgBox.Value = {['淇濆瓨澶辫触: ' ME.message]};
+            msgBox.Value = {['保存失败: ' ME.message]};
         end
     end
 
@@ -586,4 +586,3 @@ function out = on_off(tf)
         out = 'off';
     end
 end
-

@@ -171,6 +171,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.6.4`: fixes the plot settings tab encoding/syntax issue introduced in v1.6.3.
+- `v1.6.4`：修复 v1.6.3 引入的绘图参数页编码/语法问题。
 - `v1.6.3`: plot outputs no longer append the run timestamp by default; files keep the data period and overwrite the same-period results. The plot settings page can re-enable timestamp suffixes.
 - `v1.6.3`：绘图结果默认不再追加运行时间戳；文件名保留数据周期，同周期重算会覆盖旧结果。可在绘图参数页重新启用时间戳后缀。
 
