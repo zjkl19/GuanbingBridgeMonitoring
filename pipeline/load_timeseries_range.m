@@ -693,11 +693,19 @@ function [times, vals] = load_single_file(fp, header_marker)
 
     % detect header lines (marker or first parsable data line)
     fid = fopen(fp, 'rt');
+    if fid < 0
+        times = []; vals = [];
+        return;
+    end
     h = 0;
     found = false;
     buf = {};
     while h < 200 && ~feof(fid)
         ln = fgetl(fid); h = h + 1;
+        if ~(ischar(ln) || isstring(ln))
+            break;
+        end
+        ln = char(ln);
         buf{end+1} = ln; %#ok<AGROW>
         if contains(ln, header_marker)
             found = true;

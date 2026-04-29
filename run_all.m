@@ -409,7 +409,7 @@ function write_log(logs, start_ts, elapsed, logdir)
     logfile = fullfile(logdir, ['run_log_' ts '.txt']);
     fid = fopen(logfile,'wt');
     if fid<0, warning('无法写入日志文件 %s', logfile); return; end
-    fprintf(fid, 'Start: %s\n', datestr(start_ts,'yyyy-MM-dd HH:mm:ss'));
+    fprintf(fid, 'Start: %s\n', datestr(start_ts,'yyyy-mm-dd HH:MM:ss'));
     fprintf(fid, 'Elapsed: %.2f sec\n', elapsed);
     fprintf(fid, "Summary:\n");
     for i = 1:numel(logs)
