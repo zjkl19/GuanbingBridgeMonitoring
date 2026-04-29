@@ -1860,6 +1860,7 @@
     "save_fig": true,
     "lightweight_fig": true,
     "fig_max_points": 50000,
+    "append_timestamp": false,
     "gap_mode": "break",
     "gap_break_factor": 5
   }

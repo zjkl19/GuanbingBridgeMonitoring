@@ -1,4 +1,4 @@
-function settings = plot_runtime_settings(action, values)
+﻿function settings = plot_runtime_settings(action, values)
 % plot_runtime_settings Store lightweight runtime plot-save settings.
 %   S = plot_runtime_settings() returns current settings.
 %   S = plot_runtime_settings('get') returns current settings.
@@ -37,6 +37,7 @@ function settings = default_settings()
         'save_fig', true, ...
         'lightweight_fig', true, ...
         'fig_max_points', 50000, ...
+        'append_timestamp', false, ...
         'gap_mode', 'break', ...
         'gap_break_factor', 5);
 end
@@ -64,6 +65,11 @@ function merged = merge_settings(base, values)
     else
         merged.fig_max_points = round(merged.fig_max_points);
     end
+    if ~isfield(merged, 'append_timestamp') || isempty(merged.append_timestamp)
+        merged.append_timestamp = false;
+    else
+        merged.append_timestamp = logical(merged.append_timestamp);
+    end
     if ~isfield(merged, 'gap_mode') || isempty(merged.gap_mode)
         merged.gap_mode = 'break';
     else
@@ -79,3 +85,4 @@ function merged = merge_settings(base, values)
         merged.gap_break_factor = double(merged.gap_break_factor);
     end
 end
+

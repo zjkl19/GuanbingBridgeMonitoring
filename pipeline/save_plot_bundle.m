@@ -1,4 +1,4 @@
-function save_plot_bundle(fig, out_dir, file_stub, opts)
+﻿function save_plot_bundle(fig, out_dir, file_stub, opts)
 % save_plot_bundle Export full-resolution images and a lightweight .fig copy.
 %   Images are exported from the original full-data figure. The .fig file is
 %   saved after line data are reduced with peak-preserving bucket sampling so
@@ -15,6 +15,8 @@ function save_plot_bundle(fig, out_dir, file_stub, opts)
     save_fig = get_opt(opts, 'save_fig', runtime.save_fig);
     lightweight_fig = get_opt(opts, 'lightweight_fig', runtime.lightweight_fig);
     fig_max_points = get_opt(opts, 'fig_max_points', runtime.fig_max_points);
+    append_timestamp = get_opt(opts, 'append_timestamp', runtime.append_timestamp);
+    file_stub = apply_timestamp_policy(file_stub, append_timestamp);
 
     if ~exist(out_dir, 'dir')
         mkdir(out_dir);
@@ -153,7 +155,7 @@ function val = get_opt(opts, field_name, default_val)
 end
 
 function runtime = get_runtime_settings()
-    runtime = struct('save_fig', true, 'lightweight_fig', true, 'fig_max_points', 50000);
+    runtime = struct('save_fig', true, 'lightweight_fig', true, 'fig_max_points', 50000, 'append_timestamp', false);
     try
         candidate = plot_runtime_settings('get');
         if isstruct(candidate)
@@ -162,7 +164,29 @@ function runtime = get_runtime_settings()
             if isfield(candidate, 'fig_max_points') && ~isempty(candidate.fig_max_points)
                 runtime.fig_max_points = candidate.fig_max_points;
             end
+            if isfield(candidate, 'append_timestamp') && ~isempty(candidate.append_timestamp)
+                runtime.append_timestamp = logical(candidate.append_timestamp);
+            end
         end
     catch
     end
 end
+
+function stub = apply_timestamp_policy(stub, append_timestamp)
+    if isstring(stub)
+        stub = char(stub);
+    end
+    if append_timestamp || ~ischar(stub)
+        return;
+    end
+
+    % Keep the data period in the file name, but drop the run timestamp so
+    % repeated analysis of the same period overwrites the previous images.
+    patterns = { ...
+        '_\d{8}_\d{6}$', ...
+        '_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$'};
+    for i = 1:numel(patterns)
+        stub = regexprep(stub, patterns{i}, '');
+    end
+end
+

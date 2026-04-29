@@ -309,6 +309,7 @@ if isfield(cfg,'plot_common') && isstruct(cfg.plot_common)
     if isfield(src,'save_fig'), pc.save_fig = src.save_fig; end
     if isfield(src,'lightweight_fig'), pc.lightweight_fig = src.lightweight_fig; end
     if isfield(src,'fig_max_points'), pc.fig_max_points = src.fig_max_points; end
+    if isfield(src,'append_timestamp'), pc.append_timestamp = src.append_timestamp; end
     if isfield(src,'gap_mode'), pc.gap_mode = src.gap_mode; end
     if isfield(src,'gap_break_factor'), pc.gap_break_factor = src.gap_break_factor; end
 end

@@ -169,6 +169,11 @@ See `reporting/README.md` for report GUI details.
 Current official templates are listed in `reports/README.md`; old drafts and generated reports should not be committed.
 当前正式模板清单见 `reports/README.md`；历史草稿和自动生成报告不应提交。
 
+MATLAB GUI release / MATLAB GUI 版本:
+
+- `v1.6.3`: plot outputs no longer append the run timestamp by default; files keep the data period and overwrite the same-period results. The plot settings page can re-enable timestamp suffixes.
+- `v1.6.3`：绘图结果默认不再追加运行时间戳；文件名保留数据周期，同周期重算会覆盖旧结果。可在绘图参数页重新启用时间戳后缀。
+
 The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang monthly report modes; use `检查模板/目录` before generating on production machines.
 报告 GUI 已区分洪塘月报、洪塘周期报和九龙江月报；生产机生成前建议先点击 `检查模板/目录`。
 
