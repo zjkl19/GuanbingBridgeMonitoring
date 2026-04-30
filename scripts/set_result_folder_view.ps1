@@ -23,7 +23,13 @@ function Write-Log {
 }
 
 function Test-SupportedWindows {
-    if (-not $IsWindows) {
+    $isWindowsHost = $true
+    if (Get-Variable -Name IsWindows -Scope Global -ErrorAction SilentlyContinue) {
+        $isWindowsHost = [bool]$Global:IsWindows
+    } else {
+        $isWindowsHost = ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT)
+    }
+    if (-not $isWindowsHost) {
         return $false
     }
     $version = [Environment]::OSVersion.Version
@@ -81,7 +87,7 @@ function Get-TargetFolderList {
             }
     }
 
-    return @($folderSet.ToArray() | Sort-Object)
+    return @($folderSet | Sort-Object)
 }
 
 function Get-ExplorerWindowForFolder {

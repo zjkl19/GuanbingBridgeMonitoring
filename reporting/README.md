@@ -185,6 +185,9 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.6.3` also replaces Guanbing monthly deflection/tilt figures from result images and refreshes the related statistics text.
+版本 `v1.6.3` 进一步支持管柄月报按结果图替换挠度/倾角插图，并刷新相关统计文字。
+
 Version `v1.6.2` separates report modes explicitly, writes template precheck reports, and writes missing-content summaries after generation.
 版本 `v1.6.2` 已明确拆分报告类型，会输出模板预检报告，并在生成后输出缺失内容清单。
 

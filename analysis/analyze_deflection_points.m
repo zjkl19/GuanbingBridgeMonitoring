@@ -208,8 +208,25 @@ grid on; grid minor;
 % 保存
 ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir, '时程曲线_挠度'); if ~exist(out,'dir'), mkdir(out); end
-fname = sprintf('Defl_%s_%s_%s', name_tag, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
+    suffix_tag = make_file_suffix_tag(suffix);
+    fname = sprintf('Defl_%s_%s_%s_%s', name_tag, suffix_tag, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
 save_plot_bundle(fig, out, [fname '_' ts]);
+end
+
+function tag = make_file_suffix_tag(suffix)
+    tag = char(string(suffix));
+    if contains(tag, '滤')
+        tag = 'Filt';
+    elseif contains(tag, '原')
+        tag = 'Orig';
+    elseif isempty(strtrim(tag))
+        tag = 'Series';
+    else
+        tag = regexprep(tag, '[^\w-]', '');
+        if isempty(tag)
+            tag = 'Series';
+        end
+    end
 end
 
 % helpers

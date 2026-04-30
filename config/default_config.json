@@ -1123,6 +1123,12 @@
             "max": -0.008531358574610237,
             "t_range_start": "2026-02-26 09:30:03",
             "t_range_end": "2026-03-26 09:29:59"
+          },
+          {
+            "min": -1,
+            "max": 0,
+            "t_range_start": "2026-04-11 00:00:00",
+            "t_range_end": "2026-04-26 23:59:59"
           }
         ],
         "zero_to_nan": false,
@@ -1171,6 +1177,12 @@
             "max": 0.06843891402714919,
             "t_range_start": "2025-03-14 10:25:54",
             "t_range_end": "2025-04-06 05:55:54"
+          },
+          {
+            "min": -1,
+            "max": 0.1,
+            "t_range_start": "2026-04-25 00:00:00",
+            "t_range_end": "2026-04-26 23:59:59"
           }
         ],
         "zero_to_nan": false,
@@ -1345,6 +1357,12 @@
             "max": -0.038237371937639215,
             "t_range_start": "2026-02-26 09:30:03",
             "t_range_end": "2026-03-26 09:29:59"
+          },
+          {
+            "min": -1,
+            "max": 0,
+            "t_range_start": "2026-04-11 00:00:00",
+            "t_range_end": "2026-04-26 23:59:59"
           }
         ],
         "zero_to_nan": false,
@@ -1849,7 +1867,16 @@
     },
     "dynamic_strain_lowpass": {
       "ylim_auto": true,
-      "ylims": {}
+      "ylims": {
+        "G05": [
+          -200,
+          200
+        ],
+        "G06": [
+          -350,
+          200
+        ]
+      }
     },
     "tilt": {
       "colors_3": [
@@ -2204,7 +2231,16 @@
   },
   "plot_styles_dynamic_strain_lowpass": {
     "ylim_auto": true,
-    "ylims": {}
+    "ylims": {
+      "G05": [
+        -200,
+        200
+      ],
+      "G06": [
+        -350,
+        200
+      ]
+    }
   },
   "wind_params": {
     "speed_bins": [

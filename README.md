@@ -171,6 +171,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.6.5`: fixes Guanbing April crack filtering, deflection/tilt report image replacement, deflection original/filtered image naming, nested ZIP recovery, and plot gap-mode propagation for dynamic strain.
+- `v1.6.5`：修复管柄 4 月裂缝过滤、挠度/倾角报告插图替换、挠度原始/滤波图命名、嵌套 ZIP 恢复，以及动应变绘图断点模式传递。
 - `v1.6.4`: fixes the plot settings tab encoding/syntax issue introduced in v1.6.3.
 - `v1.6.4`：修复 v1.6.3 引入的绘图参数页编码/语法问题。
 - `v1.6.3`: plot outputs no longer append the run timestamp by default; files keep the data period and overwrite the same-period results. The plot settings page can re-enable timestamp suffixes.
@@ -181,6 +183,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.6.3`: replaces Guanbing monthly deflection/tilt figures from result images and refreshes related statistics text.
+- `v1.6.3`：管柄月报自动替换挠度/倾角结果图，并同步刷新相关统计文字。
 - `v1.6.2`: writes missing-content txt/xlsx summaries next to generated reports.
 - `v1.6.2`：在生成报告同目录输出缺失内容 txt/xlsx 清单。
 - `v1.6.1`: writes txt/json template precheck reports and keeps the custom exe icon in packaged builds.

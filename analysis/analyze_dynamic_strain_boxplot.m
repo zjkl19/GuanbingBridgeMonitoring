@@ -59,6 +59,7 @@ else
 end
 
 ds = get_dynamic_cfg(cfg); % 动应变专用参数（含默认回退提示）
+apply_plot_common_runtime(cfg);
 
 % 允许外部参数覆盖配置（例如 run_all 传入）
 % override_fields = {'Fs','Fc','Whisker','ShowOutliers','YLimManual','YLimRange','LowerBound','UpperBound','EdgeTrimSec'};
@@ -364,6 +365,16 @@ function ds = get_dynamic_cfg(cfg)
         if isfield(d,f) && ~isempty(d.(f))
             ds.(f) = d.(f);
         end
+    end
+end
+
+
+function apply_plot_common_runtime(cfg)
+    try
+        if isstruct(cfg) && isfield(cfg, 'plot_common') && isstruct(cfg.plot_common)
+            plot_runtime_settings('set', cfg.plot_common);
+        end
+    catch
     end
 end
 

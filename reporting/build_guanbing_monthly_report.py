@@ -332,6 +332,55 @@ def build_stats_texts(result_root: Path, period_label: str) -> dict[str, str]:
             "可知，箱内湿度低于环境湿度，湿度幅值及波动剧烈程度低于环境湿度。"
         )
 
+    deflection_rows = load_sheet_rows(stats_dir / "deflection_stats.xlsx")
+    if deflection_rows:
+        orig_min = [as_float(row.get("OrigMin_mm")) for row in deflection_rows]
+        orig_max = [as_float(row.get("OrigMax_mm")) for row in deflection_rows]
+        orig_min = [value for value in orig_min if value is not None]
+        orig_max = [value for value in orig_max if value is not None]
+        if orig_min and orig_max:
+            max_up = abs(min(orig_min))
+            max_down = max(orig_max)
+            texts["deflection_abs"] = (
+                f"由以上各图可知，本月监测周期内，第2、3跨挠度最大上挠{fmt_num(max_up, 1)}mm，"
+                f"最大下挠{fmt_num(max_down, 1)}mm，均处于超限阈值范围之内，"
+                "未出现超过各级超限阈值和报警的情况。"
+            )
+        mid_rows = [row for row in deflection_rows if "-002-" in str(row.get("PointID", ""))]
+        filt_min = [as_float(row.get("FiltMin_mm")) for row in mid_rows]
+        filt_max = [as_float(row.get("FiltMax_mm")) for row in mid_rows]
+        filt_min = [value for value in filt_min if value is not None]
+        filt_max = [value for value in filt_max if value is not None]
+        if filt_min and filt_max:
+            trend_min = min(filt_min)
+            trend_max = max(filt_max)
+            texts["deflection_trend"] = (
+                f"由以上各图可知，本月监测周期内，第2、3跨主梁跨中挠度变化范围为"
+                f"{fmt_num(trend_min, 1)}mm~{fmt_num(trend_max, 1)}mm，挠度同一天中处于波动变化中。"
+            )
+            texts["conclusion_deflection"] = (
+                f"（4）本月监测周期内，实测主梁挠度值处于设计理论挠度范围，"
+                f"第2、3跨主梁跨中挠度变化范围为{fmt_num(trend_min, 1)}mm~{fmt_num(trend_max, 1)}mm，"
+                "挠度同一天中处于波动变化中。"
+            )
+
+    tilt_sheets = load_workbook_sheet_rows(stats_dir / "tilt_stats.xlsx")
+    tilt_x = aggregate_range(tilt_sheets.get("Tilt_X", []), min_key="Min", max_key="Max")
+    tilt_y = aggregate_range(tilt_sheets.get("Tilt_Y", []), min_key="Min", max_key="Max")
+    if tilt_x and tilt_y:
+        tilt_x_abs = max(abs(tilt_x.min_value), abs(tilt_x.max_value))
+        tilt_y_abs = max(abs(tilt_y.min_value), abs(tilt_y.max_value))
+        texts["tilt"] = (
+            f"由以上各图可知，本月监测周期内，主墩倾角纵桥向X最大为{fmt_num(tilt_x_abs, 3)}°，"
+            f"横桥向Y最大为{fmt_num(tilt_y_abs, 3)}°，均处于超限阈值范围之内，"
+            "未出现超过各级超限阈值和报警的情况。主墩未出现明显倾斜趋势。"
+        )
+        texts["conclusion_tilt"] = (
+            f"（5）本月监测周期内，主墩倾角纵桥向X最大为{fmt_num(tilt_x_abs, 3)}°，"
+            f"横桥向Y最大为{fmt_num(tilt_y_abs, 3)}°，均处于超限阈值范围之内，"
+            "未出现超过各级超限阈值和报警的情况，主墩未出现明显倾斜趋势。"
+        )
+
     hp_path = find_latest_file(result_root, "动应变箱线图_高通滤波", "boxplot_stats_*.xlsx")
     hp_sheets = load_workbook_sheet_rows(hp_path) if hp_path else {}
     if hp_sheets:
@@ -406,8 +455,8 @@ def build_stats_texts(result_root: Path, period_label: str) -> dict[str, str]:
     if accel_stats and rms_values:
         max_abs = max(abs(accel_stats.min_value), abs(accel_stats.max_value))
         texts["accel"] = (
-            f"由以上各图可知，本月监测周期内，主梁竖向加速度各测点绝对最大值为{fmt_num(max_abs, 2)}mm/s2，"
-            f"各测点10min加速度均方根值最大为{fmt_num(max(rms_values), 3)}mm/s2，未超过315mm/s2，"
+            f"由以上各图可知，本月监测周期内，主梁竖向加速度各测点绝对最大值为{fmt_num(max_abs, 2)}mm/s²，"
+            f"各测点10min加速度均方根值最大为{fmt_num(max(rms_values), 3)}mm/s²，未超过315mm/s²，"
             "均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
         )
 
@@ -451,6 +500,9 @@ def apply_text_updates(doc: Document, texts: dict[str, str], monitoring_range: s
         ("（2）本月监测周期内，箱内最高温度", texts.get("temp_box")),
         ("（1）本月监测周期内，环境最高湿度", texts.get("humidity_env")),
         ("（2）本月监测周期内，箱内最高湿度", texts.get("humidity_box")),
+        ("由以上各图可知，本月监测周期内，第2、3跨挠度最大上挠", texts.get("deflection_abs")),
+        ("由以上各图可知，本月监测周期内，第2、3跨主梁跨中挠度变化范围", texts.get("deflection_trend")),
+        ("由以上各图可知，本月监测周期内，主墩倾角纵桥向X最大", texts.get("tilt")),
         ("由上图可知，本月监测周期内，第2跨跨中截面测点活载作用下", texts.get("strain_hp")),
         ("由上图可知，应变测点最大拉应变", texts.get("strain_lp")),
         ("由上图可知，本月监测周期内各个传感器实测竖向第一、二、三阶自振频率", texts.get("freq")),
@@ -458,6 +510,8 @@ def apply_text_updates(doc: Document, texts: dict[str, str], monitoring_range: s
         ("（2）本月监测周期内，环境最高温度", texts.get("conclusion_temp")),
         ("（3）本月监测周期内，环境最高湿度", texts.get("conclusion_humidity")),
         ("（6）本月监测周期内，各截面上下缘应变", texts.get("conclusion_strain")),
+        ("（4）本月监测周期内，实测主梁挠度值", texts.get("conclusion_deflection")),
+        ("（5）本月监测周期内，主墩倾角纵桥向X最大", texts.get("conclusion_tilt")),
         ("（8）本月监测周期内，顶板裂缝宽度变化量", texts.get("conclusion_crack")),
         ("综上所述，G104线管柄大桥", texts.get("summary")),
     ]
@@ -492,6 +546,16 @@ def apply_image_updates(doc: Document, result_root: Path, asset_dir: Path) -> tu
         ("(b)GB-RHS-G05-001-02", find_latest_image(result_root, "时程曲线_湿度", "GB-RHS-G05-001-02"), 1, 145.0),
         ("(a)GB-RHS-G05-001-01", find_latest_image(result_root, "频次分布_湿度", "GB-RHS-G05-001-01_freq"), 2, 145.0),
         ("(b)GB-RHS-G05-001-02", find_latest_image(result_root, "频次分布_湿度", "GB-RHS-G05-001-02_freq"), 2, 145.0),
+        ("第2跨1/4跨", find_latest_image(result_root, "时程曲线_挠度", "Defl_G1_Orig"), 1, 145.0),
+        ("第2跨1/2跨", find_latest_image(result_root, "时程曲线_挠度", "Defl_G2_Orig"), 1, 145.0),
+        ("第2跨3/4跨", find_latest_image(result_root, "时程曲线_挠度", "Defl_G3_Orig"), 1, 145.0),
+        ("第3跨1/4跨", find_latest_image(result_root, "时程曲线_挠度", "Defl_G4_Orig"), 1, 145.0),
+        ("第3跨1/2跨", find_latest_image(result_root, "时程曲线_挠度", "Defl_G5_Orig"), 1, 145.0),
+        ("第3跨3/4跨", find_latest_image(result_root, "时程曲线_挠度", "Defl_G6_Orig"), 1, 145.0),
+        ("图 13 第2跨主梁位移变化趋势", find_latest_image(result_root, "时程曲线_挠度", "Defl_G2_Filt"), 1, 145.0),
+        ("图 14 第3跨主梁位移变化趋势", find_latest_image(result_root, "时程曲线_挠度", "Defl_G5_Filt"), 1, 145.0),
+        ("（a）纵桥向X", find_latest_image(result_root, "时程曲线_倾角", "Tilt_X"), 1, 145.0),
+        ("（b）横桥向Y", find_latest_image(result_root, "时程曲线_倾角", "Tilt_Y"), 1, 145.0),
         ("（a）第2跨", find_latest_image(result_root, "动应变箱线图_高通滤波", "boxplot_G05"), 1, 145.0),
         ("（b）第3跨", find_latest_image(result_root, "动应变箱线图_高通滤波", "boxplot_G06"), 1, 145.0),
         ("（a）第2跨", find_latest_image(result_root, "时程曲线_动应变_低通滤波", "dynstrain_lp_G05"), 2, 145.0),

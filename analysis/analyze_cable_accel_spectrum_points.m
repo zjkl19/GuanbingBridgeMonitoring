@@ -329,17 +329,25 @@ function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, 
     hold on;
     colors = normalize_colors(style.colors);
     h = gobjects(numel(target_freqs),1);
+    hasLine = false(numel(target_freqs),1);
     for k = 1:numel(target_freqs)
-        if k <= numel(colors)
-            h(k) = plot(dates_all, freqDay(:,k), 'LineWidth', 1.2, 'Color', colors{k});
-        else
-            h(k) = plot(dates_all, freqDay(:,k), 'LineWidth', 1.2);
+        [dates_plot, freq_plot] = prepare_plot_series(dates_all, freqDay(:,k));
+        if isempty(dates_plot) || isempty(freq_plot) || ~any(isfinite(freq_plot))
+            continue;
         end
+        if k <= numel(colors)
+            h(k) = plot(dates_plot, freq_plot, 'LineWidth', 1.2, 'Color', colors{k});
+        else
+            h(k) = plot(dates_plot, freq_plot, 'LineWidth', 1.2);
+        end
+        hasLine(k) = isgraphics(h(k));
     end
     grid on; xtickformat('yyyy-MM-dd');
     xlabel('日期'); ylabel(style.freq_ylabel);
     labels = arrayfun(@(k,f)sprintf('峰%d (%.3fHz)',k,f), (1:numel(target_freqs)).', target_freqs(:), 'UniformOutput', false);
-    legend(h, labels, 'Location', 'eastoutside');
+    if any(hasLine)
+        legend(h(hasLine), labels(hasLine), 'Location', 'eastoutside');
+    end
     title(sprintf('%s %s', style.freq_title_prefix, pid));
 
     if nargin < 7 || isempty(theor_freqs)
@@ -476,7 +484,11 @@ function plot_force_timeseries(times_list, force_list, labels, name_tag, out_dir
             cmap = lines(numel(force_list));
             c = cmap(i,:);
         end
-        h(i) = plot(times_list{i}, force_list{i}, 'LineWidth', 1.2, 'Color', c);
+        [times_plot, force_plot] = prepare_plot_series(times_list{i}, force_list{i});
+        if isempty(times_plot) || isempty(force_plot) || ~any(isfinite(force_plot))
+            continue;
+        end
+        h(i) = plot(times_plot, force_plot, 'LineWidth', 1.2, 'Color', c);
     end
     grid on; xtickformat('yyyy-MM-dd');
     xlabel('日期'); ylabel(style.force_ylabel);

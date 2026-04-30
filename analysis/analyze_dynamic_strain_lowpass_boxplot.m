@@ -61,6 +61,7 @@ else
 end
 
 ds = get_dynamic_lowpass_cfg(cfg); % 动应变低通专用参数（含默认回退提示）
+apply_plot_common_runtime(cfg);
 
 % 允许外部参数覆盖配置（例如 run_all 传入）
 % override_fields = {'Fs','Fc','CutoffPeriodMinutes','FilterOrder','Whisker','ShowOutliers','YLimManual','YLimRange','LowerBound','UpperBound','EdgeTrimSec'};
@@ -511,6 +512,16 @@ function dt = diff_seconds(times)
         dt = seconds(diff(times));
     else
         dt = diff(double(times));
+    end
+end
+
+
+function apply_plot_common_runtime(cfg)
+    try
+        if isstruct(cfg) && isfield(cfg, 'plot_common') && isstruct(cfg.plot_common)
+            plot_runtime_settings('set', cfg.plot_common);
+        end
+    catch
     end
 end
 

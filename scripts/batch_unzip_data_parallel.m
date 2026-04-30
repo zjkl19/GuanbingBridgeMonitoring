@@ -38,7 +38,7 @@ for i = 1:numel(selected)
     day = selected{i}; countZ = 0;
     for sub = {'波形','特征值'}
         zdir = fullfile(root_dir, day, sub{1});
-        zfiles = dir(fullfile(zdir, '*.zip'));
+        zfiles = collect_zip_files(zdir);
         if ~isempty(zfiles)
             for k = 1:numel(zfiles)
                 zipList{end+1} = fullfile(zfiles(k).folder, zfiles(k).name); %#ok<AGROW>
@@ -134,6 +134,26 @@ for i = 1:N
     fprintf('%s -> %s\n', resultFiles{i}, resultStatus{i});
 end
 fprintf('总耗时: %.2f 秒\n', elapsed);
+end
+
+function zfiles = collect_zip_files(zdir)
+    zfiles = dir(fullfile(zdir, '*.zip'));
+    nested = dir(fullfile(zdir, '**', '*.zip'));
+    if ~isempty(nested)
+        all_paths = cell(numel(zfiles) + numel(nested), 1);
+        n = 0;
+        for ii = 1:numel(zfiles)
+            n = n + 1;
+            all_paths{n} = fullfile(zfiles(ii).folder, zfiles(ii).name);
+        end
+        for ii = 1:numel(nested)
+            n = n + 1;
+            all_paths{n} = fullfile(nested(ii).folder, nested(ii).name);
+        end
+        [~, keep] = unique(all_paths(1:n), 'stable');
+        merged = [zfiles(:); nested(:)];
+        zfiles = merged(keep);
+    end
 end
 
 function [zf, status] = unzip_one(zf, out)
