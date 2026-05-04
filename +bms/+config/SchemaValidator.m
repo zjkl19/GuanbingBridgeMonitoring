@@ -14,17 +14,41 @@ classdef SchemaValidator
                     warns{end+1} = ['missing top-level field: ' required{i}]; %#ok<AGROW>
                 end
             end
+            warns = [warns, bms.config.SchemaValidator.checkModuleKeys(cfg)];
+            warns = [warns, bms.config.SchemaValidator.checkPerPoint(cfg)];
+        end
+
+        function warns = checkModuleKeys(cfg)
+            warns = {};
+            known = bms.module.ModuleRegistry.knownConfigKeys();
+            sections = {'points','plot_styles','subfolders','post_filter_thresholds'};
+            for s = 1:numel(sections)
+                section = sections{s};
+                if ~isfield(cfg, section) || ~isstruct(cfg.(section))
+                    continue;
+                end
+                names = fieldnames(cfg.(section));
+                for i = 1:numel(names)
+                    key = names{i};
+                    if startsWith(key, '_') || ismember(key, {'global','common'})
+                        continue;
+                    end
+                    if ~ismember(key, known)
+                        warns{end+1} = [section '.' key ' is not registered in ModuleRegistry']; %#ok<AGROW>
+                    end
+                end
+            end
+
             if isfield(cfg, 'points') && isstruct(cfg.points)
                 names = fieldnames(cfg.points);
                 for i = 1:numel(names)
                     key = names{i};
                     if isfield(cfg, 'subfolders') && isstruct(cfg.subfolders) && ~isfield(cfg.subfolders, key) ...
-                            && ~ismember(key, {'temp_humidity','accel_spectrum','cable_accel_spectrum','cable_force','wind','eq'})
+                            && ~ismember(key, {'temp_humidity','accel_spectrum','cable_accel_spectrum','cable_force','wind','eq','acceleration_raw','cable_accel_raw'})
                         warns{end+1} = ['points.' key ' has no matching subfolders.' key]; %#ok<AGROW>
                     end
                 end
             end
-            warns = [warns, bms.config.SchemaValidator.checkPerPoint(cfg)];
         end
 
         function warns = checkPerPoint(cfg)

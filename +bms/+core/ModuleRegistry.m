@@ -3,37 +3,29 @@ classdef ModuleRegistry
 
     methods (Static)
         function items = allModules()
-            defs = bms.app.StepDefinition.catalog();
+            defs = bms.module.ModuleRegistry.catalog();
             items = cell(1, numel(defs));
             for i = 1:numel(defs)
-                items{i} = struct( ...
-                    'opt', defs(i).OptField, ...
-                    'name', defs(i).Key, ...
-                    'label', defs(i).Label, ...
-                    'stats_file', defs(i).StatsFile, ...
-                    'category', defs(i).Category);
+                s = defs(i).toStruct('');
+                s.opt = defs(i).OptField;
+                s.name = defs(i).Key;
+                items{i} = s;
             end
         end
 
         function mods = enabledModules(opts)
-            defs = bms.app.StepDefinition.enabledFromOptions(opts);
+            defs = bms.module.ModuleRegistry.enabledFromOptions(opts);
             mods = cell(1, numel(defs));
             for i = 1:numel(defs)
-                mods{i} = struct( ...
-                    'opt', defs(i).OptField, ...
-                    'name', defs(i).Key, ...
-                    'label', defs(i).Label, ...
-                    'stats_file', defs(i).StatsFile, ...
-                    'category', defs(i).Category);
+                s = defs(i).toStruct('');
+                s.opt = defs(i).OptField;
+                s.name = defs(i).Key;
+                mods{i} = s;
             end
         end
 
         function names = enabledNames(opts)
-            defs = bms.app.StepDefinition.enabledFromOptions(opts);
-            names = cell(1, numel(defs));
-            for i = 1:numel(defs)
-                names{i} = defs(i).Key;
-            end
+            names = bms.module.ModuleRegistry.enabledKeys(opts);
         end
     end
 end

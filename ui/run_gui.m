@@ -84,6 +84,8 @@ function run_gui()
     cbRainfall = uicheckbox(gl,'Text','雨量','Value',false); cbRainfall.Layout.Row=9; cbRainfall.Layout.Column=4;
     cbGNSS = uicheckbox(gl,'Text','GNSS','Value',false); cbGNSS.Layout.Row=10; cbGNSS.Layout.Column=1;
     cbDynLowpass = uicheckbox(gl,'Text','动应变分析（低通+含箱线图）','Value',false); cbDynLowpass.Layout.Row=10; cbDynLowpass.Layout.Column=2;
+    moduleControls = build_module_control_map();
+    apply_module_registry_labels();
 
     lblLog = uilabel(gl,'Text','日志目录:','HorizontalAlignment','right'); lblLog.Layout.Row=11; lblLog.Layout.Column=1;
     logEdit = uieditfield(gl,'text','Value',defaultLogDir); logEdit.Layout.Row=11; logEdit.Layout.Column=[2 3];
@@ -129,6 +131,59 @@ function run_gui()
     tg.SelectionChangedFcn = @(src,evt) onTabChanged(evt);
 
     %% 运行页回调
+    function controls = build_module_control_map()
+        controls = struct();
+        controls.precheck_zip_count = cbPrecheck;
+        controls.doUnzip = cbUnzip;
+        controls.doRenameCsv = cbRename;
+        controls.doRemoveHeader = cbRmHeader;
+        controls.doResample = cbResample;
+        controls.doTemp = cbTemp;
+        controls.doHumidity = cbHum;
+        controls.doRainfall = cbRainfall;
+        controls.doGNSS = cbGNSS;
+        controls.doWind = cbWind;
+        controls.doEq = cbEq;
+        controls.doWIM = cbWim;
+        controls.doDeflect = cbDef;
+        controls.doBearingDisplacement = cbBearing;
+        controls.doTilt = cbTilt;
+        controls.doAccel = cbAccel;
+        controls.doAccelSpectrum = cbSpec;
+        controls.doCableAccel = cbCableAccel;
+        controls.doCableAccelSpectrum = cbCableSpec;
+        controls.doCrack = cbCrack;
+        controls.doStrain = cbStrain;
+        controls.doDynStrainBoxplot = cbDynBox;
+        controls.doDynStrainLowpassBoxplot = cbDynLowpass;
+    end
+
+    function apply_module_registry_labels()
+        specs = bms.module.ModuleRegistry.catalog();
+        for ii = 1:numel(specs)
+            field = specs(ii).GuiField;
+            if isempty(field) || ~isfield(moduleControls, field)
+                continue;
+            end
+            h = moduleControls.(field);
+            if isvalid(h) && ~isempty(specs(ii).GuiLabel)
+                h.Text = specs(ii).GuiLabel;
+            end
+        end
+    end
+
+    function handles = module_control_values()
+        names = fieldnames(moduleControls);
+        tmp = gobjects(0);
+        for ii = 1:numel(names)
+            h = moduleControls.(names{ii});
+            if isvalid(h)
+                tmp(end+1) = h; %#ok<AGROW>
+            end
+        end
+        handles = tmp;
+    end
+
     function onBrowseDir(edit)
         p = uigetdir(edit.Value);
         if isequal(p,0), return; end
@@ -177,9 +232,7 @@ function run_gui()
                 addLog('Warnings suppressed for this run (gui.show_warnings=false).');
             end
             warnCleanup = onCleanup(@() restore_warnings(warnState, btState)); %#ok<NASGU>
-            opts = struct('precheck_zip_count',cbPrecheck.Value,'doUnzip',cbUnzip.Value,'doRenameCsv',cbRename.Value,'doRemoveHeader',cbRmHeader.Value,'doResample',cbResample.Value, ...
-                'doTemp',cbTemp.Value,'doHumidity',cbHum.Value,'doRainfall',cbRainfall.Value,'doGNSS',cbGNSS.Value,'doWind',cbWind.Value,'doEq',cbEq.Value,'doWIM',cbWim.Value,'doDeflect',cbDef.Value,'doBearingDisplacement',cbBearing.Value,'doTilt',cbTilt.Value,'doAccel',cbAccel.Value,'doAccelSpectrum',cbSpec.Value,'doCableAccel',cbCableAccel.Value,'doCableAccelSpectrum',cbCableSpec.Value, ...
-                'doRenameCrk',false,'doCrack',cbCrack.Value,'doStrain',cbStrain.Value,'doDynStrainBoxplot',cbDynBox.Value,'doDynStrainLowpassBoxplot',cbDynLowpass.Value);
+            opts = bms.module.ModuleRegistry.optsFromHandles(moduleControls);
             root = rootEdit.Value; start_date = datestr(startPicker.Value,'yyyy-mm-dd'); end_date = datestr(endPicker.Value,'yyyy-mm-dd');
             logEdit.Value = fullfile(root, 'run_logs');
             if exist(logEdit.Value,'dir')==0, mkdir(logEdit.Value); end
@@ -223,7 +276,7 @@ function run_gui()
         preset = jsondecode(fileread(fullfile(fpath,fname))); apply_preset(preset); addLog(['预设已加载: ' fullfile(fpath,fname)]);
     end
     function onSelectAll(cb)
-        targets = [cbPrecheck, cbUnzip, cbRename, cbRmHeader, cbResample, cbTemp, cbHum, cbRainfall, cbGNSS, cbWind, cbEq, cbWim, cbBearing, cbDef, cbTilt, cbAccel, cbSpec, cbCableAccel, cbCableSpec, cbCrack, cbStrain, cbDynBox, cbDynLowpass];
+        targets = module_control_values();
         for i=1:numel(targets), targets(i).Value = cb.Value; end
     end
     function apply_preset(preset)
@@ -261,6 +314,21 @@ function run_gui()
             if isfield(m,'strain'),   cbStrain.Value = m.strain; end
             if isfield(m,'dynbox'),   cbDynBox.Value = m.dynbox; end
             if isfield(m,'dynlowpass'), cbDynLowpass.Value = m.dynlowpass; end
+            apply_module_values_from_preset(m);
+        end
+    end
+    function apply_module_values_from_preset(m)
+        specs = bms.module.ModuleRegistry.catalog();
+        for ii = 1:numel(specs)
+            field = specs(ii).GuiField;
+            presetField = specs(ii).PresetField;
+            if isempty(field) || isempty(presetField) || ~isfield(moduleControls, field) || ~isfield(m, presetField)
+                continue;
+            end
+            h = moduleControls.(field);
+            if isvalid(h)
+                h.Value = logical(m.(presetField));
+            end
         end
     end
     function save_last_preset(preset)

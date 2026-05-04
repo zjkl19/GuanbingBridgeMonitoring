@@ -21,16 +21,20 @@ classdef LegacyRunAllAdapter
             if isstruct(cfg) && isfield(cfg, 'source') && ~isempty(cfg.source)
                 summary.config_path = char(cfg.source);
             end
-            enabled = bms.app.StepDefinition.enabledFromOptions(opts);
+            summary.module_catalog = bms.module.ModuleRegistry.toStructArray(bms.module.ModuleRegistry.catalog(), statsDir);
+            enabled = bms.module.ModuleRegistry.enabledFromOptions(opts);
             summary.enabled_modules = cell(1, numel(enabled));
+            summary.enabled_module_specs = bms.module.ModuleRegistry.toStructArray(enabled, statsDir);
             expected = {};
             for i = 1:numel(enabled)
                 summary.enabled_modules{i} = enabled(i).Key;
-                if ~isempty(enabled(i).StatsFile)
-                    expected{end+1} = fullfile(statsDir, enabled(i).StatsFile); %#ok<AGROW>
+                p = enabled(i).statsPath(statsDir);
+                if ~isempty(p)
+                    expected{end+1} = p; %#ok<AGROW>
                 end
             end
             summary.expected_stats_files = expected;
+            summary.module_preflight = bms.module.ModuleRegistry.preflight(statsDir, opts);
             summary.module_logs = bms.app.LegacyRunAllAdapter.logsToStructs(logs, statsDir);
             summary.stats_files = bms.app.LegacyRunAllAdapter.listStatsFiles(statsDir);
             summary.offset_report = bms.app.LegacyRunAllAdapter.offsetToStruct(offsetLog);

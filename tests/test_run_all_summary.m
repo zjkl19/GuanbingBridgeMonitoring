@@ -26,6 +26,8 @@ classdef test_run_all_summary < matlab.unittest.TestCase
             tc.verifyEqual(summary.status, 'ok');
             tc.verifyTrue(isfile(summary.log_file));
             tc.verifyTrue(isfield(summary, 'module_logs'));
+            tc.verifyTrue(isfield(summary, 'module_catalog'));
+            tc.verifyTrue(isfield(summary, 'module_preflight'));
             tc.verifyTrue(isfield(summary, 'offset_report'));
             tc.verifyEqual(summary.offset_report.status, 'ok');
             tc.verifyGreaterThanOrEqual(summary.elapsed_sec, 0);

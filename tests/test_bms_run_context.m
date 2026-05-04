@@ -31,6 +31,8 @@
             tc.verifyEqual(manifest.data_root, tc.TempDir);
             tc.verifyTrue(isfile(manifest.latest_log));
             tc.verifyTrue(isfield(manifest, 'module_logs'));
+            tc.verifyTrue(isfield(manifest, 'module_catalog'));
+            tc.verifyTrue(isfield(manifest, 'module_preflight'));
             tc.verifyTrue(isfield(manifest, 'offset_report'));
             tc.verifyEqual(manifest.offset_report.status, 'ok');
         end
