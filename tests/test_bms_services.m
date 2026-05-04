@@ -24,10 +24,26 @@ classdef test_bms_services < matlab.unittest.TestCase
 
         function pointAndTimeResolversWork(tc)
             tc.verifyEqual(bms.data.PointResolver.safeId('A-1'), 'A_1');
+            cfg = struct('points', struct('wind', {{'W1','W2'}}));
+            tc.verifyEqual(bms.data.PointResolver.fromConfig(cfg, 'wind', {'fallback'}), {'W1'; 'W2'});
+            tc.verifyEqual(bms.data.PointResolver.fromConfig(cfg, 'missing', {'fallback'}), {'fallback'});
             days = bms.data.TimeRangeResolver.daysBetween('2026-01-01', '2026-01-03');
             tc.verifyEqual(numel(days), 3);
             months = bms.data.TimeRangeResolver.monthKeys('2026-01-15', '2026-03-01');
             tc.verifyEqual(months, {'202601','202602','202603'});
+        end
+
+        function plotServiceHandlesTimeAxis(tc)
+            fig = figure('Visible', 'off');
+            cleaner = onCleanup(@() close(fig)); %#ok<NASGU>
+            t = datetime(2026,1,1,0,0,0) + minutes(0:2);
+            plot(t, [1 2 3]);
+            bms.plot.PlotService.setTimeAxis([NaT; t(:); NaT]);
+            ax = gca;
+            tc.verifyEqual(ax.XLim(1), t(1));
+            tc.verifyEqual(ax.XLim(2), t(end));
+
+            tc.verifyWarningFree(@() bms.plot.PlotService.setTimeAxis(NaT(3,1)));
         end
 
         function manifestWriterAddsSchemaAndMissingStats(tc)

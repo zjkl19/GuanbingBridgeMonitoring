@@ -444,50 +444,19 @@ function write_wind_summary(out_dir, base_name, pid, dir_deg, speed, sector_edge
 end
 
 function set_time_axis(times)
-    if isempty(times)
-        return;
-    end
-    ax = gca;
-    xmin = min(times);
-    xmax = max(times);
-    if xmin == xmax
-        xmin = xmin - minutes(1);
-        xmax = xmax + minutes(1);
-    end
-    ax.XLim = [xmin xmax];
-    ticks = datetime(linspace(posixtime(xmin), posixtime(xmax), 5), 'ConvertFrom', 'posixtime');
-    ticks = unique(ticks, 'stable');
-    if numel(ticks) >= 2
-        ax.XTick = ticks;
-    else
-        ax.XTickMode = 'auto';
-    end
-    if days(xmax - xmin) >= 1
-        xtickformat('yyyy-MM-dd');
-    else
-        xtickformat('MM-dd HH:mm');
-    end
+    bms.plot.PlotService.setTimeAxis(times);
 end
 
 function save_plot(fig, out_dir, base_name)
-    ts = datestr(now, 'yyyymmdd_HHMMSS');
-    save_plot_bundle(fig, out_dir, [base_name '_' ts]);
+    bms.plot.PlotService.saveBundleWithTimestamp(fig, out_dir, base_name);
 end
 
 function ensure_dir(p)
-    if ~exist(p, 'dir')
-        mkdir(p);
-    end
+    bms.core.PathResolver.ensureDir(p);
 end
 
 function pts = get_points(cfg, key, fallback)
-    pts = fallback;
-    if isfield(cfg, 'points') && isfield(cfg.points, key)
-        val = cfg.points.(key);
-        if iscell(val) || isstring(val)
-            pts = cellstr(val(:));
-        end
-    end
+    pts = bms.data.PointResolver.fromConfig(cfg, key, fallback);
 end
 
 function style = get_wind_style(cfg)

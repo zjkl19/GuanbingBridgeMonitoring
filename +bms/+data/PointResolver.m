@@ -31,5 +31,18 @@ classdef PointResolver
                 end
             end
         end
+
+        function pts = fromConfig(cfg, key, fallback)
+            if nargin < 3
+                fallback = {};
+            end
+            pts = bms.data.PointResolver.normalize(fallback);
+            if isstruct(cfg) && isfield(cfg, 'points') && isstruct(cfg.points) && isfield(cfg.points, key)
+                configured = bms.data.PointResolver.normalize(cfg.points.(key));
+                if ~isempty(configured)
+                    pts = configured;
+                end
+            end
+        end
     end
 end
