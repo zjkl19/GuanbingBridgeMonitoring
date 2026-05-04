@@ -80,8 +80,8 @@ end
 % 输出目录（若传入相对路径则自动挂到 root_dir 下）
 outdir    = resolve_dir(root_dir, opt.OutputDir,  '动应变箱线图_高通滤波');
 outdir_ts = resolve_dir(root_dir, opt.OutputDirTs,'时程曲线_动应变_高通滤波');
-if ~exist(outdir,'dir'),    mkdir(outdir);    end
-if ~exist(outdir_ts,'dir'), mkdir(outdir_ts); end
+bms.core.PathResolver.ensureDir(outdir);
+bms.core.PathResolver.ensureDir(outdir_ts);
 
 % 分组与样式
 [groups, group_names, style] = get_groups_and_style(cfg);
@@ -203,13 +203,13 @@ function make_boxplot_and_stats(dataMat, labels, groupName, outdir, ds_cfg, tag,
     if ds_cfg.YLimManual, ylim(ds_cfg.YLimRange); end
 
     base = sprintf('boxplot_%s_%s', groupName, tag);
-    save_plot_bundle(f, outdir, [base '_' ts]);
+    bms.plot.PlotService.saveBundle(f, outdir, [base '_' ts]);
 
     statsTbl = calc_stats_table(dataMat, labels);
     txtPath  = fullfile(outdir, sprintf('boxplot_stats_%s_%s.txt', groupName, tag));
     xlsxPath = fullfile(outdir, sprintf('boxplot_stats_%s.xlsx', tag));
     write_stats_txt(txtPath, statsTbl, dt0, dt1);
-    writetable(statsTbl, xlsxPath, 'Sheet', groupName);
+    bms.io.StatsWriter.writeTable(statsTbl, xlsxPath, 'Sheet', groupName);
 end
 
 function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, ds_cfg, ylim_group, tag, ts)
@@ -262,7 +262,7 @@ function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, d
     end
 
     base = sprintf('dynstrain_hp_%s_%s', groupName, tag);
-    save_plot_bundle(f, outdir_ts, [base '_' ts]);
+    bms.plot.PlotService.saveBundle(f, outdir_ts, [base '_' ts]);
 end
 
 function T = calc_stats_table(dataMat, labels)

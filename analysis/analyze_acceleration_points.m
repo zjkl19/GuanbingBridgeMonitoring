@@ -61,7 +61,7 @@
     end
 
     T = cell2table(stats, 'VariableNames',{'PointID','Min','Max','Mean','RMS10minMax','RMSStartTime'});
-    writetable(T, excel_file);
+    bms.io.StatsWriter.writeTable(T, excel_file);
     fprintf('统计结果已保存至 %s\n', excel_file);
 
     time_end = datetime('now','Format','yyyy-MM-dd HH:mm:ss');
@@ -71,51 +71,22 @@
 end
 
 function pts = get_points(cfg, key, fallback)
-    pts = fallback;
-    if isfield(cfg,'points') && isfield(cfg.points, key)
-        val = cfg.points.(key);
-        if iscellstr(val) || (iscell(val) && all(cellfun(@ischar,val)))
-            pts = val;
-        end
-    end
+    pts = bms.data.PointResolver.fromConfig(cfg, key, fallback);
 end
 
 function style = get_style(cfg, key)
-    style = struct('ylabel','主梁竖向振动加速度 (m/s^2)', ...
-                   'title_prefix','加速度时程', ...
-                   'ylim_auto', false, ...
-                   'ylim', [], ...
-                   'ylims', [], ...
-                   'color_main',[0 0.447 0.741], ...
-                   'color_rms',[0.8500 0.3250 0.0980], ...
-                   'rms_ylabel','10 min RMS (m/s^2)', ...
-                   'rms_title_prefix','10 min RMS 时程', ...
-                   'rms_ylim', [], ...
-                   'rms_ylims', []);
-    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,key)
-        ps = cfg.plot_styles.(key);
-        if isfield(ps,'ylabel'), style.ylabel = ps.ylabel; end
-        if isfield(ps,'title_prefix'), style.title_prefix = ps.title_prefix; end
-        if isfield(ps,'ylim_auto'), style.ylim_auto = ps.ylim_auto; end
-        if isfield(ps,'ylim'), style.ylim = ps.ylim; end
-        if isfield(ps,'ylims'), style.ylims = ps.ylims; end
-        if isfield(ps,'colors') && numel(ps.colors)>=1
-            c = ps.colors;
-            if isnumeric(c) && size(c,2)==3
-                style.color_main = c(1,:);
-                if size(c,1)>=2, style.color_rms = c(2,:); end
-            end
-        end
-        if isfield(ps,'rms')
-            r = ps.rms;
-            if isfield(r,'ylabel'), style.rms_ylabel = r.ylabel; end
-            if isfield(r,'title_prefix'), style.rms_title_prefix = r.title_prefix; end
-            if isfield(r,'ylim'), style.rms_ylim = r.ylim; end
-            if isfield(r,'ylims'), style.rms_ylims = r.ylims; end
-            if isfield(r,'color'), style.color_rms = r.color; end
-        end
-        if isfield(ps,'rms_ylims'), style.rms_ylims = ps.rms_ylims; end
-    end
+    defaults = struct('ylabel','主梁竖向振动加速度 (m/s^2)', ...
+                      'title_prefix','加速度时程', ...
+                      'ylim_auto', false, ...
+                      'ylim', [], ...
+                      'ylims', [], ...
+                      'color_main',[0 0.447 0.741], ...
+                      'color_rms',[0.8500 0.3250 0.0980], ...
+                      'rms_ylabel','10 min RMS (m/s^2)', ...
+                      'rms_title_prefix','10 min RMS 时程', ...
+                      'rms_ylim', [], ...
+                      'rms_ylims', []);
+    style = bms.config.ConfigReader.getPlotStyle(cfg, key, defaults);
 end
 
 function plot_accel_curve(root_dir,pid, times, vals, mn, mx, style)
@@ -154,9 +125,9 @@ ax = gca; ax.XLim = ticks([1 end]); ax.XTick = ticks; xtickformat('yyyy-MM-dd');
 grid on; grid minor;
 title([style.title_prefix ' ' pid]);
 ts = datestr(now,'yyyymmdd_HHMMSS');
-out = fullfile(root_dir,'时程曲线_加速度'); if ~exist(out,'dir'), mkdir(out); end
+out = fullfile(root_dir,'时程曲线_加速度'); bms.core.PathResolver.ensureDir(out);
 fname = [pid '_' datestr(times(1),'yyyymmdd') '_' datestr(times(end),'yyyymmdd')];
-save_plot_bundle(fig, out, [fname '_' ts]);
+bms.plot.PlotService.saveBundle(fig, out, [fname '_' ts]);
 end
 
 function plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date, style)
@@ -233,9 +204,9 @@ end
 
 ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir,'时程曲线_加速度_RMS10min');
-if ~exist(out,'dir'), mkdir(out); end
+bms.core.PathResolver.ensureDir(out);
 fname = sprintf('AccelRMS10_%s_%s_%s', pid, datestr(xmin,'yyyymmdd'), datestr(xmax,'yyyymmdd'));
-save_plot_bundle(fig, out, [fname '_' ts]);
+bms.plot.PlotService.saveBundle(fig, out, [fname '_' ts]);
 end
 
 function yl = resolve_point_ylim(ylims, pid, default_ylim)
@@ -280,12 +251,11 @@ end
 end
 
 function ok = is_valid_ylim(v)
-ok = isnumeric(v) && numel(v)==2 && all(isfinite(v)) && v(2) > v(1);
+    ok = bms.plot.PlotService.isValidYLim(v);
 end
 
 function tf = is_truthy(v)
-tf = (islogical(v) && isscalar(v) && v) || ...
-    (isnumeric(v) && isscalar(v) && ~isnan(v) && v ~= 0);
+    tf = bms.config.ConfigReader.boolValue(v, false);
 end
 
 function rec = init_accel_record()

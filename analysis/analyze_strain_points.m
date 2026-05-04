@@ -94,7 +94,7 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
     end
 
     T = cell2table(stats_rows, 'VariableNames', {'PointID', 'Min', 'Max', 'Mean'});
-    writetable(T, excel_file);
+    bms.io.StatsWriter.writeTable(T, excel_file);
     fprintf('Strain stats saved to %s\n', excel_file);
 end
 
@@ -186,11 +186,9 @@ function plot_point_curve(root_dir, times, vals, start_date, end_date, pid, styl
 
     ts = datestr(now, 'yyyymmdd_HHMMSS');
     out_dir = fullfile(root_dir, char(string(get_style_field(style, 'output_dir', '时程曲线_应变'))));
-    if ~exist(out_dir, 'dir')
-        mkdir(out_dir);
-    end
+    bms.core.PathResolver.ensureDir(out_dir);
     fname = sanitize_filename(sprintf('Strain_%s_%s_%s', char(string(pid)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    save_plot_bundle(fig, out_dir, [fname '_' ts]);
+    bms.plot.PlotService.saveBundle(fig, out_dir, [fname '_' ts]);
 end
 
 function plot_group_timeseries(root_dir, data_list, start_date, end_date, group_name, style)
@@ -244,11 +242,9 @@ function plot_group_timeseries(root_dir, data_list, start_date, end_date, group_
 
     ts = datestr(now, 'yyyymmdd_HHMMSS');
     out_dir = fullfile(root_dir, char(string(get_style_field(style, 'group_output_dir', '时程曲线_应变_组图'))));
-    if ~exist(out_dir, 'dir')
-        mkdir(out_dir);
-    end
+    bms.core.PathResolver.ensureDir(out_dir);
     fname = sanitize_filename(sprintf('Strain_%s_%s_%s', char(string(group_name)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    save_plot_bundle(fig, out_dir, [fname '_' ts]);
+    bms.plot.PlotService.saveBundle(fig, out_dir, [fname '_' ts]);
 end
 
 function plot_group_boxplot(root_dir, data_list, start_date, end_date, group_name, style, cfg)
@@ -307,11 +303,9 @@ function plot_group_boxplot(root_dir, data_list, start_date, end_date, group_nam
     dt1 = datetime(end_date, 'InputFormat', 'yyyy-MM-dd');
     ts = datestr(now, 'yyyymmdd_HHMMSS');
     out_dir = fullfile(root_dir, char(string(get_style_field(style, 'boxplot_output_dir', '箱线图_应变'))));
-    if ~exist(out_dir, 'dir')
-        mkdir(out_dir);
-    end
+    bms.core.PathResolver.ensureDir(out_dir);
     fname = sanitize_filename(sprintf('StrainBox_%s_%s_%s', char(string(group_name)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    save_plot_bundle(fig, out_dir, [fname '_' ts]);
+    bms.plot.PlotService.saveBundle(fig, out_dir, [fname '_' ts]);
 end
 
 function [data_mat, max_len] = build_boxplot_matrix(data_list)
@@ -446,37 +440,11 @@ function groups = get_groups(cfg, key)
 end
 
 function groups = normalize_group_map(groups_cfg)
-    groups = struct();
-    if isempty(groups_cfg)
-        return;
-    end
-    if isstruct(groups_cfg)
-        names = fieldnames(groups_cfg);
-        for i = 1:numel(names)
-            groups.(names{i}) = normalize_points(groups_cfg.(names{i}));
-        end
-        return;
-    end
-    if iscell(groups_cfg)
-        for i = 1:numel(groups_cfg)
-            groups.(sprintf('G%d', i)) = normalize_points(groups_cfg{i});
-        end
-    end
+    groups = bms.data.PointResolver.normalizeGroups(groups_cfg);
 end
 
 function tf = has_groups(groups_cfg)
-    tf = false;
-    if isstruct(groups_cfg)
-        names = fieldnames(groups_cfg);
-        for i = 1:numel(names)
-            if ~isempty(normalize_points(groups_cfg.(names{i})))
-                tf = true;
-                return;
-            end
-        end
-    elseif iscell(groups_cfg)
-        tf = any(~cellfun(@isempty, groups_cfg));
-    end
+    tf = bms.data.PointResolver.hasGroups(groups_cfg);
 end
 
 function groups = legacy_strain_groups()
@@ -486,143 +454,37 @@ function groups = legacy_strain_groups()
 end
 
 function pts = get_points(cfg, key, fallback)
-    pts = normalize_points(fallback);
-    if isfield(cfg, 'points') && isfield(cfg.points, key)
-        raw = cfg.points.(key);
-        if isempty(raw)
-            pts = {};
-            return;
-        end
-        pts = normalize_points(raw);
-    end
+    pts = bms.data.PointResolver.fromConfig(cfg, key, fallback);
 end
 
 function pts = normalize_points(v)
-    pts = {};
-    if isstring(v)
-        pts = cellstr(v(:));
-    elseif ischar(v)
-        vv = strtrim(v);
-        if ~isempty(vv)
-            pts = {vv};
-        end
-    elseif iscell(v)
-        out = {};
-        for i = 1:numel(v)
-            item = v{i};
-            if isstring(item)
-                if isscalar(item)
-                    item = char(item);
-                else
-                    continue;
-                end
-            end
-            if ischar(item)
-                item = strtrim(item);
-                if ~isempty(item)
-                    out{end+1, 1} = item; %#ok<AGROW>
-                end
-            end
-        end
-        if ~isempty(out)
-            out = unique(out, 'stable');
-        end
-        pts = out;
-    end
+    pts = bms.data.PointResolver.normalize(v);
 end
 
 function style = get_style(cfg, key)
-    style = struct();
-    if isfield(cfg, 'plot_styles') && isfield(cfg.plot_styles, key) && isstruct(cfg.plot_styles.(key))
-        style = cfg.plot_styles.(key);
-    end
+    style = bms.config.ConfigReader.getPlotStyle(cfg, key);
 end
 
 function val = get_style_field(style, field, default)
-    if isstruct(style) && isfield(style, field)
-        val = style.(field);
-    else
-        val = default;
-    end
+    val = bms.config.ConfigReader.getField(style, field, default);
 end
 
 function y = get_ylim_for_pid(style, pid, default)
-    y = default;
-    if isempty(pid) || ~isstruct(style) || ~isfield(style, 'ylims')
-        return;
-    end
-    ylims = style.ylims;
-    if isa(ylims, 'containers.Map')
-        if isKey(ylims, pid)
-            y = ylims(pid);
-        end
-        return;
-    end
-    if isstruct(ylims)
-        if isfield(ylims, pid)
-            y = ylims.(pid);
-            return;
-        end
-        if isfield(ylims, 'name') && isfield(ylims, 'ylim')
-            for i = 1:numel(ylims)
-                if strcmp(ylims(i).name, pid)
-                    y = ylims(i).ylim;
-                    return;
-                end
-            end
-        end
-    elseif iscell(ylims)
-        for i = 1:numel(ylims)
-            item = ylims{i};
-            if isstruct(item) && isfield(item, 'name') && isfield(item, 'ylim') && strcmp(item.name, pid)
-                y = item.ylim;
-                return;
-            end
-        end
-    end
+    ylims = bms.config.ConfigReader.getField(style, 'ylims', []);
+    y = bms.plot.PlotService.resolveNamedYLim(ylims, pid, default);
 end
 
 function y = get_group_ylim(style, group_name, default)
-    y = default;
-    if ~isstruct(style) || ~isfield(style, 'ylims')
-        return;
-    end
-    ylims = style.ylims;
-    if isstruct(ylims) && isfield(ylims, group_name)
-        y = ylims.(group_name);
-        return;
-    end
-    if isstruct(ylims) && isfield(ylims, 'name') && isfield(ylims, 'ylim')
-        for i = 1:numel(ylims)
-            if strcmp(to_char(ylims(i).name), group_name)
-                y = ylims(i).ylim;
-                return;
-            end
-        end
-    elseif iscell(ylims)
-        for i = 1:numel(ylims)
-            item = ylims{i};
-            if isstruct(item) && isfield(item, 'name') && isfield(item, 'ylim') && strcmp(to_char(item.name), group_name)
-                y = item.ylim;
-                return;
-            end
-        end
-    end
+    ylims = bms.config.ConfigReader.getField(style, 'ylims', []);
+    y = bms.plot.PlotService.resolveNamedYLim(ylims, group_name, default);
 end
 
-function tf = is_valid_ylim(v)
-    tf = isnumeric(v) && isvector(v) && numel(v) == 2 && ...
-        isfinite(v(1)) && (isfinite(v(2)) || isinf(v(2))) && (v(2) > v(1));
+function ok = is_valid_ylim(v)
+    ok = bms.plot.PlotService.isValidYLim(v);
 end
 
 function ccell = normalize_colors(c)
-    if isnumeric(c)
-        ccell = mat2cell(c, ones(size(c, 1), 1), size(c, 2));
-    elseif iscell(c)
-        ccell = c;
-    else
-        ccell = {};
-    end
+    ccell = bms.plot.PlotService.normalizeColors(c, {});
 end
 
 function out = sanitize_filename(name)

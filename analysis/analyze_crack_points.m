@@ -66,7 +66,7 @@ function analyze_crack_points(root_dir, start_date, end_date, excel_file, subfol
     end
 
     T = cell2table(stats, 'VariableNames', {'PointID','CrkMin','CrkMax','CrkMean','TmpMin','TmpMax','TmpMean'});
-    writetable(T, excel_file);
+    bms.io.StatsWriter.writeTable(T, excel_file);
 
     crack_ylabel = get_style_field(style, 'ylabel_crack', 'Crack Width (mm)');
     crack_title  = get_style_field(style, 'title_prefix_crack', 'Crack Width');
@@ -168,9 +168,7 @@ function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, title_prefi
     if isempty(labels)
         return;
     end
-    if ~exist(out_dir,'dir')
-        mkdir(out_dir);
-    end
+    bms.core.PathResolver.ensureDir(out_dir);
 
     fig = figure('Position',[100 100 1000 469]);
     hold on;
@@ -221,12 +219,11 @@ function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, title_prefi
 
     ts = datestr(now, 'yyyymmdd_HHMMSS');
     base = sanitize_filename(sprintf('%s_%s_%s_%s', title_prefix, group_name, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd')));
-    save_plot_bundle(fig, out_dir, [base '_' ts]);
+    bms.plot.PlotService.saveBundle(fig, out_dir, [base '_' ts]);
 end
 
-function tf = is_valid_ylim(v)
-    tf = isnumeric(v) && numel(v) == 2 && isvector(v) && ...
-        isfinite(v(1)) && (isfinite(v(2)) || isinf(v(2))) && (v(2) > v(1));
+function ok = is_valid_ylim(v)
+    ok = bms.plot.PlotService.isValidYLim(v);
 end
 
 function out = sanitize_filename(name)
@@ -281,84 +278,20 @@ function pts = get_points(cfg, key, fallback)
 end
 
 function pts = normalize_points(v)
-    pts = {};
-    if isstring(v)
-        pts = cellstr(v(:));
-    elseif ischar(v)
-        vv = strtrim(v);
-        if ~isempty(vv)
-            pts = {vv};
-        end
-    elseif iscell(v)
-        tmp = {};
-        for i = 1:numel(v)
-            item = v{i};
-            if isstring(item)
-                if isscalar(item)
-                    item = char(item);
-                else
-                    continue;
-                end
-            end
-            if ischar(item)
-                item = strtrim(item);
-                if ~isempty(item)
-                    tmp{end+1,1} = item; %#ok<AGROW>
-                end
-            end
-        end
-        pts = tmp;
-    end
+    pts = bms.data.PointResolver.normalize(v);
 end
 
 function style = get_style(cfg, key)
-    style = struct();
-    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles, key)
-        style = cfg.plot_styles.(key);
-    end
+    style = bms.config.ConfigReader.getPlotStyle(cfg, key);
 end
 
 function val = get_style_field(style, field, default)
-    if isstruct(style) && isfield(style, field)
-        val = style.(field);
-    else
-        val = default;
-    end
+    val = bms.config.ConfigReader.getField(style, field, default);
 end
 
 function ylim_val = get_named_ylim(style, grp_name, default_ylim)
-    ylim_val = default_ylim;
-    if ~isstruct(style) || ~isfield(style,'ylims') || isempty(style.ylims) || isempty(grp_name)
-        return;
-    end
-    ylims = style.ylims;
-    safe_name = strrep(grp_name, '-', '_');
-    if isstruct(ylims)
-        if isfield(ylims, grp_name)
-            ylim_val = ylims.(grp_name);
-            return;
-        end
-        if isfield(ylims, safe_name)
-            ylim_val = ylims.(safe_name);
-            return;
-        end
-        if isfield(ylims, 'name') && isfield(ylims, 'ylim')
-            for i = 1:numel(ylims)
-                if strcmp(to_char(ylims(i).name), grp_name)
-                    ylim_val = ylims(i).ylim;
-                    return;
-                end
-            end
-        end
-    elseif iscell(ylims)
-        for i = 1:numel(ylims)
-            item = ylims{i};
-            if isstruct(item) && isfield(item,'name') && isfield(item,'ylim') && strcmp(to_char(item.name), grp_name)
-                ylim_val = item.ylim;
-                return;
-            end
-        end
-    end
+    ylims = bms.config.ConfigReader.getField(style, 'ylims', []);
+    ylim_val = bms.plot.PlotService.resolveNamedYLim(ylims, grp_name, default_ylim);
 end
 
 function ylim_val = get_default_ylim(style)
@@ -376,13 +309,7 @@ function ylim_val = get_default_ylim(style)
 end
 
 function ccell = normalize_colors(c)
-    if isnumeric(c)
-        ccell = mat2cell(c, ones(size(c,1),1), size(c,2));
-    elseif iscell(c)
-        ccell = c;
-    else
-        ccell = {};
-    end
+    ccell = bms.plot.PlotService.normalizeColors(c, {});
 end
 
 function opt = get_crack_options(style)

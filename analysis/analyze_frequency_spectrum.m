@@ -81,14 +81,14 @@ function save_spectrum_plot()
     % 确保结果存储文件夹存在
     folder_name = '频谱分析结果';
     if ~exist(folder_name, 'dir')
-        mkdir(folder_name);
+        bms.core.PathResolver.ensureDir(folder_name);
     end
 
     % 文件名
     file_base_name = fullfile(folder_name, ['spectrum_plot_' timestamp_str]);
 
     % 保存为不同格式
-    save_plot_bundle(gcf, folder_name, ['spectrum_plot_' timestamp_str]);
+    bms.plot.PlotService.saveBundle(gcf, folder_name, ['spectrum_plot_' timestamp_str]);
 
     disp(['频谱图已保存至: ' folder_name]);
 end

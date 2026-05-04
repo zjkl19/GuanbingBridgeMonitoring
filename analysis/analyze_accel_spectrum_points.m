@@ -41,10 +41,10 @@
     style = get_style(cfg, 'accel_spectrum');
 
     outDirFig = fullfile(root_dir,'频谱峰值曲线_加速度');
-    if ~exist(outDirFig,'dir'), mkdir(outDirFig); end
+    bms.core.PathResolver.ensureDir(outDirFig);
 
     psdRoot = fullfile(root_dir,'PSD_备查');
-    if ~exist(psdRoot,'dir'), mkdir(psdRoot); end
+    bms.core.PathResolver.ensureDir(psdRoot);
 
     dates_all = (datetime(start_date):days(1):datetime(end_date)).';
     Nday      = numel(dates_all);
@@ -82,7 +82,7 @@
         ampTbl  = array2table(ampDay, ...
                    'VariableNames', compose('Amp_%0.3fHz', target_freqs_pt));
         T = [table(dateCol,'VariableNames',{'Date'}) , freqTbl , ampTbl];
-        writetable(T, excel_file,'Sheet',point_ids{ii});
+        bms.io.StatsWriter.writeTable(T, excel_file, 'Sheet', point_ids{ii});
 
         % 绘制峰值频率时程
         plot_freq_timeseries(dates_all, freqDay, pid, target_freqs_pt, outDirFig, style, theor_freqs_pt, theor_labels_pt);
@@ -91,42 +91,18 @@
 end
 
 function pts = get_points(cfg, key, fallback)
-    pts = fallback;
-    if isfield(cfg,'points') && isfield(cfg.points, key)
-        val = cfg.points.(key);
-        if iscellstr(val) || (iscell(val) && all(cellfun(@ischar,val)))
-            pts = val;
-        end
-    end
+    pts = bms.data.PointResolver.fromConfig(cfg, key, fallback);
 end
 
 function style = get_style(cfg, key)
-    % 标量默认样式，避免因颜色矩阵/元胞自动扩展�?struct 数组
-    style = struct();
-    style.psd_ylabel        = 'PSD (dB)';
-    style.psd_title_prefix  = 'PSD';
-    style.psd_color         = [0 0 0];
-    style.freq_ylabel       = '峰值频率 (Hz)';
-    style.freq_title_prefix = '峰值频率时程';
-    style.colors            = {[0 0 1],[1 0 0],[0 0.7 0],[0.5 0 0.7]};
-
-    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,key)
-        ps_all = cfg.plot_styles.(key);
-        ps = ps_all(1); % 强制标量
-        if isfield(ps,'psd_ylabel'),        style.psd_ylabel = ps.psd_ylabel; end
-        if isfield(ps,'psd_title_prefix'),  style.psd_title_prefix = ps.psd_title_prefix; end
-        if isfield(ps,'psd_color'),         style.psd_color = ps.psd_color; end
-        if isfield(ps,'freq_ylabel'),       style.freq_ylabel = ps.freq_ylabel; end
-        if isfield(ps,'freq_title_prefix'), style.freq_title_prefix = ps.freq_title_prefix; end
-        if isfield(ps,'colors')
-            c = ps.colors;
-            if isnumeric(c) && size(c,2)==3
-                style.colors = mat2cell(c, ones(size(c,1),1), 3);
-            elseif iscell(c)
-                style.colors = c;
-            end
-        end
-    end
+    defaults = struct();
+    defaults.psd_ylabel        = 'PSD (dB)';
+    defaults.psd_title_prefix  = 'PSD';
+    defaults.psd_color         = [0 0 0];
+    defaults.freq_ylabel       = '峰值频率 (Hz)';
+    defaults.freq_title_prefix = '峰值频率时程';
+    defaults.colors            = {[0 0 1],[1 0 0],[0 0.7 0],[0.5 0 0.7]};
+    style = bms.config.ConfigReader.getPlotStyle(cfg, key, defaults);
 end
 
 function val = get_spec_param(cfg, field, defaultVal)
@@ -243,13 +219,13 @@ function [ampRow, freqRow] = process_one_day(day, pid, root_dir, subfolder, targ
 
     % 备查 PSD
     psdDir = fullfile(psdRoot,pid);
-    if ~exist(psdDir,'dir'), mkdir(psdDir); end
+    bms.core.PathResolver.ensureDir(psdDir);
     figPSD = figure('Visible','off','Position',[100 100 900 420]);
     plot(f,Pdb,'Color',style.psd_color,'LineWidth',1); grid on; hold on;
     xline(target_freqs,'--r');
     xlabel('频率 (Hz)'); ylabel(style.psd_ylabel);
     title(sprintf('%s %s  %s',style.psd_title_prefix,pid,dayStr));
-    save_plot_bundle(figPSD, psdDir, sprintf('PSD_%s_%s',pid,dayStr), struct('save_emf', false));
+    bms.plot.PlotService.saveBundle(figPSD, psdDir, sprintf('PSD_%s_%s',pid,dayStr), struct('save_emf', false));
 
     for fi = 1:numel(target_freqs)
         f0 = target_freqs(fi);
@@ -337,26 +313,9 @@ function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, 
              datestr(dates_all(1),'yyyymmdd'), ...
              datestr(dates_all(end),'yyyymmdd')));
     [freq_dir, freq_name] = fileparts(fname);
-    save_plot_bundle(fig, freq_dir, freq_name);
+    bms.plot.PlotService.saveBundle(fig, freq_dir, freq_name);
 end
 
 function ccell = normalize_colors(c)
-    if isnumeric(c) && size(c,2)==3
-        ccell = mat2cell(c, ones(size(c,1),1), 3);
-    elseif iscell(c)
-        tmp = {};
-        for i = 1:numel(c)
-            ci = c{i};
-            if isnumeric(ci) && numel(ci)==3
-                tmp{end+1} = reshape(ci,1,3); %#ok<AGROW>
-            end
-        end
-        ccell = tmp;
-    else
-        ccell = {};
-    end
-    if isempty(ccell)
-        co = lines( max(1, size(c,1)) );
-        ccell = mat2cell(co, ones(size(co,1),1), 3);
-    end
+    ccell = bms.plot.PlotService.normalizeColors(c, {});
 end

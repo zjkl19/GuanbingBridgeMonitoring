@@ -26,7 +26,7 @@ function analyze_temperature_points(root_dir, point_ids, start_date, end_date, e
     dn1 = datenum(end_date_str,  'yyyy-mm-dd');
     timestamp = datestr(now,'yyyymmdd_HHMMSS');
     outDir = fullfile(root_dir,'时程曲线_温度');
-    if ~exist(outDir,'dir'), mkdir(outDir); end
+    bms.core.PathResolver.ensureDir(outDir);
 
     for i = 1:nPts
         pid = point_ids{i};
@@ -63,7 +63,7 @@ end
 grid on; grid minor;
 title(sprintf('%s %s', get_style_field(style,'title_prefix','温度时程'), pid));
         base = sprintf('%s_%s_%s', pid, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
-        save_plot_bundle(fig, outDir, [base '_' timestamp]);
+        bms.plot.PlotService.saveBundle(fig, outDir, [base '_' timestamp]);
         mn = min(all_val);
         mx = max(all_val);
         stats{i,1} = pid;
@@ -72,7 +72,7 @@ title(sprintf('%s %s', get_style_field(style,'title_prefix','温度时程'), pid
         stats{i,4} = avg_val;
     end
     T = cell2table(stats,'VariableNames',{'PointID','Min','Max','Mean'});
-    writetable(T,excel_file);
+    bms.io.StatsWriter.writeTable(T, excel_file);
     fprintf('统计结果已保存至 %s\n',excel_file);
 end
 
@@ -89,18 +89,11 @@ end
 
 % helpers
 function style = get_style(cfg, key)
-    style = struct();
-    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles, key)
-        style = cfg.plot_styles.(key);
-    end
+    style = bms.config.ConfigReader.getPlotStyle(cfg, key);
 end
 
 function val = get_style_field(style, field, default)
-    if isstruct(style) && isfield(style, field)
-        val = style.(field);
-    else
-        val = default;
-    end
+    val = bms.config.ConfigReader.getField(style, field, default);
 end
 
 function c = get_color(style, idx)
@@ -117,46 +110,15 @@ function c = get_color(style, idx)
 end
 
 function yl = resolve_named_ylim(ylims, name, default_ylim)
-    yl = default_ylim;
-    if isempty(ylims) || isempty(name)
-        return;
-    end
-    safe_name = strrep(name, '-', '_');
-    if isstruct(ylims)
-        if isfield(ylims, name)
-            yl = ylims.(name);
-            return;
-        end
-        if isfield(ylims, safe_name)
-            yl = ylims.(safe_name);
-            return;
-        end
-        if isfield(ylims, 'name') && isfield(ylims, 'ylim')
-            for i = 1:numel(ylims)
-                if strcmp(to_char(ylims(i).name), name)
-                    yl = ylims(i).ylim;
-                    return;
-                end
-            end
-        end
-    elseif iscell(ylims)
-        for i = 1:numel(ylims)
-            item = ylims{i};
-            if isstruct(item) && isfield(item, 'name') && isfield(item, 'ylim') && strcmp(to_char(item.name), name)
-                yl = item.ylim;
-                return;
-            end
-        end
-    end
+    yl = bms.plot.PlotService.resolveNamedYLim(ylims, name, default_ylim);
 end
 
 function ok = is_valid_ylim(v)
-    ok = isnumeric(v) && numel(v) == 2 && all(isfinite(v)) && v(2) > v(1);
+    ok = bms.plot.PlotService.isValidYLim(v);
 end
 
 function tf = is_truthy(v)
-    tf = (islogical(v) && isscalar(v) && v) || ...
-        (isnumeric(v) && isscalar(v) && ~isnan(v) && v ~= 0);
+    tf = bms.config.ConfigReader.boolValue(v, false);
 end
 
 function txt = to_char(v)

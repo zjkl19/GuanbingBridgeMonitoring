@@ -19,9 +19,7 @@ function analyze_gnss_points(root_dir, point_ids, start_date, end_date, excel_fi
 
     style = get_style(cfg, 'gnss');
     out_dir = fullfile(root_dir, char(string(get_style_field(style, 'output_dir', '时程曲线_GNSS'))));
-    if ~exist(out_dir, 'dir')
-        mkdir(out_dir);
-    end
+    bms.core.PathResolver.ensureDir(out_dir);
 
     dt0 = datetime(start_date, 'InputFormat', 'yyyy-MM-dd');
     dt1 = datetime(end_date, 'InputFormat', 'yyyy-MM-dd');
@@ -108,56 +106,35 @@ function analyze_gnss_points(root_dir, point_ids, start_date, end_date, excel_fi
         grid minor;
 
         fname = sanitize_filename(sprintf('GNSS_%s_%s_%s', pid, datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-        save_plot_bundle(fig, out_dir, [fname '_' ts]);
+        bms.plot.PlotService.saveBundle(fig, out_dir, [fname '_' ts]);
     end
 
     T = cell2table(stats, 'VariableNames', ...
         {'PointID', 'Component', 'ComponentLabel', 'StartTime', 'EndTime', ...
          'ValidCount', 'Min_mm', 'Max_mm', 'Mean_mm', 'PeakToPeak_mm'});
-    writetable(T, excel_file);
+    bms.io.StatsWriter.writeTable(T, excel_file);
     fprintf('GNSS stats saved to %s\n', excel_file);
 end
 
 function style = get_style(cfg, key)
-    style = struct();
-    if isfield(cfg, 'plot_styles') && isfield(cfg.plot_styles, key)
-        style = cfg.plot_styles.(key);
-    end
+    style = bms.config.ConfigReader.getPlotStyle(cfg, key);
 end
 
-function value = get_style_field(style, field_name, default_value)
-    if isstruct(style) && isfield(style, field_name)
-        value = style.(field_name);
-    else
-        value = default_value;
-    end
+function val = get_style_field(style, field, default)
+    val = bms.config.ConfigReader.getField(style, field, default);
 end
 
 function colors = normalize_colors(raw)
-    colors = raw;
-    if isempty(colors)
-        colors = [0 0.447 0.741; 0.85 0.325 0.098; 0.466 0.674 0.188];
-        return;
-    end
-    if iscell(colors)
-        try
-            colors = cell2mat(colors);
-        catch
-            colors = [];
-        end
-    end
-    if ~isnumeric(colors) || size(colors, 2) ~= 3
-        colors = [0 0.447 0.741; 0.85 0.325 0.098; 0.466 0.674 0.188];
-    end
+    default_colors = [0 0.447 0.741; 0.85 0.325 0.098; 0.466 0.674 0.188];
+    colors = bms.plot.PlotService.normalizeColors(raw, default_colors);
 end
 
 function tf = is_truthy(v)
-    tf = (islogical(v) && isscalar(v) && v) || ...
-        (isnumeric(v) && isscalar(v) && ~isnan(v) && v ~= 0);
+    tf = bms.config.ConfigReader.boolValue(v, false);
 end
 
 function ok = is_valid_ylim(v)
-    ok = isnumeric(v) && numel(v) == 2 && all(isfinite(v)) && v(2) > v(1);
+    ok = bms.plot.PlotService.isValidYLim(v);
 end
 
 function out = sanitize_filename(in)

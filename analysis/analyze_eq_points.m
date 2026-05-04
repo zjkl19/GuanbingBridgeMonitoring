@@ -190,46 +190,15 @@ function out = merge_struct(base, override)
 end
 
 function yl = resolve_named_ylim(ylims, name, default_ylim)
-    yl = default_ylim;
-    if isempty(ylims) || isempty(name)
-        return;
-    end
-    safe_name = strrep(name, '-', '_');
-    if isstruct(ylims)
-        if isfield(ylims, name)
-            yl = ylims.(name);
-            return;
-        end
-        if isfield(ylims, safe_name)
-            yl = ylims.(safe_name);
-            return;
-        end
-        if isfield(ylims, 'name') && isfield(ylims, 'ylim')
-            for i = 1:numel(ylims)
-                if strcmp(to_char(ylims(i).name), name)
-                    yl = ylims(i).ylim;
-                    return;
-                end
-            end
-        end
-    elseif iscell(ylims)
-        for i = 1:numel(ylims)
-            item = ylims{i};
-            if isstruct(item) && isfield(item, 'name') && isfield(item, 'ylim') && strcmp(to_char(item.name), name)
-                yl = item.ylim;
-                return;
-            end
-        end
-    end
+    yl = bms.plot.PlotService.resolveNamedYLim(ylims, name, default_ylim);
 end
 
 function ok = is_valid_ylim(v)
-    ok = isnumeric(v) && numel(v) == 2 && all(isfinite(v)) && v(2) > v(1);
+    ok = bms.plot.PlotService.isValidYLim(v);
 end
 
 function tf = is_truthy(v)
-    tf = (islogical(v) && isscalar(v) && v) || ...
-        (isnumeric(v) && isscalar(v) && ~isnan(v) && v ~= 0);
+    tf = bms.config.ConfigReader.boolValue(v, false);
 end
 
 function txt = to_char(v)

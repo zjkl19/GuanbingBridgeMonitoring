@@ -108,15 +108,15 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
         end
 
         % 绘制原始&滤波曲线
-        plot_deflection_curve(orig_times, orig_vals, pid_list, root_dir, start_date, end_date, g, style, '原始');
-        plot_deflection_curve(filt_times, filt_vals, pid_list, root_dir, start_date, end_date, g, style, '滤波');
+        plot_deflection_curve(orig_times, orig_vals, pid_list, root_dir, start_date, end_date, g, style, 'Orig');
+        plot_deflection_curve(filt_times, filt_vals, pid_list, root_dir, start_date, end_date, g, style, 'Filt');
     end
     end
 
     % 写入 Excel
     T = cell2table(stats, 'VariableNames', ...
         {'PointID','OrigMin_mm','OrigMax_mm','OrigMean_mm','FiltMin_mm','FiltMax_mm','FiltMean_mm'});
-    writetable(T, excel_file);
+    bms.io.StatsWriter.writeTable(T, excel_file);
     fprintf('挠度统计已保存至 %s\n', excel_file);
 end
 
@@ -207,17 +207,17 @@ grid on; grid minor;
 
 % 保存
 ts = datestr(now,'yyyymmdd_HHMMSS');
-out = fullfile(root_dir, '时程曲线_挠度'); if ~exist(out,'dir'), mkdir(out); end
+out = fullfile(root_dir, '时程曲线_挠度'); bms.core.PathResolver.ensureDir(out);
     suffix_tag = make_file_suffix_tag(suffix);
     fname = sprintf('Defl_%s_%s_%s_%s', name_tag, suffix_tag, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
-save_plot_bundle(fig, out, [fname '_' ts]);
+bms.plot.PlotService.saveBundle(fig, out, [fname '_' ts]);
 end
 
 function tag = make_file_suffix_tag(suffix)
     tag = char(string(suffix));
-    if contains(tag, '滤')
+    if strcmpi(tag, 'Filt') || strcmpi(tag, 'Filtered')
         tag = 'Filt';
-    elseif contains(tag, '原')
+    elseif strcmpi(tag, 'Orig') || strcmpi(tag, 'Raw')
         tag = 'Orig';
     elseif isempty(strtrim(tag))
         tag = 'Series';
@@ -229,7 +229,6 @@ function tag = make_file_suffix_tag(suffix)
     end
 end
 
-% helpers
 function pts = get_points(cfg, key, groups)
     pts = {};
     if isfield(cfg,'points') && isfield(cfg.points, key)
@@ -240,18 +239,7 @@ function pts = get_points(cfg, key, groups)
 end
 
 function pts = flatten_groups(groups)
-    pts = {};
-    if iscell(groups)
-        for i = 1:numel(groups)
-            g = groups{i};
-            if iscell(g)
-                pts = [pts, g(:)'];
-            end
-end
-    end
-    if ~isempty(pts)
-        pts = unique(pts, 'stable');
-    end
+    pts = bms.data.PointResolver.flattenGroups(groups);
 end
 
 function tf = is_jiulongjiang(cfg)
@@ -259,48 +247,19 @@ function tf = is_jiulongjiang(cfg)
 end
 
 function y = get_ylim_for_pid(style, pid, default)
-    y = default;
-    if isempty(pid) || ~isstruct(style) || ~isfield(style,'ylims')
-        return;
-    end
-    ylims = style.ylims;
-    if isa(ylims,'containers.Map')
-        if isKey(ylims, pid)
-            y = ylims(pid);
-        end
-        return;
-    end
-    if isstruct(ylims)
-        if isfield(ylims, pid)
-            y = ylims.(pid);
-            return;
-        end
-        if isfield(ylims,'name') && isfield(ylims,'ylim')
-            for i = 1:numel(ylims)
-                if strcmp(ylims(i).name, pid)
-                    y = ylims(i).ylim;
-                    return;
-                end
-end
-        end
-    end
-    if iscell(ylims)
-        for i = 1:numel(ylims)
-            item = ylims{i};
-            if isstruct(item) && isfield(item,'name') && strcmp(item.name, pid) && isfield(item,'ylim')
-                y = item.ylim;
-                return;
-            end
-end
-    end
+    ylims = bms.config.ConfigReader.getField(style, 'ylims', []);
+    y = bms.plot.PlotService.resolveNamedYLim(ylims, pid, default);
 end
 
 function ok = is_valid_ylim(v)
-    ok = isnumeric(v) && numel(v)==2 && all(isfinite(v)) && v(2) > v(1);
+    ok = bms.plot.PlotService.isValidYLim(v);
 end
+
 function tf = has_groups(cfg, key)
-    tf = isfield(cfg,'groups') && isfield(cfg.groups, key) && ~isempty(cfg.groups.(key));
+    tf = isstruct(cfg) && isfield(cfg, 'groups') && isstruct(cfg.groups) && ...
+        isfield(cfg.groups, key) && bms.data.PointResolver.hasGroups(cfg.groups.(key));
 end
+
 function groups = get_groups(cfg, key, fallback)
     groups = fallback;
     if isfield(cfg, 'groups') && isfield(cfg.groups, key)
@@ -312,18 +271,11 @@ function groups = get_groups(cfg, key, fallback)
 end
 
 function style = get_style(cfg, key)
-    style = struct();
-    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles, key)
-        style = cfg.plot_styles.(key);
-    end
+    style = bms.config.ConfigReader.getPlotStyle(cfg, key);
 end
 
 function val = get_style_field(style, field, default)
-    if isstruct(style) && isfield(style, field)
-        val = style.(field);
-    else
-        val = default;
-    end
+    val = bms.config.ConfigReader.getField(style, field, default);
 end
 
 function lbl = get_label(wl)
@@ -335,11 +287,5 @@ function lbl = get_label(wl)
 end
 
 function ccell = normalize_colors(c)
-    if isnumeric(c)
-        ccell = mat2cell(c, ones(size(c,1),1), size(c,2));
-    elseif iscell(c)
-        ccell = c;
-    else
-        ccell = {};
-    end
+    ccell = bms.plot.PlotService.normalizeColors(c, {});
 end

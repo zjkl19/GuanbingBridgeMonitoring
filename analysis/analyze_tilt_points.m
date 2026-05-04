@@ -74,11 +74,11 @@ function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfold
 
     if ~isempty(per_point_stats)
         T = cell2table(per_point_stats, 'VariableNames', {'PointID', 'Min', 'Max', 'Mean'});
-        writetable(T, excel_file, 'Sheet', 'Tilt');
+        bms.io.StatsWriter.writeTable(T, excel_file, 'Sheet', 'Tilt');
     end
     for i = 1:numel(group_stats)
         T = cell2table(group_stats{i}, 'VariableNames', {'PointID', 'Min', 'Max', 'Mean'});
-        writetable(T, excel_file, 'Sheet', make_sheet_name(group_names{i}));
+        bms.io.StatsWriter.writeTable(T, excel_file, 'Sheet', make_sheet_name(group_names{i}));
     end
 
     fprintf('Tilt stats saved to %s\n', excel_file);
@@ -187,11 +187,9 @@ function plot_tilt_curve(root_dir, data_list, start_date, end_date, suffix, styl
     ts = datestr(now, 'yyyymmdd_HHMMSS');
     out_dir = char(string(get_style_field(style, 'output_dir', '时程曲线_倾角')));
     out_dir = fullfile(root_dir, out_dir);
-    if ~exist(out_dir, 'dir')
-        mkdir(out_dir);
-    end
+    bms.core.PathResolver.ensureDir(out_dir);
     fname = sanitize_filename(sprintf('Tilt_%s_%s_%s', char(string(suffix)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    save_plot_bundle(fig, out_dir, [fname '_' ts]);
+    bms.plot.PlotService.saveBundle(fig, out_dir, [fname '_' ts]);
 end
 
 function warn_lines = resolve_warn_lines(style, cfg, pid)
@@ -314,37 +312,11 @@ function groups = get_groups(cfg, key)
 end
 
 function groups = normalize_group_map(groups_cfg)
-    groups = struct();
-    if isempty(groups_cfg)
-        return;
-    end
-    if isstruct(groups_cfg)
-        names = fieldnames(groups_cfg);
-        for i = 1:numel(names)
-            groups.(names{i}) = normalize_points(groups_cfg.(names{i}));
-        end
-        return;
-    end
-    if iscell(groups_cfg)
-        for i = 1:numel(groups_cfg)
-            groups.(sprintf('G%d', i)) = normalize_points(groups_cfg{i});
-        end
-    end
+    groups = bms.data.PointResolver.normalizeGroups(groups_cfg);
 end
 
 function tf = has_groups(groups_cfg)
-    tf = false;
-    if isstruct(groups_cfg)
-        names = fieldnames(groups_cfg);
-        for i = 1:numel(names)
-            if ~isempty(normalize_points(groups_cfg.(names{i})))
-                tf = true;
-                return;
-            end
-        end
-    elseif iscell(groups_cfg)
-        tf = any(~cellfun(@isempty, groups_cfg));
-    end
+    tf = bms.data.PointResolver.hasGroups(groups_cfg);
 end
 
 function groups = legacy_tilt_groups()
@@ -354,59 +326,15 @@ function groups = legacy_tilt_groups()
 end
 
 function pts = get_points(cfg, key, fallback)
-    pts = normalize_points(fallback);
-    if isfield(cfg, 'points') && isfield(cfg.points, key)
-        raw = cfg.points.(key);
-        if isempty(raw)
-            pts = {};
-            return;
-        end
-        pts = normalize_points(raw);
-    end
+    pts = bms.data.PointResolver.fromConfig(cfg, key, fallback);
 end
 
-function pts = flatten_groups(groups_cfg)
-    groups = normalize_group_map(groups_cfg);
-    names = fieldnames(groups);
-    pts = {};
-    for i = 1:numel(names)
-        pts = [pts; groups.(names{i})(:)]; %#ok<AGROW>
-    end
-    pts = normalize_points(pts);
+function pts = flatten_groups(groups)
+    pts = bms.data.PointResolver.flattenGroups(groups);
 end
 
 function pts = normalize_points(v)
-    pts = {};
-    if isstring(v)
-        pts = cellstr(v(:));
-    elseif ischar(v)
-        vv = strtrim(v);
-        if ~isempty(vv)
-            pts = {vv};
-        end
-    elseif iscell(v)
-        out = {};
-        for i = 1:numel(v)
-            item = v{i};
-            if isstring(item)
-                if isscalar(item)
-                    item = char(item);
-                else
-                    continue;
-                end
-            end
-            if ischar(item)
-                item = strtrim(item);
-                if ~isempty(item)
-                    out{end+1, 1} = item; %#ok<AGROW>
-                end
-            end
-        end
-        if ~isempty(out)
-            out = unique(out, 'stable');
-        end
-        pts = out;
-    end
+    pts = bms.data.PointResolver.normalize(v);
 end
 
 function tf = is_jiulongjiang(cfg)
@@ -414,69 +342,24 @@ function tf = is_jiulongjiang(cfg)
 end
 
 function style = get_style(cfg, key)
-    style = struct();
-    if isfield(cfg, 'plot_styles') && isfield(cfg.plot_styles, key) && isstruct(cfg.plot_styles.(key))
-        style = cfg.plot_styles.(key);
-    end
+    style = bms.config.ConfigReader.getPlotStyle(cfg, key);
 end
 
 function val = get_style_field(style, field, default)
-    if isstruct(style) && isfield(style, field)
-        val = style.(field);
-    else
-        val = default;
-    end
+    val = bms.config.ConfigReader.getField(style, field, default);
 end
 
 function y = get_ylim_for_pid(style, pid, default)
-    y = default;
-    if isempty(pid) || ~isstruct(style) || ~isfield(style, 'ylims')
-        return;
-    end
-    ylims = style.ylims;
-    if isa(ylims, 'containers.Map')
-        if isKey(ylims, pid)
-            y = ylims(pid);
-        end
-        return;
-    end
-    if isstruct(ylims)
-        if isfield(ylims, pid)
-            y = ylims.(pid);
-            return;
-        end
-        if isfield(ylims, 'name') && isfield(ylims, 'ylim')
-            for i = 1:numel(ylims)
-                if strcmp(ylims(i).name, pid)
-                    y = ylims(i).ylim;
-                    return;
-                end
-            end
-        end
-    elseif iscell(ylims)
-        for i = 1:numel(ylims)
-            item = ylims{i};
-            if isstruct(item) && isfield(item, 'name') && isfield(item, 'ylim') && strcmp(item.name, pid)
-                y = item.ylim;
-                return;
-            end
-        end
-    end
+    ylims = bms.config.ConfigReader.getField(style, 'ylims', []);
+    y = bms.plot.PlotService.resolveNamedYLim(ylims, pid, default);
 end
 
-function tf = is_valid_ylim(v)
-    tf = isnumeric(v) && isvector(v) && numel(v) == 2 && ...
-        isfinite(v(1)) && (isfinite(v(2)) || isinf(v(2))) && (v(2) > v(1));
+function ok = is_valid_ylim(v)
+    ok = bms.plot.PlotService.isValidYLim(v);
 end
 
 function ccell = normalize_colors(c)
-    if isnumeric(c)
-        ccell = mat2cell(c, ones(size(c, 1), 1), size(c, 2));
-    elseif iscell(c)
-        ccell = c;
-    else
-        ccell = {};
-    end
+    ccell = bms.plot.PlotService.normalizeColors(c, {});
 end
 
 function tf = has_plot_data(data_list)

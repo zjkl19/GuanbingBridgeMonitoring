@@ -38,7 +38,7 @@ function analyze_humidity_points(root_dir, point_ids, start_date, end_date, exce
         plot_humidity_frequency(valid_vals, pid, root_dir, start_date_str, end_date_str);
     end
     T = cell2table(stats,'VariableNames',{'PointID','Min','Max','Mean'});
-    writetable(T, excel_file);
+    bms.io.StatsWriter.writeTable(T, excel_file);
     fprintf('统计结果已保存至 %s\n', excel_file);
 end
 
@@ -84,9 +84,9 @@ ylabel(get_style_field(style,'ylabel','湿度 (%)'));
 
 timestamp = char(datetime('now','Format','yyyy-MM-dd_HH-mm-ss'));
 output_dir = fullfile(root_dir,'时程曲线_湿度');
-if ~exist(output_dir,'dir'), mkdir(output_dir); end
+bms.core.PathResolver.ensureDir(output_dir);
 base = sprintf('%s_%s_%s', pid, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
-save_plot_bundle(fig, output_dir, [base '_' timestamp]);
+bms.plot.PlotService.saveBundle(fig, output_dir, [base '_' timestamp]);
 end
 
 function plot_humidity_frequency(vals, point_id, root_dir, start_date, end_date)
@@ -111,7 +111,7 @@ outdir = fullfile(root_dir,'频次分布_湿度'); if ~exist(outdir,'dir'), mkdi
 dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd');
 dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
 fname = sprintf('%s_freq_%s_%s', point_id, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
-save_plot_bundle(fig, outdir, [fname '_' timestamp]);
+bms.plot.PlotService.saveBundle(fig, outdir, [fname '_' timestamp]);
 end
 
 function out = normalize_ymd_input(value)
@@ -127,18 +127,11 @@ end
 
 % helpers
 function style = get_style(cfg, key)
-    style = struct();
-    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles, key)
-        style = cfg.plot_styles.(key);
-    end
+    style = bms.config.ConfigReader.getPlotStyle(cfg, key);
 end
 
 function val = get_style_field(style, field, default)
-    if isstruct(style) && isfield(style, field)
-        val = style.(field);
-    else
-        val = default;
-    end
+    val = bms.config.ConfigReader.getField(style, field, default);
 end
 
 function c = get_color(style, idx)
@@ -155,46 +148,15 @@ function c = get_color(style, idx)
 end
 
 function yl = resolve_named_ylim(ylims, name, default_ylim)
-    yl = default_ylim;
-    if isempty(ylims) || isempty(name)
-        return;
-    end
-    safe_name = strrep(name, '-', '_');
-    if isstruct(ylims)
-        if isfield(ylims, name)
-            yl = ylims.(name);
-            return;
-        end
-        if isfield(ylims, safe_name)
-            yl = ylims.(safe_name);
-            return;
-        end
-        if isfield(ylims, 'name') && isfield(ylims, 'ylim')
-            for i = 1:numel(ylims)
-                if strcmp(to_char(ylims(i).name), name)
-                    yl = ylims(i).ylim;
-                    return;
-                end
-            end
-        end
-    elseif iscell(ylims)
-        for i = 1:numel(ylims)
-            item = ylims{i};
-            if isstruct(item) && isfield(item, 'name') && isfield(item, 'ylim') && strcmp(to_char(item.name), name)
-                yl = item.ylim;
-                return;
-            end
-        end
-    end
+    yl = bms.plot.PlotService.resolveNamedYLim(ylims, name, default_ylim);
 end
 
 function ok = is_valid_ylim(v)
-    ok = isnumeric(v) && numel(v) == 2 && all(isfinite(v)) && v(2) > v(1);
+    ok = bms.plot.PlotService.isValidYLim(v);
 end
 
 function tf = is_truthy(v)
-    tf = (islogical(v) && isscalar(v) && v) || ...
-        (isnumeric(v) && isscalar(v) && ~isnan(v) && v ~= 0);
+    tf = bms.config.ConfigReader.boolValue(v, false);
 end
 
 function txt = to_char(v)

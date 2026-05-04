@@ -48,16 +48,16 @@
     style = get_style(cfg, 'cable_accel_spectrum');
 
     outDirFig = fullfile(root_dir,'频谱峰值曲线_索力加速度');
-    if ~exist(outDirFig,'dir'), mkdir(outDirFig); end
+    bms.core.PathResolver.ensureDir(outDirFig);
 
     outDirForce = fullfile(root_dir,'索力时程图');
-    if ~exist(outDirForce,'dir'), mkdir(outDirForce); end
+    bms.core.PathResolver.ensureDir(outDirForce);
 
     outDirForceGroup = fullfile(root_dir,'索力时程图_组图');
-    if ~exist(outDirForceGroup,'dir'), mkdir(outDirForceGroup); end
+    bms.core.PathResolver.ensureDir(outDirForceGroup);
 
     psdRoot = fullfile(root_dir,'PSD_备查_索力加速度');
-    if ~exist(psdRoot,'dir'), mkdir(psdRoot); end
+    bms.core.PathResolver.ensureDir(psdRoot);
 
     dates_all = (datetime(start_date):days(1):datetime(end_date)).';
     Nday      = numel(dates_all);
@@ -112,7 +112,7 @@
                    'VariableNames', compose('Amp_%0.3fHz', pt_target_freqs));
         forceTbl = table(forceSeries, 'VariableNames',{'CableForce_kN'});
         T = [table(dateCol,'VariableNames',{'Date'}) , freqTbl , ampTbl , forceTbl];
-        writetable(T, excel_file,'Sheet',point_ids{ii});
+        bms.io.StatsWriter.writeTable(T, excel_file, 'Sheet', point_ids{ii});
 
         % 绘制峰值频率时程与索力时程
         plot_freq_timeseries(dates_all, freqDay, pid, pt_target_freqs, outDirFig, style, theor_freqs, theor_labels);
@@ -153,15 +153,7 @@
 end
 
 function pts = get_points(cfg, key, fallback)
-    pts = fallback;
-    if isfield(cfg,'points') && isfield(cfg.points, key)
-        val = cfg.points.(key);
-        if isstring(val)
-            pts = cellstr(val(:));
-        elseif iscell(val) && all(cellfun(@(x) ischar(x) || (isstring(x) && isscalar(x)), val(:)))
-            pts = val;
-        end
-    end
+    pts = bms.data.PointResolver.fromConfig(cfg, key, fallback);
 end
 
 function groups_cfg = get_groups(cfg, key)
@@ -180,44 +172,19 @@ function groups_cfg = get_groups(cfg, key)
 end
 
 function style = get_style(cfg, key)
-% 标量默认样式，避免因颜色矩阵/元胞自动扩展为 struct 数组
-    style = struct();
-    style.psd_ylabel        = 'PSD (dB)';
-    style.psd_title_prefix  = 'PSD';
-    style.psd_color         = [0 0 0];
-    style.freq_ylabel       = '峰值频率 (Hz)';
-    style.freq_title_prefix = '峰值频率时程';
-    style.colors            = {[0 0 1],[1 0 0],[0 0.7 0],[0.5 0 0.7]};
-    style.force_ylabel       = '索力 (kN)';
-    style.force_title_prefix = '索力时程';
-    style.force_color         = [0 0.447 0.741];
-    style.force_ylim          = [];
-    style.force_alarm_colors  = [0.929 0.694 0.125; 0.85 0.1 0.1];
-
-    if isfield(cfg,'plot_styles') && isfield(cfg.plot_styles,key)
-        ps_all = cfg.plot_styles.(key);
-        ps = ps_all(1); % 强制标量
-        if isfield(ps,'psd_ylabel'),        style.psd_ylabel = ps.psd_ylabel; end
-        if isfield(ps,'psd_title_prefix'),  style.psd_title_prefix = ps.psd_title_prefix; end
-        if isfield(ps,'psd_color'),         style.psd_color = ps.psd_color; end
-        if isfield(ps,'freq_ylabel'),       style.freq_ylabel = ps.freq_ylabel; end
-        if isfield(ps,'freq_title_prefix'), style.freq_title_prefix = ps.freq_title_prefix; end
-        if isfield(ps,'force_ylabel'), style.force_ylabel = ps.force_ylabel; end
-        if isfield(ps,'force_title_prefix'), style.force_title_prefix = ps.force_title_prefix; end
-        if isfield(ps,'force_color'), style.force_color = ps.force_color; end
-        if isfield(ps,'force_ylim'), style.force_ylim = ps.force_ylim; end
-        if isfield(ps,'force_alarm_colors') && ~isempty(ps.force_alarm_colors)
-            style.force_alarm_colors = ps.force_alarm_colors;
-        end
-        if isfield(ps,'colors')
-            c = ps.colors;
-            if isnumeric(c) && size(c,2)==3
-                style.colors = mat2cell(c, ones(size(c,1),1), 3);
-            elseif iscell(c)
-                style.colors = c;
-            end
-        end
-    end
+    defaults = struct();
+    defaults.psd_ylabel        = 'PSD (dB)';
+    defaults.psd_title_prefix  = 'PSD';
+    defaults.psd_color         = [0 0 0];
+    defaults.freq_ylabel       = '峰值频率 (Hz)';
+    defaults.freq_title_prefix = '峰值频率时程';
+    defaults.colors            = {[0 0 1],[1 0 0],[0 0.7 0],[0.5 0 0.7]};
+    defaults.force_ylabel       = '索力 (kN)';
+    defaults.force_title_prefix = '索力时程';
+    defaults.force_color         = [0 0.447 0.741];
+    defaults.force_ylim          = [];
+    defaults.force_alarm_colors  = [0.929 0.694 0.125; 0.85 0.1 0.1];
+    style = bms.config.ConfigReader.getPlotStyle(cfg, key, defaults);
 end
 
 function val = get_cable_spec_param(cfg, field, defaultVal)
@@ -302,13 +269,13 @@ function [ampRow, freqRow] = process_one_day(day, pid, root_dir, subfolder, targ
 
     % 备查 PSD
     psdDir = fullfile(psdRoot,pid);
-    if ~exist(psdDir,'dir'), mkdir(psdDir); end
+    bms.core.PathResolver.ensureDir(psdDir);
     figPSD = figure('Visible','off','Position',[100 100 900 420]);
     plot(f,Pdb,'Color',style.psd_color,'LineWidth',1); grid on; hold on;
     xline(target_freqs,'--r');
     xlabel('频率 (Hz)'); ylabel(style.psd_ylabel);
     title(sprintf('%s %s  %s',style.psd_title_prefix,pid,dayStr));
-    save_plot_bundle(figPSD, psdDir, sprintf('PSD_%s_%s',pid,dayStr), struct('save_emf', false));
+    bms.plot.PlotService.saveBundle(figPSD, psdDir, sprintf('PSD_%s_%s',pid,dayStr), struct('save_emf', false));
 
     for fi = 1:numel(target_freqs)
         f0 = target_freqs(fi);
@@ -396,7 +363,7 @@ function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, 
              datestr(dates_all(1),'yyyymmdd'), ...
              datestr(dates_all(end),'yyyymmdd')));
     [freq_dir, freq_name] = fileparts(fname);
-    save_plot_bundle(fig, freq_dir, freq_name);
+    bms.plot.PlotService.saveBundle(fig, freq_dir, freq_name);
 end
 
 
@@ -552,7 +519,7 @@ function plot_force_timeseries(times_list, force_list, labels, name_tag, out_dir
         datestr(dt0,'yyyymmdd'), ...
         datestr(dt1,'yyyymmdd')));
     [force_dir, force_name] = fileparts(fname);
-    save_plot_bundle(fig, force_dir, force_name);
+    bms.plot.PlotService.saveBundle(fig, force_dir, force_name);
 end
 
 function warn_lines = get_force_warn_lines(cfg, pid, style, label_prefix)
@@ -708,20 +675,7 @@ function label = compose_force_warn_label(prefix, base_label)
 end
 
 function pts = normalize_points(v)
-    if isempty(v)
-        pts = {};
-    elseif ischar(v)
-        pts = {v};
-    elseif isstring(v)
-        pts = cellstr(v(:));
-    elseif iscell(v)
-        pts = cell(size(v(:)));
-        for i = 1:numel(pts)
-            pts{i} = char(string(v{i}));
-        end
-    else
-        pts = {};
-    end
+    pts = bms.data.PointResolver.normalize(v);
 end
 
 function out = sanitize_filename(s)
@@ -742,22 +696,5 @@ function name = build_group_display_name(group_name, labels)
 end
 
 function ccell = normalize_colors(c)
-    if isnumeric(c) && size(c,2)==3
-        ccell = mat2cell(c, ones(size(c,1),1), 3);
-    elseif iscell(c)
-        tmp = {};
-        for i = 1:numel(c)
-            ci = c{i};
-            if isnumeric(ci) && numel(ci)==3
-                tmp{end+1} = reshape(ci,1,3); %#ok<AGROW>
-            end
-        end
-        ccell = tmp;
-    else
-        ccell = {};
-    end
-    if isempty(ccell)
-        co = lines( max(1, size(c,1)) );
-        ccell = mat2cell(co, ones(size(co,1),1), 3);
-    end
+    ccell = bms.plot.PlotService.normalizeColors(c, {});
 end

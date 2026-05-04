@@ -60,7 +60,7 @@ function analyze_wind_points(root_dir, start_date, end_date, subfolder, cfg)
     end
 
     T = cell2table(stats, 'VariableNames', {'PointID','MinSpeed','MaxSpeed','MeanSpeed','Mean10minMax','Mean10minTime'});
-    writetable(T, stats_file);
+    bms.io.StatsWriter.writeTable(T, stats_file);
     fprintf('Wind stats saved to %s\n', stats_file);
 
     time_end = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');

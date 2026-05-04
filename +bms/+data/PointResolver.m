@@ -30,6 +30,9 @@ classdef PointResolver
                     end
                 end
             end
+            if ~isempty(pts)
+                pts = unique(pts, 'stable');
+            end
         end
 
         function pts = fromConfig(cfg, key, fallback)
@@ -39,9 +42,47 @@ classdef PointResolver
             pts = bms.data.PointResolver.normalize(fallback);
             if isstruct(cfg) && isfield(cfg, 'points') && isstruct(cfg.points) && isfield(cfg.points, key)
                 configured = bms.data.PointResolver.normalize(cfg.points.(key));
-                if ~isempty(configured)
-                    pts = configured;
+                pts = configured;
+            end
+        end
+
+        function groups = normalizeGroups(raw)
+            groups = struct();
+            if isempty(raw)
+                return;
+            end
+            if isstruct(raw)
+                names = fieldnames(raw);
+                for i = 1:numel(names)
+                    pts = bms.data.PointResolver.normalize(raw.(names{i}));
+                    if ~isempty(pts)
+                        groups.(names{i}) = pts;
+                    end
                 end
+            elseif iscell(raw)
+                for i = 1:numel(raw)
+                    pts = bms.data.PointResolver.normalize(raw{i});
+                    if ~isempty(pts)
+                        groups.(sprintf('G%d', i)) = pts;
+                    end
+                end
+            end
+        end
+
+        function tf = hasGroups(raw)
+            groups = bms.data.PointResolver.normalizeGroups(raw);
+            tf = isstruct(groups) && ~isempty(fieldnames(groups));
+        end
+
+        function pts = flattenGroups(raw)
+            groups = bms.data.PointResolver.normalizeGroups(raw);
+            names = fieldnames(groups);
+            pts = {};
+            for i = 1:numel(names)
+                pts = [pts; groups.(names{i})(:)]; %#ok<AGROW>
+            end
+            if ~isempty(pts)
+                pts = unique(pts, 'stable');
             end
         end
     end
