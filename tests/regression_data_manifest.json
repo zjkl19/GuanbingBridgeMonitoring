@@ -1,0 +1,33 @@
+{
+  "description": "Lightweight external-data regression baseline. Cases are skipped when the data disk is not mounted.",
+  "cases": [
+    {
+      "name": "guanbing_2026_03",
+      "root": "F:/\u7ba1\u67c4\u5927\u6865\u6570\u636e/2026\u5e743\u6708",
+      "required": false,
+      "require_log": true,
+      "stats_files": ["accel_stats.xlsx", "crack_stats.xlsx", "deflection_stats.xlsx", "humidity_stats.xlsx", "strain_stats.xlsx", "temp_stats.xlsx"]
+    },
+    {
+      "name": "guanbing_2026_04",
+      "root": "F:/\u7ba1\u67c4\u5927\u6865\u6570\u636e/2026\u5e744\u6708",
+      "required": false,
+      "require_log": true,
+      "stats_files": ["accel_stats.xlsx", "crack_stats.xlsx", "deflection_stats.xlsx", "humidity_stats.xlsx", "strain_stats.xlsx", "temp_stats.xlsx", "tilt_stats.xlsx"]
+    },
+    {
+      "name": "hongtang_2026_q1",
+      "root": "E:/\u6d2a\u5858\u5927\u6865\u6570\u636e/2026\u5e741-3\u6708",
+      "required": false,
+      "require_log": true,
+      "stats_files": ["accel_stats.xlsx", "cable_accel_stats.xlsx", "strain_stats.xlsx", "tilt_stats.xlsx", "wind_stats.xlsx"]
+    },
+    {
+      "name": "jiulongjiang_2026_03",
+      "root": "E:/\u4e5d\u9f99\u6c5f\u6570\u636e/2026\u5e743\u6708",
+      "required": false,
+      "require_log": true,
+      "stats_files": ["accel_stats.xlsx", "crack_stats.xlsx", "deflection_stats.xlsx", "gnss_stats.xlsx", "humidity_stats.xlsx", "rainfall_stats.xlsx", "strain_stats.xlsx", "temp_stats.xlsx", "tilt_stats.xlsx", "wind_stats.xlsx"]
+    }
+  ]
+}

@@ -245,7 +245,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
                 targetPath = fullfile(fpath, fname);
             end
 
-            save_config(cfgNew, targetPath, true);
+            bms.core.ConfigStore.saveGuarded(cfgNew, targetPath, true);
             cfgCache = load_config(targetPath);
             draftCfg = cfgCache;
             cfgPath = targetPath;

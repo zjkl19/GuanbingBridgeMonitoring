@@ -46,11 +46,44 @@ The release package is written under `archive/` and includes `VERSION.txt`, temp
 
 - `analysis/` MATLAB analysis modules / MATLAB 分析模块
 - `pipeline/` shared loaders and helpers / 通用加载与辅助逻辑
+- `+bms/+core/` lightweight OOP core: context, paths, config guard, module registry / 轻量 OOP 核心：运行上下文、路径、配置保护和模块注册
+- `+bms/+app/` application layer: run session, step plan, result objects, error classifier, manifest writer / 应用层：运行会话、步骤计划、结果对象、错误分类和清单写入
+- `+bms/+config/` config validation and patch helpers / 配置校验与补丁辅助
+- `+bms/+data/` data layout, point and date-range helpers / 数据目录、测点和日期范围辅助
+- `+bms/+plot/` plotting option helpers / 绘图选项辅助
+- `+bms/+io/` stats output helpers / 统计输出辅助
 - `config/` project configuration files / 项目配置文件
 - `ui/` MATLAB GUI / MATLAB 图形界面
 - `reporting/` report scripts and GUI / 报告脚本与 GUI
 - `reports/` report templates / 报告模板
 - `scripts/` deployment and utility scripts / 部署与辅助脚本
+
+## Refactor Foundation / 重构基础
+
+`bms` means Bridge Monitoring System. The package name is intentionally neutral and is not tied to Guanbing, Hongtang, Jiulongjiang, or the current repository name.
+`bms` 表示 Bridge Monitoring System，包名刻意保持中性，不绑定管柄、洪塘、九龙江或当前仓库名称。
+
+The MATLAB workflow now has an additive weak-MVC/OOP foundation. Existing analysis modules remain callable, while `run_all` delegates the run lifecycle to `bms.app.RunSession`. The GUI enters the pipeline through `bms_run_context`, which creates a `bms.core.AnalysisContext` and writes `analysis_manifest_*.json` under `<data-root>/run_logs`.
+MATLAB 流程已增加增量式弱 MVC/OOP 基础。既有分析模块不重写；`run_all` 将运行生命周期交给 `bms.app.RunSession`。GUI 通过 `bms_run_context` 进入流程，创建 `bms.core.AnalysisContext`，并在 `<数据根目录>/run_logs` 写入 `analysis_manifest_*.json`。
+
+The manifest is versioned with `schema_version=1`. It records enabled modules, each module's `ok/fail/skip` state, coarse `error_type`, messages, stats files, `run_log` path, elapsed time, missing expected stats files, and the offset-correction report path. This is the preferred machine-readable source for later report-generation checks.
+运行清单带 `schema_version=1`。它会记录启用模块、各模块 `ok/fail/skip` 状态、粗粒度 `error_type`、错误信息、stats 文件、`run_log` 路径、耗时、缺失的预期统计文件和零点修正记录表路径。后续报告生成前检查应优先读取这个结构化文件。
+
+The application layer centralizes legacy step metadata in `bms.app.StepDefinition` and uses `bms.app.StepExecutor` / `bms.app.StepResult` to capture per-step timing, failure information, and error classification. `run_all` remains the compatible public entry point.
+应用层通过 `bms.app.StepDefinition` 集中管理旧流程步骤元数据，并通过 `bms.app.StepExecutor` / `bms.app.StepResult` 统一记录每个步骤的耗时、失败信息和错误分类。`run_all` 仍保持为兼容的公开入口。
+
+Configuration saves from GUI tabs use `bms.core.ConfigStore.saveGuarded` to prevent accidental loss of unrelated protected fields such as `per_point.*.*.offset_correction`.
+GUI 配置页保存时使用 `bms.core.ConfigStore.saveGuarded`，用于防止误删无关保护字段，例如 `per_point.*.*.offset_correction`。
+
+New helper packages are intentionally small and side-effect-light: `bms.config.SchemaValidator` checks common config shape problems, `bms.data.*` resolves data roots and point aliases, `bms.plot.PlotService` normalizes plot options, and `bms.io.StatsWriter` centralizes stats-table writes.
+新增辅助包刻意保持小而低副作用：`bms.config.SchemaValidator` 检查常见配置结构问题，`bms.data.*` 解析数据根目录和测点别名，`bms.plot.PlotService` 归一化绘图选项，`bms.io.StatsWriter` 集中处理统计表写入。
+
+Lightweight external-data baseline checks can be run without rerunning heavy production analyses.
+可用以下轻量检查确认历史回归数据目录和关键统计文件是否仍可用，不会重跑耗时生产分析。
+
+```matlab
+check_regression_baseline
+```
 
 ## Supported Modules / 当前已接入模块
 

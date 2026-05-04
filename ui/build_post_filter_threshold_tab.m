@@ -206,7 +206,7 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
                 if isequal(fname, 0), return; end
                 targetPath = fullfile(fpath, fname);
             end
-            save_config(cfgNew, targetPath, true);
+            bms.core.ConfigStore.saveGuarded(cfgNew, targetPath, true);
             validate_config(cfgNew, false);
             cfgCache = cfgNew;
             cfgPath = targetPath;

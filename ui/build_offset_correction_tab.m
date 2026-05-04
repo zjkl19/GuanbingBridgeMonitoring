@@ -135,7 +135,7 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
                 if isequal(fname, 0), return; end
                 targetPath = fullfile(fpath, fname);
             end
-            save_config(cfgNew, targetPath, true);
+            bms.core.ConfigStore.saveGuarded(cfgNew, targetPath, true);
             validate_config(cfgNew);
             cfgCache = load_config(targetPath);
             cfgPath = targetPath;

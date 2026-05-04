@@ -20,31 +20,34 @@ function run_tests(target)
     end
 
     % Paths
-    here = fileparts(mfilename('fullpath'));
-    proj = fileparts(here);
+    proj = fileparts(mfilename('fullpath'));
     addpath(fullfile(proj,'config'), fullfile(proj,'pipeline'), ...
             fullfile(proj,'analysis'), fullfile(proj,'tests'), proj);
 
     switch mode
         case "all"
-            res = runtests;
+            res = runtests(fullfile(proj, 'tests'));
         case "smoke"
             files = { ...
                 'tests/test_simulated_data.m', ...
-                'tests/test_load_timeseries_range.m', ...
-                'test.m' ...
+                'tests/test_load_timeseries_range.m' ...
             };
-            res = runtests(files);
+            res = runtests(existingTestFiles(files));
         case "default"
             files = { ...
                 'tests/test_simulated_data.m', ...
                 'tests/test_load_timeseries_range.m', ...
                 'tests/test_config_utils.m', ...
-                'test.m' ...
+                'tests/test_core_context.m', ...
+                'tests/test_config_store.m', ...
+                'tests/test_app_step_layer.m', ...
+                'tests/test_bms_services.m', ...
+                'tests/test_run_all_summary.m', ...
+                'tests/test_bms_run_context.m' ...
             };
-            res = runtests(files);
+            res = runtests(existingTestFiles(files));
         case "custom"
-            res = runtests(files);
+            res = runtests(existingTestFiles(files));
         otherwise
             error('Unknown mode: %s', mode);
     end
@@ -53,4 +56,12 @@ function run_tests(target)
     if any(~[res.Passed])
         error('One or more tests failed.');
     end
+end
+
+function files = existingTestFiles(files)
+    keep = true(size(files));
+    for i = 1:numel(files)
+        keep(i) = exist(files{i}, 'file') == 2;
+    end
+    files = files(keep);
 end

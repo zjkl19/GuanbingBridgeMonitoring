@@ -164,6 +164,10 @@ function plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_da
 if isempty(vals) || numel(times) ~= numel(vals)
     return;
 end
+valid_time_mask = ~isnat(times);
+if ~any(valid_time_mask)
+    return;
+end
 
 win_len = max(1, round(600 * fs));  % 10 min
 valid_cnt = movsum(~isnan(vals) & isfinite(vals), win_len, 'Endpoints','shrink');
@@ -179,6 +183,10 @@ end
 
 fig = figure('Position',[100 100 1000 469]);
 [times_plot, rms_plot] = prepare_plot_series(times, rms_series);
+if isempty(times_plot)
+    times_plot = times(valid_time_mask);
+    rms_plot = NaN(size(times_plot));
+end
 plot(times_plot, rms_plot, 'LineWidth', 1.2, 'Color', style.color_rms);
 xlabel('时间'); ylabel(style.rms_ylabel);
 yl_rms = resolve_point_ylim(style.rms_ylims, pid, style.rms_ylim);
@@ -203,8 +211,9 @@ if ~isnan(rms_max)
 end
 
 ax = gca;
-xmin = min(times); xmax = max(times);
-if xmin == xmax
+valid_times = times(valid_time_mask);
+xmin = min(valid_times); xmax = max(valid_times);
+if xmin >= xmax
     xmin = xmin - minutes(1);
     xmax = xmax + minutes(1);
 end
@@ -225,7 +234,7 @@ end
 ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir,'时程曲线_加速度_RMS10min');
 if ~exist(out,'dir'), mkdir(out); end
-fname = sprintf('AccelRMS10_%s_%s_%s', pid, datestr(min(times),'yyyymmdd'), datestr(max(times),'yyyymmdd'));
+fname = sprintf('AccelRMS10_%s_%s_%s', pid, datestr(xmin,'yyyymmdd'), datestr(xmax,'yyyymmdd'));
 save_plot_bundle(fig, out, [fname '_' ts]);
 end
 

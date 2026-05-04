@@ -325,7 +325,7 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             analyze_wind_points(root, '2026-01-01', '2026-01-01', '', cfg);
 
             outRoot = fullfile(root, 'wind_out');
-            testCase.verifyTrue(exist(fullfile(outRoot, 'wind_stats.xlsx'), 'file') == 2);
+            testCase.verifyTrue(exist(fullfile(root, 'stats', 'wind_stats.xlsx'), 'file') == 2);
             testCase.verifyTrue(exist(fullfile(outRoot, 'speed'), 'dir') == 7);
             testCase.verifyTrue(exist(fullfile(outRoot, 'direction'), 'dir') == 7);
             testCase.verifyTrue(exist(fullfile(outRoot, 'speed10'), 'dir') == 7);

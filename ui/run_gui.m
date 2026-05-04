@@ -198,7 +198,7 @@ function run_gui()
                 'preproc',struct('precheck',cbPrecheck.Value,'unzip',cbUnzip.Value,'rename',cbRename.Value,'rmheader',cbRmHeader.Value,'resample',cbResample.Value), ...
                 'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'rainfall',cbRainfall.Value,'gnss',cbGNSS.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value,'dynlowpass',cbDynLowpass.Value)));
             addLog(sprintf('root=%s, %s -> %s', root, start_date, end_date));
-            run_all(root, start_date, end_date, opts, cfg);
+            bms_run_context(root, start_date, end_date, opts, cfg);
             elapsed = toc(t0);
             addLog(sprintf('运行完成，用时 %.2f 秒', elapsed));
             statusLbl.Text = sprintf('完成，用时 %.2f 秒', elapsed); statusLbl.FontColor = [0 0.5 0];

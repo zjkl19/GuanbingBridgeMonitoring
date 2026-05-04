@@ -261,7 +261,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
                 [fname,fpath] = uiputfile('*.json','另存为',cfgPath); if isequal(fname,0), return; end
                 targetPath = fullfile(fpath,fname);
             end
-            save_config(cfgNew, targetPath, true); validate_config(cfgNew, false);
+            bms.core.ConfigStore.saveGuarded(cfgNew, targetPath, true); validate_config(cfgNew, false);
             cfgCache = cfgNew; cfgPath = targetPath; cfgEdit.Value = targetPath; cfgMsg.Value = {['已保存配置到 ' targetPath]};
         catch ME
             cfgMsg.Value = {['保存失败: ' ME.message]};
