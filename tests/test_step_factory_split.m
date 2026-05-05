@@ -1,0 +1,41 @@
+classdef test_step_factory_split < matlab.unittest.TestCase
+    methods (TestMethodSetup)
+        function setupPaths(~)
+            proj = fileparts(fileparts(mfilename('fullpath')));
+            addpath(proj, fullfile(proj, 'config'), fullfile(proj, 'pipeline'), fullfile(proj, 'analysis'), fullfile(proj, 'scripts'));
+        end
+    end
+
+    methods (Test)
+        function factoryBuildsOrderedModulePlan(tc)
+            opts = struct( ...
+                'precheck_zip_count', true, ...
+                'doTemp', true, ...
+                'doGNSS', true, ...
+                'doWind', true, ...
+                'doEq', true, ...
+                'doWIM', true, ...
+                'doDeflect', true, ...
+                'doRenameCrk', true, ...
+                'doCrack', true, ...
+                'doAccel', true, ...
+                'doDynStrainLowpassBoxplot', true);
+            cfg = struct();
+            sub = localSubfolders();
+            plan = bms.app.StepFactory.buildLegacyPlan(tempdir, '2026-01-01', '2026-01-02', opts, cfg, fullfile(tempdir, 'stats'), sub);
+            defs = plan.definitions();
+            keys = arrayfun(@(d) d.Key, defs, 'UniformOutput', false);
+
+            tc.verifyEqual(keys, {'zip_precheck','temperature','gnss','wind','earthquake','wim','deflection','rename_crk','crack','acceleration','dynamic_strain_lowpass'});
+        end
+    end
+end
+
+function sub = localSubfolders()
+    names = {'temperature','humidity','rainfall','gnss','wind_raw','eq_raw','deflection', ...
+        'bearing_displacement','tilt','accel','cable_accel','accel_raw','cable_accel_raw','crack','strain'};
+    sub = struct();
+    for i = 1:numel(names)
+        sub.(names{i}) = names{i};
+    end
+end

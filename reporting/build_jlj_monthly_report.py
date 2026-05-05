@@ -23,6 +23,7 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+from analysis_manifest import analysis_manifest_context, missing_module_summary_items
 from missing_summary import write_missing_summary
 from template_precheck import raise_for_template
 
@@ -2442,11 +2443,13 @@ def build_report(
     doc.save(str(output_docx))
     update_fields_with_word(output_docx)
     missing_items = collect_missing_items(section_map)
+    analysis_context = analysis_manifest_context(result_root)
+    missing_items.extend(missing_module_summary_items(analysis_context))
     write_missing_summary(
         "九龙江月报",
         output_docx,
         missing_items,
-        context={"result_root": str(result_root), "image_root": str(image_root), "wim_root": str(wim_root or "")},
+        context={"result_root": str(result_root), "image_root": str(image_root), "wim_root": str(wim_root or ""), "analysis_manifest": analysis_context.get("path", "")},
     )
     return output_docx
 

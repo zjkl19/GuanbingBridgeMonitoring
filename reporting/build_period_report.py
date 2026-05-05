@@ -40,6 +40,7 @@ from build_quarterly_wim_sample import (
     style_table,
 )
 from template_precheck import raise_for_template
+from analysis_manifest import analysis_manifest_context, missing_module_summary_items
 from missing_summary import write_missing_summary
 
 
@@ -872,6 +873,7 @@ def build_period_report(
 
     cfg = load_json(config_path)
     manifest = build_manifest(cfg, stats_root, fallback_stats_root, image_root, template, assets_dir, period_label, monitoring_range, report_date)
+    manifest["analysis_run_manifest"] = analysis_manifest_context(result_root)
     wim_months = months_between(start_dt, end_dt)
     try:
         resolved_wim_root = resolve_wim_root(result_root, analysis_root, wim_root)
@@ -908,6 +910,7 @@ def build_period_report(
     doc.save(str(output_docx))
 
     missing = summarize_missing_images(manifest) + summarize_missing_wim_images(manifest["wim"])
+    missing.extend(missing_module_summary_items(manifest.get("analysis_run_manifest")))
     warnings = manifest["wim"].get("warnings", [])
     missing.extend(f"warning:{msg}" for msg in warnings)
     write_missing_summary(

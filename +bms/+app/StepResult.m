@@ -14,6 +14,7 @@ classdef StepResult
         StartedAt datetime = NaT
         EndedAt datetime = NaT
         ElapsedSec double = 0
+        Artifacts cell = {}
     end
 
     methods
@@ -53,6 +54,7 @@ classdef StepResult
             if isempty(s.stats_path) && ~isempty(statsDir) && ~isempty(obj.StatsFile)
                 s.stats_path = fullfile(statsDir, obj.StatsFile);
             end
+            s.artifacts = obj.Artifacts;
         end
     end
 

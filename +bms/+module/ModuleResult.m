@@ -40,6 +40,9 @@ classdef ModuleResult
 
     methods (Static)
         function obj = fromStepStruct(rec)
+            if isa(rec, 'bms.app.StepResult')
+                rec = rec.toStruct();
+            end
             spec = bms.module.ModuleRegistry.fromKey(bms.module.ModuleResult.getText(rec, 'key'));
             if isempty(spec.Key)
                 spec = bms.module.ModuleRegistry.fromLabel(bms.module.ModuleResult.getText(rec, 'label'));

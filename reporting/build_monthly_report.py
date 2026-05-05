@@ -19,6 +19,7 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+from analysis_manifest import analysis_manifest_context, missing_module_summary_items
 from missing_summary import write_missing_summary
 
 
@@ -1719,6 +1720,7 @@ def build_report(
 
     cfg = load_json(config_path)
     manifest = build_manifest(cfg, stats_root, fallback_stats_root, image_root, template, assets_dir, period_label, monitoring_range, report_date)
+    manifest["analysis_run_manifest"] = analysis_manifest_context(result_root)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     manifest_path = output_dir / f"report_manifest_{timestamp}.json"
@@ -1730,6 +1732,7 @@ def build_report(
     output_docx = output_dir / f"{template.stem}_自动生成_{timestamp}.docx"
     doc.save(str(output_docx))
     missing = summarize_missing_images(manifest)
+    missing.extend(missing_module_summary_items(manifest.get("analysis_run_manifest")))
     write_missing_summary(
         "洪塘月报",
         output_docx,

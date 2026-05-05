@@ -17,6 +17,7 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageOps
 
+from analysis_manifest import analysis_manifest_context, missing_module_summary_items
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_TEMPLATE = REPO_ROOT / "reports" / "G104线管柄大桥监测月报20260410-M18.docx"
@@ -635,6 +636,7 @@ def build_report(
         "replaced_image_count": len(replaced_images),
         "replaced_images": replaced_images,
         "missing_images": missing_images,
+        "analysis_run_manifest": analysis_manifest_context(result_root),
         "image_count_before": image_count_before,
         "image_count_after": count_doc_images(output_path),
         "notes": [
@@ -642,6 +644,7 @@ def build_report(
             "本次低通应变插图使用时程曲线_动应变_低通滤波，而不是原始应变组图。",
         ],
     }
+    manifest["missing_analysis_modules"] = missing_module_summary_items(manifest.get("analysis_run_manifest"))
     manifest_path = output_dir / f"G104线管柄大桥监测月报_manifest_{timestamp}.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return output_path, manifest_path

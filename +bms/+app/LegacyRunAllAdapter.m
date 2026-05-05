@@ -44,24 +44,28 @@ classdef LegacyRunAllAdapter
             out = {};
             if isempty(logs), return; end
             for i = 1:numel(logs)
-                if isempty(logs{i}) || ~isstruct(logs{i}), continue; end
-                label = bms.app.LegacyRunAllAdapter.getText(logs{i}, 'label');
+                item = bms.app.LegacyRunAllAdapter.normalizeLog(logs{i}, statsDir);
+                if isempty(item) || ~isstruct(item), continue; end
+                label = bms.app.LegacyRunAllAdapter.getText(item, 'label');
                 def = bms.app.StepDefinition.fromLabel(label);
                 rec = def.toStruct(statsDir);
-                rec.status = bms.app.LegacyRunAllAdapter.getText(logs{i}, 'status');
-                rec.message = bms.app.LegacyRunAllAdapter.getText(logs{i}, 'message');
-                rec.error_type = bms.app.LegacyRunAllAdapter.getText(logs{i}, 'error_type');
-                rec.started_at = bms.app.LegacyRunAllAdapter.getText(logs{i}, 'started_at');
-                rec.ended_at = bms.app.LegacyRunAllAdapter.getText(logs{i}, 'ended_at');
-                rec.elapsed_sec = bms.app.LegacyRunAllAdapter.getNumber(logs{i}, 'elapsed_sec', NaN);
-                if isfield(logs{i}, 'key') && ~isempty(logs{i}.key)
-                    rec.key = char(string(logs{i}.key));
+                rec.status = bms.app.LegacyRunAllAdapter.getText(item, 'status');
+                rec.message = bms.app.LegacyRunAllAdapter.getText(item, 'message');
+                rec.error_type = bms.app.LegacyRunAllAdapter.getText(item, 'error_type');
+                rec.started_at = bms.app.LegacyRunAllAdapter.getText(item, 'started_at');
+                rec.ended_at = bms.app.LegacyRunAllAdapter.getText(item, 'ended_at');
+                rec.elapsed_sec = bms.app.LegacyRunAllAdapter.getNumber(item, 'elapsed_sec', NaN);
+                if isfield(item, 'key') && ~isempty(item.key)
+                    rec.key = char(string(item.key));
                 end
-                if isfield(logs{i}, 'stats_file') && ~isempty(logs{i}.stats_file)
-                    rec.stats_file = char(string(logs{i}.stats_file));
+                if isfield(item, 'stats_file') && ~isempty(item.stats_file)
+                    rec.stats_file = char(string(item.stats_file));
                     if ~isempty(statsDir)
                         rec.stats_path = fullfile(statsDir, rec.stats_file);
                     end
+                end
+                if isfield(item, 'artifacts')
+                    rec.artifacts = item.artifacts;
                 end
                 out{end+1} = rec; %#ok<AGROW>
             end
@@ -91,8 +95,9 @@ classdef LegacyRunAllAdapter
             tf = false;
             if isempty(logs), return; end
             for i = 1:numel(logs)
-                if isempty(logs{i}) || ~isstruct(logs{i}), continue; end
-                if isfield(logs{i}, 'status') && strcmpi(logs{i}.status, 'fail')
+                item = bms.app.LegacyRunAllAdapter.normalizeLog(logs{i}, '');
+                if isempty(item) || ~isstruct(item), continue; end
+                if isfield(item, 'status') && strcmpi(item.status, 'fail')
                     tf = true;
                     return;
                 end
@@ -110,6 +115,19 @@ classdef LegacyRunAllAdapter
             val = defaultValue;
             if isstruct(s) && isfield(s, field) && isnumeric(s.(field)) && isscalar(s.(field))
                 val = double(s.(field));
+            end
+        end
+
+        function rec = normalizeLog(item, statsDir)
+            if nargin < 2, statsDir = ''; end
+            rec = [];
+            if isempty(item)
+                return;
+            end
+            if isa(item, 'bms.app.StepResult')
+                rec = item.toStruct(statsDir);
+            elseif isstruct(item)
+                rec = item;
             end
         end
     end

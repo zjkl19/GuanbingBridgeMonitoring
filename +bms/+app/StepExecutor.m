@@ -12,13 +12,13 @@ classdef StepExecutor
             started = datetime('now');
             try
                 if shouldStopFcn()
-                    result = bms.app.StepResult.skip(step, 'User requested stop', started, datetime('now')).toStruct();
+                    result = bms.app.StepResult.skip(step, 'User requested stop', started, datetime('now'));
                     return;
                 end
                 fcn();
-                result = bms.app.StepResult.ok(step, started, datetime('now')).toStruct();
+                result = bms.app.StepResult.ok(step, started, datetime('now'));
             catch ME
-                result = bms.app.StepResult.fail(step, ME, started, datetime('now')).toStruct();
+                result = bms.app.StepResult.fail(step, ME, started, datetime('now'));
                 warning('%s failed: %s', step.Label, ME.message);
             end
         end
@@ -29,7 +29,7 @@ classdef StepExecutor
                 step = bms.app.StepDefinition.fromLabel(char(step));
             end
             nowTime = datetime('now');
-            result = bms.app.StepResult.skip(step, message, nowTime, nowTime).toStruct();
+            result = bms.app.StepResult.skip(step, message, nowTime, nowTime);
         end
     end
 end

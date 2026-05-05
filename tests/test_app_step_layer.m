@@ -21,11 +21,13 @@ classdef test_app_step_layer < matlab.unittest.TestCase
         function executorCapturesFailure(tc)
             def = bms.app.StepDefinition.fromKey('temperature');
             r = bms.app.StepExecutor.execute(def, @() error('unit:fail', 'boom'), @() false);
-            tc.verifyEqual(r.status, 'fail');
-            tc.verifyEqual(r.key, 'temperature');
-            tc.verifyNotEmpty(r.message);
-            tc.verifyEqual(r.error_type, 'runtime_error');
-            tc.verifyGreaterThanOrEqual(r.elapsed_sec, 0);
+            tc.verifyClass(r, 'bms.app.StepResult');
+            rec = r.toStruct(tempdir);
+            tc.verifyEqual(rec.status, 'fail');
+            tc.verifyEqual(rec.key, 'temperature');
+            tc.verifyNotEmpty(rec.message);
+            tc.verifyEqual(rec.error_type, 'runtime_error');
+            tc.verifyGreaterThanOrEqual(rec.elapsed_sec, 0);
         end
 
         function adapterAddsStatsPath(tc)
@@ -35,6 +37,14 @@ classdef test_app_step_layer < matlab.unittest.TestCase
             tc.verifyEqual(summary.enabled_modules, {'acceleration'});
             tc.verifyEqual(summary.module_logs{1}.key, 'acceleration');
             tc.verifyTrue(endsWith(summary.module_logs{1}.stats_path, fullfile('stats', 'accel_stats.xlsx')));
+        end
+
+        function moduleResultAcceptsStepResult(tc)
+            step = bms.app.StepDefinition.fromKey('crack');
+            rec = bms.app.StepResult.ok(step, datetime('now'), datetime('now'));
+            mod = bms.module.ModuleResult.fromStepStruct(rec);
+            tc.verifyEqual(mod.Spec.Key, 'crack');
+            tc.verifyEqual(mod.Status, 'ok');
         end
     end
 end

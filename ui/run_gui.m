@@ -159,29 +159,11 @@ function run_gui()
     end
 
     function apply_module_registry_labels()
-        specs = bms.module.ModuleRegistry.catalog();
-        for ii = 1:numel(specs)
-            field = specs(ii).GuiField;
-            if isempty(field) || ~isfield(moduleControls, field)
-                continue;
-            end
-            h = moduleControls.(field);
-            if isvalid(h) && ~isempty(specs(ii).GuiLabel)
-                h.Text = specs(ii).GuiLabel;
-            end
-        end
+        bms.gui.GuiRunController.applyModuleLabels(moduleControls);
     end
 
     function handles = module_control_values()
-        names = fieldnames(moduleControls);
-        tmp = gobjects(0);
-        for ii = 1:numel(names)
-            h = moduleControls.(names{ii});
-            if isvalid(h)
-                tmp(end+1) = h; %#ok<AGROW>
-            end
-        end
-        handles = tmp;
+        handles = bms.gui.GuiRunController.controlValues(moduleControls);
     end
 
     function onBrowseDir(edit)
@@ -232,7 +214,7 @@ function run_gui()
                 addLog('Warnings suppressed for this run (gui.show_warnings=false).');
             end
             warnCleanup = onCleanup(@() restore_warnings(warnState, btState)); %#ok<NASGU>
-            opts = bms.module.ModuleRegistry.optsFromHandles(moduleControls);
+            opts = bms.gui.GuiRunController.optsFromControls(moduleControls);
             root = rootEdit.Value; start_date = datestr(startPicker.Value,'yyyy-mm-dd'); end_date = datestr(endPicker.Value,'yyyy-mm-dd');
             logEdit.Value = fullfile(root, 'run_logs');
             if exist(logEdit.Value,'dir')==0, mkdir(logEdit.Value); end
@@ -318,18 +300,7 @@ function run_gui()
         end
     end
     function apply_module_values_from_preset(m)
-        specs = bms.module.ModuleRegistry.catalog();
-        for ii = 1:numel(specs)
-            field = specs(ii).GuiField;
-            presetField = specs(ii).PresetField;
-            if isempty(field) || isempty(presetField) || ~isfield(moduleControls, field) || ~isfield(m, presetField)
-                continue;
-            end
-            h = moduleControls.(field);
-            if isvalid(h)
-                h.Value = logical(m.(presetField));
-            end
-        end
+        bms.gui.GuiRunController.applyPresetModules(moduleControls, m);
     end
     function save_last_preset(preset)
         lastPath = fullfile(projRoot,'outputs','ui_last_preset.json');

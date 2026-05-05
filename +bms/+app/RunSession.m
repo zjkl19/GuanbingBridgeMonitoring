@@ -150,10 +150,11 @@ classdef RunSession < handle
             if isempty(logs), return; end
             fprintf('--- Run summary ---\n');
             for i = 1:numel(logs)
-                if isempty(logs{i}), continue; end
-                fprintf('[%s] %s', upper(logs{i}.status), logs{i}.label);
-                if isfield(logs{i}, 'message') && ~isempty(logs{i}.message)
-                    fprintf(' - %s', logs{i}.message);
+                rec = bms.app.RunSession.logToStruct(logs{i});
+                if isempty(rec), continue; end
+                fprintf('[%s] %s', upper(rec.status), rec.label);
+                if isfield(rec, 'message') && ~isempty(rec.message)
+                    fprintf(' - %s', rec.message);
                 end
                 fprintf('\n');
             end
@@ -177,13 +178,14 @@ classdef RunSession < handle
             fprintf(fid, 'Elapsed: %.2f sec\n', obj.ElapsedSec);
             fprintf(fid, 'Summary:\n');
             for i = 1:numel(logs)
-                if isempty(logs{i}), continue; end
-                fprintf(fid, '[%s] %s', upper(logs{i}.status), logs{i}.label);
-                if isfield(logs{i}, 'message') && ~isempty(logs{i}.message)
-                    fprintf(fid, ' - %s', logs{i}.message);
+                rec = bms.app.RunSession.logToStruct(logs{i});
+                if isempty(rec), continue; end
+                fprintf(fid, '[%s] %s', upper(rec.status), rec.label);
+                if isfield(rec, 'message') && ~isempty(rec.message)
+                    fprintf(fid, ' - %s', rec.message);
                 end
-                if isfield(logs{i}, 'error_type') && ~isempty(logs{i}.error_type)
-                    fprintf(fid, ' (error_type=%s)', logs{i}.error_type);
+                if isfield(rec, 'error_type') && ~isempty(rec.error_type)
+                    fprintf(fid, ' (error_type=%s)', rec.error_type);
                 end
                 fprintf(fid, '\n');
             end
@@ -249,6 +251,21 @@ classdef RunSession < handle
                     beep;
                 end
             catch
+            end
+        end
+    end
+
+    methods (Static)
+        function rec = logToStruct(item, statsDir)
+            if nargin < 2, statsDir = ''; end
+            rec = [];
+            if isempty(item)
+                return;
+            end
+            if isa(item, 'bms.app.StepResult')
+                rec = item.toStruct(statsDir);
+            elseif isstruct(item)
+                rec = item;
             end
         end
     end
