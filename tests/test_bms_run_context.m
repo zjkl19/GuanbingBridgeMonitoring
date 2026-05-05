@@ -1,4 +1,4 @@
-﻿classdef test_bms_run_context < matlab.unittest.TestCase
+classdef test_bms_run_context < matlab.unittest.TestCase
     properties
         TempDir
     end

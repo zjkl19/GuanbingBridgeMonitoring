@@ -85,5 +85,23 @@ classdef PointResolver
                 pts = unique(pts, 'stable');
             end
         end
+
+        function tf = filenameHasPointToken(filePath, pointId)
+            [~, stem] = fileparts(char(string(filePath)));
+            token = regexptranslate('escape', char(string(pointId)));
+            tf = ~isempty(regexp(stem, ['(?<![A-Za-z0-9])' token '(?![A-Za-z0-9])'], 'once'));
+        end
+
+        function matches = filterFilesForPoint(files, pointId)
+            if ischar(files) || isstring(files)
+                files = cellstr(string(files));
+            end
+            matches = {};
+            for i = 1:numel(files)
+                if bms.data.PointResolver.filenameHasPointToken(files{i}, pointId)
+                    matches{end+1} = files{i}; %#ok<AGROW>
+                end
+            end
+        end
     end
 end

@@ -5,6 +5,7 @@ classdef DataLayoutResolver
         function p = statsDir(root), p = fullfile(char(root), 'stats'); end
         function p = logDir(root), p = fullfile(char(root), 'run_logs'); end
         function p = wimDir(root), p = fullfile(char(root), 'WIM'); end
+        function p = lowfreqDir(root), p = fullfile(char(root), 'lowfreq'); end
         function p = autoReportDir(root), p = fullfile(char(root), char([33258 21160 25253 21578])); end
 
         function p = ensureDir(p)
@@ -70,6 +71,124 @@ classdef DataLayoutResolver
             if nargin < 3 || isempty(pattern), pattern = 'yyyy-mm-dd'; end
             dt = bms.data.TimeRangeResolver.parseDate(dateValue);
             p = fullfile(char(root), datestr(dt, pattern));
+        end
+
+        function layout = inferLayout(root, cfg)
+            if nargin < 2, cfg = struct(); end
+            profile = bms.profile.BridgeProfileRegistry.infer(cfg, root);
+            layout = profile.DataLayout;
+            root = char(root);
+            if exist(fullfile(root, 'WIM'), 'dir') && exist(fullfile(root, 'lowfreq'), 'dir')
+                layout = 'hongtang_period';
+            elseif bms.data.DataLayoutResolver.hasJljDailyExport(root)
+                layout = 'jlj_daily_export';
+            elseif bms.data.DataLayoutResolver.hasDateFolders(root)
+                layout = 'dated_folders';
+            end
+        end
+
+        function info = describe(root, cfg)
+            if nargin < 2, cfg = struct(); end
+            layout = bms.data.DataLayoutResolver.inferLayout(root, cfg);
+            info = struct();
+            info.root = char(root);
+            info.layout = layout;
+            info.stats_dir = bms.data.DataLayoutResolver.statsDir(root);
+            info.log_dir = bms.data.DataLayoutResolver.logDir(root);
+            info.wim_dir = bms.data.DataLayoutResolver.wimDir(root);
+            info.lowfreq_dir = bms.data.DataLayoutResolver.lowfreqDir(root);
+            info.exists = isfolder(root);
+        end
+
+        function tf = hasJljDailyExport(root)
+            d = dir(fullfile(char(root), 'data_jlj_*'));
+            tf = any([d.isdir]);
+        end
+
+        function tf = hasDateFolders(root)
+            d = dir(fullfile(char(root), '20*'));
+            tf = any([d.isdir]);
+        end
+
+        function folders = dateFolders(root, startDate, endDate, layout)
+            if nargin < 4 || isempty(layout)
+                layout = bms.data.DataLayoutResolver.inferLayout(root, struct());
+            end
+            days = bms.data.TimeRangeResolver.daysBetween(startDate, endDate);
+            folders = {};
+            for i = 1:numel(days)
+                switch char(layout)
+                    case 'jlj_daily_export'
+                        candidates = {fullfile(char(root), ['data_jlj_' datestr(days(i), 'yyyy-mm-dd')])};
+                    otherwise
+                        candidates = {fullfile(char(root), datestr(days(i), 'yyyy-mm-dd')), fullfile(char(root), datestr(days(i), 'yyyymmdd'))};
+                end
+                for j = 1:numel(candidates)
+                    if isfolder(candidates{j})
+                        folders{end+1} = candidates{j}; %#ok<AGROW>
+                        break;
+                    end
+                end
+            end
+        end
+
+        function folders = jljCsvDirs(root, startDate, endDate)
+            dayFolders = bms.data.DataLayoutResolver.dateFolders(root, startDate, endDate, 'jlj_daily_export');
+            folders = {};
+            for i = 1:numel(dayFolders)
+                candidates = {fullfile(dayFolders{i}, 'data', 'jlj', 'csv'), fullfile(dayFolders{i}, 'csv')};
+                for j = 1:numel(candidates)
+                    if isfolder(candidates{j})
+                        folders{end+1} = candidates{j}; %#ok<AGROW>
+                        break;
+                    end
+                end
+            end
+        end
+
+        function files = wimMonthFiles(root, startDate, endDate, prefix)
+            if nargin < 4 || isempty(prefix), prefix = 'HS_Data_'; end
+            months = bms.data.TimeRangeResolver.monthKeys(startDate, endDate);
+            files = struct('month', {}, 'fmt', {}, 'bcp', {}, 'exists', {});
+            for i = 1:numel(months)
+                month = months{i};
+                [fmt, bcp] = bms.data.DataLayoutResolver.findWimMonthPair(root, month, prefix);
+                files(end+1) = struct('month', month, 'fmt', fmt, 'bcp', bcp, 'exists', isfile(fmt) && isfile(bcp)); %#ok<AGROW>
+            end
+        end
+
+        function [fmt, bcp] = findWimMonthPair(root, month, prefix)
+            if nargin < 3 || isempty(prefix), prefix = 'HS_Data_'; end
+            candidates = bms.data.DataLayoutResolver.wimSearchDirs(root, month);
+            fmt = '';
+            bcp = '';
+            names = {[prefix month], month};
+            for i = 1:numel(candidates)
+                for j = 1:numel(names)
+                    f = fullfile(candidates{i}, [names{j} '.fmt']);
+                    b = fullfile(candidates{i}, [names{j} '.bcp']);
+                    if isempty(fmt) && isfile(f), fmt = f; end
+                    if isempty(bcp) && isfile(b), bcp = b; end
+                    if ~isempty(fmt) && ~isempty(bcp), return; end
+                end
+            end
+            if isempty(candidates)
+                candidates = {bms.data.DataLayoutResolver.wimDir(root)};
+            end
+            fmt = fullfile(candidates{1}, [prefix month '.fmt']);
+            bcp = fullfile(candidates{1}, [prefix month '.bcp']);
+        end
+
+        function dirs = wimSearchDirs(root, month)
+            root = char(root);
+            dirs = {fullfile(root, 'WIM'), root};
+            dirs{end+1} = fullfile(root, 'WIM', month);
+            dirs{end+1} = fullfile(root, 'WIM', [month(1:4) '-' month(5:6)]);
+            keep = false(size(dirs));
+            for i = 1:numel(dirs)
+                keep(i) = isfolder(dirs{i});
+            end
+            dirs = unique(dirs(keep), 'stable');
         end
     end
 end

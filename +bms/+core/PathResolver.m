@@ -4,7 +4,7 @@ classdef PathResolver
     methods (Static)
         function p = projectRoot()
             here = fileparts(mfilename('fullpath'));
-            p = fileparts(fileparts(fileparts(here)));
+            p = fileparts(fileparts(here));
         end
 
         function p = defaultConfigPath(projectRoot)

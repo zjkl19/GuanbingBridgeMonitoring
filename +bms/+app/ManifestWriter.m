@@ -21,16 +21,21 @@ classdef ManifestWriter
             manifest.schema_version = bms.app.ManifestWriter.SchemaVersion;
             manifest.manifest_type = 'analysis_run';
             manifest.status = char(status);
+            manifest.config_schema_version = bms.app.ManifestWriter.configSchemaVersion(ctx.Config);
+            manifest.data_layout = bms.data.DataLayoutResolver.describe(ctx.DataRoot, ctx.Config);
             manifest.latest_log = latestLog;
             manifest.run_log = '';
             manifest.elapsed_sec = NaN;
             manifest.module_logs = {};
+            manifest.module_results = {};
             manifest.module_catalog = {};
             manifest.enabled_module_specs = {};
             manifest.module_preflight = {};
             manifest.stats_files = bms.core.Logger.listFiles(ctx.StatsDir, '*.xlsx');
             manifest.expected_stats_files = {};
             manifest.missing_expected_stats = {};
+            manifest.missing_stats_files = {};
+            manifest.warnings = {};
             manifest.offset_report = struct();
             manifest.details = details;
             if isstruct(details)
@@ -49,6 +54,7 @@ classdef ManifestWriter
             end
             if isfield(details, 'module_logs')
                 manifest.module_logs = details.module_logs;
+                manifest.module_results = details.module_logs;
             end
             if isfield(details, 'module_catalog')
                 manifest.module_catalog = details.module_catalog;
@@ -68,6 +74,12 @@ classdef ManifestWriter
             if isfield(details, 'expected_stats_files')
                 manifest.expected_stats_files = details.expected_stats_files;
                 manifest.missing_expected_stats = bms.app.ManifestWriter.findMissing(details.expected_stats_files);
+                manifest.missing_stats_files = manifest.missing_expected_stats;
+            end
+            if isfield(details, 'warnings')
+                manifest.warnings = details.warnings;
+            elseif isfield(details, 'config_warnings')
+                manifest.warnings = details.config_warnings;
             end
         end
 
@@ -82,6 +94,13 @@ classdef ManifestWriter
                 if ~isempty(p) && ~isfile(p)
                     missing{end+1} = p; %#ok<AGROW>
                 end
+            end
+        end
+
+        function v = configSchemaVersion(cfg)
+            v = 1;
+            if isstruct(cfg) && isfield(cfg, 'config_schema_version') && ~isempty(cfg.config_schema_version)
+                v = cfg.config_schema_version;
             end
         end
     end

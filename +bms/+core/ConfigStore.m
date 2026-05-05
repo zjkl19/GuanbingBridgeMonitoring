@@ -22,6 +22,20 @@ classdef ConfigStore
             bms.core.ConfigStore.validateNoAccidentalDrop(oldCfg, newCfg);
         end
 
+        function cfg = patchFile(filepath, operations, makeBackup)
+            if nargin < 3, makeBackup = true; end
+            if ~isfile(filepath)
+                error('BMS:Config:MissingFile', 'Config file not found: %s', filepath);
+            end
+            cfg = bms.core.ConfigStore.readJson(filepath);
+            cfg = bms.config.ConfigPatch.apply(cfg, operations);
+            bms.core.ConfigStore.saveGuarded(cfg, filepath, makeBackup);
+        end
+
+        function result = validate(cfg)
+            result = bms.config.SchemaValidator.validateDetailed(cfg);
+        end
+
         function validateNoAccidentalDrop(oldCfg, newCfg)
             if isempty(oldCfg) || ~isstruct(oldCfg) || ~isstruct(newCfg)
                 return;

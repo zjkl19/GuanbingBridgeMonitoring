@@ -36,6 +36,9 @@ class AnalysisManifestTests(unittest.TestCase):
                         "module_logs": [
                             {"key": "wind", "label": "风速风向分析", "status": "fail", "message": "read failed"}
                         ],
+                        "module_results": [
+                            {"key": "eq", "label": "地震动分析", "status": "skip", "message": "no data"}
+                        ],
                     },
                     ensure_ascii=False,
                 ),
@@ -45,10 +48,10 @@ class AnalysisManifestTests(unittest.TestCase):
             self.assertEqual(find_latest_analysis_manifest(root), manifest_path)
             context = analysis_manifest_context(root)
             missing = manifest_missing_modules(context["manifest"])
-            self.assertEqual({item["key"] for item in missing}, {"strain", "wind"})
+            self.assertEqual({item["key"] for item in missing}, {"strain", "eq"})
             summary = missing_module_summary_items(context)
             self.assertTrue(any("应变分析" in item for item in summary))
-            self.assertTrue(any("风速风向分析" in item for item in summary))
+            self.assertTrue(any("地震动分析" in item for item in summary))
 
 
 if __name__ == "__main__":

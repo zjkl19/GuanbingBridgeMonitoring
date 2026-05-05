@@ -3,19 +3,44 @@ classdef SchemaValidator
 
     methods (Static)
         function warns = validate(cfg)
-            warns = {};
+            result = bms.config.SchemaValidator.validateDetailed(cfg);
+            warns = result.warnings;
+        end
+
+        function result = validateDetailed(cfg)
+            result = struct('status', 'ok', 'errors', {{}}, 'warnings', {{}}, 'checked_at', datestr(datetime('now'), 'yyyy-mm-dd HH:MM:ss'));
             if ~isstruct(cfg)
-                warns{end+1} = 'cfg must be a struct';
+                result.status = 'failed';
+                result.errors{end+1} = 'cfg must be a struct';
                 return;
             end
+
+            result.warnings = [result.warnings, bms.config.SchemaValidator.checkTopLevel(cfg)];
+            result.warnings = [result.warnings, bms.config.SchemaValidator.checkModuleKeys(cfg)];
+            result.warnings = [result.warnings, bms.config.SchemaValidator.checkPerPoint(cfg)];
+            result.warnings = [result.warnings, bms.config.SchemaValidator.checkFilePatterns(cfg)];
+            result.warnings = [result.warnings, bms.config.SchemaValidator.checkWim(cfg)];
+            if ~isempty(result.errors)
+                result.status = 'failed';
+            elseif ~isempty(result.warnings)
+                result.status = 'warning';
+            end
+        end
+
+        function warns = checkTopLevel(cfg)
+            warns = {};
             required = {'defaults','subfolders','file_patterns','points','plot_styles'};
             for i = 1:numel(required)
                 if ~isfield(cfg, required{i})
                     warns{end+1} = ['missing top-level field: ' required{i}]; %#ok<AGROW>
                 end
             end
-            warns = [warns, bms.config.SchemaValidator.checkModuleKeys(cfg)];
-            warns = [warns, bms.config.SchemaValidator.checkPerPoint(cfg)];
+            optional = {'per_point','post_filter_thresholds','plot_common','reporting','wim','vendor'};
+            for i = 1:numel(optional)
+                if isfield(cfg, optional{i}) && ~isstruct(cfg.(optional{i}))
+                    warns{end+1} = ['top-level field should be struct: ' optional{i}]; %#ok<AGROW>
+                end
+            end
         end
 
         function warns = checkModuleKeys(cfg)
@@ -74,6 +99,37 @@ classdef SchemaValidator
                         end
                     end
                 end
+            end
+        end
+
+        function warns = checkFilePatterns(cfg)
+            warns = {};
+            if ~isfield(cfg, 'file_patterns') || ~isstruct(cfg.file_patterns)
+                return;
+            end
+            names = fieldnames(cfg.file_patterns);
+            for i = 1:numel(names)
+                item = cfg.file_patterns.(names{i});
+                if ~isstruct(item)
+                    warns{end+1} = ['file_patterns.' names{i} ' should be struct']; %#ok<AGROW>
+                    continue;
+                end
+                if ~isfield(item, 'default') && ~isfield(item, 'per_point')
+                    warns{end+1} = ['file_patterns.' names{i} ' has neither default nor per_point']; %#ok<AGROW>
+                end
+            end
+        end
+
+        function warns = checkWim(cfg)
+            warns = {};
+            if ~isfield(cfg, 'wim') || ~isstruct(cfg.wim)
+                return;
+            end
+            if isfield(cfg.wim, 'pipeline') && ~(ischar(cfg.wim.pipeline) || isstring(cfg.wim.pipeline))
+                warns{end+1} = 'wim.pipeline should be string';
+            end
+            if isfield(cfg.wim, 'db') && ~isstruct(cfg.wim.db)
+                warns{end+1} = 'wim.db should be struct';
             end
         end
     end

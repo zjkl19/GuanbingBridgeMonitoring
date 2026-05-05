@@ -1,4 +1,4 @@
-﻿classdef test_wim_reports < matlab.unittest.TestCase
+classdef test_wim_reports < matlab.unittest.TestCase
     methods (Test)
         function testDirectSample(testCase)
             proj_root = fileparts(fileparts(mfilename('fullpath')));

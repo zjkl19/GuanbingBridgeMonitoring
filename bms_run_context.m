@@ -10,7 +10,11 @@ function manifestPath = bms_run_context(root, start_date, end_date, opts, cfg)
     manifestPath = '';
     try
         runSummary = run_all(root, start_date, end_date, opts, cfg);
-        manifestPath = bms.app.ManifestWriter.write(ctx, runSummary.status, runSummary);
+        if isfield(runSummary, 'analysis_manifest') && ~isempty(runSummary.analysis_manifest) && isfile(runSummary.analysis_manifest)
+            manifestPath = runSummary.analysis_manifest;
+        else
+            manifestPath = bms.app.ManifestWriter.write(ctx, runSummary.status, runSummary);
+        end
     catch ME
         details = struct('error', ME.message, 'identifier', ME.identifier);
         try

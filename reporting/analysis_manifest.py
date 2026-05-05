@@ -66,7 +66,8 @@ def manifest_missing_modules(manifest: dict[str, Any] | None) -> list[dict[str, 
                 seen.add(marker)
                 missing.append(rec)
 
-    for item in manifest.get("module_logs", []) or []:
+    module_records = manifest.get("module_results") or manifest.get("module_logs") or []
+    for item in module_records:
         if not isinstance(item, dict):
             continue
         status = str(item.get("status") or "").lower()
@@ -93,6 +94,10 @@ def analysis_manifest_context(result_root: Path | str | None) -> dict[str, Any]:
     return {
         "path": str(path) if path is not None else "",
         "available": manifest is not None,
+        "schema_version": manifest.get("schema_version") if isinstance(manifest, dict) else None,
+        "status": manifest.get("status") if isinstance(manifest, dict) else "",
+        "bridge_profile": manifest.get("bridge_profile", {}) if isinstance(manifest, dict) else {},
+        "data_layout": manifest.get("data_layout", {}) if isinstance(manifest, dict) else {},
         "missing_modules": manifest_missing_modules(manifest),
         "manifest": manifest,
     }

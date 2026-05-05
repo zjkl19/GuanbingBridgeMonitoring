@@ -16,6 +16,7 @@ classdef RunSession < handle
         OffsetLog = []
         ElapsedSec double = 0
         LogFile char = ''
+        ManifestPath char = ''
         Summary struct = struct()
     end
 
@@ -105,6 +106,8 @@ classdef RunSession < handle
             obj.LogFile = obj.writeLog(allLogs);
             obj.Summary = bms.app.LegacyRunAllAdapter.buildSummary(obj.Root, obj.StartDate, obj.EndDate, obj.Options, obj.Config, obj.StartTimestamp, obj.ElapsedSec, ...
                 allLogs, obj.LogFile, obj.OffsetLog, obj.StatsDir, obj.LogDir);
+            obj.ManifestPath = bms.app.RunSession.writeManifest(obj, obj.Summary.status, obj.Summary);
+            obj.Summary.analysis_manifest = obj.ManifestPath;
             obj.configureFolderViews();
             kind = obj.selectNotifyKind(bms.app.LegacyRunAllAdapter.hasFailures(allLogs));
             if ~isempty(kind)
@@ -127,6 +130,8 @@ classdef RunSession < handle
             if isempty(obj.Summary)
                 obj.Summary = struct('status','failed','message',ME.message,'error_type',bms.app.ErrorClassifier.classifyException(ME));
             end
+            obj.ManifestPath = bms.app.RunSession.writeManifest(obj, 'failed', obj.Summary);
+            obj.Summary.analysis_manifest = obj.ManifestPath;
         end
 
         function logRecord = writeOffsetCorrectionReport(obj)
@@ -266,6 +271,27 @@ classdef RunSession < handle
                 rec = item.toStruct(statsDir);
             elseif isstruct(item)
                 rec = item;
+            end
+        end
+
+        function manifestPath = writeManifest(obj, status, details)
+            manifestPath = '';
+            try
+                root = obj.Root;
+                startDate = obj.StartDate;
+                endDate = obj.EndDate;
+                opts = obj.Options;
+                cfg = obj.Config;
+                ctx = bms.core.AnalysisContext.fromLegacy(root, startDate, endDate, opts, cfg);
+                ctx.LogDir = obj.LogDir;
+                manifestPath = bms.app.ManifestWriter.write(ctx, status, details);
+            catch ME
+                if ~isempty(ME.stack)
+                    loc = sprintf('%s:%d', ME.stack(1).name, ME.stack(1).line);
+                else
+                    loc = 'unknown';
+                end
+                warning('Analysis manifest write failed at %s: %s', loc, ME.message);
             end
         end
     end

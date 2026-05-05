@@ -9,6 +9,7 @@ classdef AnalysisContext
         Options struct
         Config struct
         ConfigPath char = ''
+        BridgeProfile = []
         StatsDir char
         LogDir char
         RunId char
@@ -28,6 +29,7 @@ classdef AnalysisContext
             if isfield(cfg, 'source') && ~isempty(cfg.source)
                 obj.ConfigPath = char(cfg.source);
             end
+            obj.BridgeProfile = bms.profile.BridgeProfileRegistry.infer(cfg, obj.DataRoot);
             obj.StatsDir = bms.core.PathResolver.statsDir(obj.DataRoot);
             obj.LogDir = bms.core.PathResolver.logDir(obj.DataRoot);
             obj.CreatedAt = datetime('now');
@@ -44,6 +46,8 @@ classdef AnalysisContext
                         obj.ProjectRoot = char(value);
                     case 'configpath'
                         obj.ConfigPath = char(value);
+                    case 'bridgeprofile'
+                        obj.BridgeProfile = value;
                     case 'logdir'
                         obj.LogDir = char(value);
                     case 'runid'
@@ -70,6 +74,12 @@ classdef AnalysisContext
             s.run_id = obj.RunId;
             s.created_at = datestr(obj.CreatedAt, 'yyyy-mm-dd HH:MM:ss');
             s.enabled_modules = obj.enabledModules();
+            if isa(obj.BridgeProfile, 'bms.profile.BridgeProfile')
+                s.bridge_profile = obj.BridgeProfile.toStruct();
+            else
+                s.bridge_profile = struct();
+            end
+            s.date_range = struct('start_date', obj.StartDate, 'end_date', obj.EndDate);
         end
     end
 
