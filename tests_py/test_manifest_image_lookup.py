@@ -27,8 +27,8 @@ class TestManifestImageLookup(unittest.TestCase):
                     {
                         "key": "acceleration",
                         "artifacts": [
-                            {"kind": "figure", "path": str(old)},
-                            {"kind": "figure", "path": str(new)},
+                            {"kind": "figure", "role": "time_history", "path": str(old)},
+                            {"kind": "figure", "role": "time_history", "path": str(new)},
                         ],
                     }
                 ]
@@ -63,8 +63,8 @@ class TestManifestImageLookup(unittest.TestCase):
                     {
                         "key": "acceleration",
                         "artifacts": [
-                            {"kind": "figure", "path": str(raw)},
-                            {"kind": "figure", "path": str(rms)},
+                            {"kind": "figure", "role": "raw", "path": str(raw)},
+                            {"kind": "figure", "role": "rms10min", "path": str(rms)},
                         ],
                     }
                 ]

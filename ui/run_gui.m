@@ -32,8 +32,8 @@ function run_gui()
     tabPlotCfg = uitab(tg,'Title','绘图参数');
 
     %% 运行页
-    gl = uigridlayout(tabRun,[16 4]);
-    gl.RowHeight = {90,32,32,32,32,32,32,32,32,32,32,32,32,32,24,'1x'};
+    gl = uigridlayout(tabRun,[17 4]);
+    gl.RowHeight = {90,32,32,32,32,32,32,32,32,32,32,32,32,32,24,105,'1x'};
     gl.ColumnWidth = {190,240,240,'1x'};
     gl.Padding = [12 12 12 12]; gl.RowSpacing = 6; gl.ColumnSpacing = 8;
 
@@ -104,7 +104,9 @@ function run_gui()
     cbWarn.Layout.Row=14; cbWarn.Layout.Column=3;
 
     statusLbl = uilabel(gl,'Text','就绪','FontColor',primaryBlue); statusLbl.Layout.Row=15; statusLbl.Layout.Column=[1 4];
-    logArea   = uitextarea(gl,'Editable','off','Value',{'准备就绪...'}); logArea.Layout.Row=16; logArea.Layout.Column=[1 4];
+    summaryTable = uitable(gl,'Data',cell(0,5),'ColumnName',{'模块','状态','耗时(s)','统计','图片'},'RowName',{});
+    summaryTable.Layout.Row=16; summaryTable.Layout.Column=[1 4];
+    logArea   = uitextarea(gl,'Editable','off','Value',{'准备就绪...'}); logArea.Layout.Row=17; logArea.Layout.Column=[1 4];
 
     autoPreset = bms.gui.GuiPresetStore.defaultPath(projRoot);
     if exist(autoPreset,'file')
@@ -255,6 +257,9 @@ function run_gui()
     function log_result_summary(resultRoot)
         try
             summary = bms.gui.GuiResultSummary.fromResultRoot(resultRoot);
+            if isstruct(summary) && isfield(summary, 'module_rows')
+                summaryTable.Data = summary.module_rows;
+            end
             if isstruct(summary) && isfield(summary, 'lines')
                 for isummary = 1:numel(summary.lines)
                     addLog(['结果摘要: ' char(summary.lines{isummary})]);

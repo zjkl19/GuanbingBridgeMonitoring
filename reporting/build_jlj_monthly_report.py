@@ -27,6 +27,7 @@ from analysis_manifest import (
     analysis_manifest_context,
     manifest_key_for_dir,
     manifest_latest_artifact,
+    manifest_role_for_lookup,
     manifest_stats_path,
     missing_module_summary_items,
 )
@@ -281,6 +282,7 @@ def find_latest_point_image_patterns(root: Path, configured_dir: str, point_id: 
             context.get("manifest"),
             manifest_key_for_dir(configured_dir),
             token=point_id,
+            role=manifest_role_for_lookup(configured_dir, point_id),
             suffixes=(".jpg", ".jpeg", ".png"),
             directory_hint=configured_dir,
         )
@@ -314,6 +316,7 @@ def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[s
                 manifest_key_for_dir(configured_dir),
                 token=token or None,
                 kind=None,
+                role=manifest_role_for_lookup(configured_dir, token),
                 suffixes=suffixes or None,
                 directory_hint=configured_dir,
             )

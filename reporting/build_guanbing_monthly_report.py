@@ -21,6 +21,7 @@ from analysis_manifest import (
     analysis_manifest_context,
     manifest_key_for_dir,
     manifest_latest_artifact,
+    manifest_role_for_lookup,
     missing_module_summary_items,
 )
 
@@ -258,6 +259,7 @@ def find_latest_image(result_root: Path, folder_name: str, token: str, suffix: s
             manifest_key_for_dir(folder_name),
             token=token,
             kind=None,
+            role=manifest_role_for_lookup(folder_name, token),
             suffixes=(suffix,),
             directory_hint=folder_name,
         )
@@ -282,6 +284,7 @@ def find_latest_file(result_root: Path, folder_name: str, pattern: str) -> Path 
             manifest_key_for_dir(folder_name),
             token=token or None,
             kind=None,
+            role=manifest_role_for_lookup(folder_name, token),
             suffixes=(suffix,) if suffix else None,
             directory_hint=folder_name,
         )

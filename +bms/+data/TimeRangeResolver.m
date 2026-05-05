@@ -36,7 +36,7 @@ classdef TimeRangeResolver
             [startDt, endDt] = bms.data.TimeRangeResolver.parseRange(startDate, endDate);
             startDt = dateshift(startDt, 'start', 'day');
             if endDt == dateshift(endDt, 'start', 'day')
-                endDt = dateshift(endDt, 'start', 'day') + days(1) - seconds(1);
+                endDt = dateshift(endDt, 'start', 'day') + days(1) - milliseconds(1);
             end
             if endDt < startDt
                 error('BMS:TimeRange:InvalidRange', 'End date is earlier than start date.');

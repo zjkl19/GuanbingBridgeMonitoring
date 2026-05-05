@@ -26,9 +26,8 @@ function [times, vals, meta] = load_timeseries_range(root_dir, subfolder, point_
     meta.files = {};
 
     date_list = build_date_list(start_date, end_date);
-    range = struct( ...
-        'start', datetime(start_date, 'InputFormat','yyyy-MM-dd'), ...
-        'end',   datetime(end_date,   'InputFormat','yyyy-MM-dd') + days(1));
+    [range_start, range_end] = bms.data.TimeRangeResolver.closedRange(start_date, end_date);
+    range = struct('start', range_start, 'end', range_end);
     all_t = [];
     all_v = [];
 
@@ -142,8 +141,34 @@ function loader = get_vendor_loader(cfg)
 end
 
 function loader = make_donghua_loader(cfg)
+    loader.get_day_dir = @(root_dir, day, subfolder, sensor_type, meta) ...
+        data_source_get_day_dir(root_dir, day, subfolder, cfg, meta);
     loader.find_file = @(dirp, point_id, sensor_type, varargin) find_file_for_point(dirp, point_id, cfg, sensor_type);
     loader.read_file = @(fp, sensor_type, varargin) load_single_file(fp, cfg.defaults.header_marker); %#ok<NASGU>
+end
+
+function [dirp, meta] = data_source_get_day_dir(root_dir, day, subfolder, cfg, meta)
+    dirp = '';
+    if nargin < 5 || isempty(meta)
+        meta = struct();
+    end
+    if isempty(root_dir) || ~exist(root_dir, 'dir')
+        return;
+    end
+    try
+        src = bms.data.DataSourceFactory.create(root_dir, cfg);
+        dirs = src.candidateDirs(subfolder, day, day);
+        meta.data_source = class(src);
+        meta.candidate_dirs = dirs;
+        if ~isempty(dirs)
+            dirp = dirs{1};
+        end
+    catch
+        dirp = fullfile(root_dir, day, subfolder);
+        if ~exist(dirp, 'dir')
+            dirp = '';
+        end
+    end
 end
 
 function loader = make_hongtang_loader(cfg)
@@ -186,7 +211,7 @@ function [t, v, used, files] = hongtang_read_range(root_dir, ~, point_id, sensor
     end
 
     if ~isempty(range) && isfield(range, 'start') && isfield(range, 'end')
-        mask = t >= range.start & t < range.end;
+        mask = t >= range.start & t <= range.end;
         t = t(mask);
         v = v(mask);
     end
@@ -247,7 +272,7 @@ function [t, v] = read_hongtang_lowfreq_series(xlsx_path, point_id, adapter)
     v = [];
 
     cache_path = make_hongtang_cache_file(xlsx_path, point_id, adapter);
-    if ~isempty(cache_path) && can_use_hongtang_cache(cache_path, xlsx_path, adapter.cache.validate)
+    if ~isempty(cache_path) && can_use_hongtang_cache(cache_path, xlsx_path, adapter)
         S = load(cache_path, 'times', 'vals');
         if isfield(S, 'times') && isfield(S, 'vals')
             t = S.times;
@@ -282,6 +307,10 @@ function [t, v] = read_hongtang_lowfreq_series(xlsx_path, point_id, adapter)
         vals = v; %#ok<NASGU>
         meta = struct('mtime', file_mtime(xlsx_path), 'size', file_size(xlsx_path)); %#ok<NASGU>
         save(cache_path, 'times', 'vals', 'meta');
+        try
+            bms.data.CacheManager.writeMetadata(cache_path, {xlsx_path}, adapter, 'hongtang_lowfreq_v2');
+        catch
+        end
     end
 end
 
@@ -459,13 +488,24 @@ function cache_path = make_hongtang_cache_file(xlsx_path, point_id, adapter)
     cache_path = fullfile(cache_dir, sprintf('%s__%s.mat', sanitize_cache_name(fn), sanitize_cache_name(point_id)));
 end
 
-function ok = can_use_hongtang_cache(cache_path, src_path, validate_mode)
+function ok = can_use_hongtang_cache(cache_path, src_path, adapter)
     ok = false;
     if ~exist(cache_path, 'file')
         return;
     end
+    validate_mode = 'mtime_size';
+    if isstruct(adapter) && isfield(adapter, 'cache') && isstruct(adapter.cache) && isfield(adapter.cache, 'validate')
+        validate_mode = adapter.cache.validate;
+    elseif ischar(adapter) || isstring(adapter)
+        validate_mode = char(adapter);
+        adapter = struct();
+    end
     if strcmpi(validate_mode, 'none')
         ok = true;
+        return;
+    end
+    if strcmpi(validate_mode, 'metadata')
+        ok = bms.data.CacheManager.metadataMatchesFull(cache_path, {src_path}, adapter, 'hongtang_lowfreq_v2');
         return;
     end
 
@@ -733,7 +773,16 @@ function [times, vals] = load_single_file(fp, header_marker)
     if exist(cacheFile, 'file')
         infoCSV = dir(fp);
         infoMAT = dir(cacheFile);
-        if datenum(infoMAT.date) > datenum(infoCSV.date)
+        if bms.data.CacheManager.metadataMatchesFull(cacheFile, {fp}, struct(), 'csv_timeseries_v2')
+            try
+                tmp = load(cacheFile, 'times', 'vals');
+                times = tmp.times;
+                vals = tmp.vals;
+                useCache = true;
+            catch
+                useCache = false;
+            end
+        elseif datenum(infoMAT.date) > datenum(infoCSV.date)
             try
                 tmp = load(cacheFile, 'times', 'vals');
                 times = tmp.times;
@@ -752,6 +801,10 @@ function [times, vals] = load_single_file(fp, header_marker)
             return;
         end
         save(cacheFile, 'times', 'vals');
+        try
+            bms.data.CacheManager.writeMetadata(cacheFile, {fp}, struct(), 'csv_timeseries_v2');
+        catch
+        end
     end
 end
 
@@ -836,12 +889,10 @@ end
 
 % -------------------------------------------------------------------------
 function list = build_date_list(start_date, end_date)
-    dn0 = datenum(start_date, 'yyyy-mm-dd');
-    dn1 = datenum(end_date,   'yyyy-mm-dd');
-    dnums = dn0:dn1;
-    list = cell(numel(dnums),1);
-    for i = 1:numel(dnums)
-        list{i} = datestr(dnums(i), 'yyyy-mm-dd');
+    daysList = bms.data.TimeRangeResolver.daysBetween(start_date, end_date);
+    list = cell(numel(daysList), 1);
+    for i = 1:numel(daysList)
+        list{i} = datestr(daysList(i), 'yyyy-mm-dd');
     end
 end
 
@@ -873,6 +924,7 @@ function adapter = get_jlj_adapter(cfg)
     adapter.cache.enabled = get_field_default(adapter.cache, 'enabled', true);
     adapter.cache.dir = get_field_default(adapter.cache, 'dir', 'cache');
     adapter.cache.validate = get_field_default(adapter.cache, 'validate', 'mtime_size');
+    adapter.private_cfg = cfg;
 end
 
 function [dirp, meta] = jlj_get_day_dir(root_dir, day, adapter, meta)
@@ -882,6 +934,20 @@ function [dirp, meta] = jlj_get_day_dir(root_dir, day, adapter, meta)
     end
     if isempty(root_dir) || ~exist(root_dir, 'dir')
         return;
+    end
+    if isfield(adapter, 'private_cfg')
+        try
+            src = bms.data.JiulongjiangCsvDataSource(root_dir, adapter.private_cfg);
+            dirs = src.candidateDirs('', day, day);
+            meta.data_source = class(src);
+            meta.candidate_dirs = dirs;
+            if ~isempty(dirs)
+                dirp = dirs{1};
+                meta.cache_dir = resolve_jlj_cache_dir(dirp, adapter);
+                return;
+            end
+        catch
+        end
     end
     dt = datetime(day, 'InputFormat','yyyy-MM-dd');
     start_str = datestr(dt, 'yyyymmdd');
@@ -1020,7 +1086,7 @@ function [t, v] = jlj_read_file(fp, sensor_type, point_id, adapter, varargin)
     end
 
     cache_ok = false;
-    if ~isempty(cache_path) && use_jlj_cache(cache_path, fp, adapter.cache.validate)
+    if ~isempty(cache_path) && use_jlj_cache(cache_path, fp, adapter)
         try
             S = load(cache_path, 'ts', 'valx', 'valy', 'valz', 'meta');
             [t, v] = pick_cached_channel(S, sensor_type, point_id);
@@ -1055,12 +1121,20 @@ function [t, v] = jlj_read_file(fp, sensor_type, point_id, adapter, varargin)
             meta = struct('src', fp, 'mtime', file_mtime(fp), 'size', file_size(fp));
             ts = t; %#ok<NASGU>
             save(cache_path, 'ts', 'valx', 'valy', 'valz', 'meta');
+            try
+                cache_adapter = adapter;
+                if isfield(cache_adapter, 'private_cfg')
+                    cache_adapter = rmfield(cache_adapter, 'private_cfg');
+                end
+                bms.data.CacheManager.writeMetadata(cache_path, {fp}, cache_adapter, 'jlj_csv_v2');
+            catch
+            end
         end
         [t, v] = pick_channel_from_arrays(t, valx, valy, valz, sensor_type, point_id);
     end
     range = extract_range(varargin{:});
     if ~isempty(range) && isfield(range, 'start') && isfield(range, 'end')
-        mask = t >= range.start & t < range.end;
+        mask = t >= range.start & t <= range.end;
         t = t(mask);
         v = v(mask);
     end
@@ -1092,13 +1166,27 @@ function cache_dir = resolve_cache_dir_from_meta(adapter, varargin)
     end
 end
 
-function ok = use_jlj_cache(cache_path, src_path, validate_mode)
+function ok = use_jlj_cache(cache_path, src_path, adapter)
     ok = false;
     if isempty(cache_path) || ~exist(cache_path, 'file')
         return;
     end
+    validate_mode = 'mtime_size';
+    if isstruct(adapter) && isfield(adapter, 'cache') && isstruct(adapter.cache) && isfield(adapter.cache, 'validate')
+        validate_mode = adapter.cache.validate;
+    elseif ischar(adapter) || isstring(adapter)
+        validate_mode = char(adapter);
+        adapter = struct();
+    end
     if strcmpi(validate_mode, 'none')
         ok = true;
+        return;
+    end
+    if strcmpi(validate_mode, 'metadata')
+        if isstruct(adapter) && isfield(adapter, 'private_cfg')
+            adapter = rmfield(adapter, 'private_cfg');
+        end
+        ok = bms.data.CacheManager.metadataMatchesFull(cache_path, {src_path}, adapter, 'jlj_csv_v2');
         return;
     end
     try

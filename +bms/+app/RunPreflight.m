@@ -173,25 +173,24 @@ classdef RunPreflight
             if ~isstruct(cfg) || ~isfield(cfg, 'file_patterns') || ~isstruct(cfg.file_patterns)
                 return;
             end
-            if ~isfield(cfg.file_patterns, key)
-                tf = false;
-                return;
+            aliases = bms.config.SchemaValidator.aliasesForKey(key);
+            for i = 1:numel(aliases)
+                if isfield(cfg.file_patterns, aliases{i})
+                    value = cfg.file_patterns.(aliases{i});
+                    tf = ~isempty(value);
+                    return;
+                end
             end
-            value = cfg.file_patterns.(key);
-            tf = ~isempty(value);
+            tf = false;
         end
 
         function result = checkWimInputs(result, root, startDate, endDate, opts, cfg)
             if ~bms.app.RunPreflight.optionEnabled(opts, 'doWIM')
                 return;
             end
-            prefix = 'HS_Data_';
-            if isstruct(cfg) && isfield(cfg, 'wim') && isstruct(cfg.wim) ...
-                    && isfield(cfg.wim, 'file_prefix') && ~isempty(cfg.wim.file_prefix)
-                prefix = char(string(cfg.wim.file_prefix));
-            end
             try
-                files = bms.data.DataLayoutResolver.wimMonthFiles(root, startDate, endDate, prefix);
+                wimSource = bms.data.DataSourceFactory.wim(root, cfg);
+                files = wimSource.monthFiles(startDate, endDate);
                 result.wim_month_files = files;
                 for i = 1:numel(files)
                     if ~files(i).exists

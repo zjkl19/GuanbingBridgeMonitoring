@@ -22,6 +22,10 @@ classdef test_artifact_manifest_v2 < matlab.unittest.TestCase
             paths = cellfun(@(s) string(s.path), artifacts, 'UniformOutput', true);
             tc.verifyTrue(any(paths == string(statsPath)));
             tc.verifyTrue(any(paths == string(figPath)));
+            figIdx = find(paths == string(figPath), 1);
+            tc.verifyEqual(artifacts{figIdx}.role, 'time_history');
+            statsIdx = find(paths == string(statsPath), 1);
+            tc.verifyEqual(artifacts{statsIdx}.role, 'stats');
         end
 
         function manifestBuildsV2ArtifactSummary(tc)

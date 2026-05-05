@@ -47,5 +47,19 @@ classdef test_writer_plot_manifest_services < matlab.unittest.TestCase
             tc.verifyEqual(summary.counts.ok, 2);
             tc.verifyTrue(any(contains(summary.lines, 'fail=1')));
         end
+
+        function guiResultSummaryBuildsModuleRows(tc)
+            ctx = struct();
+            ctx.available = true;
+            ctx.path = 'D:/run_logs/analysis_manifest_1.json';
+            ctx.status = 'ok';
+            artifact = struct('kind','figure','role','time_history','path','D:/x.jpg');
+            ctx.manifest = struct('module_results', {{struct('key','deflection','label','挠度分析', ...
+                'status','ok','elapsed_sec',1.25,'stats_path','', 'artifacts', {{artifact}})}});
+            summary = bms.gui.GuiResultSummary.fromManifestContext(ctx);
+            tc.verifyEqual(size(summary.module_rows, 1), 1);
+            tc.verifyEqual(summary.module_rows{1, 1}, '挠度分析');
+            tc.verifyEqual(summary.module_rows{1, 5}, 1);
+        end
     end
 end

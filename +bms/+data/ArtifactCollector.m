@@ -6,7 +6,7 @@ classdef ArtifactCollector
             if nargin < 5, cfg = struct(); end
             artifacts = {};
             if nargin >= 3 && ~isempty(statsPath) && isfile(statsPath)
-                artifacts{end+1} = bms.data.ArtifactCollector.record('stats', statsPath); %#ok<AGROW>
+                artifacts{end+1} = bms.data.ArtifactCollector.record('stats', statsPath, 'stats'); %#ok<AGROW>
             end
             dirs = bms.data.ArtifactCollector.moduleOutputDirs(root, key, cfg);
             cutoff = [];
@@ -16,7 +16,8 @@ classdef ArtifactCollector
             for i = 1:numel(dirs)
                 files = bms.data.ArtifactCollector.listImageFiles(dirs{i}, cutoff);
                 for j = 1:numel(files)
-                    artifacts{end+1} = bms.data.ArtifactCollector.record('figure', files{j}); %#ok<AGROW>
+                    role = bms.data.ArtifactCollector.inferRole(files{j}, key);
+                    artifacts{end+1} = bms.data.ArtifactCollector.record('figure', files{j}, role); %#ok<AGROW>
                 end
             end
         end
@@ -71,9 +72,13 @@ classdef ArtifactCollector
             end
         end
 
-        function rec = record(kind, path)
+        function rec = record(kind, path, role)
+            if nargin < 3 || isempty(role)
+                role = bms.data.ArtifactCollector.inferRole(path, '');
+            end
             rec = struct();
             rec.kind = char(kind);
+            rec.role = char(role);
             rec.path = char(path);
             rec.exists = isfile(path);
             rec.bytes = 0;
@@ -84,6 +89,31 @@ classdef ArtifactCollector
                     rec.bytes = d.bytes;
                     rec.modified_at = datestr(d.datenum, 'yyyy-mm-dd HH:MM:ss');
                 end
+            end
+        end
+
+        function role = inferRole(path, moduleKey)
+            text = lower(char(string(path)));
+            moduleKey = char(string(moduleKey));
+            role = 'time_history';
+            if endsWith(text, '.xlsx') || strcmpi(moduleKey, 'stats')
+                role = 'stats';
+            elseif contains(text, 'rms10') || contains(text, 'rms_10')
+                role = 'rms10min';
+            elseif contains(text, 'specfreq') || contains(text, 'spectrum') || contains(text, 'psd') || contains(text, char([39057 35889]))
+                role = 'spectrum';
+            elseif contains(text, 'boxplot') || contains(text, char([31665 32447]))
+                role = 'boxplot';
+            elseif contains(text, 'windrose') || contains(text, char([39118 29611 29808]))
+                role = 'wind_rose';
+            elseif contains(text, 'freq') || contains(text, char([39057 29575]))
+                role = 'frequency_distribution';
+            elseif contains(text, 'speed10min') || contains(text, '10min')
+                role = 'wind_speed10min';
+            elseif contains(text, 'filt') || contains(text, char([28388 27874]))
+                role = 'filtered';
+            elseif contains(text, 'orig') || contains(text, char([21407 22987]))
+                role = 'raw';
             end
         end
 

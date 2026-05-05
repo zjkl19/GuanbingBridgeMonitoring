@@ -21,6 +21,7 @@ classdef SchemaValidator
             result.warnings = [result.warnings, bms.config.SchemaValidator.checkFilePatterns(cfg)];
             result.warnings = [result.warnings, bms.config.SchemaValidator.checkPlotStyles(cfg)];
             result.warnings = [result.warnings, bms.config.SchemaValidator.checkAnalyzerModules(cfg)];
+            result.warnings = [result.warnings, bms.config.SchemaValidator.checkCrossReferences(cfg)];
             result.warnings = [result.warnings, bms.config.SchemaValidator.checkWim(cfg)];
             if ~isempty(result.errors)
                 result.status = 'failed';
@@ -167,6 +168,87 @@ classdef SchemaValidator
                         warns{end+1} = ['subfolders.' key ' should be text']; %#ok<AGROW>
                     end
                 end
+            end
+        end
+
+        function warns = checkCrossReferences(cfg)
+            warns = {};
+            if ~isfield(cfg, 'points') || ~isstruct(cfg.points)
+                return;
+            end
+            names = fieldnames(cfg.points);
+            for i = 1:numel(names)
+                key = names{i};
+                if startsWith(key, '_') || ismember(key, {'common','global'})
+                    continue;
+                end
+                if ~bms.config.SchemaValidator.hasSubfolderKey(cfg, key)
+                    warns{end+1} = ['points.' key ' has no usable subfolder mapping']; %#ok<AGROW>
+                end
+                if ~bms.config.SchemaValidator.hasFilePatternKey(cfg, key)
+                    warns{end+1} = ['points.' key ' has no file pattern mapping']; %#ok<AGROW>
+                end
+            end
+            if isfield(cfg, 'reporting') && isstruct(cfg.reporting)
+                reportNames = fieldnames(cfg.reporting);
+                known = bms.module.ModuleRegistry.knownConfigKeys();
+                for i = 1:numel(reportNames)
+                    key = reportNames{i};
+                    if startsWith(key, '_') || ismember(key, {'common','defaults'})
+                        continue;
+                    end
+                    if ~ismember(key, known)
+                        warns{end+1} = ['reporting.' key ' is not registered in ModuleRegistry']; %#ok<AGROW>
+                    end
+                end
+            end
+        end
+
+        function tf = hasSubfolderKey(cfg, key)
+            tf = false;
+            if ~isfield(cfg, 'subfolders') || ~isstruct(cfg.subfolders)
+                return;
+            end
+            aliases = bms.config.SchemaValidator.aliasesForKey(key);
+            for i = 1:numel(aliases)
+                if isfield(cfg.subfolders, aliases{i})
+                    tf = true;
+                    return;
+                end
+            end
+        end
+
+        function tf = hasFilePatternKey(cfg, key)
+            tf = true;
+            if ~isfield(cfg, 'file_patterns') || ~isstruct(cfg.file_patterns)
+                return;
+            end
+            aliases = bms.config.SchemaValidator.aliasesForKey(key);
+            for i = 1:numel(aliases)
+                if isfield(cfg.file_patterns, aliases{i})
+                    return;
+                end
+            end
+            tf = false;
+        end
+
+        function aliases = aliasesForKey(key)
+            aliases = {char(key)};
+            switch char(key)
+                case 'wind'
+                    aliases = {'wind','wind_raw','wind_speed','wind_direction'};
+                case 'earthquake'
+                    aliases = {'earthquake','eq','eq_raw'};
+                case 'accel_spectrum'
+                    aliases = {'accel_spectrum','acceleration','acceleration_raw'};
+                case 'cable_accel_spectrum'
+                    aliases = {'cable_accel_spectrum','cable_accel','cable_accel_raw'};
+                case {'dynamic_strain_highpass','dynamic_strain_lowpass'}
+                    aliases = {char(key),'dynamic_strain','strain'};
+                case 'temperature'
+                    aliases = {'temperature','temp_humidity'};
+                case 'humidity'
+                    aliases = {'humidity','temp_humidity'};
             end
         end
     end

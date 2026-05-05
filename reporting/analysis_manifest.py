@@ -142,6 +142,7 @@ def manifest_artifact_paths(
     key: str,
     *,
     kind: str | None = None,
+    role: str | None = None,
     suffixes: tuple[str, ...] | None = None,
 ) -> list[Path]:
     """Return artifact paths for a module from manifest schema v2."""
@@ -155,6 +156,9 @@ def manifest_artifact_paths(
             if not isinstance(artifact, dict):
                 continue
             if kind and str(artifact.get("kind") or "") != kind:
+                continue
+            artifact_role = str(artifact.get("role") or "")
+            if role and artifact_role and artifact_role != role:
                 continue
             path = Path(str(artifact.get("path") or ""))
             if not path.exists():
@@ -204,19 +208,41 @@ def manifest_key_for_dir(configured_dir: str | Path | None) -> str | None:
     return None
 
 
+def manifest_role_for_lookup(configured_dir: str | Path | None, token: str | None = None) -> str | None:
+    text = f"{configured_dir or ''}/{token or ''}".replace("\\", "/").lower()
+    if "rms10" in text:
+        return "rms10min"
+    if "specfreq" in text or "psd" in text or "频谱" in text:
+        return "spectrum"
+    if "boxplot" in text or "箱线" in text:
+        return "boxplot"
+    if "windrose" in text or "风玫瑰" in text:
+        return "wind_rose"
+    if "freq" in text or "频率" in text or "频次" in text:
+        return "frequency_distribution"
+    if "speed10min" in text or "风速10min" in text:
+        return "wind_speed10min"
+    if "filt" in text or "滤波" in text:
+        return "filtered"
+    if "orig" in text or "原始" in text:
+        return "raw"
+    return None
+
+
 def manifest_latest_artifact(
     manifest: dict[str, Any] | None,
     key: str | None,
     *,
     token: str | None = None,
     kind: str | None = "figure",
+    role: str | None = None,
     suffixes: tuple[str, ...] | None = (".jpg", ".jpeg", ".png"),
     directory_hint: str | Path | None = None,
 ) -> Path | None:
     """Return the newest matching manifest artifact, with filesystem fallback still handled by callers."""
     if not key:
         return None
-    paths = manifest_artifact_paths(manifest, key, kind=kind, suffixes=suffixes)
+    paths = manifest_artifact_paths(manifest, key, kind=kind, role=role, suffixes=suffixes)
     token_text = str(token or "").strip()
     hint_text = str(directory_hint or "").replace("\\", "/")
 
