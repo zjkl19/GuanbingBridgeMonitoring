@@ -11,15 +11,39 @@ classdef PlotService
             end
         end
 
-        function saveBundle(fig, outDir, baseName, opts)
+        function paths = saveBundle(fig, outDir, baseName, opts)
             if nargin < 4, opts = struct(); end
-            save_plot_bundle(fig, outDir, baseName, opts);
+            paths = save_plot_bundle(fig, outDir, baseName, opts);
         end
 
-        function saveBundleWithTimestamp(fig, outDir, baseName, opts)
+        function paths = saveBundleWithTimestamp(fig, outDir, baseName, opts)
             if nargin < 4, opts = struct(); end
-            bms.plot.PlotService.saveBundle(fig, outDir, ...
+            paths = bms.plot.PlotService.saveBundle(fig, outDir, ...
                 bms.plot.PlotService.outputBase(baseName, true), opts);
+        end
+
+        function opts = runtimeOptionsFromConfig(cfg)
+            opts = struct();
+            opts.save_fig = bms.config.ConfigReader.getBool(cfg, 'plot_common.save_fig', true);
+            opts.lightweight_fig = bms.config.ConfigReader.getBool(cfg, 'plot_common.lightweight_fig', true);
+            opts.fig_max_points = bms.config.ConfigReader.getNumeric(cfg, 'plot_common.fig_max_points', 50000);
+            opts.append_timestamp = bms.config.ConfigReader.getBool(cfg, 'plot_common.append_timestamp', false);
+            opts.gap_mode = char(string(bms.config.ConfigReader.get(cfg, 'plot_common.gap_mode', 'connect')));
+            opts.gap_break_factor = bms.config.ConfigReader.getNumeric(cfg, 'plot_common.gap_break_factor', 5);
+        end
+
+        function files = listBundleFiles(outDir, baseName)
+            files = {};
+            if nargin < 2 || isempty(outDir) || isempty(baseName) || ~exist(outDir, 'dir')
+                return;
+            end
+            exts = {'.jpg','.emf','.fig','.png'};
+            for i = 1:numel(exts)
+                p = fullfile(char(outDir), [char(baseName) exts{i}]);
+                if isfile(p)
+                    files{end+1} = p; %#ok<AGROW>
+                end
+            end
         end
 
         function [xPlot, yPlot] = prepareSeries(x, y, opts)

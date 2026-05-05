@@ -17,7 +17,8 @@ classdef EnvironmentStepFactory
                 if isempty(pts)
                     plan = plan.addSkip(D('temperature'), 'No temperature points configured');
                 else
-                    plan = plan.addRun(D('temperature'), @() analyze_temperature_points(root, pts, startDate, endDate, fullfile(statsDir, 'temp_stats.xlsx'), sub.temperature, cfg));
+                    analyzer = bms.analyzer.AnalyzerFactory.create('temperature', root, startDate, endDate, statsDir, sub, cfg, pts);
+                    plan = plan.addRun(D('temperature'), @() analyzer.run());
                 end
             end
 
@@ -27,7 +28,8 @@ classdef EnvironmentStepFactory
                 if isempty(pts)
                     plan = plan.addSkip(D('humidity'), 'No humidity points configured');
                 else
-                    plan = plan.addRun(D('humidity'), @() analyze_humidity_points(root, pts, startDate, endDate, fullfile(statsDir, 'humidity_stats.xlsx'), sub.humidity, cfg));
+                    analyzer = bms.analyzer.AnalyzerFactory.create('humidity', root, startDate, endDate, statsDir, sub, cfg, pts);
+                    plan = plan.addRun(D('humidity'), @() analyzer.run());
                 end
             end
 
@@ -36,7 +38,8 @@ classdef EnvironmentStepFactory
                 if isempty(pts)
                     plan = plan.addSkip(D('rainfall'), 'No rainfall points configured');
                 else
-                    plan = plan.addRun(D('rainfall'), @() analyze_rainfall_points(root, pts, startDate, endDate, fullfile(statsDir, 'rainfall_stats.xlsx'), sub.rainfall, cfg));
+                    analyzer = bms.analyzer.AnalyzerFactory.create('rainfall', root, startDate, endDate, statsDir, sub, cfg, pts);
+                    plan = plan.addRun(D('rainfall'), @() analyzer.run());
                 end
             end
         end

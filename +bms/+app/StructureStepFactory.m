@@ -25,7 +25,8 @@ classdef StructureStepFactory
             D = @bms.app.StepDefinition.fromKey;
 
             if L('deflection')
-                plan = plan.addRun(D('deflection'), @() bms.app.StructureStepFactory.runDeflection(root, startDate, endDate, statsDir, sub, cfg));
+                analyzer = bms.analyzer.AnalyzerFactory.create('deflection', root, startDate, endDate, statsDir, sub, cfg, {});
+                plan = plan.addRun(D('deflection'), @() analyzer.run());
             end
             if L('bearing_displacement')
                 plan = plan.addRun(D('bearing_displacement'), @() analyze_bearing_displacement_points(root, startDate, endDate, fullfile(statsDir, 'bearing_displacement_stats.xlsx'), sub.bearing_displacement, cfg));
@@ -37,21 +38,13 @@ classdef StructureStepFactory
                 plan = plan.addRun(D('rename_crk'), @() batch_rename_crk_T_to_t(root, startDate, endDate, true));
             end
             if L('crack')
-                plan = plan.addRun(D('crack'), @() bms.app.StructureStepFactory.runCrack(root, startDate, endDate, statsDir, sub, cfg));
+                analyzer = bms.analyzer.AnalyzerFactory.create('crack', root, startDate, endDate, statsDir, sub, cfg, {});
+                plan = plan.addRun(D('crack'), @() analyzer.run());
             end
             if L('strain')
                 plan = plan.addRun(D('strain'), @() analyze_strain_points(root, startDate, endDate, fullfile(statsDir, 'strain_stats.xlsx'), sub.strain, cfg));
             end
         end
 
-        function runDeflection(root, startDate, endDate, statsDir, sub, cfg)
-            analyzer = bms.analyzer.DeflectionAnalyzer(root, startDate, endDate, fullfile(statsDir, 'deflection_stats.xlsx'), sub.deflection, cfg);
-            analyzer.run();
-        end
-
-        function runCrack(root, startDate, endDate, statsDir, sub, cfg)
-            analyzer = bms.analyzer.CrackAnalyzer(root, startDate, endDate, fullfile(statsDir, 'crack_stats.xlsx'), sub.crack, cfg);
-            analyzer.run();
-        end
     end
 end

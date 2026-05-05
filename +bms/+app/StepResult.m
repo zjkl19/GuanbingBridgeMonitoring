@@ -72,6 +72,24 @@ classdef StepResult
             obj = bms.app.StepResult(step, 'fail', ME.message, startedAt, endedAt, bms.app.ErrorClassifier.classifyException(ME));
         end
 
+        function obj = fromAnalyzerResult(step, analyzerResult, startedAt, endedAt)
+            if nargin < 3 || isempty(startedAt)
+                startedAt = analyzerResult.StartedAt;
+            end
+            if nargin < 4 || isempty(endedAt)
+                endedAt = analyzerResult.EndedAt;
+            end
+            obj = bms.app.StepResult(step, analyzerResult.Status, analyzerResult.Message, startedAt, endedAt, '');
+            obj.StatsPath = analyzerResult.StatsPath;
+            obj.Artifacts = analyzerResult.Artifacts;
+            if isempty(obj.Message) && ~isempty(analyzerResult.Warnings)
+                obj.Message = strjoin(cellfun(@char, analyzerResult.Warnings, 'UniformOutput', false), '; ');
+            end
+            if strcmpi(analyzerResult.Status, 'fail')
+                obj.ErrorType = 'analysis_failed';
+            end
+        end
+
         function txt = formatTime(t)
             if isempty(t) || isnat(t)
                 txt = '';

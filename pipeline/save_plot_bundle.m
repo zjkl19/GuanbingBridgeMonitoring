@@ -1,4 +1,4 @@
-﻿function save_plot_bundle(fig, out_dir, file_stub, opts)
+﻿function paths = save_plot_bundle(fig, out_dir, file_stub, opts)
 % save_plot_bundle Export full-resolution images and a lightweight .fig copy.
 %   Images are exported from the original full-data figure. The .fig file is
 %   saved after line data are reduced with peak-preserving bucket sampling so
@@ -7,6 +7,7 @@
     if nargin < 4 || isempty(opts)
         opts = struct();
     end
+    paths = {};
 
     runtime = get_runtime_settings();
 
@@ -23,10 +24,14 @@
     end
 
     if save_jpg
-        saveas(fig, fullfile(out_dir, [file_stub '.jpg']));
+        p = fullfile(out_dir, [file_stub '.jpg']);
+        saveas(fig, p);
+        paths{end+1} = p; %#ok<AGROW>
     end
     if save_emf
-        saveas(fig, fullfile(out_dir, [file_stub '.emf']));
+        p = fullfile(out_dir, [file_stub '.emf']);
+        saveas(fig, p);
+        paths{end+1} = p; %#ok<AGROW>
     end
 
     if save_fig
@@ -38,6 +43,9 @@
             make_figure_visible_for_save(fig);
             drawnow;
             savefig(fig, fig_path, 'compact');
+            if isfile(fig_path)
+                paths{end+1} = fig_path; %#ok<AGROW>
+            end
         catch ME
             warning('save_plot_bundle:SaveFigFailed', ...
                 'Failed to save .fig file "%s": %s', fig_path, ME.message);

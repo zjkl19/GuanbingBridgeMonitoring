@@ -19,6 +19,8 @@ classdef SchemaValidator
             result.warnings = [result.warnings, bms.config.SchemaValidator.checkModuleKeys(cfg)];
             result.warnings = [result.warnings, bms.config.SchemaValidator.checkPerPoint(cfg)];
             result.warnings = [result.warnings, bms.config.SchemaValidator.checkFilePatterns(cfg)];
+            result.warnings = [result.warnings, bms.config.SchemaValidator.checkPlotStyles(cfg)];
+            result.warnings = [result.warnings, bms.config.SchemaValidator.checkAnalyzerModules(cfg)];
             result.warnings = [result.warnings, bms.config.SchemaValidator.checkWim(cfg)];
             if ~isempty(result.errors)
                 result.status = 'failed';
@@ -130,6 +132,41 @@ classdef SchemaValidator
             end
             if isfield(cfg.wim, 'db') && ~isstruct(cfg.wim.db)
                 warns{end+1} = 'wim.db should be struct';
+            end
+        end
+
+        function warns = checkPlotStyles(cfg)
+            warns = {};
+            if ~isfield(cfg, 'plot_styles') || ~isstruct(cfg.plot_styles)
+                return;
+            end
+            names = fieldnames(cfg.plot_styles);
+            for i = 1:numel(names)
+                style = cfg.plot_styles.(names{i});
+                if ~isstruct(style), continue; end
+                if isfield(style, 'ylim') && ~isempty(style.ylim) && ~bms.plot.PlotService.isValidYLim(style.ylim)
+                    warns{end+1} = ['plot_styles.' names{i} '.ylim is not a valid 1x2 range']; %#ok<AGROW>
+                end
+                if isfield(style, 'ylim_auto') && ~(islogical(style.ylim_auto) || isnumeric(style.ylim_auto))
+                    warns{end+1} = ['plot_styles.' names{i} '.ylim_auto should be boolean']; %#ok<AGROW>
+                end
+            end
+        end
+
+        function warns = checkAnalyzerModules(cfg)
+            warns = {};
+            keys = {'temperature','humidity','rainfall','deflection','crack'};
+            for i = 1:numel(keys)
+                key = keys{i};
+                if isfield(cfg, 'points') && isstruct(cfg.points) && isfield(cfg.points, key) && isempty(cfg.points.(key))
+                    warns{end+1} = ['points.' key ' is configured but empty']; %#ok<AGROW>
+                end
+                if isfield(cfg, 'subfolders') && isstruct(cfg.subfolders) && isfield(cfg.subfolders, key)
+                    value = cfg.subfolders.(key);
+                    if ~(ischar(value) || isstring(value))
+                        warns{end+1} = ['subfolders.' key ' should be text']; %#ok<AGROW>
+                    end
+                end
             end
         end
     end

@@ -9,7 +9,7 @@ classdef test_analyzer_pilot < matlab.unittest.TestCase
     methods (Test)
         function deflectionAnalyzerCarriesLegacyArguments(tc)
             stats = fullfile(tempdir, 'deflection_stats.xlsx');
-            a = bms.analyzer.DeflectionAnalyzer('D:/data', '2026-01-01', '2026-01-02', stats, '时程曲线_挠度', struct());
+            a = bms.analyzer.DeflectionAnalyzer('D:/data', '2026-01-01', '2026-01-02', stats, 'features_rs', struct());
             tc.verifyClass(a, 'bms.analyzer.DeflectionAnalyzer');
             tc.verifyEqual(a.Root, 'D:/data');
             tc.verifyEqual(a.statsPath(), stats);
@@ -17,7 +17,7 @@ classdef test_analyzer_pilot < matlab.unittest.TestCase
 
         function crackAnalyzerCarriesLegacyArguments(tc)
             stats = fullfile(tempdir, 'crack_stats.xlsx');
-            a = bms.analyzer.CrackAnalyzer('D:/data', '2026-01-01', '2026-01-02', stats, '时程曲线_裂缝', struct());
+            a = bms.analyzer.CrackAnalyzer('D:/data', '2026-01-01', '2026-01-02', stats, 'features', struct());
             tc.verifyClass(a, 'bms.analyzer.CrackAnalyzer');
             tc.verifyEqual(a.StatsFile, stats);
         end

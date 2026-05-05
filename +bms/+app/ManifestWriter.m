@@ -28,6 +28,7 @@ classdef ManifestWriter
             manifest.elapsed_sec = NaN;
             manifest.module_logs = {};
             manifest.module_results = {};
+            manifest.module_status_counts = struct('ok', 0, 'fail', 0, 'skip', 0, 'missing', 0, 'other', 0);
             manifest.module_catalog = {};
             manifest.enabled_module_specs = {};
             manifest.module_preflight = {};
@@ -57,6 +58,7 @@ classdef ManifestWriter
             if isfield(details, 'module_logs')
                 manifest.module_logs = details.module_logs;
                 manifest.module_results = details.module_logs;
+                manifest.module_status_counts = bms.app.ManifestWriter.statusCounts(details.module_logs);
             end
             if isfield(details, 'module_catalog')
                 manifest.module_catalog = details.module_catalog;
@@ -109,6 +111,33 @@ classdef ManifestWriter
             v = 1;
             if isstruct(cfg) && isfield(cfg, 'config_schema_version') && ~isempty(cfg.config_schema_version)
                 v = cfg.config_schema_version;
+            end
+        end
+
+        function counts = statusCounts(records)
+            counts = struct('ok', 0, 'fail', 0, 'skip', 0, 'missing', 0, 'other', 0);
+            if isempty(records), return; end
+            if isstruct(records)
+                records = num2cell(records);
+            end
+            for i = 1:numel(records)
+                rec = records{i};
+                status = 'other';
+                if isstruct(rec) && isfield(rec, 'status') && ~isempty(rec.status)
+                    status = lower(char(string(rec.status)));
+                end
+                switch status
+                    case {'ok','pass','passed'}
+                        counts.ok = counts.ok + 1;
+                    case {'fail','failed','error'}
+                        counts.fail = counts.fail + 1;
+                    case 'skip'
+                        counts.skip = counts.skip + 1;
+                    case 'missing'
+                        counts.missing = counts.missing + 1;
+                    otherwise
+                        counts.other = counts.other + 1;
+                end
             end
         end
     end

@@ -15,8 +15,13 @@ classdef StepExecutor
                     result = bms.app.StepResult.skip(step, 'User requested stop', started, datetime('now'));
                     return;
                 end
-                fcn();
-                result = bms.app.StepResult.ok(step, started, datetime('now'));
+                out = bms.app.StepExecutor.invoke(fcn);
+                ended = datetime('now');
+                if isa(out, 'bms.analyzer.AnalyzerResult')
+                    result = bms.app.StepResult.fromAnalyzerResult(step, out, started, ended);
+                else
+                    result = bms.app.StepResult.ok(step, started, ended);
+                end
             catch ME
                 result = bms.app.StepResult.fail(step, ME, started, datetime('now'));
                 warning('%s failed: %s', step.Label, ME.message);
@@ -30,6 +35,29 @@ classdef StepExecutor
             end
             nowTime = datetime('now');
             result = bms.app.StepResult.skip(step, message, nowTime, nowTime);
+        end
+
+        function out = invoke(fcn)
+            out = [];
+            if nargout(fcn) == 0
+                fcn();
+                return;
+            end
+            try
+                out = fcn();
+            catch ME
+                if bms.app.StepExecutor.isTooManyOutputs(ME)
+                    fcn();
+                else
+                    rethrow(ME);
+                end
+            end
+        end
+
+        function tf = isTooManyOutputs(ME)
+            tf = strcmp(ME.identifier, 'MATLAB:maxlhs') || ...
+                contains(ME.message, 'Too many output arguments') || ...
+                contains(ME.message, char([36755 20986 21442 25968 22826]));
         end
     end
 end
