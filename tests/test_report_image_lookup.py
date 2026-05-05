@@ -9,6 +9,7 @@ sys.path.insert(0, str(REPO_ROOT / "reporting"))
 
 from build_guanbing_monthly_report import find_latest_image as find_guanbing_image  # noqa: E402
 from build_monthly_report import find_latest_image as find_hongtang_image  # noqa: E402
+from report_artifact_resolver import find_latest_image as find_report_image  # noqa: E402
 
 
 def test_stable_image_name_is_accepted_by_report_finders():
@@ -22,7 +23,11 @@ def test_stable_image_name_is_accepted_by_report_finders():
         timestamped.write_bytes(b"old")
         time.sleep(0.02)
         stable.write_bytes(b"new")
+        emf = folder / "GB-RTS-G05-001-01_20260326_20260426.emf"
+        time.sleep(0.02)
+        emf.write_bytes(b"vector")
 
+        assert find_report_image(root, "plots", "GB-RTS-G05-001-01").path == stable
         assert find_guanbing_image(root, "plots", "GB-RTS-G05-001-01") == stable
 
         selected, lookup = find_hongtang_image(root, "plots", "GB-RTS-G05-001-01_")

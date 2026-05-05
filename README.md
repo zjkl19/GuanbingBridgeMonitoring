@@ -220,6 +220,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.6.7`: adds cached-result report regression tooling and shared report artifact/table helpers for more stable production report checks.
+- `v1.6.7`：增加既有结果报告回归脚本，并抽取报告产物查找、表格写入公共工具，提升生产报告检查稳定性。
 - `v1.6.6`: completes cached-result regression checks for Guanbing March and Hongtang Q1 data; keeps report generation tolerant of missing local result figures.
 - `v1.6.6`：完成管柄 3 月、洪塘一季度既有结果回归检查；报告生成在本地结果图缺失时保留模板内容并输出缺失清单。
 - `v1.6.5`: fixes Guanbing April crack filtering, deflection/tilt report image replacement, deflection original/filtered image naming, nested ZIP recovery, and plot gap-mode propagation for dynamic strain.
@@ -234,6 +236,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.6.5`: adds Guanbing template precheck, Guanbing result-readiness warnings, and cached report regression support.
+- `v1.6.5`：增加管柄模板预检、管柄结果就绪提示，以及既有结果报告回归支持。
 - `v1.6.4`: restores shared report helpers for Guanbing monthly and Hongtang period generation, and avoids inserting unsupported EMF images through python-docx.
 - `v1.6.4`：恢复管柄月报、洪塘周期报共用生成辅助函数，并避免通过 python-docx 插入不支持的 EMF 图片。
 - `v1.6.3`: replaces Guanbing monthly deflection/tilt figures from result images and refreshes related statistics text.
@@ -252,8 +256,10 @@ Template precheck and smoke test.
 .\reporting\.venv\Scripts\python.exe -m unittest discover -s tests_py -v
 python reporting/template_precheck.py --kind hongtang_period --template reports/洪塘大桥健康监测2026年第一季季报-改4.docx --output-dir tmp/report_precheck
 python reporting/template_precheck.py --kind jlj_monthly --template reports/九龙江大桥健康监测2026年3月份月报_修订5.docx --output-dir tmp/report_precheck
+python reporting/template_precheck.py --kind guanbing_monthly --template reports/G104线管柄大桥监测月报模板-自动报告.docx --output-dir tmp/report_precheck
 python reporting/smoke_report_generation.py --kind all
 python reporting/smoke_report_generation.py --kind all --generate
+powershell -ExecutionPolicy Bypass -File scripts/run_cached_report_regression.ps1 -KeepOutput
 ```
 
 Generated artifacts should stay out of Git.

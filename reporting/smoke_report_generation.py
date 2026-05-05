@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 from datetime import datetime
 from pathlib import Path
 
 from docx import Document
 
+from build_guanbing_monthly_report import build_report as build_guanbing_monthly_report
 from build_jlj_monthly_report import build_report as build_jlj_monthly_report
 from build_period_report import build_period_report as build_hongtang_period_report
 from template_precheck import TemplatePrecheckError, check_template, write_precheck_report
@@ -29,6 +31,10 @@ def _default_hongtang_template(repo_root: Path) -> Path:
 
 def _default_jlj_template(repo_root: Path) -> Path:
     return repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_修订5.docx"
+
+
+def _default_guanbing_template(repo_root: Path) -> Path:
+    return repo_root / "reports" / "G104线管柄大桥监测月报模板-自动报告.docx"
 
 
 def _docx_contains(path: Path, fragment: str) -> bool:
@@ -125,10 +131,52 @@ def smoke_jlj(args: argparse.Namespace, output_root: Path) -> None:
     print(f"[jlj] generated OK: {report_path}")
 
 
+def smoke_guanbing(args: argparse.Namespace, output_root: Path) -> None:
+    print(f"[guanbing] template: {args.guanbing_template}")
+    issues = check_template("guanbing_monthly", args.guanbing_template)
+    txt_path, json_path = write_precheck_report(
+        "guanbing_monthly",
+        args.guanbing_template,
+        issues,
+        output_root / "precheck",
+        context={"smoke_generate": args.generate},
+    )
+    print(f"[guanbing] precheck report: {txt_path}")
+    if issues:
+        raise TemplatePrecheckError(args.guanbing_template, issues)
+    print("[guanbing] template precheck OK")
+    if not args.generate:
+        return
+    if not args.guanbing_result_root.exists():
+        raise FileNotFoundError(f"Guanbing result root not found: {args.guanbing_result_root}")
+    out_dir = output_root / "guanbing"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report_path, manifest_path = build_guanbing_monthly_report(
+        template=args.guanbing_template,
+        config_path=args.guanbing_config,
+        result_root=args.guanbing_result_root,
+        output_dir=out_dir,
+        period_label=args.guanbing_period_label,
+        monitoring_range=args.guanbing_monitoring_range,
+        report_date=args.report_date,
+        start_date=args.guanbing_start_date,
+        end_date=args.guanbing_end_date,
+    )
+    _assert_generated_docx(report_path, ["G104线管柄大桥", "综上所述"])
+    print(f"[guanbing] generated OK: {report_path}")
+    print(f"[guanbing] manifest: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    missing = manifest.get("missing") or []
+    if missing:
+        print("[guanbing] warnings/missing:")
+        for item in missing:
+            print(f"  - {item}")
+
+
 def parse_args() -> argparse.Namespace:
     repo_root = _repo_root()
-    parser = argparse.ArgumentParser(description="Smoke test Hongtang/Jiulongjiang report templates and generation.")
-    parser.add_argument("--kind", choices=["all", "hongtang", "jlj"], default="all")
+    parser = argparse.ArgumentParser(description="Smoke test bridge report templates and cached-result generation.")
+    parser.add_argument("--kind", choices=["all", "hongtang", "jlj", "guanbing"], default="all")
     parser.add_argument("--generate", action="store_true", help="Also generate reports from existing stats/images.")
     parser.add_argument("--keep-output", action="store_true", help="Keep tmp smoke-test outputs.")
     parser.add_argument("--output-root", type=Path, default=repo_root / "tmp" / "report_smoke")
@@ -148,6 +196,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--jlj-result-root", type=Path, default=Path(r"E:\九龙江数据\2026年3月"))
     parser.add_argument("--jlj-period-label", default="2026年3月份")
     parser.add_argument("--jlj-monitoring-range", default="2026.03.23~2026.03.31")
+
+    parser.add_argument("--guanbing-template", type=Path, default=_default_guanbing_template(repo_root))
+    parser.add_argument("--guanbing-config", type=Path, default=repo_root / "config" / "default_config.json")
+    parser.add_argument("--guanbing-result-root", type=Path, default=Path(r"F:\管柄大桥数据\2026年3月"))
+    parser.add_argument("--guanbing-period-label", default="2026年03月")
+    parser.add_argument("--guanbing-monitoring-range", default="2026年02月26日~2026年03月25日")
+    parser.add_argument("--guanbing-start-date", default="2026-02-26")
+    parser.add_argument("--guanbing-end-date", default="2026-03-25")
     return parser.parse_args()
 
 
@@ -162,6 +218,8 @@ def main() -> None:
         smoke_hongtang(args, output_root)
     if args.kind in ("all", "jlj"):
         smoke_jlj(args, output_root)
+    if args.kind in ("all", "guanbing"):
+        smoke_guanbing(args, output_root)
 
     if not args.generate and not args.keep_output and output_root.exists():
         shutil.rmtree(output_root)

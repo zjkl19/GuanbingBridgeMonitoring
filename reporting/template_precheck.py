@@ -326,6 +326,32 @@ def check_jlj_monthly_template(template: Path) -> list[TemplateIssue]:
     return issues
 
 
+def check_guanbing_monthly_template(template: Path) -> list[TemplateIssue]:
+    doc = Document(str(template))
+    texts = _all_texts(doc)
+    issues: list[TemplateIssue] = []
+
+    required = [
+        ("G104线管柄大桥", "Guanbing report title/project text"),
+        ("桥面环境温度", "temperature section anchor"),
+        ("桥面环境湿度", "humidity section anchor"),
+        ("主梁挠度", "deflection section anchor"),
+        ("主墩倾角", "tilt section anchor"),
+        ("主梁关键截面应变", "strain section anchor"),
+        ("主梁竖向加速度", "acceleration section anchor"),
+        ("裂缝宽度", "crack section anchor"),
+        ("综上所述", "conclusion summary anchor"),
+        ("图 5 桥面环境温度测点时程图", "temperature figure anchor"),
+        ("图 7 桥面环境湿度测点时程图", "humidity figure anchor"),
+        ("图 13 第2跨主梁位移变化趋势", "deflection figure anchor"),
+        ("图 14 第3跨主梁位移变化趋势", "deflection figure anchor"),
+    ]
+    for fragment, note in required:
+        _add_missing_fragment(issues, texts, fragment, note)
+
+    return issues
+
+
 def check_template(kind: str, template: Path, manifest: dict | None = None) -> list[TemplateIssue]:
     if not template.exists():
         return [TemplateIssue("missing-file", f"Template file does not exist: {template}")]
@@ -333,6 +359,8 @@ def check_template(kind: str, template: Path, manifest: dict | None = None) -> l
         return check_hongtang_period_template(template, manifest)
     if kind == "jlj_monthly":
         return check_jlj_monthly_template(template)
+    if kind == "guanbing_monthly":
+        return check_guanbing_monthly_template(template)
     raise ValueError(f"Unknown template kind: {kind}")
 
 
@@ -344,7 +372,7 @@ def raise_for_template(kind: str, template: Path, manifest: dict | None = None) 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Precheck bridge report DOCX templates.")
-    parser.add_argument("--kind", choices=["hongtang_period", "jlj_monthly"], required=True)
+    parser.add_argument("--kind", choices=["hongtang_period", "jlj_monthly", "guanbing_monthly"], required=True)
     parser.add_argument("--template", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, default=None, help="Optional analysis manifest for conditional anchor checks.")
     parser.add_argument("--output-dir", type=Path, default=None, help="Optional directory for txt/json precheck reports.")

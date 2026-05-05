@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Iterable
 
 from docx import Document
-from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.shared import Mm
@@ -20,14 +19,16 @@ from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from analysis_manifest import missing_module_summary_items
-from artifact_lookup import (
-    latest_file_patterns as lookup_latest_file_patterns,
-    latest_point_image_patterns as lookup_latest_point_image_patterns,
-)
+from docx_table_utils import center_cell, find_table_by_header
 from stats_lookup import resolve_from_analysis_manifest
 from excel_utils import load_sheet_rows as load_xlsx_rows
 from format_utils import format_range_fixed as format_range, parse_float
 from missing_summary import write_missing_summary
+from report_artifact_resolver import (
+    find_latest_file_patterns as resolve_latest_file_patterns,
+    find_latest_image as resolve_latest_image,
+    find_latest_point_image_patterns as resolve_latest_point_image_patterns,
+)
 from report_build_manifest import write_report_build_manifest
 from report_context import ReportBuildContext
 
@@ -157,8 +158,8 @@ def ensure_dir(path: Path) -> Path:
 
 
 def find_latest_image(root: Path, configured_dir: str, stem_prefix: str) -> tuple[Path | None, dict]:
-    patterns = [f"{stem_prefix}*.jpg", f"{stem_prefix}*.png", f"{stem_prefix}*.jpeg"]
-    return find_latest_image_patterns(root, configured_dir, patterns)
+    result = resolve_latest_image(root, configured_dir, stem_prefix)
+    return result.path, result.debug
 
 
 def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[str]) -> tuple[Path | None, dict]:
@@ -166,12 +167,12 @@ def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[s
 
 
 def find_latest_point_image_patterns(root: Path, configured_dir: str, point_id: str, patterns: list[str]) -> tuple[Path | None, dict]:
-    result = lookup_latest_point_image_patterns(root, configured_dir, point_id, patterns)
+    result = resolve_latest_point_image_patterns(root, configured_dir, point_id, patterns)
     return result.path, result.debug
 
 
 def find_latest_file_patterns(root: Path, configured_dir: str, patterns: list[str]) -> tuple[Path | None, dict]:
-    result = lookup_latest_file_patterns(root, configured_dir, patterns, kind=None)
+    result = resolve_latest_file_patterns(root, configured_dir, patterns, kind=None)
     return result.path, result.debug
 
 
@@ -626,26 +627,6 @@ def label_path_dicts(items: list[ImageItem]) -> list[dict]:
         lookup["label"] = item.label
         out.append(lookup)
     return out
-
-
-def center_cell(cell) -> None:
-    cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-    for paragraph in cell.paragraphs:
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-
-def find_table_by_header(doc: Document, header_text: str):
-    """Find the first table containing a header/cell fragment.
-
-    Templates change frequently; callers treat a missing table as "keep the
-    template content" instead of failing the entire report build.
-    """
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                if header_text in cell.text:
-                    return table
-    return None
 
 
 def replace_numbered_item_block(text: str, number: int, new_block: str, preserve_footer: bool = False) -> str:

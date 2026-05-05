@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Iterable
 
 from docx import Document
-from docx_utils import set_cell_text_preserve
+from docx_table_utils import set_table_cell
 from excel_utils import load_sheet_rows as load_xlsx_rows
 from format_utils import format_percent
 from table_utils import (
@@ -430,15 +430,6 @@ def set_table_column_widths(table: Table, widths_mm: list[float]) -> None:
 
 def set_table_width(table: Table, width_mm: float) -> None:
     shared_set_table_width(table, width_mm)
-
-
-def set_table_cell(table: Table, row_idx: int, col_idx: int, text: object) -> None:
-    """Set table cell text while keeping template formatting where possible."""
-    cell = table.cell(row_idx, col_idx)
-    set_cell_text_preserve(cell, "" if text is None else str(text))
-    cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-    for paragraph in cell.paragraphs:
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 
 def capture_wim_table_templates(wim_heading: Paragraph, next_heading: Paragraph) -> dict[str, list]:

@@ -13,10 +13,13 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 
 from analysis_manifest import analysis_manifest_context, missing_module_summary_items
-from artifact_lookup import latest_file_patterns as lookup_latest_file_patterns
 from docx_utils import replace_picture_before_anchor
 from excel_utils import load_sheet_rows as load_xlsx_rows
 from image_block_utils import count_docx_images, stack_images_vertical
+from report_artifact_resolver import (
+    find_latest_file as resolve_latest_file,
+    find_latest_image as resolve_latest_image,
+)
 from report_build_manifest import write_report_build_manifest
 from report_context import ReportBuildContext
 
@@ -160,17 +163,12 @@ def replace_all_by_prefix(doc: Document, prefix: str, text: str, limit: int | No
 
 def find_latest_file(root: Path, configured_dir: str, pattern: str) -> Path | None:
     """Find the newest result file with the same lookup rules used by reports."""
-    return lookup_latest_file_patterns(root, configured_dir, [pattern]).path
+    return resolve_latest_file(root, configured_dir, pattern).path
 
 
 def find_latest_image(root: Path, configured_dir: str, name_prefix: str) -> Path | None:
     """Find the newest image by point/name prefix, preferring report-friendly rasters."""
-    patterns = [
-        f"{name_prefix}*.jpg",
-        f"{name_prefix}*.jpeg",
-        f"{name_prefix}*.png",
-    ]
-    return lookup_latest_file_patterns(root, configured_dir, patterns).path
+    return resolve_latest_image(root, configured_dir, name_prefix).path
 
 
 

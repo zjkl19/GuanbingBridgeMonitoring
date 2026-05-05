@@ -26,8 +26,6 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from analysis_manifest import analysis_manifest_context, missing_module_summary_items
 from artifact_lookup import (
     filename_has_point_token,
-    latest_image_patterns as lookup_latest_image_patterns,
-    latest_point_image_patterns as lookup_latest_point_image_patterns,
     resolve_output_dirs as shared_resolve_output_dirs,
     should_skip_search_dir as shared_should_skip_search_dir,
 )
@@ -50,6 +48,10 @@ from format_utils import (
 from missing_summary import write_missing_summary
 from report_build_manifest import write_report_build_manifest
 from report_context import ReportBuildContext
+from report_artifact_resolver import (
+    find_latest_image_patterns as lookup_latest_image_patterns,
+    find_latest_point_image_patterns as lookup_latest_point_image_patterns,
+)
 from table_utils import (
     set_header_bold,
     set_table_auto_width as shared_set_table_auto_width,

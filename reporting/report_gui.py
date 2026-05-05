@@ -39,7 +39,7 @@ MONTHLY_REPORT = "\u6d2a\u5858\u6708\u62a5"
 PERIOD_REPORT = "\u6d2a\u5858\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
 JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
 GUANBING_MONTHLY_REPORT = "管柄月报"
-APP_VERSION = "v1.6.4"
+APP_VERSION = "v1.6.5"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx"
@@ -734,11 +734,52 @@ class ReportGui(QMainWindow):
             warnings.append(f"\u7f3a\u5c11\u4e5d\u9f99\u6c5f\u6708\u62a5\u5173\u952e\u56fe\u7247\u76ee\u5f55\uff1a{', '.join(missing_dirs)}\u3002")
         return warnings
 
+    def _collect_guanbing_warnings(self, result_root: Path) -> list[str]:
+        warnings: list[str] = []
+        if not (result_root / "stats").exists():
+            warnings.append("`stats/` 不存在，管柄月报统计文字无法完整刷新。")
+        missing_stats = self._missing_stats_files(
+            result_root,
+            [
+                "temp_stats.xlsx",
+                "humidity_stats.xlsx",
+                "deflection_stats.xlsx",
+                "tilt_stats.xlsx",
+                "accel_stats.xlsx",
+                "accel_spec_stats.xlsx",
+                "crack_stats.xlsx",
+                "strain_stats.xlsx",
+            ],
+        )
+        if missing_stats:
+            warnings.append(f"缺少管柄月报统计表：{', '.join(missing_stats)}。")
+        missing_dirs = self._missing_result_dirs(
+            result_root,
+            [
+                "时程曲线_温度",
+                "时程曲线_湿度",
+                "频次分布_湿度",
+                "时程曲线_挠度",
+                "时程曲线_倾角",
+                "时程曲线_加速度",
+                "时程曲线_加速度_RMS10min",
+                "频谱峰值曲线_加速度",
+                "动应变箱线图_高通滤波",
+                "时程曲线_动应变_低通滤波",
+                "时程曲线_裂缝宽度",
+            ],
+        )
+        if missing_dirs:
+            warnings.append(f"缺少管柄月报关键图片目录：{', '.join(missing_dirs)}。")
+        return warnings
+
     def _template_check_kind(self, report_type: str) -> str | None:
         if report_type == PERIOD_REPORT:
             return "hongtang_period"
         if report_type == JLJ_MONTHLY_REPORT:
             return "jlj_monthly"
+        if report_type == GUANBING_MONTHLY_REPORT:
+            return "guanbing_monthly"
         return None
 
     def _format_template_issues(self, issues: list[TemplateIssue]) -> str:
@@ -848,6 +889,8 @@ class ReportGui(QMainWindow):
                 errors.append("\u5f00\u59cb/\u7ed3\u675f\u65e5\u671f\u683c\u5f0f\u5fc5\u987b\u662f YYYY-MM-DD\uff0c\u4e14\u7ed3\u675f\u65e5\u671f\u4e0d\u80fd\u65e9\u4e8e\u5f00\u59cb\u65e5\u671f\u3002")
         elif report_type == JLJ_MONTHLY_REPORT:
             warnings.extend(self._collect_jlj_warnings(result_root))
+        elif report_type == GUANBING_MONTHLY_REPORT:
+            warnings.extend(self._collect_guanbing_warnings(result_root))
 
         report_paths = self._write_precheck_report(template, report_type, template_issues, warnings)
         report_note = ""
