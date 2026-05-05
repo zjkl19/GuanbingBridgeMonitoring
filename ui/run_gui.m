@@ -104,7 +104,7 @@ function run_gui()
     cbWarn.Layout.Row=14; cbWarn.Layout.Column=3;
 
     statusLbl = uilabel(gl,'Text','就绪','FontColor',primaryBlue); statusLbl.Layout.Row=15; statusLbl.Layout.Column=[1 4];
-    summaryTable = uitable(gl,'Data',cell(0,5),'ColumnName',{'模块','状态','耗时(s)','统计','图片'},'RowName',{});
+summaryTable = uitable(gl,'Data',cell(0,7),'ColumnName',{'模块','状态','耗时(s)','统计','图片','错误类型','消息'},'RowName',{});
     summaryTable.Layout.Row=16; summaryTable.Layout.Column=[1 4];
     logArea   = uitextarea(gl,'Editable','off','Value',{'准备就绪...'}); logArea.Layout.Row=17; logArea.Layout.Column=[1 4];
 

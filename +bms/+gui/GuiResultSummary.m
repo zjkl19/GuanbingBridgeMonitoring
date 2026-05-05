@@ -67,7 +67,9 @@ classdef GuiResultSummary
                     if isfile(statsPath), statsFlag = 'OK'; else, statsFlag = 'missing'; end
                 end
                 figCount = bms.gui.GuiResultSummary.countFigures(rec);
-                rows(end+1, :) = {label, status, elapsed, statsFlag, figCount}; %#ok<AGROW>
+                errorType = bms.gui.GuiResultSummary.fieldText(rec, 'error_type', '');
+                message = bms.gui.GuiResultSummary.shortText(bms.gui.GuiResultSummary.fieldText(rec, 'message', ''), 120);
+                rows(end+1, :) = {label, status, elapsed, statsFlag, figCount, errorType, message}; %#ok<AGROW>
             end
         end
 
@@ -90,6 +92,16 @@ classdef GuiResultSummary
                 if isstruct(a) && isfield(a, 'kind') && strcmp(char(string(a.kind)), 'figure')
                     n = n + 1;
                 end
+            end
+        end
+
+        function txt = shortText(txt, maxLen)
+            if nargin < 2 || isempty(maxLen), maxLen = 120; end
+            txt = char(string(txt));
+            txt = regexprep(txt, '\s+', ' ');
+            if strlength(string(txt)) > maxLen
+                txt = [extractBefore(string(txt), maxLen) '...'];
+                txt = char(txt);
             end
         end
 

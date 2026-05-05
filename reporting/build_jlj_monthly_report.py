@@ -48,6 +48,16 @@ from format_utils import (
     table_cell_text,
 )
 from missing_summary import write_missing_summary
+from table_utils import (
+    set_header_bold,
+    set_table_auto_width as shared_set_table_auto_width,
+    set_table_autofit as shared_set_table_autofit,
+    set_table_column_widths as shared_set_table_column_widths,
+    set_table_font_size as shared_set_table_font_size,
+    set_table_outer_border as shared_set_table_outer_border,
+    set_table_width as shared_set_table_width,
+    style_table as shared_style_table,
+)
 from template_precheck import raise_for_template
 
 
@@ -654,84 +664,31 @@ def add_text_paragraph_before(anchor: Paragraph, text: str, template: ParagraphT
 
 
 def style_table(table: Table, left: bool = False) -> None:
-    table.style = "Table Grid"
-    table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    table.autofit = True
-    for row in table.rows:
-        for cell in row.cells:
-            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-            for para in cell.paragraphs:
-                para.alignment = WD_ALIGN_PARAGRAPH.LEFT if left else WD_ALIGN_PARAGRAPH.CENTER
+    shared_style_table(table, left=left, autofit=True, align_center=True)
 
 
 def set_table_autofit(table: Table, enabled: bool = True) -> None:
-    table.autofit = enabled
-    tbl_pr = table._tbl.tblPr
-    tbl_layout = tbl_pr.first_child_found_in("w:tblLayout")
-    if tbl_layout is None:
-        tbl_layout = OxmlElement("w:tblLayout")
-        tbl_pr.append(tbl_layout)
-    tbl_layout.set(qn("w:type"), "autofit" if enabled else "fixed")
+    shared_set_table_autofit(table, enabled)
 
 
 def set_table_width(table: Table, width_mm: float) -> None:
-    tbl_pr = table._tbl.tblPr
-    tbl_w = tbl_pr.first_child_found_in("w:tblW")
-    if tbl_w is None:
-        tbl_w = OxmlElement("w:tblW")
-        tbl_pr.append(tbl_w)
-    tbl_w.set(qn("w:type"), "dxa")
-    tbl_w.set(qn("w:w"), str(round(width_mm * 56.6929)))
+    shared_set_table_width(table, width_mm)
 
 
 def set_table_auto_width(table: Table) -> None:
-    tbl_pr = table._tbl.tblPr
-    tbl_w = tbl_pr.first_child_found_in("w:tblW")
-    if tbl_w is None:
-        tbl_w = OxmlElement("w:tblW")
-        tbl_pr.append(tbl_w)
-    tbl_w.set(qn("w:type"), "auto")
-    tbl_w.set(qn("w:w"), "0")
+    shared_set_table_auto_width(table)
 
 
 def set_table_column_widths(table: Table, widths_mm: list[float]) -> None:
-    for row in table.rows:
-        for idx, width in enumerate(widths_mm):
-            if idx < len(row.cells):
-                row.cells[idx].width = Mm(width)
-
-
-def set_header_bold(table: Table, header_rows: int = 1) -> None:
-    for row in table.rows[:header_rows]:
-        for cell in row.cells:
-            for para in cell.paragraphs:
-                for run in para.runs:
-                    run.bold = True
+    shared_set_table_column_widths(table, widths_mm)
 
 
 def set_table_outer_border(table: Table, size_eighth_pt: int = 12) -> None:
-    tbl_pr = table._tbl.tblPr
-    borders = tbl_pr.first_child_found_in("w:tblBorders")
-    if borders is None:
-        borders = OxmlElement("w:tblBorders")
-        tbl_pr.append(borders)
-    for edge in ("top", "left", "bottom", "right"):
-        el = borders.find(qn(f"w:{edge}"))
-        if el is None:
-            el = OxmlElement(f"w:{edge}")
-            borders.append(el)
-        el.set(qn("w:val"), "single")
-        el.set(qn("w:sz"), str(size_eighth_pt))
-        el.set(qn("w:space"), "0")
-        el.set(qn("w:color"), "000000")
+    shared_set_table_outer_border(table, size_eighth_pt=size_eighth_pt)
 
 
 def set_table_font_size(table: Table, size_pt: int) -> None:
-    for row in table.rows:
-        for cell in row.cells:
-            for para in cell.paragraphs:
-                for run in para.runs:
-                    run.font.size = Pt(size_pt)
+    shared_set_table_font_size(table, size_pt)
 
 
 def remove_bookmarks(paragraph_element) -> None:

@@ -11,6 +11,7 @@ from reporting.template_precheck import (
     TemplateIssue,
     build_precheck_payload,
     check_template,
+    summarize_template,
     write_precheck_report,
 )
 
@@ -49,6 +50,7 @@ class TemplatePrecheckTests(unittest.TestCase):
         self.assertEqual(warn_payload["status"], "warning")
         self.assertEqual(fail_payload["status"], "failed")
         self.assertEqual(fail_payload["issues"][0]["code"], "x")
+        self.assertIn("template_summary", ok_payload["context"])
 
     def test_write_precheck_report_outputs_txt_and_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -69,6 +71,21 @@ class TemplatePrecheckTests(unittest.TestCase):
             self.assertEqual(payload["status"], "failed")
             self.assertEqual(payload["warning_count"], 1)
             self.assertEqual(payload["context"]["result_root"], "E:/data")
+            self.assertIn("template_summary", payload["context"])
+
+    def test_summarize_template_counts_docx_structure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            template = Path(tmp) / "template.docx"
+            doc = Document()
+            doc.add_paragraph("anchor")
+            doc.add_table(rows=1, cols=1).cell(0, 0).text = "cell"
+            doc.save(template)
+
+            summary = summarize_template(template)
+            self.assertEqual(summary["exists"], 1)
+            self.assertEqual(summary["paragraph_count"], 1)
+            self.assertEqual(summary["table_count"], 1)
+            self.assertEqual(summary["table_text_count"], 1)
 
 
 if __name__ == "__main__":

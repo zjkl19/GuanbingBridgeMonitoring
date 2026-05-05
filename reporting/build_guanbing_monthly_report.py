@@ -12,12 +12,12 @@ from typing import Iterable
 from docx import Document
 from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
-from PIL import Image, ImageOps
 
 from analysis_manifest import analysis_manifest_context, missing_module_summary_items
 from artifact_lookup import latest_file_patterns as lookup_latest_file_patterns
 from docx_utils import replace_picture_before_anchor
 from excel_utils import load_sheet_rows as load_xlsx_rows
+from image_block_utils import count_docx_images, stack_images_vertical
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_TEMPLATE = REPO_ROOT / "reports" / "G104线管柄大桥监测月报20260410-M18.docx"
@@ -158,37 +158,10 @@ def replace_all_by_prefix(doc: Document, prefix: str, text: str, limit: int | No
 
 
 
-def stack_images_vertical(paths: list[Path], output_path: Path, gap: int = 18) -> Path | None:
-    existing = [path for path in paths if path is not None and path.exists()]
-    if not existing:
-        return None
-    images = [Image.open(path).convert("RGB") for path in existing]
-    try:
-        max_width = max(img.width for img in images)
-        normalized: list[Image.Image] = []
-        for img in images:
-            if img.width != max_width:
-                new_height = max(1, round(img.height * max_width / img.width))
-                img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
-            normalized.append(ImageOps.expand(img, border=0, fill="white"))
-        total_height = sum(img.height for img in normalized) + gap * (len(normalized) - 1)
-        canvas = Image.new("RGB", (max_width, total_height), "white")
-        y = 0
-        for img in normalized:
-            canvas.paste(img, (0, y))
-            y += img.height + gap
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        canvas.save(output_path, quality=92)
-        return output_path
-    finally:
-        for img in images:
-            img.close()
-
-
 def build_accel_combined_image(result_root: Path, asset_dir: Path, point_id: str) -> Path | None:
     time_img = find_latest_image(result_root, "时程曲线_加速度", point_id)
     rms_img = find_latest_image(result_root, "时程曲线_加速度_RMS10min", f"AccelRMS10_{point_id}")
-    return stack_images_vertical([time_img, rms_img], asset_dir / f"accel_{point_id}.jpg")
+    return stack_images_vertical([time_img, rms_img], asset_dir / f"accel_{point_id}.jpg").path
 
 
 def build_stats_texts(result_root: Path, period_label: str) -> dict[str, str]:
@@ -474,13 +447,6 @@ def apply_image_updates(doc: Document, result_root: Path, asset_dir: Path) -> tu
     return replaced, missing
 
 
-def count_doc_images(docx_path: Path) -> int:
-    import zipfile
-
-    with zipfile.ZipFile(docx_path) as zf:
-        return len([name for name in zf.namelist() if name.startswith("word/media/")])
-
-
 def build_report(
     template: Path = DEFAULT_TEMPLATE,
     source_template: Path = DEFAULT_SOURCE_TEMPLATE,
@@ -503,7 +469,7 @@ def build_report(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     doc = Document(str(template))
-    image_count_before = count_doc_images(template)
+    image_count_before = count_docx_images(template)
     stats_texts = build_stats_texts(result_root, period_label)
     updated_paragraphs = apply_text_updates(doc, stats_texts, monitoring_range, report_date)
     replaced_images: list[dict] = []
@@ -531,7 +497,7 @@ def build_report(
         "missing_images": missing_images,
         "analysis_run_manifest": analysis_manifest_context(result_root),
         "image_count_before": image_count_before,
-        "image_count_after": count_doc_images(output_path),
+        "image_count_after": count_docx_images(output_path),
         "notes": [
             "如果当前结果目录缺少挠度、倾角、加速度时程图或对应统计，自动报告会保留模板原图/原文字。",
             "本次低通应变插图使用时程曲线_动应变_低通滤波，而不是原始应变组图。",

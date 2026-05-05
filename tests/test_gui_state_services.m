@@ -66,5 +66,24 @@ classdef test_gui_state_services < matlab.unittest.TestCase
             cfg2 = bms.gui.GuiConfigBinder.applyLiveTabs(cfg, {tabState});
             tc.verifyEqual(cfg2.plot_common.gap_mode, 'connect');
         end
+
+        function resultSummaryIncludesErrorDetails(tc)
+            rec = struct('key','temp', 'label','温度分析', 'status','fail', ...
+                'elapsed_sec', 1.25, 'stats_path', fullfile(tc.TempDir, 'missing.xlsx'), ...
+                'error_type', 'read_failed', 'message', '无法读取输入文件', ...
+                'artifacts', struct('kind','figure','path','x.jpg'));
+            manifest = struct('status','failed', 'module_results', rec, ...
+                'module_status_counts', struct('ok',0,'fail',1,'skip',0,'missing',0,'other',0), ...
+                'artifact_count', 1);
+            ctx = struct('available', true, 'path', 'manifest.json', 'status', 'failed', ...
+                'manifest', manifest, 'artifact_count', 1);
+
+            summary = bms.gui.GuiResultSummary.fromManifestContext(ctx);
+
+            tc.verifySize(summary.module_rows, [1 7]);
+            tc.verifyEqual(summary.module_rows{1, 1}, '温度分析');
+            tc.verifyEqual(summary.module_rows{1, 6}, 'read_failed');
+            tc.verifyEqual(summary.module_rows{1, 7}, '无法读取输入文件');
+        end
     end
 end

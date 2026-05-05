@@ -11,7 +11,8 @@ try {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host "[CI-SMOKE] Python compile check" -ForegroundColor Cyan
-    python -m py_compile reporting\analysis_manifest.py reporting\build_monthly_report.py reporting\build_period_report.py reporting\build_jlj_monthly_report.py reporting\build_guanbing_monthly_report.py
+    $reportingFiles = Get-ChildItem -Path .\reporting -Filter *.py -File | ForEach-Object { $_.FullName }
+    python -m py_compile @reportingFiles
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host "[CI-SMOKE] Config validation" -ForegroundColor Cyan

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Any
+from zipfile import ZipFile
 
 from docx import Document
 from docx.document import Document as DocxDocument
@@ -34,6 +35,27 @@ def issue_to_dict(issue: TemplateIssue) -> dict[str, str]:
     return {"code": issue.code, "message": issue.message}
 
 
+def summarize_template(template: Path) -> dict[str, int | str]:
+    if not template.exists():
+        return {"exists": 0}
+    doc = Document(str(template))
+    image_count = 0
+    try:
+        with ZipFile(template) as zf:
+            image_count = sum(1 for name in zf.namelist() if name.startswith("word/media/"))
+    except Exception:
+        image_count = 0
+    return {
+        "exists": 1,
+        "paragraph_count": len(doc.paragraphs),
+        "nonempty_paragraph_count": len(_paragraph_texts(doc)),
+        "table_count": len(doc.tables),
+        "table_text_count": len(_table_texts(doc)),
+        "field_count": len(_field_instr_texts(doc)),
+        "image_count": image_count,
+    }
+
+
 def build_precheck_payload(
     kind: str,
     template: Path,
@@ -48,6 +70,8 @@ def build_precheck_payload(
         status = "warning"
     else:
         status = "ok"
+    merged_context = dict(context or {})
+    merged_context.setdefault("template_summary", summarize_template(template))
     return {
         "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "kind": kind,
@@ -57,7 +81,7 @@ def build_precheck_payload(
         "warning_count": len(warnings),
         "issues": [issue_to_dict(issue) for issue in issues],
         "warnings": warnings,
-        "context": context or {},
+        "context": merged_context,
     }
 
 
@@ -322,16 +346,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Precheck bridge report DOCX templates.")
     parser.add_argument("--kind", choices=["hongtang_period", "jlj_monthly"], required=True)
     parser.add_argument("--template", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path, default=None, help="Optional analysis manifest for conditional anchor checks.")
     parser.add_argument("--output-dir", type=Path, default=None, help="Optional directory for txt/json precheck reports.")
     parser.add_argument("--result-root", type=Path, default=None, help="Optional analysis result root for manifest warnings.")
     args = parser.parse_args()
 
-    issues = check_template(args.kind, args.template)
+    manifest = None
+    if args.manifest is not None and args.manifest.exists():
+        manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+    issues = check_template(args.kind, args.template, manifest=manifest)
     warnings = []
     if args.result_root is not None and manifest_precheck_warnings is not None:
         warnings = manifest_precheck_warnings(args.result_root)
     if args.output_dir is not None:
-        txt_path, json_path = write_precheck_report(args.kind, args.template, issues, args.output_dir, warnings=warnings)
+        context = {"manifest": str(args.manifest)} if args.manifest else None
+        txt_path, json_path = write_precheck_report(args.kind, args.template, issues, args.output_dir, warnings=warnings, context=context)
         print(f"Precheck report: {txt_path}")
         print(f"Precheck JSON:   {json_path}")
     if issues:

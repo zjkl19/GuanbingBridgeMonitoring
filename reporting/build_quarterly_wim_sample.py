@@ -12,6 +12,13 @@ from docx import Document
 from docx_utils import set_cell_text_preserve
 from excel_utils import load_sheet_rows as load_xlsx_rows
 from format_utils import format_percent
+from table_utils import (
+    remove_table_borders as shared_remove_table_borders,
+    set_header_bold,
+    set_table_column_widths as shared_set_table_column_widths,
+    set_table_width as shared_set_table_width,
+    style_table as shared_style_table,
+)
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -414,30 +421,15 @@ def add_text_paragraph_before(anchor: Paragraph, text: str, template: ParagraphT
 
 
 def style_table(table: Table, left: bool = False) -> None:
-    table.style = "Table Grid"
-    table.autofit = False
-    for row in table.rows:
-        for cell in row.cells:
-            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-            for para in cell.paragraphs:
-                para.alignment = WD_ALIGN_PARAGRAPH.LEFT if left else WD_ALIGN_PARAGRAPH.CENTER
+    shared_style_table(table, left=left, autofit=False, align_center=False)
 
 
 def set_table_column_widths(table: Table, widths_mm: list[float]) -> None:
-    for row in table.rows:
-        for idx, width in enumerate(widths_mm):
-            if idx < len(row.cells):
-                row.cells[idx].width = Mm(width)
+    shared_set_table_column_widths(table, widths_mm)
 
 
 def set_table_width(table: Table, width_mm: float) -> None:
-    tbl_pr = table._tbl.tblPr
-    tbl_w = tbl_pr.first_child_found_in("w:tblW")
-    if tbl_w is None:
-        tbl_w = OxmlElement("w:tblW")
-        tbl_pr.append(tbl_w)
-    tbl_w.set(qn("w:type"), "dxa")
-    tbl_w.set(qn("w:w"), str(round(width_mm * 56.6929)))
+    shared_set_table_width(table, width_mm)
 
 
 def capture_wim_table_templates(wim_heading: Paragraph, next_heading: Paragraph) -> dict[str, list]:
@@ -488,26 +480,8 @@ def get_wim_table_template(templates: dict[str, list] | None, key: str, index: i
     return items[min(index, len(items) - 1)]
 
 
-def set_header_bold(table: Table, header_rows: int = 1) -> None:
-    for row in table.rows[:header_rows]:
-        for cell in row.cells:
-            for para in cell.paragraphs:
-                for run in para.runs:
-                    run.bold = True
-
-
 def remove_table_borders(table: Table) -> None:
-    tbl_pr = table._tbl.tblPr
-    borders = tbl_pr.first_child_found_in("w:tblBorders")
-    if borders is None:
-        borders = OxmlElement("w:tblBorders")
-        tbl_pr.append(borders)
-    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
-        el = borders.find(qn(f"w:{edge}"))
-        if el is None:
-            el = OxmlElement(f"w:{edge}")
-            borders.append(el)
-        el.set(qn("w:val"), "nil")
+    shared_remove_table_borders(table)
 
 
 def month_label(yyyymm: str) -> str:

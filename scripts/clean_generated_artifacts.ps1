@@ -1,9 +1,11 @@
 param(
-    [switch]$Apply
+    [switch]$Apply,
+    [string]$ReportPath = ""
 )
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$plan = New-Object System.Collections.Generic.List[object]
 
 $targets = @(
     "output",
@@ -30,6 +32,10 @@ function Remove-IfRequested {
     if (-not $resolved.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to clean outside repo: $resolved"
     }
+    $plan.Add([pscustomobject]@{
+        path = $resolved
+        action = if ($Apply) { "removed" } else { "would_remove" }
+    }) | Out-Null
     if ($Apply) {
         Remove-Item -LiteralPath $resolved -Recurse -Force
         Write-Host "[removed] $resolved"
@@ -66,4 +72,27 @@ foreach ($pattern in $patterns) {
 
 if (-not $Apply) {
     Write-Host "Dry run only. Re-run with -Apply to remove these generated artifacts."
+}
+
+if (-not [System.String]::IsNullOrWhiteSpace($ReportPath)) {
+    if ([System.IO.Path]::IsPathRooted($ReportPath)) {
+        $reportFullPath = [System.IO.Path]::GetFullPath($ReportPath)
+    } else {
+        $reportFullPath = [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $ReportPath))
+    }
+    if (-not $reportFullPath.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to write cleanup report outside repo: $reportFullPath"
+    }
+    $reportDir = Split-Path -Parent $reportFullPath
+    if (-not [System.String]::IsNullOrWhiteSpace($reportDir)) {
+        New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
+    }
+    [pscustomobject]@{
+        generated_at = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+        repo_root = $RepoRoot
+        apply = [bool]$Apply
+        item_count = $plan.Count
+        items = $plan
+    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $reportFullPath -Encoding UTF8
+    Write-Host "Cleanup report written: $reportFullPath"
 }
