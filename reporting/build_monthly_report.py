@@ -634,6 +634,20 @@ def center_cell(cell) -> None:
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 
+def find_table_by_header(doc: Document, header_text: str):
+    """Find the first table containing a header/cell fragment.
+
+    Templates change frequently; callers treat a missing table as "keep the
+    template content" instead of failing the entire report build.
+    """
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                if header_text in cell.text:
+                    return table
+    return None
+
+
 def replace_numbered_item_block(text: str, number: int, new_block: str, preserve_footer: bool = False) -> str:
     footer = ""
     work = text
@@ -1415,6 +1429,8 @@ def update_cable_force_table(doc: Document, table_rows: list[dict]) -> None:
     if not table_rows:
         return
     table = find_table_by_header(doc, "线密度ρ")
+    if table is None:
+        return
     for row in table.rows:
         for cell in row.cells:
             center_cell(cell)
@@ -1438,6 +1454,8 @@ def update_wind_table(doc: Document, table_rows: list[dict]) -> None:
     if not table_rows:
         return
     table = find_table_by_header(doc, "平均风向")
+    if table is None:
+        return
     row_map = {str(row.cells[0].text).strip(): row for row in table.rows[1:]}
     for item in table_rows:
         row = row_map.get(item["PointID"])

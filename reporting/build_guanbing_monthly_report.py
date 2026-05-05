@@ -158,6 +158,21 @@ def replace_all_by_prefix(doc: Document, prefix: str, text: str, limit: int | No
     return count
 
 
+def find_latest_file(root: Path, configured_dir: str, pattern: str) -> Path | None:
+    """Find the newest result file with the same lookup rules used by reports."""
+    return lookup_latest_file_patterns(root, configured_dir, [pattern]).path
+
+
+def find_latest_image(root: Path, configured_dir: str, name_prefix: str) -> Path | None:
+    """Find the newest image by point/name prefix, preferring report-friendly rasters."""
+    patterns = [
+        f"{name_prefix}*.jpg",
+        f"{name_prefix}*.jpeg",
+        f"{name_prefix}*.png",
+    ]
+    return lookup_latest_file_patterns(root, configured_dir, patterns).path
+
+
 
 def build_accel_combined_image(result_root: Path, asset_dir: Path, point_id: str) -> Path | None:
     time_img = find_latest_image(result_root, "时程曲线_加速度", point_id)
