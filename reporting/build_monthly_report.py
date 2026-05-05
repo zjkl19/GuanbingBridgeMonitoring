@@ -19,7 +19,13 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from analysis_manifest import analysis_manifest_context, manifest_stats_path, missing_module_summary_items
+from analysis_manifest import (
+    analysis_manifest_context,
+    manifest_key_for_dir,
+    manifest_latest_artifact,
+    manifest_stats_path,
+    missing_module_summary_items,
+)
 from missing_summary import write_missing_summary
 
 
@@ -236,6 +242,17 @@ def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[s
     return find_latest_file_patterns(root, configured_dir, patterns)
 
 
+def manifest_tokens_from_patterns(patterns: list[str]) -> list[str]:
+    tokens: list[str] = []
+    for pattern in patterns:
+        token = pattern.split("*", 1)[0]
+        token = Path(token).stem if "." in token and "*" not in token else token
+        token = token.strip()
+        if token and token not in tokens:
+            tokens.append(token)
+    return tokens
+
+
 def filename_has_point_token(path: Path, point_id: str) -> bool:
     # Avoid prefix collisions such as CS1 matching CS12 when wildcard fallback is used.
     token = re.escape(point_id)
@@ -243,6 +260,29 @@ def filename_has_point_token(path: Path, point_id: str) -> bool:
 
 
 def find_latest_point_image_patterns(root: Path, configured_dir: str, point_id: str, patterns: list[str]) -> tuple[Path | None, dict]:
+    key = manifest_key_for_dir(configured_dir)
+    context = analysis_manifest_context(root)
+    if context.get("available"):
+        manifest_path = manifest_latest_artifact(
+            context.get("manifest"),
+            key,
+            token=point_id,
+            suffixes=(".jpg", ".jpeg", ".png"),
+            directory_hint=configured_dir,
+        )
+        if manifest_path is not None:
+            return (
+                manifest_path,
+                {
+                    "image_root": str(root),
+                    "configured_dir": configured_dir,
+                    "point_id": point_id,
+                    "patterns": patterns,
+                    "selected_file": str(manifest_path),
+                    "source": "analysis_manifest",
+                    "manifest": context.get("path", ""),
+                },
+            )
     resolved_dirs = resolve_output_dirs(root, configured_dir)
     matched: list[Path] = []
     rejected: list[Path] = []
@@ -270,6 +310,34 @@ def find_latest_point_image_patterns(root: Path, configured_dir: str, point_id: 
 
 
 def find_latest_file_patterns(root: Path, configured_dir: str, patterns: list[str]) -> tuple[Path | None, dict]:
+    key = manifest_key_for_dir(configured_dir)
+    context = analysis_manifest_context(root)
+    if context.get("available"):
+        suffixes = tuple(sorted({Path(p.replace("*", "x")).suffix.lower() for p in patterns if Path(p.replace("*", "x")).suffix}))
+        tokens = manifest_tokens_from_patterns(patterns)
+        if not tokens:
+            tokens = [""]
+        for token in tokens:
+            manifest_path = manifest_latest_artifact(
+                context.get("manifest"),
+                key,
+                token=token or None,
+                kind=None,
+                suffixes=suffixes or None,
+                directory_hint=configured_dir,
+            )
+            if manifest_path is not None:
+                return (
+                    manifest_path,
+                    {
+                        "image_root": str(root),
+                        "configured_dir": configured_dir,
+                        "patterns": patterns,
+                        "selected_file": str(manifest_path),
+                        "source": "analysis_manifest",
+                        "manifest": context.get("path", ""),
+                    },
+                )
     resolved_dirs = resolve_output_dirs(root, configured_dir)
     matched: list[Path] = []
     for folder in resolved_dirs:

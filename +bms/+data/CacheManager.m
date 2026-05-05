@@ -44,6 +44,7 @@ classdef CacheManager
             meta.config_hash = bms.data.CacheManager.configHash(cfg);
             meta.source_files = cellfun(@char, sourceFiles, 'UniformOutput', false);
             meta.source_mtimes = bms.data.CacheManager.sourceMtimes(sourceFiles);
+            meta.source_records = bms.data.CacheManager.buildSourceRecords(sourceFiles);
             meta.written_at = datestr(datetime('now'), 'yyyy-mm-dd HH:MM:ss');
         end
 
@@ -69,6 +70,41 @@ classdef CacheManager
             expectedVersion = char(string(version));
             tf = isfield(meta, 'config_hash') && strcmp(char(string(meta.config_hash)), expectedHash) ...
                 && isfield(meta, 'cache_version') && strcmp(char(string(meta.cache_version)), expectedVersion);
+        end
+
+        function tf = metadataMatchesFull(cacheFile, sourceFiles, cfg, version)
+            if nargin < 2, sourceFiles = {}; end
+            if nargin < 3, cfg = []; end
+            if nargin < 4, version = ''; end
+            tf = bms.data.CacheManager.metadataMatches(cacheFile, cfg, version);
+            if ~tf, return; end
+            tf = bms.data.CacheManager.sourcesMatch(cacheFile, sourceFiles);
+        end
+
+        function tf = sourcesMatch(cacheFile, sourceFiles)
+            if nargin < 2, sourceFiles = {}; end
+            if ischar(sourceFiles) || isstring(sourceFiles), sourceFiles = cellstr(string(sourceFiles)); end
+            metaPath = bms.data.CacheManager.metadataPath(cacheFile);
+            if ~isfile(metaPath)
+                tf = false;
+                return;
+            end
+            try
+                meta = jsondecode(fileread(metaPath));
+            catch
+                tf = false;
+                return;
+            end
+            expected = bms.data.CacheManager.buildSourceRecords(sourceFiles);
+            if isfield(meta, 'source_records')
+                tf = isequal(bms.data.CacheManager.normalizeSourceRecords(meta.source_records), ...
+                    bms.data.CacheManager.normalizeSourceRecords(expected));
+            elseif isfield(meta, 'source_files') && isfield(meta, 'source_mtimes')
+                tf = isequal(cellstr(string({expected.path})), cellstr(string(meta.source_files))) ...
+                    && isequal(cellstr(string({expected.modified_at})), cellstr(string(meta.source_mtimes)));
+            else
+                tf = isempty(sourceFiles);
+            end
         end
 
         function h = configHash(cfg)
@@ -102,6 +138,43 @@ classdef CacheManager
                 else
                     mtimes{i} = '';
                 end
+            end
+        end
+
+        function records = buildSourceRecords(sourceFiles)
+            if nargin < 1 || isempty(sourceFiles), sourceFiles = {}; end
+            if ischar(sourceFiles) || isstring(sourceFiles), sourceFiles = cellstr(string(sourceFiles)); end
+            records = struct('path', {}, 'exists', {}, 'bytes', {}, 'modified_at', {});
+            for i = 1:numel(sourceFiles)
+                p = char(string(sourceFiles{i}));
+                rec = struct('path', p, 'exists', false, 'bytes', 0, 'modified_at', '');
+                if isfile(p)
+                    d = dir(p);
+                    rec.exists = true;
+                    rec.bytes = double(d.bytes);
+                    rec.modified_at = datestr(d.datenum, 'yyyy-mm-dd HH:MM:ss');
+                end
+                records(end+1) = rec; %#ok<AGROW>
+            end
+        end
+
+        function records = normalizeSourceRecords(records)
+            if isempty(records)
+                records = struct('path', {}, 'exists', {}, 'bytes', {}, 'modified_at', {});
+                return;
+            end
+            if isstruct(records) && ~isfield(records, 'path')
+                records = struct('path', {}, 'exists', {}, 'bytes', {}, 'modified_at', {});
+                return;
+            end
+            for i = 1:numel(records)
+                if ~isfield(records, 'exists'), records(i).exists = false; end
+                if ~isfield(records, 'bytes'), records(i).bytes = 0; end
+                if ~isfield(records, 'modified_at'), records(i).modified_at = ''; end
+                records(i).path = char(string(records(i).path));
+                records(i).exists = logical(records(i).exists);
+                records(i).bytes = double(records(i).bytes);
+                records(i).modified_at = char(string(records(i).modified_at));
             end
         end
 

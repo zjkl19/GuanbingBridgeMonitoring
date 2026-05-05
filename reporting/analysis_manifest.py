@@ -165,6 +165,76 @@ def manifest_artifact_paths(
     return out
 
 
+_DIR_KEY_HINTS: tuple[tuple[str, str], ...] = (
+    ("动应变箱线图_高通", "dynamic_strain_highpass"),
+    ("时程曲线_动应变_高通", "dynamic_strain_highpass"),
+    ("动应变箱线图_低通", "dynamic_strain_lowpass"),
+    ("时程曲线_动应变_低通", "dynamic_strain_lowpass"),
+    ("频谱峰值曲线_索力加速度", "cable_accel_spectrum"),
+    ("索力加速度", "cable_accel"),
+    ("索力时程", "cable_accel_spectrum"),
+    ("索力", "cable_accel_spectrum"),
+    ("频谱峰值曲线_加速度", "accel_spectrum"),
+    ("加速度_RMS", "acceleration"),
+    ("加速度", "acceleration"),
+    ("风速风向", "wind"),
+    ("风玫瑰", "wind"),
+    ("风速10min", "wind"),
+    ("地震动", "earthquake"),
+    ("支座", "bearing_displacement"),
+    ("倾角", "tilt"),
+    ("挠度", "deflection"),
+    ("裂缝", "crack"),
+    ("应变", "strain"),
+    ("温度", "temperature"),
+    ("湿度", "humidity"),
+    ("雨量", "rainfall"),
+    ("GNSS", "gnss"),
+    ("gnss", "gnss"),
+    ("WIM", "wim"),
+)
+
+
+def manifest_key_for_dir(configured_dir: str | Path | None) -> str | None:
+    text = str(configured_dir or "")
+    text_norm = text.replace("\\", "/")
+    for token, key in _DIR_KEY_HINTS:
+        if token in text_norm:
+            return key
+    return None
+
+
+def manifest_latest_artifact(
+    manifest: dict[str, Any] | None,
+    key: str | None,
+    *,
+    token: str | None = None,
+    kind: str | None = "figure",
+    suffixes: tuple[str, ...] | None = (".jpg", ".jpeg", ".png"),
+    directory_hint: str | Path | None = None,
+) -> Path | None:
+    """Return the newest matching manifest artifact, with filesystem fallback still handled by callers."""
+    if not key:
+        return None
+    paths = manifest_artifact_paths(manifest, key, kind=kind, suffixes=suffixes)
+    token_text = str(token or "").strip()
+    hint_text = str(directory_hint or "").replace("\\", "/")
+
+    filtered: list[Path] = []
+    for path in paths:
+        if token_text and token_text not in path.stem:
+            continue
+        if hint_text:
+            parent_text = str(path.parent).replace("\\", "/").rstrip("/")
+            hint_norm = hint_text.strip("/")
+            if not (parent_text.endswith("/" + hint_norm) or parent_text.endswith(hint_norm)):
+                continue
+        filtered.append(path)
+    if not filtered:
+        return None
+    return max(filtered, key=lambda p: p.stat().st_mtime)
+
+
 def manifest_precheck_warnings(result_root: Path | str | None) -> list[str]:
     """Build concise report-generation warnings from the latest analysis manifest."""
     context = analysis_manifest_context(result_root)

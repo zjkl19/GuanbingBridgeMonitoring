@@ -28,6 +28,7 @@ classdef RunPreflight
             result.enabled_modules = {};
             result.enabled_module_specs = {};
             result.module_preflight = {};
+            result.module_config_warnings = {};
             result.wim_month_files = struct('month', {}, 'fmt', {}, 'bcp', {}, 'exists', {});
 
             result = bms.app.RunPreflight.checkDateRange(result, startDate, endDate);
@@ -35,6 +36,7 @@ classdef RunPreflight
             result = bms.app.RunPreflight.checkConfig(result, cfg);
             result = bms.app.RunPreflight.attachProfileAndLayout(result, root, cfg);
             result = bms.app.RunPreflight.attachModuleInfo(result, root, opts);
+            result = bms.app.RunPreflight.checkEnabledModuleConfig(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.checkWimInputs(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.finalizeStatus(result);
         end
@@ -94,6 +96,89 @@ classdef RunPreflight
             catch ME
                 result.warnings{end+1} = ['module preflight failed: ' ME.message];
             end
+        end
+
+        function result = checkEnabledModuleConfig(result, root, startDate, endDate, opts, cfg)
+            try
+                specs = bms.module.ModuleRegistry.enabledFromOptions(opts);
+                dataSource = bms.data.DataSourceFactory.create(root, cfg);
+                for i = 1:numel(specs)
+                    spec = specs(i);
+                    if strcmp(spec.Key, 'wim') || strcmp(spec.Category, 'preprocess') || isempty(spec.SubfolderKey)
+                        continue;
+                    end
+                    [hasSubfolder, subfolder] = bms.app.RunPreflight.resolveSubfolder(cfg, spec.SubfolderKey);
+                    if ~hasSubfolder
+                        result = bms.app.RunPreflight.addModuleConfigWarning(result, ...
+                            sprintf('%s missing subfolders.%s', spec.Key, spec.SubfolderKey));
+                    elseif ~isempty(subfolder)
+                        folders = dataSource.candidateDirs(subfolder, startDate, endDate);
+                        if isempty(folders) && ~strcmp(spec.SubfolderKey, 'strain')
+                            result = bms.app.RunPreflight.addModuleConfigWarning(result, ...
+                                sprintf('%s no input directory found for subfolder "%s"', spec.Key, subfolder));
+                        end
+                    end
+
+                    if isfield(cfg, 'points') && isstruct(cfg.points) && isfield(cfg.points, spec.Key)
+                        points = cfg.points.(spec.Key);
+                        if isempty(points)
+                            result = bms.app.RunPreflight.addModuleConfigWarning(result, ...
+                                sprintf('%s points list is empty', spec.Key));
+                        end
+                        if ~bms.app.RunPreflight.hasFilePattern(cfg, spec.Key)
+                            result = bms.app.RunPreflight.addModuleConfigWarning(result, ...
+                                sprintf('%s has points but no file_patterns.%s', spec.Key, spec.Key));
+                        end
+                    end
+                end
+            catch ME
+                result.warnings{end+1} = ['module config preflight failed: ' ME.message];
+            end
+        end
+
+        function result = addModuleConfigWarning(result, message)
+            result.module_config_warnings{end+1} = message;
+            result.warnings{end+1} = ['module config: ' message];
+        end
+
+        function [tf, value] = resolveSubfolder(cfg, key)
+            tf = false;
+            value = '';
+            if ~isstruct(cfg) || ~isfield(cfg, 'subfolders') || ~isstruct(cfg.subfolders)
+                return;
+            end
+            key = char(key);
+            candidates = {key};
+            switch key
+                case 'wind_raw'
+                    candidates = {'wind_raw', 'wind'};
+                case 'eq_raw'
+                    candidates = {'eq_raw', 'eq', 'earthquake'};
+                case 'acceleration_raw'
+                    candidates = {'acceleration_raw', 'acceleration'};
+                case 'cable_accel_raw'
+                    candidates = {'cable_accel_raw', 'cable_accel'};
+            end
+            for i = 1:numel(candidates)
+                if isfield(cfg.subfolders, candidates{i})
+                    tf = true;
+                    value = char(string(cfg.subfolders.(candidates{i})));
+                    return;
+                end
+            end
+        end
+
+        function tf = hasFilePattern(cfg, key)
+            tf = true;
+            if ~isstruct(cfg) || ~isfield(cfg, 'file_patterns') || ~isstruct(cfg.file_patterns)
+                return;
+            end
+            if ~isfield(cfg.file_patterns, key)
+                tf = false;
+                return;
+            end
+            value = cfg.file_patterns.(key);
+            tf = ~isempty(value);
         end
 
         function result = checkWimInputs(result, root, startDate, endDate, opts, cfg)

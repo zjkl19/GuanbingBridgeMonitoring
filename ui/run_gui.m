@@ -242,6 +242,7 @@ function run_gui()
             addLog(sprintf('root=%s, %s -> %s', root, start_date, end_date));
             session = bms.app.RunSession(runRequest);
             session.run();
+            log_result_summary(root);
             elapsed = toc(t0);
             addLog(sprintf('运行完成，用时 %.2f 秒', elapsed));
             statusLbl.Text = sprintf('完成，用时 %.2f 秒', elapsed); statusLbl.FontColor = [0 0.5 0];
@@ -251,6 +252,19 @@ function run_gui()
         end
         runBtn.Enable='on'; stopBtn.Enable='off';
     end
+    function log_result_summary(resultRoot)
+        try
+            summary = bms.gui.GuiResultSummary.fromResultRoot(resultRoot);
+            if isstruct(summary) && isfield(summary, 'lines')
+                for isummary = 1:numel(summary.lines)
+                    addLog(['结果摘要: ' char(summary.lines{isummary})]);
+                end
+            end
+        catch MEsummary
+            addLog(['结果摘要读取失败: ' MEsummary.message]);
+        end
+    end
+
     function onStop()
         global RUN_STOP_FLAG; RUN_STOP_FLAG=true; addLog('收到停止请求，将跳过后续步骤');
     end

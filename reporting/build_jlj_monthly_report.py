@@ -23,7 +23,13 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from analysis_manifest import analysis_manifest_context, manifest_stats_path, missing_module_summary_items
+from analysis_manifest import (
+    analysis_manifest_context,
+    manifest_key_for_dir,
+    manifest_latest_artifact,
+    manifest_stats_path,
+    missing_module_summary_items,
+)
 from missing_summary import write_missing_summary
 from template_precheck import raise_for_template
 
@@ -269,6 +275,17 @@ def filename_has_point_token(path: Path, point_id: str) -> bool:
 
 
 def find_latest_point_image_patterns(root: Path, configured_dir: str, point_id: str, patterns: list[str]) -> Path | None:
+    context = analysis_manifest_context(root)
+    if context.get("available"):
+        manifest_path = manifest_latest_artifact(
+            context.get("manifest"),
+            manifest_key_for_dir(configured_dir),
+            token=point_id,
+            suffixes=(".jpg", ".jpeg", ".png"),
+            directory_hint=configured_dir,
+        )
+        if manifest_path is not None:
+            return manifest_path
     resolved_dirs = resolve_output_dirs(root, configured_dir)
     matched: list[Path] = []
     for folder in resolved_dirs:
@@ -281,6 +298,27 @@ def find_latest_point_image_patterns(root: Path, configured_dir: str, point_id: 
 
 
 def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[str]) -> Path | None:
+    context = analysis_manifest_context(root)
+    if context.get("available"):
+        suffixes = tuple(sorted({Path(p.replace("*", "x")).suffix.lower() for p in patterns if Path(p.replace("*", "x")).suffix}))
+        tokens: list[str] = []
+        for pattern in patterns:
+            token = pattern.split("*", 1)[0].strip()
+            if token and token not in tokens:
+                tokens.append(token)
+        if not tokens:
+            tokens = [""]
+        for token in tokens:
+            manifest_path = manifest_latest_artifact(
+                context.get("manifest"),
+                manifest_key_for_dir(configured_dir),
+                token=token or None,
+                kind=None,
+                suffixes=suffixes or None,
+                directory_hint=configured_dir,
+            )
+            if manifest_path is not None:
+                return manifest_path
     resolved_dirs = resolve_output_dirs(root, configured_dir)
     matched: list[Path] = []
     for folder in resolved_dirs:

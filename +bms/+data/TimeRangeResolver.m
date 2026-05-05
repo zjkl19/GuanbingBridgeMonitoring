@@ -32,6 +32,22 @@ classdef TimeRangeResolver
             end
         end
 
+        function [startDt, endDt] = closedRange(startDate, endDate)
+            [startDt, endDt] = bms.data.TimeRangeResolver.parseRange(startDate, endDate);
+            startDt = dateshift(startDt, 'start', 'day');
+            if endDt == dateshift(endDt, 'start', 'day')
+                endDt = dateshift(endDt, 'start', 'day') + days(1) - seconds(1);
+            end
+            if endDt < startDt
+                error('BMS:TimeRange:InvalidRange', 'End date is earlier than start date.');
+            end
+        end
+
+        function mask = contains(timeValues, startDate, endDate)
+            [startDt, endDt] = bms.data.TimeRangeResolver.closedRange(startDate, endDate);
+            mask = timeValues >= startDt & timeValues <= endDt;
+        end
+
         function daysList = daysBetween(startDate, endDate)
             [t0, t1] = bms.data.TimeRangeResolver.parseRange(startDate, endDate);
             t0 = dateshift(t0, 'start', 'day');
@@ -57,6 +73,10 @@ classdef TimeRangeResolver
         function s = toDateString(dt)
             dt = bms.data.TimeRangeResolver.parseDate(dt);
             s = datestr(dt, 'yyyy-mm-dd');
+        end
+
+        function s = normalizeDateText(value)
+            s = bms.data.TimeRangeResolver.toDateString(value);
         end
     end
 end
