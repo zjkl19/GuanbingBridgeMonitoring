@@ -19,7 +19,7 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from analysis_manifest import analysis_manifest_context, missing_module_summary_items
+from analysis_manifest import analysis_manifest_context, manifest_stats_path, missing_module_summary_items
 from missing_summary import write_missing_summary
 
 
@@ -133,6 +133,10 @@ def read_numeric_series_csv(path: Path) -> list[float]:
 
 
 def resolve_existing_file(primary_root: Path | None, fallback_root: Path | None, filename: str) -> Path:
+    manifest_path = resolve_from_analysis_manifest(primary_root, fallback_root, filename)
+    if manifest_path is not None:
+        return manifest_path
+
     candidates: list[Path] = []
     if primary_root is not None:
         candidates.append(primary_root / filename)
@@ -149,6 +153,47 @@ def resolve_existing_file(primary_root: Path | None, fallback_root: Path | None,
             return path
     joined = ", ".join(str(p) for p in candidates)
     raise FileNotFoundError(f"Required file not found: {filename}. Checked: {joined}")
+
+
+def stats_key_for_filename(filename: str) -> str | None:
+    return {
+        "temp_stats.xlsx": "temperature",
+        "humidity_stats.xlsx": "humidity",
+        "rainfall_stats.xlsx": "rainfall",
+        "gnss_stats.xlsx": "gnss",
+        "deflection_stats.xlsx": "deflection",
+        "bearing_displacement_stats.xlsx": "bearing_displacement",
+        "tilt_stats.xlsx": "tilt",
+        "crack_stats.xlsx": "crack",
+        "strain_stats.xlsx": "strain",
+        "accel_stats.xlsx": "acceleration",
+        "cable_accel_stats.xlsx": "cable_accel",
+        "accel_spec_stats.xlsx": "accel_spectrum",
+        "cable_accel_spec_stats.xlsx": "cable_accel_spectrum",
+        "wind_stats.xlsx": "wind",
+        "eq_stats.xlsx": "earthquake",
+    }.get(filename)
+
+
+def manifest_search_root(stats_root: Path | None) -> Path | None:
+    if stats_root is None:
+        return None
+    root = Path(stats_root)
+    return root.parent if root.name.lower() == "stats" else root
+
+
+def resolve_from_analysis_manifest(primary_root: Path | None, fallback_root: Path | None, filename: str) -> Path | None:
+    key = stats_key_for_filename(filename)
+    if key is None:
+        return None
+    for candidate_root in (manifest_search_root(primary_root), manifest_search_root(fallback_root)):
+        if candidate_root is None:
+            continue
+        context = analysis_manifest_context(candidate_root)
+        path = manifest_stats_path(context.get("manifest"), key, filename)
+        if path is not None:
+            return path
+    return None
 
 
 def ensure_dir(path: Path) -> Path:

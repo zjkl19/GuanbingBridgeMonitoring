@@ -4,7 +4,7 @@ classdef EnvironmentStepFactory
     methods (Static)
         function plan = append(plan, root, startDate, endDate, opts, cfg, statsDir, sub)
             plan = bms.app.EnvironmentStepFactory.appendClimate(plan, root, startDate, endDate, opts, cfg, statsDir, sub);
-            plan = bms.app.EnvironmentStepFactory.appendWindAndEarthquake(plan, root, startDate, endDate, opts, cfg, sub);
+            plan = bms.app.EnvironmentStepFactory.appendWindAndEarthquake(plan, root, startDate, endDate, opts, cfg, statsDir, sub);
         end
 
         function plan = appendClimate(plan, root, startDate, endDate, opts, cfg, statsDir, sub)
@@ -44,15 +44,17 @@ classdef EnvironmentStepFactory
             end
         end
 
-        function plan = appendWindAndEarthquake(plan, root, startDate, endDate, opts, cfg, sub)
+        function plan = appendWindAndEarthquake(plan, root, startDate, endDate, opts, cfg, statsDir, sub)
             L = @(key) bms.module.ModuleRegistry.fromKey(key).isEnabled(opts);
             D = @bms.app.StepDefinition.fromKey;
 
             if L('wind')
-                plan = plan.addRun(D('wind'), @() analyze_wind_points(root, startDate, endDate, sub.wind_raw, cfg));
+                analyzer = bms.analyzer.AnalyzerFactory.create('wind', root, startDate, endDate, statsDir, sub, cfg, {});
+                plan = plan.addRun(D('wind'), @() analyzer.run());
             end
             if L('earthquake')
-                plan = plan.addRun(D('earthquake'), @() analyze_eq_points(root, startDate, endDate, sub.eq_raw, cfg));
+                analyzer = bms.analyzer.AnalyzerFactory.create('earthquake', root, startDate, endDate, statsDir, sub, cfg, {});
+                plan = plan.addRun(D('earthquake'), @() analyzer.run());
             end
         end
     end

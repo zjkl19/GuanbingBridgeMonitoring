@@ -15,7 +15,8 @@ classdef StructureStepFactory
                 if isempty(pts)
                     plan = plan.addSkip(D('gnss'), 'No GNSS points configured');
                 else
-                    plan = plan.addRun(D('gnss'), @() analyze_gnss_points(root, pts, startDate, endDate, fullfile(statsDir, 'gnss_stats.xlsx'), sub.gnss, cfg));
+                    analyzer = bms.analyzer.AnalyzerFactory.create('gnss', root, startDate, endDate, statsDir, sub, cfg, pts);
+                    plan = plan.addRun(D('gnss'), @() analyzer.run());
                 end
             end
         end
@@ -29,10 +30,12 @@ classdef StructureStepFactory
                 plan = plan.addRun(D('deflection'), @() analyzer.run());
             end
             if L('bearing_displacement')
-                plan = plan.addRun(D('bearing_displacement'), @() analyze_bearing_displacement_points(root, startDate, endDate, fullfile(statsDir, 'bearing_displacement_stats.xlsx'), sub.bearing_displacement, cfg));
+                analyzer = bms.analyzer.AnalyzerFactory.create('bearing_displacement', root, startDate, endDate, statsDir, sub, cfg, {});
+                plan = plan.addRun(D('bearing_displacement'), @() analyzer.run());
             end
             if L('tilt')
-                plan = plan.addRun(D('tilt'), @() analyze_tilt_points(root, startDate, endDate, fullfile(statsDir, 'tilt_stats.xlsx'), sub.tilt, cfg));
+                analyzer = bms.analyzer.AnalyzerFactory.create('tilt', root, startDate, endDate, statsDir, sub, cfg, {});
+                plan = plan.addRun(D('tilt'), @() analyzer.run());
             end
             if L('rename_crk')
                 plan = plan.addRun(D('rename_crk'), @() batch_rename_crk_T_to_t(root, startDate, endDate, true));
@@ -42,7 +45,8 @@ classdef StructureStepFactory
                 plan = plan.addRun(D('crack'), @() analyzer.run());
             end
             if L('strain')
-                plan = plan.addRun(D('strain'), @() analyze_strain_points(root, startDate, endDate, fullfile(statsDir, 'strain_stats.xlsx'), sub.strain, cfg));
+                analyzer = bms.analyzer.AnalyzerFactory.create('strain', root, startDate, endDate, statsDir, sub, cfg, {});
+                plan = plan.addRun(D('strain'), @() analyzer.run());
             end
         end
 

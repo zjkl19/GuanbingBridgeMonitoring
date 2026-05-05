@@ -13,6 +13,7 @@ classdef GuiResultSummary
             summary.path = '';
             summary.status = '';
             summary.counts = struct('ok', 0, 'fail', 0, 'skip', 0, 'missing', 0, 'other', 0);
+            summary.artifact_count = 0;
             summary.lines = {};
             if ~summary.available
                 summary.lines = {'analysis manifest not found'};
@@ -26,6 +27,11 @@ classdef GuiResultSummary
             else
                 summary.counts = bms.app.ManifestWriter.statusCounts(bms.gui.GuiResultSummary.moduleRecords(ctx.manifest));
             end
+            if isfield(ctx, 'artifact_count') && isnumeric(ctx.artifact_count)
+                summary.artifact_count = double(ctx.artifact_count);
+            elseif isfield(ctx.manifest, 'artifact_count') && isnumeric(ctx.manifest.artifact_count)
+                summary.artifact_count = double(ctx.manifest.artifact_count);
+            end
             summary.lines = bms.gui.GuiResultSummary.buildLines(summary);
         end
 
@@ -36,6 +42,7 @@ classdef GuiResultSummary
             c = summary.counts;
             lines{end+1} = sprintf('modules: ok=%d, fail=%d, skip=%d, missing=%d, other=%d', ...
                 c.ok, c.fail, c.skip, c.missing, c.other); %#ok<AGROW>
+            lines{end+1} = sprintf('artifacts: %d', summary.artifact_count); %#ok<AGROW>
         end
 
         function records = moduleRecords(manifest)

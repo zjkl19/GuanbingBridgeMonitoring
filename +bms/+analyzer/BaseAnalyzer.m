@@ -39,6 +39,7 @@ classdef BaseAnalyzer < handle
             obj.plot();
             obj.executeLegacy();
             obj.writeStats();
+            obj.Artifacts = bms.data.ArtifactCollector.collectModule(obj.Root, obj.Key, obj.StatsFile, started, obj.Config);
             ended = datetime('now');
             result = bms.analyzer.AnalyzerResult.ok(obj.Key, obj.StatsFile, obj.Artifacts, obj.Warnings, started, ended);
         end

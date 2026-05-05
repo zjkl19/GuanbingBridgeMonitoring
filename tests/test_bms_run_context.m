@@ -26,7 +26,7 @@ classdef test_bms_run_context < matlab.unittest.TestCase
             tc.verifyTrue(isfile(manifestPath));
             manifest = jsondecode(fileread(manifestPath));
             tc.verifyEqual(manifest.status, 'ok');
-            tc.verifyEqual(manifest.schema_version, 1);
+            tc.verifyEqual(manifest.schema_version, 2);
             tc.verifyEqual(manifest.manifest_type, 'analysis_run');
             tc.verifyEqual(manifest.data_root, tc.TempDir);
             tc.verifyTrue(isfile(manifest.latest_log));

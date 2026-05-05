@@ -85,6 +85,12 @@ New helper packages are intentionally small and side-effect-light: `bms.config.S
 Low-risk analyzers now have an OOP adapter layer under `bms.analyzer`. Temperature, humidity, rainfall, deflection, and crack still call the legacy numerical functions internally, but return a normalized `AnalyzerResult`; `StepExecutor` converts this into `StepResult` for manifests and future GUI result panels. This is intentionally an adapter-first migration, not a rewrite of the computation algorithms.
 低风险分析模块已增加 `bms.analyzer` 适配层。温度、湿度、雨量、挠度和裂缝内部仍调用既有数值函数，但会返回统一的 `AnalyzerResult`；`StepExecutor` 再转换为 `StepResult`，供运行清单和后续 GUI 结果面板使用。这是“先适配、再逐步重构”的迁移方式，不是重写计算算法。
 
+Most regular modules now enter through `AnalyzerFactory` as thin adapters, including tilt, bearing displacement, GNSS, wind, earthquake, acceleration, cable acceleration, spectra, strain, dynamic strain, and WIM. High-risk numerical modules still execute the legacy functions internally.
+大多数常规模块现已通过 `AnalyzerFactory` 薄适配器进入，包括倾角、支座位移、GNSS、风、地震动、加速度、索力加速度、频谱、应变、动应变和 WIM。高风险数值模块内部仍执行原有函数。
+
+`analysis_manifest_*.json` now uses `schema_version=2`. In addition to module status, it records `module_status_counts`, `module_artifacts`, and `artifact_count`. Report builders can use these paths before falling back to directory searches.
+`analysis_manifest_*.json` 现使用 `schema_version=2`。除模块状态外，还记录 `module_status_counts`、`module_artifacts` 和 `artifact_count`。报告生成器可优先使用这些路径，再回退到目录搜索。
+
 When adding another analyzer, prefer this sequence: register the module in `ModuleRegistry`, create a thin analyzer adapter, add it to `AnalyzerFactory`, then add tests before replacing any legacy implementation.
 新增分析模块时，建议顺序为：先在 `ModuleRegistry` 注册模块，再创建薄适配器，接入 `AnalyzerFactory`，补充测试后再考虑替换旧实现。
 

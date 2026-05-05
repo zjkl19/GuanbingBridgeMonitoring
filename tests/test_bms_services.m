@@ -106,7 +106,7 @@ classdef test_bms_services < matlab.unittest.TestCase
             manifestPath = bms.app.ManifestWriter.write(ctx, 'ok', details);
             tc.verifyTrue(isfile(manifestPath));
             manifest = jsondecode(fileread(manifestPath));
-            tc.verifyEqual(manifest.schema_version, 1);
+            tc.verifyEqual(manifest.schema_version, 2);
             tc.verifyEqual(manifest.manifest_type, 'analysis_run');
             tc.verifyEqual(numel(manifest.missing_expected_stats), 1);
             clear cleanup;

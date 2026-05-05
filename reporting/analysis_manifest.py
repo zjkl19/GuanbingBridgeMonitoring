@@ -101,8 +101,68 @@ def analysis_manifest_context(result_root: Path | str | None) -> dict[str, Any]:
         "run_request": manifest.get("run_request", {}) if isinstance(manifest, dict) else {},
         "run_preflight": manifest.get("run_preflight", {}) if isinstance(manifest, dict) else {},
         "missing_modules": manifest_missing_modules(manifest),
+        "module_artifacts": manifest.get("module_artifacts", []) if isinstance(manifest, dict) else [],
+        "artifact_count": manifest.get("artifact_count", 0) if isinstance(manifest, dict) else 0,
         "manifest": manifest,
     }
+
+
+def manifest_module_records(manifest: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(manifest, dict):
+        return []
+    records = manifest.get("module_results") or manifest.get("module_logs") or []
+    return [item for item in records if isinstance(item, dict)]
+
+
+def manifest_stats_path(manifest: dict[str, Any] | None, key: str, filename: str | None = None) -> Path | None:
+    """Return a stats path from manifest v1/v2 module records when available."""
+    key = str(key)
+    filename = str(filename) if filename else None
+    for item in manifest_module_records(manifest):
+        if str(item.get("key") or "") != key:
+            continue
+        stats_path = str(item.get("stats_path") or "")
+        if stats_path:
+            path = Path(stats_path)
+            if path.exists() and (filename is None or path.name == filename):
+                return path
+        for artifact in item.get("artifacts") or []:
+            if not isinstance(artifact, dict):
+                continue
+            if artifact.get("kind") != "stats":
+                continue
+            path = Path(str(artifact.get("path") or ""))
+            if path.exists() and (filename is None or path.name == filename):
+                return path
+    return None
+
+
+def manifest_artifact_paths(
+    manifest: dict[str, Any] | None,
+    key: str,
+    *,
+    kind: str | None = None,
+    suffixes: tuple[str, ...] | None = None,
+) -> list[Path]:
+    """Return artifact paths for a module from manifest schema v2."""
+    out: list[Path] = []
+    key = str(key)
+    suffixes_lc = tuple(s.lower() for s in suffixes) if suffixes else None
+    for item in manifest_module_records(manifest):
+        if str(item.get("key") or "") != key:
+            continue
+        for artifact in item.get("artifacts") or []:
+            if not isinstance(artifact, dict):
+                continue
+            if kind and str(artifact.get("kind") or "") != kind:
+                continue
+            path = Path(str(artifact.get("path") or ""))
+            if not path.exists():
+                continue
+            if suffixes_lc and path.suffix.lower() not in suffixes_lc:
+                continue
+            out.append(path)
+    return out
 
 
 def manifest_precheck_warnings(result_root: Path | str | None) -> list[str]:

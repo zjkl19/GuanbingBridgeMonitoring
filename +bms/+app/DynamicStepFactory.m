@@ -7,10 +7,12 @@ classdef DynamicStepFactory
             D = @bms.app.StepDefinition.fromKey;
 
             if L('acceleration')
-                plan = plan.addRun(D('acceleration'), @() analyze_acceleration_points(root, startDate, endDate, fullfile(statsDir, 'accel_stats.xlsx'), sub.accel, true, cfg));
+                analyzer = bms.analyzer.AnalyzerFactory.create('acceleration', root, startDate, endDate, statsDir, sub, cfg, {});
+                plan = plan.addRun(D('acceleration'), @() analyzer.run());
             end
             if L('cable_accel')
-                plan = plan.addRun(D('cable_accel'), @() analyze_cable_acceleration_points(root, startDate, endDate, fullfile(statsDir, 'cable_accel_stats.xlsx'), sub.cable_accel, true, cfg));
+                analyzer = bms.analyzer.AnalyzerFactory.create('cable_accel', root, startDate, endDate, statsDir, sub, cfg, {});
+                plan = plan.addRun(D('cable_accel'), @() analyzer.run());
             end
 
             if L('accel_spectrum')
@@ -20,7 +22,8 @@ classdef DynamicStepFactory
                     'GB-VIB-G06-003-01','GB-VIB-G07-001-01'};
                 accelPts = bms.app.LegacyStepFunctions.getPoints(cfg, 'accel_spectrum', bms.app.LegacyStepFunctions.getPoints(cfg, 'acceleration', defaultPts));
                 [freqs, tol] = bms.app.LegacyStepFunctions.getAccelSpecParams(cfg);
-                plan = plan.addRun(D('accel_spectrum'), @() analyze_accel_spectrum_points(root, startDate, endDate, accelPts, fullfile(statsDir, 'accel_spec_stats.xlsx'), sub.accel_raw, freqs, tol, false, cfg));
+                analyzer = bms.analyzer.AnalyzerFactory.create('accel_spectrum', root, startDate, endDate, statsDir, sub, cfg, accelPts, struct('freqs', freqs, 'tol', tol));
+                plan = plan.addRun(D('accel_spectrum'), @() analyzer.run());
             end
 
             if L('cable_accel_spectrum')
@@ -31,28 +34,18 @@ classdef DynamicStepFactory
                 cablePts = bms.app.LegacyStepFunctions.getPoints(cfg, 'cable_accel_spectrum', ...
                     bms.app.LegacyStepFunctions.getPoints(cfg, 'cable_accel', bms.app.LegacyStepFunctions.getPoints(cfg, 'cable_force', defaultPts)));
                 [freqs, tol] = bms.app.LegacyStepFunctions.getCableSpecParams(cfg);
-                plan = plan.addRun(D('cable_accel_spectrum'), @() analyze_cable_accel_spectrum_points(root, startDate, endDate, cablePts, fullfile(statsDir, 'cable_accel_spec_stats.xlsx'), sub.cable_accel_raw, freqs, tol, false, cfg));
+                analyzer = bms.analyzer.AnalyzerFactory.create('cable_accel_spectrum', root, startDate, endDate, statsDir, sub, cfg, cablePts, struct('freqs', freqs, 'tol', tol));
+                plan = plan.addRun(D('cable_accel_spectrum'), @() analyzer.run());
             end
 
             if L('dynamic_strain_highpass')
-                plan = plan.addRun(D('dynamic_strain_highpass'), @() analyze_dynamic_strain_boxplot( ...
-                    root, startDate, endDate, ...
-                    'Cfg',         cfg, ...
-                    'Subfolder',   sub.strain, ...
-                    'OutputDir',   bms.app.LegacyStepFunctions.dynamicHighpassOutputDir(), ...
-                    'Fs',          20, ...
-                    'Fc',          0.1, ...
-                    'Whisker',     300, ...
-                    'ShowOutliers', false, ...
-                    'YLimManual',  true, ...
-                    'YLimRange',   [-30 30], ...
-                    'LowerBound',  -150, ...
-                    'UpperBound',   30, ...
-                    'EdgeTrimSec',   5));
+                analyzer = bms.analyzer.AnalyzerFactory.create('dynamic_strain_highpass', root, startDate, endDate, statsDir, sub, cfg, {});
+                plan = plan.addRun(D('dynamic_strain_highpass'), @() analyzer.run());
             end
 
             if L('dynamic_strain_lowpass')
-                plan = plan.addRun(D('dynamic_strain_lowpass'), @() analyze_dynamic_strain_lowpass_boxplot(root, startDate, endDate, 'Cfg', cfg, 'Subfolder', sub.strain));
+                analyzer = bms.analyzer.AnalyzerFactory.create('dynamic_strain_lowpass', root, startDate, endDate, statsDir, sub, cfg, {});
+                plan = plan.addRun(D('dynamic_strain_lowpass'), @() analyzer.run());
             end
         end
     end

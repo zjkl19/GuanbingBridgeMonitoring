@@ -50,6 +50,8 @@ classdef ManifestReader
             context.run_request = bms.app.ManifestReader.fieldValue(manifest, 'run_request', struct());
             context.run_preflight = bms.app.ManifestReader.fieldValue(manifest, 'run_preflight', struct());
             context.missing_modules = bms.app.ManifestReader.missingModules(manifest);
+            context.module_artifacts = bms.app.ManifestReader.fieldValue(manifest, 'module_artifacts', {});
+            context.artifact_count = bms.app.ManifestReader.fieldValue(manifest, 'artifact_count', 0);
             context.manifest = manifest;
         end
 

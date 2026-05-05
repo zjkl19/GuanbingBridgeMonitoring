@@ -2,7 +2,7 @@ classdef ManifestWriter
     %MANIFESTWRITER Writes versioned analysis manifest JSON files.
 
     properties (Constant)
-        SchemaVersion = 1
+        SchemaVersion = 2
     end
 
     methods (Static)
@@ -29,6 +29,8 @@ classdef ManifestWriter
             manifest.module_logs = {};
             manifest.module_results = {};
             manifest.module_status_counts = struct('ok', 0, 'fail', 0, 'skip', 0, 'missing', 0, 'other', 0);
+            manifest.module_artifacts = {};
+            manifest.artifact_count = 0;
             manifest.module_catalog = {};
             manifest.enabled_module_specs = {};
             manifest.module_preflight = {};
@@ -59,6 +61,8 @@ classdef ManifestWriter
                 manifest.module_logs = details.module_logs;
                 manifest.module_results = details.module_logs;
                 manifest.module_status_counts = bms.app.ManifestWriter.statusCounts(details.module_logs);
+                manifest.module_artifacts = bms.app.ManifestWriter.moduleArtifacts(details.module_logs);
+                manifest.artifact_count = bms.app.ManifestWriter.countArtifacts(manifest.module_artifacts);
             end
             if isfield(details, 'module_catalog')
                 manifest.module_catalog = details.module_catalog;
@@ -137,6 +141,41 @@ classdef ManifestWriter
                         counts.missing = counts.missing + 1;
                     otherwise
                         counts.other = counts.other + 1;
+                end
+            end
+        end
+
+        function rows = moduleArtifacts(records)
+            rows = {};
+            if isempty(records), return; end
+            if isstruct(records)
+                records = num2cell(records);
+            end
+            for i = 1:numel(records)
+                rec = records{i};
+                if ~isstruct(rec) || ~isfield(rec, 'artifacts') || isempty(rec.artifacts)
+                    continue;
+                end
+                key = '';
+                label = '';
+                if isfield(rec, 'key'), key = char(string(rec.key)); end
+                if isfield(rec, 'label'), label = char(string(rec.label)); end
+                row = struct();
+                row.key = key;
+                row.label = label;
+                row.artifacts = rec.artifacts;
+                rows{end+1} = row; %#ok<AGROW>
+            end
+        end
+
+        function n = countArtifacts(moduleArtifacts)
+            n = 0;
+            if isempty(moduleArtifacts), return; end
+            if isstruct(moduleArtifacts), moduleArtifacts = num2cell(moduleArtifacts); end
+            for i = 1:numel(moduleArtifacts)
+                item = moduleArtifacts{i};
+                if isstruct(item) && isfield(item, 'artifacts') && ~isempty(item.artifacts)
+                    n = n + numel(item.artifacts);
                 end
             end
         end
