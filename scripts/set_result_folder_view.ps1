@@ -11,7 +11,9 @@ param(
     [int]$IconSize = 96,
     [string]$GroupBy = 'prop:System.ItemTypeText',
 
-    [switch]$CloseNewWindows
+    [switch]$CloseNewWindows,
+    [switch]$Recursive,
+    [switch]$VerboseList
 )
 
 Set-StrictMode -Version Latest
@@ -48,6 +50,32 @@ function Normalize-PathText {
     }
 }
 
+function Should-SkipFolder {
+    param(
+        [string]$FolderPath,
+        [string]$RootPath
+    )
+    $norm = Normalize-PathText $FolderPath
+    $root = Normalize-PathText $RootPath
+    if (-not $norm -or -not $root) {
+        return $false
+    }
+    $relative = $norm.Substring([Math]::Min($norm.Length, $root.Length)).TrimStart('\', '/')
+    if ([string]::IsNullOrWhiteSpace($relative)) {
+        return $false
+    }
+    $parts = $relative -split '[\\/]'
+    foreach ($part in $parts) {
+        if ($part -like '自动报告*' -or $part -like '*_assets*' -or $part -like 'generated_assets*') {
+            return $true
+        }
+    }
+    if ($parts.Count -gt 1 -and $parts[0] -eq 'PSD_备查') {
+        return $true
+    }
+    return $false
+}
+
 function Get-TargetFolderList {
     param(
         [string]$Root,
@@ -80,8 +108,17 @@ function Get-TargetFolderList {
             [void]$extSet.Add($trimmed)
         }
 
-        Get-ChildItem -LiteralPath $rootNorm -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object { $extSet.Contains($_.Extension) } |
+        $search = if ($Recursive.IsPresent) {
+            Get-ChildItem -LiteralPath $rootNorm -Recurse -File -ErrorAction SilentlyContinue
+        } else {
+            Get-ChildItem -LiteralPath $rootNorm -File -ErrorAction SilentlyContinue
+            Get-ChildItem -LiteralPath $rootNorm -Directory -ErrorAction SilentlyContinue |
+                Where-Object { -not (Should-SkipFolder $_.FullName $rootNorm) } |
+                ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -File -ErrorAction SilentlyContinue }
+        }
+
+        $search |
+            Where-Object { $extSet.Contains($_.Extension) -and -not (Should-SkipFolder $_.DirectoryName $rootNorm) } |
             ForEach-Object {
                 [void]$folderSet.Add($_.DirectoryName)
             }
@@ -187,7 +224,9 @@ foreach ($folderPath in $folders) {
 
         Apply-FolderView -Window $window -Mode $ViewMode -Size $IconSize -GroupExpr $GroupBy
         $configured += 1
-        Write-Log "Configured: $folderPath"
+        if ($VerboseList.IsPresent) {
+            Write-Log "Configured: $folderPath"
+        }
 
         if ($openedHere -and $CloseNewWindows.IsPresent) {
             Start-Sleep -Milliseconds 300

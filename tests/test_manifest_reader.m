@@ -41,5 +41,21 @@ classdef test_manifest_reader < matlab.unittest.TestCase
             tc.verifyEqual(numel(ctx.missing_modules), 1);
             tc.verifyTrue(any(contains(lines, 'missing_modules=1')));
         end
+
+        function normalizesStructArraysAndColumnCells(tc)
+            manifest = struct();
+            manifest.module_preflight = {struct('key','temp','status','ok')};
+            manifest.module_results = [ ...
+                struct('key','temperature','label','温度分析','status','ok','message',''), ...
+                struct('key','humidity','label','湿度分析','status','fail','message','bad') ...
+            ]';
+
+            records = bms.app.ManifestReader.recordsToCell(manifest.module_results);
+            missing = bms.app.ManifestReader.missingModules(manifest);
+
+            tc.verifySize(records, [1 2]);
+            tc.verifyEqual(numel(missing), 1);
+            tc.verifyEqual(missing{1}.key, 'humidity');
+        end
     end
 end

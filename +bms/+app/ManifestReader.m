@@ -104,9 +104,9 @@ classdef ManifestReader
             if isempty(value)
                 return;
             elseif iscell(value)
-                records = value;
+                records = reshape(value, 1, []);
             elseif isstruct(value)
-                records = num2cell(value);
+                records = reshape(num2cell(value), 1, []);
             end
         end
 

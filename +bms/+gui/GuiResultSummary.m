@@ -66,10 +66,15 @@ classdef GuiResultSummary
             rows = {};
             records = bms.gui.GuiResultSummary.moduleRecords(manifest);
             if isempty(records), return; end
-            if isstruct(records), records = num2cell(records); end
+            records = bms.app.ManifestReader.recordsToCell(records);
             for i = 1:numel(records)
                 rec = records{i};
                 if ~isstruct(rec), continue; end
+                key = bms.gui.GuiResultSummary.fieldText(rec, 'key', '');
+                category = bms.gui.GuiResultSummary.fieldText(rec, 'category', '');
+                if strcmp(key, 'offset_correction_report') || strcmp(category, 'postprocess')
+                    continue;
+                end
                 label = bms.gui.GuiResultSummary.fieldText(rec, 'label', bms.gui.GuiResultSummary.fieldText(rec, 'key', ''));
                 status = bms.gui.GuiResultSummary.fieldText(rec, 'status', '');
                 elapsed = '';
@@ -153,7 +158,7 @@ classdef GuiResultSummary
                 return;
             end
             records = manifest.run_preflight.result_artifact_preflight;
-            if isstruct(records), records = num2cell(records); end
+            records = bms.app.ManifestReader.recordsToCell(records);
             for i = 1:numel(records)
                 rec = records{i};
                 if isstruct(rec) && isfield(rec, 'status') && strcmp(char(string(rec.status)), 'possible_stale')
