@@ -94,5 +94,25 @@ classdef test_gui_state_services < matlab.unittest.TestCase
             tc.verifyEqual(summary.missing_stats_count, 1);
             tc.verifyEqual(summary.possible_stale_count, 1);
         end
+
+        function layoutUsesTallerScreenAwareWindow(tc)
+            pos = bms.gui.GuiLayout.mainWindowPosition([1 1 1600 1000]);
+            tc.verifyEqual(pos(3), 1380);
+            tc.verifyEqual(pos(4), 860);
+
+            heights = bms.gui.GuiLayout.runPageRowHeights();
+            tc.verifyEqual(numel(heights), 17);
+            tc.verifyEqual(heights{17}, '1x');
+        end
+
+        function statusPanelBuildsPendingRows(tc)
+            opts = struct('doTemp', true, 'doAccel', false, 'doCrack', true);
+            rows = bms.gui.GuiStatusPanel.pendingRowsFromOptions(opts);
+
+            tc.verifySize(rows, [2 7]);
+            tc.verifyEqual(rows{1, 2}, '待运行');
+            tc.verifyTrue(any(strcmp(rows(:, 1), '温度分析')));
+            tc.verifyTrue(any(strcmp(rows(:, 1), '裂缝分析')));
+        end
     end
 end

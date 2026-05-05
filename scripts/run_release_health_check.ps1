@@ -1,6 +1,7 @@
 param(
     [switch]$SkipMatlab,
     [switch]$FullMatlab,
+    [switch]$GuiSmoke,
     [int]$PythonTimeoutSeconds = 300,
     [int]$MatlabTimeoutSeconds = 1800
 )
@@ -137,6 +138,15 @@ Invoke-Step "Report template precheck smoke" {
 }
 
 if (-not $SkipMatlab) {
+    if ($GuiSmoke) {
+        Invoke-Step "MATLAB GUI smoke" {
+            Invoke-External -Name "matlab-gui-smoke" `
+                -FilePath "matlab" `
+                -Arguments @("-batch", "addpath('scripts'); gui_smoke_test") `
+                -TimeoutSeconds 180
+        }
+    }
+
     if ($FullMatlab) {
         Invoke-Step "MATLAB full tests" {
             Invoke-External -Name "matlab-full-tests" `

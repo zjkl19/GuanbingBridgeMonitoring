@@ -22,7 +22,7 @@ function run_gui()
     showWarningsDefault = bms.gui.GuiConfigBinder.showWarningsDefault(cfgCache);
     cfgPath = defaultCfgPath;
 
-    f = uifigure('Name','福建建科院健康监测大数据分析','Position',[80 80 1280 760],'Color',[0.97 0.98 1]);
+    f = uifigure('Name','福建建科院健康监测大数据分析','Position',bms.gui.GuiLayout.mainWindowPosition(),'Color',[0.97 0.98 1]);
     mainGrid = uigridlayout(f,[1 1]); mainGrid.RowHeight = {'1x'}; mainGrid.ColumnWidth = {'1x'}; mainGrid.Padding = [0 0 0 0];
     tg = uitabgroup(mainGrid); tg.Layout.Row = 1; tg.Layout.Column = 1;
     tabRun = uitab(tg,'Title','运行');
@@ -33,9 +33,7 @@ function run_gui()
 
     %% 运行页
     gl = uigridlayout(tabRun,[17 4]);
-    gl.RowHeight = {90,32,32,32,32,32,32,32,32,32,32,32,32,32,24,105,'1x'};
-    gl.ColumnWidth = {190,240,240,'1x'};
-    gl.Padding = [12 12 12 12]; gl.RowSpacing = 6; gl.ColumnSpacing = 8;
+    bms.gui.GuiLayout.applyRunGridDefaults(gl);
 
     header = uipanel(gl,'BorderType','none'); header.Layout.Row = 1; header.Layout.Column = [1 4];
     hgl = uigridlayout(header,[1 4]); hgl.ColumnWidth = {120,'1x','1x','1x'}; hgl.RowSpacing = 0; hgl.ColumnSpacing = 8;
@@ -98,15 +96,17 @@ function run_gui()
     runBtn.Layout.Row=13; runBtn.Layout.Column=3;
     stopBtn  = uibutton(gl,'Text','停止','BackgroundColor',[0.8 0.2 0.2],'FontColor',[1 1 1],'ButtonPushedFcn',@(btn,~) onStop());
     stopBtn.Layout.Row=13; stopBtn.Layout.Column=4;
-    clearBtn = uibutton(gl,'Text','清空日志','ButtonPushedFcn',@(btn,~) set(logArea,'Value',{}));
+    clearBtn = uibutton(gl,'Text','清空日志');
     clearBtn.Layout.Row=14; clearBtn.Layout.Column=4;
     cbWarn = uicheckbox(gl,'Text','显示警告','Value',showWarningsDefault);
     cbWarn.Layout.Row=14; cbWarn.Layout.Column=3;
 
     statusLbl = uilabel(gl,'Text','就绪','FontColor',primaryBlue); statusLbl.Layout.Row=15; statusLbl.Layout.Column=[1 4];
-summaryTable = uitable(gl,'Data',cell(0,7),'ColumnName',{'模块','状态','耗时(s)','统计','图片','错误类型','消息'},'RowName',{});
+    summaryTable = uitable(gl,'Data',cell(0,7),'ColumnName',{'模块','状态','耗时(s)','统计','图片','错误类型','消息'},'RowName',{});
     summaryTable.Layout.Row=16; summaryTable.Layout.Column=[1 4];
     logArea   = uitextarea(gl,'Editable','off','Value',{'准备就绪...'}); logArea.Layout.Row=17; logArea.Layout.Column=[1 4];
+    statusPanel = bms.gui.GuiStatusPanel(statusLbl, summaryTable, logArea, primaryBlue);
+    clearBtn.ButtonPushedFcn = @(btn,~) statusPanel.clearLog();
 
     autoPreset = bms.gui.GuiPresetStore.defaultPath(projRoot);
     if exist(autoPreset,'file')
@@ -121,6 +121,7 @@ summaryTable = uitable(gl,'Data',cell(0,7),'ColumnName',{'模块','状态','耗�
         catch
         end
     end
+    refresh_result_summary(false);
 
     %% 阈值配置页（拆分模块）
     th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
@@ -182,6 +183,11 @@ summaryTable = uitable(gl,'Data',cell(0,7),'ColumnName',{'模块','状态','耗�
         if isstring(p), p = char(p); end
         if ischar(p), edit.Value = p; end
 
+        if isequal(edit, rootEdit)
+            logEdit.Value = fullfile(rootEdit.Value, 'run_logs');
+            refresh_result_summary(false);
+        end
+
         % 强制把主界面拉回前台
         figure(f);
         drawnow;
@@ -198,7 +204,7 @@ summaryTable = uitable(gl,'Data',cell(0,7),'ColumnName',{'模块','状态','耗�
     function onRun()
         global RUN_STOP_FLAG;
         runBtn.Enable='off'; stopBtn.Enable='on'; RUN_STOP_FLAG=false;
-        statusLbl.Text='运行中...'; addLog('开始运行'); drawnow; t0=tic;
+        statusPanel.setRunning('运行中...'); addLog('开始运行'); drawnow; t0=tic;
         try
             [cfg, loadedCfgPath] = bms.gui.GuiConfigBinder.loadConfig(cfgEdit.Value, defaultCfgPath);
             if ~strcmp(loadedCfgPath, cfgEdit.Value)
@@ -219,6 +225,7 @@ summaryTable = uitable(gl,'Data',cell(0,7),'ColumnName',{'模块','状态','耗�
             warnCleanup = onCleanup(@() restore_warnings(warnState, btState)); %#ok<NASGU>
             logEdit.Value = fullfile(rootEdit.Value, 'run_logs');
             state = build_gui_state();
+            statusPanel.setPendingModules(state.toOptions());
             root = state.Root; start_date = state.StartDate; end_date = state.EndDate;
             logEdit.Value = state.LogDir;
             if exist(logEdit.Value,'dir')==0, mkdir(logEdit.Value); end
@@ -247,27 +254,20 @@ summaryTable = uitable(gl,'Data',cell(0,7),'ColumnName',{'模块','状态','耗�
             log_result_summary(root);
             elapsed = toc(t0);
             addLog(sprintf('运行完成，用时 %.2f 秒', elapsed));
-            statusLbl.Text = sprintf('完成，用时 %.2f 秒', elapsed); statusLbl.FontColor = [0 0.5 0];
+            statusPanel.setCompleted(elapsed);
         catch ME
-            addLog(['运行失败: ' ME.message]); statusLbl.Text='失败'; statusLbl.FontColor=[0.8 0 0];
+            addLog(['运行失败: ' ME.message]); statusPanel.setFailed('失败');
             show_wim_error_help(ME);
         end
         runBtn.Enable='on'; stopBtn.Enable='off';
     end
     function log_result_summary(resultRoot)
-        try
-            summary = bms.gui.GuiResultSummary.fromResultRoot(resultRoot);
-            if isstruct(summary) && isfield(summary, 'module_rows')
-                summaryTable.Data = summary.module_rows;
-            end
-            if isstruct(summary) && isfield(summary, 'lines')
-                for isummary = 1:numel(summary.lines)
-                    addLog(['结果摘要: ' char(summary.lines{isummary})]);
-                end
-            end
-        catch MEsummary
-            addLog(['结果摘要读取失败: ' MEsummary.message]);
-        end
+        statusPanel.refreshFromRoot(resultRoot, true);
+    end
+
+    function refresh_result_summary(logDetails)
+        if nargin < 1, logDetails = false; end
+        statusPanel.refreshFromRoot(rootEdit.Value, logDetails);
     end
 
     function onStop()
@@ -289,6 +289,7 @@ summaryTable = uitable(gl,'Data',cell(0,7),'ColumnName',{'模块','状态','耗�
         state = bms.gui.GuiPresetStore.load(presetPath);
         apply_preset(state);
         addLog(['预设已加载: ' presetPath]);
+        refresh_result_summary(false);
     end
     function onSelectAll(cb)
         targets = module_control_values();
@@ -360,7 +361,7 @@ summaryTable = uitable(gl,'Data',cell(0,7),'ColumnName',{'模块','状态','耗�
     end
 
     function addLog(msg)
-        val = logArea.Value; val{end+1} = sprintf('[%s] %s', datestr(now,'HH:MM:SS'), msg); logArea.Value = val; drawnow;
+        statusPanel.addLog(msg);
     end
     function onTabChanged(evt)
         try
