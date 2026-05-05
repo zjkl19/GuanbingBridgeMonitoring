@@ -1,0 +1,41 @@
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
+
+from stats_lookup import manifest_search_root, resolve_from_analysis_manifest, stats_key_for_filename  # noqa: E402
+
+
+class TestStatsLookup(unittest.TestCase):
+    def test_stats_key_for_filename(self):
+        self.assertEqual(stats_key_for_filename("accel_stats.xlsx"), "acceleration")
+        self.assertIsNone(stats_key_for_filename("unknown.xlsx"))
+
+    def test_manifest_search_root_uses_stats_parent(self):
+        self.assertEqual(manifest_search_root(Path("E:/data/stats")), Path("E:/data"))
+        self.assertEqual(manifest_search_root(Path("E:/data")), Path("E:/data"))
+
+    def test_resolve_from_analysis_manifest_prefers_manifest_stats_path(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            stats = root / "stats"
+            logs = root / "run_logs"
+            stats.mkdir()
+            logs.mkdir()
+            stats_file = stats / "accel_stats.xlsx"
+            stats_file.write_text("x", encoding="utf-8")
+            manifest = {
+                "schema_version": 2,
+                "module_results": [
+                    {"key": "acceleration", "stats_path": str(stats_file), "artifacts": []}
+                ],
+            }
+            (logs / "analysis_manifest_1.json").write_text(json.dumps(manifest), encoding="utf-8")
+            self.assertEqual(resolve_from_analysis_manifest(stats, None, "accel_stats.xlsx"), stats_file)
+
+
+if __name__ == "__main__":
+    unittest.main()

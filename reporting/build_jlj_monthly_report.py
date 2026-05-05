@@ -23,14 +23,15 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from analysis_manifest import (
-    analysis_manifest_context,
-    manifest_key_for_dir,
-    manifest_latest_artifact,
-    manifest_role_for_lookup,
-    manifest_stats_path,
-    missing_module_summary_items,
+from analysis_manifest import analysis_manifest_context, missing_module_summary_items
+from artifact_lookup import (
+    filename_has_point_token,
+    latest_image_patterns as lookup_latest_image_patterns,
+    latest_point_image_patterns as lookup_latest_point_image_patterns,
+    resolve_output_dirs as shared_resolve_output_dirs,
+    should_skip_search_dir as shared_should_skip_search_dir,
 )
+from stats_lookup import resolve_from_analysis_manifest
 from missing_summary import write_missing_summary
 from template_precheck import raise_for_template
 
@@ -203,132 +204,20 @@ def resolve_existing_file(primary_root: Path | None, fallback_root: Path | None,
     raise FileNotFoundError(f"Required file not found: {filename}. Checked: {checked}")
 
 
-def stats_key_for_filename(filename: str) -> str | None:
-    return {
-        "temp_stats.xlsx": "temperature",
-        "humidity_stats.xlsx": "humidity",
-        "rainfall_stats.xlsx": "rainfall",
-        "gnss_stats.xlsx": "gnss",
-        "deflection_stats.xlsx": "deflection",
-        "bearing_displacement_stats.xlsx": "bearing_displacement",
-        "tilt_stats.xlsx": "tilt",
-        "crack_stats.xlsx": "crack",
-        "strain_stats.xlsx": "strain",
-        "accel_stats.xlsx": "acceleration",
-        "cable_accel_stats.xlsx": "cable_accel",
-        "accel_spec_stats.xlsx": "accel_spectrum",
-        "cable_accel_spec_stats.xlsx": "cable_accel_spectrum",
-        "wind_stats.xlsx": "wind",
-        "eq_stats.xlsx": "earthquake",
-    }.get(filename)
-
-
-def manifest_search_root(stats_root: Path | None) -> Path | None:
-    if stats_root is None:
-        return None
-    root = Path(stats_root)
-    return root.parent if root.name.lower() == "stats" else root
-
-
-def resolve_from_analysis_manifest(primary_root: Path | None, fallback_root: Path | None, filename: str) -> Path | None:
-    key = stats_key_for_filename(filename)
-    if key is None:
-        return None
-    for candidate_root in (manifest_search_root(primary_root), manifest_search_root(fallback_root)):
-        if candidate_root is None:
-            continue
-        context = analysis_manifest_context(candidate_root)
-        path = manifest_stats_path(context.get("manifest"), key, filename)
-        if path is not None:
-            return path
-    return None
-
-
 def should_skip_search_dir(path: Path) -> bool:
-    banned_parts = {".git", ".venv", "tests", "__pycache__"}
-    return any(part in banned_parts for part in path.parts)
+    return shared_should_skip_search_dir(path)
 
 
 def resolve_output_dirs(root: Path, configured_dir: str) -> list[Path]:
-    configured_path = Path(configured_dir)
-    candidates: list[Path] = []
-    direct = (root / configured_path).resolve()
-    if direct.exists() and direct.is_dir():
-        candidates.append(direct)
-
-    target_name = configured_path.name
-    if root.exists():
-        for found in root.rglob(target_name):
-            if not found.is_dir():
-                continue
-            resolved = found.resolve()
-            if resolved in candidates or should_skip_search_dir(resolved):
-                continue
-            candidates.append(resolved)
-
-    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
-    return candidates
-
-
-def filename_has_point_token(path: Path, point_id: str) -> bool:
-    token = re.escape(point_id)
-    return re.search(rf"(?<![A-Za-z0-9]){token}(?![A-Za-z0-9])", path.stem) is not None
+    return shared_resolve_output_dirs(root, configured_dir)
 
 
 def find_latest_point_image_patterns(root: Path, configured_dir: str, point_id: str, patterns: list[str]) -> Path | None:
-    context = analysis_manifest_context(root)
-    if context.get("available"):
-        manifest_path = manifest_latest_artifact(
-            context.get("manifest"),
-            manifest_key_for_dir(configured_dir),
-            token=point_id,
-            role=manifest_role_for_lookup(configured_dir, point_id),
-            suffixes=(".jpg", ".jpeg", ".png"),
-            directory_hint=configured_dir,
-        )
-        if manifest_path is not None:
-            return manifest_path
-    resolved_dirs = resolve_output_dirs(root, configured_dir)
-    matched: list[Path] = []
-    for folder in resolved_dirs:
-        for pattern in patterns:
-            for candidate in folder.glob(pattern):
-                if filename_has_point_token(candidate, point_id):
-                    matched.append(candidate.resolve())
-    matched = sorted(set(matched), key=lambda p: p.stat().st_mtime, reverse=True)
-    return matched[0] if matched else None
+    return lookup_latest_point_image_patterns(root, configured_dir, point_id, patterns).path
 
 
 def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[str]) -> Path | None:
-    context = analysis_manifest_context(root)
-    if context.get("available"):
-        suffixes = tuple(sorted({Path(p.replace("*", "x")).suffix.lower() for p in patterns if Path(p.replace("*", "x")).suffix}))
-        tokens: list[str] = []
-        for pattern in patterns:
-            token = pattern.split("*", 1)[0].strip()
-            if token and token not in tokens:
-                tokens.append(token)
-        if not tokens:
-            tokens = [""]
-        for token in tokens:
-            manifest_path = manifest_latest_artifact(
-                context.get("manifest"),
-                manifest_key_for_dir(configured_dir),
-                token=token or None,
-                kind=None,
-                role=manifest_role_for_lookup(configured_dir, token),
-                suffixes=suffixes or None,
-                directory_hint=configured_dir,
-            )
-            if manifest_path is not None:
-                return manifest_path
-    resolved_dirs = resolve_output_dirs(root, configured_dir)
-    matched: list[Path] = []
-    for folder in resolved_dirs:
-        for pattern in patterns:
-            matched.extend(p.resolve() for p in folder.glob(pattern))
-    matched = sorted(set(matched), key=lambda p: p.stat().st_mtime, reverse=True)
-    return matched[0] if matched else None
+    return lookup_latest_image_patterns(root, configured_dir, patterns).path
 
 
 def parse_float(value: object) -> float | None:

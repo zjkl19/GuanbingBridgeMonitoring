@@ -19,14 +19,12 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from analysis_manifest import (
-    analysis_manifest_context,
-    manifest_key_for_dir,
-    manifest_latest_artifact,
-    manifest_role_for_lookup,
-    manifest_stats_path,
-    missing_module_summary_items,
+from analysis_manifest import analysis_manifest_context, missing_module_summary_items
+from artifact_lookup import (
+    latest_file_patterns as lookup_latest_file_patterns,
+    latest_point_image_patterns as lookup_latest_point_image_patterns,
 )
+from stats_lookup import resolve_from_analysis_manifest
 from missing_summary import write_missing_summary
 
 
@@ -162,76 +160,9 @@ def resolve_existing_file(primary_root: Path | None, fallback_root: Path | None,
     raise FileNotFoundError(f"Required file not found: {filename}. Checked: {joined}")
 
 
-def stats_key_for_filename(filename: str) -> str | None:
-    return {
-        "temp_stats.xlsx": "temperature",
-        "humidity_stats.xlsx": "humidity",
-        "rainfall_stats.xlsx": "rainfall",
-        "gnss_stats.xlsx": "gnss",
-        "deflection_stats.xlsx": "deflection",
-        "bearing_displacement_stats.xlsx": "bearing_displacement",
-        "tilt_stats.xlsx": "tilt",
-        "crack_stats.xlsx": "crack",
-        "strain_stats.xlsx": "strain",
-        "accel_stats.xlsx": "acceleration",
-        "cable_accel_stats.xlsx": "cable_accel",
-        "accel_spec_stats.xlsx": "accel_spectrum",
-        "cable_accel_spec_stats.xlsx": "cable_accel_spectrum",
-        "wind_stats.xlsx": "wind",
-        "eq_stats.xlsx": "earthquake",
-    }.get(filename)
-
-
-def manifest_search_root(stats_root: Path | None) -> Path | None:
-    if stats_root is None:
-        return None
-    root = Path(stats_root)
-    return root.parent if root.name.lower() == "stats" else root
-
-
-def resolve_from_analysis_manifest(primary_root: Path | None, fallback_root: Path | None, filename: str) -> Path | None:
-    key = stats_key_for_filename(filename)
-    if key is None:
-        return None
-    for candidate_root in (manifest_search_root(primary_root), manifest_search_root(fallback_root)):
-        if candidate_root is None:
-            continue
-        context = analysis_manifest_context(candidate_root)
-        path = manifest_stats_path(context.get("manifest"), key, filename)
-        if path is not None:
-            return path
-    return None
-
-
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
-
-
-def should_skip_search_dir(path: Path) -> bool:
-    banned_parts = {".git", ".venv", "tests", "__pycache__"}
-    return any(part in banned_parts for part in path.parts)
-
-
-def resolve_output_dirs(root: Path, configured_dir: str) -> list[Path]:
-    configured_path = Path(configured_dir)
-    candidates: list[Path] = []
-    direct = (root / configured_path).resolve()
-    if direct.exists() and direct.is_dir():
-        candidates.append(direct)
-
-    target_name = configured_path.name
-    if root.exists():
-        for found in root.rglob(target_name):
-            if not found.is_dir():
-                continue
-            resolved = found.resolve()
-            if resolved in candidates or should_skip_search_dir(resolved):
-                continue
-            candidates.append(resolved)
-
-    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
-    return candidates
 
 
 def find_latest_image(root: Path, configured_dir: str, stem_prefix: str) -> tuple[Path | None, dict]:
@@ -243,121 +174,14 @@ def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[s
     return find_latest_file_patterns(root, configured_dir, patterns)
 
 
-def manifest_tokens_from_patterns(patterns: list[str]) -> list[str]:
-    tokens: list[str] = []
-    for pattern in patterns:
-        token = pattern.split("*", 1)[0]
-        token = Path(token).stem if "." in token and "*" not in token else token
-        token = token.strip()
-        if token and token not in tokens:
-            tokens.append(token)
-    return tokens
-
-
-def filename_has_point_token(path: Path, point_id: str) -> bool:
-    # Avoid prefix collisions such as CS1 matching CS12 when wildcard fallback is used.
-    token = re.escape(point_id)
-    return re.search(rf"(?<![A-Za-z0-9]){token}(?![A-Za-z0-9])", path.stem) is not None
-
-
 def find_latest_point_image_patterns(root: Path, configured_dir: str, point_id: str, patterns: list[str]) -> tuple[Path | None, dict]:
-    key = manifest_key_for_dir(configured_dir)
-    context = analysis_manifest_context(root)
-    if context.get("available"):
-        manifest_path = manifest_latest_artifact(
-            context.get("manifest"),
-            key,
-            token=point_id,
-            role=manifest_role_for_lookup(configured_dir, point_id),
-            suffixes=(".jpg", ".jpeg", ".png"),
-            directory_hint=configured_dir,
-        )
-        if manifest_path is not None:
-            return (
-                manifest_path,
-                {
-                    "image_root": str(root),
-                    "configured_dir": configured_dir,
-                    "point_id": point_id,
-                    "patterns": patterns,
-                    "selected_file": str(manifest_path),
-                    "source": "analysis_manifest",
-                    "manifest": context.get("path", ""),
-                },
-            )
-    resolved_dirs = resolve_output_dirs(root, configured_dir)
-    matched: list[Path] = []
-    rejected: list[Path] = []
-    for folder in resolved_dirs:
-        for pattern in patterns:
-            for candidate in folder.glob(pattern):
-                if filename_has_point_token(candidate, point_id):
-                    matched.append(candidate)
-                else:
-                    rejected.append(candidate)
-    matched = sorted({p.resolve() for p in matched}, key=lambda p: p.stat().st_mtime, reverse=True)
-    return (
-        matched[0] if matched else None,
-        {
-            "image_root": str(root),
-            "configured_dir": configured_dir,
-            "point_id": point_id,
-            "resolved_dirs": [str(p) for p in resolved_dirs],
-            "patterns": patterns,
-            "matched_files": [str(p) for p in matched[:10]],
-            "rejected_prefix_collisions": [str(p.resolve()) for p in rejected[:10]],
-            "selected_file": str(matched[0]) if matched else None,
-        },
-    )
+    result = lookup_latest_point_image_patterns(root, configured_dir, point_id, patterns)
+    return result.path, result.debug
 
 
 def find_latest_file_patterns(root: Path, configured_dir: str, patterns: list[str]) -> tuple[Path | None, dict]:
-    key = manifest_key_for_dir(configured_dir)
-    context = analysis_manifest_context(root)
-    if context.get("available"):
-        suffixes = tuple(sorted({Path(p.replace("*", "x")).suffix.lower() for p in patterns if Path(p.replace("*", "x")).suffix}))
-        tokens = manifest_tokens_from_patterns(patterns)
-        if not tokens:
-            tokens = [""]
-        for token in tokens:
-            manifest_path = manifest_latest_artifact(
-                context.get("manifest"),
-                key,
-                token=token or None,
-                kind=None,
-                role=manifest_role_for_lookup(configured_dir, token),
-                suffixes=suffixes or None,
-                directory_hint=configured_dir,
-            )
-            if manifest_path is not None:
-                return (
-                    manifest_path,
-                    {
-                        "image_root": str(root),
-                        "configured_dir": configured_dir,
-                        "patterns": patterns,
-                        "selected_file": str(manifest_path),
-                        "source": "analysis_manifest",
-                        "manifest": context.get("path", ""),
-                    },
-                )
-    resolved_dirs = resolve_output_dirs(root, configured_dir)
-    matched: list[Path] = []
-    for folder in resolved_dirs:
-        for pattern in patterns:
-            matched.extend(folder.glob(pattern))
-    matched = sorted({p.resolve() for p in matched}, key=lambda p: p.stat().st_mtime, reverse=True)
-    return (
-        matched[0] if matched else None,
-        {
-            "image_root": str(root),
-            "configured_dir": configured_dir,
-            "resolved_dirs": [str(p) for p in resolved_dirs],
-            "patterns": patterns,
-            "matched_files": [str(p) for p in matched[:10]],
-            "selected_file": str(matched[0]) if matched else None,
-        },
-    )
+    result = lookup_latest_file_patterns(root, configured_dir, patterns, kind=None)
+    return result.path, result.debug
 
 
 def normalize_name_list(raw: object) -> list[str]:

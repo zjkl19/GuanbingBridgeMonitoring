@@ -17,13 +17,8 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageOps
 
-from analysis_manifest import (
-    analysis_manifest_context,
-    manifest_key_for_dir,
-    manifest_latest_artifact,
-    manifest_role_for_lookup,
-    missing_module_summary_items,
-)
+from analysis_manifest import analysis_manifest_context, missing_module_summary_items
+from artifact_lookup import latest_file_patterns as lookup_latest_file_patterns
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_TEMPLATE = REPO_ROOT / "reports" / "G104线管柄大桥监测月报20260410-M18.docx"
@@ -252,51 +247,18 @@ def replace_picture_before_anchor(
 
 
 def find_latest_image(result_root: Path, folder_name: str, token: str, suffix: str = ".jpg") -> Path | None:
-    context = analysis_manifest_context(result_root)
-    if context.get("available"):
-        manifest_path = manifest_latest_artifact(
-            context.get("manifest"),
-            manifest_key_for_dir(folder_name),
-            token=token,
-            kind=None,
-            role=manifest_role_for_lookup(folder_name, token),
-            suffixes=(suffix,),
-            directory_hint=folder_name,
-        )
-        if manifest_path is not None:
-            return manifest_path
-    folder = result_root / folder_name
-    if not folder.exists():
-        return None
-    candidates = [p for p in folder.glob(f"*{suffix}") if token in p.stem]
-    if not candidates:
-        return None
-    return max(candidates, key=lambda p: p.stat().st_mtime)
+    return lookup_latest_file_patterns(
+        result_root,
+        folder_name,
+        [f"*{token}*{suffix}"],
+        point_id=token,
+        recursive=False,
+        kind=None,
+    ).path
 
 
 def find_latest_file(result_root: Path, folder_name: str, pattern: str) -> Path | None:
-    context = analysis_manifest_context(result_root)
-    if context.get("available"):
-        suffix = Path(pattern.replace("*", "x")).suffix.lower()
-        token = pattern.split("*", 1)[0].strip()
-        manifest_path = manifest_latest_artifact(
-            context.get("manifest"),
-            manifest_key_for_dir(folder_name),
-            token=token or None,
-            kind=None,
-            role=manifest_role_for_lookup(folder_name, token),
-            suffixes=(suffix,) if suffix else None,
-            directory_hint=folder_name,
-        )
-        if manifest_path is not None:
-            return manifest_path
-    folder = result_root / folder_name
-    if not folder.exists():
-        return None
-    candidates = list(folder.glob(pattern))
-    if not candidates:
-        return None
-    return max(candidates, key=lambda p: p.stat().st_mtime)
+    return lookup_latest_file_patterns(result_root, folder_name, [pattern], recursive=False, kind=None).path
 
 
 def stack_images_vertical(paths: list[Path], output_path: Path, gap: int = 18) -> Path | None:
