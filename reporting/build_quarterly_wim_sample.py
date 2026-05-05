@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Iterable
 
 from docx import Document
+from docx_utils import set_cell_text_preserve
+from excel_utils import load_sheet_rows as load_xlsx_rows
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -187,20 +189,7 @@ def load_json(path: Path) -> dict:
 
 
 def load_sheet_rows(path: Path, sheet: str) -> list[dict]:
-    wb = load_workbook(path, read_only=True, data_only=True)
-    ws = wb[sheet]
-    rows = list(ws.iter_rows(values_only=True))
-    wb.close()
-    if not rows:
-        return []
-    header = [str(v) if v is not None else "" for v in rows[0]]
-    out: list[dict] = []
-    for row in rows[1:]:
-        item = {}
-        for k, v in zip(header, row):
-            item[k] = v
-        out.append(item)
-    return out
+    return load_xlsx_rows(path, sheet, strip_headers=False, skip_empty=False)
 
 
 def find_plot_paths(month_dir: Path, yyyymm: str) -> list[tuple[str, Path]]:
@@ -355,27 +344,6 @@ def ensure_table_rows(table: Table, target_rows: int) -> None:
     while len(table.rows) > target_rows:
         table._tbl.remove(table.rows[-1]._tr)
 
-
-def set_cell_text_preserve(cell, text: str) -> None:
-    paragraphs = cell.paragraphs
-    if not paragraphs:
-        cell.text = text
-        return
-    first = paragraphs[0]
-    if first.runs:
-        for run in first.runs:
-            run.text = ""
-        first.runs[0].text = text
-    else:
-        first.add_run(text)
-    for para in paragraphs[1:]:
-        for run in para.runs:
-            run.text = ""
-
-
-def set_table_cell(table: Table, row_idx: int, col_idx: int, text: str) -> None:
-    if row_idx < len(table.rows) and col_idx < len(table.rows[row_idx].cells):
-        set_cell_text_preserve(table.cell(row_idx, col_idx), text)
 
 
 def clear_section_between(start_paragraph: Paragraph, end_paragraph: Paragraph) -> None:

@@ -32,6 +32,8 @@ from artifact_lookup import (
     should_skip_search_dir as shared_should_skip_search_dir,
 )
 from stats_lookup import resolve_from_analysis_manifest
+from docx_utils import set_cell_paragraphs, set_cell_text_preserve
+from excel_utils import load_sheet_rows as load_xlsx_rows
 from missing_summary import write_missing_summary
 from template_precheck import raise_for_template
 
@@ -169,20 +171,7 @@ def load_json(path: Path) -> dict:
 
 
 def load_sheet_rows(path: Path, sheet: str | None = None) -> list[dict]:
-    wb = load_workbook(path, read_only=True, data_only=True)
-    ws = wb[sheet or wb.sheetnames[0]]
-    rows = list(ws.iter_rows(values_only=True))
-    wb.close()
-    if not rows:
-        return []
-    header = [str(v) if v is not None else "" for v in rows[0]]
-    out: list[dict] = []
-    for row in rows[1:]:
-        item = {}
-        for key, value in zip(header, row):
-            item[key] = value
-        out.append(item)
-    return out
+    return load_xlsx_rows(path, sheet, strip_headers=False, skip_empty=False)
 
 
 def resolve_existing_file(primary_root: Path | None, fallback_root: Path | None, filename: str) -> Path:
@@ -702,52 +691,6 @@ def add_text_paragraph_before(anchor: Paragraph, text: str, template: ParagraphT
     apply_paragraph_template(para, template)
     return para
 
-
-def set_cell_text_preserve(cell, text: str) -> None:
-    paragraphs = cell.paragraphs
-    if not paragraphs:
-        cell.text = text
-        return
-    first = paragraphs[0]
-    if first.runs:
-        for run in first.runs:
-            run.text = ""
-        first.runs[0].text = text
-    else:
-        first.add_run(text)
-    for para in paragraphs[1:]:
-        for run in para.runs:
-            run.text = ""
-
-
-def set_cell_paragraphs(cell, lines: list[str], bold_indices: set[int] | None = None) -> None:
-    bold_indices = bold_indices or set()
-    if not cell.paragraphs:
-        cell.text = ""
-    base_para = cell.paragraphs[0]
-    base_style = base_para.style
-    base_alignment = base_para.alignment
-    for para in cell.paragraphs[1:]:
-        para._element.getparent().remove(para._element)
-    if base_para.runs:
-        for run in base_para.runs:
-            run.text = ""
-    else:
-        base_para.add_run("")
-    paragraphs = [base_para]
-    for _ in range(max(0, len(lines) - 1)):
-        para = cell.add_paragraph()
-        para.style = base_style
-        para.alignment = base_alignment
-        paragraphs.append(para)
-    for idx, (para, text) in enumerate(zip(paragraphs, lines)):
-        if not para.runs:
-            para.add_run("")
-        for run in para.runs:
-            run.text = ""
-            run.bold = False
-        para.runs[0].text = text
-        para.runs[0].bold = idx in bold_indices
 
 
 def style_table(table: Table, left: bool = False) -> None:

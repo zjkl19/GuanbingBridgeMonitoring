@@ -10,15 +10,14 @@ from pathlib import Path
 from typing import Iterable
 
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml.ns import qn
-from docx.shared import Mm
 from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageOps
 
 from analysis_manifest import analysis_manifest_context, missing_module_summary_items
 from artifact_lookup import latest_file_patterns as lookup_latest_file_patterns
+from docx_utils import replace_picture_before_anchor
+from excel_utils import load_sheet_rows as load_xlsx_rows
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_TEMPLATE = REPO_ROOT / "reports" / "G104线管柄大桥监测月报20260410-M18.docx"
@@ -60,23 +59,7 @@ def ensure_template(source_template: Path, template: Path, refresh: bool = False
 
 
 def load_sheet_rows(path: Path, sheet_name: str | None = None) -> list[dict]:
-    if not path.exists():
-        return []
-    wb = load_workbook(path, read_only=True, data_only=True)
-    try:
-        ws = wb[sheet_name] if sheet_name else wb.worksheets[0]
-        rows = list(ws.iter_rows(values_only=True))
-    finally:
-        wb.close()
-    if not rows:
-        return []
-    headers = [str(v).strip() if v is not None else "" for v in rows[0]]
-    out: list[dict] = []
-    for row in rows[1:]:
-        item = {key: value for key, value in zip(headers, row) if key}
-        if any(value is not None for value in item.values()):
-            out.append(item)
-    return out
+    return load_xlsx_rows(path, sheet_name, strip_headers=True, skip_empty=True, require_exists=False)
 
 
 def load_workbook_sheet_rows(path: Path) -> dict[str, list[dict]]:
@@ -173,92 +156,6 @@ def replace_all_by_prefix(doc: Document, prefix: str, text: str, limit: int | No
             count += 1
     return count
 
-
-def find_paragraph_contains(doc: Document, fragment: str, occurrence: int = 1) -> Paragraph | None:
-    seen = 0
-    for paragraph in doc.paragraphs:
-        if fragment in paragraph.text:
-            seen += 1
-            if seen == occurrence:
-                return paragraph
-    return None
-
-
-def paragraph_has_image(paragraph: Paragraph) -> bool:
-    return bool(paragraph._p.xpath(".//w:drawing") or paragraph._p.xpath(".//w:pict"))
-
-
-def paragraph_from_element(element, parent) -> Paragraph:
-    return Paragraph(element, parent)
-
-
-def remove_paragraph(paragraph: Paragraph) -> None:
-    element = paragraph._element
-    parent = element.getparent()
-    if parent is not None:
-        parent.remove(element)
-
-
-def previous_body_paragraphs(paragraph: Paragraph, limit: int = 8) -> list[Paragraph]:
-    out: list[Paragraph] = []
-    element = paragraph._p.getprevious()
-    while element is not None and len(out) < limit:
-        if element.tag == qn("w:p"):
-            out.append(paragraph_from_element(element, paragraph._parent))
-        element = element.getprevious()
-    return out
-
-
-def remove_nearby_picture_before(anchor: Paragraph, limit: int = 8) -> int:
-    removed = 0
-    for candidate in previous_body_paragraphs(anchor, limit=limit):
-        text = candidate.text.strip()
-        if paragraph_has_image(candidate):
-            remove_paragraph(candidate)
-            removed += 1
-            continue
-        # Stop at meaningful text before the anchor; blank paragraphs are harmless.
-        if text:
-            break
-    return removed
-
-
-def insert_picture_before(anchor: Paragraph, image_path: Path, width_mm: float = 145.0) -> None:
-    paragraph = anchor.insert_paragraph_before()
-    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    paragraph.add_run().add_picture(str(image_path), width=Mm(width_mm))
-
-
-def replace_picture_before_anchor(
-    doc: Document,
-    anchor_fragment: str,
-    image_path: Path | None,
-    occurrence: int = 1,
-    width_mm: float = 145.0,
-) -> tuple[bool, str]:
-    if image_path is None or not image_path.exists():
-        return False, f"missing image for anchor: {anchor_fragment}"
-    anchor = find_paragraph_contains(doc, anchor_fragment, occurrence=occurrence)
-    if anchor is None:
-        return False, f"missing anchor: {anchor_fragment}"
-    remove_nearby_picture_before(anchor)
-    insert_picture_before(anchor, image_path, width_mm=width_mm)
-    return True, str(image_path)
-
-
-def find_latest_image(result_root: Path, folder_name: str, token: str, suffix: str = ".jpg") -> Path | None:
-    return lookup_latest_file_patterns(
-        result_root,
-        folder_name,
-        [f"*{token}*{suffix}"],
-        point_id=token,
-        recursive=False,
-        kind=None,
-    ).path
-
-
-def find_latest_file(result_root: Path, folder_name: str, pattern: str) -> Path | None:
-    return lookup_latest_file_patterns(result_root, folder_name, [pattern], recursive=False, kind=None).path
 
 
 def stack_images_vertical(paths: list[Path], output_path: Path, gap: int = 18) -> Path | None:

@@ -25,6 +25,7 @@ from artifact_lookup import (
     latest_point_image_patterns as lookup_latest_point_image_patterns,
 )
 from stats_lookup import resolve_from_analysis_manifest
+from excel_utils import load_sheet_rows as load_xlsx_rows
 from missing_summary import write_missing_summary
 
 
@@ -73,20 +74,7 @@ def load_json(path: Path) -> dict:
 
 
 def load_sheet_rows(path: Path) -> list[dict]:
-    wb = load_workbook(path, read_only=True, data_only=True)
-    ws = wb[wb.sheetnames[0]]
-    rows = list(ws.iter_rows(values_only=True))
-    wb.close()
-    if not rows:
-        return []
-    header = [str(v) if v is not None else "" for v in rows[0]]
-    out = []
-    for row in rows[1:]:
-        item = {}
-        for k, v in zip(header, row):
-            item[k] = v
-        out.append(item)
-    return out
+    return load_xlsx_rows(path, strip_headers=False, skip_empty=False)
 
 
 def load_workbook_rows_by_sheet(path: Path) -> dict[str, list[dict]]:
