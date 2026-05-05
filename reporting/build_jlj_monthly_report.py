@@ -34,6 +34,19 @@ from artifact_lookup import (
 from stats_lookup import resolve_from_analysis_manifest
 from docx_utils import set_cell_paragraphs, set_cell_text_preserve
 from excel_utils import load_sheet_rows as load_xlsx_rows
+from format_utils import (
+    format_number,
+    format_number_fixed,
+    format_range,
+    format_table_datetime,
+    format_table_number,
+    numeric_max,
+    numeric_mean,
+    numeric_min,
+    parse_float,
+    safe_text,
+    table_cell_text,
+)
 from missing_summary import write_missing_summary
 from template_precheck import raise_for_template
 
@@ -208,59 +221,6 @@ def find_latest_point_image_patterns(root: Path, configured_dir: str, point_id: 
 def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[str]) -> Path | None:
     return lookup_latest_image_patterns(root, configured_dir, patterns).path
 
-
-def parse_float(value: object) -> float | None:
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def safe_text(value: object, fallback: str = "") -> str:
-    if value is None:
-        return fallback
-    if isinstance(value, datetime):
-        return value.strftime("%Y-%m-%d %H:%M:%S")
-    return str(value)
-
-
-def format_number(value: object, decimals: int = 3, unit: str = "") -> str:
-    fv = parse_float(value)
-    if fv is None:
-        return ""
-    text = f"{fv:.{decimals}f}".rstrip("0").rstrip(".")
-    return f"{text}{unit}"
-
-
-def format_number_fixed(value: object, decimals: int = 3, unit: str = "") -> str:
-    fv = parse_float(value)
-    if fv is None:
-        return ""
-    return f"{fv:.{decimals}f}{unit}"
-
-
-def format_table_number(value: object, decimals: int = 3, keep_trailing: bool = False) -> str:
-    fv = parse_float(value)
-    if fv is None:
-        return "/"
-    if keep_trailing:
-        return f"{fv:.{decimals}f}"
-    return format_number(fv, decimals)
-
-
-def format_table_datetime(value: object) -> str:
-    text = safe_text(value)
-    return text if text else "/"
-
-
-def format_range(min_val: object, max_val: object, decimals: int = 3, unit: str = "") -> str:
-    lo = parse_float(min_val)
-    hi = parse_float(max_val)
-    if lo is None or hi is None:
-        return "--"
-    return f"{format_number(lo, decimals, unit)}~{format_number(hi, decimals, unit)}"
 
 
 def point_sort_key(point_id: str) -> tuple:
@@ -988,23 +948,6 @@ def is_north_tilt(point_id: str) -> bool:
     idx = point_index(point_id)
     return idx is not None and 3 <= idx <= 6
 
-
-def numeric_min(rows: Iterable[dict], key: str) -> float | None:
-    values = [parse_float(row.get(key)) for row in rows]
-    values = [v for v in values if v is not None]
-    return min(values) if values else None
-
-
-def numeric_max(rows: Iterable[dict], key: str) -> float | None:
-    values = [parse_float(row.get(key)) for row in rows]
-    values = [v for v in values if v is not None]
-    return max(values) if values else None
-
-
-def numeric_mean(rows: Iterable[dict], key: str) -> float | None:
-    values = [parse_float(row.get(key)) for row in rows]
-    values = [v for v in values if v is not None]
-    return sum(values) / len(values) if values else None
 
 
 def first_nonempty(rows: Iterable[dict], key: str) -> object:
@@ -2136,15 +2079,6 @@ def update_cover_metadata(doc: Document, monitoring_range: str, report_date: str
         if len(doc.tables[1].rows[1].cells) > 4:
             set_cell_text_preserve(doc.tables[1].rows[1].cells[4], monitoring_range)
 
-
-def table_cell_text(value: object) -> str:
-    if isinstance(value, datetime):
-        return value.strftime("%Y-%m-%d %H:%M:%S")
-    if isinstance(value, float):
-        return f"{value:.6f}".rstrip("0").rstrip(".")
-    if value is None:
-        return ""
-    return str(value)
 
 
 def render_section_block(anchor: Paragraph, content: SectionBlock, body_template: ParagraphTemplate, caption_templates: CaptionTemplates) -> None:

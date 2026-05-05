@@ -11,6 +11,7 @@ from typing import Iterable
 from docx import Document
 from docx_utils import set_cell_text_preserve
 from excel_utils import load_sheet_rows as load_xlsx_rows
+from format_utils import format_percent
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -117,11 +118,6 @@ def format_ton_threshold(value_t: float) -> str:
         return str(int(rounded))
     return f"{value_t:.1f}".rstrip("0").rstrip(".")
 
-
-def format_percent(count: int, total: int) -> str:
-    if total <= 0:
-        return "0.00000"
-    return f"{count / total * 100:.5f}"
 
 
 def format_load_limit_text(value_t: float, level_1_t: float, level_2_t: float, load_name: str = "设计车辆荷载") -> str:

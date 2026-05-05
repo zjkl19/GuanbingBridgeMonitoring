@@ -26,6 +26,7 @@ from artifact_lookup import (
 )
 from stats_lookup import resolve_from_analysis_manifest
 from excel_utils import load_sheet_rows as load_xlsx_rows
+from format_utils import format_range_fixed as format_range, parse_float
 from missing_summary import write_missing_summary
 
 
@@ -560,30 +561,6 @@ def alarm_status_text(level: int) -> str:
         return "个别测点超过二级预警阈值，建议加强跟踪监测并复核数据。"
     return "均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
 
-
-def format_range(min_val: float | int | None, max_val: float | int | None, decimals: int = 1, unit: str = "") -> str:
-    if min_val is None or max_val is None:
-        return "--"
-    return f"{min_val:.{decimals}f}{unit}~{max_val:.{decimals}f}{unit}"
-
-
-def find_table_by_header(doc: Document, header_fragment: str):
-    for table in doc.tables:
-        if not table.rows:
-            continue
-        header_cells = [cell.text.strip() for cell in table.rows[0].cells]
-        if any(header_fragment in text for text in header_cells):
-            return table
-    raise ValueError(f'Table with header fragment "{header_fragment}" not found in template')
-
-
-def parse_float(value: object) -> float | None:
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def median_safe(values: Iterable[float]) -> float | None:
