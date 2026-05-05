@@ -28,7 +28,7 @@ classdef RunRequest
             obj.StartDate = char(startDate);
             obj.EndDate = char(endDate);
             obj.Options = opts;
-            obj.Config = cfg;
+            obj.Config = bms.config.ConfigMigrator.migrate(cfg);
             obj.ConfigPath = bms.app.RunRequest.configPathFromConfig(cfg);
 
             if mod(numel(varargin), 2) ~= 0

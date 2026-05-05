@@ -8,6 +8,7 @@ classdef ConfigStore
             else
                 cfg = load_config(path);
             end
+            cfg = bms.config.ConfigMigrator.migrate(cfg);
         end
 
         function saveGuarded(cfg, filepath, makeBackup)
@@ -27,7 +28,7 @@ classdef ConfigStore
             if ~isfile(filepath)
                 error('BMS:Config:MissingFile', 'Config file not found: %s', filepath);
             end
-            cfg = bms.core.ConfigStore.readJson(filepath);
+            cfg = bms.config.ConfigMigrator.migrate(bms.core.ConfigStore.readJson(filepath));
             cfg = bms.config.ConfigPatch.apply(cfg, operations);
             bms.core.ConfigStore.saveGuarded(cfg, filepath, makeBackup);
         end
