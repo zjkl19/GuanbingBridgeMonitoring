@@ -218,6 +218,7 @@ function run_gui()
             root = rootEdit.Value; start_date = datestr(startPicker.Value,'yyyy-mm-dd'); end_date = datestr(endPicker.Value,'yyyy-mm-dd');
             logEdit.Value = fullfile(root, 'run_logs');
             if exist(logEdit.Value,'dir')==0, mkdir(logEdit.Value); end
+            runRequest = bms.app.RunRequest.fromLegacy(root, start_date, end_date, opts, cfg);
             if isfield(cfg,'plot_common') && isstruct(cfg.plot_common)
                 if isfield(cfg.plot_common,'gap_mode')
                     addLog(sprintf('plot_common.gap_mode=%s', char(string(cfg.plot_common.gap_mode))));
@@ -229,7 +230,7 @@ function run_gui()
                     addLog(sprintf('plot_common.append_timestamp=%d', logical(cfg.plot_common.append_timestamp)));
                 end
             end
-            preflight = bms.app.RunPreflight.check(root, start_date, end_date, opts, cfg);
+            preflight = bms.app.RunPreflight.check(runRequest);
             preflightLines = bms.app.RunPreflight.toLogLines(preflight);
             for ipf = 1:numel(preflightLines)
                 addLog(preflightLines{ipf});
@@ -241,7 +242,8 @@ function run_gui()
                 'preproc',struct('precheck',cbPrecheck.Value,'unzip',cbUnzip.Value,'rename',cbRename.Value,'rmheader',cbRmHeader.Value,'resample',cbResample.Value), ...
                 'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'rainfall',cbRainfall.Value,'gnss',cbGNSS.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value,'dynlowpass',cbDynLowpass.Value)));
             addLog(sprintf('root=%s, %s -> %s', root, start_date, end_date));
-            bms_run_context(root, start_date, end_date, opts, cfg);
+            session = bms.app.RunSession(runRequest);
+            session.run();
             elapsed = toc(t0);
             addLog(sprintf('运行完成，用时 %.2f 秒', elapsed));
             statusLbl.Text = sprintf('完成，用时 %.2f 秒', elapsed); statusLbl.FontColor = [0 0.5 0];

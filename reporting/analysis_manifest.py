@@ -98,6 +98,8 @@ def analysis_manifest_context(result_root: Path | str | None) -> dict[str, Any]:
         "status": manifest.get("status") if isinstance(manifest, dict) else "",
         "bridge_profile": manifest.get("bridge_profile", {}) if isinstance(manifest, dict) else {},
         "data_layout": manifest.get("data_layout", {}) if isinstance(manifest, dict) else {},
+        "run_request": manifest.get("run_request", {}) if isinstance(manifest, dict) else {},
+        "run_preflight": manifest.get("run_preflight", {}) if isinstance(manifest, dict) else {},
         "missing_modules": manifest_missing_modules(manifest),
         "manifest": manifest,
     }

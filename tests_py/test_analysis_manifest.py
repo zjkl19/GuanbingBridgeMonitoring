@@ -40,6 +40,8 @@ class AnalysisManifestTests(unittest.TestCase):
                         "module_results": [
                             {"key": "eq", "label": "地震动分析", "status": "skip", "message": "no data"}
                         ],
+                        "run_request": {"data_root": "E:/data"},
+                        "run_preflight": {"status": "warning"},
                     },
                     ensure_ascii=False,
                 ),
@@ -50,6 +52,8 @@ class AnalysisManifestTests(unittest.TestCase):
             context = analysis_manifest_context(root)
             missing = manifest_missing_modules(context["manifest"])
             self.assertEqual({item["key"] for item in missing}, {"strain", "eq"})
+            self.assertEqual(context["run_request"]["data_root"], "E:/data")
+            self.assertEqual(context["run_preflight"]["status"], "warning")
             summary = missing_module_summary_items(context)
             self.assertTrue(any("应变分析" in item for item in summary))
             self.assertTrue(any("地震动分析" in item for item in summary))

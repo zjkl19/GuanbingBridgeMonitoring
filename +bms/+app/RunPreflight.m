@@ -3,6 +3,14 @@ classdef RunPreflight
 
     methods (Static)
         function result = check(root, startDate, endDate, opts, cfg)
+            if nargin >= 1 && isa(root, 'bms.app.RunRequest')
+                request = root;
+                root = request.DataRoot;
+                startDate = request.StartDate;
+                endDate = request.EndDate;
+                opts = request.Options;
+                cfg = request.Config;
+            end
             if nargin < 4 || isempty(opts), opts = struct(); end
             if nargin < 5 || isempty(cfg), cfg = struct(); end
 

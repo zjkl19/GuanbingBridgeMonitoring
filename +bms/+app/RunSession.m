@@ -7,6 +7,7 @@ classdef RunSession < handle
         EndDate char
         Options struct
         Config struct
+        Request = []
         NotifyConfig struct = struct()
         StartTimestamp datetime = NaT
         StatsDir char
@@ -23,15 +24,21 @@ classdef RunSession < handle
 
     methods
         function obj = RunSession(root, startDate, endDate, opts, cfg)
-            if nargin < 4 || isempty(opts), opts = struct(); end
-            if nargin < 5, cfg = []; end
-            obj.Root = char(root);
-            obj.StartDate = char(startDate);
-            obj.EndDate = char(endDate);
-            obj.Options = opts;
-            obj.Config = cfg;
-            obj.StatsDir = fullfile(obj.Root, 'stats');
-            obj.LogDir = fullfile(obj.Root, 'run_logs');
+            if nargin == 1 && isa(root, 'bms.app.RunRequest')
+                req = root;
+            else
+                if nargin < 4 || isempty(opts), opts = struct(); end
+                if nargin < 5, cfg = []; end
+                req = bms.app.RunRequest.fromLegacy(root, startDate, endDate, opts, cfg);
+            end
+            obj.Request = req;
+            obj.Root = req.DataRoot;
+            obj.StartDate = req.StartDate;
+            obj.EndDate = req.EndDate;
+            obj.Options = req.Options;
+            obj.Config = req.Config;
+            obj.StatsDir = req.StatsDir;
+            obj.LogDir = req.LogDir;
         end
 
         function summary = run(obj)
@@ -48,7 +55,7 @@ classdef RunSession < handle
                 obj.LogRecords = {};
                 obj.Results = {};
                 obj.StartTimestamp = datetime('now');
-                obj.Preflight = bms.app.RunPreflight.check(obj.Root, obj.StartDate, obj.EndDate, obj.Options, obj.Config);
+                obj.Preflight = bms.app.RunPreflight.check(obj.Request);
                 if strcmp(obj.Preflight.status, 'failed')
                     error('BMS:RunPreflight:Failed', 'Run preflight failed: %s', strjoin(obj.Preflight.errors, '; '));
                 end
@@ -111,6 +118,7 @@ classdef RunSession < handle
             obj.LogFile = obj.writeLog(allLogs);
             obj.Summary = bms.app.LegacyRunAllAdapter.buildSummary(obj.Root, obj.StartDate, obj.EndDate, obj.Options, obj.Config, obj.StartTimestamp, obj.ElapsedSec, ...
                 allLogs, obj.LogFile, obj.OffsetLog, obj.StatsDir, obj.LogDir, obj.Preflight);
+            obj.Summary.run_request = obj.Request.toStruct();
             obj.ManifestPath = bms.app.RunSession.writeManifest(obj, obj.Summary.status, obj.Summary);
             obj.Summary.analysis_manifest = obj.ManifestPath;
             obj.configureFolderViews();

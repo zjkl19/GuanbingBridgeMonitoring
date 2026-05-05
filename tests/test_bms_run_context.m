@@ -34,6 +34,7 @@ classdef test_bms_run_context < matlab.unittest.TestCase
             tc.verifyTrue(isfield(manifest, 'module_catalog'));
             tc.verifyTrue(isfield(manifest, 'module_preflight'));
             tc.verifyTrue(isfield(manifest, 'run_preflight'));
+            tc.verifyTrue(isfield(manifest, 'run_request'));
             tc.verifyTrue(isfield(manifest, 'offset_report'));
             tc.verifyEqual(manifest.offset_report.status, 'ok');
         end

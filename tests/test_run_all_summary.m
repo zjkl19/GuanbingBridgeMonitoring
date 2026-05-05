@@ -29,6 +29,7 @@ classdef test_run_all_summary < matlab.unittest.TestCase
             tc.verifyTrue(isfield(summary, 'module_catalog'));
             tc.verifyTrue(isfield(summary, 'module_preflight'));
             tc.verifyTrue(isfield(summary, 'run_preflight'));
+            tc.verifyTrue(isfield(summary, 'run_request'));
             tc.verifyTrue(isfield(summary, 'offset_report'));
             tc.verifyEqual(summary.offset_report.status, 'ok');
             tc.verifyTrue(isfield(summary, 'analysis_manifest'));
@@ -37,6 +38,7 @@ classdef test_run_all_summary < matlab.unittest.TestCase
             tc.verifyEqual(manifest.manifest_type, 'analysis_run');
             tc.verifyTrue(isfield(manifest, 'bridge_profile'));
             tc.verifyTrue(isfield(manifest, 'run_preflight'));
+            tc.verifyTrue(isfield(manifest, 'run_request'));
             tc.verifyTrue(isfield(manifest, 'module_results'));
             tc.verifyGreaterThanOrEqual(summary.elapsed_sec, 0);
         end

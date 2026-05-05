@@ -7,6 +7,7 @@
     if nargin < 4 || isempty(opts)
         opts = struct();
     end
-    session = bms.app.RunSession(root, start_date, end_date, opts, cfg);
+    request = bms.app.RunRequest.fromLegacy(root, start_date, end_date, opts, cfg);
+    session = bms.app.RunSession(request);
     summary = session.run();
 end

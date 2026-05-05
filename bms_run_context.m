@@ -6,10 +6,12 @@ function manifestPath = bms_run_context(root, start_date, end_date, opts, cfg)
     if nargin < 5 || isempty(cfg)
         cfg = load_config();
     end
-    ctx = bms.core.AnalysisContext.fromLegacy(root, start_date, end_date, opts, cfg);
+    request = bms.app.RunRequest.fromLegacy(root, start_date, end_date, opts, cfg);
+    ctx = request.toContext();
     manifestPath = '';
     try
-        runSummary = run_all(root, start_date, end_date, opts, cfg);
+        session = bms.app.RunSession(request);
+        runSummary = session.run();
         if isfield(runSummary, 'analysis_manifest') && ~isempty(runSummary.analysis_manifest) && isfile(runSummary.analysis_manifest)
             manifestPath = runSummary.analysis_manifest;
         else
@@ -17,6 +19,11 @@ function manifestPath = bms_run_context(root, start_date, end_date, opts, cfg)
         end
     catch ME
         details = struct('error', ME.message, 'identifier', ME.identifier);
+        try
+            details.run_request = request.toStruct();
+            details.run_preflight = request.preflight();
+        catch
+        end
         try
             details.expected_stats_files = bms.module.ModuleRegistry.expectedStatsFiles(ctx.StatsDir, opts);
             details.module_preflight = bms.module.ModuleRegistry.preflight(ctx.StatsDir, opts);

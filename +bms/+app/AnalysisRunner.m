@@ -5,16 +5,24 @@ classdef AnalysisRunner
 
     properties
         Context bms.core.AnalysisContext
+        Request = []
     end
 
     methods
         function obj = AnalysisRunner(ctx)
-            obj.Context = ctx;
+            if isa(ctx, 'bms.app.RunRequest')
+                obj.Request = ctx;
+                obj.Context = ctx.toContext();
+            else
+                obj.Context = ctx;
+                obj.Request = bms.app.RunRequest.fromContext(ctx);
+            end
         end
 
         function manifestPath = run(obj)
-            ctx = obj.Context;
-            manifestPath = bms_run_context(ctx.DataRoot, ctx.StartDate, ctx.EndDate, ctx.Options, ctx.Config);
+            session = bms.app.RunSession(obj.Request);
+            summary = session.run();
+            manifestPath = summary.analysis_manifest;
         end
     end
 end
