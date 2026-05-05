@@ -2,7 +2,10 @@ classdef LegacyRunAllAdapter
     %LEGACYRUNALLADAPTER Bridges legacy run_all outputs into app-layer schema.
 
     methods (Static)
-        function summary = buildSummary(root, startDate, endDate, opts, cfg, startTs, elapsed, logs, logfile, offsetLog, statsDir, logDir)
+        function summary = buildSummary(root, startDate, endDate, opts, cfg, startTs, elapsed, logs, logfile, offsetLog, statsDir, logDir, preflight)
+            if nargin < 13 || isempty(preflight)
+                preflight = struct();
+            end
             summary = struct();
             summary.data_root = char(root);
             summary.start_date = char(startDate);
@@ -38,6 +41,11 @@ classdef LegacyRunAllAdapter
             summary.module_logs = bms.app.LegacyRunAllAdapter.logsToStructs(logs, statsDir);
             summary.stats_files = bms.app.LegacyRunAllAdapter.listStatsFiles(statsDir);
             summary.offset_report = bms.app.LegacyRunAllAdapter.offsetToStruct(offsetLog);
+            summary.run_preflight = preflight;
+            summary.warnings = {};
+            if isstruct(preflight) && isfield(preflight, 'warnings') && ~isempty(preflight.warnings)
+                summary.warnings = preflight.warnings;
+            end
         end
 
         function out = logsToStructs(logs, statsDir)

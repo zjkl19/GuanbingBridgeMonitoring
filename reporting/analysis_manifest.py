@@ -103,6 +103,50 @@ def analysis_manifest_context(result_root: Path | str | None) -> dict[str, Any]:
     }
 
 
+def manifest_precheck_warnings(result_root: Path | str | None) -> list[str]:
+    """Build concise report-generation warnings from the latest analysis manifest."""
+    context = analysis_manifest_context(result_root)
+    if not context["available"]:
+        return ["analysis manifest not found; report generator will rely on stats/images only"]
+
+    warnings: list[str] = []
+    status = str(context.get("status") or "").lower()
+    if status and status not in {"ok", "success", "completed"}:
+        warnings.append(f"analysis manifest status is {status}")
+
+    for item in context.get("missing_modules", []) or []:
+        if not isinstance(item, dict):
+            continue
+        label = item.get("label") or item.get("key") or "unknown"
+        msg = item.get("message") or item.get("error_type") or item.get("status") or ""
+        warnings.append(f"module missing/failed: {label} {msg}".strip())
+
+    manifest = context.get("manifest")
+    if isinstance(manifest, dict):
+        run_preflight = manifest.get("run_preflight")
+        if isinstance(run_preflight, dict):
+            for item in run_preflight.get("errors", []) or []:
+                if item:
+                    warnings.append(f"analysis preflight error: {item}")
+            for item in run_preflight.get("warnings", []) or []:
+                if item:
+                    warnings.append(f"analysis preflight warning: {item}")
+        for path in manifest.get("missing_expected_stats") or manifest.get("missing_stats_files") or []:
+            if path:
+                warnings.append(f"expected stats missing: {path}")
+        for item in manifest.get("warnings", []) or []:
+            if item:
+                warnings.append(f"analysis warning: {item}")
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in warnings:
+        if item not in seen:
+            seen.add(item)
+            deduped.append(item)
+    return deduped
+
+
 def missing_module_summary_items(context: dict[str, Any] | None) -> list[str]:
     if not isinstance(context, dict):
         return []

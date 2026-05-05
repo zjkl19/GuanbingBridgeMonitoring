@@ -229,6 +229,14 @@ function run_gui()
                     addLog(sprintf('plot_common.append_timestamp=%d', logical(cfg.plot_common.append_timestamp)));
                 end
             end
+            preflight = bms.app.RunPreflight.check(root, start_date, end_date, opts, cfg);
+            preflightLines = bms.app.RunPreflight.toLogLines(preflight);
+            for ipf = 1:numel(preflightLines)
+                addLog(preflightLines{ipf});
+            end
+            if strcmp(preflight.status, 'failed')
+                error('BMS:RunPreflight:Failed', '运行前预检失败，请先处理数据目录、日期范围或配置问题。');
+            end
             save_last_preset(struct('root',root,'start_date',start_date,'end_date',end_date,'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value), ...
                 'preproc',struct('precheck',cbPrecheck.Value,'unzip',cbUnzip.Value,'rename',cbRename.Value,'rmheader',cbRmHeader.Value,'resample',cbResample.Value), ...
                 'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'rainfall',cbRainfall.Value,'gnss',cbGNSS.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value,'dynlowpass',cbDynLowpass.Value)));

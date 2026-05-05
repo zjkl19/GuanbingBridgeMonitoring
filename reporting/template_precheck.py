@@ -10,6 +10,11 @@ from typing import Iterable, Any
 from docx import Document
 from docx.document import Document as DocxDocument
 
+try:
+    from analysis_manifest import manifest_precheck_warnings
+except Exception:  # pragma: no cover - optional CLI helper path
+    manifest_precheck_warnings = None
+
 
 @dataclass(frozen=True)
 class TemplateIssue:
@@ -318,15 +323,23 @@ def main() -> None:
     parser.add_argument("--kind", choices=["hongtang_period", "jlj_monthly"], required=True)
     parser.add_argument("--template", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=None, help="Optional directory for txt/json precheck reports.")
+    parser.add_argument("--result-root", type=Path, default=None, help="Optional analysis result root for manifest warnings.")
     args = parser.parse_args()
 
     issues = check_template(args.kind, args.template)
+    warnings = []
+    if args.result_root is not None and manifest_precheck_warnings is not None:
+        warnings = manifest_precheck_warnings(args.result_root)
     if args.output_dir is not None:
-        txt_path, json_path = write_precheck_report(args.kind, args.template, issues, args.output_dir)
+        txt_path, json_path = write_precheck_report(args.kind, args.template, issues, args.output_dir, warnings=warnings)
         print(f"Precheck report: {txt_path}")
         print(f"Precheck JSON:   {json_path}")
     if issues:
         raise TemplatePrecheckError(args.template, issues)
+    if warnings:
+        print("Template precheck warnings:")
+        for warning in warnings:
+            print(f"- {warning}")
     print(f"Template precheck OK: {args.template}")
 
 

@@ -31,6 +31,7 @@ classdef ManifestWriter
             manifest.module_catalog = {};
             manifest.enabled_module_specs = {};
             manifest.module_preflight = {};
+            manifest.run_preflight = struct();
             manifest.stats_files = bms.core.Logger.listFiles(ctx.StatsDir, '*.xlsx');
             manifest.expected_stats_files = {};
             manifest.missing_expected_stats = {};
@@ -64,6 +65,9 @@ classdef ManifestWriter
             end
             if isfield(details, 'module_preflight')
                 manifest.module_preflight = details.module_preflight;
+            end
+            if isfield(details, 'run_preflight')
+                manifest.run_preflight = details.run_preflight;
             end
             if isfield(details, 'offset_report')
                 manifest.offset_report = details.offset_report;

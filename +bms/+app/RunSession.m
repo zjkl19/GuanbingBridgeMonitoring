@@ -18,6 +18,7 @@ classdef RunSession < handle
         LogFile char = ''
         ManifestPath char = ''
         Summary struct = struct()
+        Preflight struct = struct()
     end
 
     methods
@@ -47,6 +48,10 @@ classdef RunSession < handle
                 obj.LogRecords = {};
                 obj.Results = {};
                 obj.StartTimestamp = datetime('now');
+                obj.Preflight = bms.app.RunPreflight.check(obj.Root, obj.StartDate, obj.EndDate, obj.Options, obj.Config);
+                if strcmp(obj.Preflight.status, 'failed')
+                    error('BMS:RunPreflight:Failed', 'Run preflight failed: %s', strjoin(obj.Preflight.errors, '; '));
+                end
                 offset_correction_registry('reset');
                 RUN_STOP_FLAG = false;
                 obj.collectConfigWarnings();
@@ -105,7 +110,7 @@ classdef RunSession < handle
             obj.printSummary(allLogs);
             obj.LogFile = obj.writeLog(allLogs);
             obj.Summary = bms.app.LegacyRunAllAdapter.buildSummary(obj.Root, obj.StartDate, obj.EndDate, obj.Options, obj.Config, obj.StartTimestamp, obj.ElapsedSec, ...
-                allLogs, obj.LogFile, obj.OffsetLog, obj.StatsDir, obj.LogDir);
+                allLogs, obj.LogFile, obj.OffsetLog, obj.StatsDir, obj.LogDir, obj.Preflight);
             obj.ManifestPath = bms.app.RunSession.writeManifest(obj, obj.Summary.status, obj.Summary);
             obj.Summary.analysis_manifest = obj.ManifestPath;
             obj.configureFolderViews();

@@ -16,6 +16,7 @@ from reporting.analysis_manifest import (
     analysis_manifest_context,
     find_latest_analysis_manifest,
     manifest_missing_modules,
+    manifest_precheck_warnings,
     missing_module_summary_items,
 )
 
@@ -52,6 +53,40 @@ class AnalysisManifestTests(unittest.TestCase):
             summary = missing_module_summary_items(context)
             self.assertTrue(any("应变分析" in item for item in summary))
             self.assertTrue(any("地震动分析" in item for item in summary))
+
+    def test_manifest_precheck_warnings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_logs = root / "run_logs"
+            run_logs.mkdir()
+            (run_logs / "analysis_manifest_20260101_010101.json").write_text(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "missing_expected_stats": ["E:/data/stats/strain_stats.xlsx"],
+                        "run_preflight": {"warnings": ["WIM input missing for 202601"]},
+                        "module_results": [
+                            {"key": "strain", "label": "应变分析", "status": "fail", "message": "read failed"}
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            warnings = manifest_precheck_warnings(root)
+            joined = "\n".join(warnings)
+            self.assertIn("analysis manifest status is failed", joined)
+            self.assertIn("应变分析", joined)
+            self.assertIn("strain_stats.xlsx", joined)
+            self.assertIn("WIM input missing", joined)
+
+    def test_missing_manifest_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            warnings = manifest_precheck_warnings(Path(tmp))
+
+            self.assertEqual(len(warnings), 1)
+            self.assertIn("analysis manifest not found", warnings[0])
 
 
 if __name__ == "__main__":
