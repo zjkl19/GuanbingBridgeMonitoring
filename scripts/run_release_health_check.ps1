@@ -129,6 +129,13 @@ Invoke-Step "Python compile reporting scripts" {
     }
 }
 
+Invoke-Step "Report template precheck smoke" {
+    Invoke-External -Name "report-smoke-precheck" `
+        -FilePath "python" `
+        -Arguments @(".\reporting\smoke_report_generation.py", "--kind", "all") `
+        -TimeoutSeconds $PythonTimeoutSeconds
+}
+
 if (-not $SkipMatlab) {
     if ($FullMatlab) {
         Invoke-Step "MATLAB full tests" {

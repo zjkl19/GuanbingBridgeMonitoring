@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import shutil
 from dataclasses import dataclass
@@ -18,6 +17,8 @@ from artifact_lookup import latest_file_patterns as lookup_latest_file_patterns
 from docx_utils import replace_picture_before_anchor
 from excel_utils import load_sheet_rows as load_xlsx_rows
 from image_block_utils import count_docx_images, stack_images_vertical
+from report_build_manifest import write_report_build_manifest
+from report_context import ReportBuildContext
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_TEMPLATE = REPO_ROOT / "reports" / "G104线管柄大桥监测月报20260410-M18.docx"
@@ -461,12 +462,16 @@ def build_report(
     refresh_template: bool = False,
     skip_image_replace: bool = False,
 ) -> tuple[Path, Path]:
-    del config_path, start_date, end_date  # Reserved for GUI/CLI compatibility and future config-driven generation.
+    del start_date, end_date  # Reserved for GUI/CLI compatibility and future config-driven generation.
     report_date = report_date or datetime.now().strftime("%Y年%m月%d日")
     template = ensure_template(source_template, template, refresh=refresh_template)
-    if output_dir is None:
-        output_dir = result_root / "自动报告"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    ctx = ReportBuildContext.from_inputs(
+        template=template,
+        config_path=config_path,
+        result_root=result_root,
+        output_dir=output_dir,
+        assets_subdir="_assets",
+    )
 
     doc = Document(str(template))
     image_count_before = count_docx_images(template)
@@ -475,10 +480,10 @@ def build_report(
     replaced_images: list[dict] = []
     missing_images: list[str] = []
     if not skip_image_replace:
-        replaced_images, missing_images = apply_image_updates(doc, result_root, output_dir / "_assets")
+        replaced_images, missing_images = apply_image_updates(doc, result_root, ctx.assets_dir)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = output_dir / f"G104线管柄大桥监测月报_{period_label}_自动生成_{timestamp}.docx"
+    output_path = ctx.output_dir / f"G104线管柄大桥监测月报_{period_label}_自动生成_{timestamp}.docx"
     doc.save(str(output_path))
 
     manifest = {
@@ -504,8 +509,19 @@ def build_report(
         ],
     }
     manifest["missing_analysis_modules"] = missing_module_summary_items(manifest.get("analysis_run_manifest"))
-    manifest_path = output_dir / f"G104线管柄大桥监测月报_manifest_{timestamp}.json"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest_path = write_report_build_manifest(
+        context=ctx,
+        report_type="guanbing_monthly",
+        output_docx=output_path,
+        timestamp=timestamp,
+        legacy_manifest=manifest,
+        missing=missing_images + manifest["missing_analysis_modules"],
+        extra={
+            "updated_paragraph_count": len(updated_paragraphs),
+            "replaced_image_count": len(replaced_images),
+        },
+        filename_prefix="G104线管柄大桥监测月报_manifest",
+    )
     return output_path, manifest_path
 
 

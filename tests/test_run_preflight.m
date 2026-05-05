@@ -54,5 +54,27 @@ classdef test_run_preflight < matlab.unittest.TestCase
             tc.verifyEqual(numel(result.wim_month_files), 2);
             tc.verifyTrue(any(contains(result.warnings, 'WIM input missing for 202601')));
         end
+
+        function staleStatsWarnsAgainstNewerInput(tc)
+            dayDir = fullfile(tc.TempDir, '2026-03-01', 'temperature');
+            statsDir = fullfile(tc.TempDir, 'stats');
+            mkdir(dayDir);
+            mkdir(statsDir);
+            inputFile = fullfile(dayDir, 'temp.csv');
+            statsFile = fullfile(statsDir, 'temp_stats.xlsx');
+            fclose(fopen(inputFile, 'w'));
+            fclose(fopen(statsFile, 'w'));
+            jFile = java.io.File(statsFile);
+            jFile.setLastModified(1000);
+
+            cfg = struct();
+            cfg.subfolders = struct('temperature', 'temperature');
+            opts = struct('doTemp', true);
+            result = bms.app.RunPreflight.check(tc.TempDir, '2026-03-01', '2026-03-01', opts, cfg);
+
+            tc.verifyEqual(result.status, 'warning');
+            tc.verifyTrue(isfield(result, 'result_artifact_preflight'));
+            tc.verifyTrue(any(contains(result.warnings, 'result artifact')));
+        end
     end
 end

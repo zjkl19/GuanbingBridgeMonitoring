@@ -40,8 +40,10 @@ from build_quarterly_wim_sample import (
     style_table,
 )
 from template_precheck import raise_for_template
-from analysis_manifest import analysis_manifest_context, missing_module_summary_items
+from analysis_manifest import missing_module_summary_items
 from missing_summary import write_missing_summary
+from report_build_manifest import write_report_build_manifest
+from report_context import ReportBuildContext
 
 
 LOWFREQ_MODULES = {
@@ -850,8 +852,6 @@ def build_period_report(
     end_date: str | None = None,
     precheck_template: bool = True,
 ) -> tuple[Path, Path, list[str]]:
-    if analysis_root is None:
-        analysis_root = Path(__file__).resolve().parents[1]
     if report_date is None:
         report_date = datetime.now().strftime("%Y年%m月%d日")
 
@@ -864,19 +864,23 @@ def build_period_report(
             raise ValueError("Unable to derive start/end dates. Provide --start-date and --end-date.")
         start_dt, end_dt = extracted
 
-    stats_root = result_root
-    fallback_stats_root = analysis_root if result_root != analysis_root else None
-    image_root = image_root if image_root is not None else result_root
-    output_dir = output_dir if output_dir is not None else (result_root / "自动报告")
-    output_dir = ensure_dir(output_dir)
-    assets_dir = ensure_dir(output_dir / "generated_assets")
+    ctx = ReportBuildContext.from_inputs(
+        template=template,
+        config_path=config_path,
+        result_root=result_root,
+        analysis_root=analysis_root,
+        image_root=image_root,
+        output_dir=output_dir,
+        wim_root=wim_root,
+        assets_subdir="generated_assets",
+    )
 
     cfg = load_json(config_path)
-    manifest = build_manifest(cfg, stats_root, fallback_stats_root, image_root, template, assets_dir, period_label, monitoring_range, report_date)
-    manifest["analysis_run_manifest"] = analysis_manifest_context(result_root)
+    manifest = build_manifest(cfg, ctx.stats_root, ctx.fallback_stats_root, ctx.image_root, template, ctx.assets_dir, period_label, monitoring_range, report_date)
+    manifest["analysis_run_manifest"] = ctx.analysis_context()
     wim_months = months_between(start_dt, end_dt)
     try:
-        resolved_wim_root = resolve_wim_root(result_root, analysis_root, wim_root)
+        resolved_wim_root = resolve_wim_root(result_root, ctx.analysis_root, wim_root)
         manifest["wim"] = build_wim_period_section(resolved_wim_root, wim_months, cfg)
     except FileNotFoundError as exc:
         fallback_wim_root = wim_root if wim_root is not None else (result_root / "WIM" / "results" / "hongtang")
@@ -895,8 +899,6 @@ def build_period_report(
     manifest["health_status_rows"] = raw_health_rows + missing_rows
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    manifest_path = output_dir / f"period_report_manifest_{timestamp}.json"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, default=_json_default) + "\n", encoding="utf-8")
 
     if precheck_template:
         raise_for_template("hongtang_period", template, manifest)
@@ -906,13 +908,23 @@ def build_period_report(
     apply_health_status_to_doc(doc, manifest["health_status_summary"], manifest["health_status_rows"])
     apply_wim_period_to_doc(doc, manifest["wim"])
 
-    output_docx = output_dir / f"{template.stem}_周期报_{timestamp}.docx"
+    output_docx = ctx.output_dir / f"{template.stem}_周期报_{timestamp}.docx"
     doc.save(str(output_docx))
 
     missing = summarize_missing_images(manifest) + summarize_missing_wim_images(manifest["wim"])
     missing.extend(missing_module_summary_items(manifest.get("analysis_run_manifest")))
     warnings = manifest["wim"].get("warnings", [])
     missing.extend(f"warning:{msg}" for msg in warnings)
+    manifest_path = write_report_build_manifest(
+        context=ctx,
+        report_type="hongtang_period",
+        output_docx=output_docx,
+        timestamp=timestamp,
+        legacy_manifest=manifest,
+        missing=missing,
+        warnings=warnings,
+        filename_prefix="period_report_manifest",
+    )
     write_missing_summary(
         "洪塘周期报",
         output_docx,

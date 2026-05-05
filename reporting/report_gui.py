@@ -30,6 +30,7 @@ from build_guanbing_monthly_report import build_report as build_guanbing_monthly
 from build_monthly_report import build_report as build_hongtang_monthly_report
 from build_period_report import build_period_report
 from missing_summary import missing_summary_paths
+from report_build_manifest import find_latest_report_build_manifest
 from template_precheck import TemplateIssue, check_template, write_precheck_report
 
 
@@ -263,7 +264,7 @@ class ReportWorker(QObject):
                     monitoring_range=self.monitoring_range,
                     report_date=self.report_date,
                 )
-                manifest_path = None
+                manifest_path = find_latest_report_build_manifest(self.output_dir or (self.result_root / "自动报告"))
                 missing = []
             elif self.report_type == GUANBING_MONTHLY_REPORT:
                 report_path, manifest_path = build_guanbing_monthly_report(

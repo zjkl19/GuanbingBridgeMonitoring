@@ -74,7 +74,10 @@ classdef test_gui_state_services < matlab.unittest.TestCase
                 'artifacts', struct('kind','figure','path','x.jpg'));
             manifest = struct('status','failed', 'module_results', rec, ...
                 'module_status_counts', struct('ok',0,'fail',1,'skip',0,'missing',0,'other',0), ...
-                'artifact_count', 1);
+                'artifact_count', 1, ...
+                'missing_expected_stats', {{'missing.xlsx'}}, ...
+                'run_preflight', struct('warnings', {{'warn'}}, ...
+                    'result_artifact_preflight', struct('status','possible_stale')));
             ctx = struct('available', true, 'path', 'manifest.json', 'status', 'failed', ...
                 'manifest', manifest, 'artifact_count', 1);
 
@@ -84,6 +87,9 @@ classdef test_gui_state_services < matlab.unittest.TestCase
             tc.verifyEqual(summary.module_rows{1, 1}, '温度分析');
             tc.verifyEqual(summary.module_rows{1, 6}, 'read_failed');
             tc.verifyEqual(summary.module_rows{1, 7}, '无法读取输入文件');
+            tc.verifyEqual(summary.preflight_warning_count, 1);
+            tc.verifyEqual(summary.missing_stats_count, 1);
+            tc.verifyEqual(summary.possible_stale_count, 1);
         end
     end
 end

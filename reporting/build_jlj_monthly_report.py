@@ -48,6 +48,8 @@ from format_utils import (
     table_cell_text,
 )
 from missing_summary import write_missing_summary
+from report_build_manifest import write_report_build_manifest
+from report_context import ReportBuildContext
 from table_utils import (
     set_header_bold,
     set_table_auto_width as shared_set_table_auto_width,
@@ -2222,11 +2224,16 @@ def build_report(
     if report_date is None:
         report_date = datetime.now().strftime("%Y年%m月%d日")
 
+    ctx = ReportBuildContext.from_inputs(
+        template=template,
+        config_path=config_path,
+        result_root=result_root,
+        image_root=image_root,
+        output_dir=output_dir,
+        wim_root=wim_root,
+        assets_subdir="generated_assets_jlj",
+    )
     cfg = load_json(config_path)
-    image_root = image_root or result_root
-    output_dir = output_dir or (result_root / "自动报告")
-    output_dir = ensure_dir(output_dir)
-    assets_dir = ensure_dir(output_dir / "generated_assets_jlj")
 
     if precheck_template:
         raise_for_template("jlj_monthly", template)
@@ -2238,9 +2245,9 @@ def build_report(
 
     update_cover_metadata(doc, monitoring_range, report_date)
     apply_health_status_section(doc, cfg, result_root, monitoring_range)
-    section_map = build_section_map(cfg, result_root, None, result_root, image_root, wim_root)
+    section_map = build_section_map(cfg, result_root, None, result_root, ctx.image_root, wim_root)
     for key, parent_heading, child_heading, _ in JLG_MONTHLY_SECTIONS:
-        add_section_content(doc, parent_heading, child_heading, section_map[key], body_template, caption_templates, assets_dir)
+        add_section_content(doc, parent_heading, child_heading, section_map[key], body_template, caption_templates, ctx.assets_dir)
     update_summary_table(doc, section_map)
     ending_para = doc.add_paragraph()
     ending_para.add_run("（以下无正文）")
@@ -2248,17 +2255,26 @@ def build_report(
     ending_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_docx = output_dir / f"{template.stem}_{period_label}_自动生成_{timestamp}.docx"
+    output_docx = ctx.output_dir / f"{template.stem}_{period_label}_自动生成_{timestamp}.docx"
     doc.save(str(output_docx))
     update_fields_with_word(output_docx)
     missing_items = collect_missing_items(section_map)
-    analysis_context = analysis_manifest_context(result_root)
+    analysis_context = ctx.analysis_context()
     missing_items.extend(missing_module_summary_items(analysis_context))
+    manifest_path = write_report_build_manifest(
+        context=ctx,
+        report_type="jlj_monthly",
+        output_docx=output_docx,
+        timestamp=timestamp,
+        missing=missing_items,
+        extra={"section_keys": list(section_map.keys())},
+        filename_prefix="jlj_report_build_manifest",
+    )
     write_missing_summary(
         "九龙江月报",
         output_docx,
         missing_items,
-        context={"result_root": str(result_root), "image_root": str(image_root), "wim_root": str(wim_root or ""), "analysis_manifest": analysis_context.get("path", "")},
+        context={"result_root": str(result_root), "image_root": str(ctx.image_root), "wim_root": str(wim_root or ""), "analysis_manifest": analysis_context.get("path", ""), "report_build_manifest": str(manifest_path)},
     )
     return output_docx
 

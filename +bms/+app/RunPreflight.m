@@ -29,6 +29,7 @@ classdef RunPreflight
             result.enabled_module_specs = {};
             result.module_preflight = {};
             result.module_config_warnings = {};
+            result.result_artifact_preflight = {};
             result.wim_month_files = struct('month', {}, 'fmt', {}, 'bcp', {}, 'exists', {});
 
             result = bms.app.RunPreflight.checkDateRange(result, startDate, endDate);
@@ -37,6 +38,7 @@ classdef RunPreflight
             result = bms.app.RunPreflight.attachProfileAndLayout(result, root, cfg);
             result = bms.app.RunPreflight.attachModuleInfo(result, root, opts);
             result = bms.app.RunPreflight.checkEnabledModuleConfig(result, root, startDate, endDate, opts, cfg);
+            result = bms.app.RunPreflight.checkResultArtifacts(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.checkWimInputs(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.finalizeStatus(result);
         end
@@ -200,6 +202,69 @@ classdef RunPreflight
                 end
             catch ME
                 result.warnings{end+1} = ['WIM preflight failed: ' ME.message];
+            end
+        end
+
+        function result = checkResultArtifacts(result, root, startDate, endDate, opts, cfg)
+            try
+                specs = bms.module.ModuleRegistry.enabledFromOptions(opts);
+                statsDir = bms.data.DataLayoutResolver.statsDir(root);
+                dataSource = bms.data.DataSourceFactory.create(root, cfg);
+                records = {};
+                for i = 1:numel(specs)
+                    spec = specs(i);
+                    statsPath = spec.statsPath(statsDir);
+                    if isempty(statsPath) || ~isfile(statsPath) || isempty(spec.SubfolderKey)
+                        continue;
+                    end
+                    [hasSubfolder, subfolder] = bms.app.RunPreflight.resolveSubfolder(cfg, spec.SubfolderKey);
+                    newestInput = NaN;
+                    if hasSubfolder && ~isempty(subfolder)
+                        inputDirs = dataSource.candidateDirs(subfolder, startDate, endDate);
+                        newestInput = bms.app.RunPreflight.newestFirstLevelTimestamp(inputDirs);
+                    end
+                    statsInfo = dir(statsPath);
+                    rec = struct('key', spec.Key, 'label', spec.Label, 'stats_path', statsPath, ...
+                        'stats_modified', '', 'newest_input_modified', '', 'status', 'ok', 'message', '');
+                    if ~isempty(statsInfo)
+                        rec.stats_modified = datestr(statsInfo.datenum, 'yyyy-mm-dd HH:MM:ss');
+                    end
+                    if ~isnan(newestInput)
+                        rec.newest_input_modified = datestr(newestInput, 'yyyy-mm-dd HH:MM:ss');
+                        if ~isempty(statsInfo) && statsInfo.datenum + (1 / (24 * 60)) < newestInput
+                            rec.status = 'possible_stale';
+                            rec.message = sprintf('%s stats may be older than source data: %s', spec.Key, statsPath);
+                            result.warnings{end+1} = ['result artifact: ' rec.message]; %#ok<AGROW>
+                        end
+                    end
+                    records{end+1} = rec; %#ok<AGROW>
+                end
+                result.result_artifact_preflight = records;
+            catch ME
+                result.warnings{end+1} = ['result artifact preflight failed: ' ME.message];
+            end
+        end
+
+        function newest = newestFirstLevelTimestamp(paths)
+            newest = NaN;
+            if isempty(paths), return; end
+            if ischar(paths) || isstring(paths), paths = cellstr(string(paths)); end
+            for i = 1:numel(paths)
+                p = char(paths{i});
+                if isfolder(p)
+                    info = dir(p);
+                    if ~isempty(info)
+                        newest = max([newest, info(1).datenum]);
+                    end
+                    children = dir(fullfile(p, '*'));
+                    children = children(~[children.isdir]);
+                    if ~isempty(children)
+                        newest = max([newest, max([children.datenum])]);
+                    end
+                elseif isfile(p)
+                    info = dir(p);
+                    newest = max([newest, info.datenum]);
+                end
             end
         end
 

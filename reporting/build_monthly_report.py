@@ -19,7 +19,7 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from analysis_manifest import analysis_manifest_context, missing_module_summary_items
+from analysis_manifest import missing_module_summary_items
 from artifact_lookup import (
     latest_file_patterns as lookup_latest_file_patterns,
     latest_point_image_patterns as lookup_latest_point_image_patterns,
@@ -28,6 +28,8 @@ from stats_lookup import resolve_from_analysis_manifest
 from excel_utils import load_sheet_rows as load_xlsx_rows
 from format_utils import format_range_fixed as format_range, parse_float
 from missing_summary import write_missing_summary
+from report_build_manifest import write_report_build_manifest
+from report_context import ReportBuildContext
 
 
 @dataclass
@@ -1613,31 +1615,41 @@ def build_report(
 ) -> tuple[Path, Path, list[str]]:
     if report_date is None:
         report_date = datetime.now().strftime("%Y年%m月%d日")
-    if analysis_root is None:
-        analysis_root = Path(__file__).resolve().parents[1]
-
-    stats_root = result_root if result_root is not None else analysis_root
-    fallback_stats_root = analysis_root if result_root is not None else None
-    image_root = image_root if image_root is not None else (result_root if result_root is not None else analysis_root)
-    output_dir = output_dir if output_dir is not None else ((result_root / "自动报告") if result_root is not None else (Path(__file__).resolve().parents[1] / "outputs" / "reports"))
-    output_dir = ensure_dir(output_dir)
-    assets_dir = ensure_dir(output_dir / "generated_assets")
+    if output_dir is None and result_root is None:
+        base_root = analysis_root if analysis_root is not None else Path(__file__).resolve().parents[1]
+        output_dir = Path(base_root) / "outputs" / "reports"
+    ctx = ReportBuildContext.from_inputs(
+        template=template,
+        config_path=config_path,
+        result_root=result_root,
+        analysis_root=analysis_root,
+        image_root=image_root,
+        output_dir=output_dir,
+        assets_subdir="generated_assets",
+    )
 
     cfg = load_json(config_path)
-    manifest = build_manifest(cfg, stats_root, fallback_stats_root, image_root, template, assets_dir, period_label, monitoring_range, report_date)
-    manifest["analysis_run_manifest"] = analysis_manifest_context(result_root)
+    manifest = build_manifest(cfg, ctx.stats_root, ctx.fallback_stats_root, ctx.image_root, template, ctx.assets_dir, period_label, monitoring_range, report_date)
+    manifest["analysis_run_manifest"] = ctx.analysis_context()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    manifest_path = output_dir / f"report_manifest_{timestamp}.json"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     doc = Document(str(template))
     apply_manifest_to_doc(doc, manifest)
 
-    output_docx = output_dir / f"{template.stem}_自动生成_{timestamp}.docx"
+    output_docx = ctx.output_dir / f"{template.stem}_自动生成_{timestamp}.docx"
     doc.save(str(output_docx))
     missing = summarize_missing_images(manifest)
     missing.extend(missing_module_summary_items(manifest.get("analysis_run_manifest")))
+    manifest_path = write_report_build_manifest(
+        context=ctx,
+        report_type="hongtang_monthly",
+        output_docx=output_docx,
+        timestamp=timestamp,
+        legacy_manifest=manifest,
+        missing=missing,
+        filename_prefix="report_build_manifest",
+    )
     write_missing_summary(
         "洪塘月报",
         output_docx,

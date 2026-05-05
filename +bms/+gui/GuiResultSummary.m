@@ -14,6 +14,9 @@ classdef GuiResultSummary
             summary.status = '';
             summary.counts = struct('ok', 0, 'fail', 0, 'skip', 0, 'missing', 0, 'other', 0);
             summary.artifact_count = 0;
+            summary.preflight_warning_count = 0;
+            summary.missing_stats_count = 0;
+            summary.possible_stale_count = 0;
             summary.lines = {};
             summary.module_rows = {};
             if ~summary.available
@@ -34,6 +37,9 @@ classdef GuiResultSummary
                 summary.artifact_count = double(ctx.manifest.artifact_count);
             end
             summary.module_rows = bms.gui.GuiResultSummary.buildModuleRows(ctx.manifest);
+            summary.preflight_warning_count = bms.gui.GuiResultSummary.countPreflightWarnings(ctx.manifest);
+            summary.missing_stats_count = bms.gui.GuiResultSummary.countMissingStats(ctx.manifest);
+            summary.possible_stale_count = bms.gui.GuiResultSummary.countPossibleStale(ctx.manifest);
             summary.lines = bms.gui.GuiResultSummary.buildLines(summary);
         end
 
@@ -45,6 +51,15 @@ classdef GuiResultSummary
             lines{end+1} = sprintf('modules: ok=%d, fail=%d, skip=%d, missing=%d, other=%d', ...
                 c.ok, c.fail, c.skip, c.missing, c.other); %#ok<AGROW>
             lines{end+1} = sprintf('artifacts: %d', summary.artifact_count); %#ok<AGROW>
+            if summary.preflight_warning_count > 0
+                lines{end+1} = sprintf('preflight warnings: %d', summary.preflight_warning_count); %#ok<AGROW>
+            end
+            if summary.missing_stats_count > 0
+                lines{end+1} = sprintf('missing expected stats: %d', summary.missing_stats_count); %#ok<AGROW>
+            end
+            if summary.possible_stale_count > 0
+                lines{end+1} = sprintf('possible stale results: %d', summary.possible_stale_count); %#ok<AGROW>
+            end
         end
 
         function rows = buildModuleRows(manifest)
@@ -111,6 +126,39 @@ classdef GuiResultSummary
                 records = manifest.module_results;
             elseif isstruct(manifest) && isfield(manifest, 'module_logs')
                 records = manifest.module_logs;
+            end
+        end
+
+        function n = countPreflightWarnings(manifest)
+            n = 0;
+            if isstruct(manifest) && isfield(manifest, 'run_preflight') && isstruct(manifest.run_preflight) ...
+                    && isfield(manifest.run_preflight, 'warnings')
+                n = numel(manifest.run_preflight.warnings);
+            end
+        end
+
+        function n = countMissingStats(manifest)
+            n = 0;
+            if isstruct(manifest) && isfield(manifest, 'missing_expected_stats')
+                n = numel(manifest.missing_expected_stats);
+            elseif isstruct(manifest) && isfield(manifest, 'missing_stats_files')
+                n = numel(manifest.missing_stats_files);
+            end
+        end
+
+        function n = countPossibleStale(manifest)
+            n = 0;
+            if ~isstruct(manifest) || ~isfield(manifest, 'run_preflight') || ~isstruct(manifest.run_preflight) ...
+                    || ~isfield(manifest.run_preflight, 'result_artifact_preflight')
+                return;
+            end
+            records = manifest.run_preflight.result_artifact_preflight;
+            if isstruct(records), records = num2cell(records); end
+            for i = 1:numel(records)
+                rec = records{i};
+                if isstruct(rec) && isfield(rec, 'status') && strcmp(char(string(rec.status)), 'possible_stale')
+                    n = n + 1;
+                end
             end
         end
 
