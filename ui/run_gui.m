@@ -18,11 +18,8 @@ function run_gui()
     if ~exist(defaultLogDir,'dir'), mkdir(defaultLogDir); end
 
     primaryBlue = [0 94 172]/255;
-    cfgCache = load_config(defaultCfgPath);
-    showWarningsDefault = false;
-    if isfield(cfgCache,'gui') && isstruct(cfgCache.gui) && isfield(cfgCache.gui,'show_warnings')
-        showWarningsDefault = logical(cfgCache.gui.show_warnings);
-    end
+    [cfgCache, cfgPath] = bms.gui.GuiConfigBinder.loadConfig(defaultCfgPath, defaultCfgPath);
+    showWarningsDefault = bms.gui.GuiConfigBinder.showWarningsDefault(cfgCache);
     cfgPath = defaultCfgPath;
 
     f = uifigure('Name','福建建科院健康监测大数据分析','Position',[80 80 1280 760],'Color',[0.97 0.98 1]);
@@ -109,13 +106,13 @@ function run_gui()
     statusLbl = uilabel(gl,'Text','就绪','FontColor',primaryBlue); statusLbl.Layout.Row=15; statusLbl.Layout.Column=[1 4];
     logArea   = uitextarea(gl,'Editable','off','Value',{'准备就绪...'}); logArea.Layout.Row=16; logArea.Layout.Column=[1 4];
 
-    autoPreset = fullfile(projRoot,'outputs','ui_last_preset.json');
+    autoPreset = bms.gui.GuiPresetStore.defaultPath(projRoot);
     if exist(autoPreset,'file')
         try
-            preset = jsondecode(fileread(autoPreset));
-            apply_preset(preset);
+            state = bms.gui.GuiPresetStore.load(autoPreset);
+            apply_preset(state);
             if exist(cfgEdit.Value,'file')
-                cfgCache = load_config(cfgEdit.Value);
+                [cfgCache, cfgPath] = bms.gui.GuiConfigBinder.loadConfig(cfgEdit.Value, defaultCfgPath);
                 cfgPath = cfgEdit.Value;
             end
             addLog(['已自动加载上次参数: ' autoPreset]);
@@ -166,6 +163,16 @@ function run_gui()
         handles = bms.gui.GuiRunController.controlValues(moduleControls);
     end
 
+    function state = build_gui_state()
+        root = rootEdit.Value;
+        startDate = datestr(startPicker.Value,'yyyy-mm-dd');
+        endDate = datestr(endPicker.Value,'yyyy-mm-dd');
+        logDir = fullfile(root, 'run_logs');
+        preproc = bms.gui.GuiRunController.presetFromControls(moduleControls, 'preprocess');
+        modules = bms.gui.GuiRunController.presetFromControls(moduleControls, 'analysis');
+        state = bms.gui.GuiState.fromValues(root, startDate, endDate, cfgEdit.Value, logDir, logical(cbWarn.Value), preproc, modules);
+    end
+
     function onBrowseDir(edit)
         p = uigetdir(edit.Value);
         if isequal(p,0), return; end
@@ -191,18 +198,12 @@ function run_gui()
         runBtn.Enable='off'; stopBtn.Enable='on'; RUN_STOP_FLAG=false;
         statusLbl.Text='运行中...'; addLog('开始运行'); drawnow; t0=tic;
         try
-            if exist(cfgEdit.Value,'file')
-                cfg = load_config(cfgEdit.Value);
-            else
+            [cfg, loadedCfgPath] = bms.gui.GuiConfigBinder.loadConfig(cfgEdit.Value, defaultCfgPath);
+            if ~strcmp(loadedCfgPath, cfgEdit.Value)
                 addLog('指定配置文件不存在，使用默认配置');
-                cfg = load_config();
+                cfgEdit.Value = loadedCfgPath;
             end
             cfg = apply_live_cfg(cfg);
-            showWarnings = false;
-            if isfield(cfg,'gui') && isstruct(cfg.gui) && isfield(cfg.gui,'show_warnings')
-                showWarnings = logical(cfg.gui.show_warnings);
-            end
-            % UI override (default comes from config)
             showWarnings = logical(cbWarn.Value);
             if ~isfield(cfg,'gui') || ~isstruct(cfg.gui), cfg.gui = struct(); end
             cfg.gui.show_warnings = showWarnings;
@@ -214,11 +215,12 @@ function run_gui()
                 addLog('Warnings suppressed for this run (gui.show_warnings=false).');
             end
             warnCleanup = onCleanup(@() restore_warnings(warnState, btState)); %#ok<NASGU>
-            opts = bms.gui.GuiRunController.optsFromControls(moduleControls);
-            root = rootEdit.Value; start_date = datestr(startPicker.Value,'yyyy-mm-dd'); end_date = datestr(endPicker.Value,'yyyy-mm-dd');
-            logEdit.Value = fullfile(root, 'run_logs');
+            logEdit.Value = fullfile(rootEdit.Value, 'run_logs');
+            state = build_gui_state();
+            root = state.Root; start_date = state.StartDate; end_date = state.EndDate;
+            logEdit.Value = state.LogDir;
             if exist(logEdit.Value,'dir')==0, mkdir(logEdit.Value); end
-            runRequest = bms.app.RunRequest.fromLegacy(root, start_date, end_date, opts, cfg);
+            [runRequest, preflight, preflightLines] = bms.gui.GuiRunController.prepareRun(state, cfg);
             if isfield(cfg,'plot_common') && isstruct(cfg.plot_common)
                 if isfield(cfg.plot_common,'gap_mode')
                     addLog(sprintf('plot_common.gap_mode=%s', char(string(cfg.plot_common.gap_mode))));
@@ -230,17 +232,13 @@ function run_gui()
                     addLog(sprintf('plot_common.append_timestamp=%d', logical(cfg.plot_common.append_timestamp)));
                 end
             end
-            preflight = bms.app.RunPreflight.check(runRequest);
-            preflightLines = bms.app.RunPreflight.toLogLines(preflight);
             for ipf = 1:numel(preflightLines)
                 addLog(preflightLines{ipf});
             end
             if strcmp(preflight.status, 'failed')
                 error('BMS:RunPreflight:Failed', '运行前预检失败，请先处理数据目录、日期范围或配置问题。');
             end
-            save_last_preset(struct('root',root,'start_date',start_date,'end_date',end_date,'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value), ...
-                'preproc',struct('precheck',cbPrecheck.Value,'unzip',cbUnzip.Value,'rename',cbRename.Value,'rmheader',cbRmHeader.Value,'resample',cbResample.Value), ...
-                'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'rainfall',cbRainfall.Value,'gnss',cbGNSS.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value,'dynlowpass',cbDynLowpass.Value)));
+            save_last_preset(state);
             addLog(sprintf('root=%s, %s -> %s', root, start_date, end_date));
             session = bms.app.RunSession(runRequest);
             session.run();
@@ -257,21 +255,32 @@ function run_gui()
         global RUN_STOP_FLAG; RUN_STOP_FLAG=true; addLog('收到停止请求，将跳过后续步骤');
     end
     function onSavePreset()
-        preset = struct('root',rootEdit.Value,'start_date',datestr(startPicker.Value,'yyyy-mm-dd'),'end_date',datestr(endPicker.Value,'yyyy-mm-dd'), ...
-            'cfg',cfgEdit.Value,'logdir',logEdit.Value,'show_warnings',logical(cbWarn.Value),'modules',struct('temp',cbTemp.Value,'humidity',cbHum.Value,'rainfall',cbRainfall.Value,'gnss',cbGNSS.Value,'wind',cbWind.Value,'eq',cbEq.Value,'wim',cbWim.Value,'deflect',cbDef.Value,'bearing_displacement',cbBearing.Value,'tilt',cbTilt.Value,'accel',cbAccel.Value,'spec',cbSpec.Value,'cable_accel',cbCableAccel.Value,'cable_spec',cbCableSpec.Value,'crack',cbCrack.Value,'strain',cbStrain.Value,'dynbox',cbDynBox.Value,'dynlowpass',cbDynLowpass.Value));
         [fname,fpath] = uiputfile('*.json','保存预设','preset.json'); if isequal(fname,0), return; end
-        fid=fopen(fullfile(fpath,fname),'wt'); if fid<0, addLog('预设保存失败'); return; end
-        fwrite(fid,jsonencode(preset),'char'); fclose(fid); addLog(['预设已保存: ' fullfile(fpath,fname)]);
+        outPath = fullfile(fpath,fname);
+        try
+            bms.gui.GuiPresetStore.save(outPath, build_gui_state());
+            addLog(['预设已保存: ' outPath]);
+        catch MEpreset
+            addLog(['预设保存失败: ' MEpreset.message]);
+        end
     end
     function onLoadPreset()
         [fname,fpath] = uigetfile('*.json','加载预设'); if isequal(fname,0), return; end
-        preset = jsondecode(fileread(fullfile(fpath,fname))); apply_preset(preset); addLog(['预设已加载: ' fullfile(fpath,fname)]);
+        presetPath = fullfile(fpath,fname);
+        state = bms.gui.GuiPresetStore.load(presetPath);
+        apply_preset(state);
+        addLog(['预设已加载: ' presetPath]);
     end
     function onSelectAll(cb)
         targets = module_control_values();
         for i=1:numel(targets), targets(i).Value = cb.Value; end
     end
     function apply_preset(preset)
+        if isa(preset, 'bms.gui.GuiState')
+            preset = preset.toPreset();
+        else
+            preset = bms.gui.GuiState.fromPreset(preset).toPreset();
+        end
         if isfield(preset,'root'), rootEdit.Value = preset.root; end
         if isfield(preset,'start_date'), startPicker.Value = datetime(preset.start_date,'InputFormat','yyyy-MM-dd'); end
         if isfield(preset,'end_date'),   endPicker.Value   = datetime(preset.end_date,'InputFormat','yyyy-MM-dd'); end
@@ -313,22 +322,13 @@ function run_gui()
         bms.gui.GuiRunController.applyPresetModules(moduleControls, m);
     end
     function save_last_preset(preset)
-        lastPath = fullfile(projRoot,'outputs','ui_last_preset.json');
         try
-            if ~exist(fileparts(lastPath),'dir'), mkdir(fileparts(lastPath)); end
-            fid = fopen(lastPath,'wt'); if fid<0, return; end
-            fwrite(fid, jsonencode(preset),'char'); fclose(fid);
+            bms.gui.GuiPresetStore.saveLast(projRoot, preset);
         catch
         end
     end
     function cfg = apply_live_cfg(cfg)
-        tabs = {th, pf, oc, pp};
-        for ii = 1:numel(tabs)
-            tabState = tabs{ii};
-            if isstruct(tabState) && isfield(tabState,'applyToCfg')
-                cfg = tabState.applyToCfg(cfg);
-            end
-        end
+        cfg = bms.gui.GuiConfigBinder.applyLiveTabs(cfg, {th, pf, oc, pp});
     end
     function restore_warnings(warnState, btState)
         try
