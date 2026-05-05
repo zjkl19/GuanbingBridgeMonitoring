@@ -17,6 +17,9 @@ classdef test_bridge_profile < matlab.unittest.TestCase
             p = bms.profile.BridgeProfileRegistry.fromId('hongtang');
             tc.verifyEqual(p.DataLayout, 'hongtang_period');
             tc.verifyTrue(p.configExists());
+            tc.verifyEqual(p.BridgeName, '洪塘大桥');
+            tc.verifyNotEmpty(p.DefaultDataRoot);
+            tc.verifyTrue(contains(p.wimDirForRoot('E:\洪塘大桥数据\2026年1-3月'), 'WIM'));
         end
 
         function registryInfersFromConfigSource(tc)

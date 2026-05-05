@@ -29,6 +29,7 @@ from build_jlj_monthly_report import build_report as build_jlj_monthly_report
 from build_guanbing_monthly_report import build_report as build_guanbing_monthly_report
 from build_monthly_report import build_report as build_hongtang_monthly_report
 from build_period_report import build_period_report
+from bridge_profiles import BridgeProfile, load_profiles, profile_by_id
 from missing_summary import missing_summary_paths
 from report_build_manifest import find_latest_report_build_manifest
 from template_precheck import TemplateIssue, check_template, write_precheck_report
@@ -49,6 +50,13 @@ PERIOD_TEMPLATE_FALLBACK_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4
 DEFAULT_RESULT_ROOT = Path("E:" + "\\" + "\u6d2a\u5858\u5927\u6865\u6570\u636e" + "\\" + "2026\u5e741-3\u6708")
 DEFAULT_JLJ_RESULT_ROOT = Path("E:" + "\\" + "\u4e5d\u9f99\u6c5f\u6570\u636e" + "\\" + "2026\u5e743\u6708")
 DEFAULT_GUANBING_RESULT_ROOT = Path("F:" + "\\" + "管柄大桥数据" + "\\" + "2026年3月")
+
+PROFILE_REPORT_TYPES = {
+    "hongtang_monthly": MONTHLY_REPORT,
+    "hongtang_period_wim": PERIOD_REPORT,
+    "jlj_monthly": JLJ_MONTHLY_REPORT,
+    "guanbing_monthly": GUANBING_MONTHLY_REPORT,
+}
 
 
 def app_root() -> Path:
@@ -107,6 +115,10 @@ def default_result_root(report_type: str) -> Path:
     if report_type == GUANBING_MONTHLY_REPORT:
         return DEFAULT_GUANBING_RESULT_ROOT
     return DEFAULT_RESULT_ROOT
+
+
+def report_type_for_profile(profile: BridgeProfile) -> str:
+    return PROFILE_REPORT_TYPES.get(profile.report_gui_type, PERIOD_REPORT)
 
 
 def find_default_template(report_type: str) -> Path:
@@ -172,6 +184,7 @@ def has_dated_raw_dirs(result_root: Path) -> bool:
 
 def top_help_text() -> str:
     return (
+        "桥梁项目：优先按管柄/洪塘/九龙江项目自动带出模板、配置、数据目录和报告类型；高级场景仍可手动覆盖各路径。\n"
         "\u6a21\u677f\u6587\u4ef6\uff1a\u6708\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\u201d\uff0c"
         "\u5468\u671f\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\u201d\uff0c"
         "\u4e5d\u9f99\u6c5f\u6708\u62a5\u9ed8\u8ba4\u4f7f\u7528\u201c\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx\u201d\uff0c"
@@ -321,6 +334,8 @@ class ReportGui(QMainWindow):
         self._last_result_root: Path | None = None
         self._thread: QThread | None = None
         self._worker: ReportWorker | None = None
+        self.profiles = load_profiles(app_root())
+        self._updating_profile = False
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -346,26 +361,34 @@ class ReportGui(QMainWindow):
         outer.addLayout(grid)
 
         repo_root = app_root()
-        initial_result_root = default_result_root(PERIOD_REPORT)
+        self.current_profile = profile_by_id(self.profiles, "hongtang")
+        initial_report_type = report_type_for_profile(self.current_profile)
+        initial_result_root = self.current_profile.data_root_path() if self.current_profile.default_data_root else default_result_root(initial_report_type)
 
+        self.profile_combo = QComboBox()
+        for profile in self.profiles:
+            self.profile_combo.addItem(profile.bridge_name, profile.bridge_id)
+        self.profile_combo.setCurrentIndex(max(0, self.profile_combo.findData(self.current_profile.bridge_id)))
         self.report_type_combo = QComboBox()
         self.report_type_combo.addItems([MONTHLY_REPORT, PERIOD_REPORT, JLJ_MONTHLY_REPORT, GUANBING_MONTHLY_REPORT])
-        self.report_type_combo.setCurrentText(PERIOD_REPORT)
+        self.report_type_combo.setCurrentText(initial_report_type)
         self.report_type_desc_label: QLabel | None = None
-        self.template_edit = QLineEdit(str(find_default_template(PERIOD_REPORT)))
-        self.config_edit = QLineEdit(str(detect_default_config(PERIOD_REPORT)))
+        self.profile_desc_label: QLabel | None = None
+        self.template_edit = QLineEdit(str(self.current_profile.template_path(repo_root)))
+        self.config_edit = QLineEdit(str(self.current_profile.config_path(repo_root)))
         self.result_root_edit = QLineEdit(str(initial_result_root))
         self.analysis_root_edit = QLineEdit(str(repo_root.resolve()))
-        self.wim_root_edit = QLineEdit(str(derive_wim_root(initial_result_root)))
+        self.wim_root_edit = QLineEdit(str(self.current_profile.wim_root_for(initial_result_root)))
         self.output_dir_edit = QLineEdit(str(derive_output_dir(initial_result_root)))
-        self.period_edit = QLineEdit("2026\u5e741-3\u6708")
-        self.range_edit = QLineEdit("2026年01月01日~2026年03月31日")
-        self.start_edit = QLineEdit("2026-01-01")
-        self.end_edit = QLineEdit("2026-03-31")
+        self.period_edit = QLineEdit(self.current_profile.default_period_label or "2026\u5e741-3\u6708")
+        self.range_edit = QLineEdit(self.current_profile.default_monitoring_range or "2026年01月01日~2026年03月31日")
+        self.start_edit = QLineEdit(self.current_profile.default_start_date or "2026-01-01")
+        self.end_edit = QLineEdit(self.current_profile.default_end_date or "2026-03-31")
         self.date_edit = QLineEdit(datetime.now().strftime("%Y\u5e74%m\u6708%d\u65e5"))
 
         rows = [
-            ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, report_type_description(PERIOD_REPORT)),
+            ("桥梁项目", self.profile_combo, None, self._profile_description(self.current_profile)),
+            ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, report_type_description(initial_report_type)),
             ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6d2a\u5858\u6708\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u6d2a\u5858\u5468\u671f\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\uff1b\u4e5d\u9f99\u6c5f\u6708\u62a5\uff1a\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx\uff1b管柄月报：G104线管柄大桥监测月报模板-自动报告.docx。"),
             ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "\u6d2a\u5858\u4f18\u5148\u8bfb\u53d6\u673a\u5668\u4e13\u7528\u914d\u7f6e hongtang_config_<COMPUTERNAME>.json\uff1b\u4e5d\u9f99\u6c5f\u9ed8\u8ba4\u4f7f\u7528 jiulongjiang_config.json；管柄默认使用 default_config.json。"),
             ("\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55", self.result_root_edit, self._browse_result_root, "\u8fd9\u91cc\u5e94\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\u5bf9\u5468\u671f\u62a5\uff0c\u8fd9\u4e2a\u76ee\u5f55\u6700\u597d\u540c\u65f6\u5305\u542b raw \u539f\u59cb\u6570\u636e\uff0c\u5426\u5219 1.4 \u7ae0\u8282\u4f1a\u5c06\u7f3a\u5c11\u539f\u59cb\u6570\u636e\u89c6\u4e3a\u7f3a\u5931\u3002"),
@@ -393,9 +416,12 @@ class ReportGui(QMainWindow):
             tip_label.setWordWrap(True)
             tip_label.setStyleSheet("QLabel { color: #6b7280; font-size: 12px; }")
             grid.addWidget(tip_label, base_row + 1, 1, 1, 2)
+            if edit is self.profile_combo:
+                self.profile_desc_label = tip_label
             if edit is self.report_type_combo:
                 self.report_type_desc_label = tip_label
 
+        self.profile_combo.currentIndexChanged.connect(self._on_profile_changed)
         self.report_type_combo.currentTextChanged.connect(self._on_report_type_changed)
 
         action_row = QHBoxLayout()
@@ -426,6 +452,56 @@ class ReportGui(QMainWindow):
 
         self._on_report_type_changed(self.report_type_combo.currentText())
         self._last_result_root = initial_result_root
+
+    def _profile_description(self, profile: BridgeProfile) -> str:
+        return (
+            f"{profile.bridge_name}：默认配置 {Path(profile.default_config).name}；"
+            f"目录格式 {profile.data_layout or '/'}；选择后会自动带出模板、配置、数据目录和 WIM 目录。"
+        )
+
+    def _on_profile_changed(self, index: int) -> None:
+        bridge_id = self.profile_combo.itemData(index)
+        profile = profile_by_id(self.profiles, str(bridge_id))
+        self.current_profile = profile
+        self._updating_profile = True
+        self.report_type_combo.setCurrentText(report_type_for_profile(profile))
+        self._updating_profile = False
+        self._apply_profile_defaults(profile)
+        self._sync_report_type_state(self.report_type_combo.currentText())
+        self._log(f"已切换桥梁项目: {profile.bridge_name}")
+
+    def _apply_profile_defaults(self, profile: BridgeProfile) -> None:
+        repo_root = app_root()
+        report_type = report_type_for_profile(profile)
+        self.template_edit.setText(str(profile.template_path(repo_root)))
+        self.config_edit.setText(str(profile.config_path(repo_root)))
+        if profile.default_data_root:
+            result_root = profile.data_root_path()
+            self.result_root_edit.setText(str(result_root))
+            self.wim_root_edit.setText(str(profile.wim_root_for(result_root)))
+            self.output_dir_edit.setText(str(derive_output_dir(result_root)))
+            self._last_result_root = result_root
+        if profile.default_period_label:
+            self.period_edit.setText(profile.default_period_label)
+        if profile.default_monitoring_range:
+            self.range_edit.setText(profile.default_monitoring_range)
+        if profile.default_start_date:
+            self.start_edit.setText(profile.default_start_date)
+        if profile.default_end_date:
+            self.end_edit.setText(profile.default_end_date)
+        if self.profile_desc_label is not None:
+            self.profile_desc_label.setText(self._profile_description(profile))
+        if self.report_type_desc_label is not None:
+            self.report_type_desc_label.setText(report_type_description(report_type))
+
+    def _sync_report_type_state(self, text: str) -> None:
+        period_mode = text == PERIOD_REPORT
+        date_range_mode = text in (PERIOD_REPORT, GUANBING_MONTHLY_REPORT)
+        self.wim_root_edit.setEnabled(period_mode)
+        self.start_edit.setEnabled(date_range_mode)
+        self.end_edit.setEnabled(date_range_mode)
+        if self.report_type_desc_label is not None:
+            self.report_type_desc_label.setText(report_type_description(text))
 
     def _open_logic_doc(self) -> None:
         candidates = [app_root() / "REPORTING_LOGIC.md", app_root() / "reporting" / "REPORTING_LOGIC.md"]
@@ -509,18 +585,19 @@ class ReportGui(QMainWindow):
         old_wim = Path(self.wim_root_edit.text()).expanduser() if self.wim_root_edit.text().strip() else None
         old_out = Path(self.output_dir_edit.text()).expanduser() if self.output_dir_edit.text().strip() else None
         previous_root = previous_root or self._last_result_root
-        new_wim = derive_wim_root(result_root)
+        new_wim = self.current_profile.wim_root_for(result_root) if hasattr(self, "current_profile") else derive_wim_root(result_root)
         new_out = derive_output_dir(result_root)
 
         should_update_wim = force or old_wim is None or "outputs" in old_wim.parts
         should_update_out = force or old_out is None
 
         if previous_root is not None:
-            if old_wim == derive_wim_root(previous_root):
+            previous_wim = self.current_profile.wim_root_for(previous_root) if hasattr(self, "current_profile") else derive_wim_root(previous_root)
+            if old_wim == previous_wim:
                 should_update_wim = True
             if old_out == derive_output_dir(previous_root):
                 should_update_out = True
-        if old_wim == derive_wim_root(result_root):
+        if old_wim == new_wim:
             should_update_wim = True
         if old_out == derive_output_dir(result_root):
             should_update_out = True
@@ -532,13 +609,9 @@ class ReportGui(QMainWindow):
         self._last_result_root = result_root
 
     def _on_report_type_changed(self, text: str) -> None:
-        period_mode = text == PERIOD_REPORT
-        date_range_mode = text in (PERIOD_REPORT, GUANBING_MONTHLY_REPORT)
-        self.wim_root_edit.setEnabled(period_mode)
-        self.start_edit.setEnabled(date_range_mode)
-        self.end_edit.setEnabled(date_range_mode)
-        if self.report_type_desc_label is not None:
-            self.report_type_desc_label.setText(report_type_description(text))
+        self._sync_report_type_state(text)
+        if self._updating_profile:
+            return
         self._maybe_update_template_for_type()
         self._maybe_update_config_for_type()
         self._maybe_update_result_root_for_type()
@@ -689,6 +762,7 @@ class ReportGui(QMainWindow):
     ) -> tuple[Path, Path] | None:
         kind = self._template_check_kind(report_type) or "hongtang_monthly"
         context = {
+            "bridge_profile": getattr(self.current_profile, "bridge_id", ""),
             "report_type": report_type,
             "config_path": self.config_edit.text().strip(),
             "result_root": self.result_root_edit.text().strip(),

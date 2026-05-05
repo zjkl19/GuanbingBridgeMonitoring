@@ -28,7 +28,7 @@ classdef GuiLayout
         end
 
         function heights = runPageRowHeights()
-            heights = {82,30,30,30,30,30,30,30,30,30,30,30,30,30,24,110,'1x'};
+            heights = {104,30,30,30,30,30,30,30,30,30,30,30,30,30,24,110,'1x'};
         end
 
         function applyRunGridDefaults(grid)

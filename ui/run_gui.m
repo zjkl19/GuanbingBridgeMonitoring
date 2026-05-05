@@ -13,9 +13,21 @@ function run_gui()
     addpath(projRoot, fullfile(projRoot,'config'), fullfile(projRoot,'pipeline'), ...
         fullfile(projRoot,'analysis'), fullfile(projRoot,'scripts'));
 
-    defaultCfgPath = fullfile(projRoot,'config','default_config.json');
-    defaultLogDir  = fullfile(projRoot,'run_logs');
-    if ~exist(defaultLogDir,'dir'), mkdir(defaultLogDir); end
+    profiles = bms.profile.BridgeProfileRegistry.catalog(projRoot);
+    if isempty(profiles)
+        activeProfile = bms.profile.BridgeProfileRegistry.fromId('guanbing', projRoot);
+    else
+        activeProfile = profiles(1);
+    end
+    defaultCfgPath = activeProfile.DefaultConfig;
+    if isempty(defaultCfgPath)
+        defaultCfgPath = fullfile(projRoot,'config','default_config.json');
+    end
+    defaultDataRoot = activeProfile.DefaultDataRoot;
+    if isempty(defaultDataRoot)
+        defaultDataRoot = projRoot;
+    end
+    defaultLogDir  = bms.core.PathResolver.logDir(defaultDataRoot);
 
     primaryBlue = [0 94 172]/255;
     [cfgCache, cfgPath] = bms.gui.GuiConfigBinder.loadConfig(defaultCfgPath, defaultCfgPath);
@@ -36,16 +48,23 @@ function run_gui()
     bms.gui.GuiLayout.applyRunGridDefaults(gl);
 
     header = uipanel(gl,'BorderType','none'); header.Layout.Row = 1; header.Layout.Column = [1 4];
-    hgl = uigridlayout(header,[1 4]); hgl.ColumnWidth = {120,'1x','1x','1x'}; hgl.RowSpacing = 0; hgl.ColumnSpacing = 8;
+    hgl = uigridlayout(header,[2 4]); hgl.RowHeight = {'1x',28}; hgl.ColumnWidth = {120,90,260,'1x'}; hgl.RowSpacing = 2; hgl.ColumnSpacing = 8;
     logoPath = fullfile(projRoot,'建科院标志PNG-01.png');
-    uiimg = uiimage(hgl); uiimg.Layout.Row = 1; uiimg.Layout.Column = 1; uiimg.ScaleMethod = 'fit';
+    uiimg = uiimage(hgl); uiimg.Layout.Row = [1 2]; uiimg.Layout.Column = 1; uiimg.ScaleMethod = 'fit';
     if exist(logoPath,'file'), uiimg.ImageSource = logoPath; end
     versionStr = 'v1.6.5';
     titleLbl = uilabel(hgl,'Text',['福建建科院健康监测大数据分析 ' versionStr],'FontSize',30,'FontWeight','bold','FontColor',primaryBlue,'HorizontalAlignment','center');
     titleLbl.Layout.Row = 1; titleLbl.Layout.Column = [2 4];
+    profileLbl = uilabel(hgl, 'Text', '桥梁项目:', 'HorizontalAlignment', 'right', 'FontWeight', 'bold');
+    profileLbl.Layout.Row = 2; profileLbl.Layout.Column = 2;
+    [profileNames, profileIds] = profileDropdownItems(profiles);
+    profileDrop = uidropdown(hgl, 'Items', profileNames, 'ItemsData', profileIds);
+    profileDrop.Layout.Row = 2; profileDrop.Layout.Column = 3;
+    profileNote = uilabel(hgl, 'Text', '选择项目后自动带出默认配置、数据目录和模块。', 'FontColor', [0.35 0.40 0.50]);
+    profileNote.Layout.Row = 2; profileNote.Layout.Column = 4;
 
     lblRoot = uilabel(gl,'Text','数据根目录:','FontWeight','bold','HorizontalAlignment','right'); lblRoot.Layout.Row=2; lblRoot.Layout.Column=1;
-    rootEdit = uieditfield(gl,'text','Value',projRoot); rootEdit.Layout.Row=2; rootEdit.Layout.Column=[2 3];
+    rootEdit = uieditfield(gl,'text','Value',defaultDataRoot); rootEdit.Layout.Row=2; rootEdit.Layout.Column=[2 3];
     rootBtn  = uibutton(gl,'Text','浏览','ButtonPushedFcn',@(btn,~) onBrowseDir(rootEdit)); rootBtn.Layout.Row=2; rootBtn.Layout.Column=4;
 
     lblStart = uilabel(gl,'Text','开始日期:','HorizontalAlignment','right'); lblStart.Layout.Row=3; lblStart.Layout.Column=1;
@@ -81,6 +100,7 @@ function run_gui()
     cbDynLowpass = uicheckbox(gl,'Text','动应变分析（低通+含箱线图）','Value',false); cbDynLowpass.Layout.Row=10; cbDynLowpass.Layout.Column=2;
     moduleControls = build_module_control_map();
     apply_module_registry_labels();
+    profileDrop.ValueChangedFcn = @(dd,~) onProfileChanged(dd.Value);
 
     lblLog = uilabel(gl,'Text','日志目录:','HorizontalAlignment','right'); lblLog.Layout.Row=11; lblLog.Layout.Column=1;
     logEdit = uieditfield(gl,'text','Value',defaultLogDir); logEdit.Layout.Row=11; logEdit.Layout.Column=[2 3];
@@ -89,6 +109,7 @@ function run_gui()
     lblCfg = uilabel(gl,'Text','配置文件(JSON):','HorizontalAlignment','right'); lblCfg.Layout.Row=12; lblCfg.Layout.Column=1;
     cfgEdit = uieditfield(gl,'text','Value',defaultCfgPath); cfgEdit.Layout.Row=12; cfgEdit.Layout.Column=[2 3];
     cfgBtn  = uibutton(gl,'Text','选择','ButtonPushedFcn',@(btn,~) onBrowseFile(cfgEdit,'*.json')); cfgBtn.Layout.Row=12; cfgBtn.Layout.Column=4;
+    apply_profile_defaults(activeProfile, false);
 
     presetSaveBtn = uibutton(gl,'Text','保存预设','ButtonPushedFcn',@(btn,~) onSavePreset()); presetSaveBtn.Layout.Row=13; presetSaveBtn.Layout.Column=1;
     presetLoadBtn = uibutton(gl,'Text','加载预设','ButtonPushedFcn',@(btn,~) onLoadPreset()); presetLoadBtn.Layout.Row=13; presetLoadBtn.Layout.Column=2;
@@ -164,6 +185,71 @@ function run_gui()
 
     function handles = module_control_values()
         handles = bms.gui.GuiRunController.controlValues(moduleControls);
+    end
+
+    function [names, ids] = profileDropdownItems(profileList)
+        if isempty(profileList)
+            profileList = bms.profile.BridgeProfileRegistry.catalog(projRoot);
+        end
+        names = cell(1, numel(profileList));
+        ids = cell(1, numel(profileList));
+        for ip = 1:numel(profileList)
+            names{ip} = profileList(ip).displayName();
+            ids{ip} = profileList(ip).BridgeId;
+        end
+    end
+
+    function onProfileChanged(profileId)
+        profile = bms.profile.BridgeProfileRegistry.fromId(profileId, projRoot);
+        if isempty(profile.BridgeId)
+            return;
+        end
+        activeProfile = profile;
+        apply_profile_defaults(profile, true);
+        refresh_result_summary(false);
+    end
+
+    function apply_profile_defaults(profile, logChange)
+        if nargin < 2, logChange = true; end
+        if isempty(profile.BridgeId)
+            return;
+        end
+        if ~isempty(profile.DefaultConfig)
+            cfgEdit.Value = profile.DefaultConfig;
+            defaultCfgPath = profile.DefaultConfig;
+        end
+        if ~isempty(profile.DefaultDataRoot)
+            rootEdit.Value = profile.DefaultDataRoot;
+            logEdit.Value = bms.core.PathResolver.logDir(profile.DefaultDataRoot);
+        end
+        set_profile_module_defaults(profile);
+        profileNote.Text = sprintf('%s；目录格式：%s', profile.displayName(), profile.DataLayout);
+        if logChange
+            addLog(['已切换桥梁项目: ' profile.displayName()]);
+        end
+    end
+
+    function set_profile_module_defaults(profile)
+        targets = module_control_values();
+        for ih = 1:numel(targets)
+            targets(ih).Value = false;
+        end
+        hints = profile.EnabledModuleHints;
+        if isempty(hints)
+            return;
+        end
+        specs = bms.module.ModuleRegistry.catalog();
+        for ispec = 1:numel(specs)
+            if isempty(specs(ispec).GuiField) || ~isfield(moduleControls, specs(ispec).GuiField)
+                continue;
+            end
+            if any(strcmp(hints, specs(ispec).Key))
+                h = moduleControls.(specs(ispec).GuiField);
+                if bms.gui.GuiRunController.isLiveControl(h)
+                    h.Value = true;
+                end
+            end
+        end
     end
 
     function state = build_gui_state()
@@ -336,6 +422,19 @@ function run_gui()
             if isfield(m,'dynbox'),   cbDynBox.Value = m.dynbox; end
             if isfield(m,'dynlowpass'), cbDynLowpass.Value = m.dynlowpass; end
             apply_module_values_from_preset(m);
+        end
+        sync_profile_selector_from_current();
+    end
+
+    function sync_profile_selector_from_current()
+        try
+            inferred = bms.profile.BridgeProfileRegistry.infer(struct('source', cfgEdit.Value), rootEdit.Value);
+            if ~isempty(inferred.BridgeId) && any(strcmp(profileIds, inferred.BridgeId))
+                profileDrop.Value = inferred.BridgeId;
+                activeProfile = inferred;
+                profileNote.Text = sprintf('%s；目录格式：%s', inferred.displayName(), inferred.DataLayout);
+            end
+        catch
         end
     end
     function apply_module_values_from_preset(m)

@@ -24,6 +24,7 @@ function gui_smoke_test()
     tabs = findall(newHandles, 'Type', 'uitab');
     tables = findall(newHandles, 'Type', 'uitable');
     textAreas = findall(newHandles, 'Type', 'uitextarea');
+    dropdowns = findall(newHandles, 'Type', 'uidropdown');
 
     pos = newHandles(1).Position;
     assert(pos(4) >= 760, 'GUI smoke failed: default window height is too small.');
@@ -32,8 +33,9 @@ function gui_smoke_test()
     assert(hasSummaryTable(tables), 'GUI smoke failed: summary table was not created.');
     assert(~isempty(textAreas), 'GUI smoke failed: log/status text area was not created.');
     assert(summaryTableHasRows(tables), 'GUI smoke failed: result summary table was empty.');
+    assert(hasBridgeProfileDropdown(dropdowns), 'GUI smoke failed: bridge profile dropdown was not created.');
 
-    fprintf('GUI smoke passed: windows=%d, height=%.0f, tabs=%d, tables=%d\n', ...
+    fprintf('GUI smoke passed: windows=%d, height=%.0f, tabs=%d, tables=%d, profiles=3\n', ...
         numel(newHandles), pos(4), numel(tabs), numel(tables));
 end
 
@@ -57,6 +59,21 @@ function tf = summaryTableHasRows(tables)
         try
             names = tables(i).ColumnName;
             if iscell(names) && numel(names) == 7 && ~isempty(tables(i).Data)
+                tf = true;
+                return;
+            end
+        catch
+        end
+    end
+end
+
+function tf = hasBridgeProfileDropdown(dropdowns)
+    tf = false;
+    expected = {'管柄大桥', '洪塘大桥', '九龙江大桥'};
+    for i = 1:numel(dropdowns)
+        try
+            items = dropdowns(i).Items;
+            if all(ismember(expected, items))
                 tf = true;
                 return;
             end
