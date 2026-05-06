@@ -63,8 +63,8 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
                     round(min(vals_f),1), round(max(vals_f),1), round(mean(vals_f, 'omitnan'), 1)};
                 row = row + 1;
             end
-            plot_deflection_curve({times}, {vals}, {pid}, root_dir, start_date, end_date, pid, style, 'Orig');
-            plot_deflection_curve({times}, {vals_f}, {pid}, root_dir, start_date, end_date, pid, style, 'Filt');
+            plot_deflection_curve({times}, {vals}, {pid}, root_dir, start_date, end_date, pid, style, 'Orig', cfg);
+            plot_deflection_curve({times}, {vals_f}, {pid}, root_dir, start_date, end_date, pid, style, 'Filt', cfg);
         end
     end
 
@@ -108,19 +108,22 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
         end
 
         % 绘制原始&滤波曲线
-        plot_deflection_curve(orig_times, orig_vals, pid_list, root_dir, start_date, end_date, g, style, 'Orig');
-        plot_deflection_curve(filt_times, filt_vals, pid_list, root_dir, start_date, end_date, g, style, 'Filt');
+        plot_deflection_curve(orig_times, orig_vals, pid_list, root_dir, start_date, end_date, g, style, 'Orig', cfg);
+        plot_deflection_curve(filt_times, filt_vals, pid_list, root_dir, start_date, end_date, g, style, 'Filt', cfg);
     end
     end
 
     % 写入 Excel
     T = cell2table(stats, 'VariableNames', ...
         {'PointID','OrigMin_mm','OrigMax_mm','OrigMean_mm','FiltMin_mm','FiltMax_mm','FiltMean_mm'});
-    bms.io.StatsWriter.writeTable(T, excel_file);
+    bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'deflection');
     fprintf('挠度统计已保存至 %s\n', excel_file);
 end
 
-function plot_deflection_curve(times_list, vals_list, pid_list, root_dir, start_date, end_date, group_idx, style, suffix)
+function plot_deflection_curve(times_list, vals_list, pid_list, root_dir, start_date, end_date, group_idx, style, suffix, cfg)
+if nargin < 10
+    cfg = struct();
+end
 fig = figure('Position',[100 100 1000 469]); hold on;
 dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd'); dt1 = datetime(end_date,'InputFormat','yyyy-MM-dd');
 N = numel(pid_list);
@@ -210,7 +213,7 @@ ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir, '时程曲线_挠度'); bms.core.PathResolver.ensureDir(out);
     suffix_tag = make_file_suffix_tag(suffix);
     fname = sprintf('Defl_%s_%s_%s_%s', name_tag, suffix_tag, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
-bms.plot.PlotService.saveBundle(fig, out, [fname '_' ts]);
+bms.plot.PlotService.saveModuleBundle(fig, out, [fname '_' ts], cfg);
 end
 
 function tag = make_file_suffix_tag(suffix)

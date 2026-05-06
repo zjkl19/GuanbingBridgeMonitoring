@@ -1,4 +1,4 @@
-function analyze_wind_points(root_dir, start_date, end_date, subfolder, cfg)
+﻿function analyze_wind_points(root_dir, start_date, end_date, subfolder, cfg)
 % analyze_wind_points  Wind speed/direction analysis with 10-min mean and wind rose.
 %   This module loads wind speed and wind direction for each configured point,
 %   plots time series, plots 10-minute mean wind speed with alarm lines,
@@ -49,18 +49,18 @@ function analyze_wind_points(root_dir, start_date, end_date, subfolder, cfg)
         av = round(mean(v_speed, 'omitnan'), params.decimals);
         stats(i,:) = {pid, mn, mx, av, v10_max, t10_max};
 
-        plot_speed_timeseries(t_speed, v_speed, pid, style, out_root, start_date, end_date);
-        plot_direction_timeseries(t_dir, v_dir, pid, style, out_root, start_date, end_date);
-        plot_speed_10min(t_speed, v10, pid, params, style, out_root, start_date, end_date);
+        plot_speed_timeseries(t_speed, v_speed, pid, style, out_root, start_date, end_date, cfg);
+        plot_direction_timeseries(t_dir, v_dir, pid, style, out_root, start_date, end_date, cfg);
+        plot_speed_10min(t_speed, v10, pid, params, style, out_root, start_date, end_date, cfg);
 
         if ~isempty(v_dir)
             [rose_speed, rose_dir] = align_for_rose(t_speed, v_speed, t_dir, v_dir);
-            plot_wind_rose(rose_dir, rose_speed, pid, params, style, out_root, start_date, end_date);
+            plot_wind_rose(rose_dir, rose_speed, pid, params, style, out_root, start_date, end_date, cfg);
         end
     end
 
     T = cell2table(stats, 'VariableNames', {'PointID','MinSpeed','MaxSpeed','MeanSpeed','Mean10minMax','Mean10minTime'});
-    bms.io.StatsWriter.writeTable(T, stats_file);
+    bms.io.StatsWriter.writeModuleTableChecked(T, stats_file, 'wind');
     fprintf('Wind stats saved to %s\n', stats_file);
 
     time_end = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
@@ -134,7 +134,10 @@ function [speed_aligned, dir_aligned] = align_for_rose(t_speed, v_speed, t_dir, 
     dir_aligned = mod(dir_aligned, 360);
 end
 
-function plot_speed_timeseries(times, vals, pid, style, out_root, start_date, end_date)
+function plot_speed_timeseries(times, vals, pid, style, out_root, start_date, end_date, cfg)
+    if nargin < 8
+        cfg = struct();
+    end
     if isempty(vals)
         return;
     end
@@ -152,10 +155,13 @@ function plot_speed_timeseries(times, vals, pid, style, out_root, start_date, en
 
     out_dir = fullfile(out_root, style.output.speed_dir);
     ensure_dir(out_dir);
-    save_plot(fig, out_dir, sprintf('%s_speed_%s_%s', pid, start_date, end_date));
+    save_plot(fig, out_dir, sprintf('%s_speed_%s_%s', pid, start_date, end_date), cfg);
 end
 
-function plot_direction_timeseries(times, vals, pid, style, out_root, start_date, end_date)
+function plot_direction_timeseries(times, vals, pid, style, out_root, start_date, end_date, cfg)
+    if nargin < 8
+        cfg = struct();
+    end
     if isempty(vals)
         return;
     end
@@ -171,10 +177,13 @@ function plot_direction_timeseries(times, vals, pid, style, out_root, start_date
 
     out_dir = fullfile(out_root, style.output.direction_dir);
     ensure_dir(out_dir);
-    save_plot(fig, out_dir, sprintf('%s_direction_%s_%s', pid, start_date, end_date));
+    save_plot(fig, out_dir, sprintf('%s_direction_%s_%s', pid, start_date, end_date), cfg);
 end
 
-function plot_speed_10min(times, v10, pid, params, style, out_root, start_date, end_date)
+function plot_speed_10min(times, v10, pid, params, style, out_root, start_date, end_date, cfg)
+    if nargin < 9
+        cfg = struct();
+    end
     if isempty(v10)
         return;
     end
@@ -206,10 +215,13 @@ function plot_speed_10min(times, v10, pid, params, style, out_root, start_date, 
 
     out_dir = fullfile(out_root, style.output.speed10_dir);
     ensure_dir(out_dir);
-    save_plot(fig, out_dir, sprintf('%s_speed10min_%s_%s', pid, start_date, end_date));
+    save_plot(fig, out_dir, sprintf('%s_speed10min_%s_%s', pid, start_date, end_date), cfg);
 end
 
-function plot_wind_rose(dir_deg, speed, pid, params, style, out_root, start_date, end_date)
+function plot_wind_rose(dir_deg, speed, pid, params, style, out_root, start_date, end_date, cfg)
+    if nargin < 9
+        cfg = struct();
+    end
     if isempty(dir_deg)
         return;
     end
@@ -238,7 +250,7 @@ function plot_wind_rose(dir_deg, speed, pid, params, style, out_root, start_date
     out_dir = fullfile(out_root, style.output.rose_dir);
     ensure_dir(out_dir);
     base_name = sprintf('%s_windrose_%s_%s', pid, start_date, end_date);
-    save_plot(fig, out_dir, base_name);
+    save_plot(fig, out_dir, base_name, cfg);
 
     write_wind_summary(out_dir, base_name, pid, dir_deg, speed, sector_edges, speed_edges, rose_mat, total_count);
 end
@@ -447,8 +459,11 @@ function set_time_axis(times)
     bms.plot.PlotService.setTimeAxis(times);
 end
 
-function save_plot(fig, out_dir, base_name)
-    bms.plot.PlotService.saveBundleWithTimestamp(fig, out_dir, base_name);
+function save_plot(fig, out_dir, base_name, cfg)
+    if nargin < 4
+        cfg = struct();
+    end
+    bms.plot.PlotService.saveModuleBundleWithTimestamp(fig, out_dir, base_name, cfg);
 end
 
 function ensure_dir(p)

@@ -112,11 +112,11 @@
                    'VariableNames', compose('Amp_%0.3fHz', pt_target_freqs));
         forceTbl = table(forceSeries, 'VariableNames',{'CableForce_kN'});
         T = [table(dateCol,'VariableNames',{'Date'}) , freqTbl , ampTbl , forceTbl];
-        bms.io.StatsWriter.writeTable(T, excel_file, 'Sheet', point_ids{ii});
+        bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'cable_accel_spectrum', 'Sheet', point_ids{ii});
 
         % 绘制峰值频率时程与索力时程
-        plot_freq_timeseries(dates_all, freqDay, pid, pt_target_freqs, outDirFig, style, theor_freqs, theor_labels);
-        plot_force_timeseries({dates_all}, {forceSeries}, {pid}, pid, outDirForce, style, force_ylim, {force_warn_lines});
+        plot_freq_timeseries(dates_all, freqDay, pid, pt_target_freqs, outDirFig, style, theor_freqs, theor_labels, cfg);
+        plot_force_timeseries({dates_all}, {forceSeries}, {pid}, pid, outDirForce, style, force_ylim, {force_warn_lines}, cfg);
     end
 
     group_names = fieldnames(force_groups);
@@ -146,7 +146,7 @@
             warn_line_sets{pi} = get_force_warn_lines(cfg, labels{pi}, style, labels{pi});
         end
         group_display_name = build_group_display_name(group_name, labels);
-        plot_force_timeseries(repmat({dates_all}, numel(labels), 1), force_list, labels, group_display_name, outDirForceGroup, style, [], warn_line_sets);
+        plot_force_timeseries(repmat({dates_all}, numel(labels), 1), force_list, labels, group_display_name, outDirForceGroup, style, [], warn_line_sets, cfg);
     end
 
     fprintf('✓ 已输出 Excel -> %s\n', excel_file);
@@ -275,7 +275,7 @@ function [ampRow, freqRow] = process_one_day(day, pid, root_dir, subfolder, targ
     xline(target_freqs,'--r');
     xlabel('频率 (Hz)'); ylabel(style.psd_ylabel);
     title(sprintf('%s %s  %s',style.psd_title_prefix,pid,dayStr));
-    bms.plot.PlotService.saveBundle(figPSD, psdDir, sprintf('PSD_%s_%s',pid,dayStr), struct('save_emf', false));
+    bms.plot.PlotService.saveModuleBundle(figPSD, psdDir, sprintf('PSD_%s_%s',pid,dayStr), cfg, struct('save_emf', false));
 
     for fi = 1:numel(target_freqs)
         f0 = target_freqs(fi);
@@ -291,7 +291,10 @@ function [ampRow, freqRow] = process_one_day(day, pid, root_dir, subfolder, targ
 end
 
 % =========================================================================
-function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, style, theor_freqs, theor_labels)
+function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, style, theor_freqs, theor_labels, cfg)
+    if nargin < 9
+        cfg = struct();
+    end
     fig = figure('Visible','off','Position',[100 100 1000 470]);
     hold on;
     colors = normalize_colors(style.colors);
@@ -363,7 +366,7 @@ function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, 
              datestr(dates_all(1),'yyyymmdd'), ...
              datestr(dates_all(end),'yyyymmdd')));
     [freq_dir, freq_name] = fileparts(fname);
-    bms.plot.PlotService.saveBundle(fig, freq_dir, freq_name);
+    bms.plot.PlotService.saveModuleBundle(fig, freq_dir, freq_name, cfg);
 end
 
 
@@ -425,7 +428,10 @@ function force = compute_cable_force(freqs, rho, L, decimals)
     end
 end
 
-function plot_force_timeseries(times_list, force_list, labels, name_tag, out_dir, style, force_ylim, warn_line_sets)
+function plot_force_timeseries(times_list, force_list, labels, name_tag, out_dir, style, force_ylim, warn_line_sets, cfg)
+    if nargin < 9
+        cfg = struct();
+    end
     valid = false(numel(force_list), 1);
     for i = 1:numel(force_list)
         valid(i) = ~isempty(force_list{i}) && any(isfinite(force_list{i}));
@@ -519,7 +525,7 @@ function plot_force_timeseries(times_list, force_list, labels, name_tag, out_dir
         datestr(dt0,'yyyymmdd'), ...
         datestr(dt1,'yyyymmdd')));
     [force_dir, force_name] = fileparts(fname);
-    bms.plot.PlotService.saveBundle(fig, force_dir, force_name);
+    bms.plot.PlotService.saveModuleBundle(fig, force_dir, force_name, cfg);
 end
 
 function warn_lines = get_force_warn_lines(cfg, pid, style, label_prefix)

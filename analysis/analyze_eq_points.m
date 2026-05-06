@@ -45,7 +45,7 @@ function analyze_eq_points(root_dir, start_date, end_date, subfolder, cfg)
         if parallel_plan.enabled
             record_parallel_offset_correction(cfg, rec.sensor_type, rec.pid, rec.times, rec.vals);
         end
-        plot_eq_timeseries(rec.times, rec.vals, rec.pid, rec.comp, rec.params, style, out_root, start_date, end_date);
+        plot_eq_timeseries(rec.times, rec.vals, rec.pid, rec.comp, rec.params, style, out_root, start_date, end_date, cfg);
     end
 
     time_end = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
@@ -66,7 +66,10 @@ function [sensor_type, comp] = get_eq_component(pid)
     end
 end
 
-function plot_eq_timeseries(times, vals, pid, comp, params, style, out_root, start_date, end_date)
+function plot_eq_timeseries(times, vals, pid, comp, params, style, out_root, start_date, end_date, cfg)
+    if nargin < 10
+        cfg = struct();
+    end
     fig = figure('Position', [100 100 1100 500]);
     [times_plot, vals_plot] = prepare_plot_series(times, vals);
     plot(times_plot, vals_plot, 'LineWidth', 1.1, 'Color', style.main_color);
@@ -111,15 +114,18 @@ function plot_eq_timeseries(times, vals, pid, comp, params, style, out_root, sta
     out_dir = fullfile(out_root, style.output.series_dir);
     ensure_dir(out_dir);
     base = sprintf('%s_%s_%s_%s', style.output.prefix, comp, start_date, end_date);
-    save_plot(fig, out_dir, base);
+    save_plot(fig, out_dir, base, cfg);
 end
 
 function set_time_axis(times)
     bms.plot.PlotService.setTimeAxis(times);
 end
 
-function save_plot(fig, out_dir, base_name)
-    bms.plot.PlotService.saveBundleWithTimestamp(fig, out_dir, base_name);
+function save_plot(fig, out_dir, base_name, cfg)
+    if nargin < 4
+        cfg = struct();
+    end
+    bms.plot.PlotService.saveModuleBundleWithTimestamp(fig, out_dir, base_name, cfg);
 end
 
 function ensure_dir(p)

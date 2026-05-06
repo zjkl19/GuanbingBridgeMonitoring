@@ -22,6 +22,21 @@ classdef PlotService
                 bms.plot.PlotService.outputBase(baseName, true), opts);
         end
 
+        function paths = saveModuleBundle(fig, outDir, baseName, cfg, opts)
+            if nargin < 4, cfg = struct(); end
+            if nargin < 5, opts = struct(); end
+            runtimeOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            paths = bms.plot.PlotService.saveBundle(fig, outDir, baseName, ...
+                bms.plot.PlotService.mergeOptions(runtimeOpts, opts));
+        end
+
+        function paths = saveModuleBundleWithTimestamp(fig, outDir, baseName, cfg, opts)
+            if nargin < 4, cfg = struct(); end
+            if nargin < 5, opts = struct(); end
+            paths = bms.plot.PlotService.saveModuleBundle(fig, outDir, ...
+                bms.plot.PlotService.outputBase(baseName, true), cfg, opts);
+        end
+
         function opts = runtimeOptionsFromConfig(cfg)
             opts = struct();
             opts.save_fig = bms.config.ConfigReader.getBool(cfg, 'plot_common.save_fig', true);
@@ -30,6 +45,16 @@ classdef PlotService
             opts.append_timestamp = bms.config.ConfigReader.getBool(cfg, 'plot_common.append_timestamp', false);
             opts.gap_mode = char(string(bms.config.ConfigReader.get(cfg, 'plot_common.gap_mode', 'connect')));
             opts.gap_break_factor = bms.config.ConfigReader.getNumeric(cfg, 'plot_common.gap_break_factor', 5);
+        end
+
+        function out = mergeOptions(base, overrides)
+            if nargin < 1 || ~isstruct(base), base = struct(); end
+            if nargin < 2 || ~isstruct(overrides), overrides = struct(); end
+            out = base;
+            names = fieldnames(overrides);
+            for i = 1:numel(names)
+                out.(names{i}) = overrides.(names{i});
+            end
         end
 
         function files = listBundleFiles(outDir, baseName)

@@ -1,4 +1,4 @@
-function analyze_gnss_points(root_dir, point_ids, start_date, end_date, excel_file, subfolder, cfg)
+﻿function analyze_gnss_points(root_dir, point_ids, start_date, end_date, excel_file, subfolder, cfg)
 % analyze_gnss_points 批量绘制 GNSS 位移时程并导出统计结果
 
     if nargin < 1 || isempty(root_dir),  root_dir = pwd; end
@@ -106,13 +106,13 @@ function analyze_gnss_points(root_dir, point_ids, start_date, end_date, excel_fi
         grid minor;
 
         fname = sanitize_filename(sprintf('GNSS_%s_%s_%s', pid, datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-        bms.plot.PlotService.saveBundle(fig, out_dir, [fname '_' ts]);
+        bms.plot.PlotService.saveModuleBundle(fig, out_dir, [fname '_' ts], cfg);
     end
 
     T = cell2table(stats, 'VariableNames', ...
         {'PointID', 'Component', 'ComponentLabel', 'StartTime', 'EndTime', ...
          'ValidCount', 'Min_mm', 'Max_mm', 'Mean_mm', 'PeakToPeak_mm'});
-    bms.io.StatsWriter.writeTable(T, excel_file);
+    bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'gnss');
     fprintf('GNSS stats saved to %s\n', excel_file);
 end
 

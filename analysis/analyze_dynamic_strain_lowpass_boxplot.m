@@ -96,9 +96,9 @@ for gi = 1:numel(groups)
     gname = group_names{gi};
     fprintf('\n== 处理分组 %s ==\n', gname);
     [dataMat, labels, tsList] = collect_group_data(root_dir, subfolder, start_str, end_str, groups{gi}, ds, cfg);
-    make_boxplot_and_stats(dataMat, labels, gname, outdir, ds, tag, timestamp, dt0, dt1);
+    make_boxplot_and_stats(dataMat, labels, gname, outdir, ds, tag, timestamp, dt0, dt1, cfg);
     ylim_group = get_ylim(style, gname, ds);
-    plot_timeseries_group(tsList, labels, gname, outdir_ts, dt0, dt1, ds, ylim_group, tag, timestamp);
+    plot_timeseries_group(tsList, labels, gname, outdir_ts, dt0, dt1, ds, ylim_group, tag, timestamp, cfg);
 end
 
 fprintf('\n全部完成。\n');
@@ -189,7 +189,10 @@ function [vals_all, times_all] = process_one_pid(root_dir, subfolder, start_str,
     % ==========================================
 end
 
-function make_boxplot_and_stats(dataMat, labels, groupName, outdir, ds_cfg, tag, ts, dt0, dt1)
+function make_boxplot_and_stats(dataMat, labels, groupName, outdir, ds_cfg, tag, ts, dt0, dt1, cfg)
+    if nargin < 10
+        cfg = struct();
+    end
     f = figure('Position',[100 100 1100 520]);
     if ds_cfg.ShowOutliers
         boxplot(dataMat, 'Labels', labels, 'LabelOrientation','horizontal', 'Whisker', ds_cfg.Whisker);
@@ -202,16 +205,19 @@ function make_boxplot_and_stats(dataMat, labels, groupName, outdir, ds_cfg, tag,
     if ds_cfg.YLimManual, ylim(ds_cfg.YLimRange); end
 
     base = sprintf('boxplot_%s_%s', groupName, tag);
-    bms.plot.PlotService.saveBundle(f, outdir, [base '_' ts]);
+    bms.plot.PlotService.saveModuleBundle(f, outdir, [base '_' ts], cfg);
 
     statsTbl = calc_stats_table(dataMat, labels);
     txtPath  = fullfile(outdir, sprintf('boxplot_stats_%s_%s.txt', groupName, tag));
     xlsxPath = fullfile(outdir, sprintf('boxplot_stats_%s.xlsx', tag));
     write_stats_txt(txtPath, statsTbl, dt0, dt1);
-    bms.io.StatsWriter.writeTable(statsTbl, xlsxPath, 'Sheet', groupName);
+    bms.io.StatsWriter.writeModuleTableChecked(statsTbl, xlsxPath, 'dynamic_strain_lowpass', 'Sheet', groupName);
 end
 
-function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, ds_cfg, ylim_group, tag, ts)
+function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, ds_cfg, ylim_group, tag, ts, cfg)
+    if nargin < 11
+        cfg = struct();
+    end
     f = figure('Position',[100 100 1100 520]); hold on;
     colors_6 = {[0 0 0],[0 0 1],[0 0.7 0],[1 0.4 0.8],[1 0.6 0],[1 0 0]};
 
@@ -261,7 +267,7 @@ function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, d
     end
 
     base = sprintf('dynstrain_lp_%s_%s', groupName, tag);
-    bms.plot.PlotService.saveBundle(f, outdir_ts, [base '_' ts]);
+    bms.plot.PlotService.saveModuleBundle(f, outdir_ts, [base '_' ts], cfg);
 end
 
 function T = calc_stats_table(dataMat, labels)

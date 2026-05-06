@@ -55,13 +55,13 @@
             fprintf('使用默认采样率 %d Hz\n', round(rec.fs));
         end
         stats(i,:) = {pid, rec.mn, rec.mx, rec.av, rec.rms_max, rec.rms_time};
-        plot_accel_curve(root_dir, pid, rec.times, rec.vals, rec.mn, rec.mx, style);
-        plot_accel_rms_curve(root_dir, pid, rec.times, rec.vals, rec.fs, start_date, end_date, style);
+        plot_accel_curve(root_dir, pid, rec.times, rec.vals, rec.mn, rec.mx, style, cfg);
+        plot_accel_rms_curve(root_dir, pid, rec.times, rec.vals, rec.fs, start_date, end_date, style, cfg);
         rec = [];
     end
 
     T = cell2table(stats, 'VariableNames',{'PointID','Min','Max','Mean','RMS10minMax','RMSStartTime'});
-    bms.io.StatsWriter.writeTable(T, excel_file);
+    bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'acceleration');
     fprintf('统计结果已保存至 %s\n', excel_file);
 
     time_end = datetime('now','Format','yyyy-MM-dd HH:mm:ss');
@@ -89,7 +89,10 @@ function style = get_style(cfg, key)
     style = bms.config.ConfigReader.getPlotStyle(cfg, key, defaults);
 end
 
-function plot_accel_curve(root_dir,pid, times, vals, mn, mx, style)
+function plot_accel_curve(root_dir,pid, times, vals, mn, mx, style, cfg)
+if nargin < 8
+    cfg = struct();
+end
 % 绘制加速度时程曲线及标注
 fig = figure('Position',[100 100 1000 469]);
 [times_plot, vals_plot] = prepare_plot_series(times, vals);
@@ -127,10 +130,13 @@ title([style.title_prefix ' ' pid]);
 ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir,'时程曲线_加速度'); bms.core.PathResolver.ensureDir(out);
 fname = [pid '_' datestr(times(1),'yyyymmdd') '_' datestr(times(end),'yyyymmdd')];
-bms.plot.PlotService.saveBundle(fig, out, [fname '_' ts]);
+bms.plot.PlotService.saveModuleBundle(fig, out, [fname '_' ts], cfg);
 end
 
-function plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date, style)
+function plot_accel_rms_curve(root_dir, pid, times, vals, fs, start_date, end_date, style, cfg)
+if nargin < 9
+    cfg = struct();
+end
 % 10 min RMS 全时程曲线（含峰值标注）
 if isempty(vals) || numel(times) ~= numel(vals)
     return;
@@ -206,7 +212,7 @@ ts = datestr(now,'yyyymmdd_HHMMSS');
 out = fullfile(root_dir,'时程曲线_加速度_RMS10min');
 bms.core.PathResolver.ensureDir(out);
 fname = sprintf('AccelRMS10_%s_%s_%s', pid, datestr(xmin,'yyyymmdd'), datestr(xmax,'yyyymmdd'));
-bms.plot.PlotService.saveBundle(fig, out, [fname '_' ts]);
+bms.plot.PlotService.saveModuleBundle(fig, out, [fname '_' ts], cfg);
 end
 
 function yl = resolve_point_ylim(ylims, pid, default_ylim)

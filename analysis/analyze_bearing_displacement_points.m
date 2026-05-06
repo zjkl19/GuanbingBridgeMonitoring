@@ -1,4 +1,4 @@
-function analyze_bearing_displacement_points(root_dir, start_date, end_date, excel_file, subfolder, cfg)
+﻿function analyze_bearing_displacement_points(root_dir, start_date, end_date, excel_file, subfolder, cfg)
 % analyze_bearing_displacement_points
 % Plot bearing displacement time series (raw + filtered) and export stats.
 
@@ -56,8 +56,8 @@ function analyze_bearing_displacement_points(root_dir, start_date, end_date, exc
         };
 
         warn_lines = resolve_warn_lines(style, cfg, pid);
-        plot_bearing_curve({times}, {vals}, {pid}, root_dir, start_date, end_date, pid, style, 'Orig', warn_lines);
-        plot_bearing_curve({times}, {vals_f}, {pid}, root_dir, start_date, end_date, pid, style, 'Filt', warn_lines);
+        plot_bearing_curve({times}, {vals}, {pid}, root_dir, start_date, end_date, pid, style, 'Orig', warn_lines, cfg);
+        plot_bearing_curve({times}, {vals_f}, {pid}, root_dir, start_date, end_date, pid, style, 'Filt', warn_lines, cfg);
     end
 
     if ~isempty(groups)
@@ -91,14 +91,14 @@ function analyze_bearing_displacement_points(root_dir, start_date, end_date, exc
                 continue;
             end
             group_warn = resolve_warn_lines(style, cfg, '');
-            plot_bearing_curve(orig_times, orig_vals, labels, root_dir, start_date, end_date, sprintf('G%d', g), style, 'Orig', group_warn);
-            plot_bearing_curve(filt_times, filt_vals, labels, root_dir, start_date, end_date, sprintf('G%d', g), style, 'Filt', group_warn);
+            plot_bearing_curve(orig_times, orig_vals, labels, root_dir, start_date, end_date, sprintf('G%d', g), style, 'Orig', group_warn, cfg);
+            plot_bearing_curve(filt_times, filt_vals, labels, root_dir, start_date, end_date, sprintf('G%d', g), style, 'Filt', group_warn, cfg);
         end
     end
 
     T = cell2table(stats, 'VariableNames', ...
         {'PointID', 'OrigMin_mm', 'OrigMax_mm', 'OrigMean_mm', 'FiltMin_mm', 'FiltMax_mm', 'FiltMean_mm'});
-    bms.io.StatsWriter.writeTable(T, excel_file);
+    bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'bearing_displacement');
     fprintf('Bearing displacement stats saved to %s\n', excel_file);
 end
 
@@ -124,7 +124,10 @@ function vals_f = moving_median_10min(times, vals)
     vals_f = movmedian(vals, win_len, 'omitnan');
 end
 
-function plot_bearing_curve(times_list, vals_list, pid_list, root_dir, start_date, end_date, name_tag, style, suffix, warn_lines)
+function plot_bearing_curve(times_list, vals_list, pid_list, root_dir, start_date, end_date, name_tag, style, suffix, warn_lines, cfg)
+    if nargin < 11
+        cfg = struct();
+    end
     valid = ~cellfun(@isempty, vals_list);
     if ~any(valid)
         return;
@@ -213,7 +216,7 @@ function plot_bearing_curve(times_list, vals_list, pid_list, root_dir, start_dat
     bms.core.PathResolver.ensureDir(out_dir);
     ts = datestr(now, 'yyyymmdd_HHMMSS');
     fname = sanitize_filename(sprintf('BearingDisp_%s_%s_%s_%s', char(string(name_tag)), datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'), suffix));
-    bms.plot.PlotService.saveBundle(fig, out_dir, [fname '_' ts]);
+    bms.plot.PlotService.saveModuleBundle(fig, out_dir, [fname '_' ts], cfg);
 end
 
 function warn_lines = resolve_warn_lines(style, cfg, pid)

@@ -8,6 +8,7 @@ classdef StepResult
         Category char = 'analysis'
         StatsFile char = ''
         StatsPath char = ''
+        StatsExists logical = false
         Status char = 'unknown'
         Message char = ''
         ErrorType char = ''
@@ -15,6 +16,9 @@ classdef StepResult
         EndedAt datetime = NaT
         ElapsedSec double = 0
         Artifacts cell = {}
+        FigurePaths cell = {}
+        ArtifactCount double = 0
+        FigureCount double = 0
     end
 
     methods
@@ -54,7 +58,15 @@ classdef StepResult
             if isempty(s.stats_path) && ~isempty(statsDir) && ~isempty(obj.StatsFile)
                 s.stats_path = fullfile(statsDir, obj.StatsFile);
             end
+            if ~isempty(s.stats_path)
+                s.stats_exists = isfile(s.stats_path);
+            else
+                s.stats_exists = obj.StatsExists;
+            end
             s.artifacts = obj.Artifacts;
+            s.figure_paths = obj.FigurePaths;
+            s.artifact_count = obj.ArtifactCount;
+            s.figure_count = obj.FigureCount;
         end
     end
 
@@ -81,12 +93,21 @@ classdef StepResult
             end
             obj = bms.app.StepResult(step, analyzerResult.Status, analyzerResult.Message, startedAt, endedAt, '');
             obj.StatsPath = analyzerResult.StatsPath;
+            obj.StatsExists = analyzerResult.StatsExists;
             obj.Artifacts = analyzerResult.Artifacts;
+            obj.FigurePaths = analyzerResult.FigurePaths;
+            obj.ArtifactCount = analyzerResult.ArtifactCount;
+            obj.FigureCount = analyzerResult.FigureCount;
             if isempty(obj.Message) && ~isempty(analyzerResult.Warnings)
                 obj.Message = strjoin(cellfun(@char, analyzerResult.Warnings, 'UniformOutput', false), '; ');
             end
+            if isprop(analyzerResult, 'ErrorType') && ~isempty(analyzerResult.ErrorType)
+                obj.ErrorType = analyzerResult.ErrorType;
+            end
             if strcmpi(analyzerResult.Status, 'fail')
-                obj.ErrorType = 'analysis_failed';
+                if isempty(obj.ErrorType)
+                    obj.ErrorType = bms.app.ErrorClassifier.classifyText(obj.Message);
+                end
             end
         end
 

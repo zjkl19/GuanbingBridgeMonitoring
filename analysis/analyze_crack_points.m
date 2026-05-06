@@ -1,4 +1,4 @@
-function analyze_crack_points(root_dir, start_date, end_date, excel_file, subfolder, cfg)
+﻿function analyze_crack_points(root_dir, start_date, end_date, excel_file, subfolder, cfg)
 % analyze_crack_points Crack width analysis with optional crack-temperature branch.
 
     if nargin < 1 || isempty(root_dir),  root_dir = pwd; end
@@ -66,7 +66,7 @@ function analyze_crack_points(root_dir, start_date, end_date, excel_file, subfol
     end
 
     T = cell2table(stats, 'VariableNames', {'PointID','CrkMin','CrkMax','CrkMean','TmpMin','TmpMax','TmpMean'});
-    bms.io.StatsWriter.writeTable(T, excel_file);
+    bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'crack');
 
     crack_ylabel = get_style_field(style, 'ylabel_crack', 'Crack Width (mm)');
     crack_title  = get_style_field(style, 'title_prefix_crack', 'Crack Width');
@@ -83,10 +83,10 @@ function analyze_crack_points(root_dir, start_date, end_date, excel_file, subfol
             S = fetch_point_series(cache, root_dir, subfolder, start_date, end_date, cfg, pid, opt.temp_enabled);
             if ~isempty(S.crack_times)
                 plot_single_curve(S.crack_times, S.crack_vals, pid, crack_ylabel, crack_title, crack_dir, start_date, end_date, ...
-                    get_named_ylim(style, pid, get_default_ylim(style)));
+                    get_named_ylim(style, pid, get_default_ylim(style)), cfg);
             end
             if opt.temp_enabled && ~isempty(S.temp_times)
-                plot_single_curve(S.temp_times, S.temp_vals, pid, temp_ylabel, temp_title, temp_dir, start_date, end_date, []);
+                plot_single_curve(S.temp_times, S.temp_vals, pid, temp_ylabel, temp_title, temp_dir, start_date, end_date, [], cfg);
             end
         end
     end
@@ -125,14 +125,14 @@ function analyze_crack_points(root_dir, start_date, end_date, excel_file, subfol
 
             if ~isempty(crack_labels)
                 plot_group_curve(crack_times, crack_vals, crack_labels, crack_ylabel, crack_title, crack_dir, grp_name, start_date, end_date, ...
-                    get_named_ylim(style, grp_name, get_default_ylim(style)), style);
+                    get_named_ylim(style, grp_name, get_default_ylim(style)), style, cfg);
             elseif ~opt.skip_group_if_missing
                 warning('Crack group %s has no valid data.', grp_name);
             end
 
             if opt.temp_enabled
                 if ~isempty(temp_labels)
-                    plot_group_curve(temp_times, temp_vals, temp_labels, temp_ylabel, temp_title, temp_dir, grp_name, start_date, end_date, [], style);
+                    plot_group_curve(temp_times, temp_vals, temp_labels, temp_ylabel, temp_title, temp_dir, grp_name, start_date, end_date, [], style, cfg);
                 elseif ~opt.skip_group_if_missing
                     warning('Crack temp group %s has no valid data.', grp_name);
                 end
@@ -160,11 +160,17 @@ function S = fetch_point_series(cache, root_dir, subfolder, start_date, end_date
     cache(pid) = S;
 end
 
-function plot_single_curve(t, v, pid, ylabel_str, title_prefix, out_dir, start_date, end_date, ylim_range)
-    plot_group_curve({t}, {v}, {pid}, ylabel_str, title_prefix, out_dir, pid, start_date, end_date, ylim_range, struct());
+function plot_single_curve(t, v, pid, ylabel_str, title_prefix, out_dir, start_date, end_date, ylim_range, cfg)
+    if nargin < 10
+        cfg = struct();
+    end
+    plot_group_curve({t}, {v}, {pid}, ylabel_str, title_prefix, out_dir, pid, start_date, end_date, ylim_range, struct(), cfg);
 end
 
-function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, title_prefix, out_dir, group_name, start_date, end_date, ylim_range, style)
+function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, title_prefix, out_dir, group_name, start_date, end_date, ylim_range, style, cfg)
+    if nargin < 12
+        cfg = struct();
+    end
     if isempty(labels)
         return;
     end
@@ -219,7 +225,7 @@ function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, title_prefi
 
     ts = datestr(now, 'yyyymmdd_HHMMSS');
     base = sanitize_filename(sprintf('%s_%s_%s_%s', title_prefix, group_name, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd')));
-    bms.plot.PlotService.saveBundle(fig, out_dir, [base '_' ts]);
+    bms.plot.PlotService.saveModuleBundle(fig, out_dir, [base '_' ts], cfg);
 end
 
 function ok = is_valid_ylim(v)

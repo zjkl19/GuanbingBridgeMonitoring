@@ -1,4 +1,4 @@
-function analyze_rainfall_points(root_dir, point_ids, start_date, end_date, excel_file, subfolder, cfg)
+﻿function analyze_rainfall_points(root_dir, point_ids, start_date, end_date, excel_file, subfolder, cfg)
 % analyze_rainfall_points 批量绘制雨量计时程并统计降雨强度/累计降雨量
     if nargin<1||isempty(root_dir),    root_dir = pwd; end
     if nargin<2||isempty(point_ids),    error('请提供 point_ids cell 数组'); end
@@ -69,7 +69,7 @@ function analyze_rainfall_points(root_dir, point_ids, start_date, end_date, exce
         title(sprintf('%s %s', get_style_field(style, 'title_prefix', '降雨强度时程'), pid));
 
         base = sprintf('Rainfall_%s_%s_%s', pid, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
-        bms.plot.PlotService.saveBundle(fig, outDir, [base '_' timestamp]);
+        bms.plot.PlotService.saveModuleBundle(fig, outDir, [base '_' timestamp], cfg);
 
         stats{i,1} = pid;
         stats{i,2} = format_time(min(t_valid));
@@ -82,7 +82,7 @@ function analyze_rainfall_points(root_dir, point_ids, start_date, end_date, exce
 
     T = cell2table(stats, 'VariableNames', ...
         {'PointID','StartTime','EndTime','ValidCount','Max_mm_h','Mean_mm_h','Total_mm'});
-    bms.io.StatsWriter.writeTable(T, excel_file);
+    bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'rainfall');
     fprintf('雨量统计结果已保存至 %s\n', excel_file);
 end
 

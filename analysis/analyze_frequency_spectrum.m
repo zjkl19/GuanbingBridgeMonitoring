@@ -88,7 +88,7 @@ function save_spectrum_plot()
     file_base_name = fullfile(folder_name, ['spectrum_plot_' timestamp_str]);
 
     % 保存为不同格式
-    bms.plot.PlotService.saveBundle(gcf, folder_name, ['spectrum_plot_' timestamp_str]);
+    bms.plot.PlotService.saveModuleBundle(gcf, folder_name, ['spectrum_plot_' timestamp_str], struct());
 
     disp(['频谱图已保存至: ' folder_name]);
 end

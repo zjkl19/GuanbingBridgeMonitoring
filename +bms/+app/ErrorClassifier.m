@@ -18,22 +18,38 @@ classdef ErrorClassifier
             text = lower(char(string(text)));
             if isempty(strtrim(text))
                 errorType = '';
-            elseif contains(text, 'out of memory') || contains(text, '内存不足') || contains(text, 'memory')
+            elseif bms.app.ErrorClassifier.hasAny(text, {'out of memory','memory', ...
+                    char([20869 23384 19981 36275])})
                 errorType = 'memory_error';
-            elseif contains(text, 'wim:sql') || contains(text, 'sqlcmd') || contains(text, 'sql server') || contains(text, 'odbc')
+            elseif bms.app.ErrorClassifier.hasAny(text, {'wim:sql','sqlcmd','sql server','odbc'})
                 errorType = 'sql_error';
-            elseif contains(text, 'wim:input') || contains(text, 'missingfmt') || contains(text, 'missingbcp') || contains(text, 'file missing') || contains(text, 'not found') || contains(text, 'no such file') || contains(text, '文件不存在') || contains(text, '未找到')
+            elseif bms.app.ErrorClassifier.hasAny(text, {'wim:input','missingfmt','missingbcp', ...
+                    'file missing','not found','no such file', ...
+                    char([25991 20214 19981 23384 22312]), char([26410 25214 21040])})
                 errorType = 'input_missing';
-            elseif contains(text, '无法读取') || contains(text, 'unable to read') || contains(text, 'read failed') || contains(text, '读取失败')
+            elseif bms.app.ErrorClassifier.hasAny(text, {'unable to read','read failed', ...
+                    char([26080 27861 35835 21462]), char([35835 21462 22833 36133])})
                 errorType = 'read_failed';
-            elseif contains(text, '无法识别的字段') || contains(text, 'unrecognized field') || contains(text, 'config') || contains(text, '配置') || contains(text, 'field')
-                errorType = 'config_error';
-            elseif contains(text, 'save') || contains(text, '无法保存') || contains(text, '.fig') || contains(text, '.jpg') || contains(text, '.emf') || contains(text, '.png')
-                errorType = 'plot_save_failed';
-            elseif contains(text, 'writetable') || contains(text, 'xlsx') || contains(text, 'excel') || contains(text, 'stats')
+            elseif bms.app.ErrorClassifier.hasAny(text, {'unrecognized field','config','field', ...
+                    char([26080 27861 35782 21035 30340 23383 27573]), char([37197 32622])})
+                errorType = 'config_invalid';
+            elseif bms.app.ErrorClassifier.hasAny(text, {'writetable','xlsx','excel','stats'})
                 errorType = 'stats_write_failed';
+            elseif bms.app.ErrorClassifier.hasAny(text, {'save','.fig','.jpg','.emf','.png', ...
+                    char([26080 27861 20445 23384])})
+                errorType = 'plot_save_failed';
             else
                 errorType = 'runtime_error';
+            end
+        end
+
+        function tf = hasAny(text, patterns)
+            tf = false;
+            for i = 1:numel(patterns)
+                if contains(text, lower(char(patterns{i})))
+                    tf = true;
+                    return;
+                end
             end
         end
     end

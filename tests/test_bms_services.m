@@ -95,6 +95,10 @@ classdef test_bms_services < matlab.unittest.TestCase
             tc.verifyTrue(isfile(out));
             R = readtable(out, 'VariableNamingRule', 'preserve');
             tc.verifyEqual(height(R), 2);
+
+            out2 = fullfile(tmp, 'nested', 'module_stats.xlsx');
+            bms.io.StatsWriter.writeModuleTableChecked(T, out2, 'unit');
+            tc.verifyTrue(isfile(out2));
         end
 
         function manifestWriterAddsSchemaAndMissingStats(tc)

@@ -32,17 +32,20 @@ function analyze_humidity_points(root_dir, point_ids, start_date, end_date, exce
         if isempty(valid_vals)
             warning('Point %s contains only NaN values, skipping', pid); continue;
         end
-        plot_humidity_point_curve(times, vals, pid, root_dir, start_date_str, end_date_str, style);
+        plot_humidity_point_curve(times, vals, pid, root_dir, start_date_str, end_date_str, style, cfg);
         mn = min(valid_vals); mx = max(valid_vals); av = round(mean(valid_vals),1);
         stats{i,1} = pid; stats{i,2} = mn; stats{i,3} = mx; stats{i,4} = av;
-        plot_humidity_frequency(valid_vals, pid, root_dir, start_date_str, end_date_str);
+        plot_humidity_frequency(valid_vals, pid, root_dir, start_date_str, end_date_str, cfg);
     end
     T = cell2table(stats,'VariableNames',{'PointID','Min','Max','Mean'});
-    bms.io.StatsWriter.writeTable(T, excel_file);
+    bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'humidity');
     fprintf('统计结果已保存至 %s\n', excel_file);
 end
 
-function plot_humidity_point_curve(times, vals, pid, root_dir, start_date, end_date, style)
+function plot_humidity_point_curve(times, vals, pid, root_dir, start_date, end_date, style, cfg)
+if nargin < 8
+    cfg = struct();
+end
 if isempty(vals)
     error('测点 %s 无数据，无法绘图', pid);
 end
@@ -86,10 +89,13 @@ timestamp = char(datetime('now','Format','yyyy-MM-dd_HH-mm-ss'));
 output_dir = fullfile(root_dir,'时程曲线_湿度');
 bms.core.PathResolver.ensureDir(output_dir);
 base = sprintf('%s_%s_%s', pid, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
-bms.plot.PlotService.saveBundle(fig, output_dir, [base '_' timestamp]);
+bms.plot.PlotService.saveModuleBundle(fig, output_dir, [base '_' timestamp], cfg);
 end
 
-function plot_humidity_frequency(vals, point_id, root_dir, start_date, end_date)
+function plot_humidity_frequency(vals, point_id, root_dir, start_date, end_date, cfg)
+if nargin < 6
+    cfg = struct();
+end
 bins = 20:10:100;
 counts = histcounts(vals, bins);
 total = sum(counts);
@@ -111,7 +117,7 @@ outdir = fullfile(root_dir,'频次分布_湿度'); if ~exist(outdir,'dir'), mkdi
 dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd');
 dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
 fname = sprintf('%s_freq_%s_%s', point_id, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
-bms.plot.PlotService.saveBundle(fig, outdir, [fname '_' timestamp]);
+bms.plot.PlotService.saveModuleBundle(fig, outdir, [fname '_' timestamp], cfg);
 end
 
 function out = normalize_ymd_input(value)

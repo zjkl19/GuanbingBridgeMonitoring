@@ -16,19 +16,37 @@ classdef test_analyzer_framework < matlab.unittest.TestCase
             tc.verifyEqual(s.status, 'ok');
             tc.verifyEqual(s.stats_path, 'D:/x/temp_stats.xlsx');
             tc.verifyEqual(s.artifacts, {'D:/x/a.jpg'});
+            tc.verifyEqual(s.artifact_count, 1);
+            tc.verifyEqual(s.figure_count, 0);
             tc.verifyEqual(s.elapsed_sec, 2);
         end
 
-        function factoryCreatesLowRiskAdapters(tc)
+        function factoryCreatesModuleAdapters(tc)
             sub = struct('temperature', 'features', 'humidity', 'features', ...
-                'rainfall', 'features', 'deflection', 'features_rs', 'crack', 'features');
-            keys = {'temperature','humidity','rainfall','deflection','crack'};
+                'rainfall', 'features', 'gnss', 'features', 'deflection', 'features_rs', ...
+                'bearing_displacement', 'features_rs', 'tilt', 'wave_rs', ...
+                'crack', 'features', 'strain', 'features', 'wind_raw', 'features', ...
+                'eq_raw', 'wave', 'acceleration', 'wave', 'cable_accel', 'wave', ...
+                'acceleration_raw', 'wave', 'cable_accel_raw', 'wave', 'wim', 'WIM');
+            keys = {'temperature','humidity','rainfall','gnss','deflection', ...
+                'bearing_displacement','tilt','crack','strain','wind','earthquake', ...
+                'acceleration','cable_accel','accel_spectrum','cable_accel_spectrum', ...
+                'dynamic_strain_highpass','dynamic_strain_lowpass','wim'};
             for i = 1:numel(keys)
                 a = bms.analyzer.AnalyzerFactory.create(keys{i}, 'D:/data', ...
                     '2026-01-01', '2026-01-02', 'D:/data/stats', sub, struct(), {'P1'});
                 tc.verifyTrue(isa(a, 'bms.analyzer.BaseAnalyzer'));
-                tc.verifyEqual(a.Key, keys{i});
-                tc.verifyTrue(endsWith(a.StatsFile, bms.module.ModuleRegistry.fromKey(keys{i}).StatsFile));
+                if strcmp(keys{i}, 'earthquake')
+                    tc.verifyEqual(a.Key, 'earthquake');
+                else
+                    tc.verifyEqual(a.Key, keys{i});
+                end
+                expectedStats = bms.module.ModuleRegistry.fromKey(keys{i}).StatsFile;
+                if ~isempty(expectedStats)
+                    tc.verifyTrue(endsWith(a.StatsFile, expectedStats));
+                else
+                    tc.verifyEqual(a.StatsFile, '');
+                end
             end
         end
 

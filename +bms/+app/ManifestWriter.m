@@ -58,10 +58,11 @@ classdef ManifestWriter
                 manifest.elapsed_sec = details.elapsed_sec;
             end
             if isfield(details, 'module_logs')
-                manifest.module_logs = details.module_logs;
-                manifest.module_results = details.module_logs;
-                manifest.module_status_counts = bms.app.ManifestWriter.statusCounts(details.module_logs);
-                manifest.module_artifacts = bms.app.ManifestWriter.moduleArtifacts(details.module_logs);
+                records = bms.app.ManifestWriter.normalizeModuleRecords(details.module_logs, manifest.stats_dir);
+                manifest.module_logs = records;
+                manifest.module_results = records;
+                manifest.module_status_counts = bms.app.ManifestWriter.statusCounts(records);
+                manifest.module_artifacts = bms.app.ManifestWriter.moduleArtifacts(records);
                 manifest.artifact_count = bms.app.ManifestWriter.countArtifacts(manifest.module_artifacts);
             end
             if isfield(details, 'module_catalog')
@@ -177,6 +178,105 @@ classdef ManifestWriter
                 if isstruct(item) && isfield(item, 'artifacts') && ~isempty(item.artifacts)
                     n = n + numel(item.artifacts);
                 end
+            end
+        end
+
+        function out = normalizeModuleRecords(records, statsDir)
+            if nargin < 2, statsDir = ''; end
+            out = {};
+            if isempty(records), return; end
+            if isstruct(records)
+                records = num2cell(records);
+            elseif ~iscell(records)
+                records = {records};
+            end
+            for i = 1:numel(records)
+                rec = bms.app.ManifestWriter.normalizeModuleRecord(records{i}, statsDir);
+                if ~isempty(rec)
+                    out{end+1} = rec; %#ok<AGROW>
+                end
+            end
+        end
+
+        function rec = normalizeModuleRecord(item, statsDir)
+            rec = [];
+            if isa(item, 'bms.app.StepResult')
+                item = item.toStruct(statsDir);
+            elseif isa(item, 'bms.analyzer.AnalyzerResult')
+                item = item.toStruct();
+            end
+            if ~isstruct(item)
+                return;
+            end
+
+            rec = item;
+            key = bms.app.ManifestWriter.fieldText(rec, 'key', '');
+            label = bms.app.ManifestWriter.fieldText(rec, 'label', '');
+            if isempty(key) && ~isempty(label)
+                spec = bms.module.ModuleRegistry.fromLabel(label);
+                key = spec.Key;
+            elseif ~isempty(key)
+                spec = bms.module.ModuleRegistry.fromKey(key);
+            else
+                spec = bms.module.ModuleSpec('', '', '', '', 'analysis');
+            end
+            if isempty(key), key = spec.Key; end
+            if isempty(label), label = spec.Label; end
+            if isempty(label), label = key; end
+            rec.key = char(string(key));
+            rec.label = char(string(label));
+
+            if ~isfield(rec, 'category') || isempty(rec.category)
+                rec.category = spec.Category;
+            end
+            if ~isfield(rec, 'opt_field') || isempty(rec.opt_field)
+                rec.opt_field = spec.OptField;
+            end
+            if ~isfield(rec, 'status') || isempty(rec.status)
+                rec.status = 'unknown';
+            end
+            if ~isfield(rec, 'message') || isempty(rec.message)
+                rec.message = '';
+            end
+            if ~isfield(rec, 'error_type') || isempty(rec.error_type)
+                if strcmpi(char(string(rec.status)), 'fail')
+                    rec.error_type = bms.app.ErrorClassifier.classifyText(rec.message);
+                else
+                    rec.error_type = '';
+                end
+            end
+            if ~isfield(rec, 'started_at'), rec.started_at = ''; end
+            if ~isfield(rec, 'ended_at'), rec.ended_at = ''; end
+            if ~isfield(rec, 'elapsed_sec') || isempty(rec.elapsed_sec) || ~isnumeric(rec.elapsed_sec)
+                rec.elapsed_sec = NaN;
+            end
+            if ~isfield(rec, 'stats_file') || isempty(rec.stats_file)
+                rec.stats_file = spec.StatsFile;
+            end
+            if ~isfield(rec, 'stats_path') || isempty(rec.stats_path)
+                if ~isempty(statsDir) && ~isempty(rec.stats_file)
+                    rec.stats_path = fullfile(statsDir, char(string(rec.stats_file)));
+                else
+                    rec.stats_path = '';
+                end
+            end
+            if ~isfield(rec, 'stats_exists') || isempty(rec.stats_exists)
+                rec.stats_exists = ~isempty(rec.stats_path) && isfile(rec.stats_path);
+            end
+            if ~isfield(rec, 'artifacts') || isempty(rec.artifacts)
+                rec.artifacts = {};
+            elseif isstruct(rec.artifacts)
+                rec.artifacts = num2cell(rec.artifacts);
+            end
+            rec.figure_paths = bms.analyzer.AnalyzerResult.figurePathsFromArtifacts(rec.artifacts);
+            rec.artifact_count = numel(rec.artifacts);
+            rec.figure_count = numel(rec.figure_paths);
+        end
+
+        function txt = fieldText(s, field, fallback)
+            txt = fallback;
+            if isstruct(s) && isfield(s, field) && ~isempty(s.(field))
+                txt = char(string(s.(field)));
             end
         end
     end

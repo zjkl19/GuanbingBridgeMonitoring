@@ -82,10 +82,10 @@
         ampTbl  = array2table(ampDay, ...
                    'VariableNames', compose('Amp_%0.3fHz', target_freqs_pt));
         T = [table(dateCol,'VariableNames',{'Date'}) , freqTbl , ampTbl];
-        bms.io.StatsWriter.writeTable(T, excel_file, 'Sheet', point_ids{ii});
+        bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'accel_spectrum', 'Sheet', point_ids{ii});
 
         % 绘制峰值频率时程
-        plot_freq_timeseries(dates_all, freqDay, pid, target_freqs_pt, outDirFig, style, theor_freqs_pt, theor_labels_pt);
+        plot_freq_timeseries(dates_all, freqDay, pid, target_freqs_pt, outDirFig, style, theor_freqs_pt, theor_labels_pt, cfg);
     end
     fprintf('✓ 已输出 Excel -> %s\n', excel_file);
 end
@@ -225,7 +225,7 @@ function [ampRow, freqRow] = process_one_day(day, pid, root_dir, subfolder, targ
     xline(target_freqs,'--r');
     xlabel('频率 (Hz)'); ylabel(style.psd_ylabel);
     title(sprintf('%s %s  %s',style.psd_title_prefix,pid,dayStr));
-    bms.plot.PlotService.saveBundle(figPSD, psdDir, sprintf('PSD_%s_%s',pid,dayStr), struct('save_emf', false));
+    bms.plot.PlotService.saveModuleBundle(figPSD, psdDir, sprintf('PSD_%s_%s',pid,dayStr), cfg, struct('save_emf', false));
 
     for fi = 1:numel(target_freqs)
         f0 = target_freqs(fi);
@@ -241,7 +241,10 @@ function [ampRow, freqRow] = process_one_day(day, pid, root_dir, subfolder, targ
 end
 
 % =========================================================================
-function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, style, theor_freqs, theor_labels)
+function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, style, theor_freqs, theor_labels, cfg)
+    if nargin < 9
+        cfg = struct();
+    end
     fig = figure('Visible','off','Position',[100 100 1000 470]);
     hold on;
     colors = normalize_colors(style.colors);
@@ -313,7 +316,7 @@ function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, 
              datestr(dates_all(1),'yyyymmdd'), ...
              datestr(dates_all(end),'yyyymmdd')));
     [freq_dir, freq_name] = fileparts(fname);
-    bms.plot.PlotService.saveBundle(fig, freq_dir, freq_name);
+    bms.plot.PlotService.saveModuleBundle(fig, freq_dir, freq_name, cfg);
 end
 
 function ccell = normalize_colors(c)

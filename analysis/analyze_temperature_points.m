@@ -63,7 +63,7 @@ end
 grid on; grid minor;
 title(sprintf('%s %s', get_style_field(style,'title_prefix','温度时程'), pid));
         base = sprintf('%s_%s_%s', pid, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
-        bms.plot.PlotService.saveBundle(fig, outDir, [base '_' timestamp]);
+        bms.plot.PlotService.saveModuleBundle(fig, outDir, [base '_' timestamp], cfg);
         mn = min(all_val);
         mx = max(all_val);
         stats{i,1} = pid;
@@ -72,7 +72,7 @@ title(sprintf('%s %s', get_style_field(style,'title_prefix','温度时程'), pid
         stats{i,4} = avg_val;
     end
     T = cell2table(stats,'VariableNames',{'PointID','Min','Max','Mean'});
-    bms.io.StatsWriter.writeTable(T, excel_file);
+    bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'temperature');
     fprintf('统计结果已保存至 %s\n',excel_file);
 end
 

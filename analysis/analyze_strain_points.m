@@ -55,7 +55,7 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
                 round(vmean, 3)};
 
             warn_lines = resolve_warn_lines(style, cfg, pid);
-            plot_point_curve(root_dir, times, vals, start_date, end_date, pid, style, warn_lines);
+            plot_point_curve(root_dir, times, vals, start_date, end_date, pid, style, warn_lines, cfg);
         end
     end
 
@@ -72,7 +72,7 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
             if ~explicit_points && ~explicit_groups
                 stats_rows = [stats_rows; group_stats]; %#ok<AGROW>
             end
-            plot_group_timeseries(root_dir, data_list, start_date, end_date, group_name, style);
+            plot_group_timeseries(root_dir, data_list, start_date, end_date, group_name, style, cfg);
         end
     end
 
@@ -94,7 +94,7 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
     end
 
     T = cell2table(stats_rows, 'VariableNames', {'PointID', 'Min', 'Max', 'Mean'});
-    bms.io.StatsWriter.writeTable(T, excel_file);
+    bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'strain');
     fprintf('Strain stats saved to %s\n', excel_file);
 end
 
@@ -132,7 +132,10 @@ function [vmin, vmax, vmean] = summarize_vals(vals)
     vmean = mean(vals);
 end
 
-function plot_point_curve(root_dir, times, vals, start_date, end_date, pid, style, warn_lines)
+function plot_point_curve(root_dir, times, vals, start_date, end_date, pid, style, warn_lines, cfg)
+    if nargin < 9
+        cfg = struct();
+    end
     fig = figure('Position', [100 100 1000 469]);
     hold on;
     [times_plot, vals_plot] = prepare_plot_series(times, vals);
@@ -188,10 +191,13 @@ function plot_point_curve(root_dir, times, vals, start_date, end_date, pid, styl
     out_dir = fullfile(root_dir, char(string(get_style_field(style, 'output_dir', '时程曲线_应变'))));
     bms.core.PathResolver.ensureDir(out_dir);
     fname = sanitize_filename(sprintf('Strain_%s_%s_%s', char(string(pid)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    bms.plot.PlotService.saveBundle(fig, out_dir, [fname '_' ts]);
+    bms.plot.PlotService.saveModuleBundle(fig, out_dir, [fname '_' ts], cfg);
 end
 
-function plot_group_timeseries(root_dir, data_list, start_date, end_date, group_name, style)
+function plot_group_timeseries(root_dir, data_list, start_date, end_date, group_name, style, cfg)
+    if nargin < 7
+        cfg = struct();
+    end
     if isempty(data_list)
         return;
     end
@@ -244,7 +250,7 @@ function plot_group_timeseries(root_dir, data_list, start_date, end_date, group_
     out_dir = fullfile(root_dir, char(string(get_style_field(style, 'group_output_dir', '时程曲线_应变_组图'))));
     bms.core.PathResolver.ensureDir(out_dir);
     fname = sanitize_filename(sprintf('Strain_%s_%s_%s', char(string(group_name)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    bms.plot.PlotService.saveBundle(fig, out_dir, [fname '_' ts]);
+    bms.plot.PlotService.saveModuleBundle(fig, out_dir, [fname '_' ts], cfg);
 end
 
 function plot_group_boxplot(root_dir, data_list, start_date, end_date, group_name, style, cfg)
@@ -305,7 +311,7 @@ function plot_group_boxplot(root_dir, data_list, start_date, end_date, group_nam
     out_dir = fullfile(root_dir, char(string(get_style_field(style, 'boxplot_output_dir', '箱线图_应变'))));
     bms.core.PathResolver.ensureDir(out_dir);
     fname = sanitize_filename(sprintf('StrainBox_%s_%s_%s', char(string(group_name)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    bms.plot.PlotService.saveBundle(fig, out_dir, [fname '_' ts]);
+    bms.plot.PlotService.saveModuleBundle(fig, out_dir, [fname '_' ts], cfg);
 end
 
 function [data_mat, max_len] = build_boxplot_matrix(data_list)

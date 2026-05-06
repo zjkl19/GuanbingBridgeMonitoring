@@ -49,7 +49,7 @@ function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfold
 
             warn_lines = resolve_warn_lines(style, cfg, pid);
             data_one = struct('pid', pid, 'times', times, 'vals', vals);
-            plot_tilt_curve(root_dir, data_one, start_date, end_date, pid, style, warn_lines);
+            plot_tilt_curve(root_dir, data_one, start_date, end_date, pid, style, warn_lines, cfg);
         end
     end
 
@@ -67,18 +67,18 @@ function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfold
             end
             if has_plot_data(data_list)
                 group_warn = resolve_warn_lines(style, cfg, '');
-                plot_tilt_curve(root_dir, data_list, start_date, end_date, group_name, style, group_warn);
+                plot_tilt_curve(root_dir, data_list, start_date, end_date, group_name, style, group_warn, cfg);
             end
         end
     end
 
     if ~isempty(per_point_stats)
         T = cell2table(per_point_stats, 'VariableNames', {'PointID', 'Min', 'Max', 'Mean'});
-        bms.io.StatsWriter.writeTable(T, excel_file, 'Sheet', 'Tilt');
+        bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'tilt', 'Sheet', 'Tilt');
     end
     for i = 1:numel(group_stats)
         T = cell2table(group_stats{i}, 'VariableNames', {'PointID', 'Min', 'Max', 'Mean'});
-        bms.io.StatsWriter.writeTable(T, excel_file, 'Sheet', make_sheet_name(group_names{i}));
+        bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'tilt', 'Sheet', make_sheet_name(group_names{i}));
     end
 
     fprintf('Tilt stats saved to %s\n', excel_file);
@@ -105,7 +105,10 @@ function [stats, data_list] = process_group(root_dir, subfolder, pids, start_dat
     end
 end
 
-function plot_tilt_curve(root_dir, data_list, start_date, end_date, suffix, style, warn_lines)
+function plot_tilt_curve(root_dir, data_list, start_date, end_date, suffix, style, warn_lines, cfg)
+    if nargin < 8
+        cfg = struct();
+    end
     if isempty(data_list) || ~has_plot_data(data_list)
         return;
     end
@@ -189,7 +192,7 @@ function plot_tilt_curve(root_dir, data_list, start_date, end_date, suffix, styl
     out_dir = fullfile(root_dir, out_dir);
     bms.core.PathResolver.ensureDir(out_dir);
     fname = sanitize_filename(sprintf('Tilt_%s_%s_%s', char(string(suffix)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    bms.plot.PlotService.saveBundle(fig, out_dir, [fname '_' ts]);
+    bms.plot.PlotService.saveModuleBundle(fig, out_dir, [fname '_' ts], cfg);
 end
 
 function warn_lines = resolve_warn_lines(style, cfg, pid)

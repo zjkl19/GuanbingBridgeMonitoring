@@ -84,7 +84,13 @@ classdef GuiResultSummary
                 statsFlag = '';
                 statsPath = bms.gui.GuiResultSummary.fieldText(rec, 'stats_path', '');
                 if ~isempty(statsPath)
-                    if isfile(statsPath), statsFlag = 'OK'; else, statsFlag = 'missing'; end
+                    if isfield(rec, 'stats_exists') && islogical(rec.stats_exists)
+                        if rec.stats_exists, statsFlag = 'OK'; else, statsFlag = 'missing'; end
+                    elseif isfile(statsPath)
+                        statsFlag = 'OK';
+                    else
+                        statsFlag = 'missing';
+                    end
                 end
                 figCount = bms.gui.GuiResultSummary.countFigures(rec);
                 errorType = bms.gui.GuiResultSummary.fieldText(rec, 'error_type', '');
@@ -102,6 +108,14 @@ classdef GuiResultSummary
 
         function n = countFigures(rec)
             n = 0;
+            if isstruct(rec) && isfield(rec, 'figure_count') && isnumeric(rec.figure_count) && isscalar(rec.figure_count)
+                n = double(rec.figure_count);
+                return;
+            end
+            if isstruct(rec) && isfield(rec, 'figure_paths') && ~isempty(rec.figure_paths)
+                n = numel(rec.figure_paths);
+                return;
+            end
             if ~isstruct(rec) || ~isfield(rec, 'artifacts') || isempty(rec.artifacts)
                 return;
             end

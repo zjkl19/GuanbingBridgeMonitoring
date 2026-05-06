@@ -25,53 +25,33 @@ classdef AnalyzerFactory
                 case 'crack'
                     analyzer = bms.analyzer.CrackAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg);
                 case 'gnss'
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer(key, root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_gnss_points(root, points, startDate, endDate, statsFile, subfolder, cfg));
+                    analyzer = bms.analyzer.GnssAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, points);
                 case 'bearing_displacement'
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer(key, root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_bearing_displacement_points(root, startDate, endDate, statsFile, subfolder, cfg));
+                    analyzer = bms.analyzer.BearingDisplacementAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg);
                 case 'tilt'
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer(key, root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_tilt_points(root, startDate, endDate, statsFile, subfolder, cfg));
+                    analyzer = bms.analyzer.TiltAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg);
                 case 'strain'
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer(key, root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_strain_points(root, startDate, endDate, statsFile, subfolder, cfg));
+                    analyzer = bms.analyzer.StrainAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg);
                 case 'wind'
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer(key, root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_wind_points(root, startDate, endDate, subfolder, cfg));
+                    analyzer = bms.analyzer.WindAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg);
                 case {'earthquake','eq'}
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer('earthquake', root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_eq_points(root, startDate, endDate, subfolder, cfg));
+                    analyzer = bms.analyzer.EarthquakeAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg);
                 case 'acceleration'
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer(key, root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_acceleration_points(root, startDate, endDate, statsFile, subfolder, true, cfg));
+                    analyzer = bms.analyzer.AccelerationAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, true);
                 case 'cable_accel'
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer(key, root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_cable_acceleration_points(root, startDate, endDate, statsFile, subfolder, true, cfg));
+                    analyzer = bms.analyzer.CableAccelerationAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, true);
                 case 'accel_spectrum'
                     [freqs, tol] = bms.analyzer.AnalyzerFactory.resolveSpectrumParams(params, cfg, false);
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer(key, root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_accel_spectrum_points(root, startDate, endDate, points, statsFile, subfolder, freqs, tol, false, cfg));
+                    analyzer = bms.analyzer.AccelerationSpectrumAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, points, freqs, tol);
                 case 'cable_accel_spectrum'
                     [freqs, tol] = bms.analyzer.AnalyzerFactory.resolveSpectrumParams(params, cfg, true);
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer(key, root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_cable_accel_spectrum_points(root, startDate, endDate, points, statsFile, subfolder, freqs, tol, false, cfg));
+                    analyzer = bms.analyzer.CableAccelerationSpectrumAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, points, freqs, tol);
                 case 'dynamic_strain_highpass'
-                    outputDir = bms.config.ConfigReader.get(cfg, 'dynamic_strain.output_dir', bms.app.LegacyStepFunctions.dynamicHighpassOutputDir());
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer(key, root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_dynamic_strain_boxplot(root, startDate, endDate, ...
-                            'Cfg', cfg, 'Subfolder', subfolder, 'OutputDir', outputDir, ...
-                            'Fs', bms.config.ConfigReader.getNumeric(cfg, 'dynamic_strain.fs', 20), ...
-                            'Fc', bms.config.ConfigReader.getNumeric(cfg, 'dynamic_strain.fc', 0.1), ...
-                            'Whisker', bms.config.ConfigReader.getNumeric(cfg, 'dynamic_strain.whisker', 300), ...
-                            'ShowOutliers', false, 'YLimManual', true, 'YLimRange', [-30 30], ...
-                            'LowerBound', -150, 'UpperBound', 30, 'EdgeTrimSec', 5));
+                    analyzer = bms.analyzer.DynamicStrainHighpassAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg);
                 case 'dynamic_strain_lowpass'
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer(key, root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_dynamic_strain_lowpass_boxplot(root, startDate, endDate, 'Cfg', cfg, 'Subfolder', subfolder));
+                    analyzer = bms.analyzer.DynamicStrainLowpassAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg);
                 case 'wim'
-                    analyzer = bms.analyzer.LegacyFunctionAnalyzer(key, root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                        @() analyze_wim_reports(root, startDate, endDate, cfg));
+                    analyzer = bms.analyzer.WimAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg);
                 otherwise
                     error('AnalyzerFactory:UnsupportedKey', 'Unsupported analyzer key: %s', key);
             end

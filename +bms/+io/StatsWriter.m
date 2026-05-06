@@ -17,6 +17,18 @@ classdef StatsWriter
             end
         end
 
+        function path = writeModuleTableChecked(T, path, moduleKey, varargin)
+            if nargin < 3 || isempty(moduleKey)
+                moduleKey = 'unknown';
+            end
+            try
+                bms.io.StatsWriter.writeTableChecked(T, path, varargin{:});
+            catch ME
+                error('StatsWriter:ModuleWriteFailed', ...
+                    'Failed to write stats for module "%s": %s', char(string(moduleKey)), ME.message);
+            end
+        end
+
         function path = writeStatsTable(root, fileName, T, varargin)
             path = bms.data.DataLayoutResolver.statsFile(root, fileName);
             bms.io.StatsWriter.writeTable(T, path, varargin{:});

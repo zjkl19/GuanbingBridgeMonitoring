@@ -25,6 +25,35 @@ classdef test_writer_plot_manifest_services < matlab.unittest.TestCase
             tc.verifyEqual(opts.fig_max_points, 1234);
             tc.verifyEqual(opts.gap_mode, 'break');
             tc.verifyEqual(opts.gap_break_factor, 7);
+            merged = bms.plot.PlotService.mergeOptions(opts, struct('save_emf', false));
+            tc.verifyFalse(merged.save_emf);
+            tc.verifyEqual(merged.gap_mode, 'break');
+        end
+
+        function plotServiceModuleBundleUsesRuntimeOptions(tc)
+            tmp = tempname;
+            mkdir(tmp);
+            cleanup = onCleanup(@() rmdir(tmp, 's')); %#ok<NASGU>
+
+            fig = figure('Visible', 'off');
+            plot(1:3, [1 4 9]);
+            cfg.plot_common = struct('save_fig', false, 'append_timestamp', false);
+            paths = bms.plot.PlotService.saveModuleBundle(fig, tmp, ...
+                'Unit_20260101_20260102_20260506_123456', cfg, ...
+                struct('save_emf', false));
+
+            expected = fullfile(tmp, 'Unit_20260101_20260102.jpg');
+            tc.verifyTrue(isfile(expected));
+            tc.verifyEqual(paths, {expected});
+            tc.verifyFalse(isfile(fullfile(tmp, 'Unit_20260101_20260102.emf')));
+            tc.verifyFalse(isfile(fullfile(tmp, 'Unit_20260101_20260102.fig')));
+        end
+
+        function errorClassifierReturnsStableTypes(tc)
+            tc.verifyEqual(bms.app.ErrorClassifier.classifyText('unrecognized field ylim_auto'), 'config_invalid');
+            tc.verifyEqual(bms.app.ErrorClassifier.classifyText('writetable failed for stats.xlsx'), 'stats_write_failed');
+            tc.verifyEqual(bms.app.ErrorClassifier.classifyText('Failed to save .fig file'), 'plot_save_failed');
+            tc.verifyEqual(bms.app.ErrorClassifier.classifyText('sqlcmd ODBC login failed'), 'sql_error');
         end
 
         function manifestStatusCountsSummarizeRecords(tc)
@@ -35,6 +64,20 @@ classdef test_writer_plot_manifest_services < matlab.unittest.TestCase
             tc.verifyEqual(counts.skip, 1);
             tc.verifyEqual(counts.missing, 1);
             tc.verifyEqual(counts.other, 1);
+        end
+
+        function manifestNormalizesModuleRecordSchema(tc)
+            statsPath = fullfile(tempdir, 'missing_unit_stats.xlsx');
+            artifact = struct('kind','figure','role','time_history','path','D:/x.jpg');
+            records = bms.app.ManifestWriter.normalizeModuleRecords( ...
+                {struct('key','deflection','status','fail','message','not found','stats_path',statsPath,'artifacts',{{artifact}})}, tempdir);
+            tc.verifyEqual(numel(records), 1);
+            rec = records{1};
+            tc.verifyEqual(rec.error_type, 'input_missing');
+            tc.verifyFalse(rec.stats_exists);
+            tc.verifyEqual(rec.artifact_count, 1);
+            tc.verifyEqual(rec.figure_count, 1);
+            tc.verifyEqual(rec.figure_paths, {'D:/x.jpg'});
         end
 
         function guiResultSummaryBuildsLines(tc)
