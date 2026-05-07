@@ -990,6 +990,8 @@ def summary_line_is_heading(line: str) -> bool:
     text = str(line or "").strip()
     return bool(
         re.match(r"^[一二三四五六七八九十]+、", text)
+        or re.match(r"^\d+、", text)
+        or re.match(r"^\d+(?:\.\d+)+\s*", text)
         or re.match(r"^（\d+）", text)
     )
 
@@ -999,17 +1001,8 @@ def summary_line_is_major_heading(line: str) -> bool:
 
 
 def build_summary_result_rows(result_lines: list[str]) -> list[tuple[list[str], set[int]]]:
-    rows: list[tuple[list[str], set[int]]] = []
-    current: list[str] = []
-    for raw_line in result_lines:
-        line = str(raw_line or "")
-        if summary_line_is_major_heading(line) and current:
-            rows.append((current, {idx for idx, item in enumerate(current) if summary_line_is_heading(item)}))
-            current = []
-        current.append(line)
-    if current:
-        rows.append((current, {idx for idx, item in enumerate(current) if summary_line_is_heading(item)}))
-    return rows
+    lines = [str(line or "") for line in result_lines]
+    return [(lines, {idx for idx, item in enumerate(lines) if summary_line_is_heading(item)})] if lines else []
 
 
 def clear_paragraph_numbering(paragraph: Paragraph) -> None:
@@ -2897,49 +2890,52 @@ def update_summary_table(doc: Document, section_map: dict[str, SectionContent], 
             if para.text.strip()
         ]
     result_lines = [
-        "一、本月监测数据情况",
+        "一、监测系统运行情况",
+        "",
+        "二、本月监测数据情况",
         data_acquisition_summary or "本月监测数据获取情况详见正文。",
-        "二、主桥环境与作用监测",
-        "（1）温度监测",
+        "三、监测数据分析结果",
+        "1、主桥环境与作用监测",
+        "1.1 温度监测",
         section_map["main_env"].summary_sentence,
-        "（2）湿度监测",
+        "1.2 湿度监测",
         section_map["main_humidity"].summary_sentence,
-        "（3）雨量监测",
+        "1.3 雨量监测",
         section_map["main_rainfall"].summary_sentence,
-        "（4）风向风速监测",
+        "1.4 风向风速监测",
         section_map["main_wind"].summary_sentence,
-        "（5）地震动监测",
+        "1.5 地震动监测",
         section_map["main_eq"].summary_sentence,
-        "（6）车辆荷载监测",
+        "1.6 车辆荷载监测",
         section_map["main_traffic"].summary_sentence,
-        "三、主桥结构响应与结构变化监测",
-        "（1）主梁挠度监测",
+        "2、主桥结构响应与结构变化监测",
+        "2.1 主梁挠度监测",
         section_map["main_deflection"].summary_sentence,
-        "（2）支座、梁段纵向位移监测",
+        "2.2 支座、梁段纵向位移监测",
         section_map["main_bearing"].summary_sentence,
-        "（3）拱顶、拱脚位移监测（GNSS）",
+        "2.3 拱顶、拱脚位移监测（GNSS）",
         section_map["main_gnss"].summary_sentence,
-        "（4）结构振动监测",
+        "2.4 结构振动监测",
         section_map["main_vibration"].summary_sentence,
-        "（5）结构应变监测",
+        "2.5 结构应变监测",
         section_map["main_strain"].summary_sentence,
-        "（6）裂缝监测",
+        "2.6 裂缝监测",
         section_map["main_crack"].summary_sentence,
-        "（7）吊杆索力监测",
+        "2.7 吊杆索力监测",
         section_map["main_cable"].summary_sentence,
-        "四、北江滨匝道桥监测",
-        "（1）结构应变监测",
+        "3、北江滨匝道桥监测",
+        "3.1 结构应变监测",
         section_map["north_strain"].summary_sentence,
-        "（2）支座位移监测",
+        "3.2 支座位移监测",
         section_map["north_bearing"].summary_sentence,
-        "（3）墩柱倾斜监测",
+        "3.3 墩柱倾斜监测",
         section_map["north_tilt"].summary_sentence,
-        "五、南江滨匝道桥监测",
-        "（1）结构应变监测",
+        "4、南江滨匝道桥监测",
+        "4.1 结构应变监测",
         section_map["south_strain"].summary_sentence,
-        "（2）支座位移监测",
+        "4.2 支座位移监测",
         section_map["south_bearing"].summary_sentence,
-        "（3）墩柱倾斜监测",
+        "4.3 墩柱倾斜监测",
         section_map["south_tilt"].summary_sentence,
     ]
     rebuild_summary_table_rows(summary_table, result_lines, advice_left, advice_lines)

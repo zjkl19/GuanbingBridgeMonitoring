@@ -220,6 +220,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.6.9`: refines the Jiulongjiang monthly summary page so monitoring operation status, data acquisition, and analysis conclusions are generated in the correct order with fewer internal table separators.
+- `v1.6.9`：调整九龙江月报结论页，按“监测系统运行情况、本月监测数据情况、监测数据分析结果”顺序生成，并减少监测结果内部横线分隔。
 - `v1.6.8`: improves Jiulongjiang monthly report output, especially patrol-report insertion, month-based date replacement, WPS-friendly blank-area cleanup, and page breaks before patrol photo attachments.
 - `v1.6.8`：完善九龙江月报输出，重点优化人工巡查报告插入、按报告月份替换日期、清理 WPS 下易显示的空白区域，并在巡检表与附件照片之间分页。
 - `v1.6.7`: adds cached-result report regression tooling and shared report artifact/table helpers for more stable production report checks.
@@ -238,6 +240,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.6.9`: keeps Jiulongjiang patrol reports as replaceable references and updates the generated summary table structure without hard-coding current patrol dates or layouts.
+- `v1.6.9`：继续将九龙江巡查报告作为可替换参考源处理，并更新结论页监测结果表结构，不写死当前巡查日期和版式。
 - `v1.6.8`: uses the Jiulongjiang 0506 template by default and treats the patrol report as a replaceable reference source; future patrol dates and layout changes can be handled by replacing the reference document.
 - `v1.6.8`：九龙江月报默认使用 0506 模板，并将巡查报告作为可替换参考源；后续巡查日期和格式变化可通过替换参考文档处理。
 - `v1.6.5`: adds Guanbing template precheck, Guanbing result-readiness warnings, and cached report regression support.
