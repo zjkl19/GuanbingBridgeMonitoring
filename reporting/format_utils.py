@@ -29,6 +29,8 @@ def format_number(value: object, decimals: int = 3, unit: str = "", *, trim: boo
     fv = parse_float(value)
     if fv is None:
         return missing
+    if decimals >= 0 and abs(fv) < 0.5 * (10 ** -decimals):
+        fv = 0.0
     text = f"{fv:.{decimals}f}"
     if trim:
         text = text.rstrip("0").rstrip(".")

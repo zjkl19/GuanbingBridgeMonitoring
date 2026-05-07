@@ -306,12 +306,12 @@ def check_jlj_monthly_template(template: Path) -> list[TemplateIssue]:
     issues: list[TemplateIssue] = []
 
     required = [
-        ("健康监测系统运行状况", "health-status heading"),
-        ("本节用于填充主桥温度监测结果", "section body style placeholder"),
         ("监测结果", "summary table result cell"),
+        ("温度监测", "body style fallback anchor"),
     ]
     for fragment, note in required:
         _add_missing_fragment(issues, texts, fragment, note)
+    _add_missing_any_fragment(issues, texts, ["监测系统运行状况", "健康监测系统运行状况"], "health-status heading")
     _add_missing_any_fragment(issues, texts, ["建 议", "建议"], "summary table advice cell")
 
     for parent, child in JLJ_SECTION_HEADINGS:

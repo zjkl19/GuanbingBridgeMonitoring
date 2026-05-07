@@ -9,6 +9,7 @@ import sys
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from io import BytesIO
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -17,6 +18,7 @@ from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.shared import Mm, Pt
 from docx.table import Table
 from docx.text.paragraph import Paragraph
@@ -128,12 +130,23 @@ class SectionBlock:
 
 JLG_REPORT_LIMITS = {
     "wind_10min_avg_mps": 25.0,
+    "eq_level2_mps2": 1.5,
+    "eq_level3_mps2": 2.55,
+    "accel_rms_level2_mps2": 0.315,
+    "accel_rms_level3_mps2": 0.5,
+    "cable_accel_rms_level2_mps2": 1.0,
+    "cable_accel_rms_level3_mps2": 3.0,
 }
 
 JLG_FIRST_MODE_FREQ_HZ = 1.26
+JLG_CONCRETE_ELASTIC_MODULUS_MPA = 34.5e3
+JLG_STEEL_ELASTIC_MODULUS_MPA = 206e3
+JLG_MAIN_GIRDER_STRESS_LIMITS_MPA = (-16.2, 17.6)
+JLG_ARCH_RIB_STRESS_LIMITS_MPA = (-25.9, 20.9)
 
 JLG_HEALTH_STATUS_MODULES: list[tuple[str, list[str]]] = [
     ("温度监测", ["temperature", "temp_humidity"]),
+    ("湿度监测", ["temp_humidity"]),
     ("雨量监测", ["rainfall"]),
     ("主梁挠度监测", ["deflection"]),
     ("支座、梁段纵向位移监测", ["bearing_displacement"]),
@@ -173,7 +186,7 @@ JLG_MONTHLY_SECTIONS: list[tuple[str, str, str, str]] = [
 
 def parse_args() -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
-    default_template = repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_修订5.docx"
+    default_template = repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_0506.docx"
     parser = argparse.ArgumentParser(description="Build Jiulongjiang monthly monitoring report.")
     parser.add_argument("--template", type=Path, default=default_template)
     parser.add_argument("--config", type=Path, default=repo_root / "config" / "jiulongjiang_config.json")
@@ -431,47 +444,126 @@ def collect_jlj_health_status_rows(cfg: dict, result_root: Path, start_date: dat
     return rows
 
 
+def truncate_point_list(points: Iterable[str], limit: int = 12) -> str:
+    items = sorted_point_ids([point for point in points if safe_text(point)])
+    if not items:
+        return "/"
+    if len(items) <= limit:
+        return "、".join(items)
+    return "、".join(items[:limit]) + f"等{len(items)}个"
+
+
+def collect_jlj_data_acquisition_rows(cfg: dict, result_root: Path, start_date: date, end_date: date) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for module_label, point_keys in JLG_HEALTH_STATUS_MODULES:
+        design_points: list[str] = []
+        for point_key in point_keys:
+            design_points.extend(get_config_points(cfg, point_key))
+        design_points = sorted_point_ids(design_points)
+        if not design_points:
+            continue
+
+        acquired: set[str] = set()
+        missing_days: list[date] = []
+        for current_day in iter_days(start_date, end_date):
+            csv_dir = locate_jlj_csv_dir(result_root, current_day)
+            if csv_dir is None:
+                missing_days.append(current_day)
+                continue
+            for point_id in design_points:
+                if point_id in acquired:
+                    continue
+                if csv_has_records(find_jlj_csv_file(csv_dir, point_id)):
+                    acquired.add(point_id)
+
+        missing_points = [point_id for point_id in design_points if point_id not in acquired]
+        design_count = len(design_points)
+        acquired_count = len(acquired)
+        rate = acquired_count / design_count * 100.0 if design_count else 0.0
+        remarks: list[str] = []
+        if missing_days:
+            remarks.append(f"日期目录缺失：{summarize_day_ranges(missing_days)}")
+        if missing_points:
+            remarks.append(f"未获取测点：{truncate_point_list(missing_points)}")
+        rows.append(
+            {
+                "module": module_label,
+                "design_count": str(design_count),
+                "acquired_count": str(acquired_count),
+                "rate": f"{rate:.1f}%",
+                "missing_points": truncate_point_list(missing_points),
+                "remarks": "；".join(remarks) if remarks else "已获取",
+            }
+        )
+    return rows
+
+
+def summarize_jlj_data_acquisition(rows: list[dict[str, str]]) -> str:
+    if not rows:
+        return "本月未读取到设计测点配置，监测数据获取情况需人工复核。"
+    total_design = sum(int(row.get("design_count", "0") or 0) for row in rows)
+    total_acquired = sum(int(row.get("acquired_count", "0") or 0) for row in rows)
+    rate = total_acquired / total_design * 100.0 if total_design else 0.0
+    incomplete = [
+        f"{row['module']}获取率{row['rate']}"
+        for row in rows
+        if int(row.get("acquired_count", "0") or 0) < int(row.get("design_count", "0") or 0)
+    ]
+    base = f"本月按监测项目统计设计测点共{total_design}项次，实际获取{total_acquired}项次，整体获取率约{rate:.1f}%。"
+    if not incomplete:
+        return base + "各监测项目均获取到有效原始记录。"
+    return base + "其中" + "、".join(incomplete[:6]) + ("等项目未完全获取。" if len(incomplete) > 6 else "，需结合原始数据和现场运维记录复核。")
+
+
 def apply_health_status_section(doc: Document, cfg: dict, result_root: Path, monitoring_range: str) -> None:
+    for heading_text in ("监测系统运行状况", "健康监测系统运行状况"):
+        try:
+            find_heading(doc, heading_text, 2)
+            break
+        except ValueError:
+            continue
+    else:
+        raise ValueError("Heading not found: 监测系统运行状况 / 健康监测系统运行状况")
+    # 2.1 用于人工填写系统运行质量说明；自动程序只校验标题存在，避免覆盖人工判断。
+    return
+
+
+def apply_monthly_data_status_section(
+    doc: Document,
+    cfg: dict,
+    result_root: Path,
+    monitoring_range: str,
+    caption_templates: CaptionTemplates,
+) -> None:
     start_date, end_date = resolve_jlj_monitoring_dates(monitoring_range, result_root)
-    section_idx, heading_para = find_heading(doc, "健康监测系统运行状况", 2)
+    section_idx, heading_para = find_heading(doc, "本月监测数据情况", 2)
     next_heading = next_heading_at_or_above(doc, section_idx, 2)
     end_para = next_heading[1] if next_heading is not None else None
-
-    content_template_para = None
-    for para in doc.paragraphs[section_idx + 1 : next_heading[0] if next_heading is not None else len(doc.paragraphs)]:
-        if para.text.strip():
-            content_template_para = para
-            break
-    text_template = capture_paragraph_template(content_template_para or heading_para)
+    text_template = capture_paragraph_template(find_body_template_paragraph(doc))
 
     clear_section_between(heading_para, end_para)
     anchor = end_para if end_para is not None else doc.add_paragraph()
-    rows = collect_jlj_health_status_rows(cfg, result_root, start_date, end_date)
-
-    intro = "监测周期内原始数据缺失、无文件或无记录情况见下表。" if rows else "监测周期内未发现原始数据缺失、无文件或无记录情况。"
-    add_text_paragraph_before(anchor, intro, text_template)
-    add_text_paragraph_before(
-        anchor,
-        "说明：本节仅统计原始数据缺失、无文件或无记录情况，不包含阈值筛除、异常值剔除及后处理清洗结果。",
-        text_template,
-    )
-
+    rows = collect_jlj_data_acquisition_rows(cfg, result_root, start_date, end_date)
     if not rows:
+        add_text_paragraph_before(anchor, "未读取到设计测点配置，无法生成本月监测数据获取情况统计表。", text_template)
         return
 
-    table = insert_table_before(anchor, rows=len(rows) + 1, cols=4)
-    headers = ["监测项目", "异常测点/测点组", "时间段", "异常类型"]
+    add_text_paragraph_before(anchor, "本月监测系统数据获取情况如下。设计测点以九龙江配置文件及竣工图测点布置为参考，实际获取情况按监测周期内原始 CSV 文件及有效记录统计。", text_template)
+    insert_auto_caption_before(anchor, caption_templates.table_paragraph, "本月监测数据获取情况统计表")
+    table = insert_table_before(anchor, rows=len(rows) + 1, cols=6)
+    headers = ["监测项目", "设计测点数", "实际获取测点数", "获取率", "未获取测点", "备注"]
     for idx, header in enumerate(headers):
         set_cell_text_preserve(table.cell(0, idx), header)
     for ridx, row in enumerate(rows, start=1):
-        values = [row["module"], row["points"], row["range"], row["reason"]]
+        values = [row["module"], row["design_count"], row["acquired_count"], row["rate"], row["missing_points"], row["remarks"]]
         for cidx, value in enumerate(values):
             set_cell_text_preserve(table.cell(ridx, cidx), value)
     style_table(table, left=True)
     set_header_bold(table)
+    set_repeat_table_header(table)
     set_table_outer_border(table, size_eighth_pt=12)
     set_table_auto_width(table)
-    set_table_column_widths(table, [28, 98, 34, 24])
+    set_table_column_widths(table, [30, 18, 22, 18, 58, 38])
     set_table_font_size(table, 9)
 
 
@@ -605,6 +697,177 @@ def clear_section_between(start_paragraph: Paragraph, end_paragraph: Paragraph |
         current = nxt
 
 
+def replace_patrol_report_dates(text: str, target_month: int = 3) -> str:
+    if not text:
+        return text
+    month_text = str(int(target_month))
+    padded_month_text = f"{int(target_month):02d}"
+    text = re.sub(r"(\d{4})年0?2月", rf"\1年{month_text}月", text)
+    text = re.sub(r"(?<!\d)0?2月", f"{month_text}月", text)
+    text = re.sub(r"(\d{4})([-/.])0?2([-/.])", rf"\1\2{padded_month_text}\3", text)
+    return text
+
+
+def replace_text_nodes_in_element(element, target_month: int = 3) -> None:
+    for node in element.iter():
+        if node.tag == qn("w:t") and node.text:
+            node.text = replace_patrol_report_dates(node.text, target_month)
+
+
+def paragraph_text(element) -> str:
+    return "".join(node.text or "" for node in element.iter(qn("w:t")))
+
+
+def add_page_break_to_paragraph_element(element) -> None:
+    run = OxmlElement("w:r")
+    br = OxmlElement("w:br")
+    br.set(qn("w:type"), "page")
+    run.append(br)
+    element.insert(0, run)
+
+
+def ensure_patrol_attachment_page_break(element) -> None:
+    if element.tag != qn("w:p"):
+        return
+    if paragraph_text(element).strip().startswith("附件："):
+        add_page_break_to_paragraph_element(element)
+
+
+def element_text(element) -> str:
+    return "".join(node.text or "" for node in element.iter(qn("w:t")))
+
+
+def element_image_count(element) -> int:
+    return sum(1 for _ in element.iter(qn("w:drawing"))) + sum(1 for _ in element.iter(qn("w:pict")))
+
+
+def should_skip_patrol_source_element(element) -> bool:
+    if element.tag != qn("w:p"):
+        return False
+    return not element_text(element).strip() and element_image_count(element) == 0
+
+
+def set_cell_borders_nil(tc_element) -> None:
+    tc_pr = tc_element.find(qn("w:tcPr"))
+    if tc_pr is None:
+        tc_pr = OxmlElement("w:tcPr")
+        tc_element.insert(0, tc_pr)
+    borders = tc_pr.find(qn("w:tcBorders"))
+    if borders is None:
+        borders = OxmlElement("w:tcBorders")
+        tc_pr.append(borders)
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        border = borders.find(qn(f"w:{edge}"))
+        if border is None:
+            border = OxmlElement(f"w:{edge}")
+            borders.append(border)
+        border.set(qn("w:val"), "nil")
+
+
+def clean_patrol_photo_table_blanks(table_element) -> None:
+    if table_element.tag != qn("w:tbl") or element_image_count(table_element) == 0:
+        return
+    for tc in table_element.iter(qn("w:tc")):
+        if element_text(tc).strip() or element_image_count(tc) > 0:
+            continue
+        set_cell_borders_nil(tc)
+
+
+def remap_copied_image_relationships(element, source_part, target_part) -> None:
+    for node in element.iter():
+        for attr_name in (qn("r:embed"), qn("r:link")):
+            rel_id = node.get(attr_name)
+            if not rel_id or rel_id not in source_part.related_parts:
+                continue
+            related_part = source_part.related_parts[rel_id]
+            if not str(getattr(related_part, "content_type", "")).startswith("image/"):
+                continue
+            try:
+                new_rel_id, _ = target_part.get_or_add_image(BytesIO(related_part.blob))
+            except Exception:
+                normalized = BytesIO()
+                with Image.open(BytesIO(related_part.blob)) as src_img:
+                    ImageOps.exif_transpose(src_img.convert("RGB")).save(normalized, format="JPEG", quality=92)
+                normalized.seek(0)
+                new_rel_id, _ = target_part.get_or_add_image(normalized)
+            node.set(attr_name, new_rel_id)
+
+
+def insert_docx_body_after_heading(
+    target_doc: Document,
+    heading_text: str,
+    source_docx: Path,
+    target_month: int = 3,
+) -> bool:
+    if not source_docx.exists():
+        return False
+    heading_idx, heading_para = find_heading(target_doc, heading_text, 1)
+    next_heading = next_heading_at_or_above(target_doc, heading_idx, 1)
+    clear_section_between(heading_para, next_heading[1] if next_heading is not None else None)
+
+    source_doc = Document(str(source_docx))
+    insert_after = heading_para._p
+    for child in source_doc.element.body:
+        if child.tag == qn("w:sectPr"):
+            continue
+        if should_skip_patrol_source_element(child):
+            continue
+        new_child = deepcopy(child)
+        replace_text_nodes_in_element(new_child, target_month)
+        ensure_patrol_attachment_page_break(new_child)
+        remap_copied_image_relationships(new_child, source_doc.part, target_doc.part)
+        clean_patrol_photo_table_blanks(new_child)
+        insert_after.addnext(new_child)
+        insert_after = new_child
+    return True
+
+
+def resolve_jlj_patrol_report_docx(template: Path) -> Path | None:
+    name = "九龙江大桥巡查报告.docx"
+    candidates = [
+        template.parent / name,
+        Path.cwd() / "reports" / name,
+        Path(__file__).resolve().parents[1] / "reports" / name,
+    ]
+    bundle_root = getattr(sys, "_MEIPASS", None)
+    if bundle_root:
+        candidates.append(Path(bundle_root) / "reports" / name)
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def period_label_month(period_label: str, default_month: int = 3) -> int:
+    match = re.search(r"(\d{1,2})月", period_label or "")
+    if not match:
+        return default_month
+    month = int(match.group(1))
+    return month if 1 <= month <= 12 else default_month
+
+
+def element_has_section_break(element) -> bool:
+    return any(child.tag == qn("w:sectPr") for child in element.iter())
+
+
+def capture_section_break_before_heading(doc: Document, heading_text: str, level: int = 1):
+    _, heading_para = find_heading(doc, heading_text, level)
+    prev = heading_para._p.getprevious()
+    if prev is not None and element_has_section_break(prev):
+        return deepcopy(prev)
+    return None
+
+
+def ensure_section_break_before_heading(doc: Document, heading_text: str, template_element, level: int = 1) -> None:
+    if template_element is None:
+        return
+    _, heading_para = find_heading(doc, heading_text, level)
+    prev = heading_para._p.getprevious()
+    if prev is not None and element_has_section_break(prev):
+        return
+    heading_para._p.addprevious(deepcopy(template_element))
+
+
 def capture_paragraph_template(paragraph: Paragraph) -> ParagraphTemplate:
     pf = paragraph.paragraph_format
     run0 = paragraph.runs[0] if paragraph.runs else None
@@ -669,6 +932,129 @@ def add_text_paragraph_before(anchor: Paragraph, text: str, template: ParagraphT
 
 def style_table(table: Table, left: bool = False) -> None:
     shared_style_table(table, left=left, autofit=True, align_center=True)
+
+
+def set_repeat_table_header(table: Table) -> None:
+    if not table.rows:
+        return
+    tr_pr = table.rows[0]._tr.get_or_add_trPr()
+    tbl_header = tr_pr.find(qn("w:tblHeader"))
+    if tbl_header is None:
+        tbl_header = OxmlElement("w:tblHeader")
+        tr_pr.append(tbl_header)
+    tbl_header.set(qn("w:val"), "true")
+
+
+def clear_repeat_table_headers(table: Table) -> None:
+    for row in table.rows:
+        tr_pr = row._tr.get_or_add_trPr()
+        for child in list(tr_pr):
+            if child.tag == qn("w:tblHeader"):
+                tr_pr.remove(child)
+
+
+def is_summary_table(table: Table) -> bool:
+    if not table.rows or len(table.rows[0].cells) < 2:
+        return False
+    return table.rows[0].cells[0].text.strip() == "监测结果"
+
+
+def set_repeat_headers_for_all_tables(doc: Document) -> None:
+    for table in doc.tables:
+        if is_summary_table(table):
+            clear_repeat_table_headers(table)
+            continue
+        set_repeat_table_header(table)
+
+
+def allow_table_rows_to_expand_and_split(table: Table) -> None:
+    for row in table.rows:
+        tr_pr = row._tr.get_or_add_trPr()
+        for child in list(tr_pr):
+            if child.tag in {qn("w:trHeight"), qn("w:cantSplit")}:
+                tr_pr.remove(child)
+
+
+def append_table_row_from_template(table: Table, template_tr) -> object:
+    new_tr = deepcopy(template_tr)
+    table._tbl.append(new_tr)
+    return table.rows[-1]
+
+
+def clear_table_rows(table: Table) -> None:
+    for tr in list(table._tbl.tr_lst):
+        table._tbl.remove(tr)
+
+
+def summary_line_is_heading(line: str) -> bool:
+    text = str(line or "").strip()
+    return bool(
+        re.match(r"^[一二三四五六七八九十]+、", text)
+        or re.match(r"^（\d+）", text)
+    )
+
+
+def summary_line_is_major_heading(line: str) -> bool:
+    return bool(re.match(r"^[一二三四五六七八九十]+、", str(line or "").strip()))
+
+
+def build_summary_result_rows(result_lines: list[str]) -> list[tuple[list[str], set[int]]]:
+    rows: list[tuple[list[str], set[int]]] = []
+    current: list[str] = []
+    for raw_line in result_lines:
+        line = str(raw_line or "")
+        if summary_line_is_major_heading(line) and current:
+            rows.append((current, {idx for idx, item in enumerate(current) if summary_line_is_heading(item)}))
+            current = []
+        current.append(line)
+    if current:
+        rows.append((current, {idx for idx, item in enumerate(current) if summary_line_is_heading(item)}))
+    return rows
+
+
+def clear_paragraph_numbering(paragraph: Paragraph) -> None:
+    p_pr = paragraph._p.get_or_add_pPr()
+    num_pr = p_pr.find(qn("w:numPr"))
+    if num_pr is not None:
+        p_pr.remove(num_pr)
+
+
+def clear_cell_numbering(cell) -> None:
+    for paragraph in cell.paragraphs:
+        clear_paragraph_numbering(paragraph)
+
+
+def rebuild_summary_table_rows(
+    table: Table,
+    result_lines: list[str],
+    advice_left: str,
+    advice_lines: list[str],
+) -> None:
+    if not table.rows:
+        return
+    result_template_tr = deepcopy(table.rows[0]._tr)
+    advice_template_tr = deepcopy(table.rows[1]._tr if len(table.rows) > 1 else table.rows[0]._tr)
+    clear_table_rows(table)
+
+    result_rows = build_summary_result_rows(result_lines)
+    for idx, (lines, bold_indices) in enumerate(result_rows):
+        row = append_table_row_from_template(table, result_template_tr)
+        row.cells[0].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        row.cells[1].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        set_cell_text_preserve(row.cells[0], "监测结果" if idx == 0 else "")
+        set_cell_paragraphs(row.cells[1], lines, bold_indices=bold_indices)
+        clear_cell_numbering(row.cells[0])
+        clear_cell_numbering(row.cells[1])
+
+    row = append_table_row_from_template(table, advice_template_tr)
+    row.cells[0].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+    row.cells[1].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+    set_cell_text_preserve(row.cells[0], advice_left or "建  议")
+    set_cell_paragraphs(row.cells[1], advice_lines or ["建议结合监测数据变化情况进行持续跟踪。"])
+    clear_cell_numbering(row.cells[0])
+    clear_cell_numbering(row.cells[1])
+    allow_table_rows_to_expand_and_split(table)
+    clear_repeat_table_headers(table)
 
 
 def set_table_autofit(table: Table, enabled: bool = True) -> None:
@@ -873,6 +1259,194 @@ def point_index(point_id: str) -> int | None:
 def is_main_strain(point_id: str) -> bool:
     idx = point_index(point_id)
     return idx is not None and 1 <= idx <= 26
+
+
+def is_main_girder_strain(point_id: str) -> bool:
+    idx = point_index(point_id)
+    return idx is not None and 1 <= idx <= 20
+
+
+def is_arch_rib_strain(point_id: str) -> bool:
+    idx = point_index(point_id)
+    return idx is not None and 21 <= idx <= 26
+
+
+def strain_to_stress_mpa(strain_micro: float | None, elastic_modulus_mpa: float) -> float | None:
+    if strain_micro is None:
+        return None
+    return strain_micro * elastic_modulus_mpa * 1e-6
+
+
+def summarize_stress_limit_status(
+    rows: list[dict],
+    predicate: Callable[[str], bool],
+    elastic_modulus_mpa: float,
+    lower_limit_mpa: float,
+    upper_limit_mpa: float,
+    subject: str,
+    limit_name: str,
+) -> tuple[str, str]:
+    selected = [row for row in rows if predicate(safe_text(row.get("PointID")))]
+    if not selected:
+        return "", ""
+
+    stress_mins: list[float] = []
+    stress_maxs: list[float] = []
+    exceeded: list[tuple[str, float]] = []
+    for row in selected:
+        point_id = safe_text(row.get("PointID"))
+        min_stress = strain_to_stress_mpa(parse_float(row.get("Min")), elastic_modulus_mpa)
+        max_stress = strain_to_stress_mpa(parse_float(row.get("Max")), elastic_modulus_mpa)
+        if min_stress is not None:
+            stress_mins.append(min_stress)
+            if min_stress < lower_limit_mpa:
+                exceeded.append((point_id, min_stress))
+        if max_stress is not None:
+            stress_maxs.append(max_stress)
+            if max_stress > upper_limit_mpa:
+                exceeded.append((point_id, max_stress))
+
+    if not stress_mins and not stress_maxs:
+        return "", ""
+
+    stress_min = min(stress_mins) if stress_mins else None
+    stress_max = max(stress_maxs) if stress_maxs else None
+    stress_range = format_range(stress_min, stress_max, 3, "MPa")
+    limit_text = f"{limit_name}（上限{format_number(upper_limit_mpa, 1, 'MPa')}、下限{format_number(lower_limit_mpa, 1, 'MPa')}）"
+    if exceeded:
+        point_id, stress_value = max(exceeded, key=lambda item: abs(item[1]))
+        sentence = (
+            f"{subject}按弹性模量换算后应力范围为{stress_range}，"
+            f"其中{point_id}换算应力为{format_number(stress_value, 3, 'MPa')}，"
+            f"超过{limit_text}。"
+        )
+        summary = f"{subject}换算应力范围为{stress_range}，超过{limit_name}。"
+    else:
+        sentence = (
+            f"{subject}按弹性模量换算后应力范围为{stress_range}，"
+            f"未超过{limit_text}，均处于预警阈值范围之内，未出现超过各级超限阈值和报警的情况。"
+        )
+        summary = f"{subject}换算应力范围为{stress_range}，未超过{limit_name}。"
+    return sentence, summary
+
+
+def describe_two_level_upper_status(
+    value: float | None,
+    level2: float,
+    level3: float,
+    metric_name: str,
+    unit: str,
+    decimals: int = 3,
+) -> str:
+    if value is None:
+        return "暂不具备预警判定条件。"
+    level2_text = format_number_fixed(level2, decimals, unit)
+    level3_text = format_number_fixed(level3, decimals, unit)
+    if value <= level2:
+        return f"未超过二级预警阈值{level2_text}，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
+    if value <= level3:
+        return f"超过二级预警阈值{level2_text}，未达到三级预警阈值{level3_text}，建议结合原始数据进一步复核。"
+    return f"超过三级预警阈值{level3_text}，建议结合原始数据进一步复核。"
+
+
+def describe_threshold_status(
+    value: float | None,
+    level: float,
+    metric_name: str,
+    unit: str,
+    *,
+    level_name: str = "一级",
+    decimals: int = 1,
+    direction: str = "upper",
+) -> str:
+    if value is None:
+        return "暂不具备预警判定条件。"
+    limit_text = format_number_fixed(level, decimals, unit)
+    exceeded = value >= level if direction == "upper" else value <= level
+    if exceeded:
+        return f"{metric_name}为{format_number_fixed(value, decimals, unit)}，超过{level_name}预警阈值{limit_text}，建议结合原始数据和传感器状态进一步复核。"
+    return f"{metric_name}为{format_number_fixed(value, decimals, unit)}，未超过{level_name}预警阈值{limit_text}，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
+
+
+def describe_two_level_range_status(
+    lo: float | None,
+    hi: float | None,
+    lower1: float | None,
+    upper1: float | None,
+    lower2: float | None,
+    upper2: float | None,
+    subject: str,
+    unit: str,
+    decimals: int,
+    first_level_name: str = "一级",
+    second_level_name: str = "二级",
+) -> str:
+    if lo is None or hi is None or lower1 is None or upper1 is None:
+        return ""
+    if lower2 is not None and upper2 is not None and (lo < lower2 or hi > upper2):
+        return (
+            f"{subject}超过{second_level_name}预警阈值"
+            f"（{format_number_fixed(lower2, decimals, unit)}~{format_number_fixed(upper2, decimals, unit)}），"
+            "建议结合原始数据和传感器状态进一步复核。"
+        )
+    if lo < lower1 or hi > upper1:
+        return (
+            f"{subject}超过{first_level_name}预警阈值"
+            f"（{format_number_fixed(lower1, decimals, unit)}~{format_number_fixed(upper1, decimals, unit)}），"
+            "建议结合原始数据和传感器状态进一步复核。"
+        )
+    return (
+        f"{subject}未超过{first_level_name}预警阈值"
+        f"（{format_number_fixed(lower1, decimals, unit)}~{format_number_fixed(upper1, decimals, unit)}），"
+        "处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
+    )
+
+
+def extract_warn_line_bounds(cfg: dict, style_key: str) -> tuple[float | None, float | None, float | None, float | None]:
+    lines = cfg.get("plot_styles", {}).get(style_key, {}).get("warn_lines", [])
+    level2: list[float] = []
+    level3: list[float] = []
+    for item in lines if isinstance(lines, list) else []:
+        if not isinstance(item, dict):
+            continue
+        value = parse_float(item.get("y"))
+        label = safe_text(item.get("label"))
+        if value is None:
+            continue
+        if "二级" in label:
+            level2.append(value)
+        elif "三级" in label:
+            level3.append(value)
+    return (
+        min(level2) if level2 else None,
+        max(level2) if level2 else None,
+        min(level3) if level3 else None,
+        max(level3) if level3 else None,
+    )
+
+
+def describe_range_warn_status(
+    lo: float | None,
+    hi: float | None,
+    lower2: float | None,
+    upper2: float | None,
+    lower3: float | None,
+    upper3: float | None,
+    subject: str,
+    unit: str,
+    decimals: int,
+) -> str:
+    if lo is None or hi is None or lower2 is None or upper2 is None:
+        return ""
+    lower2_text = format_number_fixed(lower2, decimals, unit)
+    upper2_text = format_number_fixed(upper2, decimals, unit)
+    if lower3 is not None and upper3 is not None and (lo < lower3 or hi > upper3):
+        return f"{subject}超过三级预警阈值（{format_number_fixed(lower3, decimals, unit)}~{format_number_fixed(upper3, decimals, unit)}），建议结合原始数据进一步复核。"
+    if lo < lower2 or hi > upper2:
+        if lower3 is not None and upper3 is not None:
+            return f"{subject}超过二级预警阈值（{lower2_text}~{upper2_text}），未达到三级预警阈值，建议结合原始数据进一步复核。"
+        return f"{subject}超过二级预警阈值（{lower2_text}~{upper2_text}），建议结合原始数据进一步复核。"
+    return f"{subject}未超过二级预警阈值（{lower2_text}~{upper2_text}），处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
 
 
 def is_south_strain(point_id: str) -> bool:
@@ -1083,6 +1657,7 @@ def build_numeric_summary_section(
     figure_title: str,
     image_items: list[ImageItem],
     table_rows_override: list[dict] | None = None,
+    warning_sentence: str | None = None,
 ) -> SectionContent:
     if not rows:
         return build_missing_section(f"本月未获取到{summary_subject}有效数据。")
@@ -1093,7 +1668,11 @@ def build_numeric_summary_section(
         f"{narrative_intro}共统计{len(rows)}个测点，监测值范围为"
         f"{format_range(lo, hi, decimals, unit)}，平均值约为{format_number(mean_v, decimals, unit)}。"
     )
-    summary = f"{summary_subject}监测值范围为{format_range(lo, hi, decimals, unit)}，总体未见明显突变。"
+    if warning_sentence:
+        narrative += warning_sentence
+    summary = f"{summary_subject}监测值范围为{format_range(lo, hi, decimals, unit)}。"
+    if warning_sentence:
+        summary += warning_sentence
     return SectionContent(
         narrative=narrative,
         summary_sentence=summary,
@@ -1159,12 +1738,57 @@ def build_temperature_section(cfg: dict, result_root: Path, stats_root: Path, fa
     box_range = format_range(numeric_min(box_rows, "Min"), numeric_max(box_rows, "Max"), 1, "℃") if box_rows else "--"
     inner_range = format_range(numeric_min(inner_rows, "Min"), numeric_max(inner_rows, "Max"), 1, "℃") if inner_rows else "--"
     env_range = format_range(numeric_min(env_rows, "Min"), numeric_max(env_rows, "Max"), 1, "℃") if env_rows else "--"
+    component_rows = arch_rows + box_rows + inner_rows
+    temp_status_parts: list[str] = []
+    if deck_rows:
+        temp_status_parts.append(
+            describe_threshold_status(
+                numeric_max(deck_rows, "Max"),
+                60.0,
+                "桥面温度最大值",
+                "℃",
+                level_name="一级",
+                decimals=1,
+            )
+        )
+    if component_rows:
+        temp_status_parts.append(
+            describe_two_level_range_status(
+                numeric_min(component_rows, "Min"),
+                numeric_max(component_rows, "Max"),
+                -7.0,
+                54.0,
+                None,
+                None,
+                "混凝土、钢结构构件温度",
+                "℃",
+                1,
+                first_level_name="一级",
+            )
+        )
+    if env_rows:
+        temp_status_parts.append(
+            describe_two_level_range_status(
+                numeric_min(env_rows, "Min"),
+                numeric_max(env_rows, "Max"),
+                0.0,
+                40.0,
+                -2.0,
+                46.0,
+                "桥址区环境温度",
+                "℃",
+                1,
+                first_level_name="一级",
+                second_level_name="二级",
+            )
+        )
+    temp_status = "".join(part for part in temp_status_parts if part)
     narrative = (
         f"选取典型监测数据进行分析。桥面温度监测范围为{deck_range}，"
         f"拱肋温度监测范围为{arch_range}，主梁箱室温度监测范围为{box_range}，"
-        f"主梁内温度监测范围为{inner_range}，桥址区环境温度监测范围为{env_range}。"
+        f"主梁内温度监测范围为{inner_range}，桥址区环境温度监测范围为{env_range}。{temp_status}"
     )
-    summary = f"桥面、拱肋、主梁箱室、主梁内及桥址区环境温度监测范围分别为{deck_range}、{arch_range}、{box_range}、{inner_range}和{env_range}。"
+    summary = f"桥面、拱肋、主梁箱室、主梁内及桥址区环境温度监测范围分别为{deck_range}、{arch_range}、{box_range}、{inner_range}和{env_range}。{temp_status}"
     columns = [
         ("PointID", "测点编号", None),
         ("Category", "监测类型", None),
@@ -1220,6 +1844,14 @@ def build_humidity_section(cfg: dict, result_root: Path, stats_root: Path, fallb
     box_rows = [row for row in rows if classify_humidity_point(safe_text(row.get("PointID"))) == "主梁箱室相对湿度"]
     env_range = format_range(numeric_min(env_rows, "Min"), numeric_max(env_rows, "Max"), 1, "%") if env_rows else "--"
     box_range = format_range(numeric_min(box_rows, "Min"), numeric_max(box_rows, "Max"), 1, "%") if box_rows else "--"
+    humidity_status = describe_threshold_status(
+        numeric_max(rows, "Max"),
+        50.0,
+        "相对湿度最大值",
+        "%",
+        level_name="一级",
+        decimals=1,
+    )
     image_items = make_image_items(
         image_root,
         "时程曲线_湿度",
@@ -1228,7 +1860,7 @@ def build_humidity_section(cfg: dict, result_root: Path, stats_root: Path, fallb
         lambda row: safe_text(row.get("PointID")),
         limit=4,
     )
-    expected_points = resolve_expected_points(cfg, result_root, "humidity", ("WSDJ-",), fallback_rows=rows)
+    expected_points = resolve_expected_points(cfg, result_root, "temp_humidity", ("WSDJ-",), fallback_rows=rows)
     table_rows = build_full_point_table_rows(
         expected_points,
         rows,
@@ -1243,8 +1875,8 @@ def build_humidity_section(cfg: dict, result_root: Path, stats_root: Path, fallb
     for row in table_rows:
         row["Category"] = classify_humidity_point(safe_text(row.get("PointID")))
     return SectionContent(
-        narrative=f"选取典型监测数据进行分析。主梁箱室相对湿度监测范围为{box_range}，桥址区环境相对湿度监测范围为{env_range}。",
-        summary_sentence=f"主梁箱室及桥址区环境相对湿度监测范围分别为{box_range}和{env_range}。",
+        narrative=f"选取典型监测数据进行分析。主梁箱室相对湿度监测范围为{box_range}，桥址区环境相对湿度监测范围为{env_range}。{humidity_status}",
+        summary_sentence=f"主梁箱室及桥址区环境相对湿度监测范围分别为{box_range}和{env_range}。{humidity_status}",
         table_title="主桥湿度监测统计表",
         table_columns=columns,
         table_rows=table_rows,
@@ -1354,7 +1986,7 @@ def build_wind_section(cfg: dict, result_root: Path, stats_root: Path, fallback_
         ("Mean10minMax", "10min平均风速最大值(m/s)", 24.0),
         ("Mean10minTime", "对应时间", 26.0),
     ]
-    expected_points = resolve_expected_points(cfg, result_root, "wind_speed", ("CSFSY-",), fallback_rows=summaries)
+    expected_points = resolve_expected_points(cfg, result_root, "wind", ("CSFSY-",), fallback_rows=summaries)
     table_rows = build_full_point_table_rows(
         expected_points,
         summaries,
@@ -1422,7 +2054,7 @@ def collect_eq_peak_rows(result_root: Path) -> list[dict]:
     return output
 
 
-def build_eq_section(result_root: Path, image_root: Path) -> SectionContent:
+def build_eq_section(cfg: dict, result_root: Path, image_root: Path) -> SectionContent:
     rows = collect_eq_peak_rows(result_root)
     if not rows:
         return build_missing_section("本月未获取到主桥地震动监测有效数据。")
@@ -1430,18 +2062,29 @@ def build_eq_section(result_root: Path, image_root: Path) -> SectionContent:
     vertical = [row for row in rows if row["Component"] == "Z"]
     h_peak = numeric_max(horizontal, "Peak")
     v_peak = numeric_max(vertical, "Peak")
+    eq_peak = max([value for value in (h_peak, v_peak) if value is not None], default=None)
+    eq_status = describe_two_level_upper_status(
+        eq_peak,
+        JLG_REPORT_LIMITS["eq_level2_mps2"],
+        JLG_REPORT_LIMITS["eq_level3_mps2"],
+        "地震动加速度峰值",
+        "m/s²",
+        3,
+    )
     narrative = (
         f"水平向地震动加速度峰值为{format_number_fixed(h_peak, 3, 'm/s²')}，"
-        f"竖向地震动加速度峰值为{format_number_fixed(v_peak, 3, 'm/s²')}，典型时程见下图。"
+        f"竖向地震动加速度峰值为{format_number_fixed(v_peak, 3, 'm/s²')}，{eq_status}典型时程见下图。"
     )
-    summary = f"主桥地震动监测中，水平向峰值为{format_number_fixed(h_peak, 3, 'm/s²')}，竖向峰值为{format_number_fixed(v_peak, 3, 'm/s²')}。"
+    summary = f"主桥地震动监测中，水平向峰值为{format_number_fixed(h_peak, 3, 'm/s²')}，竖向峰值为{format_number_fixed(v_peak, 3, 'm/s²')}，{eq_status}"
     columns = [
         ("PointID", "测点编号", None),
         ("Component", "分量", None),
         ("Peak", "峰值(m/s²)", None),
         ("PeakTime", "对应时间", None),
     ]
-    expected_points = discover_csv_points(result_root, ("DZY-",))
+    expected_points = sorted_point_ids([normalize_jlj_raw_point_id(point_id) for point_id in get_config_points(cfg, "eq")])
+    expected_points.extend(discover_csv_points(result_root, ("DZY-",)))
+    expected_points = sorted_point_ids(expected_points)
     expected_keys = [(point_id, component) for point_id in expected_points for component in ("X", "Y", "Z")]
     table_rows = build_full_composite_table_rows(
         expected_keys,
@@ -1516,6 +2159,18 @@ def build_deflection_section(cfg: dict, result_root: Path, stats_root: Path, fal
     filt_lo = numeric_min(rows, "FiltMin_mm")
     filt_hi = numeric_max(rows, "FiltMax_mm")
     filt_mean = numeric_mean(rows, "FiltMean_mm")
+    lower2, upper2, lower3, upper3 = extract_warn_line_bounds(cfg, "deflection")
+    warn_sentence = describe_range_warn_status(
+        filt_lo,
+        filt_hi,
+        lower2,
+        upper2,
+        lower3,
+        upper3,
+        "主桥挠度滤波后监测值",
+        "mm",
+        1,
+    )
     orig_images: list[ImageItem] = []
     filt_images: list[ImageItem] = []
     for row in choose_representative_points(rows, 4):
@@ -1527,11 +2182,11 @@ def build_deflection_section(cfg: dict, result_root: Path, stats_root: Path, fal
         f"选取典型监测数据进行分析。主桥挠度原始数据监测值范围为{format_range(orig_lo, orig_hi, 1, 'mm')}，"
         f"平均值约为{format_number(orig_mean, 1, 'mm')}；"
         f"滤波后监测值范围为{format_range(filt_lo, filt_hi, 1, 'mm')}，"
-        f"平均值约为{format_number(filt_mean, 1, 'mm')}。"
+        f"平均值约为{format_number(filt_mean, 1, 'mm')}。{warn_sentence}"
     )
     summary = (
         f"主桥挠度原始数据监测值范围为{format_range(orig_lo, orig_hi, 1, 'mm')}；"
-        f"滤波后监测值范围为{format_range(filt_lo, filt_hi, 1, 'mm')}。"
+        f"滤波后监测值范围为{format_range(filt_lo, filt_hi, 1, 'mm')}。{warn_sentence}"
     )
     return SectionContent(
         narrative=narrative,
@@ -1578,7 +2233,18 @@ def build_main_bearing_section(cfg: dict, result_root: Path, stats_root: Path, f
         expected_points,
         rows,
         columns,
-        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm", "FiltMean_mm"), 3),
+        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm", "FiltMean_mm"), 1),
+    )
+    bearing_warning = describe_range_warn_status(
+        numeric_min(rows, "FiltMin_mm"),
+        numeric_max(rows, "FiltMax_mm"),
+        -7.1,
+        7.1,
+        -8.9,
+        8.9,
+        "主桥支座及梁段纵向位移监测值",
+        "mm",
+        1,
     )
     return build_numeric_summary_section(
         rows,
@@ -1587,13 +2253,14 @@ def build_main_bearing_section(cfg: dict, result_root: Path, stats_root: Path, f
         "FiltMin_mm",
         "FiltMax_mm",
         "FiltMean_mm",
-        3,
+        1,
         "mm",
         "主桥支座、梁段纵向位移监测统计表",
         columns,
         "主桥支座、梁段纵向位移典型时程曲线图",
         image_items,
         table_rows_override=table_rows,
+        warning_sentence=bearing_warning,
     )
 
 
@@ -1609,8 +2276,19 @@ def build_gnss_section(cfg: dict, result_root: Path, stats_root: Path, fallback_
         ("PeakToPeak_mm", "峰峰值(mm)", None),
     ]
     pp = numeric_max(rows, "PeakToPeak_mm")
-    narrative = f"选取典型监测数据进行分析。主桥拱顶、拱脚 GNSS 位移峰峰值最大约为{format_number(pp, 3, 'mm')}。"
-    summary = f"主桥拱顶、拱脚 GNSS 位移峰峰值最大约为{format_number(pp, 3, 'mm')}。"
+    gnss_warning = describe_range_warn_status(
+        numeric_min(rows, "Min_mm"),
+        numeric_max(rows, "Max_mm"),
+        -59.4,
+        53.8,
+        -74.2,
+        67.2,
+        "主桥拱顶、拱脚GNSS位移监测值",
+        "mm",
+        1,
+    )
+    narrative = f"选取典型监测数据进行分析。主桥拱顶、拱脚 GNSS 位移峰峰值最大约为{format_number(pp, 3, 'mm')}。{gnss_warning}"
+    summary = f"主桥拱顶、拱脚 GNSS 位移峰峰值最大约为{format_number(pp, 3, 'mm')}。{gnss_warning}"
     image_items = make_image_items(
         image_root,
         "时程曲线_GNSS",
@@ -1669,13 +2347,21 @@ def build_vibration_section(cfg: dict, result_root: Path, stats_root: Path, fall
     if rows:
         abs_peak = max(abs(parse_float(row.get("Min")) or 0.0) if abs(parse_float(row.get("Min")) or 0.0) > abs(parse_float(row.get("Max")) or 0.0) else abs(parse_float(row.get("Max")) or 0.0) for row in rows)
         rms_peak = numeric_max(rows, "RMS10minMax")
+        rms_status = describe_two_level_upper_status(
+            rms_peak,
+            JLG_REPORT_LIMITS["accel_rms_level2_mps2"],
+            JLG_REPORT_LIMITS["accel_rms_level3_mps2"],
+            "主桥振动10min均方根最大值",
+            "m/s²",
+            3,
+        )
         narrative_parts.append(
             f"主桥振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，"
-            f"10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}。"
+            f"10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}，{rms_status}"
         )
         summary_parts.append(
             f"主桥振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，"
-            f"10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}。"
+            f"10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}，{rms_status}"
         )
     if first_mode_detail:
         narrative_parts.append(first_mode_detail)
@@ -1736,20 +2422,46 @@ def build_main_strain_section(cfg: dict, result_root: Path, stats_root: Path, fa
         columns,
         formatters=numeric_table_formatters(("Min", "Max", "Mean"), 3),
     )
-    return build_numeric_summary_section(
+    if not rows:
+        return build_missing_section("本月未获取到主桥应变有效数据。")
+
+    lo = numeric_min(rows, "Min")
+    hi = numeric_max(rows, "Max")
+    mean_v = numeric_mean(rows, "Mean")
+    girder_sentence, girder_summary = summarize_stress_limit_status(
         rows,
-        "选取典型监测数据进行分析。主桥关键截面应变",
-        "主桥应变",
-        "Min",
-        "Max",
-        "Mean",
-        3,
-        "με",
-        "主桥结构应变监测统计表",
-        columns,
-        "主桥结构应变监测典型时程曲线图",
-        image_items,
-        table_rows_override=table_rows,
+        is_main_girder_strain,
+        JLG_CONCRETE_ELASTIC_MODULUS_MPA,
+        JLG_MAIN_GIRDER_STRESS_LIMITS_MPA[0],
+        JLG_MAIN_GIRDER_STRESS_LIMITS_MPA[1],
+        "主梁关键截面应变",
+        "主梁跨中静应变二级预警阈值",
+    )
+    arch_sentence, arch_summary = summarize_stress_limit_status(
+        rows,
+        is_arch_rib_strain,
+        JLG_STEEL_ELASTIC_MODULUS_MPA,
+        JLG_ARCH_RIB_STRESS_LIMITS_MPA[0],
+        JLG_ARCH_RIB_STRESS_LIMITS_MPA[1],
+        "拱肋结构应变",
+        "主拱拱顶静应变二级预警阈值",
+    )
+    stress_parts = [part for part in (girder_sentence, arch_sentence) if part]
+    summary_parts = [part for part in (girder_summary, arch_summary) if part]
+    narrative = (
+        f"选取典型监测数据进行分析。主桥应变共统计{len(rows)}个测点，监测值范围为"
+        f"{format_range(lo, hi, 3, 'με')}，平均值约为{format_number(mean_v, 3, 'με')}。"
+        + "".join(stress_parts)
+    )
+    summary = f"主桥应变监测值范围为{format_range(lo, hi, 3, 'με')}。" + "".join(summary_parts)
+    return SectionContent(
+        narrative=narrative,
+        summary_sentence=summary,
+        table_title="主桥结构应变监测统计表",
+        table_columns=columns,
+        table_rows=table_rows,
+        figure_title="主桥结构应变监测典型时程曲线图",
+        image_items=image_items,
     )
 
 
@@ -1796,19 +2508,27 @@ def build_cable_section(cfg: dict, result_root: Path, stats_root: Path, fallback
         return build_missing_section("本月未获取到吊杆振动监测有效数据。")
     abs_peak = max(abs(parse_float(row.get("Min")) or 0.0) if abs(parse_float(row.get("Min")) or 0.0) > abs(parse_float(row.get("Max")) or 0.0) else abs(parse_float(row.get("Max")) or 0.0) for row in rows)
     rms_peak = numeric_max(rows, "RMS10minMax")
+    rms_status = describe_two_level_upper_status(
+        rms_peak,
+        JLG_REPORT_LIMITS["cable_accel_rms_level2_mps2"],
+        JLG_REPORT_LIMITS["cable_accel_rms_level3_mps2"],
+        "吊杆振动10min均方根最大值",
+        "m/s²",
+        3,
+    )
     narrative = (
         f"选取典型监测数据进行分析。吊杆振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，"
-        f"10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}。"
+        f"10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}，{rms_status}"
         "当前吊杆参数配置尚未完整校核，索力换算结果暂仅用于时程展示。"
     )
-    summary = f"吊杆振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}。"
+    summary = f"吊杆振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}，{rms_status}"
     columns = [
         ("PointID", "测点编号", None),
         ("Min", "最小值(m/s²)", None),
         ("Max", "最大值(m/s²)", None),
         ("RMS10minMax", "10min RMS最大值(m/s²)", None),
     ]
-    expected_points = resolve_expected_points(cfg, result_root, "cable_accel", ("SLCGQ-",), fallback_rows=rows)
+    expected_points = resolve_expected_points(cfg, result_root, "cable_force", ("SLCGQ-",), fallback_rows=rows)
     table_rows = build_full_point_table_rows(
         expected_points,
         rows,
@@ -1893,7 +2613,18 @@ def build_north_bearing_section(cfg: dict, result_root: Path, stats_root: Path, 
         resolve_expected_points(cfg, result_root, "bearing_displacement", ("WYJ-",), predicate=is_north_bearing, fallback_rows=rows),
         rows,
         columns,
-        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm", "FiltMean_mm"), 3),
+        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm", "FiltMean_mm"), 1),
+    )
+    bearing_warning = describe_range_warn_status(
+        numeric_min(rows, "FiltMin_mm"),
+        numeric_max(rows, "FiltMax_mm"),
+        -7.1,
+        7.1,
+        -8.9,
+        8.9,
+        "北江滨匝道桥支座位移监测值",
+        "mm",
+        1,
     )
     return build_numeric_summary_section(
         rows,
@@ -1902,13 +2633,14 @@ def build_north_bearing_section(cfg: dict, result_root: Path, stats_root: Path, 
         "FiltMin_mm",
         "FiltMax_mm",
         "FiltMean_mm",
-        3,
+        1,
         "mm",
         "北江滨匝道桥支座位移监测统计表",
         columns,
         "北江滨匝道桥支座位移典型时程曲线图",
         image_items,
         table_rows_override=table_rows,
+        warning_sentence=bearing_warning,
     )
 
 
@@ -1920,7 +2652,18 @@ def build_south_bearing_section(cfg: dict, result_root: Path, stats_root: Path, 
         resolve_expected_points(cfg, result_root, "bearing_displacement", ("WYJ-",), predicate=is_south_bearing, fallback_rows=rows),
         rows,
         columns,
-        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm", "FiltMean_mm"), 3),
+        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm", "FiltMean_mm"), 1),
+    )
+    bearing_warning = describe_range_warn_status(
+        numeric_min(rows, "FiltMin_mm"),
+        numeric_max(rows, "FiltMax_mm"),
+        -7.1,
+        7.1,
+        -8.9,
+        8.9,
+        "南江滨匝道桥支座位移监测值",
+        "mm",
+        1,
     )
     return build_numeric_summary_section(
         rows,
@@ -1929,13 +2672,14 @@ def build_south_bearing_section(cfg: dict, result_root: Path, stats_root: Path, 
         "FiltMin_mm",
         "FiltMax_mm",
         "FiltMean_mm",
-        3,
+        1,
         "mm",
         "南江滨匝道桥支座位移监测统计表",
         columns,
         "南江滨匝道桥支座位移典型时程曲线图",
         image_items,
         table_rows_override=table_rows,
+        warning_sentence=bearing_warning,
     )
 
 
@@ -1948,6 +2692,18 @@ def build_north_tilt_section(cfg: dict, result_root: Path, stats_root: Path, fal
         rows,
         columns,
         formatters=numeric_table_formatters(("Min", "Max", "Mean"), 3),
+    )
+    lower2, upper2, lower3, upper3 = extract_warn_line_bounds(cfg, "tilt")
+    warning_sentence = describe_range_warn_status(
+        numeric_min(rows, "Min"),
+        numeric_max(rows, "Max"),
+        lower2,
+        upper2,
+        lower3,
+        upper3,
+        "北江滨匝道桥墩柱倾斜监测值",
+        "°",
+        3,
     )
     return build_numeric_summary_section(
         rows,
@@ -1963,6 +2719,7 @@ def build_north_tilt_section(cfg: dict, result_root: Path, stats_root: Path, fal
         "北江滨匝道桥墩柱倾斜典型时程曲线图",
         image_items,
         table_rows_override=table_rows,
+        warning_sentence=warning_sentence,
     )
 
 
@@ -1975,6 +2732,18 @@ def build_south_tilt_section(cfg: dict, result_root: Path, stats_root: Path, fal
         rows,
         columns,
         formatters=numeric_table_formatters(("Min", "Max", "Mean"), 3),
+    )
+    lower2, upper2, lower3, upper3 = extract_warn_line_bounds(cfg, "tilt")
+    warning_sentence = describe_range_warn_status(
+        numeric_min(rows, "Min"),
+        numeric_max(rows, "Max"),
+        lower2,
+        upper2,
+        lower3,
+        upper3,
+        "南江滨匝道桥墩柱倾斜监测值",
+        "°",
+        3,
     )
     return build_numeric_summary_section(
         rows,
@@ -1990,6 +2759,7 @@ def build_south_tilt_section(cfg: dict, result_root: Path, stats_root: Path, fal
         "南江滨匝道桥墩柱倾斜典型时程曲线图",
         image_items,
         table_rows_override=table_rows,
+        warning_sentence=warning_sentence,
     )
 
 
@@ -1999,7 +2769,7 @@ def build_section_map(cfg: dict, stats_root: Path, fallback_root: Path | None, r
         "main_humidity": build_humidity_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_rainfall": build_rainfall_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_wind": build_wind_section(cfg, result_root, stats_root, fallback_root, image_root),
-        "main_eq": build_eq_section(result_root, image_root),
+        "main_eq": build_eq_section(cfg, result_root, image_root),
         "main_traffic": build_traffic_section(wim_root),
         "main_deflection": build_deflection_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_bearing": build_main_bearing_section(cfg, result_root, stats_root, fallback_root, image_root),
@@ -2056,6 +2826,7 @@ def render_section_block(anchor: Paragraph, content: SectionBlock, body_template
             for col_idx, (key, _, _) in enumerate(content.table_columns):
                 set_cell_text_preserve(table.cell(row_idx, col_idx), table_cell_text(row.get(key)))
         set_header_bold(table)
+        set_repeat_table_header(table)
         set_table_outer_border(table, size_eighth_pt=12)
         set_table_autofit(table, True)
         if content.table_width_mm is not None:
@@ -2113,59 +2884,65 @@ def add_section_content(
     )
 
 
-def update_summary_table(doc: Document, section_map: dict[str, SectionContent]) -> None:
+def update_summary_table(doc: Document, section_map: dict[str, SectionContent], data_acquisition_summary: str | None = None) -> None:
     if len(doc.tables) <= 2:
         return
     summary_table = doc.tables[2]
+    advice_left = summary_table.cell(1, 0).text.strip() if len(summary_table.rows) > 1 else "建  议"
+    advice_lines = []
+    if len(summary_table.rows) > 1:
+        advice_lines = [
+            para.text.strip()
+            for para in summary_table.cell(1, 1).paragraphs
+            if para.text.strip()
+        ]
     result_lines = [
-        "1、主桥环境与作用监测",
-        "1.1 温度监测",
+        "一、本月监测数据情况",
+        data_acquisition_summary or "本月监测数据获取情况详见正文。",
+        "二、主桥环境与作用监测",
+        "（1）温度监测",
         section_map["main_env"].summary_sentence,
-        "1.2 湿度监测",
+        "（2）湿度监测",
         section_map["main_humidity"].summary_sentence,
-        "1.3 雨量监测",
+        "（3）雨量监测",
         section_map["main_rainfall"].summary_sentence,
-        "1.4 风向风速监测",
+        "（4）风向风速监测",
         section_map["main_wind"].summary_sentence,
-        "1.5 地震动监测",
+        "（5）地震动监测",
         section_map["main_eq"].summary_sentence,
-        "1.6 车辆荷载监测",
+        "（6）车辆荷载监测",
         section_map["main_traffic"].summary_sentence,
-        "2、主桥结构响应与结构变化监测",
-        "2.1 主梁挠度监测",
+        "三、主桥结构响应与结构变化监测",
+        "（1）主梁挠度监测",
         section_map["main_deflection"].summary_sentence,
-        "2.2 支座、梁段纵向位移监测",
+        "（2）支座、梁段纵向位移监测",
         section_map["main_bearing"].summary_sentence,
-        "2.3 拱顶、拱脚位移监测（GNSS）",
+        "（3）拱顶、拱脚位移监测（GNSS）",
         section_map["main_gnss"].summary_sentence,
-        "2.4 结构振动监测",
+        "（4）结构振动监测",
         section_map["main_vibration"].summary_sentence,
-        "2.5 结构应变监测",
+        "（5）结构应变监测",
         section_map["main_strain"].summary_sentence,
-        "2.6 裂缝监测",
+        "（6）裂缝监测",
         section_map["main_crack"].summary_sentence,
-        "2.7 吊杆索力监测",
+        "（7）吊杆索力监测",
         section_map["main_cable"].summary_sentence,
-        "3、北江滨匝道桥监测",
-        "3.1 结构应变监测",
+        "四、北江滨匝道桥监测",
+        "（1）结构应变监测",
         section_map["north_strain"].summary_sentence,
-        "3.2 支座位移监测",
+        "（2）支座位移监测",
         section_map["north_bearing"].summary_sentence,
-        "3.3 墩柱倾斜监测",
+        "（3）墩柱倾斜监测",
         section_map["north_tilt"].summary_sentence,
-        "4、南江滨匝道桥监测",
-        "4.1 结构应变监测",
+        "五、南江滨匝道桥监测",
+        "（1）结构应变监测",
         section_map["south_strain"].summary_sentence,
-        "4.2 支座位移监测",
+        "（2）支座位移监测",
         section_map["south_bearing"].summary_sentence,
-        "4.3 墩柱倾斜监测",
+        "（3）墩柱倾斜监测",
         section_map["south_tilt"].summary_sentence,
     ]
-    bold_indices = {
-        idx for idx, line in enumerate(result_lines)
-        if re.match(r"^\d+、", line) or re.match(r"^\d+\.\d+\s", line)
-    }
-    set_cell_paragraphs(summary_table.cell(0, 1), result_lines, bold_indices=bold_indices)
+    rebuild_summary_table_rows(summary_table, result_lines, advice_left, advice_lines)
 
 
 def collect_missing_items(section_map: dict[str, SectionContent]) -> list[dict[str, str]]:
@@ -2211,6 +2988,23 @@ def collect_missing_items(section_map: dict[str, SectionContent]) -> list[dict[s
     return items
 
 
+def find_body_template_paragraph(doc: Document) -> Paragraph:
+    preferred_fragments = [
+        "选取典型监测数据进行分析",
+        "本月未获取到车辆荷载监测结果",
+        "监测周期内原始数据缺失",
+    ]
+    for fragment in preferred_fragments:
+        for para in doc.paragraphs:
+            if fragment in para.text:
+                return para
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if text and not text.startswith(("图 ", "表 ")) and heading_level(para) is None:
+            return para
+    return doc.paragraphs[0]
+
+
 def build_report(
     template: Path,
     config_path: Path,
@@ -2242,22 +3036,36 @@ def build_report(
 
     doc = Document(str(template))
     caption_templates = find_caption_templates(doc)
-    placeholder_para = next(para for para in doc.paragraphs if "本节用于填充主桥温度监测结果" in para.text)
-    body_template = capture_paragraph_template(placeholder_para)
+    body_template = capture_paragraph_template(find_body_template_paragraph(doc))
+    chapter3_section_break = capture_section_break_before_heading(doc, "桥梁人工巡查结果", 1)
 
     update_cover_metadata(doc, monitoring_range, report_date)
     apply_health_status_section(doc, cfg, result_root, monitoring_range)
+    apply_monthly_data_status_section(doc, cfg, result_root, monitoring_range, caption_templates)
+    start_date, end_date = resolve_jlj_monitoring_dates(monitoring_range, result_root)
+    data_acquisition_summary = summarize_jlj_data_acquisition(collect_jlj_data_acquisition_rows(cfg, result_root, start_date, end_date))
     section_map = build_section_map(cfg, result_root, None, result_root, ctx.image_root, wim_root)
     for key, parent_heading, child_heading, _ in JLG_MONTHLY_SECTIONS:
         add_section_content(doc, parent_heading, child_heading, section_map[key], body_template, caption_templates, ctx.assets_dir)
-    update_summary_table(doc, section_map)
-    ending_para = doc.add_paragraph()
-    ending_para.add_run("（以下无正文）")
-    apply_paragraph_template(ending_para, body_template)
-    ending_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    ensure_section_break_before_heading(doc, "桥梁人工巡查结果", chapter3_section_break, 1)
+    patrol_report_docx = resolve_jlj_patrol_report_docx(template)
+    if patrol_report_docx is not None:
+        insert_docx_body_after_heading(
+            doc,
+            "桥梁人工巡查结果",
+            patrol_report_docx,
+            target_month=period_label_month(period_label),
+        )
+    update_summary_table(doc, section_map, data_acquisition_summary)
+    set_repeat_headers_for_all_tables(doc)
+    if not any("以下无正文" in para.text for para in doc.paragraphs):
+        ending_para = doc.add_paragraph()
+        ending_para.add_run("（以下无正文）")
+        apply_paragraph_template(ending_para, body_template)
+        ending_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_docx = ctx.output_dir / f"{template.stem}_{period_label}_自动生成_{timestamp}.docx"
+    output_docx = (ctx.output_dir / f"{template.stem}_{period_label}_自动生成_{timestamp}.docx").resolve()
     doc.save(str(output_docx))
     update_fields_with_word(output_docx)
     missing_items = collect_missing_items(section_map)
