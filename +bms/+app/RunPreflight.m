@@ -228,7 +228,8 @@ classdef RunPreflight
                     end
                     statsInfo = dir(statsPath);
                     rec = struct('key', spec.Key, 'label', spec.Label, 'stats_path', statsPath, ...
-                        'stats_modified', '', 'newest_input_modified', '', 'status', 'ok', 'message', '');
+                        'stats_modified', '', 'newest_input_modified', '', 'status', 'ok', ...
+                        'issue_type', '', 'message', '');
                     if ~isempty(statsInfo)
                         rec.stats_modified = datestr(statsInfo.datenum, 'yyyy-mm-dd HH:MM:ss');
                     end
@@ -236,15 +237,99 @@ classdef RunPreflight
                         rec.newest_input_modified = datestr(newestInput, 'yyyy-mm-dd HH:MM:ss');
                         if ~isempty(statsInfo) && statsInfo.datenum + (1 / (24 * 60)) < newestInput
                             rec.status = 'possible_stale';
+                            rec.issue_type = 'stats_older_than_input';
                             rec.message = sprintf('%s stats may be older than source data: %s', spec.Key, statsPath);
                             result.warnings{end+1} = ['result artifact: ' rec.message]; %#ok<AGROW>
                         end
                     end
                     records{end+1} = rec; %#ok<AGROW>
                 end
+                records = [records, bms.app.RunPreflight.checkPreviousManifestArtifacts(root)]; %#ok<AGROW>
+                for k = 1:numel(records)
+                    rec = records{k};
+                    if isstruct(rec) && isfield(rec, 'status') && strcmp(char(string(rec.status)), 'possible_stale') ...
+                            && isfield(rec, 'message') && ~isempty(rec.message)
+                        warningText = ['result artifact: ' char(string(rec.message))];
+                        if ~any(strcmp(result.warnings, warningText))
+                            result.warnings{end+1} = warningText; %#ok<AGROW>
+                        end
+                    end
+                end
                 result.result_artifact_preflight = records;
             catch ME
                 result.warnings{end+1} = ['result artifact preflight failed: ' ME.message];
+            end
+        end
+
+        function records = checkPreviousManifestArtifacts(root)
+            records = {};
+            try
+                manifestPath = bms.app.ManifestReader.latest(root);
+                if isempty(manifestPath) || ~isfile(manifestPath)
+                    return;
+                end
+                manifest = bms.app.ManifestReader.load(manifestPath);
+                moduleRecords = bms.app.ManifestReader.fieldValue(manifest, 'module_results', {});
+                if isempty(moduleRecords)
+                    moduleRecords = bms.app.ManifestReader.fieldValue(manifest, 'module_logs', {});
+                end
+                moduleRecords = bms.app.ManifestReader.recordsToCell(moduleRecords);
+                for i = 1:numel(moduleRecords)
+                    rec = moduleRecords{i};
+                    if ~isstruct(rec), continue; end
+                    statsPath = bms.app.RunPreflight.recordFieldText(rec, 'stats_path');
+                    statsTime = bms.app.RunPreflight.fileDatenum(statsPath);
+                    if isnan(statsTime), continue; end
+                    artifacts = bms.app.RunPreflight.recordFieldValue(rec, 'artifacts', {});
+                    artifacts = bms.app.ManifestReader.recordsToCell(artifacts);
+                    for j = 1:numel(artifacts)
+                        artifact = artifacts{j};
+                        if ~isstruct(artifact), continue; end
+                        kind = lower(bms.app.RunPreflight.recordFieldText(artifact, 'kind'));
+                        if ~strcmp(kind, 'figure'), continue; end
+                        figPath = bms.app.RunPreflight.recordFieldText(artifact, 'path');
+                        figTime = bms.app.RunPreflight.fileDatenum(figPath);
+                        if isnan(figTime), continue; end
+                        if figTime + (1 / (24 * 60)) < statsTime
+                            out = struct();
+                            out.key = bms.app.RunPreflight.recordFieldText(rec, 'key');
+                            out.label = bms.app.RunPreflight.recordFieldText(rec, 'label');
+                            out.status = 'possible_stale';
+                            out.issue_type = 'figure_older_than_stats';
+                            out.stats_path = statsPath;
+                            out.artifact_path = figPath;
+                            out.stats_modified = datestr(statsTime, 'yyyy-mm-dd HH:MM:ss');
+                            out.artifact_modified = datestr(figTime, 'yyyy-mm-dd HH:MM:ss');
+                            out.message = sprintf('%s figure may be older than stats: %s', out.key, figPath);
+                            records{end+1} = out; %#ok<AGROW>
+                        end
+                    end
+                end
+            catch
+                records = {};
+            end
+        end
+
+        function t = fileDatenum(pathValue)
+            t = NaN;
+            if isempty(pathValue), return; end
+            p = char(string(pathValue));
+            if ~isfile(p), return; end
+            info = dir(p);
+            if ~isempty(info), t = info(1).datenum; end
+        end
+
+        function txt = recordFieldText(s, name)
+            txt = '';
+            if isstruct(s) && isfield(s, name) && ~isempty(s.(name))
+                txt = char(string(s.(name)));
+            end
+        end
+
+        function value = recordFieldValue(s, name, fallback)
+            value = fallback;
+            if isstruct(s) && isfield(s, name) && ~isempty(s.(name))
+                value = s.(name);
             end
         end
 

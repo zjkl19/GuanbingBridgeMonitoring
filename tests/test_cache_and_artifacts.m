@@ -73,5 +73,28 @@ classdef test_cache_and_artifacts < matlab.unittest.TestCase
             tc.verifyTrue(isfile(txt));
             tc.verifyEqual(numel(done.deleted), 1);
         end
+
+        function artifactCleanerPlansByManifestModule(tc)
+            imgDir = fullfile(tc.TempDir, 'figs');
+            statsDir = fullfile(tc.TempDir, 'stats');
+            mkdir(imgDir);
+            mkdir(statsDir);
+            img = fullfile(imgDir, 'a.jpg');
+            stat = fullfile(statsDir, 'a.xlsx');
+            other = fullfile(imgDir, 'other.jpg');
+            fclose(fopen(img, 'w'));
+            fclose(fopen(stat, 'w'));
+            fclose(fopen(other, 'w'));
+
+            manifest = struct();
+            manifest.module_results = {struct('key','temp', 'artifacts', {{ ...
+                struct('kind','figure','path',img), struct('kind','stats','path',stat)}}), ...
+                struct('key','crack', 'artifacts', {{struct('kind','figure','path',other)}})};
+
+            plan = bms.data.ArtifactCleaner.planForModules(tc.TempDir, manifest, {'temp'}, 'images');
+
+            tc.verifyEqual(plan.count, 1);
+            tc.verifyEqual(plan.files, {bms.data.ArtifactCleaner.canonical(img)});
+        end
     end
 end

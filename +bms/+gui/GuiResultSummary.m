@@ -17,6 +17,7 @@ classdef GuiResultSummary
             summary.preflight_warning_count = 0;
             summary.missing_stats_count = 0;
             summary.possible_stale_count = 0;
+            summary.preflight_error_count = 0;
             summary.lines = {};
             summary.module_rows = {};
             if ~summary.available
@@ -37,11 +38,16 @@ classdef GuiResultSummary
                 summary.artifact_count = double(ctx.manifest.artifact_count);
             end
             detailRows = bms.gui.GuiResultSummary.buildModuleRows(ctx.manifest);
+            diagnosticRows = bms.gui.GuiResultSummary.buildDiagnosticRows(ctx.manifest);
             summary.preflight_warning_count = bms.gui.GuiResultSummary.countPreflightWarnings(ctx.manifest);
+            summary.preflight_error_count = bms.gui.GuiResultSummary.countPreflightErrors(ctx.manifest);
             summary.missing_stats_count = bms.gui.GuiResultSummary.countMissingStats(ctx.manifest);
             summary.possible_stale_count = bms.gui.GuiResultSummary.countPossibleStale(ctx.manifest);
             summary.lines = bms.gui.GuiResultSummary.buildLines(summary);
-            summary.module_rows = [bms.gui.GuiResultSummary.summaryRow(summary); detailRows];
+            rows = bms.gui.GuiResultSummary.summaryRow(summary);
+            if ~isempty(diagnosticRows), rows = [rows; diagnosticRows]; end %#ok<AGROW>
+            if ~isempty(detailRows), rows = [rows; detailRows]; end %#ok<AGROW>
+            summary.module_rows = rows;
         end
 
         function lines = buildLines(summary)
@@ -52,6 +58,9 @@ classdef GuiResultSummary
             lines{end+1} = sprintf('modules: ok=%d, fail=%d, skip=%d, missing=%d, other=%d', ...
                 c.ok, c.fail, c.skip, c.missing, c.other); %#ok<AGROW>
             lines{end+1} = sprintf('artifacts: %d', summary.artifact_count); %#ok<AGROW>
+            if summary.preflight_error_count > 0
+                lines{end+1} = sprintf('preflight errors: %d', summary.preflight_error_count); %#ok<AGROW>
+            end
             if summary.preflight_warning_count > 0
                 lines{end+1} = sprintf('preflight warnings: %d', summary.preflight_warning_count); %#ok<AGROW>
             end
@@ -104,10 +113,65 @@ classdef GuiResultSummary
             c = summary.counts;
             statsText = sprintf('missing stats=%d', summary.missing_stats_count);
             artifactText = sprintf('artifacts=%d', summary.artifact_count);
-            errorText = sprintf('preflight=%d, stale=%d', summary.preflight_warning_count, summary.possible_stale_count);
+            errorText = sprintf('preflight=%d, stale=%d', summary.preflight_warning_count + summary.preflight_error_count, summary.possible_stale_count);
             msg = sprintf('ok=%d, fail=%d, skip=%d, missing=%d, other=%d; %s', ...
                 c.ok, c.fail, c.skip, c.missing, c.other, summary.path);
             row = {'Summary', summary.status, '', statsText, artifactText, errorText, msg};
+        end
+
+        function rows = buildDiagnosticRows(manifest)
+            rows = {};
+            if ~isstruct(manifest), return; end
+            maxRows = 40;
+
+            if isfield(manifest, 'run_preflight') && isstruct(manifest.run_preflight)
+                runPreflight = manifest.run_preflight;
+                if isfield(runPreflight, 'errors')
+                    rows = bms.gui.GuiResultSummary.appendTextRows(rows, 'Preflight', 'error', 'preflight_error', runPreflight.errors, maxRows);
+                end
+                if isfield(runPreflight, 'warnings')
+                    rows = bms.gui.GuiResultSummary.appendTextRows(rows, 'Preflight', 'warning', 'preflight_warning', runPreflight.warnings, maxRows);
+                end
+                if isfield(runPreflight, 'result_artifact_preflight')
+                    records = bms.app.ManifestReader.recordsToCell(runPreflight.result_artifact_preflight);
+                    for i = 1:numel(records)
+                        rec = records{i};
+                        if ~isstruct(rec), continue; end
+                        status = lower(bms.gui.GuiResultSummary.fieldText(rec, 'status', ''));
+                        if isempty(status) || strcmp(status, 'ok'), continue; end
+                        label = bms.gui.GuiResultSummary.fieldText(rec, 'label', bms.gui.GuiResultSummary.fieldText(rec, 'key', 'Result artifact'));
+                        issueType = bms.gui.GuiResultSummary.fieldText(rec, 'issue_type', bms.gui.GuiResultSummary.fieldText(rec, 'stale_type', 'result_artifact'));
+                        msg = bms.gui.GuiResultSummary.fieldText(rec, 'message', bms.gui.GuiResultSummary.fieldText(rec, 'stats_path', ''));
+                        rows(end+1, :) = {label, status, '', '', '', issueType, bms.gui.GuiResultSummary.shortText(msg, 160)}; %#ok<AGROW>
+                        if size(rows, 1) >= maxRows
+                            rows(end+1, :) = {'Diagnostics', 'truncated', '', '', '', 'limit', sprintf('Only first %d diagnostic rows are shown.', maxRows)}; %#ok<AGROW>
+                            return;
+                        end
+                    end
+                end
+            end
+
+            missing = bms.gui.GuiResultSummary.missingStatsList(manifest);
+            for i = 1:numel(missing)
+                rows(end+1, :) = {'Missing stats', 'missing', '', 'missing', '', 'missing_stats', bms.gui.GuiResultSummary.shortText(missing{i}, 160)}; %#ok<AGROW>
+                if size(rows, 1) >= maxRows
+                    rows(end+1, :) = {'Diagnostics', 'truncated', '', '', '', 'limit', sprintf('Only first %d diagnostic rows are shown.', maxRows)}; %#ok<AGROW>
+                    return;
+                end
+            end
+        end
+
+        function rows = appendTextRows(rows, label, status, issueType, values, maxRows)
+            values = bms.gui.GuiResultSummary.toCell(values);
+            for i = 1:numel(values)
+                msg = char(string(values{i}));
+                if isempty(strtrim(msg)), continue; end
+                rows(end+1, :) = {label, status, '', '', '', issueType, bms.gui.GuiResultSummary.shortText(msg, 160)}; %#ok<AGROW>
+                if size(rows, 1) >= maxRows
+                    rows(end+1, :) = {'Diagnostics', 'truncated', '', '', '', 'limit', sprintf('Only first %d diagnostic rows are shown.', maxRows)}; %#ok<AGROW>
+                    return;
+                end
+            end
         end
 
         function txt = fieldText(s, field, fallback)
@@ -159,21 +223,52 @@ classdef GuiResultSummary
             end
         end
 
+        function values = missingStatsList(manifest)
+            values = {};
+            if isstruct(manifest) && isfield(manifest, 'missing_expected_stats') && ~isempty(manifest.missing_expected_stats)
+                values = bms.gui.GuiResultSummary.toCell(manifest.missing_expected_stats);
+            elseif isstruct(manifest) && isfield(manifest, 'missing_stats_files') && ~isempty(manifest.missing_stats_files)
+                values = bms.gui.GuiResultSummary.toCell(manifest.missing_stats_files);
+            end
+            for i = 1:numel(values)
+                values{i} = char(string(values{i}));
+            end
+        end
+
+        function values = toCell(value)
+            values = {};
+            if isempty(value)
+                return;
+            elseif iscell(value)
+                values = reshape(value, 1, []);
+            elseif isstruct(value)
+                values = reshape(num2cell(value), 1, []);
+            elseif isstring(value)
+                values = cellstr(value);
+            else
+                values = {value};
+            end
+        end
+
         function n = countPreflightWarnings(manifest)
             n = 0;
             if isstruct(manifest) && isfield(manifest, 'run_preflight') && isstruct(manifest.run_preflight) ...
                     && isfield(manifest.run_preflight, 'warnings')
-                n = numel(manifest.run_preflight.warnings);
+                n = numel(bms.gui.GuiResultSummary.toCell(manifest.run_preflight.warnings));
+            end
+        end
+
+        function n = countPreflightErrors(manifest)
+            n = 0;
+            if isstruct(manifest) && isfield(manifest, 'run_preflight') && isstruct(manifest.run_preflight) ...
+                    && isfield(manifest.run_preflight, 'errors')
+                n = numel(bms.gui.GuiResultSummary.toCell(manifest.run_preflight.errors));
             end
         end
 
         function n = countMissingStats(manifest)
             n = 0;
-            if isstruct(manifest) && isfield(manifest, 'missing_expected_stats')
-                n = numel(manifest.missing_expected_stats);
-            elseif isstruct(manifest) && isfield(manifest, 'missing_stats_files')
-                n = numel(manifest.missing_stats_files);
-            end
+            n = numel(bms.gui.GuiResultSummary.missingStatsList(manifest));
         end
 
         function n = countPossibleStale(manifest)

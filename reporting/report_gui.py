@@ -31,6 +31,7 @@ from build_monthly_report import build_report as build_hongtang_monthly_report
 from build_period_report import build_period_report
 from bridge_profiles import BridgeProfile, load_profiles, profile_by_id
 from missing_summary import missing_summary_paths
+from analysis_manifest import manifest_precheck_warnings
 from report_build_manifest import find_latest_report_build_manifest
 from template_precheck import TemplateIssue, check_template, write_precheck_report
 
@@ -631,6 +632,7 @@ class ReportGui(QMainWindow):
 
     def _collect_period_warnings(self, result_root: Path, wim_root: Path | None, start_date: date, end_date: date) -> list[str]:
         warnings: list[str] = []
+        warnings.extend(manifest_precheck_warnings(result_root))
 
         lowfreq_file = result_root / "lowfreq" / "data.xlsx"
         if not lowfreq_file.exists():
@@ -689,6 +691,7 @@ class ReportGui(QMainWindow):
 
     def _collect_jlj_warnings(self, result_root: Path) -> list[str]:
         warnings: list[str] = []
+        warnings.extend(manifest_precheck_warnings(result_root))
         if not (result_root / "stats").exists():
             warnings.append("`stats/` \u4e0d\u5b58\u5728\uff0c\u4e5d\u9f99\u6c5f\u6708\u62a5\u7edd\u5927\u90e8\u5206\u7edf\u8ba1\u8868\u65e0\u6cd5\u586b\u5145\u3002")
         missing_stats = self._missing_stats_files(
@@ -737,6 +740,7 @@ class ReportGui(QMainWindow):
 
     def _collect_guanbing_warnings(self, result_root: Path) -> list[str]:
         warnings: list[str] = []
+        warnings.extend(manifest_precheck_warnings(result_root))
         if not (result_root / "stats").exists():
             warnings.append("`stats/` 不存在，管柄月报统计文字无法完整刷新。")
         missing_stats = self._missing_stats_files(

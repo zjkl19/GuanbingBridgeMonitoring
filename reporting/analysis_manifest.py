@@ -289,6 +289,16 @@ def manifest_precheck_warnings(result_root: Path | str | None) -> list[str]:
             for item in run_preflight.get("warnings", []) or []:
                 if item:
                     warnings.append(f"analysis preflight warning: {item}")
+            for item in run_preflight.get("result_artifact_preflight", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                status_text = str(item.get("status") or "").lower()
+                if status_text in {"", "ok"}:
+                    continue
+                label = item.get("label") or item.get("key") or "result artifact"
+                issue_type = item.get("issue_type") or item.get("stale_type") or status_text
+                message = item.get("message") or item.get("stats_path") or item.get("artifact_path") or ""
+                warnings.append(f"analysis result artifact {status_text}: {label} {issue_type} {message}".strip())
         for path in manifest.get("missing_expected_stats") or manifest.get("missing_stats_files") or []:
             if path:
                 warnings.append(f"expected stats missing: {path}")

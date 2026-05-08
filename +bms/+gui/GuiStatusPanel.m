@@ -122,8 +122,13 @@ classdef GuiStatusPanel < handle
                     color = obj.PrimaryColor;
             end
             counts = summary.counts;
-            msg = sprintf('Manifest %s: ok=%d, fail=%d, missing=%d, artifacts=%d', ...
-                status, counts.ok, counts.fail, counts.missing, summary.artifact_count);
+            preflightCount = 0;
+            staleCount = 0;
+            if isfield(summary, 'preflight_warning_count'), preflightCount = preflightCount + summary.preflight_warning_count; end
+            if isfield(summary, 'preflight_error_count'), preflightCount = preflightCount + summary.preflight_error_count; end
+            if isfield(summary, 'possible_stale_count'), staleCount = summary.possible_stale_count; end
+            msg = sprintf('Manifest %s: ok=%d, fail=%d, missing=%d, preflight=%d, stale=%d, artifacts=%d', ...
+                status, counts.ok, counts.fail, counts.missing, preflightCount, staleCount, summary.artifact_count);
             obj.setStatus(msg, color);
         end
     end
