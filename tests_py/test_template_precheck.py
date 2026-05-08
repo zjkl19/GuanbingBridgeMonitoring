@@ -41,6 +41,18 @@ class TemplatePrecheckTests(unittest.TestCase):
             self.assertIn("交通状况监测", messages)
             self.assertIn("季度交通状况分月统计表", messages)
 
+    def test_jlj_template_precheck_reports_missing_summary_table(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            template = Path(tmp) / "jlj_incomplete.docx"
+            doc = Document()
+            doc.add_paragraph("温度监测")
+            doc.save(template)
+
+            issues = check_template("jlj_monthly", template)
+
+            self.assertIn("missing-table", {issue.code for issue in issues})
+            self.assertIn("Jiulongjiang summary table", "\n".join(issue.message for issue in issues))
+
     def test_precheck_payload_status(self) -> None:
         ok_payload = build_precheck_payload("kind", Path("a.docx"), [])
         warn_payload = build_precheck_payload("kind", Path("a.docx"), [], warnings=["warn"])

@@ -16,6 +16,11 @@ try:
 except Exception:  # pragma: no cover - optional CLI helper path
     manifest_precheck_warnings = None
 
+try:
+    from docx_table_utils import find_summary_table
+except Exception:  # pragma: no cover - package import path
+    from .docx_table_utils import find_summary_table
+
 
 @dataclass(frozen=True)
 class TemplateIssue:
@@ -305,9 +310,13 @@ def check_jlj_monthly_template(template: Path) -> list[TemplateIssue]:
     fields = _field_instr_texts(doc)
     issues: list[TemplateIssue] = []
 
+    if find_summary_table(doc) is None:
+        issues.append(TemplateIssue("missing-table", "Jiulongjiang summary table with left-column labels '监测结果' and '建  议' was not found."))
+
     required = [
         ("监测结果", "summary table result cell"),
         ("温度监测", "body style fallback anchor"),
+        ("桥梁人工巡查结果", "Jiulongjiang patrol-report insertion anchor"),
     ]
     for fragment, note in required:
         _add_missing_fragment(issues, texts, fragment, note)

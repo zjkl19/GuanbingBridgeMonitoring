@@ -135,14 +135,14 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
                 if isequal(fname, 0), return; end
                 targetPath = fullfile(fpath, fname);
             end
-            bms.core.ConfigStore.saveGuarded(cfgNew, targetPath, true);
+            saveReport = bms.core.ConfigStore.saveGuardedWithReport(cfgNew, targetPath, true);
             validate_config(cfgNew);
             cfgCache = load_config(targetPath);
             cfgPath = targetPath;
             cfgEdit.Value = targetPath;
             refresh_table();
-            msgBox.Value = {['已保存配置到 ' targetPath]};
-            addLog(['零点修正已保存: ' targetPath]);
+            msgBox.Value = {sprintf('已保存配置到 %s（变更 %d 项）', targetPath, saveReport.changed_count)};
+            addLog(sprintf('零点修正已保存: %s（变更 %d 项）', targetPath, saveReport.changed_count));
         catch ME
             msgBox.Value = {['保存失败: ' ME.message]};
         end

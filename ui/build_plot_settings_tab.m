@@ -245,14 +245,14 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
                 targetPath = fullfile(fpath, fname);
             end
 
-            bms.core.ConfigStore.saveGuarded(cfgNew, targetPath, true);
+            saveReport = bms.core.ConfigStore.saveGuardedWithReport(cfgNew, targetPath, true);
             cfgCache = load_config(targetPath);
             draftCfg = cfgCache;
             cfgPath = targetPath;
             cfgEdit.Value = targetPath;
             refresh_all_controls();
-            msgBox.Value = {['已保存配置到 ' targetPath]};
-            addLog(['绘图参数已保存: ' targetPath]);
+            msgBox.Value = {sprintf('已保存配置到 %s（变更 %d 项）', targetPath, saveReport.changed_count)};
+            addLog(sprintf('绘图参数已保存: %s（变更 %d 项）', targetPath, saveReport.changed_count));
         catch ME
             msgBox.Value = {['保存失败: ' ME.message]};
         end

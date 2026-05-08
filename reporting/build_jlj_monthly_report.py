@@ -5,20 +5,17 @@ import json
 import math
 import re
 import subprocess
-import sys
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from io import BytesIO
 from pathlib import Path
 from typing import Callable, Iterable
 
 from docx import Document
-from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
+from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.shared import Mm, Pt
 from docx.table import Table
 from docx.text.paragraph import Paragraph
@@ -32,7 +29,9 @@ from artifact_lookup import (
     should_skip_search_dir as shared_should_skip_search_dir,
 )
 from stats_lookup import resolve_from_analysis_manifest
-from docx_utils import set_cell_paragraphs, set_cell_text_preserve
+from docx_utils import set_cell_text_preserve
+from jlj_patrol import insert_docx_body_after_heading, period_label_month, resolve_patrol_report_source
+from jlj_summary import clear_repeat_table_headers, is_summary_table, update_summary_table
 from excel_utils import load_sheet_rows as load_xlsx_rows
 from format_utils import (
     format_number,
@@ -184,21 +183,22 @@ JLG_MONTHLY_SECTIONS: list[tuple[str, str, str, str]] = [
 ]
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
     default_template = repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_0506.docx"
     parser = argparse.ArgumentParser(description="Build Jiulongjiang monthly monitoring report.")
-    parser.add_argument("--template", type=Path, default=default_template)
-    parser.add_argument("--config", type=Path, default=repo_root / "config" / "jiulongjiang_config.json")
-    parser.add_argument("--result-root", type=Path, default=None)
-    parser.add_argument("--image-root", type=Path, default=None)
-    parser.add_argument("--output-dir", type=Path, default=None)
-    parser.add_argument("--wim-root", type=Path, default=None)
-    parser.add_argument("--period-label", default="2026年3月份")
-    parser.add_argument("--monitoring-range", default="2026.03.23~2026.03.31")
-    parser.add_argument("--report-date", default=datetime.now().strftime("%Y年%m月%d日"))
+    parser.add_argument("--template", type=Path, default=default_template, help="DOCX template path.")
+    parser.add_argument("--config", type=Path, default=repo_root / "config" / "jiulongjiang_config.json", help="Bridge config JSON path.")
+    parser.add_argument("--result-root", type=Path, required=True, help="Data/result root containing stats, figures, and run outputs.")
+    parser.add_argument("--output-dir", type=Path, default=None, help="Generated report output directory. Defaults to <result-root>/自动报告.")
+    parser.add_argument("--period-label", default="2026年3月份", help="Report period label shown in the output filename and report text.")
+    parser.add_argument("--monitoring-range", default="2026.03.23~2026.03.31", help="Monitoring range text shown in the report.")
+    parser.add_argument("--report-date", default=datetime.now().strftime("%Y年%m月%d日"), help="Report date text shown in the report.")
+    parser.add_argument("--image-root", type=Path, default=None, help="Figure lookup root. Defaults to result-root.")
+    parser.add_argument("--wim-root", type=Path, default=None, help="Optional WIM result root.")
+    parser.add_argument("--patrol-docx", type=Path, default=None, help="Optional patrol report source DOCX. Defaults to reports/九龙江大桥巡查报告.docx lookup.")
     parser.add_argument("--skip-template-precheck", action="store_true", help="Skip DOCX template anchor precheck.")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def ensure_dir(path: Path) -> Path:
@@ -697,154 +697,6 @@ def clear_section_between(start_paragraph: Paragraph, end_paragraph: Paragraph |
         current = nxt
 
 
-def replace_patrol_report_dates(text: str, target_month: int = 3) -> str:
-    if not text:
-        return text
-    month_text = str(int(target_month))
-    padded_month_text = f"{int(target_month):02d}"
-    text = re.sub(r"(\d{4})年0?2月", rf"\1年{month_text}月", text)
-    text = re.sub(r"(?<!\d)0?2月", f"{month_text}月", text)
-    text = re.sub(r"(\d{4})([-/.])0?2([-/.])", rf"\1\2{padded_month_text}\3", text)
-    return text
-
-
-def replace_text_nodes_in_element(element, target_month: int = 3) -> None:
-    for node in element.iter():
-        if node.tag == qn("w:t") and node.text:
-            node.text = replace_patrol_report_dates(node.text, target_month)
-
-
-def paragraph_text(element) -> str:
-    return "".join(node.text or "" for node in element.iter(qn("w:t")))
-
-
-def add_page_break_to_paragraph_element(element) -> None:
-    run = OxmlElement("w:r")
-    br = OxmlElement("w:br")
-    br.set(qn("w:type"), "page")
-    run.append(br)
-    element.insert(0, run)
-
-
-def ensure_patrol_attachment_page_break(element) -> None:
-    if element.tag != qn("w:p"):
-        return
-    if paragraph_text(element).strip().startswith("附件："):
-        add_page_break_to_paragraph_element(element)
-
-
-def element_text(element) -> str:
-    return "".join(node.text or "" for node in element.iter(qn("w:t")))
-
-
-def element_image_count(element) -> int:
-    return sum(1 for _ in element.iter(qn("w:drawing"))) + sum(1 for _ in element.iter(qn("w:pict")))
-
-
-def should_skip_patrol_source_element(element) -> bool:
-    if element.tag != qn("w:p"):
-        return False
-    return not element_text(element).strip() and element_image_count(element) == 0
-
-
-def set_cell_borders_nil(tc_element) -> None:
-    tc_pr = tc_element.find(qn("w:tcPr"))
-    if tc_pr is None:
-        tc_pr = OxmlElement("w:tcPr")
-        tc_element.insert(0, tc_pr)
-    borders = tc_pr.find(qn("w:tcBorders"))
-    if borders is None:
-        borders = OxmlElement("w:tcBorders")
-        tc_pr.append(borders)
-    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
-        border = borders.find(qn(f"w:{edge}"))
-        if border is None:
-            border = OxmlElement(f"w:{edge}")
-            borders.append(border)
-        border.set(qn("w:val"), "nil")
-
-
-def clean_patrol_photo_table_blanks(table_element) -> None:
-    if table_element.tag != qn("w:tbl") or element_image_count(table_element) == 0:
-        return
-    for tc in table_element.iter(qn("w:tc")):
-        if element_text(tc).strip() or element_image_count(tc) > 0:
-            continue
-        set_cell_borders_nil(tc)
-
-
-def remap_copied_image_relationships(element, source_part, target_part) -> None:
-    for node in element.iter():
-        for attr_name in (qn("r:embed"), qn("r:link")):
-            rel_id = node.get(attr_name)
-            if not rel_id or rel_id not in source_part.related_parts:
-                continue
-            related_part = source_part.related_parts[rel_id]
-            if not str(getattr(related_part, "content_type", "")).startswith("image/"):
-                continue
-            try:
-                new_rel_id, _ = target_part.get_or_add_image(BytesIO(related_part.blob))
-            except Exception:
-                normalized = BytesIO()
-                with Image.open(BytesIO(related_part.blob)) as src_img:
-                    ImageOps.exif_transpose(src_img.convert("RGB")).save(normalized, format="JPEG", quality=92)
-                normalized.seek(0)
-                new_rel_id, _ = target_part.get_or_add_image(normalized)
-            node.set(attr_name, new_rel_id)
-
-
-def insert_docx_body_after_heading(
-    target_doc: Document,
-    heading_text: str,
-    source_docx: Path,
-    target_month: int = 3,
-) -> bool:
-    if not source_docx.exists():
-        return False
-    heading_idx, heading_para = find_heading(target_doc, heading_text, 1)
-    next_heading = next_heading_at_or_above(target_doc, heading_idx, 1)
-    clear_section_between(heading_para, next_heading[1] if next_heading is not None else None)
-
-    source_doc = Document(str(source_docx))
-    insert_after = heading_para._p
-    for child in source_doc.element.body:
-        if child.tag == qn("w:sectPr"):
-            continue
-        if should_skip_patrol_source_element(child):
-            continue
-        new_child = deepcopy(child)
-        replace_text_nodes_in_element(new_child, target_month)
-        ensure_patrol_attachment_page_break(new_child)
-        remap_copied_image_relationships(new_child, source_doc.part, target_doc.part)
-        clean_patrol_photo_table_blanks(new_child)
-        insert_after.addnext(new_child)
-        insert_after = new_child
-    return True
-
-
-def resolve_jlj_patrol_report_docx(template: Path) -> Path | None:
-    name = "九龙江大桥巡查报告.docx"
-    candidates = [
-        template.parent / name,
-        Path.cwd() / "reports" / name,
-        Path(__file__).resolve().parents[1] / "reports" / name,
-    ]
-    bundle_root = getattr(sys, "_MEIPASS", None)
-    if bundle_root:
-        candidates.append(Path(bundle_root) / "reports" / name)
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
-
-
-def period_label_month(period_label: str, default_month: int = 3) -> int:
-    match = re.search(r"(\d{1,2})月", period_label or "")
-    if not match:
-        return default_month
-    month = int(match.group(1))
-    return month if 1 <= month <= 12 else default_month
-
 
 def element_has_section_break(element) -> bool:
     return any(child.tag == qn("w:sectPr") for child in element.iter())
@@ -945,19 +797,6 @@ def set_repeat_table_header(table: Table) -> None:
     tbl_header.set(qn("w:val"), "true")
 
 
-def clear_repeat_table_headers(table: Table) -> None:
-    for row in table.rows:
-        tr_pr = row._tr.get_or_add_trPr()
-        for child in list(tr_pr):
-            if child.tag == qn("w:tblHeader"):
-                tr_pr.remove(child)
-
-
-def is_summary_table(table: Table) -> bool:
-    if not table.rows or len(table.rows[0].cells) < 2:
-        return False
-    return table.rows[0].cells[0].text.strip() == "监测结果"
-
 
 def set_repeat_headers_for_all_tables(doc: Document) -> None:
     for table in doc.tables:
@@ -966,88 +805,6 @@ def set_repeat_headers_for_all_tables(doc: Document) -> None:
             continue
         set_repeat_table_header(table)
 
-
-def allow_table_rows_to_expand_and_split(table: Table) -> None:
-    for row in table.rows:
-        tr_pr = row._tr.get_or_add_trPr()
-        for child in list(tr_pr):
-            if child.tag in {qn("w:trHeight"), qn("w:cantSplit")}:
-                tr_pr.remove(child)
-
-
-def append_table_row_from_template(table: Table, template_tr) -> object:
-    new_tr = deepcopy(template_tr)
-    table._tbl.append(new_tr)
-    return table.rows[-1]
-
-
-def clear_table_rows(table: Table) -> None:
-    for tr in list(table._tbl.tr_lst):
-        table._tbl.remove(tr)
-
-
-def summary_line_is_heading(line: str) -> bool:
-    text = str(line or "").strip()
-    return bool(
-        re.match(r"^[一二三四五六七八九十]+、", text)
-        or re.match(r"^\d+、", text)
-        or re.match(r"^\d+(?:\.\d+)+\s*", text)
-        or re.match(r"^（\d+）", text)
-    )
-
-
-def summary_line_is_major_heading(line: str) -> bool:
-    return bool(re.match(r"^[一二三四五六七八九十]+、", str(line or "").strip()))
-
-
-def build_summary_result_rows(result_lines: list[str]) -> list[tuple[list[str], set[int]]]:
-    lines = [str(line or "") for line in result_lines]
-    return [(lines, {idx for idx, item in enumerate(lines) if summary_line_is_heading(item)})] if lines else []
-
-
-def clear_paragraph_numbering(paragraph: Paragraph) -> None:
-    p_pr = paragraph._p.get_or_add_pPr()
-    num_pr = p_pr.find(qn("w:numPr"))
-    if num_pr is not None:
-        p_pr.remove(num_pr)
-
-
-def clear_cell_numbering(cell) -> None:
-    for paragraph in cell.paragraphs:
-        clear_paragraph_numbering(paragraph)
-
-
-def rebuild_summary_table_rows(
-    table: Table,
-    result_lines: list[str],
-    advice_left: str,
-    advice_lines: list[str],
-) -> None:
-    if not table.rows:
-        return
-    result_template_tr = deepcopy(table.rows[0]._tr)
-    advice_template_tr = deepcopy(table.rows[1]._tr if len(table.rows) > 1 else table.rows[0]._tr)
-    clear_table_rows(table)
-
-    result_rows = build_summary_result_rows(result_lines)
-    for idx, (lines, bold_indices) in enumerate(result_rows):
-        row = append_table_row_from_template(table, result_template_tr)
-        row.cells[0].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-        row.cells[1].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-        set_cell_text_preserve(row.cells[0], "监测结果" if idx == 0 else "")
-        set_cell_paragraphs(row.cells[1], lines, bold_indices=bold_indices)
-        clear_cell_numbering(row.cells[0])
-        clear_cell_numbering(row.cells[1])
-
-    row = append_table_row_from_template(table, advice_template_tr)
-    row.cells[0].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-    row.cells[1].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-    set_cell_text_preserve(row.cells[0], advice_left or "建  议")
-    set_cell_paragraphs(row.cells[1], advice_lines or ["建议结合监测数据变化情况进行持续跟踪。"])
-    clear_cell_numbering(row.cells[0])
-    clear_cell_numbering(row.cells[1])
-    allow_table_rows_to_expand_and_split(table)
-    clear_repeat_table_headers(table)
 
 
 def set_table_autofit(table: Table, enabled: bool = True) -> None:
@@ -2877,69 +2634,6 @@ def add_section_content(
     )
 
 
-def update_summary_table(doc: Document, section_map: dict[str, SectionContent], data_acquisition_summary: str | None = None) -> None:
-    if len(doc.tables) <= 2:
-        return
-    summary_table = doc.tables[2]
-    advice_left = summary_table.cell(1, 0).text.strip() if len(summary_table.rows) > 1 else "建  议"
-    advice_lines = []
-    if len(summary_table.rows) > 1:
-        advice_lines = [
-            para.text.strip()
-            for para in summary_table.cell(1, 1).paragraphs
-            if para.text.strip()
-        ]
-    result_lines = [
-        "一、监测系统运行情况",
-        "",
-        "二、本月监测数据情况",
-        data_acquisition_summary or "本月监测数据获取情况详见正文。",
-        "三、监测数据分析结果",
-        "1、主桥环境与作用监测",
-        "1.1 温度监测",
-        section_map["main_env"].summary_sentence,
-        "1.2 湿度监测",
-        section_map["main_humidity"].summary_sentence,
-        "1.3 雨量监测",
-        section_map["main_rainfall"].summary_sentence,
-        "1.4 风向风速监测",
-        section_map["main_wind"].summary_sentence,
-        "1.5 地震动监测",
-        section_map["main_eq"].summary_sentence,
-        "1.6 车辆荷载监测",
-        section_map["main_traffic"].summary_sentence,
-        "2、主桥结构响应与结构变化监测",
-        "2.1 主梁挠度监测",
-        section_map["main_deflection"].summary_sentence,
-        "2.2 支座、梁段纵向位移监测",
-        section_map["main_bearing"].summary_sentence,
-        "2.3 拱顶、拱脚位移监测（GNSS）",
-        section_map["main_gnss"].summary_sentence,
-        "2.4 结构振动监测",
-        section_map["main_vibration"].summary_sentence,
-        "2.5 结构应变监测",
-        section_map["main_strain"].summary_sentence,
-        "2.6 裂缝监测",
-        section_map["main_crack"].summary_sentence,
-        "2.7 吊杆索力监测",
-        section_map["main_cable"].summary_sentence,
-        "3、北江滨匝道桥监测",
-        "3.1 结构应变监测",
-        section_map["north_strain"].summary_sentence,
-        "3.2 支座位移监测",
-        section_map["north_bearing"].summary_sentence,
-        "3.3 墩柱倾斜监测",
-        section_map["north_tilt"].summary_sentence,
-        "4、南江滨匝道桥监测",
-        "4.1 结构应变监测",
-        section_map["south_strain"].summary_sentence,
-        "4.2 支座位移监测",
-        section_map["south_bearing"].summary_sentence,
-        "4.3 墩柱倾斜监测",
-        section_map["south_tilt"].summary_sentence,
-    ]
-    rebuild_summary_table_rows(summary_table, result_lines, advice_left, advice_lines)
-
 
 def collect_missing_items(section_map: dict[str, SectionContent]) -> list[dict[str, str]]:
     items: list[dict[str, str]] = []
@@ -3011,6 +2705,7 @@ def build_report(
     period_label: str = "2026年3月份",
     monitoring_range: str = "2026.03.23~2026.03.31",
     report_date: str | None = None,
+    patrol_docx: Path | None = None,
     precheck_template: bool = True,
 ) -> Path:
     if report_date is None:
@@ -3044,7 +2739,7 @@ def build_report(
     for key, parent_heading, child_heading, _ in JLG_MONTHLY_SECTIONS:
         add_section_content(doc, parent_heading, child_heading, section_map[key], body_template, caption_templates, ctx.assets_dir)
     ensure_section_break_before_heading(doc, "桥梁人工巡查结果", chapter3_section_break, 1)
-    patrol_report_docx = resolve_jlj_patrol_report_docx(template)
+    patrol_report_docx = resolve_patrol_report_source(template, patrol_docx)
     if patrol_report_docx is not None:
         insert_docx_body_after_heading(
             doc,
@@ -3103,6 +2798,7 @@ def main() -> None:
         period_label=args.period_label,
         monitoring_range=args.monitoring_range,
         report_date=args.report_date,
+        patrol_docx=args.patrol_docx,
         precheck_template=not args.skip_template_precheck,
     )
     print(f"Jiulongjiang monthly report generated: {output}")

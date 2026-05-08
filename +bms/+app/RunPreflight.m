@@ -31,6 +31,7 @@ classdef RunPreflight
             result.module_config_warnings = {};
             result.result_artifact_preflight = {};
             result.wim_month_files = struct('month', {}, 'fmt', {}, 'bcp', {}, 'exists', {});
+            result.wim_preflight = struct();
 
             result = bms.app.RunPreflight.checkDateRange(result, startDate, endDate);
             result = bms.app.RunPreflight.checkRoot(result, root);
@@ -191,14 +192,16 @@ classdef RunPreflight
                 return;
             end
             try
-                wimSource = bms.data.DataSourceFactory.wim(root, cfg);
-                files = wimSource.monthFiles(startDate, endDate);
-                result.wim_month_files = files;
-                for i = 1:numel(files)
-                    if ~files(i).exists
-                        result.warnings{end+1} = sprintf('WIM input missing for %s: fmt=%s; bcp=%s', ...
-                            files(i).month, files(i).fmt, files(i).bcp); %#ok<AGROW>
-                    end
+                wimResult = bms.app.WimPreflight.check(root, startDate, endDate, cfg);
+                result.wim_preflight = wimResult;
+                if isfield(wimResult, 'month_files')
+                    result.wim_month_files = wimResult.month_files;
+                end
+                if isfield(wimResult, 'warnings') && ~isempty(wimResult.warnings)
+                    result.warnings = [result.warnings, wimResult.warnings];
+                end
+                if isfield(wimResult, 'errors') && ~isempty(wimResult.errors)
+                    result.errors = [result.errors, wimResult.errors];
                 end
             catch ME
                 result.warnings{end+1} = ['WIM preflight failed: ' ME.message];

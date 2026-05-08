@@ -121,6 +121,10 @@ function run_gui()
     clearBtn.Layout.Row=14; clearBtn.Layout.Column=4;
     cbWarn = uicheckbox(gl,'Text','显示警告','Value',showWarningsDefault);
     cbWarn.Layout.Row=14; cbWarn.Layout.Column=3;
+    refreshBtn = uibutton(gl,'Text','刷新状态','ButtonPushedFcn',@(btn,~) refresh_result_summary(true));
+    refreshBtn.Layout.Row=14; refreshBtn.Layout.Column=1;
+    cleanPreviewBtn = uibutton(gl,'Text','清理预览','ButtonPushedFcn',@(btn,~) preview_cleanup_generated());
+    cleanPreviewBtn.Layout.Row=14; cleanPreviewBtn.Layout.Column=2;
 
     statusLbl = uilabel(gl,'Text','就绪','FontColor',primaryBlue); statusLbl.Layout.Row=15; statusLbl.Layout.Column=[1 4];
     summaryTable = uitable(gl,'Data',cell(0,7),'ColumnName',{'模块','状态','耗时(s)','统计','图片','错误类型','消息'},'RowName',{});
@@ -354,6 +358,23 @@ function run_gui()
     function refresh_result_summary(logDetails)
         if nargin < 1, logDetails = false; end
         statusPanel.refreshFromRoot(rootEdit.Value, logDetails);
+    end
+
+    function preview_cleanup_generated()
+        try
+            result = bms.data.ArtifactCleaner.clean(rootEdit.Value, 'images', true);
+            n = numel(result.deleted);
+            addLog(sprintf('清理预览：图片/fig/emf 共 %d 个；仅预览，不删除。', n));
+            maxShow = min(n, 8);
+            for ip = 1:maxShow
+                addLog(['  ' result.deleted{ip}]);
+            end
+            if n > maxShow
+                addLog(sprintf('  ... 还有 %d 个', n - maxShow));
+            end
+        catch MEclean
+            addLog(['清理预览失败: ' MEclean.message]);
+        end
     end
 
     function onStop()

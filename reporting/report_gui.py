@@ -276,6 +276,7 @@ class ReportWorker(QObject):
                     period_label=self.period_label,
                     monitoring_range=self.monitoring_range,
                     report_date=self.report_date,
+                    patrol_docx=None,
                 )
                 manifest_path = find_latest_report_build_manifest(self.output_dir or (self.result_root / "自动报告"))
                 missing = []
