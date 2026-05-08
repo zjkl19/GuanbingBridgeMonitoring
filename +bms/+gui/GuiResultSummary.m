@@ -36,11 +36,12 @@ classdef GuiResultSummary
             elseif isfield(ctx.manifest, 'artifact_count') && isnumeric(ctx.manifest.artifact_count)
                 summary.artifact_count = double(ctx.manifest.artifact_count);
             end
-            summary.module_rows = bms.gui.GuiResultSummary.buildModuleRows(ctx.manifest);
+            detailRows = bms.gui.GuiResultSummary.buildModuleRows(ctx.manifest);
             summary.preflight_warning_count = bms.gui.GuiResultSummary.countPreflightWarnings(ctx.manifest);
             summary.missing_stats_count = bms.gui.GuiResultSummary.countMissingStats(ctx.manifest);
             summary.possible_stale_count = bms.gui.GuiResultSummary.countPossibleStale(ctx.manifest);
             summary.lines = bms.gui.GuiResultSummary.buildLines(summary);
+            summary.module_rows = [bms.gui.GuiResultSummary.summaryRow(summary); detailRows];
         end
 
         function lines = buildLines(summary)
@@ -97,6 +98,16 @@ classdef GuiResultSummary
                 message = bms.gui.GuiResultSummary.shortText(bms.gui.GuiResultSummary.fieldText(rec, 'message', ''), 120);
                 rows(end+1, :) = {label, status, elapsed, statsFlag, figCount, errorType, message}; %#ok<AGROW>
             end
+        end
+
+        function row = summaryRow(summary)
+            c = summary.counts;
+            statsText = sprintf('missing stats=%d', summary.missing_stats_count);
+            artifactText = sprintf('artifacts=%d', summary.artifact_count);
+            errorText = sprintf('preflight=%d, stale=%d', summary.preflight_warning_count, summary.possible_stale_count);
+            msg = sprintf('ok=%d, fail=%d, skip=%d, missing=%d, other=%d; %s', ...
+                c.ok, c.fail, c.skip, c.missing, c.other, summary.path);
+            row = {'Summary', summary.status, '', statsText, artifactText, errorText, msg};
         end
 
         function txt = fieldText(s, field, fallback)

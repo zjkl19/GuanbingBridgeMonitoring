@@ -61,6 +61,33 @@ classdef ArtifactCleaner
             result = bms.data.ArtifactCleaner.deleteFiles(root, files, dryRun);
         end
 
+        function summary = plan(root, category, recursive)
+            if nargin < 2 || isempty(category), category = 'all'; end
+            if nargin < 3, recursive = true; end
+            files = bms.data.ArtifactCleaner.list(root, category, recursive);
+            totalBytes = 0;
+            rows = {};
+            for i = 1:numel(files)
+                info = dir(files{i});
+                bytes = 0;
+                modified = '';
+                if ~isempty(info)
+                    bytes = double(info(1).bytes);
+                    modified = datestr(info(1).datenum, 'yyyy-mm-dd HH:MM:ss');
+                end
+                totalBytes = totalBytes + bytes;
+                rows(end+1, :) = {files{i}, bytes, modified}; %#ok<AGROW>
+            end
+            summary = struct( ...
+                'root', char(string(root)), ...
+                'category', char(string(category)), ...
+                'recursive', logical(recursive), ...
+                'count', numel(files), ...
+                'bytes', totalBytes, ...
+                'files', {files}, ...
+                'rows', {rows});
+        end
+
         function p = canonical(pathValue)
             p = char(java.io.File(char(pathValue)).getCanonicalPath());
         end

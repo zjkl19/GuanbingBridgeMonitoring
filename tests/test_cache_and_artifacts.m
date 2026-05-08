@@ -60,6 +60,10 @@ classdef test_cache_and_artifacts < matlab.unittest.TestCase
 
             files = bms.data.ArtifactCleaner.list(tc.TempDir, 'images', true);
             tc.verifyEqual(files, {img});
+            plan = bms.data.ArtifactCleaner.plan(tc.TempDir, 'images', true);
+            tc.verifyEqual(plan.count, 1);
+            tc.verifyGreaterThanOrEqual(plan.bytes, 0);
+            tc.verifyEqual(plan.files, {img});
             dry = bms.data.ArtifactCleaner.deleteFiles(tc.TempDir, files, true);
             tc.verifyTrue(isfile(img));
             tc.verifyEqual(numel(dry.deleted), 1);

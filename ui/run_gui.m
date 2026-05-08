@@ -362,9 +362,10 @@ function run_gui()
 
     function preview_cleanup_generated()
         try
+            plan = bms.data.ArtifactCleaner.plan(rootEdit.Value, 'images', true);
             result = bms.data.ArtifactCleaner.clean(rootEdit.Value, 'images', true);
             n = numel(result.deleted);
-            addLog(sprintf('清理预览：图片/fig/emf 共 %d 个；仅预览，不删除。', n));
+            addLog(sprintf('Cleanup preview: images/figures %d files, %.2f MB; dry-run only.', n, double(plan.bytes) / 1024 / 1024));
             maxShow = min(n, 8);
             for ip = 1:maxShow
                 addLog(['  ' result.deleted{ip}]);

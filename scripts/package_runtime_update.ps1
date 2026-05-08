@@ -10,6 +10,26 @@ function Write-Step($Message) {
     Write-Host "[package] $Message" -ForegroundColor Cyan
 }
 
+function Get-GitValue($Arguments) {
+    try {
+        return ((& git @Arguments 2>$null) -join "`n").Trim()
+    } catch {
+        return ""
+    }
+}
+
+function Get-FileSummary($Root) {
+    $files = @(Get-ChildItem -LiteralPath $Root -Recurse -File -Force)
+    $bytes = 0
+    foreach ($file in $files) {
+        $bytes += [int64]$file.Length
+    }
+    return [ordered]@{
+        file_count = $files.Count
+        total_bytes = $bytes
+    }
+}
+
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 if ([string]::IsNullOrWhiteSpace($Version)) {
@@ -96,19 +116,41 @@ foreach ($file in $rootFiles) {
     }
 }
 
+$stageSummary = Get-FileSummary -Root $stage
 $manifest = [ordered]@{
     package_version = $Version
     generated_at = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
     repo = $repo
+    git_branch = Get-GitValue -Arguments @("rev-parse", "--abbrev-ref", "HEAD")
+    git_commit = Get-GitValue -Arguments @("rev-parse", "--short", "HEAD")
+    include_dirs = $includeDirs
+    root_files = $rootFiles
+    excluded_dir_names = $excludeDirNames
+    file_count = $stageSummary.file_count
+    total_bytes = $stageSummary.total_bytes
     include_report_builder_dist = [bool]$IncludeReportBuilderDist
     note = "Data directories are excluded. Copy this package over source code only."
 }
-$manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $stage "package_manifest.json") -Encoding UTF8
+$manifestPath = Join-Path $stage "package_manifest.json"
+$manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 
 $zip = Join-Path $outRoot "BridgeMonitoringRuntime_$Version.zip"
 if (Test-Path $zip) {
     Remove-Item -LiteralPath $zip -Force
 }
 Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip -Force
+$zipInfo = Get-Item -LiteralPath $zip
+$releaseManifest = [ordered]@{
+    package_version = $Version
+    generated_at = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    zip_path = $zipInfo.FullName
+    zip_bytes = [int64]$zipInfo.Length
+    stage_dir = $stage
+    stage_file_count = $stageSummary.file_count
+    stage_total_bytes = $stageSummary.total_bytes
+    git_branch = $manifest.git_branch
+    git_commit = $manifest.git_commit
+}
+$releaseManifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $outRoot "release_manifest_$Version.json") -Encoding UTF8
 Write-Step "Created $zip"
 Write-Step "Stage directory: $stage"

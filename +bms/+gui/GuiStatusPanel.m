@@ -78,6 +78,7 @@ classdef GuiStatusPanel < handle
 
         function applySummary(obj, summary, resultRoot)
             if isstruct(summary) && isfield(summary, 'available') && summary.available
+                obj.setSummaryStatus(summary);
                 rows = summary.module_rows;
                 if isempty(rows)
                     rows = {'未发现模块记录', char(string(summary.status)), '', '', '', '', char(string(summary.path))};
@@ -86,6 +87,7 @@ classdef GuiStatusPanel < handle
                 return;
             end
             if nargin < 3 || isempty(resultRoot), resultRoot = ''; end
+            obj.setStatus('No analysis manifest', [0.55 0.35 0]);
             obj.SummaryTable.Data = {'未找到运行结果', 'missing', '', '', '', '', ...
                 ['未找到 analysis_manifest_*.json: ' char(string(resultRoot))]};
         end
@@ -105,6 +107,24 @@ classdef GuiStatusPanel < handle
             obj.StatusLabel.Text = char(string(message));
             obj.StatusLabel.FontColor = color;
             drawnow;
+        end
+
+        function setSummaryStatus(obj, summary)
+            status = char(string(summary.status));
+            switch lower(status)
+                case {'ok', 'success'}
+                    color = [0 0.5 0];
+                case {'failed', 'fail', 'error'}
+                    color = [0.8 0 0];
+                case {'warning'}
+                    color = [0.75 0.45 0];
+                otherwise
+                    color = obj.PrimaryColor;
+            end
+            counts = summary.counts;
+            msg = sprintf('Manifest %s: ok=%d, fail=%d, missing=%d, artifacts=%d', ...
+                status, counts.ok, counts.fail, counts.missing, summary.artifact_count);
+            obj.setStatus(msg, color);
         end
     end
 

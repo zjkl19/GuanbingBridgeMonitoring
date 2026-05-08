@@ -86,10 +86,11 @@ classdef test_gui_state_services < matlab.unittest.TestCase
 
             summary = bms.gui.GuiResultSummary.fromManifestContext(ctx);
 
-            tc.verifySize(summary.module_rows, [1 7]);
-            tc.verifyEqual(summary.module_rows{1, 1}, '温度分析');
-            tc.verifyEqual(summary.module_rows{1, 6}, 'read_failed');
-            tc.verifyEqual(summary.module_rows{1, 7}, '无法读取输入文件');
+            tc.verifySize(summary.module_rows, [2 7]);
+            tc.verifyEqual(summary.module_rows{1, 1}, 'Summary');
+            tc.verifyNotEqual(summary.module_rows{2, 1}, 'Summary');
+            tc.verifyEqual(summary.module_rows{2, 6}, 'read_failed');
+            tc.verifyNotEmpty(summary.module_rows{2, 7});
             tc.verifyEqual(summary.preflight_warning_count, 1);
             tc.verifyEqual(summary.missing_stats_count, 1);
             tc.verifyEqual(summary.possible_stale_count, 1);

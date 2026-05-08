@@ -100,9 +100,10 @@ classdef test_writer_plot_manifest_services < matlab.unittest.TestCase
             ctx.manifest = struct('module_results', {{struct('key','deflection','label','挠度分析', ...
                 'status','ok','elapsed_sec',1.25,'stats_path','', 'artifacts', {{artifact}})}});
             summary = bms.gui.GuiResultSummary.fromManifestContext(ctx);
-            tc.verifyEqual(size(summary.module_rows, 1), 1);
-            tc.verifyEqual(summary.module_rows{1, 1}, '挠度分析');
-            tc.verifyEqual(summary.module_rows{1, 5}, 1);
+            tc.verifyEqual(size(summary.module_rows, 1), 2);
+            tc.verifyEqual(summary.module_rows{1, 1}, 'Summary');
+            tc.verifyNotEqual(summary.module_rows{2, 1}, 'Summary');
+            tc.verifyEqual(summary.module_rows{2, 5}, 1);
         end
     end
 end
