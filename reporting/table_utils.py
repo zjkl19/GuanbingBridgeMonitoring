@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Mm, Pt
@@ -11,6 +11,18 @@ from docx.table import Table
 
 
 DXA_PER_MM = 56.6929
+
+
+def iter_unique_cells(table: Table):
+    """Yield each physical cell once, even when Word exposes merged cells repeatedly."""
+    seen: set[int] = set()
+    for row in table.rows:
+        for cell in row.cells:
+            key = id(cell._tc)
+            if key in seen:
+                continue
+            seen.add(key)
+            yield cell
 
 
 def style_table(
@@ -127,6 +139,49 @@ def set_table_font_size(table: Table, size_pt: int | float) -> None:
             for para in cell.paragraphs:
                 for run in para.runs:
                     run.font.size = Pt(size_pt)
+
+
+def set_cell_line_spacing(
+    cell,
+    *,
+    line_spacing: float = 1.5,
+    rule=WD_LINE_SPACING.MULTIPLE,
+) -> None:
+    for paragraph in cell.paragraphs:
+        paragraph.paragraph_format.line_spacing = line_spacing
+        paragraph.paragraph_format.line_spacing_rule = rule
+
+
+def set_table_line_spacing(
+    table: Table,
+    *,
+    line_spacing: float = 1.5,
+    rule=WD_LINE_SPACING.MULTIPLE,
+) -> None:
+    for cell in iter_unique_cells(table):
+        set_cell_line_spacing(cell, line_spacing=line_spacing, rule=rule)
+
+
+def set_cell_alignment(cell, alignment=WD_ALIGN_PARAGRAPH.CENTER) -> None:
+    for paragraph in cell.paragraphs:
+        paragraph.alignment = alignment
+
+
+def apply_report_table_format(
+    table: Table,
+    *,
+    line_spacing: float | None = None,
+    align_center: bool = True,
+    vertical_center: bool = True,
+) -> None:
+    """Apply common Word table formatting without changing table contents."""
+    for cell in iter_unique_cells(table):
+        if vertical_center:
+            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        if align_center:
+            set_cell_alignment(cell, WD_ALIGN_PARAGRAPH.CENTER)
+        if line_spacing is not None:
+            set_cell_line_spacing(cell, line_spacing=line_spacing)
 
 
 def fill_table(

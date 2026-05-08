@@ -55,6 +55,7 @@ from report_artifact_resolver import (
     find_latest_image_patterns as lookup_latest_image_patterns,
     find_latest_point_image_patterns as lookup_latest_point_image_patterns,
 )
+from report_qc import check_jlj_report, write_report_qc_report
 from table_utils import (
     set_header_bold,
     set_table_auto_width as shared_set_table_auto_width,
@@ -2873,6 +2874,19 @@ def build_report(
     doc.save(str(output_docx))
     clean_jlj_report_xml_text(output_docx)
     update_fields_with_word(output_docx)
+    qc_paths: dict[str, str] = {}
+    qc_warnings: list[str] = []
+    try:
+        qc_result = check_jlj_report(output_docx)
+        qc_txt, qc_json = write_report_qc_report(qc_result, ctx.output_dir, timestamp=timestamp)
+        qc_paths = {"report_qc_txt": str(qc_txt), "report_qc_json": str(qc_json), "report_qc_status": qc_result.status}
+        qc_warnings = [
+            f"{issue.code}: {issue.message}"
+            for issue in qc_result.issues
+            if issue.severity == "warning"
+        ]
+    except Exception as exc:
+        qc_warnings = [f"report_qc_failed: {exc}"]
     missing_items = collect_missing_items(section_map)
     analysis_context = ctx.analysis_context()
     missing_items.extend(missing_module_summary_items(analysis_context))
@@ -2882,7 +2896,8 @@ def build_report(
         output_docx=output_docx,
         timestamp=timestamp,
         missing=missing_items,
-        extra={"section_keys": list(section_map.keys())},
+        warnings=qc_warnings,
+        extra={"section_keys": list(section_map.keys()), **qc_paths},
         filename_prefix="jlj_report_build_manifest",
     )
     write_missing_summary(

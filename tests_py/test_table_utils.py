@@ -10,8 +10,11 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH  # noqa: E402
 from docx.oxml.ns import qn  # noqa: E402
 
 from table_utils import (  # noqa: E402
+    apply_report_table_format,
     fill_table,
+    iter_unique_cells,
     remove_table_borders,
+    set_cell_line_spacing,
     set_header_bold,
     set_table_autofit,
     set_table_borders,
@@ -57,6 +60,22 @@ class TestTableUtils(unittest.TestCase):
         self.assertEqual(borders.find(qn("w:top")).get(qn("w:sz")), "12")
         remove_table_borders(table)
         self.assertEqual(borders.find(qn("w:top")).get(qn("w:val")), "nil")
+
+    def test_line_spacing_helpers_handle_merged_cells_once(self):
+        doc = Document()
+        table = doc.add_table(rows=2, cols=2)
+        table.cell(0, 0).text = "A"
+        table.cell(0, 1).text = "B"
+        table.cell(1, 0).merge(table.cell(1, 1)).text = "merged"
+
+        cells = list(iter_unique_cells(table))
+        self.assertEqual(len(cells), 3)
+        set_cell_line_spacing(table.cell(0, 0), line_spacing=1.5)
+        self.assertEqual(table.cell(0, 0).paragraphs[0].paragraph_format.line_spacing, 1.5)
+
+        apply_report_table_format(table, line_spacing=1.5)
+        self.assertEqual(table.cell(1, 0).paragraphs[0].paragraph_format.line_spacing, 1.5)
+        self.assertEqual(table.cell(1, 0).vertical_alignment, WD_CELL_VERTICAL_ALIGNMENT.CENTER)
 
 
 if __name__ == "__main__":

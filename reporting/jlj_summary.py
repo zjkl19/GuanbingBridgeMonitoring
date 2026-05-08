@@ -6,13 +6,15 @@ from typing import Any, Mapping
 
 from docx import Document
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 
 from docx_table_utils import find_first_row_index_by_first_cell, find_summary_table, table_has_first_cell
 from docx_utils import set_cell_paragraphs, set_cell_text_preserve
+from table_utils import iter_unique_cells, set_cell_line_spacing
+from template_anchors import JLJ_SUMMARY_TABLE, find_table_after_anchor
 
 
 def is_summary_table(table: Table) -> bool:
@@ -158,9 +160,8 @@ def clear_cell_numbering(cell) -> None:
 
 
 def apply_summary_paragraph_format(cell) -> None:
+    set_cell_line_spacing(cell, line_spacing=1.5)
     for paragraph in cell.paragraphs:
-        paragraph.paragraph_format.line_spacing = 1.5
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
         text = paragraph.text.strip()
         if text == "（转下页）":
             paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -172,14 +173,8 @@ def apply_summary_paragraph_format(cell) -> None:
 
 
 def apply_summary_table_line_spacing(table: Table) -> None:
-    seen: set[int] = set()
-    for row in table.rows:
-        for cell in row.cells:
-            key = id(cell._tc)
-            if key in seen:
-                continue
-            seen.add(key)
-            apply_summary_paragraph_format(cell)
+    for cell in iter_unique_cells(table):
+        apply_summary_paragraph_format(cell)
 
 
 def rebuild_summary_table_rows(
@@ -223,6 +218,9 @@ def rebuild_summary_table_rows(
 
 
 def find_cover_summary_table(doc: Document) -> Table | None:
+    anchored = find_table_after_anchor(doc, JLJ_SUMMARY_TABLE)
+    if anchored is not None and find_first_row_index_by_first_cell(anchored, "监测结果") is not None:
+        return anchored
     for table in doc.tables:
         if len(table.columns) < 2:
             continue
