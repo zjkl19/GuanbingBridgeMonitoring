@@ -30,7 +30,7 @@ def _default_hongtang_template(repo_root: Path) -> Path:
 
 
 def _default_jlj_template(repo_root: Path) -> Path:
-    return repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_修订5.docx"
+    return repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_0508.docx"
 
 
 def _default_guanbing_template(repo_root: Path) -> Path:

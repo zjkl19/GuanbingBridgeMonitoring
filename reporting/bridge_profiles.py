@@ -108,7 +108,7 @@ def fallback_profiles() -> list[BridgeProfile]:
             default_data_root=r"E:\九龙江数据\2026年3月",
             data_layout="jlj_daily_export",
             report_gui_type="jlj_monthly",
-            report_template="reports/九龙江大桥健康监测2026年3月份月报_修订5.docx",
+            report_template="reports/九龙江大桥健康监测2026年3月份月报_0508.docx",
         ),
     ]
 

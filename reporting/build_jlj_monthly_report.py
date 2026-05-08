@@ -5,11 +5,13 @@ import json
 import math
 import re
 import subprocess
+import tempfile
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Callable, Iterable
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
@@ -65,6 +67,17 @@ from table_utils import (
 )
 from template_precheck import raise_for_template
 
+
+JLJ_REPORT_REMOVE_PHRASES = (
+    "\u5efa\u8bae\u7ed3\u5408\u539f\u59cb\u6570\u636e\u548c\u4f20\u611f\u5668\u72b6\u6001\u8fdb\u4e00\u6b65\u590d\u6838",
+    "\u5efa\u8bae\u7ed3\u5408\u539f\u59cb\u6570\u636e\u8fdb\u4e00\u6b65\u590d\u6838",
+    "\u9700\u7ed3\u5408\u539f\u59cb\u6570\u636e\u548c\u73b0\u573a\u8fd0\u7ef4\u8bb0\u5f55\u590d\u6838",
+)
+
+JLJ_REPORT_REMOVE_SENTENCES = (
+    "\u5f53\u524d\u540a\u6746\u53c2\u6570\u914d\u7f6e\u5c1a\u672a\u5b8c\u6574\u6821\u6838\uff0c\u7d22\u529b\u6362\u7b97\u7ed3\u679c\u6682\u4ec5\u7528\u4e8e\u65f6\u7a0b\u5c55\u793a\u3002",
+    "\u5f53\u524d\u540a\u6746\u53c2\u6570\u914d\u7f6e\u5c1a\u672a\u5b8c\u6574\u6821\u6838\uff0c\u7d22\u529b\u6362\u7b97\u7ed3\u679c\u6682\u4ec5\u7528\u4e8e\u65f6\u7a0b\u5c55\u793a",
+)
 
 @dataclass
 class ImageItem:
@@ -127,6 +140,42 @@ class SectionBlock:
     table_font_size_pt: int | None = None
 
 
+def clean_jlj_report_xml_text(docx_path: Path) -> None:
+    """Remove review-reminder phrases left in manually adjusted templates."""
+    path = Path(docx_path)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx", dir=str(path.parent)) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        changed = False
+        with ZipFile(path, "r") as src, ZipFile(tmp_path, "w", ZIP_DEFLATED) as dst:
+            for info in src.infolist():
+                data = src.read(info.filename)
+                if info.filename.startswith("word/") and info.filename.endswith(".xml"):
+                    text = data.decode("utf-8", errors="ignore")
+                    original = text
+                    comma = "\uff0c"
+                    semicolon = "\uff1b"
+                    period = "\u3002"
+                    for phrase in JLJ_REPORT_REMOVE_PHRASES:
+                        text = text.replace(f"{comma}{phrase}{period}", period)
+                        text = text.replace(f"{semicolon}{phrase}{period}", period)
+                        text = text.replace(f"{phrase}{period}", "")
+                        text = text.replace(phrase, "")
+                    for sentence in JLJ_REPORT_REMOVE_SENTENCES:
+                        text = text.replace(sentence, "")
+                    if text != original:
+                        data = text.encode("utf-8")
+                        changed = True
+                dst.writestr(info, data)
+        if changed:
+            tmp_path.replace(path)
+        else:
+            tmp_path.unlink(missing_ok=True)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
 JLG_REPORT_LIMITS = {
     "wind_10min_avg_mps": 25.0,
     "eq_level2_mps2": 1.5,
@@ -185,7 +234,7 @@ JLG_MONTHLY_SECTIONS: list[tuple[str, str, str, str]] = [
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
-    default_template = repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_0506.docx"
+    default_template = repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_0508.docx"
     parser = argparse.ArgumentParser(description="Build Jiulongjiang monthly monitoring report.")
     parser.add_argument("--template", type=Path, default=default_template, help="DOCX template path.")
     parser.add_argument("--config", type=Path, default=repo_root / "config" / "jiulongjiang_config.json", help="Bridge config JSON path.")
@@ -512,7 +561,7 @@ def summarize_jlj_data_acquisition(rows: list[dict[str, str]]) -> str:
     base = f"本月按监测项目统计设计测点共{total_design}项次，实际获取{total_acquired}项次，整体获取率约{rate:.1f}%。"
     if not incomplete:
         return base + "各监测项目均获取到有效原始记录。"
-    return base + "其中" + "、".join(incomplete[:6]) + ("等项目未完全获取。" if len(incomplete) > 6 else "，需结合原始数据和现场运维记录复核。")
+    return base + "其中" + "、".join(incomplete[:6]) + ("等项目未完全获取。" if len(incomplete) > 6 else "。")
 
 
 def apply_health_status_section(doc: Document, cfg: dict, result_root: Path, monitoring_range: str) -> None:
@@ -1095,8 +1144,8 @@ def describe_two_level_upper_status(
     if value <= level2:
         return f"未超过二级预警阈值{level2_text}，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
     if value <= level3:
-        return f"超过二级预警阈值{level2_text}，未达到三级预警阈值{level3_text}，建议结合原始数据进一步复核。"
-    return f"超过三级预警阈值{level3_text}，建议结合原始数据进一步复核。"
+        return f"超过二级预警阈值{level2_text}，未达到三级预警阈值{level3_text}。"
+    return f"超过三级预警阈值{level3_text}。"
 
 
 def describe_threshold_status(
@@ -1114,7 +1163,7 @@ def describe_threshold_status(
     limit_text = format_number_fixed(level, decimals, unit)
     exceeded = value >= level if direction == "upper" else value <= level
     if exceeded:
-        return f"{metric_name}为{format_number_fixed(value, decimals, unit)}，超过{level_name}预警阈值{limit_text}，建议结合原始数据和传感器状态进一步复核。"
+        return f"{metric_name}为{format_number_fixed(value, decimals, unit)}，超过{level_name}预警阈值{limit_text}。"
     return f"{metric_name}为{format_number_fixed(value, decimals, unit)}，未超过{level_name}预警阈值{limit_text}，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
 
 
@@ -1136,18 +1185,66 @@ def describe_two_level_range_status(
     if lower2 is not None and upper2 is not None and (lo < lower2 or hi > upper2):
         return (
             f"{subject}超过{second_level_name}预警阈值"
-            f"（{format_number_fixed(lower2, decimals, unit)}~{format_number_fixed(upper2, decimals, unit)}），"
-            "建议结合原始数据和传感器状态进一步复核。"
+            f"（{format_number_fixed(lower2, decimals, unit)}~{format_number_fixed(upper2, decimals, unit)}）。"
+            ""
         )
     if lo < lower1 or hi > upper1:
         return (
             f"{subject}超过{first_level_name}预警阈值"
-            f"（{format_number_fixed(lower1, decimals, unit)}~{format_number_fixed(upper1, decimals, unit)}），"
-            "建议结合原始数据和传感器状态进一步复核。"
+            f"（{format_number_fixed(lower1, decimals, unit)}~{format_number_fixed(upper1, decimals, unit)}）。"
+            ""
         )
     return (
         f"{subject}未超过{first_level_name}预警阈值"
         f"（{format_number_fixed(lower1, decimals, unit)}~{format_number_fixed(upper1, decimals, unit)}），"
+        "处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
+    )
+
+
+def describe_two_level_extreme_status(
+    lo: float | None,
+    hi: float | None,
+    lower1: float | None,
+    upper1: float | None,
+    lower2: float | None,
+    upper2: float | None,
+    subject: str,
+    unit: str,
+    decimals: int,
+    first_level_name: str = "一级",
+    second_level_name: str = "二级",
+) -> str:
+    if lo is None or hi is None or lower1 is None or upper1 is None:
+        return ""
+
+    def range_text(lower: float | None, upper: float | None) -> str:
+        if lower is None or upper is None:
+            return ""
+        return f"（{format_number_fixed(lower, decimals, unit)}~{format_number_fixed(upper, decimals, unit)}）"
+
+    if lower2 is not None and upper2 is not None:
+        if hi > upper2:
+            return (
+                f"{subject}最大值为{format_number_fixed(hi, decimals, unit)}，超过{second_level_name}预警阈值上限"
+                f"{format_number_fixed(upper2, decimals, unit)}{range_text(lower2, upper2)}。"
+            )
+        if lo < lower2:
+            return (
+                f"{subject}最小值为{format_number_fixed(lo, decimals, unit)}，低于{second_level_name}预警阈值下限"
+                f"{format_number_fixed(lower2, decimals, unit)}{range_text(lower2, upper2)}。"
+            )
+    if hi > upper1:
+        return (
+            f"{subject}最大值为{format_number_fixed(hi, decimals, unit)}，超过{first_level_name}预警阈值上限"
+            f"{format_number_fixed(upper1, decimals, unit)}{range_text(lower1, upper1)}。"
+        )
+    if lo < lower1:
+        return (
+            f"{subject}最小值为{format_number_fixed(lo, decimals, unit)}，低于{first_level_name}预警阈值下限"
+            f"{format_number_fixed(lower1, decimals, unit)}{range_text(lower1, upper1)}。"
+        )
+    return (
+        f"{subject}未超过{first_level_name}预警阈值{range_text(lower1, upper1)}，"
         "处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
     )
 
@@ -1191,11 +1288,11 @@ def describe_range_warn_status(
     lower2_text = format_number_fixed(lower2, decimals, unit)
     upper2_text = format_number_fixed(upper2, decimals, unit)
     if lower3 is not None and upper3 is not None and (lo < lower3 or hi > upper3):
-        return f"{subject}超过三级预警阈值（{format_number_fixed(lower3, decimals, unit)}~{format_number_fixed(upper3, decimals, unit)}），建议结合原始数据进一步复核。"
+        return f"{subject}超过三级预警阈值（{format_number_fixed(lower3, decimals, unit)}~{format_number_fixed(upper3, decimals, unit)}）。"
     if lo < lower2 or hi > upper2:
         if lower3 is not None and upper3 is not None:
-            return f"{subject}超过二级预警阈值（{lower2_text}~{upper2_text}），未达到三级预警阈值，建议结合原始数据进一步复核。"
-        return f"{subject}超过二级预警阈值（{lower2_text}~{upper2_text}），建议结合原始数据进一步复核。"
+            return f"{subject}超过二级预警阈值（{lower2_text}~{upper2_text}），未达到三级预警阈值。"
+        return f"{subject}超过二级预警阈值（{lower2_text}~{upper2_text}）。"
     return f"{subject}未超过二级预警阈值（{lower2_text}~{upper2_text}），处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
 
 
@@ -1488,7 +1585,7 @@ def build_temperature_section(cfg: dict, result_root: Path, stats_root: Path, fa
     box_range = format_range(numeric_min(box_rows, "Min"), numeric_max(box_rows, "Max"), 1, "℃") if box_rows else "--"
     inner_range = format_range(numeric_min(inner_rows, "Min"), numeric_max(inner_rows, "Max"), 1, "℃") if inner_rows else "--"
     env_range = format_range(numeric_min(env_rows, "Min"), numeric_max(env_rows, "Max"), 1, "℃") if env_rows else "--"
-    component_rows = arch_rows + box_rows + inner_rows
+    component_rows = arch_rows + box_rows
     temp_status_parts: list[str] = []
     if deck_rows:
         temp_status_parts.append(
@@ -1503,7 +1600,7 @@ def build_temperature_section(cfg: dict, result_root: Path, stats_root: Path, fa
         )
     if component_rows:
         temp_status_parts.append(
-            describe_two_level_range_status(
+            describe_two_level_extreme_status(
                 numeric_min(component_rows, "Min"),
                 numeric_max(component_rows, "Max"),
                 -7.0,
@@ -1516,9 +1613,25 @@ def build_temperature_section(cfg: dict, result_root: Path, stats_root: Path, fa
                 first_level_name="一级",
             )
         )
+    if inner_rows:
+        temp_status_parts.append(
+            describe_two_level_extreme_status(
+                numeric_min(inner_rows, "Min"),
+                numeric_max(inner_rows, "Max"),
+                0.0,
+                40.0,
+                -2.0,
+                46.0,
+                "主梁内温度",
+                "℃",
+                1,
+                first_level_name="一级",
+                second_level_name="二级",
+            )
+        )
     if env_rows:
         temp_status_parts.append(
-            describe_two_level_range_status(
+            describe_two_level_extreme_status(
                 numeric_min(env_rows, "Min"),
                 numeric_max(env_rows, "Max"),
                 0.0,
@@ -2269,7 +2382,7 @@ def build_cable_section(cfg: dict, result_root: Path, stats_root: Path, fallback
     narrative = (
         f"选取典型监测数据进行分析。吊杆振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，"
         f"10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}，{rms_status}"
-        "当前吊杆参数配置尚未完整校核，索力换算结果暂仅用于时程展示。"
+        ""
     )
     summary = f"吊杆振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}，{rms_status}"
     columns = [
@@ -2758,6 +2871,7 @@ def build_report(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_docx = (ctx.output_dir / f"{template.stem}_{period_label}_自动生成_{timestamp}.docx").resolve()
     doc.save(str(output_docx))
+    clean_jlj_report_xml_text(output_docx)
     update_fields_with_word(output_docx)
     missing_items = collect_missing_items(section_map)
     analysis_context = ctx.analysis_context()
