@@ -18,10 +18,13 @@ except Exception:  # pragma: no cover - package import fallback
     from .image_block_utils import count_docx_images
 
 
-FORBIDDEN_REVIEW_PHRASES = (
+COMMON_FORBIDDEN_REVIEW_PHRASES = (
     "需结合原始数据和现场运维记录复核",
     "建议结合原始数据和传感器状态进一步复核",
     "建议结合原始数据进一步复核",
+)
+
+JLJ_FORBIDDEN_REVIEW_PHRASES = COMMON_FORBIDDEN_REVIEW_PHRASES + (
     "当前吊杆参数配置尚未完整校核",
     "索力换算结果暂仅用于时程展示",
 )
@@ -58,6 +61,50 @@ def _all_doc_text(doc) -> str:
     return "\n".join(parts)
 
 
+def _base_doc_summary(path: Path, doc) -> dict[str, Any]:
+    return {
+        "exists": path.exists(),
+        "table_count": len(doc.tables),
+        "image_count": count_docx_images(path),
+        "paragraph_count": len(doc.paragraphs),
+    }
+
+
+def _check_common_report(
+    *,
+    kind: str,
+    docx_path: Path | str,
+    forbidden_phrases: tuple[str, ...] = COMMON_FORBIDDEN_REVIEW_PHRASES,
+    require_images: bool = True,
+) -> tuple[Path, Any | None, str, list[ReportQcIssue], dict[str, Any]]:
+    path = Path(docx_path)
+    issues: list[ReportQcIssue] = []
+    summary: dict[str, Any] = {"exists": path.exists()}
+    if not path.exists():
+        issues.append(ReportQcIssue("missing-file", "error", f"报告文件不存在: {path}"))
+        return path, None, "", issues, summary
+
+    doc = Document(str(path))
+    text = _all_doc_text(doc)
+    summary.update(_base_doc_summary(path, doc))
+
+    for phrase in forbidden_phrases:
+        count = text.count(phrase)
+        if count:
+            issues.append(
+                ReportQcIssue(
+                    "forbidden-review-phrase",
+                    "warning",
+                    f"报告仍包含需删除的复核/临时说明: {phrase}",
+                    f"count={count}",
+                )
+            )
+
+    if require_images and summary["image_count"] <= 0:
+        issues.append(ReportQcIssue("no-images", "warning", "报告中未检测到图片。"))
+    return path, doc, text, issues, summary
+
+
 def _find_front_cover_summary_table(doc) -> tuple[int | None, Table | None]:
     for idx, table in enumerate(doc.tables):
         if len(table.columns) < 2:
@@ -85,39 +132,21 @@ def _has_summary_table(table: Table) -> bool:
 
 
 def check_jlj_report(docx_path: Path | str) -> ReportQcResult:
-    path = Path(docx_path)
-    issues: list[ReportQcIssue] = []
-    summary: dict[str, Any] = {
-        "exists": path.exists(),
-        "table_count": 0,
-        "image_count": 0,
+    path, doc, text, issues, summary = _check_common_report(
+        kind="jlj_monthly",
+        docx_path=docx_path,
+        forbidden_phrases=JLJ_FORBIDDEN_REVIEW_PHRASES,
+    )
+    summary.update({
         "summary_table_indices": [],
         "front_summary_table_indices": [],
         "transfer_marker_count": 0,
         "continue_marker_count": 0,
-    }
-    if not path.exists():
-        issues.append(ReportQcIssue("missing-file", "error", f"报告文件不存在: {path}"))
+    })
+    if doc is None:
         return _build_result("jlj_monthly", path, issues, summary)
-
-    doc = Document(str(path))
-    text = _all_doc_text(doc)
-    summary["table_count"] = len(doc.tables)
-    summary["image_count"] = count_docx_images(path)
     summary["transfer_marker_count"] = text.count("（转下页）")
     summary["continue_marker_count"] = text.count("（续上页）")
-
-    for phrase in FORBIDDEN_REVIEW_PHRASES:
-        count = text.count(phrase)
-        if count:
-            issues.append(
-                ReportQcIssue(
-                    "forbidden-review-phrase",
-                    "warning",
-                    f"报告仍包含需删除的复核/临时说明: {phrase}",
-                    f"count={count}",
-                )
-            )
 
     cover_idx, _ = _find_front_cover_summary_table(doc)
     front_indices = _front_summary_table_indices(doc, cover_idx)
@@ -159,10 +188,41 @@ def check_jlj_report(docx_path: Path | str) -> ReportQcResult:
             )
         )
 
-    if summary["image_count"] <= 0:
-        issues.append(ReportQcIssue("no-images", "warning", "报告中未检测到图片。"))
-
     return _build_result("jlj_monthly", path, issues, summary)
+
+
+def check_hongtang_report(docx_path: Path | str) -> ReportQcResult:
+    path, doc, text, issues, summary = _check_common_report(kind="hongtang_period", docx_path=docx_path)
+    if doc is None:
+        return _build_result("hongtang_period", path, issues, summary)
+    for required in ("监测结果", "交通状况监测", "结构应变监测"):
+        if required not in text:
+            issues.append(ReportQcIssue("missing-expected-text", "warning", f"洪塘周期报未检测到关键文本: {required}"))
+    return _build_result("hongtang_period", path, issues, summary)
+
+
+def check_guanbing_report(docx_path: Path | str) -> ReportQcResult:
+    path, doc, text, issues, summary = _check_common_report(kind="guanbing_monthly", docx_path=docx_path)
+    if doc is None:
+        return _build_result("guanbing_monthly", path, issues, summary)
+    for required in ("G104", "管柄大桥"):
+        if required in text:
+            break
+    else:
+        issues.append(ReportQcIssue("missing-expected-text", "warning", "管柄月报未检测到 G104/管柄大桥项目文本。"))
+    if "m/s2" in text:
+        issues.append(ReportQcIssue("unit-superscript-risk", "warning", "报告中仍存在 m/s2 文本，需检查是否应为 m/s²。"))
+    return _build_result("guanbing_monthly", path, issues, summary)
+
+
+def check_report(kind: str, docx_path: Path | str) -> ReportQcResult:
+    if kind == "jlj_monthly":
+        return check_jlj_report(docx_path)
+    if kind == "hongtang_period":
+        return check_hongtang_report(docx_path)
+    if kind == "guanbing_monthly":
+        return check_guanbing_report(docx_path)
+    raise ValueError(f"Unsupported report kind: {kind}")
 
 
 def _build_result(kind: str, path: Path, issues: list[ReportQcIssue], summary: dict[str, Any]) -> ReportQcResult:
@@ -228,14 +288,12 @@ def write_report_qc_report(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run report quality checks.")
     parser.add_argument("--docx", type=Path, required=True, help="Generated report DOCX path.")
-    parser.add_argument("--kind", choices=["jlj_monthly"], default="jlj_monthly")
+    parser.add_argument("--kind", choices=["jlj_monthly", "hongtang_period", "guanbing_monthly"], default="jlj_monthly")
     parser.add_argument("--output-dir", type=Path, default=None, help="Directory for QC txt/json outputs.")
     parser.add_argument("--strict", action="store_true", help="Exit non-zero when QC status is warning/failed.")
     args = parser.parse_args()
 
-    if args.kind != "jlj_monthly":
-        raise SystemExit(f"Unsupported report kind: {args.kind}")
-    result = check_jlj_report(args.docx)
+    result = check_report(args.kind, args.docx)
     if args.output_dir:
         txt_path, json_path = write_report_qc_report(result, args.output_dir)
         print(f"QC report: {txt_path}")

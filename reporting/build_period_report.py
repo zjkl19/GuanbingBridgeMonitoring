@@ -44,6 +44,7 @@ from analysis_manifest import missing_module_summary_items
 from missing_summary import write_missing_summary
 from report_build_manifest import write_report_build_manifest
 from report_context import ReportBuildContext
+from report_qc import check_report, write_report_qc_report
 
 
 LOWFREQ_MODULES = {
@@ -914,6 +915,18 @@ def build_period_report(
     missing = summarize_missing_images(manifest) + summarize_missing_wim_images(manifest["wim"])
     missing.extend(missing_module_summary_items(manifest.get("analysis_run_manifest")))
     warnings = manifest["wim"].get("warnings", [])
+    qc_paths: dict[str, str] = {}
+    try:
+        qc_result = check_report("hongtang_period", output_docx)
+        qc_txt, qc_json = write_report_qc_report(qc_result, ctx.output_dir, timestamp=timestamp)
+        qc_paths = {"report_qc_txt": str(qc_txt), "report_qc_json": str(qc_json), "report_qc_status": qc_result.status}
+        warnings = list(warnings) + [
+            f"{issue.code}: {issue.message}"
+            for issue in qc_result.issues
+            if issue.severity == "warning"
+        ]
+    except Exception as exc:
+        warnings = list(warnings) + [f"report_qc_failed: {exc}"]
     missing.extend(f"warning:{msg}" for msg in warnings)
     manifest_path = write_report_build_manifest(
         context=ctx,
@@ -923,6 +936,7 @@ def build_period_report(
         legacy_manifest=manifest,
         missing=missing,
         warnings=warnings,
+        extra=qc_paths,
         filename_prefix="period_report_manifest",
     )
     write_missing_summary(

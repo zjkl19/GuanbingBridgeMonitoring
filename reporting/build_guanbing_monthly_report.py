@@ -22,6 +22,7 @@ from report_artifact_resolver import (
 )
 from report_build_manifest import write_report_build_manifest
 from report_context import ReportBuildContext
+from report_qc import check_report, write_report_qc_report
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_TEMPLATE = REPO_ROOT / "reports" / "G104线管柄大桥监测月报20260410-M18.docx"
@@ -522,6 +523,19 @@ def build_report(
         ],
     }
     manifest["missing_analysis_modules"] = missing_module_summary_items(manifest.get("analysis_run_manifest"))
+    qc_paths: dict[str, str] = {}
+    qc_warnings: list[str] = []
+    try:
+        qc_result = check_report("guanbing_monthly", output_path)
+        qc_txt, qc_json = write_report_qc_report(qc_result, ctx.output_dir, timestamp=timestamp)
+        qc_paths = {"report_qc_txt": str(qc_txt), "report_qc_json": str(qc_json), "report_qc_status": qc_result.status}
+        qc_warnings = [
+            f"{issue.code}: {issue.message}"
+            for issue in qc_result.issues
+            if issue.severity == "warning"
+        ]
+    except Exception as exc:
+        qc_warnings = [f"report_qc_failed: {exc}"]
     manifest_path = write_report_build_manifest(
         context=ctx,
         report_type="guanbing_monthly",
@@ -529,9 +543,11 @@ def build_report(
         timestamp=timestamp,
         legacy_manifest=manifest,
         missing=missing_images + manifest["missing_analysis_modules"],
+        warnings=qc_warnings,
         extra={
             "updated_paragraph_count": len(updated_paragraphs),
             "replaced_image_count": len(replaced_images),
+            **qc_paths,
         },
         filename_prefix="G104线管柄大桥监测月报_manifest",
     )

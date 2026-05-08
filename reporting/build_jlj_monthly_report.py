@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import subprocess
 import tempfile
@@ -929,6 +930,8 @@ def insert_auto_caption_before(anchor: Paragraph, template_paragraph: Paragraph,
 
 
 def update_fields_with_word(docx_path: Path) -> None:
+    if os.environ.get("BMS_NO_WORD") == "1":
+        return
     try:
         import pythoncom
         import win32com.client  # type: ignore

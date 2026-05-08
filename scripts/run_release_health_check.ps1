@@ -1,5 +1,10 @@
 param(
+    [ValidateSet("all", "configs", "python", "compile", "report", "matlab", "gui")]
+    [string]$Only = "all",
+    [switch]$Fast,
     [switch]$SkipMatlab,
+    [switch]$NoWord,
+    [switch]$SkipReportBuild,
     [switch]$FullMatlab,
     [switch]$GuiSmoke,
     [int]$PythonTimeoutSeconds = 300,
@@ -9,17 +14,65 @@ param(
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
 Set-Location $repo
+$healthStart = Get-Date
+$stepResults = @()
+
+if ($Fast) {
+    $SkipMatlab = $true
+    if ($PythonTimeoutSeconds -gt 180) { $PythonTimeoutSeconds = 180 }
+    if ($MatlabTimeoutSeconds -gt 300) { $MatlabTimeoutSeconds = 300 }
+}
+
+if ($NoWord) {
+    $env:BMS_NO_WORD = "1"
+}
+
+function Should-RunStep {
+    param([string]$Group)
+    return ($Only -eq "all" -or $Only -eq $Group)
+}
 
 function Invoke-Step {
     param(
         [string]$Name,
+        [string]$Group,
         [scriptblock]$Body
     )
+    if (-not (Should-RunStep -Group $Group)) {
+        Write-Host ("[HEALTH] {0} skipped (Only={1})" -f $Name, $Only) -ForegroundColor DarkGray
+        $script:stepResults += [ordered]@{
+            name = $Name
+            group = $Group
+            status = "skipped"
+            elapsed_sec = 0
+            message = ""
+        }
+        return
+    }
     $stepStart = Get-Date
     Write-Host ("[HEALTH] {0} start {1}" -f $Name, $stepStart.ToString("yyyy-MM-dd HH:mm:ss")) -ForegroundColor Cyan
-    & $Body
-    $elapsed = [int]((Get-Date) - $stepStart).TotalSeconds
-    Write-Host ("[HEALTH] {0} done in {1}s" -f $Name, $elapsed) -ForegroundColor Green
+    try {
+        & $Body
+        $elapsed = [int]((Get-Date) - $stepStart).TotalSeconds
+        $script:stepResults += [ordered]@{
+            name = $Name
+            group = $Group
+            status = "ok"
+            elapsed_sec = $elapsed
+            message = ""
+        }
+        Write-Host ("[HEALTH] {0} done in {1}s" -f $Name, $elapsed) -ForegroundColor Green
+    } catch {
+        $elapsed = [int]((Get-Date) - $stepStart).TotalSeconds
+        $script:stepResults += [ordered]@{
+            name = $Name
+            group = $Group
+            status = "failed"
+            elapsed_sec = $elapsed
+            message = $_.Exception.Message
+        }
+        throw
+    }
 }
 
 function ConvertTo-ArgumentLine {
@@ -106,21 +159,21 @@ function Invoke-External {
     }
 }
 
-Invoke-Step "Validate configs" {
+Invoke-Step "Validate configs" "configs" {
     Invoke-External -Name "validate-configs" `
         -FilePath "powershell" `
         -Arguments @("-ExecutionPolicy", "Bypass", "-File", ".\scripts\validate_configs.ps1") `
         -TimeoutSeconds $PythonTimeoutSeconds
 }
 
-Invoke-Step "Python report tests" {
+Invoke-Step "Python report tests" "python" {
     Invoke-External -Name "python-tests" `
         -FilePath "python" `
         -Arguments @("-m", "unittest", "discover", "tests_py") `
         -TimeoutSeconds $PythonTimeoutSeconds
 }
 
-Invoke-Step "Python compile reporting scripts" {
+Invoke-Step "Python compile reporting scripts" "compile" {
     $files = Get-ChildItem -Path .\reporting -Filter *.py -File
     if ($files.Count -gt 0) {
         Invoke-External -Name "python-compile" `
@@ -130,16 +183,20 @@ Invoke-Step "Python compile reporting scripts" {
     }
 }
 
-Invoke-Step "Report template precheck smoke" {
-    Invoke-External -Name "report-smoke-precheck" `
-        -FilePath "python" `
-        -Arguments @(".\reporting\smoke_report_generation.py", "--kind", "all") `
-        -TimeoutSeconds $PythonTimeoutSeconds
+if (-not $SkipReportBuild) {
+    Invoke-Step "Report template precheck smoke" "report" {
+        Invoke-External -Name "report-smoke-precheck" `
+            -FilePath "python" `
+            -Arguments @(".\reporting\smoke_report_generation.py", "--kind", "all") `
+            -TimeoutSeconds $PythonTimeoutSeconds
+    }
+} else {
+    Write-Host "[HEALTH] Report template precheck smoke skipped (-SkipReportBuild)." -ForegroundColor DarkGray
 }
 
 if (-not $SkipMatlab) {
     if ($GuiSmoke) {
-        Invoke-Step "MATLAB GUI smoke" {
+        Invoke-Step "MATLAB GUI smoke" "gui" {
             Invoke-External -Name "matlab-gui-smoke" `
                 -FilePath "matlab" `
                 -Arguments @("-batch", "addpath('scripts'); gui_smoke_test") `
@@ -148,14 +205,14 @@ if (-not $SkipMatlab) {
     }
 
     if ($FullMatlab) {
-        Invoke-Step "MATLAB full tests" {
+        Invoke-Step "MATLAB full tests" "matlab" {
             Invoke-External -Name "matlab-full-tests" `
                 -FilePath "matlab" `
                 -Arguments @("-batch", "run_tests('all')") `
                 -TimeoutSeconds $MatlabTimeoutSeconds
         }
     } else {
-        Invoke-Step "MATLAB default tests" {
+        Invoke-Step "MATLAB default tests" "matlab" {
             Invoke-External -Name "matlab-default-tests" `
                 -FilePath "matlab" `
                 -Arguments @("-batch", "run_tests('default')") `
@@ -164,4 +221,25 @@ if (-not $SkipMatlab) {
     }
 }
 
+$healthElapsed = [int]((Get-Date) - $healthStart).TotalSeconds
+$outDir = Join-Path $repo "outputs\health_checks"
+New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$payload = [ordered]@{
+    checked_at = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    repo = $repo
+    status = "ok"
+    elapsed_sec = $healthElapsed
+    only = $Only
+    fast = [bool]$Fast
+    skip_matlab = [bool]$SkipMatlab
+    no_word = [bool]$NoWord
+    skip_report_build = [bool]$SkipReportBuild
+    python_timeout_sec = $PythonTimeoutSeconds
+    matlab_timeout_sec = $MatlabTimeoutSeconds
+    steps = $stepResults
+}
+$jsonPath = Join-Path $outDir ("release_health_check_{0}.json" -f $timestamp)
+$payload | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
+Write-Host "[HEALTH] Summary JSON: $jsonPath" -ForegroundColor DarkGray
 Write-Host "[HEALTH] Release health check passed." -ForegroundColor Green
