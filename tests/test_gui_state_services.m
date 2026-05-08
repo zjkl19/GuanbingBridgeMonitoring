@@ -87,11 +87,11 @@ classdef test_gui_state_services < matlab.unittest.TestCase
             summary = bms.gui.GuiResultSummary.fromManifestContext(ctx);
 
             tc.verifyGreaterThanOrEqual(size(summary.module_rows, 1), 5);
-            tc.verifyEqual(summary.module_rows{1, 1}, 'Summary');
-            tc.verifyTrue(any(strcmp(summary.module_rows(:, 1), 'Preflight')));
-            tc.verifyTrue(any(strcmp(summary.module_rows(:, 1), 'Missing stats')));
-            tc.verifyTrue(any(strcmp(summary.module_rows(:, 6), 'read_failed')));
-            tc.verifyTrue(any(strcmp(summary.module_rows(:, 6), 'missing_stats')));
+            tc.verifyEqual(summary.module_rows{1, 1}, '汇总');
+            tc.verifyTrue(any(strcmp(summary.module_rows(:, 1), '预检')));
+            tc.verifyTrue(any(strcmp(summary.module_rows(:, 1), '缺失统计表')));
+            tc.verifyTrue(any(strcmp(summary.module_rows(:, 6), '读取失败')));
+            tc.verifyTrue(any(strcmp(summary.module_rows(:, 6), '缺失统计表')));
             tc.verifyEqual(summary.preflight_warning_count, 1);
             tc.verifyEqual(summary.preflight_error_count, 0);
             tc.verifyEqual(summary.missing_stats_count, 1);

@@ -52,23 +52,23 @@ classdef GuiResultSummary
 
         function lines = buildLines(summary)
             lines = {};
-            lines{end+1} = ['manifest: ' summary.path]; %#ok<AGROW>
-            lines{end+1} = ['status: ' summary.status]; %#ok<AGROW>
+            lines{end+1} = ['运行清单: ' summary.path]; %#ok<AGROW>
+            lines{end+1} = ['状态: ' bms.gui.GuiResultSummary.displayStatus(summary.status)]; %#ok<AGROW>
             c = summary.counts;
-            lines{end+1} = sprintf('modules: ok=%d, fail=%d, skip=%d, missing=%d, other=%d', ...
+            lines{end+1} = sprintf('模块：正常=%d，失败=%d，跳过=%d，缺失=%d，其他=%d', ...
                 c.ok, c.fail, c.skip, c.missing, c.other); %#ok<AGROW>
-            lines{end+1} = sprintf('artifacts: %d', summary.artifact_count); %#ok<AGROW>
+            lines{end+1} = sprintf('产物（图片/统计表等）: %d', summary.artifact_count); %#ok<AGROW>
             if summary.preflight_error_count > 0
-                lines{end+1} = sprintf('preflight errors: %d', summary.preflight_error_count); %#ok<AGROW>
+                lines{end+1} = sprintf('预检错误: %d', summary.preflight_error_count); %#ok<AGROW>
             end
             if summary.preflight_warning_count > 0
-                lines{end+1} = sprintf('preflight warnings: %d', summary.preflight_warning_count); %#ok<AGROW>
+                lines{end+1} = sprintf('预检提示: %d', summary.preflight_warning_count); %#ok<AGROW>
             end
             if summary.missing_stats_count > 0
-                lines{end+1} = sprintf('missing expected stats: %d', summary.missing_stats_count); %#ok<AGROW>
+                lines{end+1} = sprintf('缺失统计表: %d', summary.missing_stats_count); %#ok<AGROW>
             end
             if summary.possible_stale_count > 0
-                lines{end+1} = sprintf('possible stale results: %d', summary.possible_stale_count); %#ok<AGROW>
+                lines{end+1} = sprintf('疑似旧结果: %d', summary.possible_stale_count); %#ok<AGROW>
             end
         end
 
@@ -86,7 +86,8 @@ classdef GuiResultSummary
                     continue;
                 end
                 label = bms.gui.GuiResultSummary.fieldText(rec, 'label', bms.gui.GuiResultSummary.fieldText(rec, 'key', ''));
-                status = bms.gui.GuiResultSummary.fieldText(rec, 'status', '');
+                rawStatus = bms.gui.GuiResultSummary.fieldText(rec, 'status', '');
+                status = bms.gui.GuiResultSummary.displayStatus(rawStatus);
                 elapsed = '';
                 if isfield(rec, 'elapsed_sec') && isnumeric(rec.elapsed_sec) && isfinite(rec.elapsed_sec)
                     elapsed = sprintf('%.1f', double(rec.elapsed_sec));
@@ -103,7 +104,7 @@ classdef GuiResultSummary
                     end
                 end
                 figCount = bms.gui.GuiResultSummary.countFigures(rec);
-                errorType = bms.gui.GuiResultSummary.fieldText(rec, 'error_type', '');
+                errorType = bms.gui.GuiResultSummary.displayIssueType(bms.gui.GuiResultSummary.fieldText(rec, 'error_type', ''));
                 message = bms.gui.GuiResultSummary.shortText(bms.gui.GuiResultSummary.fieldText(rec, 'message', ''), 120);
                 rows(end+1, :) = {label, status, elapsed, statsFlag, figCount, errorType, message}; %#ok<AGROW>
             end
@@ -111,12 +112,12 @@ classdef GuiResultSummary
 
         function row = summaryRow(summary)
             c = summary.counts;
-            statsText = sprintf('missing stats=%d', summary.missing_stats_count);
-            artifactText = sprintf('artifacts=%d', summary.artifact_count);
-            errorText = sprintf('preflight=%d, stale=%d', summary.preflight_warning_count + summary.preflight_error_count, summary.possible_stale_count);
-            msg = sprintf('ok=%d, fail=%d, skip=%d, missing=%d, other=%d; %s', ...
+            statsText = sprintf('缺失统计表=%d', summary.missing_stats_count);
+            artifactText = sprintf('产物=%d（图片/统计表等）', summary.artifact_count);
+            errorText = sprintf('预检提示=%d，疑似旧结果=%d', summary.preflight_warning_count + summary.preflight_error_count, summary.possible_stale_count);
+            msg = sprintf('模块：正常=%d，失败=%d，跳过=%d，缺失=%d，其他=%d；说明：产物=本次记录到的图片/统计表等输出文件，预检=运行或报告生成前发现的配置/目录/结果提示，疑似旧结果=统计表或图片可能旧于输入数据；%s', ...
                 c.ok, c.fail, c.skip, c.missing, c.other, summary.path);
-            row = {'Summary', summary.status, '', statsText, artifactText, errorText, msg};
+            row = {'汇总', bms.gui.GuiResultSummary.displayStatus(summary.status), '', statsText, artifactText, errorText, msg};
         end
 
         function rows = buildDiagnosticRows(manifest)
@@ -127,24 +128,25 @@ classdef GuiResultSummary
             if isfield(manifest, 'run_preflight') && isstruct(manifest.run_preflight)
                 runPreflight = manifest.run_preflight;
                 if isfield(runPreflight, 'errors')
-                    rows = bms.gui.GuiResultSummary.appendTextRows(rows, 'Preflight', 'error', 'preflight_error', runPreflight.errors, maxRows);
+                    rows = bms.gui.GuiResultSummary.appendTextRows(rows, '预检', '错误', 'preflight_error', runPreflight.errors, maxRows);
                 end
                 if isfield(runPreflight, 'warnings')
-                    rows = bms.gui.GuiResultSummary.appendTextRows(rows, 'Preflight', 'warning', 'preflight_warning', runPreflight.warnings, maxRows);
+                    rows = bms.gui.GuiResultSummary.appendTextRows(rows, '预检', '提示', 'preflight_warning', runPreflight.warnings, maxRows);
                 end
                 if isfield(runPreflight, 'result_artifact_preflight')
                     records = bms.app.ManifestReader.recordsToCell(runPreflight.result_artifact_preflight);
                     for i = 1:numel(records)
                         rec = records{i};
                         if ~isstruct(rec), continue; end
-                        status = lower(bms.gui.GuiResultSummary.fieldText(rec, 'status', ''));
-                        if isempty(status) || strcmp(status, 'ok'), continue; end
+                        rawStatus = lower(bms.gui.GuiResultSummary.fieldText(rec, 'status', ''));
+                        if isempty(rawStatus) || strcmp(rawStatus, 'ok'), continue; end
+                        status = bms.gui.GuiResultSummary.displayStatus(rawStatus);
                         label = bms.gui.GuiResultSummary.fieldText(rec, 'label', bms.gui.GuiResultSummary.fieldText(rec, 'key', 'Result artifact'));
-                        issueType = bms.gui.GuiResultSummary.fieldText(rec, 'issue_type', bms.gui.GuiResultSummary.fieldText(rec, 'stale_type', 'result_artifact'));
+                        issueType = bms.gui.GuiResultSummary.displayIssueType(bms.gui.GuiResultSummary.fieldText(rec, 'issue_type', bms.gui.GuiResultSummary.fieldText(rec, 'stale_type', 'result_artifact')));
                         msg = bms.gui.GuiResultSummary.fieldText(rec, 'message', bms.gui.GuiResultSummary.fieldText(rec, 'stats_path', ''));
                         rows(end+1, :) = {label, status, '', '', '', issueType, bms.gui.GuiResultSummary.shortText(msg, 160)}; %#ok<AGROW>
                         if size(rows, 1) >= maxRows
-                            rows(end+1, :) = {'Diagnostics', 'truncated', '', '', '', 'limit', sprintf('Only first %d diagnostic rows are shown.', maxRows)}; %#ok<AGROW>
+                            rows(end+1, :) = {'诊断', '截断', '', '', '', '显示数量限制', sprintf('仅显示前 %d 条诊断明细。', maxRows)}; %#ok<AGROW>
                             return;
                         end
                     end
@@ -153,9 +155,9 @@ classdef GuiResultSummary
 
             missing = bms.gui.GuiResultSummary.missingStatsList(manifest);
             for i = 1:numel(missing)
-                rows(end+1, :) = {'Missing stats', 'missing', '', 'missing', '', 'missing_stats', bms.gui.GuiResultSummary.shortText(missing{i}, 160)}; %#ok<AGROW>
+                rows(end+1, :) = {'缺失统计表', '缺失', '', '缺失', '', '缺失统计表', bms.gui.GuiResultSummary.shortText(missing{i}, 160)}; %#ok<AGROW>
                 if size(rows, 1) >= maxRows
-                    rows(end+1, :) = {'Diagnostics', 'truncated', '', '', '', 'limit', sprintf('Only first %d diagnostic rows are shown.', maxRows)}; %#ok<AGROW>
+                    rows(end+1, :) = {'诊断', '截断', '', '', '', '显示数量限制', sprintf('仅显示前 %d 条诊断明细。', maxRows)}; %#ok<AGROW>
                     return;
                 end
             end
@@ -166,11 +168,69 @@ classdef GuiResultSummary
             for i = 1:numel(values)
                 msg = char(string(values{i}));
                 if isempty(strtrim(msg)), continue; end
-                rows(end+1, :) = {label, status, '', '', '', issueType, bms.gui.GuiResultSummary.shortText(msg, 160)}; %#ok<AGROW>
+                rows(end+1, :) = {label, status, '', '', '', bms.gui.GuiResultSummary.displayIssueType(issueType), bms.gui.GuiResultSummary.shortText(msg, 160)}; %#ok<AGROW>
                 if size(rows, 1) >= maxRows
-                    rows(end+1, :) = {'Diagnostics', 'truncated', '', '', '', 'limit', sprintf('Only first %d diagnostic rows are shown.', maxRows)}; %#ok<AGROW>
+                    rows(end+1, :) = {'诊断', '截断', '', '', '', '显示数量限制', sprintf('仅显示前 %d 条诊断明细。', maxRows)}; %#ok<AGROW>
                     return;
                 end
+            end
+        end
+
+        function txt = displayStatus(status)
+            status = lower(char(string(status)));
+            switch status
+                case {'ok', 'success', 'passed', 'pass', 'completed'}
+                    txt = '正常';
+                case {'warning'}
+                    txt = '警告';
+                case {'fail', 'failed', 'error'}
+                    txt = '失败';
+                case {'skip', 'skipped'}
+                    txt = '跳过';
+                case {'missing'}
+                    txt = '缺失';
+                case {'possible_stale'}
+                    txt = '疑似旧结果';
+                case {'truncated'}
+                    txt = '截断';
+                otherwise
+                    txt = char(string(status));
+            end
+        end
+
+        function txt = displayIssueType(issueType)
+            issueType = char(string(issueType));
+            switch lower(issueType)
+                case {'preflight_warning'}
+                    txt = '预检提示';
+                case {'preflight_error'}
+                    txt = '预检错误';
+                case {'stats_older_than_input'}
+                    txt = '统计表旧于输入数据';
+                case {'figure_older_than_stats'}
+                    txt = '图片旧于统计表';
+                case {'missing_stats'}
+                    txt = '缺失统计表';
+                case {'result_artifact'}
+                    txt = '结果产物提示';
+                case {'read_failed'}
+                    txt = '读取失败';
+                case {'input_missing'}
+                    txt = '输入缺失';
+                case {'config_missing'}
+                    txt = '配置缺失';
+                case {'memory_error'}
+                    txt = '内存不足';
+                case {'plot_save_failed'}
+                    txt = '图片保存失败';
+                case {'stats_write_failed'}
+                    txt = '统计表写入失败';
+                otherwise
+                    if isempty(issueType)
+                        txt = '';
+                    else
+                        txt = issueType;
+                    end
             end
         end
 

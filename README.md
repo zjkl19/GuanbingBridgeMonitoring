@@ -91,6 +91,23 @@ Most regular modules now enter through `AnalyzerFactory` as thin adapters, inclu
 `analysis_manifest_*.json` now uses `schema_version=2`. In addition to module status, it records `module_status_counts`, `module_artifacts`, and `artifact_count`. Report builders can use these paths before falling back to directory searches.
 `analysis_manifest_*.json` 现使用 `schema_version=2`。除模块状态外，还记录 `module_status_counts`、`module_artifacts` 和 `artifact_count`。报告生成器可优先使用这些路径，再回退到目录搜索。
 
+
+GUI 运行结果表中的诊断字段说明：
+- `产物`：本次运行记录到的图片、统计表等输出文件数量。
+- `预检提示`：运行或报告生成前发现的配置、目录、模板或结果提示；不一定代表失败，但需要关注。
+- `疑似旧结果`：统计表或图片可能旧于输入数据/统计表，存在误引用旧结果风险。
+- `统计表旧于输入数据`：stats 文件修改时间早于对应原始数据目录。
+- `图片旧于统计表`：图片修改时间早于 stats 文件，报告可能引用了旧图。
+- `缺失统计表`：预期的 stats 文件不存在，对应报告章节可能无法自动填充。
+
+GUI result diagnostics:
+- `Artifacts`: number of generated files recorded by the run manifest, such as figures and stats files.
+- `Preflight warnings`: configuration, folder, template, or result-readiness warnings found before running or building a report.
+- `Possible stale results`: stats or figures may be older than their source data or stats file.
+- `Stats older than input`: the stats file is older than the source data folder.
+- `Figure older than stats`: the figure file is older than the stats file and may be stale.
+- `Missing stats`: an expected stats file is not available.
+
 When adding another analyzer, prefer this sequence: register the module in `ModuleRegistry`, create a thin analyzer adapter, add it to `AnalyzerFactory`, then add tests before replacing any legacy implementation.
 新增分析模块时，建议顺序为：先在 `ModuleRegistry` 注册模块，再创建薄适配器，接入 `AnalyzerFactory`，补充测试后再考虑替换旧实现。
 

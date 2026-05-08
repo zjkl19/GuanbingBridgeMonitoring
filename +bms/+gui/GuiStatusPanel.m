@@ -127,8 +127,8 @@ classdef GuiStatusPanel < handle
             if isfield(summary, 'preflight_warning_count'), preflightCount = preflightCount + summary.preflight_warning_count; end
             if isfield(summary, 'preflight_error_count'), preflightCount = preflightCount + summary.preflight_error_count; end
             if isfield(summary, 'possible_stale_count'), staleCount = summary.possible_stale_count; end
-            msg = sprintf('Manifest %s: ok=%d, fail=%d, missing=%d, preflight=%d, stale=%d, artifacts=%d', ...
-                status, counts.ok, counts.fail, counts.missing, preflightCount, staleCount, summary.artifact_count);
+            msg = sprintf('运行结果%s：正常=%d，失败=%d，缺失=%d，预检提示=%d，疑似旧结果=%d，产物=%d', ...
+                bms.gui.GuiResultSummary.displayStatus(status), counts.ok, counts.fail, counts.missing, preflightCount, staleCount, summary.artifact_count);
             obj.setStatus(msg, color);
         end
     end

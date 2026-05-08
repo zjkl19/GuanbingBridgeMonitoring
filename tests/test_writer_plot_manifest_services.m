@@ -88,7 +88,7 @@ classdef test_writer_plot_manifest_services < matlab.unittest.TestCase
             ctx.manifest = struct('module_status_counts', struct('ok', 2, 'fail', 1, 'skip', 0, 'missing', 1, 'other', 0));
             summary = bms.gui.GuiResultSummary.fromManifestContext(ctx);
             tc.verifyEqual(summary.counts.ok, 2);
-            tc.verifyTrue(any(contains(summary.lines, 'fail=1')));
+            tc.verifyTrue(any(contains(summary.lines, '失败=1')));
         end
 
         function guiResultSummaryBuildsModuleRows(tc)
@@ -101,8 +101,8 @@ classdef test_writer_plot_manifest_services < matlab.unittest.TestCase
                 'status','ok','elapsed_sec',1.25,'stats_path','', 'artifacts', {{artifact}})}});
             summary = bms.gui.GuiResultSummary.fromManifestContext(ctx);
             tc.verifyEqual(size(summary.module_rows, 1), 2);
-            tc.verifyEqual(summary.module_rows{1, 1}, 'Summary');
-            tc.verifyNotEqual(summary.module_rows{2, 1}, 'Summary');
+            tc.verifyEqual(summary.module_rows{1, 1}, '汇总');
+            tc.verifyNotEqual(summary.module_rows{2, 1}, '汇总');
             tc.verifyEqual(summary.module_rows{2, 5}, 1);
         end
     end
