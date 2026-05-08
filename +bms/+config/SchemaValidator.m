@@ -38,7 +38,7 @@ classdef SchemaValidator
                     warns{end+1} = ['missing top-level field: ' required{i}]; %#ok<AGROW>
                 end
             end
-            optional = {'per_point','post_filter_thresholds','plot_common','reporting','wim','vendor'};
+            optional = {'per_point','post_filter_thresholds','plot_common','reporting','wim'};
             for i = 1:numel(optional)
                 if isfield(cfg, optional{i}) && ~isstruct(cfg.(optional{i}))
                     warns{end+1} = ['top-level field should be struct: ' optional{i}]; %#ok<AGROW>

@@ -194,13 +194,14 @@ function make_boxplot_and_stats(dataMat, labels, groupName, outdir, ds_cfg, tag,
         cfg = struct();
     end
     f = figure('Position',[100 100 1100 520]);
+    plotMat = sample_boxplot_matrix(dataMat, 50000);
     if ds_cfg.ShowOutliers
-        boxplot(dataMat, 'Labels', labels, 'LabelOrientation','horizontal', 'Whisker', ds_cfg.Whisker);
+        boxplot(plotMat, 'Labels', labels, 'LabelOrientation','horizontal', 'Whisker', ds_cfg.Whisker);
     else
-        boxplot(dataMat, 'Labels', labels, 'LabelOrientation','horizontal', 'Whisker', ds_cfg.Whisker, 'Symbol','');
+        boxplot(plotMat, 'Labels', labels, 'LabelOrientation','horizontal', 'Whisker', ds_cfg.Whisker, 'Symbol','');
     end
     xlabel('测点'); ylabel('应变 (με)');
-    title(sprintf('动应变箱线图（低通滤波后）%s [%s]', groupName, tag));
+    title(sprintf('动应变箱线图（低通滤波后）%s [%s]', groupName, tag), 'Interpreter', 'none');
     xtickangle(45); grid on; grid minor;
     if ds_cfg.YLimManual, ylim(ds_cfg.YLimRange); end
 
@@ -241,7 +242,7 @@ function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, d
     end
 
     xlabel('时间'); ylabel('应变 (με)');
-    title(sprintf('动应变时程（低通滤波后）%s [%s]', groupName, tag));
+    title(sprintf('动应变时程（低通滤波后）%s [%s]', groupName, tag), 'Interpreter', 'none');
     grid on; grid minor;
 
     all_t = vertcat(tsList.times);
@@ -263,11 +264,37 @@ function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, d
     end
 
     if any(hasLine)
-        legend(hLines(hasLine), labels(hasLine), 'Location','northeast','Box','off');
+        legend(hLines(hasLine), labels(hasLine), 'Location','northeast','Box','off', 'Interpreter','none');
     end
 
     base = sprintf('dynstrain_lp_%s_%s', groupName, tag);
     bms.plot.PlotService.saveModuleBundle(f, outdir_ts, [base '_' ts], cfg);
+end
+
+function plotMat = sample_boxplot_matrix(dataMat, max_points_per_series)
+    if nargin < 2 || isempty(max_points_per_series) || ~isscalar(max_points_per_series) || ...
+            ~isfinite(max_points_per_series) || max_points_per_series < 1000
+        max_points_per_series = 50000;
+    end
+    max_points_per_series = round(max_points_per_series);
+    nCols = size(dataMat, 2);
+    keepCols = cell(nCols, 1);
+    maxLen = 0;
+    for c = 1:nCols
+        v = dataMat(:, c);
+        v = v(isfinite(v));
+        if numel(v) > max_points_per_series
+            idx = unique(round(linspace(1, numel(v), max_points_per_series)), 'stable');
+            v = v(idx);
+        end
+        keepCols{c} = v;
+        maxLen = max(maxLen, numel(v));
+    end
+    plotMat = NaN(maxLen, nCols);
+    for c = 1:nCols
+        v = keepCols{c};
+        plotMat(1:numel(v), c) = v;
+    end
 end
 
 function T = calc_stats_table(dataMat, labels)

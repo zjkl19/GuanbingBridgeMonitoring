@@ -154,7 +154,8 @@ function plot_point_curve(root_dir, times, vals, start_date, end_date, pid, styl
 
     xlabel('时间');
     ylabel(get_style_field(style, 'ylabel', '主梁应变 (με)'));
-    title(sprintf('%s %s', get_style_field(style, 'title_prefix', '应变时程曲线'), char(string(pid))));
+    title(sprintf('%s %s', get_style_field(style, 'title_prefix', '应变时程曲线'), char(string(pid))), ...
+        'Interpreter', 'none');
 
     show_warn_lines = get_style_field(style, 'show_warn_lines_point', true);
     if (islogical(show_warn_lines) && show_warn_lines) || (isnumeric(show_warn_lines) && show_warn_lines ~= 0)
@@ -218,7 +219,7 @@ function plot_group_timeseries(root_dir, data_list, start_date, end_date, group_
         h_lines(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', c);
     end
     labels = {data_list.pid};
-    lg = legend(h_lines, labels, 'Location', 'northeast', 'Box', 'off');
+    lg = legend(h_lines, labels, 'Location', 'northeast', 'Box', 'off', 'Interpreter', 'none');
     lg.AutoUpdate = 'off';
 
     dt0 = datetime(start_date, 'InputFormat', 'yyyy-MM-dd');
@@ -234,7 +235,8 @@ function plot_group_timeseries(root_dir, data_list, start_date, end_date, group_
 
     xlabel('时间');
     ylabel(get_style_field(style, 'ylabel', '主梁应变 (με)'));
-    title(sprintf('%s %s', get_style_field(style, 'title_prefix', '应变时程曲线'), char(string(group_name))));
+    title(sprintf('%s %s', get_style_field(style, 'title_prefix', '应变时程曲线'), char(string(group_name))), ...
+        'Interpreter', 'none');
 
     group_ylim = get_group_ylim(style, group_name, []);
     if is_valid_ylim(group_ylim)
@@ -259,7 +261,8 @@ function plot_group_boxplot(root_dir, data_list, start_date, end_date, group_nam
     end
 
     labels = {data_list.pid};
-    [data_mat, max_len] = build_boxplot_matrix(data_list); %#ok<ASGLU>
+    max_points_per_series = get_style_field(style, 'boxplot_max_points_per_series', 50000);
+    [data_mat, max_len] = build_boxplot_matrix(data_list, max_points_per_series); %#ok<ASGLU>
 
     fig = figure('Position', [100 100 1200 520]);
     show_outliers = get_style_field(style, 'show_boxplot_outliers', false);
@@ -293,7 +296,8 @@ function plot_group_boxplot(root_dir, data_list, start_date, end_date, group_nam
     end
 
     ylabel(get_style_field(style, 'ylabel', '主梁应变 (με)'));
-    title(sprintf('%s %s', get_style_field(style, 'boxplot_title_prefix', '应变箱线图'), char(string(group_name))));
+    title(sprintf('%s %s', get_style_field(style, 'boxplot_title_prefix', '应变箱线图'), char(string(group_name))), ...
+        'Interpreter', 'none');
 
     group_ylim = get_group_ylim(style, group_name, []);
     if is_valid_ylim(group_ylim)
@@ -314,14 +318,23 @@ function plot_group_boxplot(root_dir, data_list, start_date, end_date, group_nam
     bms.plot.PlotService.saveModuleBundle(fig, out_dir, [fname '_' ts], cfg);
 end
 
-function [data_mat, max_len] = build_boxplot_matrix(data_list)
+function [data_mat, max_len] = build_boxplot_matrix(data_list, max_points_per_series)
+    if nargin < 2 || isempty(max_points_per_series) || ~isscalar(max_points_per_series) || ...
+            ~isfinite(max_points_per_series) || max_points_per_series < 1000
+        max_points_per_series = 50000;
+    end
+    max_points_per_series = round(max_points_per_series);
     max_len = 0;
     for i = 1:numel(data_list)
-        max_len = max(max_len, numel(data_list(i).vals));
+        max_len = max(max_len, min(numel(data_list(i).vals), max_points_per_series));
     end
     data_mat = NaN(max_len, numel(data_list));
     for i = 1:numel(data_list)
         v = data_list(i).vals(:);
+        if numel(v) > max_points_per_series
+            idx = unique(round(linspace(1, numel(v), max_points_per_series)), 'stable');
+            v = v(idx);
+        end
         data_mat(1:numel(v), i) = v;
     end
 end

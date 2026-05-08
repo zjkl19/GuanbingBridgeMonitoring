@@ -77,10 +77,18 @@ classdef DataLayoutResolver
             if nargin < 2, cfg = struct(); end
             profile = bms.profile.BridgeProfileRegistry.infer(cfg, root);
             layout = profile.DataLayout;
+            if isstruct(cfg) && isfield(cfg, 'vendor')
+                vendor = lower(char(string(cfg.vendor)));
+                if any(strcmp(vendor, {'shuixianhua','sxh'}))
+                    layout = 'jlj_daily_export';
+                end
+            end
             root = char(root);
             if exist(fullfile(root, 'WIM'), 'dir') && exist(fullfile(root, 'lowfreq'), 'dir')
                 layout = 'hongtang_period';
             elseif bms.data.DataLayoutResolver.hasJljDailyExport(root)
+                layout = 'jlj_daily_export';
+            elseif bms.data.DataLayoutResolver.hasDailyExportZip(root)
                 layout = 'jlj_daily_export';
             elseif bms.data.DataLayoutResolver.hasDateFolders(root)
                 layout = 'dated_folders';
@@ -101,8 +109,15 @@ classdef DataLayoutResolver
         end
 
         function tf = hasJljDailyExport(root)
-            d = dir(fullfile(char(root), 'data_jlj_*'));
-            tf = any([d.isdir]);
+            d1 = dir(fullfile(char(root), 'data_jlj_*'));
+            d2 = dir(fullfile(char(root), 'data_sxh_*'));
+            tf = any([d1.isdir]) || any([d2.isdir]);
+        end
+
+        function tf = hasDailyExportZip(root)
+            z1 = dir(fullfile(char(root), 'data_jlj_*.zip'));
+            z2 = dir(fullfile(char(root), 'data_sxh_*.zip'));
+            tf = ~isempty(z1) || ~isempty(z2);
         end
 
         function tf = hasDateFolders(root)
@@ -119,7 +134,10 @@ classdef DataLayoutResolver
             for i = 1:numel(days)
                 switch char(layout)
                     case 'jlj_daily_export'
-                        candidates = {fullfile(char(root), ['data_jlj_' datestr(days(i), 'yyyy-mm-dd')])};
+                        dayText = datestr(days(i), 'yyyy-mm-dd');
+                        candidates = { ...
+                            fullfile(char(root), ['data_jlj_' dayText]), ...
+                            fullfile(char(root), ['data_sxh_' dayText])};
                     otherwise
                         candidates = {fullfile(char(root), datestr(days(i), 'yyyy-mm-dd')), fullfile(char(root), datestr(days(i), 'yyyymmdd'))};
                 end
@@ -136,7 +154,10 @@ classdef DataLayoutResolver
             dayFolders = bms.data.DataLayoutResolver.dateFolders(root, startDate, endDate, 'jlj_daily_export');
             folders = {};
             for i = 1:numel(dayFolders)
-                candidates = {fullfile(dayFolders{i}, 'data', 'jlj', 'csv'), fullfile(dayFolders{i}, 'csv')};
+                candidates = { ...
+                    fullfile(dayFolders{i}, 'data', 'jlj', 'csv'), ...
+                    fullfile(dayFolders{i}, 'data', 'sxh', 'csv'), ...
+                    fullfile(dayFolders{i}, 'csv')};
                 for j = 1:numel(candidates)
                     if isfolder(candidates{j})
                         folders{end+1} = candidates{j}; %#ok<AGROW>

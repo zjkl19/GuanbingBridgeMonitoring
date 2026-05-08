@@ -1,0 +1,1767 @@
+{
+  "vendor": "shuixianhua",
+  "gui": {
+    "show_warnings": false
+  },
+  "notify": {
+    "enabled": true,
+    "on_analysis_done": true,
+    "on_task_done": true,
+    "on_error": true,
+    "mode": "beep"
+  },
+  "defaults": {
+    "header_marker": "[绝对时间]",
+    "deflection": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "bearing_displacement": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "acceleration": {
+      "thresholds": [],
+      "zero_to_nan": false
+    },
+    "strain": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "tilt": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "crack": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "cable_accel": {
+      "thresholds": [],
+      "zero_to_nan": false
+    },
+    "wind_speed": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "wind_direction": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "rainfall": {
+      "thresholds": [],
+      "zero_to_nan": false
+    },
+    "gnss": {
+      "thresholds": [],
+      "zero_to_nan": false
+    },
+    "dynamic_strain": {
+      "fs": 20,
+      "fc": 0.1,
+      "filter_order": 4,
+      "Whisker": 300,
+      "show_outliers": false,
+      "output_dir": "时程曲线_动应变_高通滤波",
+      "boxplot_output_dir": "动应变箱线图_高通滤波"
+    },
+    "dynamic_strain_lowpass": {
+      "fs": 20,
+      "fc": "auto",
+      "cutoff_minutes": 60,
+      "filter_order": 4,
+      "Whisker": 300,
+      "show_outliers": false,
+      "output_dir": "时程曲线_动应变_低通滤波",
+      "boxplot_output_dir": "动应变箱线图_低通滤波"
+    }
+  },
+  "per_point": {
+    "deflection": {},
+    "bearing_displacement": {
+      "SSF_01_3#伸缩缝_X侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -8.3,
+            7.9
+          ],
+          "level3": [
+            -10.4,
+            9.9
+          ]
+        }
+      },
+      "SSF_02_3#伸缩缝_S侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -8.3,
+            7.9
+          ],
+          "level3": [
+            -10.4,
+            9.9
+          ]
+        }
+      },
+      "SSF_03_6#伸缩缝_X侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -8.3,
+            7.9
+          ],
+          "level3": [
+            -10.4,
+            9.9
+          ]
+        }
+      },
+      "SSF_04_6#伸缩缝_S侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -8.3,
+            7.9
+          ],
+          "level3": [
+            -10.4,
+            9.9
+          ]
+        }
+      },
+      "ZZWY_01_9#墩_1#支座": {
+        "alarm_bounds": {
+          "level2": [
+            -8.3,
+            7.9
+          ],
+          "level3": [
+            -10.4,
+            9.9
+          ]
+        }
+      },
+      "ZZWY_02_9#墩_2#支座": {
+        "alarm_bounds": {
+          "level2": [
+            -8.3,
+            7.9
+          ],
+          "level3": [
+            -10.4,
+            9.9
+          ]
+        }
+      },
+      "ZZWY_03_12#墩_1#支座": {
+        "alarm_bounds": {
+          "level2": [
+            -8.3,
+            7.9
+          ],
+          "level3": [
+            -10.4,
+            9.9
+          ]
+        }
+      },
+      "ZZWY_04_12#墩_2#支座": {
+        "alarm_bounds": {
+          "level2": [
+            -8.3,
+            7.9
+          ],
+          "level3": [
+            -10.4,
+            9.9
+          ]
+        }
+      }
+    },
+    "strain": {
+      "GLYB_01_X10_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "GLYB_02_X10_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "GLYB_03_S10_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "GLYB_04_S10_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "GLYB_05_10#墩_X拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264.347826086957,
+            264.347826086957
+          ]
+        }
+      },
+      "GLYB_06_10#墩_X拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264.347826086957,
+            264.347826086957
+          ]
+        }
+      },
+      "GLYB_07_10#墩_S拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264.347826086957,
+            264.347826086957
+          ]
+        }
+      },
+      "GLYB_08_10#墩_S拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264.347826086957,
+            264.347826086957
+          ]
+        }
+      },
+      "GLYB_09_X_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -36.2135922330097,
+            36.2135922330097
+          ]
+        }
+      },
+      "GLYB_10_X_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -36.2135922330097,
+            36.2135922330097
+          ]
+        }
+      },
+      "GLYB_11_X_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -36.2135922330097,
+            36.2135922330097
+          ]
+        }
+      },
+      "GLYB_12_X_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -36.2135922330097,
+            36.2135922330097
+          ]
+        }
+      },
+      "GLYB_13_S_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -36.2135922330097,
+            36.2135922330097
+          ]
+        }
+      },
+      "GLYB_14_S_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -36.2135922330097,
+            36.2135922330097
+          ]
+        }
+      },
+      "GLYB_15_S_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -36.2135922330097,
+            36.2135922330097
+          ]
+        }
+      },
+      "GLYB_16_S_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -36.2135922330097,
+            36.2135922330097
+          ]
+        }
+      },
+      "GLYB_17_11#墩_X拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264.347826086957,
+            264.347826086957
+          ]
+        }
+      },
+      "GLYB_18_11#墩_X拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264.347826086957,
+            264.347826086957
+          ]
+        }
+      },
+      "GLYB_19_11#墩_S拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264.347826086957,
+            264.347826086957
+          ]
+        }
+      },
+      "GLYB_20_11#墩_S拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264.347826086957,
+            264.347826086957
+          ]
+        }
+      },
+      "GLYB_21_X12_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "GLYB_22_X12_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "GLYB_23_S12_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "GLYB_24_S12_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "ZLYB_01_X11_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "ZLYB_02_X11_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "ZLYB_03_11_15#横梁": {
+        "alarm_bounds": {
+          "level2": [
+            -18.2608695652174,
+            18.2608695652174
+          ]
+        }
+      },
+      "ZLYB_04_S11_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "ZLYB_05_S11_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "ZLYB_06_X11_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "ZLYB_07_X11_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "ZLYB_08_11_15#横梁": {
+        "alarm_bounds": {
+          "level2": [
+            -18.2608695652174,
+            18.2608695652174
+          ]
+        }
+      },
+      "ZLYB_09_S11_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      },
+      "ZLYB_10_S11_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214.466019417476,
+            216.844660194175
+          ]
+        }
+      }
+    },
+    "acceleration": {},
+    "cable_accel": {},
+    "eq": {
+      "JSD_01_10#墩_01_X": {
+        "alarm_levels": [
+          150.0,
+          255.0
+        ]
+      },
+      "JSD_01_10#墩_01_Y": {
+        "alarm_levels": [
+          150.0,
+          255.0
+        ]
+      },
+      "JSD_01_10#墩_01_Z": {
+        "alarm_levels": [
+          150.0,
+          255.0
+        ]
+      },
+      "JSD_02_11#墩_01_X": {
+        "alarm_levels": [
+          150.0,
+          255.0
+        ]
+      },
+      "JSD_02_11#墩_01_Y": {
+        "alarm_levels": [
+          150.0,
+          255.0
+        ]
+      },
+      "JSD_02_11#墩_01_Z": {
+        "alarm_levels": [
+          150.0,
+          255.0
+        ]
+      }
+    },
+    "gnss": {},
+    "wind_speed": {
+      "FSFX_01_11#_S11": {
+        "alarm_levels": [
+          25.0,
+          27.0,
+          34.0
+        ]
+      },
+      "FSFX_02_S_拱顶": {
+        "alarm_levels": [
+          25.0,
+          27.0,
+          34.0
+        ]
+      }
+    },
+    "temperature": {
+      "WSD_01_11#_S02机箱": {
+        "alarm_bounds": {
+          "level1": [
+            0.0,
+            40.0
+          ],
+          "level2": [
+            -2.0,
+            46.0
+          ]
+        }
+      }
+    },
+    "humidity": {
+      "WSD_01_11#_S02机箱": {
+        "alarm_bounds": {
+          "level1": [
+            0.0,
+            40.0
+          ],
+          "level2": [
+            -2.0,
+            46.0
+          ]
+        }
+      }
+    }
+  },
+  "subfolders": {
+    "deflection": "特征值_重采样",
+    "bearing_displacement": "特征值_重采样",
+    "acceleration": "波形_重采样",
+    "acceleration_raw": "波形",
+    "strain": "特征值",
+    "tilt": "波形_重采样",
+    "crack": "特征值",
+    "humidity": "特征值",
+    "temperature": "特征值",
+    "cable_accel": "索力加速度_重采样",
+    "cable_accel_raw": "索力加速度",
+    "wind_raw": "波形",
+    "rainfall": "特征值",
+    "gnss": "波形",
+    "eq_raw": "波形",
+    "eq": "波形"
+  },
+  "file_patterns": {
+    "wind_speed": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    },
+    "wind_direction": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    },
+    "crack": {
+      "default": [
+        "{point}_*.csv"
+      ],
+      "per_point": {}
+    },
+    "crack_temp": {
+      "default": [
+        "{point}-t_*.csv"
+      ],
+      "per_point": {}
+    },
+    "temperature": {
+      "default": "{point}.csv"
+    },
+    "humidity": {
+      "default": "{point}.csv"
+    },
+    "deflection": {
+      "default": "{point}.csv"
+    },
+    "bearing_displacement": {
+      "default": "{point}.csv"
+    },
+    "acceleration": {
+      "default": "{point}.csv"
+    },
+    "accel_spectrum": {
+      "default": "{point}.csv"
+    },
+    "cable_accel": {
+      "default": "{point}.csv"
+    },
+    "cable_accel_spectrum": {
+      "default": "{point}.csv"
+    },
+    "strain": {
+      "default": "{point}.csv"
+    },
+    "dynamic_strain": {
+      "default": "{point}.csv"
+    },
+    "eq": {
+      "default": "{point}.csv"
+    },
+    "gnss": {
+      "default": "{point}.csv"
+    }
+  },
+  "points": {
+    "wind": [
+      "FSFX-01-11#-S11",
+      "FSFX-02-S-拱顶"
+    ],
+    "eq": [
+      "JSD-01-10#墩-01-X",
+      "JSD-01-10#墩-01-Y",
+      "JSD-01-10#墩-01-Z",
+      "JSD-02-11#墩-01-X",
+      "JSD-02-11#墩-01-Y",
+      "JSD-02-11#墩-01-Z"
+    ],
+    "deflection": [
+      "GSNDY-01-10#跨-S侧壁",
+      "GSNDY-01-10#跨-X侧壁",
+      "GSNDY-01-11#跨-S侧壁",
+      "GSNDY-01-11#跨-X侧壁",
+      "GSNDY-01-12#跨-S侧壁",
+      "GSNDY-01-12#跨-Y侧壁",
+      "GSNDY-02-10#跨-S侧壁",
+      "GSNDY-02-10#跨-X侧壁",
+      "GSNDY-02-11#跨-S侧壁",
+      "GSNDY-02-11#跨-X侧壁",
+      "GSNDY-02-12#跨-X侧壁",
+      "GSNDY-03-11#跨-S侧壁",
+      "GSNDY-03-11#跨-X侧壁"
+    ],
+    "bearing_displacement": [
+      "SSF-01-3#伸缩缝-X侧壁",
+      "SSF-02-3#伸缩缝-S侧壁",
+      "SSF-03-6#伸缩缝-X侧壁",
+      "SSF-04-6#伸缩缝-S侧壁",
+      "ZZWY-01-9#墩-1#支座",
+      "ZZWY-02-9#墩-2#支座",
+      "ZZWY-03-12#墩-1#支座",
+      "ZZWY-04-12#墩-2#支座"
+    ],
+    "acceleration": [
+      "ZGZD-01-X-拱顶",
+      "ZGZD-01-X-拱顶-Y",
+      "ZGZD-02-X-拱顶",
+      "ZGZD-02-X-拱顶-Y",
+      "ZGZD-03-S-拱顶",
+      "ZGZD-03-S-拱顶-Y",
+      "ZGZD-04-S-拱顶",
+      "ZGZD-04-S-拱顶-Y",
+      "ZLZD-01-X10-3#",
+      "ZLZD-02-X10-3#",
+      "ZLZD-03-X11-3#",
+      "ZLZD-04-X11-3#",
+      "ZLZD-05-X11-3#",
+      "ZLZD-06-X11-3#",
+      "ZLZD-07-X11-3#",
+      "ZLZD-08-X11-3#",
+      "ZLZD-09-X12-3#",
+      "ZLZD-10-X12-3#"
+    ],
+    "accel_spectrum": [
+      "ZGZD-01-X-拱顶",
+      "ZGZD-01-X-拱顶-Y",
+      "ZGZD-02-X-拱顶",
+      "ZGZD-02-X-拱顶-Y",
+      "ZGZD-03-S-拱顶",
+      "ZGZD-03-S-拱顶-Y",
+      "ZGZD-04-S-拱顶",
+      "ZGZD-04-S-拱顶-Y",
+      "ZLZD-01-X10-3#",
+      "ZLZD-02-X10-3#",
+      "ZLZD-03-X11-3#",
+      "ZLZD-04-X11-3#",
+      "ZLZD-05-X11-3#",
+      "ZLZD-06-X11-3#",
+      "ZLZD-07-X11-3#",
+      "ZLZD-08-X11-3#",
+      "ZLZD-09-X12-3#",
+      "ZLZD-10-X12-3#"
+    ],
+    "cable_accel": [
+      "SL-01-X6#吊杆",
+      "SL-02-X7#吊杆",
+      "SL-03-X8#吊杆",
+      "SL-04-X9#吊杆",
+      "SL-05-X10#吊杆",
+      "SL-06-X11#吊杆",
+      "SL-07-X12#吊杆",
+      "SL-08-X13#吊杆",
+      "SL-09-X14#吊杆",
+      "SL-10-X15#吊杆",
+      "SL-11-X16#吊杆",
+      "SL-12-S6#吊杆",
+      "SL-13-S7#吊杆",
+      "SL-14-S8#吊杆",
+      "SL-15-S9#吊杆",
+      "SL-16-S10#吊杆",
+      "SL-17-S11#吊杆",
+      "SL-18-S12#吊杆",
+      "SL-19-S13#吊杆",
+      "SL-20-S14#吊杆",
+      "SL-21-S15#吊杆",
+      "SL-22-S16#吊杆",
+      "SL-23-1#系杆",
+      "SL-24-2#系杆",
+      "SL-25-3#系杆",
+      "SL-26-4#系杆",
+      "SL-27-5#系杆",
+      "SL-28-6#系杆",
+      "SL-29-7#系杆",
+      "SL-30-8#系杆",
+      "SL-31-9#系杆",
+      "SL-32-10#系杆",
+      "SL-33-11#系杆",
+      "SL-34-12#系杆"
+    ],
+    "cable_accel_spectrum": [
+      "SL-01-X6#吊杆",
+      "SL-02-X7#吊杆",
+      "SL-03-X8#吊杆",
+      "SL-04-X9#吊杆",
+      "SL-05-X10#吊杆",
+      "SL-06-X11#吊杆",
+      "SL-07-X12#吊杆",
+      "SL-08-X13#吊杆",
+      "SL-09-X14#吊杆",
+      "SL-10-X15#吊杆",
+      "SL-11-X16#吊杆",
+      "SL-12-S6#吊杆",
+      "SL-13-S7#吊杆",
+      "SL-14-S8#吊杆",
+      "SL-15-S9#吊杆",
+      "SL-16-S10#吊杆",
+      "SL-17-S11#吊杆",
+      "SL-18-S12#吊杆",
+      "SL-19-S13#吊杆",
+      "SL-20-S14#吊杆",
+      "SL-21-S15#吊杆",
+      "SL-22-S16#吊杆",
+      "SL-23-1#系杆",
+      "SL-24-2#系杆",
+      "SL-25-3#系杆",
+      "SL-26-4#系杆",
+      "SL-27-5#系杆",
+      "SL-28-6#系杆",
+      "SL-29-7#系杆",
+      "SL-30-8#系杆",
+      "SL-31-9#系杆",
+      "SL-32-10#系杆",
+      "SL-33-11#系杆",
+      "SL-34-12#系杆"
+    ],
+    "temperature": [
+      "WSD-01-11#-S02机箱"
+    ],
+    "humidity": [
+      "WSD-01-11#-S02机箱"
+    ]
+  },
+  "groups": {
+    "deflection": [
+      [
+        "GSNDY-01-10#跨-S侧壁",
+        "GSNDY-01-10#跨-X侧壁",
+        "GSNDY-01-11#跨-S侧壁",
+        "GSNDY-01-11#跨-X侧壁",
+        "GSNDY-01-12#跨-S侧壁",
+        "GSNDY-01-12#跨-Y侧壁",
+        "GSNDY-02-10#跨-S侧壁",
+        "GSNDY-02-10#跨-X侧壁",
+        "GSNDY-02-11#跨-S侧壁",
+        "GSNDY-02-11#跨-X侧壁",
+        "GSNDY-02-12#跨-X侧壁",
+        "GSNDY-03-11#跨-S侧壁",
+        "GSNDY-03-11#跨-X侧壁"
+      ]
+    ],
+    "bearing_displacement": [
+      [
+        "ZZWY-01-9#墩-1#支座",
+        "ZZWY-02-9#墩-2#支座",
+        "ZZWY-03-12#墩-1#支座",
+        "ZZWY-04-12#墩-2#支座"
+      ],
+      [
+        "SSF-01-3#伸缩缝-X侧壁",
+        "SSF-02-3#伸缩缝-S侧壁",
+        "SSF-03-6#伸缩缝-X侧壁",
+        "SSF-04-6#伸缩缝-S侧壁"
+      ]
+    ],
+    "strain": {
+      "ZLYB_主梁应变": [
+        "ZLYB-01-X11-1#",
+        "ZLYB-02-X11-3#",
+        "ZLYB-03-11-15#横梁",
+        "ZLYB-04-S11-3#",
+        "ZLYB-05-S11-1#",
+        "ZLYB-06-X11-1#",
+        "ZLYB-07-X11-3#",
+        "ZLYB-08-11-15#横梁",
+        "ZLYB-09-S11-3#",
+        "ZLYB-10-S11-1#"
+      ],
+      "GLYB_拱肋应变": [
+        "GLYB-01-X10-1#",
+        "GLYB-02-X10-3#",
+        "GLYB-03-S10-3#",
+        "GLYB-04-S10-1#",
+        "GLYB-05-10#墩-X拱脚",
+        "GLYB-06-10#墩-X拱脚",
+        "GLYB-07-10#墩-S拱脚",
+        "GLYB-08-10#墩-S拱脚",
+        "GLYB-09-X-拱顶",
+        "GLYB-10-X-拱顶",
+        "GLYB-11-X-拱顶",
+        "GLYB-12-X-拱顶",
+        "GLYB-13-S-拱顶",
+        "GLYB-14-S-拱顶",
+        "GLYB-15-S-拱顶",
+        "GLYB-16-S-拱顶",
+        "GLYB-17-11#墩-X拱脚",
+        "GLYB-18-11#墩-X拱脚",
+        "GLYB-19-11#墩-S拱脚",
+        "GLYB-20-11#墩-S拱脚",
+        "GLYB-21-X12-1#",
+        "GLYB-22-X12-3#",
+        "GLYB-23-S12-3#",
+        "GLYB-24-S12-1#"
+      ]
+    },
+    "strain_timeseries": {
+      "ZLYB_主梁应变": [
+        "ZLYB-01-X11-1#",
+        "ZLYB-02-X11-3#",
+        "ZLYB-03-11-15#横梁",
+        "ZLYB-04-S11-3#",
+        "ZLYB-05-S11-1#",
+        "ZLYB-06-X11-1#",
+        "ZLYB-07-X11-3#",
+        "ZLYB-08-11-15#横梁",
+        "ZLYB-09-S11-3#",
+        "ZLYB-10-S11-1#"
+      ],
+      "GLYB_拱肋应变": [
+        "GLYB-01-X10-1#",
+        "GLYB-02-X10-3#",
+        "GLYB-03-S10-3#",
+        "GLYB-04-S10-1#",
+        "GLYB-05-10#墩-X拱脚",
+        "GLYB-06-10#墩-X拱脚",
+        "GLYB-07-10#墩-S拱脚",
+        "GLYB-08-10#墩-S拱脚",
+        "GLYB-09-X-拱顶",
+        "GLYB-10-X-拱顶",
+        "GLYB-11-X-拱顶",
+        "GLYB-12-X-拱顶",
+        "GLYB-13-S-拱顶",
+        "GLYB-14-S-拱顶",
+        "GLYB-15-S-拱顶",
+        "GLYB-16-S-拱顶",
+        "GLYB-17-11#墩-X拱脚",
+        "GLYB-18-11#墩-X拱脚",
+        "GLYB-19-11#墩-S拱脚",
+        "GLYB-20-11#墩-S拱脚",
+        "GLYB-21-X12-1#",
+        "GLYB-22-X12-3#",
+        "GLYB-23-S12-3#",
+        "GLYB-24-S12-1#"
+      ]
+    },
+    "dynamic_strain": {
+      "ZLYB_主梁应变": [
+        "ZLYB-01-X11-1#",
+        "ZLYB-02-X11-3#",
+        "ZLYB-03-11-15#横梁",
+        "ZLYB-04-S11-3#",
+        "ZLYB-05-S11-1#",
+        "ZLYB-06-X11-1#",
+        "ZLYB-07-X11-3#",
+        "ZLYB-08-11-15#横梁",
+        "ZLYB-09-S11-3#",
+        "ZLYB-10-S11-1#"
+      ],
+      "GLYB_拱肋应变": [
+        "GLYB-01-X10-1#",
+        "GLYB-02-X10-3#",
+        "GLYB-03-S10-3#",
+        "GLYB-04-S10-1#",
+        "GLYB-05-10#墩-X拱脚",
+        "GLYB-06-10#墩-X拱脚",
+        "GLYB-07-10#墩-S拱脚",
+        "GLYB-08-10#墩-S拱脚",
+        "GLYB-09-X-拱顶",
+        "GLYB-10-X-拱顶",
+        "GLYB-11-X-拱顶",
+        "GLYB-12-X-拱顶",
+        "GLYB-13-S-拱顶",
+        "GLYB-14-S-拱顶",
+        "GLYB-15-S-拱顶",
+        "GLYB-16-S-拱顶",
+        "GLYB-17-11#墩-X拱脚",
+        "GLYB-18-11#墩-X拱脚",
+        "GLYB-19-11#墩-S拱脚",
+        "GLYB-20-11#墩-S拱脚",
+        "GLYB-21-X12-1#",
+        "GLYB-22-X12-3#",
+        "GLYB-23-S12-3#",
+        "GLYB-24-S12-1#"
+      ]
+    },
+    "dynamic_strain_lowpass": {
+      "ZLYB_主梁应变": [
+        "ZLYB-01-X11-1#",
+        "ZLYB-02-X11-3#",
+        "ZLYB-03-11-15#横梁",
+        "ZLYB-04-S11-3#",
+        "ZLYB-05-S11-1#",
+        "ZLYB-06-X11-1#",
+        "ZLYB-07-X11-3#",
+        "ZLYB-08-11-15#横梁",
+        "ZLYB-09-S11-3#",
+        "ZLYB-10-S11-1#"
+      ],
+      "GLYB_拱肋应变": [
+        "GLYB-01-X10-1#",
+        "GLYB-02-X10-3#",
+        "GLYB-03-S10-3#",
+        "GLYB-04-S10-1#",
+        "GLYB-05-10#墩-X拱脚",
+        "GLYB-06-10#墩-X拱脚",
+        "GLYB-07-10#墩-S拱脚",
+        "GLYB-08-10#墩-S拱脚",
+        "GLYB-09-X-拱顶",
+        "GLYB-10-X-拱顶",
+        "GLYB-11-X-拱顶",
+        "GLYB-12-X-拱顶",
+        "GLYB-13-S-拱顶",
+        "GLYB-14-S-拱顶",
+        "GLYB-15-S-拱顶",
+        "GLYB-16-S-拱顶",
+        "GLYB-17-11#墩-X拱脚",
+        "GLYB-18-11#墩-X拱脚",
+        "GLYB-19-11#墩-S拱脚",
+        "GLYB-20-11#墩-S拱脚",
+        "GLYB-21-X12-1#",
+        "GLYB-22-X12-3#",
+        "GLYB-23-S12-3#",
+        "GLYB-24-S12-1#"
+      ]
+    }
+  },
+  "plot_styles": {
+    "acceleration": {
+      "ylabel": "振动加速度 (cm/s^2)",
+      "title_prefix": "振动加速度时程",
+      "ylim_auto": true,
+      "ylim": [
+        -0.5,
+        0.5
+      ],
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ]
+      ],
+      "rms": {
+        "ylabel": "10 min RMS (m/s^2)",
+        "title_prefix": "10 min RMS 时程",
+        "ylim": [
+          0,
+          0.08
+        ],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
+      },
+      "rms_ylabel": "10min RMS (cm/s^2)",
+      "rms_title_prefix": "10min RMS 时程"
+    },
+    "accel_spectrum": {
+      "psd_ylabel": "PSD (dB)",
+      "psd_title_prefix": "PSD",
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "峰值频率时程",
+      "colors": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          0.5,
+          0,
+          0.7
+        ]
+      ]
+    },
+    "deflection": {
+      "colors_2": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "colors_3": [
+        [
+          0.5,
+          0,
+          0.7
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "warn_lines": [
+        {
+          "y": -21,
+          "label": "二级报警值 -21.0",
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ]
+        },
+        {
+          "y": 33.4,
+          "label": "二级报警值 33.4",
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ]
+        },
+        {
+          "y": -26.3,
+          "label": "三级报警值 -26.3",
+          "color": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "y": 41.7,
+          "label": "三级报警值 41.7",
+          "color": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "ylim": [
+        -40,
+        50
+      ],
+      "ylabel": "位移 (mm)",
+      "title_prefix": "挠度时程",
+      "ylim_auto": true
+    },
+    "bearing_displacement": {
+      "colors_2": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "colors_3": [
+        [
+          0.5,
+          0,
+          0.7
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "warn_lines": [],
+      "ylim_auto": true,
+      "output_dir": "时程曲线_支座位移",
+      "ylabel": "位移 (mm)",
+      "title_prefix": "支座/伸缩缝位移时程"
+    },
+    "strain": {
+      "colors_6": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          1,
+          0.4,
+          0.8
+        ],
+        [
+          1,
+          0.6,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ]
+      ],
+      "ylims": {
+        "G05": [
+          -200,
+          200
+        ],
+        "G06": [
+          -350,
+          200
+        ]
+      },
+      "ylabel": "应变 (με)",
+      "title_prefix": "应变时程曲线",
+      "show_boxplot_outliers": false,
+      "boxplot_title_prefix": "应变箱线图",
+      "ylim_auto": true,
+      "show_warn_lines_point": true,
+      "show_warn_lines_boxplot": true
+    },
+    "tilt": {
+      "colors_3": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ]
+      ],
+      "warn_lines": [
+        {
+          "y": -0.126,
+          "label": "二级报警值 -0.126",
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ]
+        },
+        {
+          "y": 0.126,
+          "label": "二级报警值 0.126",
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ]
+        },
+        {
+          "y": -0.155,
+          "label": "三级报警值 -0.155",
+          "color": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "y": 0.155,
+          "label": "三级报警值 0.155",
+          "color": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "ylim": [
+        -0.2,
+        0.2
+      ],
+      "ylabel": "倾角 (°)",
+      "title_prefix": "倾角时程",
+      "ylims": [
+        {
+          "name": "QJJ-01-CZD-PC20-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-01-CZD-PC20-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-02-AZD-PA2-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-02-AZD-PA2-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-03-AZD-A5-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-03-AZD-A5-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-04-AZD-A6-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-04-AZD-A6-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-05-BZD-B5-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-05-BZD-B5-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-06-BZD-B6-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-06-BZD-B6-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        }
+      ],
+      "ylim_auto": true
+    },
+    "crack": {
+      "colors_4": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "ylims": {
+        "G05": [
+          -0.25,
+          0.25
+        ],
+        "G06": [
+          -0.3,
+          0.3
+        ]
+      },
+      "ylabel_crack": "裂缝宽度 (mm)",
+      "ylabel_temp": "裂缝温度 (°C)",
+      "title_prefix_crack": "裂缝宽度",
+      "title_prefix_temp": "裂缝温度",
+      "per_point_plot": true,
+      "group_plot": true,
+      "temp_enabled": false,
+      "skip_group_if_missing": true,
+      "output_dir_crack": "时程曲线_裂缝宽度",
+      "output_dir_temp": "时程曲线_裂缝温度"
+    },
+    "temperature": {
+      "ylabel": "温度 (°C)",
+      "title_prefix": "温度时程",
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "ylim": [
+        0,
+        40
+      ],
+      "ylim_auto": true,
+      "ylims": {
+        "JGWD-01-K16-ZFQM-G20": [
+          0,
+          100
+        ],
+        "WSDJ-04-K16-QM-G20": [
+          0,
+          100
+        ]
+      }
+    },
+    "humidity": {
+      "ylabel": "湿度 (%)",
+      "title_prefix": "湿度时程",
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "ylim": [
+        20,
+        100
+      ],
+      "ylim_auto": true
+    },
+    "cable_accel": {
+      "ylabel": "索力振动加速度 (cm/s^2)",
+      "title_prefix": "索力振动加速度时程",
+      "ylim": [],
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ]
+      ],
+      "rms": {
+        "ylabel": "10 min RMS (m/s^2)",
+        "title_prefix": "10 min RMS 时程",
+        "ylim": [],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
+      },
+      "rms_ylabel": "10min RMS (cm/s^2)",
+      "rms_title_prefix": "10min RMS 时程",
+      "ylim_auto": true
+    },
+    "cable_accel_spectrum": {
+      "psd_ylabel": "PSD (dB)",
+      "psd_title_prefix": "PSD",
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "峰值频率时程",
+      "colors": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          0.5,
+          0,
+          0.7
+        ]
+      ],
+      "force_ylabel": "索力 (kN)",
+      "force_title_prefix": "索力时程",
+      "force_color": [
+        0,
+        0.447,
+        0.741
+      ],
+      "force_ylim": [
+        1000,
+        2200
+      ]
+    },
+    "rainfall": {
+      "ylabel": "降雨强度 (mm/h)",
+      "title_prefix": "降雨强度时程",
+      "output_dir": "时程曲线_雨量",
+      "ylim_auto": true,
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ]
+      ]
+    },
+    "gnss": {
+      "ylabel": "GNSS位移 (mm)",
+      "title_prefix": "GNSS位移时程",
+      "output_dir": "时程曲线_GNSS",
+      "ylim_auto": true,
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ],
+        [
+          0.466,
+          0.674,
+          0.188
+        ]
+      ]
+    },
+    "wind": {
+      "output": {
+        "root_dir": "风速风向结果",
+        "speed_dir": "风速时程",
+        "direction_dir": "风向时程",
+        "speed10_dir": "10min平均风速",
+        "rose_dir": "风玫瑰",
+        "stats_file": "wind_stats.xlsx"
+      },
+      "speed": {
+        "ylabel": "风速 (m/s)",
+        "title_prefix": "风速时程",
+        "ylim": [
+          0,
+          40
+        ],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
+      },
+      "direction": {
+        "ylabel": "风向 (°)",
+        "title_prefix": "风向时程",
+        "color": [
+          0.85,
+          0.325,
+          0.098
+        ]
+      },
+      "speed10": {
+        "ylabel": "10min平均风速 (m/s)",
+        "title_prefix": "10min平均风速",
+        "ylim": [
+          0,
+          40
+        ],
+        "color": [
+          0.466,
+          0.674,
+          0.188
+        ]
+      },
+      "rose": {
+        "title_prefix": "风玫瑰图"
+      }
+    },
+    "eq": {
+      "ylabel": "地震动加速度 (cm/s^2)",
+      "title_prefix": "地震动时程",
+      "ylim_auto": true,
+      "output": {
+        "root_dir": "地震动结果",
+        "series_dir": "地震动时程",
+        "prefix": "EQ"
+      }
+    },
+    "dynamic_strain": {
+      "ylabel": "高通应变 (με)",
+      "title_prefix": "动应变高通时程",
+      "ylim_auto": true
+    },
+    "dynamic_strain_lowpass": {
+      "ylabel": "低通应变 (με)",
+      "title_prefix": "动应变低通时程",
+      "ylim_auto": true
+    }
+  },
+  "wind_params": {
+    "default": {
+      "window_minutes": 10,
+      "alarm_levels": [
+        25,
+        27,
+        34
+      ],
+      "speed_bins": [
+        0,
+        2,
+        4,
+        6,
+        8,
+        10,
+        15,
+        20,
+        30,
+        100
+      ],
+      "direction_sector_deg": 22.5,
+      "decimals": 2
+    }
+  },
+  "eq_params": {
+    "alarm_levels": [
+      150,
+      255
+    ]
+  },
+  "wim": {
+    "enabled": false
+  },
+  "wim_db": {},
+  "wim_plot": {},
+  "accel_spectrum_params": {
+    "target_freqs": [
+      1,
+      2,
+      3
+    ],
+    "tolerance": 0.15,
+    "fs": 20,
+    "auto_detect_fs": true
+  },
+  "cable_accel_spectrum_params": {
+    "target_freqs": [
+      1,
+      2,
+      3
+    ],
+    "tolerance": 0.15,
+    "fs": 20,
+    "auto_detect_fs": true
+  },
+  "data_adapter": {
+    "vendor": "shuixianhua",
+    "zip": {
+      "glob": "data_sxh_*.zip",
+      "date_pattern": "data_sxh_(\\d{4})-(\\d{2})-(\\d{2})",
+      "subdir": "data/sxh/csv",
+      "staging_root": "outputs/_staging/sxh"
+    },
+    "csv": {
+      "encoding": "UTF-8",
+      "delimiter": ",",
+      "time_column": "ts",
+      "time_format": "yyyy-MM-dd HH:mm:ss.SSS",
+      "strip_quotes": true
+    },
+    "cache": {
+      "enabled": true,
+      "dir": "cache",
+      "validate": "mtime_size"
+    },
+    "prefix_map": {
+      "WSD": "temp_humidity",
+      "FSFX": "wind",
+      "JSD": "eq",
+      "GSNDY": "deflection",
+      "GNSS": "gnss",
+      "ZZWY": "bearing_displacement",
+      "SSF": "bearing_displacement",
+      "ZLYB": "strain",
+      "GLYB": "strain",
+      "SL": "cable_accel",
+      "ZLZD": "acceleration",
+      "ZGZD": "acceleration"
+    },
+    "channel_map": {
+      "temperature": "value_x",
+      "humidity": "value_y",
+      "wind_speed": "value_x",
+      "wind_direction": "value_y",
+      "eq_x": "value_x",
+      "eq_y": "value_y",
+      "eq_z": "value_z",
+      "deflection": "value_x",
+      "bearing_displacement": "value_x",
+      "strain": "value_x",
+      "cable_accel": "value_x",
+      "acceleration": "value_x"
+    }
+  },
+  "plot_common": {
+    "save_fig": true,
+    "lightweight_fig": true,
+    "fig_max_points": 50000,
+    "append_timestamp": false,
+    "gap_mode": "break",
+    "gap_break_factor": 5
+  },
+  "bridge_id": "shuixianhua",
+  "bridge_name": "水仙花大桥",
+  "design_points_pending": {
+    "gnss": [
+      "GNSS-01-10#墩-X侧壁",
+      "GNSS-02-10#墩-S侧壁",
+      "GNSS-03-X-拱顶",
+      "GNSS-04-S-拱顶",
+      "GNSS-05-11#墩-X侧壁",
+      "GNSS-06-11#墩-S侧壁",
+      "GNSS-JD"
+    ]
+  }
+}

@@ -52,6 +52,9 @@ end
 
 dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd');
 dt1 = datetime(end_date,  'InputFormat','yyyy-MM-dd');
+if dt1 <= dt0
+    dt1 = dt0 + days(1);
+end
 
 fig = figure('Position',[100 100 1000 469]);
 [times_plot, vals_plot] = prepare_plot_series(times, vals);

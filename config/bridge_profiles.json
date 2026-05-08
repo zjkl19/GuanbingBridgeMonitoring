@@ -83,6 +83,35 @@
         "crack",
         "gnss"
       ]
+    },
+    {
+      "bridge_id": "shuixianhua",
+      "bridge_name": "?????",
+      "default_config": "config/shuixianhua_config.json",
+      "default_data_root": "E:/???????/2026?3?",
+      "data_layout": "jlj_daily_export",
+      "report_type": "monthly",
+      "report_gui_type": "generic_monthly",
+      "report_template": "",
+      "default_period_label": "2026?3?",
+      "default_monitoring_range": "2026?03?23?~2026?03?31?",
+      "default_start_date": "2026-03-23",
+      "default_end_date": "2026-03-31",
+      "enabled_modules": [
+        "temperature",
+        "humidity",
+        "wind",
+        "earthquake",
+        "deflection",
+        "bearing_displacement",
+        "acceleration",
+        "accel_spectrum",
+        "cable_accel",
+        "cable_accel_spectrum",
+        "strain",
+        "dynamic_strain_highpass",
+        "dynamic_strain_lowpass"
+      ]
     }
   ]
 }

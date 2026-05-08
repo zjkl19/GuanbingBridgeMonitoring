@@ -24,6 +24,9 @@ function analyze_temperature_points(root_dir, point_ids, start_date, end_date, e
     end_date_str = normalize_ymd_input(end_date);
     dn0 = datenum(start_date_str,'yyyy-mm-dd');
     dn1 = datenum(end_date_str,  'yyyy-mm-dd');
+    if dn1 <= dn0
+        dn1 = dn0 + 1;
+    end
     timestamp = datestr(now,'yyyymmdd_HHMMSS');
     outDir = fullfile(root_dir,'时程曲线_温度');
     bms.core.PathResolver.ensureDir(outDir);

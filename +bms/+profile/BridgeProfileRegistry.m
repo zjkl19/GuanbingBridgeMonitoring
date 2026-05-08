@@ -42,7 +42,8 @@ classdef BridgeProfileRegistry
             profiles = [ ...
                 P('guanbing', '管柄大桥', fullfile(projectRoot, 'config', 'default_config.json'), fullfile(projectRoot, 'reports', 'G104线管柄大桥监测月报模板-自动报告.docx'), 'dated_folders', 'monthly', {'temperature','humidity','deflection','tilt','acceleration','crack','strain'}), ...
                 P('hongtang', '洪塘大桥', fullfile(projectRoot, 'config', 'hongtang_config.json'), fullfile(projectRoot, 'reports', '洪塘大桥健康监测2026年第一季季报-改4.docx'), 'hongtang_period', 'period', {'strain','tilt','bearing_displacement','cable_accel','acceleration','wind','earthquake','wim'}), ...
-                P('jiulongjiang', '九龙江大桥', fullfile(projectRoot, 'config', 'jiulongjiang_config.json'), fullfile(projectRoot, 'reports', '九龙江大桥健康监测2026年3月份月报_修订5.docx'), 'jlj_daily_export', 'monthly', {'temperature','humidity','rainfall','wind','earthquake','deflection','tilt','acceleration','cable_accel','crack','gnss'}) ...
+                P('jiulongjiang', '九龙江大桥', fullfile(projectRoot, 'config', 'jiulongjiang_config.json'), fullfile(projectRoot, 'reports', '九龙江大桥健康监测2026年3月份月报_修订5.docx'), 'jlj_daily_export', 'monthly', {'temperature','humidity','rainfall','wind','earthquake','deflection','tilt','acceleration','cable_accel','crack','gnss'}), ...
+                P('shuixianhua', '水仙花大桥', fullfile(projectRoot, 'config', 'shuixianhua_config.json'), '', 'jlj_daily_export', 'monthly', {'temperature','humidity','wind','earthquake','deflection','bearing_displacement','acceleration','accel_spectrum','cable_accel','cable_accel_spectrum','strain','dynamic_strain_highpass','dynamic_strain_lowpass'}) ...
             ];
         end
 
@@ -66,8 +67,15 @@ classdef BridgeProfileRegistry
             if isstruct(cfg) && isfield(cfg, 'source') && ~isempty(cfg.source)
                 source = lower(char(cfg.source));
             end
+            vendor = '';
+            if isstruct(cfg) && isfield(cfg, 'vendor') && ~isempty(cfg.vendor)
+                vendor = lower(char(string(cfg.vendor)));
+            end
             rootText = lower(char(string(dataRoot)));
-            if contains(source, 'hongtang') || contains(source, '洪塘') || contains(rootText, '洪塘')
+            if contains(source, 'shuixianhua') || contains(source, 'sxh') || contains(source, '水仙花') || ...
+                    contains(vendor, 'shuixianhua') || contains(vendor, 'sxh') || contains(rootText, '水仙花')
+                profile = bms.profile.BridgeProfileRegistry.fromId('shuixianhua');
+            elseif contains(source, 'hongtang') || contains(source, '洪塘') || contains(rootText, '洪塘')
                 profile = bms.profile.BridgeProfileRegistry.fromId('hongtang');
             elseif contains(source, 'jiulongjiang') || contains(source, 'jlj') || contains(source, '九龙江') || contains(rootText, '九龙江')
                 profile = bms.profile.BridgeProfileRegistry.fromId('jiulongjiang');

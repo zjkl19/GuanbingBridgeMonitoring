@@ -126,6 +126,9 @@ if nargin < 10
 end
 fig = figure('Position',[100 100 1000 469]); hold on;
 dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd'); dt1 = datetime(end_date,'InputFormat','yyyy-MM-dd');
+if dt1 <= dt0
+    dt1 = dt0 + days(1);
+end
 N = numel(pid_list);
 
 colors_2 = normalize_colors(get_style_field(style,'colors_2', {[0 0 1], [0 0.7 0]}));

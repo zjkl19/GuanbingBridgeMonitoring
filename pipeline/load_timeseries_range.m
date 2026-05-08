@@ -133,7 +133,7 @@ function loader = get_vendor_loader(cfg)
             loader = make_donghua_loader(cfg);
         case {'hongtang'}
             loader = make_hongtang_loader(cfg);
-        case {'jiulongjiang','jiulong'}
+        case {'jiulongjiang','jiulong','shuixianhua','sxh'}
             loader = make_jiulongjiang_loader(cfg);
         otherwise
             loader = make_donghua_loader(cfg); % fallback
@@ -1294,6 +1294,12 @@ function col = resolve_jlj_value_column(sensor_type, point_id)
         col = 'value_y';
     elseif st == "gnss_z"
         col = 'value_z';
+    elseif ismember(st, ["acceleration", "cable_accel", "deflection", "bearing_displacement", "strain"])
+        if endsWith(string(point_id), "-Y") || endsWith(string(point_id), "_Y")
+            col = 'value_y';
+        elseif endsWith(string(point_id), "-Z") || endsWith(string(point_id), "_Z")
+            col = 'value_z';
+        end
     else
         col = 'value_x';
     end

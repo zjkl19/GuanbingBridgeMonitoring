@@ -52,28 +52,29 @@ for i = 1:numel(selected)
     end
 end
 
-% 九龙江新口径：根目录下直接是 data_jlj_YYYY-MM-DD.zip
+% 九龙江/水仙花等新口径：根目录下直接是 data_<bridge>_YYYY-MM-DD.zip
 if isempty(zipList)
-    jljZips = dir(fullfile(root_dir, 'data_jlj_*.zip'));
-    for i = 1:numel(jljZips)
-        tok = regexp(jljZips(i).name, '^data_jlj_(\d{4})-(\d{2})-(\d{2})\.zip$', 'tokens', 'once');
+    dailyZips = [dir(fullfile(root_dir, 'data_jlj_*.zip')); dir(fullfile(root_dir, 'data_sxh_*.zip'))];
+    for i = 1:numel(dailyZips)
+        tok = regexp(dailyZips(i).name, '^data_(jlj|sxh)_(\d{4})-(\d{2})-(\d{2})\.zip$', 'tokens', 'once');
         if isempty(tok)
             continue;
         end
-        day = sprintf('%s-%s-%s', tok{1}, tok{2}, tok{3});
+        prefix = tok{1};
+        day = sprintf('%s-%s-%s', tok{2}, tok{3}, tok{4});
         dn = datenum(day, 'yyyy-mm-dd');
         if dn < dn0 || dn > dn1
             continue;
         end
-        zipList{end+1} = fullfile(jljZips(i).folder, jljZips(i).name); %#ok<AGROW>
-        outDirs{end+1} = fullfile(root_dir, sprintf('data_jlj_%s', day)); %#ok<AGROW>
+        zipList{end+1} = fullfile(dailyZips(i).folder, dailyZips(i).name); %#ok<AGROW>
+        outDirs{end+1} = fullfile(root_dir, sprintf('data_%s_%s', prefix, day)); %#ok<AGROW>
     end
 end
 
 N = numel(zipList);
 if N == 0
     if isempty(selected)
-        error('指定日期范围内未找到日期文件夹，且未找到 data_jlj_YYYY-MM-DD.zip');
+        error('指定日期范围内未找到日期文件夹，且未找到 data_jlj/data_sxh_YYYY-MM-DD.zip');
     end
     error('未发现任何 ZIP 文件，终止执行');
 end
