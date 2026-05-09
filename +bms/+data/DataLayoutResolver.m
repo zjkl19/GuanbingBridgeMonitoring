@@ -4,8 +4,8 @@ classdef DataLayoutResolver
     methods (Static)
         function p = statsDir(root), p = fullfile(char(root), 'stats'); end
         function p = logDir(root), p = fullfile(char(root), 'run_logs'); end
-        function p = wimDir(root), p = fullfile(char(root), 'WIM'); end
-        function p = lowfreqDir(root), p = fullfile(char(root), 'lowfreq'); end
+        function p = wimDir(root), p = bms.data.PeriodFolderAdapter.wimDir(root); end
+        function p = lowfreqDir(root), p = bms.data.PeriodFolderAdapter.lowfreqDir(root); end
         function p = autoReportDir(root), p = fullfile(char(root), char([33258 21160 25253 21578])); end
 
         function p = ensureDir(p)
@@ -84,7 +84,7 @@ classdef DataLayoutResolver
                 end
             end
             root = char(root);
-            if exist(fullfile(root, 'WIM'), 'dir') && exist(fullfile(root, 'lowfreq'), 'dir')
+            if bms.data.PeriodFolderAdapter.hasPeriodLayout(root)
                 layout = 'hongtang_period';
             elseif bms.data.DataLayoutResolver.hasJljDailyExport(root, cfg)
                 layout = 'jlj_daily_export';
@@ -106,6 +106,14 @@ classdef DataLayoutResolver
             info.wim_dir = bms.data.DataLayoutResolver.wimDir(root);
             info.lowfreq_dir = bms.data.DataLayoutResolver.lowfreqDir(root);
             info.exists = isfolder(root);
+            switch char(layout)
+                case 'jlj_daily_export'
+                    info.adapter = 'bms.data.ZipDailyExportAdapter';
+                case 'hongtang_period'
+                    info.adapter = 'bms.data.PeriodFolderAdapter';
+                otherwise
+                    info.adapter = 'bms.data.DatedFolderAdapter';
+            end
         end
 
         function tf = hasJljDailyExport(root, cfg)
@@ -119,8 +127,7 @@ classdef DataLayoutResolver
         end
 
         function tf = hasDateFolders(root)
-            d = dir(fullfile(char(root), '20*'));
-            tf = any([d.isdir]);
+            tf = bms.data.DatedFolderAdapter.hasDateFolders(root);
         end
 
         function folders = dateFolders(root, startDate, endDate, layout)
@@ -133,8 +140,10 @@ classdef DataLayoutResolver
                 switch char(layout)
                     case 'jlj_daily_export'
                         candidates = bms.data.ZipDailyExportAdapter.dateFolders(root, days(i), days(i), struct());
+                    case 'hongtang_period'
+                        candidates = bms.data.PeriodFolderAdapter.dateFolders(root, days(i), days(i));
                     otherwise
-                        candidates = {fullfile(char(root), datestr(days(i), 'yyyy-mm-dd')), fullfile(char(root), datestr(days(i), 'yyyymmdd'))};
+                        candidates = bms.data.DatedFolderAdapter.dateFolderCandidates(root, days(i));
                 end
                 for j = 1:numel(candidates)
                     if isfolder(candidates{j})
@@ -143,6 +152,7 @@ classdef DataLayoutResolver
                     end
                 end
             end
+            folders = bms.data.BaseDataSource.uniqueExistingFolders(folders);
         end
 
         function folders = jljCsvDirs(root, startDate, endDate)

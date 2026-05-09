@@ -55,6 +55,41 @@ classdef test_bms_services < matlab.unittest.TestCase
             tc.verifyTrue(isfolder(fileparts(statsPath)));
         end
 
+        function dataLayoutAdaptersDiscoverFolders(tc)
+            tmp = tempname;
+            mkdir(tmp);
+            cleanup = onCleanup(@() cleanup_temp_dir(tmp)); %#ok<NASGU>
+
+            datedSub = fullfile(tmp, '2026-01-01', 'wave');
+            mkdir(datedSub);
+            tc.verifyTrue(bms.data.DatedFolderAdapter.hasDateFolders(tmp));
+            datedFolders = bms.data.DatedFolderAdapter.dateFolders(tmp, '2026-01-01', '2026-01-02');
+            tc.verifyEqual(numel(datedFolders), 1);
+            datedDirs = bms.data.DatedFolderAdapter.candidateDirs(tmp, 'wave', '2026-01-01', '2026-01-02');
+            tc.verifyEqual(numel(datedDirs), 1);
+            tc.verifyEqual(datedDirs{1}, char(java.io.File(datedSub).getCanonicalPath()));
+
+            zipCsv = fullfile(tmp, 'data_sxh_2026-03-23', 'data', 'sxh', 'csv');
+            mkdir(zipCsv);
+            fclose(fopen(fullfile(zipCsv, 'PT-1.csv'), 'w'));
+            cfg = struct('vendor', 'shuixianhua');
+            tc.verifyTrue(bms.data.ZipDailyExportAdapter.hasExtracted(tmp, cfg));
+            csvDirs = bms.data.ZipDailyExportAdapter.csvDirs(tmp, '2026-03-23', '2026-03-23', cfg);
+            tc.verifyEqual(numel(csvDirs), 1);
+            csvRecords = bms.data.ZipDailyExportAdapter.collectCsvPointIds(tmp, '2026-03-23', '2026-03-23', cfg);
+            tc.verifyEqual(csvRecords{1}.point_id, 'PT-1');
+            info = bms.data.DataLayoutResolver.describe(tmp, cfg);
+            tc.verifyEqual(info.layout, 'jlj_daily_export');
+            tc.verifyEqual(info.adapter, 'bms.data.ZipDailyExportAdapter');
+
+            lowfreqSub = fullfile(tmp, 'lowfreq', 'strain');
+            mkdir(lowfreqSub);
+            tc.verifyTrue(bms.data.PeriodFolderAdapter.hasPeriodLayout(tmp));
+            periodDirs = bms.data.PeriodFolderAdapter.candidateDirs(tmp, 'strain', '2026-01-01', '2026-03-31');
+            tc.verifyEqual(numel(periodDirs), 1);
+            tc.verifyEqual(periodDirs{1}, char(java.io.File(lowfreqSub).getCanonicalPath()));
+        end
+
         function plotServiceHandlesTimeAxis(tc)
             fig = figure('Visible', 'off');
             cleaner = onCleanup(@() close(fig)); %#ok<NASGU>

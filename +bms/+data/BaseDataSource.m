@@ -28,32 +28,14 @@ classdef BaseDataSource
         end
 
         function folders = candidateDirs(obj, subfolder, startDate, endDate)
-            folders = {};
-            subfolder = char(string(subfolder));
-            if isempty(subfolder)
-                return;
+            switch char(obj.Layout)
+                case 'hongtang_period'
+                    folders = bms.data.PeriodFolderAdapter.candidateDirs(obj.Root, subfolder, startDate, endDate);
+                case 'dated_folders'
+                    folders = bms.data.DatedFolderAdapter.candidateDirs(obj.Root, subfolder, startDate, endDate);
+                otherwise
+                    folders = bms.data.DatedFolderAdapter.candidateDirs(obj.Root, subfolder, startDate, endDate);
             end
-            if bms.data.DataLayoutResolver.isAbsolutePath(subfolder)
-                if isfolder(subfolder), folders = {subfolder}; end
-                return;
-            end
-
-            dayFolders = obj.dateFolders(startDate, endDate);
-            for i = 1:numel(dayFolders)
-                candidates = {fullfile(dayFolders{i}, subfolder), dayFolders{i}};
-                for j = 1:numel(candidates)
-                    if isfolder(candidates{j})
-                        folders{end+1} = candidates{j}; %#ok<AGROW>
-                        break;
-                    end
-                end
-            end
-
-            rootCandidate = fullfile(obj.Root, subfolder);
-            if isfolder(rootCandidate)
-                folders{end+1} = rootCandidate;
-            end
-            folders = bms.data.BaseDataSource.uniqueExistingFolders(folders);
         end
 
         function files = findPointFiles(obj, pointId, subfolder, startDate, endDate, patterns)

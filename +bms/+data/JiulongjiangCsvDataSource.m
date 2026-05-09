@@ -8,11 +8,11 @@ classdef JiulongjiangCsvDataSource < bms.data.BaseDataSource
         end
 
         function folders = dateFolders(obj, startDate, endDate)
-            folders = bms.data.DataLayoutResolver.dateFolders(obj.Root, startDate, endDate, 'jlj_daily_export');
+            folders = bms.data.ZipDailyExportAdapter.dateFolders(obj.Root, startDate, endDate, obj.Config);
         end
 
         function folders = candidateDirs(obj, subfolder, startDate, endDate)
-            csvDirs = bms.data.DataLayoutResolver.jljCsvDirs(obj.Root, startDate, endDate);
+            csvDirs = bms.data.ZipDailyExportAdapter.csvDirs(obj.Root, startDate, endDate, obj.Config);
             subfolder = char(string(subfolder));
             folders = {};
             for i = 1:numel(csvDirs)
