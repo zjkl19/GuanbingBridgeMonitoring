@@ -84,6 +84,64 @@ classdef BridgeProfileRegistry
             end
         end
 
+
+        function validation = validateCatalog(projectRoot)
+            if nargin < 1 || isempty(projectRoot)
+                projectRoot = bms.core.PathResolver.projectRoot();
+            end
+            profiles = bms.profile.BridgeProfileRegistry.catalog(projectRoot);
+            validation = struct();
+            validation.status = 'ok';
+            validation.errors = {};
+            validation.warnings = {};
+            validation.profile_count = numel(profiles);
+            validation.profile_ids = arrayfun(@(p) p.BridgeId, profiles, 'UniformOutput', false);
+            seen = containers.Map('KeyType','char','ValueType','logical');
+            allowedLayouts = {'dated_folders','hongtang_period','jlj_daily_export'};
+            for i = 1:numel(profiles)
+                p = profiles(i);
+                prefix = sprintf('profile[%d:%s]', i, p.BridgeId);
+                required = {'BridgeId','BridgeName','DefaultConfig','DefaultDataRoot','DataLayout'};
+                for k = 1:numel(required)
+                    if isempty(p.(required{k}))
+                        validation.errors{end+1} = sprintf('%s missing %s', prefix, required{k}); %#ok<AGROW>
+                    end
+                end
+                id = lower(char(p.BridgeId));
+                if ~isempty(id)
+                    if isKey(seen, id)
+                        validation.errors{end+1} = sprintf('%s duplicate bridge_id', prefix); %#ok<AGROW>
+                    else
+                        seen(id) = true;
+                    end
+                end
+                if ~isempty(p.DefaultConfig) && ~isfile(p.DefaultConfig)
+                    validation.errors{end+1} = sprintf('%s default_config not found: %s', prefix, p.DefaultConfig); %#ok<AGROW>
+                end
+                if ~isempty(p.DefaultReportTemplate) && ~contains(p.DefaultReportTemplate, '<data_root>') && ~isfile(p.DefaultReportTemplate)
+                    validation.warnings{end+1} = sprintf('%s report_template not found: %s', prefix, p.DefaultReportTemplate); %#ok<AGROW>
+                end
+                if ~isempty(p.DataLayout) && ~any(strcmp(allowedLayouts, p.DataLayout))
+                    validation.errors{end+1} = sprintf('%s unsupported data_layout: %s', prefix, p.DataLayout); %#ok<AGROW>
+                end
+                if isempty(p.EnabledModuleHints)
+                    validation.warnings{end+1} = sprintf('%s enabled_modules is empty', prefix); %#ok<AGROW>
+                end
+                if ~isempty(p.DefaultStartDate) && ~isempty(p.DefaultEndDate)
+                    try
+                        bms.data.TimeRangeResolver.parseRange(p.DefaultStartDate, p.DefaultEndDate);
+                    catch ME
+                        validation.errors{end+1} = sprintf('%s invalid default date range: %s', prefix, ME.message); %#ok<AGROW>
+                    end
+                end
+            end
+            if ~isempty(validation.errors)
+                validation.status = 'failed';
+            elseif ~isempty(validation.warnings)
+                validation.status = 'warning';
+            end
+        end
+
         function rows = toStructArray(profiles)
             rows = {};
             for i = 1:numel(profiles)

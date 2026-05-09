@@ -3,6 +3,7 @@ classdef RunPreflight
 
     methods (Static)
         function result = check(root, startDate, endDate, opts, cfg)
+            fromRequest = false;
             if nargin >= 1 && isa(root, 'bms.app.RunRequest')
                 request = root;
                 root = request.DataRoot;
@@ -10,9 +11,12 @@ classdef RunPreflight
                 endDate = request.EndDate;
                 opts = request.Options;
                 cfg = request.Config;
+                fromRequest = true;
             end
-            if nargin < 4 || isempty(opts), opts = struct(); end
-            if nargin < 5 || isempty(cfg), cfg = struct(); end
+            if ~fromRequest
+                if nargin < 4 || isempty(opts), opts = struct(); end
+                if nargin < 5 || isempty(cfg), cfg = struct(); end
+            end
 
             result = struct();
             result.status = 'ok';
@@ -574,6 +578,9 @@ classdef RunPreflight
             end
             lines{end+1} = sprintf('preflight=%s, profile=%s (%s), layout=%s, modules=%d', ...
                 char(string(result.status)), profileId, profileName, layout, numel(modules));
+            if isfield(result, 'preflight_json') && ~isempty(result.preflight_json)
+                lines{end+1} = ['preflight json=' char(string(result.preflight_json))];
+            end
             if isfield(result, 'point_coverage') && ~isempty(result.point_coverage)
                 coverageRows = bms.app.ManifestReader.recordsToCell(result.point_coverage);
                 totalDesigned = 0;
@@ -614,6 +621,38 @@ classdef RunPreflight
                 for i = 1:numel(result.errors)
                     lines{end+1} = ['  error: ' char(string(result.errors{i}))]; %#ok<AGROW>
                 end
+            end
+        end
+
+        function jsonPath = writeJson(requestOrRoot, preflight)
+            jsonPath = '';
+            try
+                if isa(requestOrRoot, 'bms.app.RunRequest')
+                    root = requestOrRoot.DataRoot;
+                    logDir = requestOrRoot.LogDir;
+                else
+                    root = char(string(requestOrRoot));
+                    logDir = bms.data.DataLayoutResolver.logDir(root);
+                end
+                if isempty(logDir)
+                    logDir = bms.data.DataLayoutResolver.logDir(root);
+                end
+                if ~exist(logDir, 'dir')
+                    mkdir(logDir);
+                end
+                ts = datestr(datetime('now'), 'yyyymmdd_HHMMSS');
+                jsonPath = fullfile(logDir, ['preflight_' ts '.json']);
+                payload = preflight;
+                payload.preflight_json = jsonPath;
+                fid = fopen(jsonPath, 'w');
+                if fid < 0
+                    jsonPath = '';
+                    return;
+                end
+                cleanup = onCleanup(@() fclose(fid)); %#ok<NASGU>
+                fprintf(fid, '%s', jsonencode(payload, 'PrettyPrint', true));
+            catch
+                jsonPath = '';
             end
         end
     end

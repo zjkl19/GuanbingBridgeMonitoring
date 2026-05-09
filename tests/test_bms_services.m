@@ -90,6 +90,50 @@ classdef test_bms_services < matlab.unittest.TestCase
             tc.verifyEqual(periodDirs{1}, char(java.io.File(lowfreqSub).getCanonicalPath()));
         end
 
+        function bridgeProfilesValidateAndSummarize(tc)
+            projectRoot = fileparts(fileparts(mfilename('fullpath')));
+            profiles = bms.profile.BridgeProfileRegistry.catalog(projectRoot);
+            ids = arrayfun(@(p) p.BridgeId, profiles, 'UniformOutput', false);
+            tc.verifyTrue(all(ismember({'guanbing','hongtang','jiulongjiang','shuixianhua'}, ids)));
+
+            validation = bms.profile.BridgeProfileRegistry.validateCatalog(projectRoot);
+            tc.verifyEmpty(validation.errors);
+            tc.verifyGreaterThanOrEqual(validation.profile_count, 4);
+
+            p = bms.profile.BridgeProfileRegistry.fromId('shuixianhua', projectRoot);
+            tc.verifyEqual(p.DefaultStartDate, '2026-03-23');
+            tc.verifyEqual(p.DefaultEndDate, '2026-03-31');
+            text = bms.gui.GuiRunController.profileSummary(p);
+            tc.verifyTrue(contains(text, 'shuixianhua_config.json'));
+            tc.verifyTrue(contains(text, '2026-03-23'));
+        end
+
+        function runPreflightWritesJsonAndKeepsCoverage(tc)
+            tmp = tempname;
+            mkdir(tmp);
+            cleanup = onCleanup(@() cleanup_temp_dir(tmp)); %#ok<NASGU>
+            cfg = struct();
+            cfg.vendor = 'shuixianhua';
+            cfg.defaults = struct();
+            cfg.subfolders = struct();
+            cfg.file_patterns = struct();
+            cfg.points = struct();
+            cfg.plot_styles = struct();
+            cfg.points.temperature = {'PT-1'};
+            cfg.subfolders.temperature = '';
+            csvDir = fullfile(tmp, 'data_sxh_2026-03-23', 'data', 'sxh', 'csv');
+            mkdir(csvDir);
+            fclose(fopen(fullfile(csvDir, 'PT-1.csv'), 'w'));
+            opts = struct('doTemp', true);
+            request = bms.app.RunRequest.fromLegacy(tmp, '2026-03-23', '2026-03-23', opts, cfg);
+            preflight = bms.app.RunPreflight.check(request);
+            jsonPath = bms.app.RunPreflight.writeJson(request, preflight);
+            tc.verifyTrue(isfile(jsonPath));
+            payload = jsondecode(fileread(jsonPath));
+            rows = bms.app.ManifestReader.recordsToCell(payload.point_coverage);
+            tc.verifyEqual(rows{1}.found_count, 1);
+        end
+
         function plotServiceHandlesTimeAxis(tc)
             fig = figure('Visible', 'off');
             cleaner = onCleanup(@() close(fig)); %#ok<NASGU>

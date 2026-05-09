@@ -56,6 +56,10 @@ classdef RunSession < handle
                 obj.Results = {};
                 obj.StartTimestamp = datetime('now');
                 obj.Preflight = bms.app.RunPreflight.check(obj.Request);
+                preflightPath = bms.app.RunPreflight.writeJson(obj.Request, obj.Preflight);
+                if ~isempty(preflightPath)
+                    obj.Preflight.preflight_json = preflightPath;
+                end
                 if strcmp(obj.Preflight.status, 'failed')
                     error('BMS:RunPreflight:Failed', 'Run preflight failed: %s', strjoin(obj.Preflight.errors, '; '));
                 end

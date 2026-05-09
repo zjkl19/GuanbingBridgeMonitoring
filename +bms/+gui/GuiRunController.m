@@ -61,7 +61,31 @@ classdef GuiRunController
         function [request, preflight, logLines] = prepareRun(state, cfg)
             request = bms.gui.GuiRunController.createRunRequest(state, cfg);
             preflight = bms.app.RunPreflight.check(request);
+            preflightPath = bms.app.RunPreflight.writeJson(request, preflight);
+            if ~isempty(preflightPath)
+                preflight.preflight_json = preflightPath;
+            end
             logLines = bms.app.RunPreflight.toLogLines(preflight);
+        end
+
+        function text = profileSummary(profile)
+            if ~isa(profile, 'bms.profile.BridgeProfile') || isempty(profile.BridgeId)
+                text = '未选择桥梁项目';
+                return;
+            end
+            [~, cfgName, cfgExt] = fileparts(profile.DefaultConfig);
+            if isempty(cfgName)
+                cfgText = '未设置';
+            else
+                cfgText = [cfgName cfgExt];
+            end
+            dateText = '';
+            if ~isempty(profile.DefaultStartDate) && ~isempty(profile.DefaultEndDate)
+                dateText = sprintf('；默认日期：%s~%s', profile.DefaultStartDate, profile.DefaultEndDate);
+            end
+            moduleText = sprintf('；默认模块：%d', numel(profile.EnabledModuleHints));
+            text = sprintf('%s；目录格式：%s；默认配置：%s%s%s', ...
+                profile.displayName(), profile.DataLayout, cfgText, dateText, moduleText);
         end
 
         function handles = controlValues(controlMap)

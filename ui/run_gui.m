@@ -233,8 +233,7 @@ function run_gui()
             endPicker.Value = datetime(profile.DefaultEndDate, 'InputFormat', 'yyyy-MM-dd');
         end
         set_profile_module_defaults(profile);
-        [~, cfgName, cfgExt] = fileparts(profile.DefaultConfig);
-        profileNote.Text = sprintf('%s；目录格式：%s；默认配置：%s%s', profile.displayName(), profile.DataLayout, cfgName, cfgExt);
+        profileNote.Text = bms.gui.GuiRunController.profileSummary(profile);
         if logChange
             addLog(['已切换桥梁项目: ' profile.displayName()]);
         end
@@ -465,7 +464,7 @@ function run_gui()
             if ~isempty(inferred.BridgeId) && any(strcmp(profileIds, inferred.BridgeId))
                 profileDrop.Value = inferred.BridgeId;
                 activeProfile = inferred;
-                profileNote.Text = sprintf('%s；目录格式：%s', inferred.displayName(), inferred.DataLayout);
+                profileNote.Text = bms.gui.GuiRunController.profileSummary(inferred);
             end
         catch
         end
