@@ -42,9 +42,14 @@ function analyze_temperature_points(root_dir, point_ids, start_date, end_date, e
         fig = figure('Position',[100 100 1000 469]); hold on;
         [time_plot, val_plot] = prepare_plot_series(all_time, all_val);
         plot(time_plot, val_plot,'LineWidth',1, 'Color', get_color(style,1));
-        avg_val = round(mean(all_val),1);
-        yline(avg_val,'--r',sprintf('平均值 %.1f',avg_val),...
-            'LabelHorizontalAlignment','center','LabelVerticalAlignment','bottom');
+        finite_val = all_val(isfinite(all_val));
+        if isempty(finite_val)
+            avg_val = NaN;
+        else
+            avg_val = round(mean(finite_val),1);
+            yline(avg_val,'--r',sprintf('平均值 %.1f',avg_val),...
+                'LabelHorizontalAlignment','center','LabelVerticalAlignment','bottom');
+        end
         numDiv = 4;
         tk = linspace(dn0,dn1,numDiv+1);
         xt = datetime(tk,'ConvertFrom','datenum');
@@ -67,8 +72,8 @@ grid on; grid minor;
 title(sprintf('%s %s', get_style_field(style,'title_prefix','温度时程'), pid));
         base = sprintf('%s_%s_%s', pid, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
         bms.plot.PlotService.saveModuleBundle(fig, outDir, [base '_' timestamp], cfg);
-        mn = min(all_val);
-        mx = max(all_val);
+        mn = safe_min(finite_val);
+        mx = safe_max(finite_val);
         stats{i,1} = pid;
         stats{i,2} = mn;
         stats{i,3} = mx;
@@ -118,6 +123,22 @@ end
 
 function ok = is_valid_ylim(v)
     ok = bms.plot.PlotService.isValidYLim(v);
+end
+
+function v = safe_min(x)
+    if isempty(x)
+        v = NaN;
+    else
+        v = min(x);
+    end
+end
+
+function v = safe_max(x)
+    if isempty(x)
+        v = NaN;
+    else
+        v = max(x);
+    end
 end
 
 function tf = is_truthy(v)

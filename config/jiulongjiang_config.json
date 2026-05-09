@@ -170,7 +170,74 @@
         "offset_correction": 0.879
       }
     },
-    "crack": {},
+    "crack": {
+      "LFJ_01_K15_X4": {
+        "offset_correction": -11.352585
+      },
+      "LFJ_02_K15_X4": {
+        "offset_correction": -10.304894
+      },
+      "LFJ_03_K15_X4": {
+        "offset_correction": -10.4131
+      },
+      "LFJ_04_K16_X4": {
+        "offset_correction": -11.290581
+      },
+      "LFJ_05_K16_X4": {
+        "offset_correction": -9.496691
+      },
+      "LFJ_06_K17_X4": {
+        "offset_correction": -11.380467
+      },
+      "LFJ_07_K17_X4": {
+        "offset_correction": -8.763537
+      },
+      "LFJ_08_K16_X3": {
+        "offset_correction": -9.696555
+      },
+      "LFJ_09_K16_X3": {
+        "offset_correction": -10.125532
+      },
+      "LFJ_10_K16_X3": {
+        "offset_correction": -9.443576
+      },
+      "LFJ_11_K15_X1": {
+        "offset_correction": -7.837642
+      },
+      "LFJ_12_K15_X1": {
+        "offset_correction": -9.120219
+      },
+      "LFJ_13_K15_X1": {
+        "offset_correction": -10.441626
+      },
+      "LFJ_14_K16_X2": {
+        "offset_correction": -11.340653
+      },
+      "LFJ_15_K16_X2": {
+        "offset_correction": -5.53781
+      },
+      "LFJ_16_K17_X2": {
+        "offset_correction": -5.82624
+      },
+      "LFJ_17_K17_X1": {
+        "offset_correction": -7.0386
+      },
+      "LFJ_18_K16_X2": {
+        "offset_correction": -6.282879
+      },
+      "LFJ_19_K16_X1": {
+        "offset_correction": -8.537069
+      },
+      "LFJ_20_K16_X1": {
+        "offset_correction": -8.135003
+      },
+      "LFJ_21_K16_X2": {
+        "offset_correction": -6.187319
+      },
+      "LFJ_22_K16_X1": {
+        "offset_correction": -12.66858
+      }
+    },
     "cable_accel": {
       "SLCGQ-01-K16-ZDG1": {
         "thresholds": [],
@@ -685,6 +752,15 @@
           "目标峰值频率 f1 = 1.26Hz",
           "目标峰值频率 f2 = 2.02Hz",
           "目标峰值频率 f3 = 3.13Hz"
+        ]
+      }
+    },
+    "temperature": {
+      "WSDJ_04_K16_QM_G20": {
+        "thresholds": [
+          {
+            "max": 50
+          }
         ]
       }
     }
@@ -1465,6 +1541,10 @@
       "ylim_auto": true,
       "ylims": {
         "JGWD-01-K16-ZFQM-G20": [
+          0,
+          100
+        ],
+        "WSDJ-02-K16-X4-G20": [
           0,
           100
         ],

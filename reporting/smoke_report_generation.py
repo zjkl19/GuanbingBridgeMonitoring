@@ -127,7 +127,7 @@ def smoke_jlj(args: argparse.Namespace, output_root: Path) -> None:
         monitoring_range=args.jlj_monitoring_range,
         report_date=args.report_date,
     )
-    _assert_generated_docx(report_path, ["健康监测系统运行状况", "主桥环境与作用监测", "（以下无正文）"])
+    _assert_generated_docx(report_path, ["监测系统运行状况", "主桥环境与作用监测", "（以下无正文）"])
     print(f"[jlj] generated OK: {report_path}")
 
 

@@ -78,5 +78,41 @@ classdef test_datasource_services < matlab.unittest.TestCase
             tc.verifyTrue(bms.data.CacheManager.metadataMatchesFull(cache, {src}, cfg, 'v1'));
             tc.verifyFalse(bms.data.CacheManager.metadataMatchesFull(cache, {src}, cfg, 'v2'));
         end
+
+        function dataIndexBuildsPointFileMap(tc)
+            dayDir = fullfile(tc.TempDir, '2026-03-01', 'temperature');
+            mkdir(dayDir);
+            src = fullfile(dayDir, 'PT-1.csv');
+            fclose(fopen(src, 'w'));
+
+            cfg = struct();
+            cfg.defaults = struct();
+            cfg.subfolders = struct('temperature', 'temperature');
+            cfg.file_patterns = struct();
+            cfg.points = struct('temperature', {{'PT-1', 'PT-2'}});
+            cfg.plot_styles = struct();
+            opts = struct('doTemp', true, 'buildDataIndex', true);
+
+            index = bms.data.DataIndex.build(tc.TempDir, '2026-03-01', '2026-03-01', cfg, opts);
+            tc.verifyEqual(index.summary.point_count, 2);
+            tc.verifyEqual(index.summary.found_point_count, 1);
+            tc.verifyEqual(index.summary.missing_point_count, 1);
+            tc.verifyEqual(index.modules{1}.points{1}.status, 'found');
+
+            out = bms.data.DataIndex.write(tc.TempDir, index, 'unit');
+            tc.verifyTrue(isfile(out));
+            payload = jsondecode(fileread(out));
+            tc.verifyEqual(payload.summary.file_count, 1);
+
+            loaded = bms.data.DataIndex.load(out);
+            moduleRows = bms.data.DataIndex.moduleRows(loaded);
+            pointRows = bms.data.DataIndex.pointRows(loaded);
+            tc.verifyEqual(height(moduleRows), 1);
+            tc.verifyEqual(height(pointRows), 2);
+            tc.verifyEqual(pointRows.status{1}, 'found');
+
+            summaryXlsx = bms.data.DataIndex.writeSummary(tc.TempDir, index, 'unit');
+            tc.verifyTrue(isfile(summaryXlsx));
+        end
     end
 end

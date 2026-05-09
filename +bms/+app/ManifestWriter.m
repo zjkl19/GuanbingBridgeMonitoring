@@ -34,9 +34,19 @@ classdef ManifestWriter
             manifest.module_catalog = {};
             manifest.enabled_module_specs = {};
             manifest.module_preflight = {};
+            manifest.stats_inventory_path = '';
+            manifest.stats_inventory_summary_path = '';
+            manifest.stats_inventory = struct();
+            manifest.data_index_path = '';
+            manifest.data_index_summary_path = '';
+            manifest.data_index = struct();
+            manifest.run_health_report_path = '';
+            manifest.run_health_report_summary_path = '';
+            manifest.run_health_report = struct();
             manifest.run_preflight = struct();
             manifest.run_request = struct();
             manifest.stats_files = bms.core.Logger.listFiles(ctx.StatsDir, '*.xlsx');
+            manifest.stats_schema_registry = bms.io.StatsSchema.registry();
             manifest.expected_stats_files = {};
             manifest.missing_expected_stats = {};
             manifest.missing_stats_files = {};
@@ -76,6 +86,35 @@ classdef ManifestWriter
             end
             if isfield(details, 'run_preflight')
                 manifest.run_preflight = details.run_preflight;
+                if isstruct(details.run_preflight)
+                    if isfield(details.run_preflight, 'data_index_path')
+                        manifest.data_index_path = details.run_preflight.data_index_path;
+                    end
+                    if isfield(details.run_preflight, 'data_index_summary_path')
+                        manifest.data_index_summary_path = details.run_preflight.data_index_summary_path;
+                    end
+                    if isfield(details.run_preflight, 'data_index')
+                        manifest.data_index = details.run_preflight.data_index;
+                    end
+                    if isfield(details.run_preflight, 'stats_inventory_path')
+                        manifest.stats_inventory_path = details.run_preflight.stats_inventory_path;
+                    end
+                    if isfield(details.run_preflight, 'stats_inventory_summary_path')
+                        manifest.stats_inventory_summary_path = details.run_preflight.stats_inventory_summary_path;
+                    end
+                    if isfield(details.run_preflight, 'stats_inventory')
+                        manifest.stats_inventory = details.run_preflight.stats_inventory;
+                    end
+                    if isfield(details.run_preflight, 'run_health_report_path')
+                        manifest.run_health_report_path = details.run_preflight.run_health_report_path;
+                    end
+                    if isfield(details.run_preflight, 'run_health_report_summary_path')
+                        manifest.run_health_report_summary_path = details.run_preflight.run_health_report_summary_path;
+                    end
+                    if isfield(details.run_preflight, 'run_health_report')
+                        manifest.run_health_report = details.run_preflight.run_health_report;
+                    end
+                end
             end
             if isfield(details, 'run_request')
                 manifest.run_request = details.run_request;

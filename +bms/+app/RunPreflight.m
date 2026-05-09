@@ -34,6 +34,15 @@ classdef RunPreflight
             result.module_preflight = {};
             result.module_config_warnings = {};
             result.point_coverage = {};
+            result.stats_inventory = struct();
+            result.stats_inventory_path = '';
+            result.stats_inventory_summary_path = '';
+            result.data_index = struct();
+            result.data_index_path = '';
+            result.data_index_summary_path = '';
+            result.run_health_report = struct();
+            result.run_health_report_path = '';
+            result.run_health_report_summary_path = '';
             result.result_artifact_preflight = {};
             result.wim_month_files = struct('month', {}, 'fmt', {}, 'bcp', {}, 'exists', {});
             result.wim_preflight = struct();
@@ -44,9 +53,13 @@ classdef RunPreflight
             result = bms.app.RunPreflight.attachProfileAndLayout(result, root, cfg);
             result = bms.app.RunPreflight.attachModuleInfo(result, root, opts);
             result = bms.app.RunPreflight.checkEnabledModuleConfig(result, root, startDate, endDate, opts, cfg);
+            result = bms.app.RunPreflight.checkStatsInventory(result, root, opts, cfg);
+            result = bms.app.RunPreflight.checkDataIndex(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.checkPointCoverage(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.checkResultArtifacts(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.checkWimInputs(result, root, startDate, endDate, opts, cfg);
+            result = bms.app.RunPreflight.finalizeStatus(result);
+            result = bms.app.RunPreflight.checkRunHealthReport(result, root, opts, cfg);
             result = bms.app.RunPreflight.finalizeStatus(result);
         end
 
@@ -150,6 +163,37 @@ classdef RunPreflight
             result.warnings{end+1} = ['module config: ' message];
         end
 
+        function result = checkStatsInventory(result, root, opts, cfg)
+            if ~bms.app.RunPreflight.statsInventoryEnabled(opts, cfg)
+                return;
+            end
+            try
+                inventory = bms.io.StatsInventory.build(root, opts, cfg);
+                result.stats_inventory = bms.io.StatsInventory.summarize(inventory);
+                runId = datestr(datetime('now'), 'yyyymmdd_HHMMSS');
+                result.stats_inventory_path = bms.io.StatsInventory.write(root, inventory, runId);
+                result.stats_inventory_summary_path = bms.io.StatsInventory.writeSummary(root, inventory, runId);
+            catch ME
+                result.warnings{end+1} = ['stats inventory build failed: ' ME.message];
+            end
+        end
+
+        function tf = statsInventoryEnabled(opts, cfg)
+            tf = false;
+            if bms.app.RunHealthReport.enabled(opts, cfg)
+                tf = true;
+                return;
+            end
+            if isstruct(opts) && isfield(opts, 'buildStatsInventory') && ~isempty(opts.buildStatsInventory)
+                tf = logical(opts.buildStatsInventory);
+                return;
+            end
+            if isstruct(cfg) && isfield(cfg, 'stats_inventory') && isstruct(cfg.stats_inventory) ...
+                    && isfield(cfg.stats_inventory, 'enabled') && ~isempty(cfg.stats_inventory.enabled)
+                tf = logical(cfg.stats_inventory.enabled);
+            end
+        end
+
         function result = checkPointCoverage(result, root, startDate, endDate, opts, cfg)
             try
                 layout = '';
@@ -224,6 +268,42 @@ classdef RunPreflight
                 result.point_coverage = rows;
             catch ME
                 result.warnings{end+1} = ['point coverage preflight failed: ' ME.message];
+            end
+        end
+
+        function result = checkDataIndex(result, root, startDate, endDate, opts, cfg)
+            if ~bms.app.RunPreflight.dataIndexEnabled(opts, cfg)
+                return;
+            end
+            try
+                index = bms.data.DataIndex.build(root, startDate, endDate, cfg, opts);
+                result.data_index = bms.data.DataIndex.summarize(index);
+                if isfield(result, 'preflight_json') && ~isempty(result.preflight_json)
+                    [~, runId] = fileparts(char(string(result.preflight_json)));
+                    runId = regexprep(runId, '^preflight_', '');
+                else
+                    runId = datestr(datetime('now'), 'yyyymmdd_HHMMSS');
+                end
+                result.data_index_path = bms.data.DataIndex.write(root, index, runId);
+                result.data_index_summary_path = bms.data.DataIndex.writeSummary(root, index, runId);
+            catch ME
+                result.warnings{end+1} = ['data index build failed: ' ME.message];
+            end
+        end
+
+        function tf = dataIndexEnabled(opts, cfg)
+            tf = false;
+            if bms.app.RunHealthReport.enabled(opts, cfg)
+                tf = true;
+                return;
+            end
+            if isstruct(opts) && isfield(opts, 'buildDataIndex') && ~isempty(opts.buildDataIndex)
+                tf = logical(opts.buildDataIndex);
+                return;
+            end
+            if isstruct(cfg) && isfield(cfg, 'data_index') && isstruct(cfg.data_index) ...
+                    && isfield(cfg.data_index, 'enabled') && ~isempty(cfg.data_index.enabled)
+                tf = logical(cfg.data_index.enabled);
             end
         end
 
@@ -392,6 +472,21 @@ classdef RunPreflight
                 end
             catch ME
                 result.warnings{end+1} = ['WIM preflight failed: ' ME.message];
+            end
+        end
+
+        function result = checkRunHealthReport(result, root, opts, cfg)
+            if ~bms.app.RunHealthReport.enabled(opts, cfg)
+                return;
+            end
+            try
+                report = bms.app.RunHealthReport.build(result);
+                result.run_health_report = report;
+                runId = datestr(datetime('now'), 'yyyymmdd_HHMMSS');
+                result.run_health_report_path = bms.app.RunHealthReport.write(root, report, runId);
+                result.run_health_report_summary_path = bms.app.RunHealthReport.writeSummary(root, report, runId);
+            catch ME
+                result.warnings{end+1} = ['run health report build failed: ' ME.message];
             end
         end
 
@@ -610,6 +705,49 @@ classdef RunPreflight
                     end
                 end
             end
+            if isfield(result, 'data_index') && isstruct(result.data_index) && isfield(result.data_index, 'summary')
+                s = result.data_index.summary;
+                lines{end+1} = sprintf('data index: modules=%d, points=%d, found=%d, missing=%d, files=%d', ...
+                    bms.app.RunPreflight.numField(s, 'module_count'), ...
+                    bms.app.RunPreflight.numField(s, 'point_count'), ...
+                    bms.app.RunPreflight.numField(s, 'found_point_count'), ...
+                    bms.app.RunPreflight.numField(s, 'missing_point_count'), ...
+                    bms.app.RunPreflight.numField(s, 'file_count'));
+                if isfield(result, 'data_index_path') && ~isempty(result.data_index_path)
+                    lines{end+1} = ['data index json=' char(string(result.data_index_path))]; %#ok<AGROW>
+                end
+                if isfield(result, 'data_index_summary_path') && ~isempty(result.data_index_summary_path)
+                    lines{end+1} = ['data index summary=' char(string(result.data_index_summary_path))]; %#ok<AGROW>
+                end
+            end
+            if isfield(result, 'stats_inventory') && isstruct(result.stats_inventory) && isfield(result.stats_inventory, 'summary')
+                s = result.stats_inventory.summary;
+                lines{end+1} = sprintf('stats inventory: expected=%d, existing=%d, missing=%d, empty=%d, read_failed=%d', ...
+                    bms.app.RunPreflight.numField(s, 'stats_expected_count'), ...
+                    bms.app.RunPreflight.numField(s, 'stats_existing_count'), ...
+                    bms.app.RunPreflight.numField(s, 'stats_missing_count'), ...
+                    bms.app.RunPreflight.numField(s, 'stats_empty_count'), ...
+                    bms.app.RunPreflight.numField(s, 'stats_read_failed_count'));
+                if isfield(result, 'stats_inventory_path') && ~isempty(result.stats_inventory_path)
+                    lines{end+1} = ['stats inventory json=' char(string(result.stats_inventory_path))]; %#ok<AGROW>
+                end
+                if isfield(result, 'stats_inventory_summary_path') && ~isempty(result.stats_inventory_summary_path)
+                    lines{end+1} = ['stats inventory summary=' char(string(result.stats_inventory_summary_path))]; %#ok<AGROW>
+                end
+            end
+            if isfield(result, 'run_health_report') && isstruct(result.run_health_report) && isfield(result.run_health_report, 'issue_counts')
+                c = result.run_health_report.issue_counts;
+                lines{end+1} = sprintf('run health: issues=%d, errors=%d, warnings=%d', ...
+                    bms.app.RunPreflight.numField(c, 'total'), ...
+                    bms.app.RunPreflight.numField(c, 'error'), ...
+                    bms.app.RunPreflight.numField(c, 'warning'));
+                if isfield(result, 'run_health_report_path') && ~isempty(result.run_health_report_path)
+                    lines{end+1} = ['run health json=' char(string(result.run_health_report_path))]; %#ok<AGROW>
+                end
+                if isfield(result, 'run_health_report_summary_path') && ~isempty(result.run_health_report_summary_path)
+                    lines{end+1} = ['run health summary=' char(string(result.run_health_report_summary_path))]; %#ok<AGROW>
+                end
+            end
             if isfield(result, 'warnings') && ~isempty(result.warnings)
                 lines{end+1} = sprintf('preflight warnings=%d', numel(result.warnings));
                 for i = 1:min(numel(result.warnings), 5)
@@ -653,6 +791,13 @@ classdef RunPreflight
                 fprintf(fid, '%s', jsonencode(payload, 'PrettyPrint', true));
             catch
                 jsonPath = '';
+            end
+        end
+
+        function v = numField(s, field)
+            v = 0;
+            if isstruct(s) && isfield(s, field) && ~isempty(s.(field)) && isnumeric(s.(field))
+                v = double(s.(field));
             end
         end
     end

@@ -181,15 +181,20 @@ def insert_docx_body_after_heading(
 
 
 def resolve_jlj_patrol_report_docx(template: Path) -> Path | None:
-    name = "九龙江大桥巡查报告.docx"
-    candidates = [
-        template.parent / name,
-        Path.cwd() / "reports" / name,
-        Path(__file__).resolve().parents[1] / "reports" / name,
-    ]
+    names = ["九龙江大桥巡查报告-2026年03月.docx", "九龙江大桥巡查报告.docx"]
+    candidates: list[Path] = []
+    for name in names:
+        candidates.extend(
+            [
+                template.parent / name,
+                Path.cwd() / "reports" / name,
+                Path(__file__).resolve().parents[1] / "reports" / name,
+            ]
+        )
     bundle_root = getattr(sys, "_MEIPASS", None)
     if bundle_root:
-        candidates.append(Path(bundle_root) / "reports" / name)
+        for name in names:
+            candidates.append(Path(bundle_root) / "reports" / name)
     for candidate in candidates:
         if candidate.exists():
             return candidate

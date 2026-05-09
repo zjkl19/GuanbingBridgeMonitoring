@@ -82,44 +82,13 @@ function [times, vals, meta] = load_timeseries_range(root_dir, subfolder, point_
     [times, order] = sort(all_t);
     vals = all_v(order);
 
-    if ~isempty(rules.offset_correction) && isnumeric(rules.offset_correction) ...
-            && isscalar(rules.offset_correction) && isfinite(rules.offset_correction) ...
-            && rules.offset_correction ~= 0
-        vals = vals + rules.offset_correction;
-        meta.applied_offset_correction = rules.offset_correction;
-        try
-            offset_correction_registry('record', struct( ...
-                'sensor_type', sensor_type, ...
-                'point_id', point_id, ...
-                'offset_correction', rules.offset_correction, ...
-                'start_time', min(times), ...
-                'end_time', max(times), ...
-                'sample_count', numel(vals), ...
-                'files', {meta.files}));
-        catch
-        end
-    else
-        meta.applied_offset_correction = [];
-    end
-
-    % === cleaning pipeline ===
-    % 1) 阈值过滤：超出 min/max 置 NaN。
-    % 2) 零值过滤：zero_to_nan=true 时，值为 0 置 NaN（适合部分传感器“掉线写 0”场景）。
-    % 3) 滑窗异常值：以窗口 w 点的 movmedian 为基准，isoutlier 判断，超出则置 NaN。
-    %    例：fs=20 Hz，outlier_window_sec=10，则 w=round(20*10)=200 点。
-    %    假设某段 vals=[1 1 1 10 1 1 1 ...]，movmedian≈1，若 threshold_factor=3，
-    %    则 10 会被判为异常置 NaN，其余保留。
-    vals = apply_thresholds(vals, times, rules.thresholds);
-    if rules.zero_to_nan
-        vals(vals == 0) = NaN;
-    end
-    if ~isempty(rules.outlier_window_sec) && ~isempty(rules.outlier_threshold_factor) && numel(times) >= 2
-        fs = 1/median(seconds(diff(times)));          % 估计采样率 (Hz)
-        w = max(1, round(fs * rules.outlier_window_sec)); % 窗口点数
-        mask = isoutlier(vals, 'movmedian', w, ...
-            'ThresholdFactor', rules.outlier_threshold_factor);
-        vals(mask) = NaN;
-    end
+    [vals, cleanLog] = bms.data.CleaningPipeline.apply(vals, times, rules, struct( ...
+        'record_offset', true, ...
+        'sensor_type', sensor_type, ...
+        'point_id', point_id, ...
+        'files', {meta.files}));
+    meta.cleaning_log = cleanLog;
+    meta.applied_offset_correction = cleanLog.offset_correction;
 end
 
 % -------------------------------------------------------------------------
@@ -591,46 +560,7 @@ end
 
 % -------------------------------------------------------------------------
 function rules = build_rules(cfg, sensor_type, point_id)
-    rules = struct('thresholds', [], 'zero_to_nan', false, ...
-                   'outlier_window_sec', [], 'outlier_threshold_factor', [], ...
-                   'offset_correction', []);
-    shared_sensor = resolve_shared_sensor_type(sensor_type);
-    if isfield(cfg, 'defaults') && isfield(cfg.defaults, sensor_type)
-        def = cfg.defaults.(sensor_type);
-        if isfield(def, 'thresholds'), rules.thresholds = def.thresholds; end
-        if isfield(def, 'zero_to_nan'), rules.zero_to_nan = logical(def.zero_to_nan); end
-        if isfield(def, 'outlier') && isstruct(def.outlier)
-            if isfield(def.outlier, 'window_sec'), rules.outlier_window_sec = def.outlier.window_sec; end
-            if isfield(def.outlier, 'threshold_factor'), rules.outlier_threshold_factor = def.outlier.threshold_factor; end
-        end
-        if isfield(def, 'offset_correction'), rules.offset_correction = parse_offset_value(def.offset_correction); end
-    elseif ~isempty(shared_sensor) && isfield(cfg, 'defaults') && isfield(cfg.defaults, shared_sensor)
-        def = cfg.defaults.(shared_sensor);
-        if isfield(def, 'thresholds'), rules.thresholds = def.thresholds; end
-        if isfield(def, 'zero_to_nan'), rules.zero_to_nan = logical(def.zero_to_nan); end
-        if isfield(def, 'outlier') && isstruct(def.outlier)
-            if isfield(def.outlier, 'window_sec'), rules.outlier_window_sec = def.outlier.window_sec; end
-            if isfield(def.outlier, 'threshold_factor'), rules.outlier_threshold_factor = def.outlier.threshold_factor; end
-        end
-        if isfield(def, 'offset_correction'), rules.offset_correction = parse_offset_value(def.offset_correction); end
-    end
-    safe_id = strrep(point_id, '-', '_');
-    if isfield(cfg, 'per_point') && isfield(cfg.per_point, sensor_type) ...
-            && isfield(cfg.per_point.(sensor_type), safe_id)
-        pt = cfg.per_point.(sensor_type).(safe_id);
-        rules = apply_point_rules(rules, pt);
-    elseif ~isempty(shared_sensor) && isfield(cfg, 'per_point') && isfield(cfg.per_point, shared_sensor) ...
-            && isfield(cfg.per_point.(shared_sensor), safe_id)
-        pt = cfg.per_point.(shared_sensor).(safe_id);
-        rules = apply_point_rules(rules, pt);
-    end
-
-    % Wind mapping lives under per_point.wind; allow shared cleaning rules.
-    if strncmp(sensor_type, 'wind_', 5) && isfield(cfg, 'per_point') ...
-            && isfield(cfg.per_point, 'wind') && isfield(cfg.per_point.wind, safe_id)
-        pt = cfg.per_point.wind.(safe_id);
-        rules = apply_point_rules(rules, pt);
-    end
+    rules = bms.data.CleaningPipeline.resolveRules(cfg, sensor_type, point_id);
 end
 
 function shared_sensor = resolve_shared_sensor_type(sensor_type)

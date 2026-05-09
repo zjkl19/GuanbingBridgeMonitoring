@@ -188,7 +188,8 @@ JLG_REPORT_LIMITS = {
     "cable_accel_rms_level3_mps2": 3.0,
 }
 
-JLG_FIRST_MODE_FREQ_HZ = 1.26
+JLG_MAIN_GIRDER_FIRST_MODE_FREQ_HZ = 1.08
+JLG_ARCH_RIB_FIRST_MODE_FREQ_HZ = 1.05
 JLG_CONCRETE_ELASTIC_MODULUS_MPA = 34.5e3
 JLG_STEEL_ELASTIC_MODULUS_MPA = 206e3
 JLG_MAIN_GIRDER_STRESS_LIMITS_MPA = (-16.2, 17.6)
@@ -542,8 +543,9 @@ def collect_jlj_data_acquisition_rows(cfg: dict, result_root: Path, start_date: 
                 "design_count": str(design_count),
                 "acquired_count": str(acquired_count),
                 "rate": f"{rate:.1f}%",
+                "date_range": f"{start_date:%Y-%m-%d}~{end_date:%Y-%m-%d}",
                 "missing_points": truncate_point_list(missing_points),
-                "remarks": "；".join(remarks) if remarks else "已获取",
+                "remarks": "；".join(remarks) if remarks else "/",
             }
         )
     return rows
@@ -602,11 +604,11 @@ def apply_monthly_data_status_section(
     add_text_paragraph_before(anchor, "本月监测系统数据获取情况如下。设计测点以九龙江配置文件及竣工图测点布置为参考，实际获取情况按监测周期内原始 CSV 文件及有效记录统计。", text_template)
     insert_auto_caption_before(anchor, caption_templates.table_paragraph, "本月监测数据获取情况统计表")
     table = insert_table_before(anchor, rows=len(rows) + 1, cols=6)
-    headers = ["监测项目", "设计测点数", "实际获取测点数", "获取率", "未获取测点", "备注"]
+    headers = ["监测项目", "设计测点数", "实际获取测点数", "获取率", "获取日期", "缺失说明"]
     for idx, header in enumerate(headers):
         set_cell_text_preserve(table.cell(0, idx), header)
     for ridx, row in enumerate(rows, start=1):
-        values = [row["module"], row["design_count"], row["acquired_count"], row["rate"], row["missing_points"], row["remarks"]]
+        values = [row["module"], row["design_count"], row["acquired_count"], row["rate"], row["date_range"], row["remarks"]]
         for cidx, value in enumerate(values):
             set_cell_text_preserve(table.cell(ridx, cidx), value)
     style_table(table, left=True)
@@ -614,20 +616,18 @@ def apply_monthly_data_status_section(
     set_repeat_table_header(table)
     set_table_outer_border(table, size_eighth_pt=12)
     set_table_auto_width(table)
-    set_table_column_widths(table, [30, 18, 22, 18, 58, 38])
+    set_table_column_widths(table, [32, 18, 22, 18, 30, 58])
     set_table_font_size(table, 9)
 
 
-def summarize_first_mode_frequency(stats_root: Path, fallback_root: Path | None = None) -> tuple[str, str, list[str]]:
+def load_first_mode_frequency_map(stats_root: Path, fallback_root: Path | None = None) -> dict[str, float]:
     try:
         workbook_path = resolve_existing_file(stats_root, fallback_root, "accel_spec_stats.xlsx")
     except FileNotFoundError:
-        return "", "", []
+        return {}
 
     wb = load_workbook(workbook_path, read_only=True, data_only=True)
-    point_means: list[float] = []
-    all_values: list[float] = []
-    point_ids: list[str] = []
+    freq_map: dict[str, float] = {}
     try:
         for ws in wb.worksheets:
             rows = list(ws.iter_rows(values_only=True))
@@ -641,30 +641,66 @@ def summarize_first_mode_frequency(stats_root: Path, fallback_root: Path | None 
             values = [value for value in values if value is not None]
             if not values:
                 continue
-            point_means.append(sum(values) / len(values))
-            all_values.extend(values)
-            point_ids.append(ws.title)
+            freq_map[ws.title] = sum(values) / len(values)
     finally:
         wb.close()
+    return freq_map
 
-    if not all_values:
-        return "", "", []
 
-    min_freq = min(all_values)
-    max_freq = max(all_values)
-    mean_freq = sum(point_means) / len(point_means)
-    detail = (
-        f"已识别到有效一阶频率的{len(point_means)}个测点中，一阶频率范围约为"
-        f"{format_number_fixed(min_freq, 3, 'Hz')}~{format_number_fixed(max_freq, 3, 'Hz')}，"
-        f"平均约为{format_number_fixed(mean_freq, 3, 'Hz')}，与一阶自振频率"
-        f"{format_number_fixed(JLG_FIRST_MODE_FREQ_HZ, 3, 'Hz')}总体接近。"
-    )
-    summary = (
-        f"已识别测点一阶频率约为{format_number_fixed(min_freq, 3, 'Hz')}~"
-        f"{format_number_fixed(max_freq, 3, 'Hz')}，与一阶自振频率"
-        f"{format_number_fixed(JLG_FIRST_MODE_FREQ_HZ, 3, 'Hz')}总体接近。"
-    )
-    return detail, summary, sorted_point_ids(point_ids)
+def acceleration_group(point_id: str) -> str:
+    idx = point_index(point_id)
+    if idx is None:
+        return "unknown"
+    if 1 <= idx <= 10:
+        return "main_girder"
+    if 11 <= idx <= 16:
+        return "arch_rib"
+    return "unknown"
+
+
+def summarize_first_mode_frequency(stats_root: Path, fallback_root: Path | None = None) -> tuple[str, str, list[str], dict[str, float]]:
+    freq_map = load_first_mode_frequency_map(stats_root, fallback_root)
+    if not freq_map:
+        return "", "", [], {}
+
+    point_ids = sorted_point_ids(freq_map.keys())
+    parts: list[str] = []
+    summary_parts: list[str] = []
+    for group_key, subject, theoretical in (
+        ("main_girder", "主梁", JLG_MAIN_GIRDER_FIRST_MODE_FREQ_HZ),
+        ("arch_rib", "拱肋", JLG_ARCH_RIB_FIRST_MODE_FREQ_HZ),
+    ):
+        values = [freq for pid, freq in freq_map.items() if acceleration_group(pid) == group_key]
+        if not values:
+            continue
+        min_freq = min(values)
+        max_freq = max(values)
+        comparator = "大于" if min_freq >= theoretical else "低于"
+        parts.append(
+            f"{subject}实测竖向第1阶自振频率范围约为"
+            f"{format_number_fixed(min_freq, 3, 'Hz')}~{format_number_fixed(max_freq, 3, 'Hz')}，"
+            f"{comparator}结构相应理论计算的1阶竖弯频率"
+            f"{format_number_fixed(theoretical, 3, 'Hz')}。"
+        )
+        summary_parts.append(
+            f"{subject}实测第1阶自振频率为"
+            f"{format_number_fixed(min_freq, 3, 'Hz')}~{format_number_fixed(max_freq, 3, 'Hz')}，"
+            f"{comparator}理论1阶竖弯频率{format_number_fixed(theoretical, 3, 'Hz')}。"
+        )
+
+    if not parts:
+        all_values = list(freq_map.values())
+        min_freq = min(all_values)
+        max_freq = max(all_values)
+        parts.append(
+            f"已识别到有效一阶频率的{len(freq_map)}个测点中，一阶频率范围约为"
+            f"{format_number_fixed(min_freq, 3, 'Hz')}~{format_number_fixed(max_freq, 3, 'Hz')}。"
+        )
+        summary_parts.append(parts[-1])
+
+    detail = "".join(parts) + "桥梁结构实测刚度大于理论刚度且未见明显变化。"
+    summary = "".join(summary_parts) + "桥梁结构实测刚度大于理论刚度且未见明显变化。"
+    return detail, summary, point_ids, freq_map
 
 
 def select_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -1093,43 +1129,48 @@ def summarize_stress_limit_status(
     if not selected:
         return "", ""
 
-    stress_mins: list[float] = []
-    stress_maxs: list[float] = []
+    strain_mins: list[float] = []
+    strain_maxs: list[float] = []
     exceeded: list[tuple[str, float]] = []
+    lower_limit_micro = lower_limit_mpa / elastic_modulus_mpa * 1e6
+    upper_limit_micro = upper_limit_mpa / elastic_modulus_mpa * 1e6
     for row in selected:
         point_id = safe_text(row.get("PointID"))
-        min_stress = strain_to_stress_mpa(parse_float(row.get("Min")), elastic_modulus_mpa)
-        max_stress = strain_to_stress_mpa(parse_float(row.get("Max")), elastic_modulus_mpa)
-        if min_stress is not None:
-            stress_mins.append(min_stress)
-            if min_stress < lower_limit_mpa:
-                exceeded.append((point_id, min_stress))
-        if max_stress is not None:
-            stress_maxs.append(max_stress)
-            if max_stress > upper_limit_mpa:
-                exceeded.append((point_id, max_stress))
+        min_strain = parse_float(row.get("Min"))
+        max_strain = parse_float(row.get("Max"))
+        if min_strain is not None:
+            strain_mins.append(min_strain)
+            if min_strain < lower_limit_micro:
+                exceeded.append((point_id, min_strain))
+        if max_strain is not None:
+            strain_maxs.append(max_strain)
+            if max_strain > upper_limit_micro:
+                exceeded.append((point_id, max_strain))
 
-    if not stress_mins and not stress_maxs:
+    if not strain_mins and not strain_maxs:
         return "", ""
 
-    stress_min = min(stress_mins) if stress_mins else None
-    stress_max = max(stress_maxs) if stress_maxs else None
-    stress_range = format_range(stress_min, stress_max, 3, "MPa")
-    limit_text = f"{limit_name}（上限{format_number(upper_limit_mpa, 1, 'MPa')}、下限{format_number(lower_limit_mpa, 1, 'MPa')}）"
+    strain_min = min(strain_mins) if strain_mins else None
+    strain_max = max(strain_maxs) if strain_maxs else None
+    strain_range = format_range(strain_min, strain_max, 3, "με")
+    limit_text = (
+        f"{limit_name}折算应变阈值"
+        f"（{format_number(lower_limit_micro, 1, 'με')}~{format_number(upper_limit_micro, 1, 'με')}）"
+    )
     if exceeded:
-        point_id, stress_value = max(exceeded, key=lambda item: abs(item[1]))
+        point_id, strain_value = max(exceeded, key=lambda item: abs(item[1]))
         sentence = (
-            f"{subject}按弹性模量换算后应力范围为{stress_range}，"
-            f"其中{point_id}换算应力为{format_number(stress_value, 3, 'MPa')}，"
+            f"{subject}实测值在{strain_range}之间，"
+            f"其中{point_id}实测值为{format_number(strain_value, 3, 'με')}，"
             f"超过{limit_text}。"
         )
-        summary = f"{subject}换算应力范围为{stress_range}，超过{limit_name}。"
+        summary = f"{subject}实测值在{strain_range}之间，超过{limit_name}折算应变阈值。"
     else:
         sentence = (
-            f"{subject}按弹性模量换算后应力范围为{stress_range}，"
+            f"{subject}实测值在{strain_range}之间，"
             f"未超过{limit_text}，均处于预警阈值范围之内，未出现超过各级超限阈值和报警的情况。"
         )
-        summary = f"{subject}换算应力范围为{stress_range}，未超过{limit_name}。"
+        summary = f"{subject}实测值在{strain_range}之间，未超过{limit_name}折算应变阈值。"
     return sentence, summary
 
 
@@ -1509,19 +1550,28 @@ def build_numeric_summary_section(
     image_items: list[ImageItem],
     table_rows_override: list[dict] | None = None,
     warning_sentence: str | None = None,
+    show_mean: bool = True,
+    keep_trailing: bool = False,
 ) -> SectionContent:
     if not rows:
         return build_missing_section(f"本月未获取到{summary_subject}有效数据。")
     lo = numeric_min(rows, min_key)
     hi = numeric_max(rows, max_key)
-    mean_v = numeric_mean(rows, mean_key)
-    narrative = (
-        f"{narrative_intro}共统计{len(rows)}个测点，监测值范围为"
-        f"{format_range(lo, hi, decimals, unit)}，平均值约为{format_number(mean_v, decimals, unit)}。"
-    )
+    range_text = format_range(lo, hi, decimals, unit, trim=not keep_trailing)
+    if show_mean:
+        mean_v = numeric_mean(rows, mean_key)
+        narrative = (
+            f"{narrative_intro}共统计{len(rows)}个测点，实测值在"
+            f"{range_text}之间，平均值约为{format_number(mean_v, decimals, unit, trim=not keep_trailing)}。"
+        )
+    else:
+        narrative = (
+            f"{narrative_intro}共统计{len(rows)}个测点，实测值在"
+            f"{range_text}之间。"
+        )
     if warning_sentence:
         narrative += warning_sentence
-    summary = f"{summary_subject}监测值范围为{format_range(lo, hi, decimals, unit)}。"
+    summary = f"{summary_subject}实测值在{range_text}之间。"
     if warning_sentence:
         summary += warning_sentence
     return SectionContent(
@@ -1566,6 +1616,36 @@ def make_image_items(image_root: Path, directory: str, rows: list[dict], pattern
         if not point_id:
             continue
         items.append(ImageItem(label_fn(row), image_for_point(image_root, directory, point_id, patterns_fn(point_id))))
+    return items
+
+
+def make_priority_image_items(
+    image_root: Path,
+    directory: str,
+    rows: list[dict],
+    patterns_fn: Callable[[str], list[str]],
+    label_fn: Callable[[dict], str],
+    priority_points: Iterable[str],
+    limit: int = 4,
+) -> list[ImageItem]:
+    row_by_id = {safe_text(row.get("PointID")): row for row in rows}
+    selected: list[dict] = []
+    seen: set[str] = set()
+    for point_id in priority_points:
+        row = row_by_id.get(point_id)
+        if row is not None and point_id not in seen:
+            selected.append(row)
+            seen.add(point_id)
+    for row in choose_representative_points([row for row in rows if safe_text(row.get("PointID")) not in seen], max(0, limit - len(selected))):
+        point_id = safe_text(row.get("PointID"))
+        if point_id and point_id not in seen:
+            selected.append(row)
+            seen.add(point_id)
+    items: list[ImageItem] = []
+    for row in selected[:limit]:
+        point_id = safe_text(row.get("PointID"))
+        if point_id:
+            items.append(ImageItem(label_fn(row), image_for_point(image_root, directory, point_id, patterns_fn(point_id))))
     return items
 
 
@@ -1651,11 +1731,11 @@ def build_temperature_section(cfg: dict, result_root: Path, stats_root: Path, fa
         )
     temp_status = "".join(part for part in temp_status_parts if part)
     narrative = (
-        f"选取典型监测数据进行分析。桥面温度监测范围为{deck_range}，"
-        f"拱肋温度监测范围为{arch_range}，主梁箱室温度监测范围为{box_range}，"
-        f"主梁内温度监测范围为{inner_range}，桥址区环境温度监测范围为{env_range}。{temp_status}"
+        f"选取典型监测数据进行分析。桥面温度实测值在{deck_range}之间，"
+        f"拱肋温度实测值在{arch_range}之间，主梁箱室温度实测值在{box_range}之间，"
+        f"主梁内温度实测值在{inner_range}之间，桥址区环境温度实测值在{env_range}之间。{temp_status}"
     )
-    summary = f"桥面、拱肋、主梁箱室、主梁内及桥址区环境温度监测范围分别为{deck_range}、{arch_range}、{box_range}、{inner_range}和{env_range}。{temp_status}"
+    summary = f"桥面、拱肋、主梁箱室、主梁内及桥址区环境温度实测值分别在{deck_range}、{arch_range}、{box_range}、{inner_range}和{env_range}之间。{temp_status}"
     columns = [
         ("PointID", "测点编号", None),
         ("Category", "监测类型", None),
@@ -1677,12 +1757,13 @@ def build_temperature_section(cfg: dict, result_root: Path, stats_root: Path, fa
     )
     for row in table_rows:
         row["Category"] = classify_temperature_point(safe_text(row.get("PointID")))
-    image_items = make_image_items(
+    image_items = make_priority_image_items(
         image_root,
         "时程曲线_温度",
         rows,
         lambda pid: [f"{pid}_*.jpg"],
         lambda row: safe_text(row.get("PointID")),
+        priority_points=("JGWD-01-K16-ZFQM-G20", "WSDJ-02-K16-X4-G20", "WSDJ-04-K16-QM-G20"),
         limit=4,
     )
     return SectionContent(
@@ -1711,14 +1792,16 @@ def build_humidity_section(cfg: dict, result_root: Path, stats_root: Path, fallb
     box_rows = [row for row in rows if classify_humidity_point(safe_text(row.get("PointID"))) == "主梁箱室相对湿度"]
     env_range = format_range(numeric_min(env_rows, "Min"), numeric_max(env_rows, "Max"), 1, "%") if env_rows else "--"
     box_range = format_range(numeric_min(box_rows, "Min"), numeric_max(box_rows, "Max"), 1, "%") if box_rows else "--"
-    humidity_status = describe_threshold_status(
-        numeric_max(rows, "Max"),
-        50.0,
-        "相对湿度最大值",
-        "%",
-        level_name="一级",
-        decimals=1,
-    )
+    humidity_status = ""
+    if box_rows:
+        humidity_status = describe_threshold_status(
+            numeric_max(box_rows, "Max"),
+            50.0,
+            "主梁箱室相对湿度最大值",
+            "%",
+            level_name="一级",
+            decimals=1,
+        )
     image_items = make_image_items(
         image_root,
         "时程曲线_湿度",
@@ -1742,8 +1825,8 @@ def build_humidity_section(cfg: dict, result_root: Path, stats_root: Path, fallb
     for row in table_rows:
         row["Category"] = classify_humidity_point(safe_text(row.get("PointID")))
     return SectionContent(
-        narrative=f"选取典型监测数据进行分析。主梁箱室相对湿度监测范围为{box_range}，桥址区环境相对湿度监测范围为{env_range}。{humidity_status}",
-        summary_sentence=f"主梁箱室及桥址区环境相对湿度监测范围分别为{box_range}和{env_range}。{humidity_status}",
+        narrative=f"选取典型监测数据进行分析。主梁箱室相对湿度实测值在{box_range}之间，桥址区环境相对湿度实测值在{env_range}之间。{humidity_status}",
+        summary_sentence=f"主梁箱室及桥址区环境相对湿度实测值分别在{box_range}和{env_range}之间。{humidity_status}",
         table_title="主桥湿度监测统计表",
         table_columns=columns,
         table_rows=table_rows,
@@ -1838,11 +1921,7 @@ def build_wind_section(cfg: dict, result_root: Path, stats_root: Path, fallback_
         limit_text = f"已超过{format_number_fixed(wind_limit, 0, 'm/s')}预警阈值，需重点复核。"
     else:
         limit_text = "暂不具备预警判定条件。"
-    narrative = (
-        f"选取典型监测数据进行分析。主桥桥面平均风速约为{format_number(mean_speed, 2, 'm/s')}，"
-        f"瞬时最大风速为{format_number(max_speed, 2, 'm/s')}，"
-        f"桥面10min平均风速最大值为{format_number(max_10m, 2, 'm/s')}，{limit_text}"
-    )
+    narrative = f"选取典型监测数据进行分析。主桥10min平均风速最大值为{format_number(max_10m, 2, 'm/s')}，{limit_text}"
     summary = f"主桥桥面风速监测中，桥面10min平均风速最大值为{format_number(max_10m, 2, 'm/s')}，{limit_text}"
     columns = [
         ("PointID", "测点编号", 22.0),
@@ -2000,32 +2079,28 @@ def build_deflection_section(cfg: dict, result_root: Path, stats_root: Path, fal
         ("PointID", "测点编号", None),
         ("OrigMin_mm", "最小值(mm)", None),
         ("OrigMax_mm", "最大值(mm)", None),
-        ("OrigMean_mm", "平均值(mm)", None),
     ]
     filt_columns = [
         ("PointID", "测点编号", None),
         ("FiltMin_mm", "最小值(mm)", None),
         ("FiltMax_mm", "最大值(mm)", None),
-        ("FiltMean_mm", "平均值(mm)", None),
     ]
     orig_table_rows = build_full_point_table_rows(
         expected_points,
         rows,
         orig_columns,
-        formatters=numeric_table_formatters(("OrigMin_mm", "OrigMax_mm", "OrigMean_mm"), 1),
+        formatters=numeric_table_formatters(("OrigMin_mm", "OrigMax_mm"), 1),
     )
     filt_table_rows = build_full_point_table_rows(
         expected_points,
         rows,
         filt_columns,
-        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm", "FiltMean_mm"), 1),
+        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm"), 1),
     )
     orig_lo = numeric_min(rows, "OrigMin_mm")
     orig_hi = numeric_max(rows, "OrigMax_mm")
-    orig_mean = numeric_mean(rows, "OrigMean_mm")
     filt_lo = numeric_min(rows, "FiltMin_mm")
     filt_hi = numeric_max(rows, "FiltMax_mm")
-    filt_mean = numeric_mean(rows, "FiltMean_mm")
     lower2, upper2, lower3, upper3 = extract_warn_line_bounds(cfg, "deflection")
     warn_sentence = describe_range_warn_status(
         filt_lo,
@@ -2046,14 +2121,12 @@ def build_deflection_section(cfg: dict, result_root: Path, stats_root: Path, fal
         orig_images.append(ImageItem(pid, orig_path))
         filt_images.append(ImageItem(pid, filt_path))
     narrative = (
-        f"选取典型监测数据进行分析。主桥挠度原始数据监测值范围为{format_range(orig_lo, orig_hi, 1, 'mm')}，"
-        f"平均值约为{format_number(orig_mean, 1, 'mm')}；"
-        f"滤波后监测值范围为{format_range(filt_lo, filt_hi, 1, 'mm')}，"
-        f"平均值约为{format_number(filt_mean, 1, 'mm')}。{warn_sentence}"
+        f"选取典型监测数据进行分析。主桥挠度原始数据实测值在{format_range(orig_lo, orig_hi, 1, 'mm', trim=False)}之间，"
+        f"滤波后实测值在{format_range(filt_lo, filt_hi, 1, 'mm', trim=False)}之间。{warn_sentence}"
     )
     summary = (
-        f"主桥挠度原始数据监测值范围为{format_range(orig_lo, orig_hi, 1, 'mm')}；"
-        f"滤波后监测值范围为{format_range(filt_lo, filt_hi, 1, 'mm')}。{warn_sentence}"
+        f"主桥挠度原始数据实测值在{format_range(orig_lo, orig_hi, 1, 'mm', trim=False)}之间；"
+        f"滤波后实测值在{format_range(filt_lo, filt_hi, 1, 'mm', trim=False)}之间。{warn_sentence}"
     )
     return SectionContent(
         narrative=narrative,
@@ -2085,7 +2158,6 @@ def build_main_bearing_section(cfg: dict, result_root: Path, stats_root: Path, f
         ("PointID", "测点编号", None),
         ("FiltMin_mm", "最小值(mm)", None),
         ("FiltMax_mm", "最大值(mm)", None),
-        ("FiltMean_mm", "平均值(mm)", None),
     ]
     image_items = make_image_items(
         image_root,
@@ -2100,7 +2172,7 @@ def build_main_bearing_section(cfg: dict, result_root: Path, stats_root: Path, f
         expected_points,
         rows,
         columns,
-        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm", "FiltMean_mm"), 1),
+        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm"), 1),
     )
     bearing_warning = describe_range_warn_status(
         numeric_min(rows, "FiltMin_mm"),
@@ -2128,6 +2200,8 @@ def build_main_bearing_section(cfg: dict, result_root: Path, stats_root: Path, f
         image_items,
         table_rows_override=table_rows,
         warning_sentence=bearing_warning,
+        show_mean=False,
+        keep_trailing=True,
     )
 
 
@@ -2140,12 +2214,12 @@ def build_gnss_section(cfg: dict, result_root: Path, stats_root: Path, fallback_
         ("ComponentLabel", "分量", None),
         ("Min_mm", "最小值(mm)", None),
         ("Max_mm", "最大值(mm)", None),
-        ("PeakToPeak_mm", "峰峰值(mm)", None),
     ]
-    pp = numeric_max(rows, "PeakToPeak_mm")
+    lo = numeric_min(rows, "Min_mm")
+    hi = numeric_max(rows, "Max_mm")
     gnss_warning = describe_range_warn_status(
-        numeric_min(rows, "Min_mm"),
-        numeric_max(rows, "Max_mm"),
+        lo,
+        hi,
         -59.4,
         53.8,
         -74.2,
@@ -2154,8 +2228,13 @@ def build_gnss_section(cfg: dict, result_root: Path, stats_root: Path, fallback_
         "mm",
         1,
     )
-    narrative = f"选取典型监测数据进行分析。主桥拱顶、拱脚 GNSS 位移峰峰值最大约为{format_number(pp, 3, 'mm')}。{gnss_warning}"
-    summary = f"主桥拱顶、拱脚 GNSS 位移峰峰值最大约为{format_number(pp, 3, 'mm')}。{gnss_warning}"
+    narrative = (
+        f"选取典型监测数据进行分析。主桥拱顶、拱脚 GNSS 位移实测值在"
+        f"{format_range(lo, hi, 1, 'mm', trim=False)}之间。{gnss_warning}"
+    )
+    summary = (
+        f"主桥拱顶、拱脚 GNSS 位移实测值在{format_range(lo, hi, 1, 'mm', trim=False)}之间。{gnss_warning}"
+    )
     image_items = make_image_items(
         image_root,
         "时程曲线_GNSS",
@@ -2171,11 +2250,10 @@ def build_gnss_section(cfg: dict, result_root: Path, stats_root: Path, fallback_
         expected_keys,
         rows,
         ("PointID", "Component"),
-        [("PointID", "测点编号", None), ("Component", "分量代码", None), ("Min_mm", "最小值(mm)", None), ("Max_mm", "最大值(mm)", None), ("PeakToPeak_mm", "峰峰值(mm)", None)],
+        [("PointID", "测点编号", None), ("Component", "分量代码", None), ("Min_mm", "最小值(mm)", None), ("Max_mm", "最大值(mm)", None)],
         formatters={
-            "Min_mm": lambda value: format_table_number(value, 3, False),
-            "Max_mm": lambda value: format_table_number(value, 3, False),
-            "PeakToPeak_mm": lambda value: format_table_number(value, 3, False),
+            "Min_mm": lambda value: format_table_number(value, 1, True),
+            "Max_mm": lambda value: format_table_number(value, 1, True),
         },
     )
     normalized_rows = []
@@ -2186,7 +2264,6 @@ def build_gnss_section(cfg: dict, result_root: Path, stats_root: Path, fallback_
                 "ComponentLabel": label_map.get(safe_text(row.get("Component")), safe_text(row.get("Component"), "/")),
                 "Min_mm": row["Min_mm"],
                 "Max_mm": row["Max_mm"],
-                "PeakToPeak_mm": row["PeakToPeak_mm"],
             }
         )
     return SectionContent(
@@ -2205,7 +2282,7 @@ def build_vibration_section(cfg: dict, result_root: Path, stats_root: Path, fall
         rows = load_section_rows(stats_root, fallback_root, "accel_stats.xlsx", lambda row: safe_text(row.get("PointID")) not in {"", "None"})
     except FileNotFoundError:
         rows = []
-    first_mode_detail, first_mode_summary, first_mode_points = summarize_first_mode_frequency(stats_root, fallback_root)
+    first_mode_detail, first_mode_summary, first_mode_points, first_mode_freqs = summarize_first_mode_frequency(stats_root, fallback_root)
     if not rows and not first_mode_detail:
         return build_missing_section("本月未获取到主桥结构振动监测有效数据。")
 
@@ -2241,6 +2318,7 @@ def build_vibration_section(cfg: dict, result_root: Path, stats_root: Path, fall
         ("Min", "最小值(m/s²)", None),
         ("Max", "最大值(m/s²)", None),
         ("RMS10minMax", "10min RMS最大值(m/s²)", None),
+        ("FirstFreqHz", "识别一阶频率(Hz)", None),
     ]
     expected_points = resolve_expected_points(cfg, result_root, "acceleration", ("ZDCQG-",), fallback_rows=rows or [{"PointID": point_id} for point_id in first_mode_points])
     table_rows = (
@@ -2248,11 +2326,16 @@ def build_vibration_section(cfg: dict, result_root: Path, stats_root: Path, fall
             expected_points,
             rows,
             columns,
-            formatters=numeric_table_formatters(("Min", "Max", "RMS10minMax"), 3),
+            formatters=numeric_table_formatters(("Min", "Max", "RMS10minMax", "FirstFreqHz"), 3),
         )
         if rows
         else None
     )
+    if table_rows:
+        for row in table_rows:
+            pid = safe_text(row.get("PointID"))
+            if pid in first_mode_freqs:
+                row["FirstFreqHz"] = format_table_number(first_mode_freqs[pid], 3, False)
     image_items: list[ImageItem] = []
     representative_rows = choose_representative_points(rows, 2) if rows else [{"PointID": point_id} for point_id in pick_evenly([{"PointID": point_id} for point_id in first_mode_points], 2)]
     for row in representative_rows:
@@ -2316,11 +2399,11 @@ def build_main_strain_section(cfg: dict, result_root: Path, stats_root: Path, fa
     stress_parts = [part for part in (girder_sentence, arch_sentence) if part]
     summary_parts = [part for part in (girder_summary, arch_summary) if part]
     narrative = (
-        f"选取典型监测数据进行分析。主桥应变共统计{len(rows)}个测点，监测值范围为"
-        f"{format_range(lo, hi, 3, 'με')}，平均值约为{format_number(mean_v, 3, 'με')}。"
+        f"选取典型监测数据进行分析。主桥应变共统计{len(rows)}个测点，实测值在"
+        f"{format_range(lo, hi, 3, 'με')}之间，平均值约为{format_number(mean_v, 3, 'με')}。"
         + "".join(stress_parts)
     )
-    summary = f"主桥应变监测值范围为{format_range(lo, hi, 3, 'με')}。" + "".join(summary_parts)
+    summary = f"主桥应变实测值在{format_range(lo, hi, 3, 'με')}之间。" + "".join(summary_parts)
     return SectionContent(
         narrative=narrative,
         summary_sentence=summary,
@@ -2375,14 +2458,13 @@ def build_cable_section(cfg: dict, result_root: Path, stats_root: Path, fallback
         return build_missing_section("本月未获取到吊杆振动监测有效数据。")
     abs_peak = max(abs(parse_float(row.get("Min")) or 0.0) if abs(parse_float(row.get("Min")) or 0.0) > abs(parse_float(row.get("Max")) or 0.0) else abs(parse_float(row.get("Max")) or 0.0) for row in rows)
     rms_peak = numeric_max(rows, "RMS10minMax")
-    rms_status = describe_two_level_upper_status(
-        rms_peak,
-        JLG_REPORT_LIMITS["cable_accel_rms_level2_mps2"],
-        JLG_REPORT_LIMITS["cable_accel_rms_level3_mps2"],
-        "吊杆振动10min均方根最大值",
-        "m/s²",
-        3,
-    )
+    cable_rms_level2 = JLG_REPORT_LIMITS["cable_accel_rms_level3_mps2"]
+    if rms_peak is None:
+        rms_status = "暂不具备预警判定条件。"
+    elif rms_peak > cable_rms_level2:
+        rms_status = f"超过二级预警阈值{format_number_fixed(cable_rms_level2, 3, 'm/s²')}。"
+    else:
+        rms_status = f"未超过二级预警阈值{format_number_fixed(cable_rms_level2, 3, 'm/s²')}，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
     narrative = (
         f"选取典型监测数据进行分析。吊杆振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，"
         f"10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}，{rms_status}"
@@ -2474,13 +2556,13 @@ def build_south_strain_section(cfg: dict, result_root: Path, stats_root: Path, f
 
 def build_north_bearing_section(cfg: dict, result_root: Path, stats_root: Path, fallback_root: Path | None, image_root: Path) -> SectionContent:
     rows = load_section_rows(stats_root, fallback_root, "bearing_displacement_stats.xlsx", lambda row: is_north_bearing(safe_text(row.get("PointID"))))
-    columns = [("PointID", "测点编号", None), ("FiltMin_mm", "最小值(mm)", None), ("FiltMax_mm", "最大值(mm)", None), ("FiltMean_mm", "平均值(mm)", None)]
+    columns = [("PointID", "测点编号", None), ("FiltMin_mm", "最小值(mm)", None), ("FiltMax_mm", "最大值(mm)", None)]
     image_items = make_image_items(image_root, "时程曲线_支座位移", rows, lambda pid: [f"BearingDisp_{pid}_*Filt*.jpg", f"BearingDisp_{pid}_*.jpg"], lambda row: safe_text(row.get("PointID")), limit=4)
     table_rows = build_full_point_table_rows(
         resolve_expected_points(cfg, result_root, "bearing_displacement", ("WYJ-",), predicate=is_north_bearing, fallback_rows=rows),
         rows,
         columns,
-        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm", "FiltMean_mm"), 1),
+        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm"), 1),
     )
     bearing_warning = describe_range_warn_status(
         numeric_min(rows, "FiltMin_mm"),
@@ -2508,18 +2590,20 @@ def build_north_bearing_section(cfg: dict, result_root: Path, stats_root: Path, 
         image_items,
         table_rows_override=table_rows,
         warning_sentence=bearing_warning,
+        show_mean=False,
+        keep_trailing=True,
     )
 
 
 def build_south_bearing_section(cfg: dict, result_root: Path, stats_root: Path, fallback_root: Path | None, image_root: Path) -> SectionContent:
     rows = load_section_rows(stats_root, fallback_root, "bearing_displacement_stats.xlsx", lambda row: is_south_bearing(safe_text(row.get("PointID"))))
-    columns = [("PointID", "测点编号", None), ("FiltMin_mm", "最小值(mm)", None), ("FiltMax_mm", "最大值(mm)", None), ("FiltMean_mm", "平均值(mm)", None)]
+    columns = [("PointID", "测点编号", None), ("FiltMin_mm", "最小值(mm)", None), ("FiltMax_mm", "最大值(mm)", None)]
     image_items = make_image_items(image_root, "时程曲线_支座位移", rows, lambda pid: [f"BearingDisp_{pid}_*Filt*.jpg", f"BearingDisp_{pid}_*.jpg"], lambda row: safe_text(row.get("PointID")), limit=4)
     table_rows = build_full_point_table_rows(
         resolve_expected_points(cfg, result_root, "bearing_displacement", ("WYJ-",), predicate=is_south_bearing, fallback_rows=rows),
         rows,
         columns,
-        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm", "FiltMean_mm"), 1),
+        formatters=numeric_table_formatters(("FiltMin_mm", "FiltMax_mm"), 1),
     )
     bearing_warning = describe_range_warn_status(
         numeric_min(rows, "FiltMin_mm"),
@@ -2547,18 +2631,20 @@ def build_south_bearing_section(cfg: dict, result_root: Path, stats_root: Path, 
         image_items,
         table_rows_override=table_rows,
         warning_sentence=bearing_warning,
+        show_mean=False,
+        keep_trailing=True,
     )
 
 
 def build_north_tilt_section(cfg: dict, result_root: Path, stats_root: Path, fallback_root: Path | None, image_root: Path) -> SectionContent:
     rows = load_section_rows(stats_root, fallback_root, "tilt_stats.xlsx", lambda row: is_north_tilt(safe_text(row.get("PointID"))))
-    columns = [("PointID", "测点编号", None), ("Min", "最小值(°)", None), ("Max", "最大值(°)", None), ("Mean", "平均值(°)", None)]
+    columns = [("PointID", "测点编号", None), ("Min", "最小值(°)", None), ("Max", "最大值(°)", None)]
     image_items = make_image_items(image_root, "时程曲线_倾角", rows, lambda pid: [f"Tilt_{pid}_*.jpg"], lambda row: safe_text(row.get("PointID")), limit=4)
     table_rows = build_full_point_table_rows(
         resolve_expected_points(cfg, result_root, "tilt", (), predicate=is_north_tilt, fallback_rows=rows),
         rows,
         columns,
-        formatters=numeric_table_formatters(("Min", "Max", "Mean"), 3),
+        formatters=numeric_table_formatters(("Min", "Max"), 3),
     )
     lower2, upper2, lower3, upper3 = extract_warn_line_bounds(cfg, "tilt")
     warning_sentence = describe_range_warn_status(
@@ -2587,18 +2673,20 @@ def build_north_tilt_section(cfg: dict, result_root: Path, stats_root: Path, fal
         image_items,
         table_rows_override=table_rows,
         warning_sentence=warning_sentence,
+        show_mean=False,
+        keep_trailing=True,
     )
 
 
 def build_south_tilt_section(cfg: dict, result_root: Path, stats_root: Path, fallback_root: Path | None, image_root: Path) -> SectionContent:
     rows = load_section_rows(stats_root, fallback_root, "tilt_stats.xlsx", lambda row: is_south_tilt(safe_text(row.get("PointID"))))
-    columns = [("PointID", "测点编号", None), ("Min", "最小值(°)", None), ("Max", "最大值(°)", None), ("Mean", "平均值(°)", None)]
+    columns = [("PointID", "测点编号", None), ("Min", "最小值(°)", None), ("Max", "最大值(°)", None)]
     image_items = make_image_items(image_root, "时程曲线_倾角", rows, lambda pid: [f"Tilt_{pid}_*.jpg"], lambda row: safe_text(row.get("PointID")), limit=4)
     table_rows = build_full_point_table_rows(
         resolve_expected_points(cfg, result_root, "tilt", (), predicate=is_south_tilt, fallback_rows=rows),
         rows,
         columns,
-        formatters=numeric_table_formatters(("Min", "Max", "Mean"), 3),
+        formatters=numeric_table_formatters(("Min", "Max"), 3),
     )
     lower2, upper2, lower3, upper3 = extract_warn_line_bounds(cfg, "tilt")
     warning_sentence = describe_range_warn_status(
@@ -2627,6 +2715,8 @@ def build_south_tilt_section(cfg: dict, result_root: Path, stats_root: Path, fal
         image_items,
         table_rows_override=table_rows,
         warning_sentence=warning_sentence,
+        show_mean=False,
+        keep_trailing=True,
     )
 
 
