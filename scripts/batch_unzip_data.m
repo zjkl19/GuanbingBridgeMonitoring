@@ -41,20 +41,10 @@ end
 
 % 九龙江新口径
 if isempty(zipList)
-    zfiles = [dir(fullfile(root_dir, 'data_jlj_*.zip')); dir(fullfile(root_dir, 'data_sxh_*.zip'))];
-    for i = 1:numel(zfiles)
-        tok = regexp(zfiles(i).name, '^data_(jlj|sxh)_(\d{4})-(\d{2})-(\d{2})\.zip$', 'tokens', 'once');
-        if isempty(tok)
-            continue;
-        end
-        prefix = tok{1};
-        day = sprintf('%s-%s-%s', tok{2}, tok{3}, tok{4});
-        dn = datenum(day, 'yyyy-mm-dd');
-        if dn < dn0 || dn > dn1
-            continue;
-        end
-        zipList{end+1} = fullfile(zfiles(i).folder, zfiles(i).name); %#ok<AGROW>
-        outDirs{end+1} = fullfile(root_dir, sprintf('data_%s_%s', prefix, day)); %#ok<AGROW>
+    dailyTargets = bms.data.ZipDailyExportAdapter.dailyZipTargets(root_dir, start_date, end_date, struct());
+    for i = 1:numel(dailyTargets)
+        zipList{end+1} = dailyTargets(i).zip; %#ok<AGROW>
+        outDirs{end+1} = dailyTargets(i).out_dir; %#ok<AGROW>
     end
 end
 

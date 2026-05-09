@@ -899,31 +899,7 @@ end
 % -------------------------------------------------------------------------
 % Jiulongjiang adapter helpers
 function adapter = get_jlj_adapter(cfg)
-    adapter = struct();
-    if isfield(cfg, 'data_adapter') && isstruct(cfg.data_adapter)
-        adapter = cfg.data_adapter;
-    end
-    if ~isfield(adapter, 'zip') || ~isstruct(adapter.zip)
-        adapter.zip = struct();
-    end
-    if ~isfield(adapter, 'csv') || ~isstruct(adapter.csv)
-        adapter.csv = struct();
-    end
-    adapter.zip.glob = get_field_default(adapter.zip, 'glob', 'data_jlj_*.zip');
-    adapter.zip.date_pattern = get_field_default(adapter.zip, 'date_pattern', 'data_jlj_(\\d{4})-(\\d{2})-(\\d{2})');
-    adapter.zip.subdir = get_field_default(adapter.zip, 'subdir', fullfile('data','jlj','csv'));
-    adapter.zip.staging_root = get_field_default(adapter.zip, 'staging_root', fullfile('outputs','_staging','jlj'));
-    adapter.csv.encoding = get_field_default(adapter.csv, 'encoding', 'UTF-8');
-    adapter.csv.delimiter = get_field_default(adapter.csv, 'delimiter', ',');
-    adapter.csv.time_column = get_field_default(adapter.csv, 'time_column', 'ts');
-    adapter.csv.time_format = get_field_default(adapter.csv, 'time_format', 'yyyy-MM-dd HH:mm:ss.SSS');
-    adapter.csv.strip_quotes = get_field_default(adapter.csv, 'strip_quotes', true);
-    if ~isfield(adapter, 'cache') || ~isstruct(adapter.cache)
-        adapter.cache = struct();
-    end
-    adapter.cache.enabled = get_field_default(adapter.cache, 'enabled', true);
-    adapter.cache.dir = get_field_default(adapter.cache, 'dir', 'cache');
-    adapter.cache.validate = get_field_default(adapter.cache, 'validate', 'mtime_size');
+    adapter = bms.data.ZipDailyExportAdapter.resolve(cfg);
     adapter.private_cfg = cfg;
 end
 
@@ -973,7 +949,7 @@ function [dirp, meta] = jlj_get_day_dir(root_dir, day, adapter, meta)
         end
     end
 
-    zip_path = find_jlj_zip(root_dir, dt, adapter.zip);
+    zip_path = bms.data.ZipDailyExportAdapter.findZip(root_dir, dt, adapter.zip);
     if ~isempty(zip_path)
         [~, base, ~] = fileparts(zip_path);
         subdir = adapter.zip.subdir;
@@ -986,13 +962,17 @@ end
 
 function layouts = get_jlj_layout_candidates(dt, start_str, end_str, adapter)
     day_str = datestr(dt, 'yyyy-mm-dd');
-    layouts = struct( ...
-        'folder_name', { ...
-            sprintf('data_jlj_%s', day_str), ...
-            sprintf('jljData%s-%s', start_str, end_str)}, ...
-        'subdir', { ...
-            adapter.zip.subdir, ...
-            fullfile('data', 'csv')});
+    prefixes = {'jlj'};
+    if isfield(adapter, 'prefixes') && ~isempty(adapter.prefixes)
+        prefixes = adapter.prefixes;
+    end
+    layouts = struct('folder_name', {}, 'subdir', {});
+    for i = 1:numel(prefixes)
+        layouts(end+1) = struct('folder_name', sprintf('data_%s_%s', prefixes{i}, day_str), ...
+            'subdir', fullfile('data', prefixes{i}, 'csv')); %#ok<AGROW>
+    end
+    layouts(end+1) = struct('folder_name', sprintf('jljData%s-%s', start_str, end_str), ...
+        'subdir', fullfile('data', 'csv'));
 end
 
 function [dirp, meta] = extract_jlj_zip(zip_path, subdir, adapter, meta)
@@ -1009,46 +989,6 @@ function [dirp, meta] = extract_jlj_zip(zip_path, subdir, adapter, meta)
     if exist(candidate, 'dir')
         dirp = candidate;
         meta.cache_dir = resolve_jlj_cache_dir(dirp, adapter);
-    end
-end
-
-function zip_path = find_jlj_zip(root_dir, dt, zip_cfg)
-    zip_path = '';
-    globs = normalize_patterns(zip_cfg.glob);
-    if isempty(globs)
-        globs = {'*.zip'};
-    end
-    pats = normalize_patterns(zip_cfg.date_pattern);
-    start_str = datestr(dt, 'yyyymmdd');
-    day_str = datestr(dt, 'yyyy-mm-dd');
-
-    for g = 1:numel(globs)
-        files = dir(fullfile(root_dir, globs{g}));
-        for i = 1:numel(files)
-            name = files(i).name;
-            matched = false;
-            for p = 1:numel(pats)
-                tokens = regexp(name, pats{p}, 'tokens', 'once');
-                if isempty(tokens)
-                    continue;
-                end
-                if numel(tokens) == 1 && strcmp(tokens{1}, start_str)
-                    matched = true;
-                    break;
-                end
-                if numel(tokens) >= 3
-                    iso = sprintf('%s-%s-%s', tokens{1}, tokens{2}, tokens{3});
-                    if strcmp(iso, day_str)
-                        matched = true;
-                        break;
-                    end
-                end
-            end
-            if matched
-                zip_path = fullfile(files(i).folder, name);
-                return;
-            end
-        end
     end
 end
 

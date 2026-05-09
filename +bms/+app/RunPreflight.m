@@ -29,6 +29,7 @@ classdef RunPreflight
             result.enabled_module_specs = {};
             result.module_preflight = {};
             result.module_config_warnings = {};
+            result.point_coverage = {};
             result.result_artifact_preflight = {};
             result.wim_month_files = struct('month', {}, 'fmt', {}, 'bcp', {}, 'exists', {});
             result.wim_preflight = struct();
@@ -39,6 +40,7 @@ classdef RunPreflight
             result = bms.app.RunPreflight.attachProfileAndLayout(result, root, cfg);
             result = bms.app.RunPreflight.attachModuleInfo(result, root, opts);
             result = bms.app.RunPreflight.checkEnabledModuleConfig(result, root, startDate, endDate, opts, cfg);
+            result = bms.app.RunPreflight.checkPointCoverage(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.checkResultArtifacts(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.checkWimInputs(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.finalizeStatus(result);
@@ -142,6 +144,187 @@ classdef RunPreflight
         function result = addModuleConfigWarning(result, message)
             result.module_config_warnings{end+1} = message;
             result.warnings{end+1} = ['module config: ' message];
+        end
+
+        function result = checkPointCoverage(result, root, startDate, endDate, opts, cfg)
+            try
+                layout = '';
+                if isfield(result, 'data_layout') && isstruct(result.data_layout) && isfield(result.data_layout, 'layout')
+                    layout = char(string(result.data_layout.layout));
+                end
+                if ~strcmp(layout, 'jlj_daily_export') || ~isfolder(root)
+                    return;
+                end
+
+                actualRecords = bms.data.ZipDailyExportAdapter.collectCsvPointIds(root, startDate, endDate, cfg);
+                actualIds = cell(1, numel(actualRecords));
+                actualDays = containers.Map('KeyType', 'char', 'ValueType', 'any');
+                for i = 1:numel(actualRecords)
+                    rec = actualRecords{i};
+                    actualIds{i} = rec.point_id;
+                    actualDays(rec.point_id) = rec.days;
+                end
+                actualMap = containers.Map('KeyType', 'char', 'ValueType', 'char');
+                for i = 1:numel(actualIds)
+                    actualMap(actualIds{i}) = actualIds{i};
+                end
+
+                specs = bms.module.ModuleRegistry.enabledFromOptions(opts);
+                rows = {};
+                for i = 1:numel(specs)
+                    spec = specs(i);
+                    if ~strcmp(spec.Category, 'analysis') || strcmp(spec.Key, 'wim')
+                        continue;
+                    end
+                    expected = bms.app.RunPreflight.configuredPoints(cfg, spec.Key);
+                    if isempty(expected)
+                        continue;
+                    end
+                    found = {};
+                    missing = {};
+                    matchedIds = {};
+                    for j = 1:numel(expected)
+                        [tf, matched] = bms.app.RunPreflight.pointExists(actualMap, expected{j});
+                        if tf
+                            found{end+1} = expected{j}; %#ok<AGROW>
+                            matchedIds{end+1} = matched; %#ok<AGROW>
+                        else
+                            missing{end+1} = expected{j}; %#ok<AGROW>
+                        end
+                    end
+                    coverage = 0;
+                    if ~isempty(expected)
+                        coverage = numel(found) / numel(expected);
+                    end
+                    row = struct();
+                    row.key = spec.Key;
+                    row.label = spec.Label;
+                    row.designed_count = numel(expected);
+                    row.found_count = numel(found);
+                    row.missing_count = numel(missing);
+                    row.coverage = coverage;
+                    row.found_points = found;
+                    row.missing_points = missing;
+                    row.matched_csv_points = matchedIds;
+                    rows{end+1} = row; %#ok<AGROW>
+
+                    if ~isempty(missing)
+                        preview = strjoin(missing(1:min(5, numel(missing))), ', ');
+                        if numel(missing) > 5
+                            preview = [preview, sprintf(' ... +%d', numel(missing) - 5)];
+                        end
+                        result.warnings{end+1} = sprintf('point coverage: %s found %d/%d, missing %d (%s)', ...
+                            spec.Key, numel(found), numel(expected), numel(missing), preview); %#ok<AGROW>
+                    end
+                end
+                result.point_coverage = rows;
+            catch ME
+                result.warnings{end+1} = ['point coverage preflight failed: ' ME.message];
+            end
+        end
+
+        function points = configuredPoints(cfg, key)
+            points = {};
+            if ~isstruct(cfg), return; end
+            aliases = bms.app.RunPreflight.pointAliases(key);
+            if isfield(cfg, 'points') && isstruct(cfg.points)
+                for i = 1:numel(aliases)
+                    if isfield(cfg.points, aliases{i})
+                        points = [points, bms.app.RunPreflight.flattenPointValues(cfg.points.(aliases{i}))]; %#ok<AGROW>
+                    end
+                end
+            end
+            if isfield(cfg, 'groups') && isstruct(cfg.groups)
+                for i = 1:numel(aliases)
+                    if isfield(cfg.groups, aliases{i})
+                        points = [points, bms.app.RunPreflight.flattenPointValues(cfg.groups.(aliases{i}))]; %#ok<AGROW>
+                    end
+                end
+            end
+            points = bms.app.RunPreflight.uniqueText(points);
+        end
+
+        function aliases = pointAliases(key)
+            key = char(key);
+            aliases = {key};
+            switch key
+                case 'earthquake'
+                    aliases = {'earthquake', 'eq'};
+                case 'accel_spectrum'
+                    aliases = {'accel_spectrum', 'acceleration'};
+                case 'cable_accel_spectrum'
+                    aliases = {'cable_accel_spectrum', 'cable_accel'};
+                case 'dynamic_strain_highpass'
+                    aliases = {'dynamic_strain', 'strain_timeseries', 'strain'};
+                case 'dynamic_strain_lowpass'
+                    aliases = {'dynamic_strain_lowpass', 'dynamic_strain', 'strain_timeseries', 'strain'};
+                case 'wind'
+                    aliases = {'wind', 'wind_speed', 'wind_direction'};
+            end
+        end
+
+        function points = flattenPointValues(value)
+            points = {};
+            if isempty(value)
+                return;
+            elseif ischar(value)
+                points = {strtrim(value)};
+            elseif isstring(value)
+                points = cellstr(value(:));
+                points = reshape(points, 1, []);
+            elseif iscell(value)
+                for i = 1:numel(value)
+                    points = [points, bms.app.RunPreflight.flattenPointValues(value{i})]; %#ok<AGROW>
+                end
+            elseif isstruct(value)
+                names = fieldnames(value);
+                for i = 1:numel(names)
+                    points = [points, bms.app.RunPreflight.flattenPointValues(value.(names{i}))]; %#ok<AGROW>
+                end
+            elseif isnumeric(value) || islogical(value)
+                return;
+            else
+                try
+                    points = cellstr(string(value(:)));
+                catch
+                    points = {};
+                end
+            end
+            keep = ~cellfun(@isempty, points);
+            points = points(keep);
+            points = reshape(points, 1, []);
+        end
+
+        function values = uniqueText(values)
+            if isempty(values), return; end
+            values = cellstr(string(values));
+            values = reshape(values, 1, []);
+            values = values(~cellfun(@isempty, values));
+            [~, ia] = unique(values, 'stable');
+            values = values(sort(ia));
+            values = reshape(values, 1, []);
+        end
+
+        function [tf, matched] = pointExists(actualMap, pointId)
+            tf = false;
+            matched = '';
+            candidates = bms.app.RunPreflight.csvPointCandidates(pointId);
+            for i = 1:numel(candidates)
+                if isKey(actualMap, candidates{i})
+                    tf = true;
+                    matched = actualMap(candidates{i});
+                    return;
+                end
+            end
+        end
+
+        function candidates = csvPointCandidates(pointId)
+            p = char(string(pointId));
+            candidates = {p};
+            candidates{end+1} = regexprep(p, '[-_][XYZ]$', '');
+            candidates{end+1} = regexprep(p, '[-_][XYZ][-_]?', '-');
+            candidates{end+1} = regexprep(p, '[-_][XYZ][-_]([^\\/]*)$', '-$1');
+            candidates = bms.app.RunPreflight.uniqueText(candidates);
         end
 
         function [tf, value] = resolveSubfolder(cfg, key)
@@ -391,6 +574,35 @@ classdef RunPreflight
             end
             lines{end+1} = sprintf('preflight=%s, profile=%s (%s), layout=%s, modules=%d', ...
                 char(string(result.status)), profileId, profileName, layout, numel(modules));
+            if isfield(result, 'point_coverage') && ~isempty(result.point_coverage)
+                coverageRows = bms.app.ManifestReader.recordsToCell(result.point_coverage);
+                totalDesigned = 0;
+                totalFound = 0;
+                for i = 1:numel(coverageRows)
+                    rec = coverageRows{i};
+                    if ~isstruct(rec), continue; end
+                    if isfield(rec, 'designed_count'), totalDesigned = totalDesigned + double(rec.designed_count); end
+                    if isfield(rec, 'found_count'), totalFound = totalFound + double(rec.found_count); end
+                end
+                pct = 0;
+                if totalDesigned > 0
+                    pct = totalFound / totalDesigned * 100;
+                end
+                lines{end+1} = sprintf('point coverage=%d/%d (%.1f%%)', totalFound, totalDesigned, pct);
+                shown = 0;
+                for i = 1:numel(coverageRows)
+                    rec = coverageRows{i};
+                    if ~isstruct(rec) || ~isfield(rec, 'missing_count') || double(rec.missing_count) <= 0
+                        continue;
+                    end
+                    shown = shown + 1;
+                    lines{end+1} = sprintf('  missing: %s %d/%d missing', ...
+                        char(string(rec.key)), double(rec.missing_count), double(rec.designed_count)); %#ok<AGROW>
+                    if shown >= 5
+                        break;
+                    end
+                end
+            end
             if isfield(result, 'warnings') && ~isempty(result.warnings)
                 lines{end+1} = sprintf('preflight warnings=%d', numel(result.warnings));
                 for i = 1:min(numel(result.warnings), 5)

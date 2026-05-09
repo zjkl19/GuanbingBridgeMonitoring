@@ -226,8 +226,15 @@ function run_gui()
             rootEdit.Value = profile.DefaultDataRoot;
             logEdit.Value = bms.core.PathResolver.logDir(profile.DefaultDataRoot);
         end
+        if ~isempty(profile.DefaultStartDate)
+            startPicker.Value = datetime(profile.DefaultStartDate, 'InputFormat', 'yyyy-MM-dd');
+        end
+        if ~isempty(profile.DefaultEndDate)
+            endPicker.Value = datetime(profile.DefaultEndDate, 'InputFormat', 'yyyy-MM-dd');
+        end
         set_profile_module_defaults(profile);
-        profileNote.Text = sprintf('%s；目录格式：%s', profile.displayName(), profile.DataLayout);
+        [~, cfgName, cfgExt] = fileparts(profile.DefaultConfig);
+        profileNote.Text = sprintf('%s；目录格式：%s；默认配置：%s%s', profile.displayName(), profile.DataLayout, cfgName, cfgExt);
         if logChange
             addLog(['已切换桥梁项目: ' profile.displayName()]);
         end
@@ -276,6 +283,7 @@ function run_gui()
         if isequal(edit, rootEdit)
             logEdit.Value = fullfile(rootEdit.Value, 'run_logs');
             refresh_result_summary(false);
+            sync_profile_selector_from_current();
         end
 
         % 强制把主界面拉回前台
@@ -286,6 +294,9 @@ function run_gui()
         [fname,fpath] = uigetfile(filter,'选择文件',edit.Value);
         if isequal(fname,0), return; end
         edit.Value = fullfile(fpath,fname);
+        if isequal(edit, cfgEdit)
+            sync_profile_selector_from_current();
+        end
 
         % 强制把主界面拉回前台
         figure(f);

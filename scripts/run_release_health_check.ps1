@@ -7,6 +7,7 @@ param(
     [switch]$SkipReportBuild,
     [switch]$FullMatlab,
     [switch]$GuiSmoke,
+    [switch]$SkipGuiSmoke,
     [int]$PythonTimeoutSeconds = 300,
     [int]$MatlabTimeoutSeconds = 1800
 )
@@ -195,7 +196,8 @@ if (-not $SkipReportBuild) {
 }
 
 if (-not $SkipMatlab) {
-    if ($GuiSmoke) {
+    $runGuiSmoke = (-not $SkipGuiSmoke) -and ($GuiSmoke -or $Only -eq "all" -or $Only -eq "gui")
+    if ($runGuiSmoke) {
         Invoke-Step "MATLAB GUI smoke" "gui" {
             Invoke-External -Name "matlab-gui-smoke" `
                 -FilePath "matlab" `

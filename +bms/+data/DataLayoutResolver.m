@@ -86,9 +86,9 @@ classdef DataLayoutResolver
             root = char(root);
             if exist(fullfile(root, 'WIM'), 'dir') && exist(fullfile(root, 'lowfreq'), 'dir')
                 layout = 'hongtang_period';
-            elseif bms.data.DataLayoutResolver.hasJljDailyExport(root)
+            elseif bms.data.DataLayoutResolver.hasJljDailyExport(root, cfg)
                 layout = 'jlj_daily_export';
-            elseif bms.data.DataLayoutResolver.hasDailyExportZip(root)
+            elseif bms.data.DataLayoutResolver.hasDailyExportZip(root, cfg)
                 layout = 'jlj_daily_export';
             elseif bms.data.DataLayoutResolver.hasDateFolders(root)
                 layout = 'dated_folders';
@@ -108,16 +108,14 @@ classdef DataLayoutResolver
             info.exists = isfolder(root);
         end
 
-        function tf = hasJljDailyExport(root)
-            d1 = dir(fullfile(char(root), 'data_jlj_*'));
-            d2 = dir(fullfile(char(root), 'data_sxh_*'));
-            tf = any([d1.isdir]) || any([d2.isdir]);
+        function tf = hasJljDailyExport(root, cfg)
+            if nargin < 2, cfg = struct(); end
+            tf = bms.data.ZipDailyExportAdapter.hasExtracted(root, cfg);
         end
 
-        function tf = hasDailyExportZip(root)
-            z1 = dir(fullfile(char(root), 'data_jlj_*.zip'));
-            z2 = dir(fullfile(char(root), 'data_sxh_*.zip'));
-            tf = ~isempty(z1) || ~isempty(z2);
+        function tf = hasDailyExportZip(root, cfg)
+            if nargin < 2, cfg = struct(); end
+            tf = bms.data.ZipDailyExportAdapter.hasZip(root, cfg);
         end
 
         function tf = hasDateFolders(root)
@@ -134,10 +132,7 @@ classdef DataLayoutResolver
             for i = 1:numel(days)
                 switch char(layout)
                     case 'jlj_daily_export'
-                        dayText = datestr(days(i), 'yyyy-mm-dd');
-                        candidates = { ...
-                            fullfile(char(root), ['data_jlj_' dayText]), ...
-                            fullfile(char(root), ['data_sxh_' dayText])};
+                        candidates = bms.data.ZipDailyExportAdapter.dateFolders(root, days(i), days(i), struct());
                     otherwise
                         candidates = {fullfile(char(root), datestr(days(i), 'yyyy-mm-dd')), fullfile(char(root), datestr(days(i), 'yyyymmdd'))};
                 end
@@ -151,20 +146,7 @@ classdef DataLayoutResolver
         end
 
         function folders = jljCsvDirs(root, startDate, endDate)
-            dayFolders = bms.data.DataLayoutResolver.dateFolders(root, startDate, endDate, 'jlj_daily_export');
-            folders = {};
-            for i = 1:numel(dayFolders)
-                candidates = { ...
-                    fullfile(dayFolders{i}, 'data', 'jlj', 'csv'), ...
-                    fullfile(dayFolders{i}, 'data', 'sxh', 'csv'), ...
-                    fullfile(dayFolders{i}, 'csv')};
-                for j = 1:numel(candidates)
-                    if isfolder(candidates{j})
-                        folders{end+1} = candidates{j}; %#ok<AGROW>
-                        break;
-                    end
-                end
-            end
+            folders = bms.data.ZipDailyExportAdapter.csvDirs(root, startDate, endDate, struct());
         end
 
         function files = wimMonthFiles(root, startDate, endDate, prefix)
