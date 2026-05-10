@@ -4,7 +4,7 @@ classdef RainfallAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     methods
         function obj = RainfallAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, points)
             obj@bms.analyzer.LegacyFunctionAnalyzer('rainfall', root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                @(self) analyze_rainfall_points(self.Root, self.Points, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
+                @(self) bms.analyzer.ScalarSeriesPipeline.run('rainfall', self.Root, self.Points, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
         end
     end
 end

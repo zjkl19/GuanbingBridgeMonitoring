@@ -83,6 +83,43 @@ classdef test_scalar_series_service < matlab.unittest.TestCase
                 {'PointID', 'StartTime', 'EndTime', 'ValidCount', 'Max_mm_h', 'Mean_mm_h', 'Total_mm'});
             tc.verifyEqual(T.Total_mm(1), 8 / 60, 'AbsTol', 1e-12);
         end
+
+        function bridgeConfigsResolveScalarPipelineInputs(tc)
+            projectRoot = fileparts(fileparts(mfilename('fullpath')));
+            configFiles = { ...
+                'default_config.json', ...
+                'hongtang_config.json', ...
+                'jiulongjiang_config.json', ...
+                'shuixianhua_config.json'};
+            keys = {'temperature', 'humidity', 'rainfall'};
+
+            for i = 1:numel(configFiles)
+                cfg = load_config(fullfile(projectRoot, 'config', configFiles{i}));
+                for j = 1:numel(keys)
+                    spec = bms.analyzer.ScalarSeriesPipeline.spec(keys{j});
+                    subfolder = bms.analyzer.ScalarSeriesPipeline.resolveSubfolder(cfg, keys{j});
+                    expected = bms.analyzer.ScalarSeriesService.subfolderFromConfig( ...
+                        cfg, keys{j}, spec.defaultSubfolder);
+
+                    tc.verifyEqual(subfolder, expected, sprintf('%s %s', configFiles{i}, keys{j}));
+                    tc.verifyNotEmpty(spec.defaultExcelFile, keys{j});
+                    tc.verifyNotEmpty(spec.outputDir, keys{j});
+                end
+            end
+        end
+
+        function scalarAnalyzersUseSharedPipelineAdapters(tc)
+            temp = bms.analyzer.TemperatureAnalyzer('root', '2026-01-01', '2026-01-01', '', 'features', struct(), {'T1'});
+            hum = bms.analyzer.HumidityAnalyzer('root', '2026-01-01', '2026-01-01', '', 'features', struct(), {'H1'});
+            rain = bms.analyzer.RainfallAnalyzer('root', '2026-01-01', '2026-01-01', '', 'features', struct(), {'R1'});
+
+            tc.verifyEqual(temp.Key, 'temperature');
+            tc.verifyEqual(hum.Key, 'humidity');
+            tc.verifyEqual(rain.Key, 'rainfall');
+            tc.verifyEqual(temp.Points, {'T1'});
+            tc.verifyEqual(hum.Points, {'H1'});
+            tc.verifyEqual(rain.Points, {'R1'});
+        end
     end
 end
 

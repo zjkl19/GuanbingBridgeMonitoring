@@ -4,7 +4,7 @@ classdef HumidityAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     methods
         function obj = HumidityAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, points)
             obj@bms.analyzer.LegacyFunctionAnalyzer('humidity', root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                @(self) analyze_humidity_points(self.Root, self.Points, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
+                @(self) bms.analyzer.ScalarSeriesPipeline.run('humidity', self.Root, self.Points, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
         end
     end
 end
