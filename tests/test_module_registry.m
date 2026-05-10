@@ -51,10 +51,29 @@ classdef test_module_registry < matlab.unittest.TestCase
             temp = bms.module.ModuleRegistry.fromKey('temperature');
             rain = bms.module.ModuleRegistry.fromKey('rainfall');
             wim = bms.module.ModuleRegistry.fromKey('wim');
+            gnss = bms.module.ModuleRegistry.fromKey('gnss');
+            accel = bms.module.ModuleRegistry.fromKey('acceleration');
+            cableAccel = bms.module.ModuleRegistry.fromKey('cable_accel');
+            accelSpec = bms.module.ModuleRegistry.fromKey('accel_spectrum');
+            cableSpec = bms.module.ModuleRegistry.fromKey('cable_accel_spectrum');
+            crack = bms.module.ModuleRegistry.fromKey('crack');
+            strain = bms.module.ModuleRegistry.fromKey('strain');
+            dynHigh = bms.module.ModuleRegistry.fromKey('dynamic_strain_highpass');
+            dynLow = bms.module.ModuleRegistry.fromKey('dynamic_strain_lowpass');
 
             tc.verifyTrue(startsWith(string(temp.GuiLabel), "🌡"));
             tc.verifyTrue(startsWith(string(rain.GuiLabel), "🌧"));
-            tc.verifyTrue(startsWith(string(wim.GuiLabel), "🚗"));
+            tc.verifyTrue(startsWith(string(wim.GuiLabel), "🚚"));
+            tc.verifyTrue(startsWith(string(gnss.GuiLabel), "📍"));
+            tc.verifyTrue(startsWith(string(accel.GuiLabel), "📈"));
+            tc.verifyTrue(startsWith(string(cableAccel.GuiLabel), "〰"));
+            tc.verifyTrue(startsWith(string(accelSpec.GuiLabel), "📶"));
+            tc.verifyTrue(startsWith(string(cableSpec.GuiLabel), "📶"));
+            tc.verifyTrue(startsWith(string(crack.GuiLabel), "⚡"));
+            tc.verifyTrue(startsWith(string(strain.GuiLabel), "ε"));
+            tc.verifyTrue(startsWith(string(dynHigh.GuiLabel), "ε~"));
+            tc.verifyTrue(startsWith(string(dynLow.GuiLabel), "ε~"));
+            tc.verifyFalse(startsWith(string(dynHigh.GuiLabel), "📈"));
             tc.verifyEqual(wim.Label, 'WIM');
         end
     end
