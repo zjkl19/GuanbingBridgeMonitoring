@@ -114,30 +114,8 @@ classdef GuiRunController
                 end
                 h = controlMap.(field);
                 if bms.gui.GuiRunController.isLiveControl(h) && ~isempty(specs(i).GuiLabel)
-                    if bms.gui.GuiRunController.applyIconControlLabel(h, specs(i))
-                        continue;
-                    end
                     h.Text = specs(i).GuiLabel;
                 end
-            end
-        end
-
-        function applied = applyIconControlLabel(control, spec)
-            applied = false;
-            try
-                if ~isprop(control, 'UserData') || ~isstruct(control.UserData) ...
-                        || ~isfield(control.UserData, 'Label')
-                    return;
-                end
-                label = control.UserData.Label;
-                if ~bms.gui.GuiRunController.isLiveControl(label) || ~isprop(label, 'Text')
-                    return;
-                end
-                control.Text = '';
-                label.Text = spec.Label;
-                applied = true;
-            catch
-                applied = false;
             end
         end
 

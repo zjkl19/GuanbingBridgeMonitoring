@@ -86,13 +86,13 @@ function run_gui()
     cbTilt   = uicheckbox(gl,'Text','倾角','Value',false); cbTilt.Layout.Row=6; cbTilt.Layout.Column=4;
     cbAccel  = uicheckbox(gl,'Text','加速度','Value',false); cbAccel.Layout.Row=7; cbAccel.Layout.Column=1;
     cbSpec   = uicheckbox(gl,'Text','加速度频谱','Value',false); cbSpec.Layout.Row=7; cbSpec.Layout.Column=2;
-    cbCrack  = create_module_icon_checkbox(gl, 7, 3, '裂缝', false, 'crack_line.svg');
+    cbCrack  = uicheckbox(gl,'Text','裂缝','Value',false);   cbCrack.Layout.Row=7; cbCrack.Layout.Column=3;
     cbStrain = uicheckbox(gl,'Text','应变','Value',false);   cbStrain.Layout.Row=7; cbStrain.Layout.Column=4;
     cbCableAccel = uicheckbox(gl,'Text','索力加速度','Value',false); cbCableAccel.Layout.Row=8; cbCableAccel.Layout.Column=1;
     cbCableSpec  = uicheckbox(gl,'Text','索力加速度频谱','Value',false); cbCableSpec.Layout.Row=8; cbCableSpec.Layout.Column=2;
     cbDynBox = uicheckbox(gl,'Text','动应变分析（高通+含箱线图）','Value',false); cbDynBox.Layout.Row=8; cbDynBox.Layout.Column=3;
-    cbWind = create_module_icon_checkbox(gl, 8, 4, '风速风向', false, 'wind_anemometer.svg');
-    cbEq = create_module_icon_checkbox(gl, 9, 1, '地震动', false, 'earthquake_record.svg');
+    cbWind = uicheckbox(gl,'Text','风速风向','Value',false); cbWind.Layout.Row=8; cbWind.Layout.Column=4;
+    cbEq = uicheckbox(gl,'Text','地震动','Value',false); cbEq.Layout.Row=9; cbEq.Layout.Column=1;
     cbWim = uicheckbox(gl,'Text','WIM','Value',false); cbWim.Layout.Row=9; cbWim.Layout.Column=2;
     cbBearing = uicheckbox(gl,'Text','支座位移','Value',false); cbBearing.Layout.Row=9; cbBearing.Layout.Column=3;
     cbRainfall = uicheckbox(gl,'Text','雨量','Value',false); cbRainfall.Layout.Row=9; cbRainfall.Layout.Column=4;
@@ -185,53 +185,6 @@ function run_gui()
 
     function apply_module_registry_labels()
         bms.gui.GuiRunController.applyModuleLabels(moduleControls);
-    end
-
-    function cb = create_module_icon_checkbox(parent, row, col, text, value, iconName)
-        panel = uipanel(parent, 'BorderType', 'none');
-        panel.Layout.Row = row;
-        panel.Layout.Column = col;
-
-        box = uigridlayout(panel, [1 3]);
-        box.Padding = [0 0 0 0];
-        box.RowHeight = {'1x'};
-        box.ColumnWidth = {18, 26, '1x'};
-        box.ColumnSpacing = 4;
-
-        cb = uicheckbox(box, 'Text', '', 'Value', value);
-        cb.Layout.Row = 1;
-        cb.Layout.Column = 1;
-
-        img = uiimage(box, 'ScaleMethod', 'fit');
-        img.Layout.Row = 1;
-        img.Layout.Column = 2;
-        iconPath = module_icon_path(iconName);
-        if exist(iconPath, 'file')
-            img.ImageSource = iconPath;
-        end
-
-        lbl = uilabel(box, 'Text', text, 'VerticalAlignment', 'center');
-        lbl.Layout.Row = 1;
-        lbl.Layout.Column = 3;
-        try
-            lbl.ButtonDownFcn = @(~, ~) toggle_module_checkbox(cb);
-        catch
-        end
-        try
-            img.ImageClickedFcn = @(~, ~) toggle_module_checkbox(cb);
-        catch
-        end
-        cb.UserData = struct('Label', lbl, 'Image', img, 'Panel', panel);
-    end
-
-    function path = module_icon_path(iconName)
-        path = fullfile(projRoot, 'ui', 'assets', 'module_icons', iconName);
-    end
-
-    function toggle_module_checkbox(cb)
-        if bms.gui.GuiRunController.isLiveControl(cb)
-            cb.Value = ~logical(cb.Value);
-        end
     end
 
     function handles = module_control_values()
