@@ -176,62 +176,19 @@ function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, title_prefi
     if isempty(labels)
         return;
     end
-    bms.core.PathResolver.ensureDir(out_dir);
 
-    fig = figure('Position',[100 100 1000 469]);
-    hold on;
-
-    n = numel(labels);
-    colors = normalize_colors(get_style_field(style, 'colors_4', { ...
-        [0 0 0], ...
-        [1 0 0], ...
-        [0 0 1], ...
-        [0 0.7 0] ...
-    }));
-
-    h = gobjects(n,1);
-    for i = 1:n
-        [times_plot, vals_plot] = prepare_plot_series(times_cell{i}, vals_cell{i});
-        if i <= numel(colors)
-            h(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', colors{i});
-        else
-            h(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0);
-        end
-    end
-
-    good = h(isgraphics(h));
-    if ~isempty(good)
-        legend(good, labels, 'Location','northeast', 'Box','off');
-    end
-
-    xlabel('时间');
-    ylabel(ylabel_str);
-    title(sprintf('%s %s', title_prefix, group_name));
-    grid on;
-    grid minor;
-
-    dt0 = datetime(start_date, 'InputFormat', 'yyyy-MM-dd');
-    dt1 = datetime(end_date,   'InputFormat', 'yyyy-MM-dd');
-    if dt1 <= dt0
-        dt1 = dt0 + days(1);
-    end
-    ticks = dt0 + (dt1 - dt0) * (0:4)/4;
-    ax = gca;
-    ax.XLim = [dt0 dt1];
-    ax.XTick = ticks;
-    xtickformat('yyyy-MM-dd');
-
-    if is_valid_ylim(ylim_range)
-        ylim(ylim_range);
-    end
-
-    ts = datestr(now, 'yyyymmdd_HHMMSS');
-    base = sanitize_filename(sprintf('%s_%s_%s_%s', title_prefix, group_name, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd')));
-    bms.plot.PlotService.saveModuleBundle(fig, out_dir, [base '_' ts], cfg);
-end
-
-function ok = is_valid_ylim(v)
-    ok = bms.analyzer.StructuralPlotConfigService.isValidYLim(v);
+    [dt0, dt1] = bms.analyzer.StructuralTimeSeriesPlotService.dateRange(start_date, end_date);
+    opts = struct();
+    opts.style = style;
+    opts.outputDir = out_dir;
+    opts.baseName = sprintf('%s_%s_%s_%s_%s', title_prefix, group_name, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'), datestr(now, 'yyyymmdd_HHMMSS'));
+    opts.titleText = sprintf('%s %s', title_prefix, group_name);
+    opts.ylabel = ylabel_str;
+    opts.ylimRange = ylim_range;
+    opts.colorField = 'colors_4';
+    opts.defaultColors = [0 0 0; 1 0 0; 0 0 1; 0 0.7 0];
+    bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
+        '', times_cell, vals_cell, labels, start_date, end_date, opts, cfg);
 end
 
 function out = sanitize_filename(name)
@@ -272,10 +229,6 @@ end
 
 function ylim_val = get_default_ylim(style)
     ylim_val = bms.analyzer.StructuralPlotConfigService.defaultYLim(style);
-end
-
-function ccell = normalize_colors(c)
-    ccell = bms.analyzer.StructuralPlotConfigService.normalizeColors(c, {});
 end
 
 function opt = get_crack_options(style)

@@ -103,202 +103,35 @@ function plot_bearing_curve(times_list, vals_list, pid_list, root_dir, start_dat
         return;
     end
 
-    fig = figure('Position', [100 100 1000 469]);
-    hold on;
     N = numel(pid_list);
-
-    colors_2 = normalize_colors(get_style_field(style, 'colors_2', [0 0 1; 0 0.7 0]));
-    colors_3 = normalize_colors(get_style_field(style, 'colors_3', [0.5 0 0.7; 0 0 1; 0 0.7 0]));
-
-    h = gobjects(N,1);
-    for i = 1:N
-        if isempty(vals_list{i})
-            continue;
-        end
-        if N == 2 && i <= numel(colors_2)
-            c = colors_2{i};
-        elseif N == 3 && i <= numel(colors_3)
-            c = colors_3{i};
-        else
-            cmap = lines(N);
-            c = cmap(i,:);
-        end
-        [times_plot, vals_plot] = prepare_plot_series(times_list{i}, vals_list{i});
-        h(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', c);
+    [dt0, dt1] = bms.analyzer.StructuralTimeSeriesPlotService.dateRange(start_date, end_date);
+    pid = '';
+    if N == 1
+        pid = pid_list{1};
     end
 
-    good_lines = h(isgraphics(h));
-    good_labels = pid_list(valid);
-    if ~isempty(good_lines)
-        lg = legend(good_lines, good_labels, 'Location', 'northeast', 'Box', 'off');
-        lg.AutoUpdate = 'off';
+    opts = struct();
+    opts.style = style;
+    opts.ylabel = get_style_field(style, 'ylabel', 'Bearing displacement (mm)');
+    opts.titleText = sprintf('%s %s %s', get_style_field(style, 'title_prefix', 'Bearing displacement'), char(string(name_tag)), suffix);
+    opts.outputDir = get_style_field(style, 'output_dir', '时程曲线_支座位移');
+    opts.baseName = sprintf('BearingDisp_%s_%s_%s_%s_%s', char(string(name_tag)), datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'), suffix, datestr(now, 'yyyymmdd_HHMMSS'));
+    opts.warnLines = warn_lines;
+    opts.ylimRange = bms.analyzer.StructuralTimeSeriesPlotService.resolveStyleYLim(style, pid);
+    if N == 2
+        opts.colorField = 'colors_2';
+        opts.defaultColors = [0 0 1; 0 0.7 0];
+    elseif N == 3
+        opts.colorField = 'colors_3';
+        opts.defaultColors = [0.5 0 0.7; 0 0 1; 0 0.7 0];
     end
 
-    dt0 = datetime(start_date, 'InputFormat', 'yyyy-MM-dd');
-    dt1 = datetime(end_date, 'InputFormat', 'yyyy-MM-dd');
-    if dt1 <= dt0
-        dt1 = dt0 + days(1);
-    end
-    ticks = dt0 + (dt1 - dt0) * (0:4) / 4;
-    ax = gca;
-    ax.XLim = [dt0 dt1];
-    ax.XTick = ticks;
-    xtickformat('yyyy-MM-dd');
-
-    xlabel('时间');
-    ylabel(get_style_field(style, 'ylabel', 'Bearing displacement (mm)'));
-    title(sprintf('%s %s %s', get_style_field(style, 'title_prefix', 'Bearing displacement'), char(string(name_tag)), suffix));
-
-    warn_lines = normalize_warn_lines(warn_lines);
-    for k = 1:numel(warn_lines)
-        wl = warn_lines{k};
-        if ~isstruct(wl) || ~isfield(wl, 'y') || ~isnumeric(wl.y) || ~isfinite(wl.y)
-            continue;
-        end
-        yl = yline(wl.y, '--', get_warn_label(wl), 'LabelHorizontalAlignment', 'left');
-        if isfield(wl, 'color') && isnumeric(wl.color) && numel(wl.color) == 3
-            yl.Color = wl.color;
-        end
-    end
-
-    ylim_auto = get_style_field(style, 'ylim_auto', false);
-    if (islogical(ylim_auto) && ylim_auto) || (isnumeric(ylim_auto) && ylim_auto ~= 0)
-        ylim auto;
-    else
-        ylim_default = get_style_field(style, 'ylim', []);
-        pid = '';
-        if numel(pid_list) == 1
-            pid = pid_list{1};
-        end
-        ylim_override = get_ylim_for_pid(style, pid, ylim_default);
-        if is_valid_ylim(ylim_override)
-            ylim(ylim_override);
-        else
-            ylim auto;
-        end
-    end
-
-    grid on;
-    grid minor;
-
-    out_dir = get_style_field(style, 'output_dir', '时程曲线_支座位移');
-    out_dir = fullfile(root_dir, char(string(out_dir)));
-    bms.core.PathResolver.ensureDir(out_dir);
-    ts = datestr(now, 'yyyymmdd_HHMMSS');
-    fname = sanitize_filename(sprintf('BearingDisp_%s_%s_%s_%s', char(string(name_tag)), datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'), suffix));
-    bms.plot.PlotService.saveModuleBundle(fig, out_dir, [fname '_' ts], cfg);
+    bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
+        root_dir, times_list, vals_list, pid_list, start_date, end_date, opts, cfg);
 end
 
 function warn_lines = resolve_warn_lines(style, cfg, pid)
-    warn_lines = {};
-    global_warn = get_style_field(style, 'warn_lines', {});
-    if ~isempty(global_warn)
-        warn_lines = normalize_warn_lines(global_warn);
-    end
-    if isempty(pid)
-        return;
-    end
-    if ~isfield(cfg, 'per_point') || ~isfield(cfg.per_point, 'bearing_displacement')
-        return;
-    end
-    safe_id = strrep(pid, '-', '_');
-    if ~isfield(cfg.per_point.bearing_displacement, safe_id)
-        return;
-    end
-    pt = cfg.per_point.bearing_displacement.(safe_id);
-    if isfield(pt, 'warn_lines')
-        if isempty(pt.warn_lines)
-            warn_lines = {};
-        else
-            warn_lines = normalize_warn_lines(pt.warn_lines);
-        end
-    elseif isfield(pt, 'alarm_bounds') && ~isempty(pt.alarm_bounds)
-        warn_lines = bounds_to_warn_lines(pt.alarm_bounds, style);
-    end
-end
-
-function warn_lines = bounds_to_warn_lines(bounds, style)
-    warn_lines = {};
-    if isempty(bounds) || ~isstruct(bounds)
-        return;
-    end
-
-    colors = get_style_field(style, 'alarm_colors', []);
-    level2_color = [0.929 0.694 0.125];
-    level3_color = [0.85 0.1 0.1];
-    if isnumeric(colors) && size(colors, 2) == 3
-        if size(colors, 1) >= 1
-            level2_color = colors(1, :);
-        end
-        if size(colors, 1) >= 2
-            level3_color = colors(2, :);
-        end
-    elseif iscell(colors)
-        if numel(colors) >= 1 && isnumeric(colors{1}) && numel(colors{1}) == 3
-            level2_color = reshape(colors{1}, 1, 3);
-        end
-        if numel(colors) >= 2 && isnumeric(colors{2}) && numel(colors{2}) == 3
-            level3_color = reshape(colors{2}, 1, 3);
-        end
-    end
-
-    warn_lines = [warn_lines; append_alarm_pair(bounds, 'level2', '二级', level2_color)]; %#ok<AGROW>
-    warn_lines = [warn_lines; append_alarm_pair(bounds, 'level3', '三级', level3_color)]; %#ok<AGROW>
-end
-
-function lines = append_alarm_pair(bounds, field_name, prefix, color)
-    lines = {};
-    if ~isfield(bounds, field_name)
-        return;
-    end
-    vals = bounds.(field_name);
-    if ~isnumeric(vals) || numel(vals) ~= 2
-        return;
-    end
-    vals = sort(vals(:));
-    labels = {sprintf('%s下限', prefix), sprintf('%s上限', prefix)};
-    for i = 1:2
-        if ~isfinite(vals(i))
-            continue;
-        end
-        lines{end+1, 1} = struct('y', vals(i), 'label', labels{i}, 'color', color); %#ok<AGROW>
-    end
-end
-
-function ccell = normalize_warn_lines(v)
-    ccell = {};
-    if isempty(v)
-        return;
-    end
-    if isstruct(v)
-        ccell = num2cell(v);
-        return;
-    end
-    if isnumeric(v)
-        vv = v(:);
-        ccell = cell(numel(vv), 1);
-        for i = 1:numel(vv)
-            ccell{i} = struct('y', vv(i));
-        end
-        return;
-    end
-    if iscell(v)
-        for i = 1:numel(v)
-            item = v{i};
-            if isstruct(item)
-                ccell{end+1,1} = item; %#ok<AGROW>
-            elseif isnumeric(item) && isscalar(item)
-                ccell{end+1,1} = struct('y', item); %#ok<AGROW>
-            end
-        end
-    end
-end
-
-function lbl = get_warn_label(wl)
-    lbl = '';
-    if isfield(wl, 'label') && (ischar(wl.label) || isstring(wl.label))
-        lbl = char(string(wl.label));
-    end
+    warn_lines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines(style, cfg, 'bearing_displacement', pid);
 end
 
 function pts = get_points(cfg, key, fallback)
@@ -336,21 +169,4 @@ end
 
 function val = get_style_field(style, field, default)
     val = bms.config.ConfigReader.getField(style, field, default);
-end
-
-function y = get_ylim_for_pid(style, pid, default)
-    ylims = bms.config.ConfigReader.getField(style, 'ylims', []);
-    y = bms.plot.PlotService.resolveNamedYLim(ylims, pid, default);
-end
-
-function ok = is_valid_ylim(v)
-    ok = bms.plot.PlotService.isValidYLim(v);
-end
-
-function ccell = normalize_colors(c)
-    ccell = bms.plot.PlotService.normalizeColors(c, {});
-end
-
-function out = sanitize_filename(name)
-    out = regexprep(char(string(name)), '[\\/:*?"<>|]', '_');
 end

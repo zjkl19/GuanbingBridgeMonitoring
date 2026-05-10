@@ -94,98 +94,29 @@ function plot_tilt_curve(root_dir, data_list, start_date, end_date, suffix, styl
         return;
     end
 
-    fig = figure('Position', [100 100 1000 469]);
-    hold on;
-
-    dt0 = datetime(start_date, 'InputFormat', 'yyyy-MM-dd');
-    dt1 = datetime(end_date, 'InputFormat', 'yyyy-MM-dd');
-    if dt1 <= dt0
-        dt1 = dt0 + days(1);
+    [dt0, dt1] = bms.analyzer.StructuralTimeSeriesPlotService.dateRange(start_date, end_date);
+    pid = '';
+    if numel(data_list) == 1 && isfield(data_list, 'pid')
+        pid = data_list(1).pid;
     end
 
-    colors_3 = normalize_colors(get_style_field(style, 'colors_3', [0 0 0; 1 0 0; 0 0 1]));
-    h_lines = gobjects(numel(data_list), 1);
-    for i = 1:numel(data_list)
-        d = data_list(i);
-        if isempty(d.vals)
-            continue;
-        end
-        if numel(data_list) == 3 && i <= numel(colors_3)
-            [times_plot, vals_plot] = prepare_plot_series(d.times, d.vals);
-            h_lines(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', colors_3{i});
-        else
-            [times_plot, vals_plot] = prepare_plot_series(d.times, d.vals);
-            h_lines(i) = plot(times_plot, vals_plot, 'LineWidth', 1.0);
-        end
+    opts = struct();
+    opts.style = style;
+    opts.ylabel = get_style_field(style, 'ylabel', '倾角 (°)');
+    opts.titleText = sprintf('%s %s', get_style_field(style, 'title_prefix', '倾角时程'), char(string(suffix)));
+    opts.outputDir = get_style_field(style, 'output_dir', '时程曲线_倾角');
+    opts.baseName = sprintf('Tilt_%s_%s_%s_%s', char(string(suffix)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd'), datestr(now, 'yyyymmdd_HHMMSS'));
+    opts.warnLines = warn_lines;
+    opts.ylimRange = bms.analyzer.StructuralTimeSeriesPlotService.resolveStyleYLim(style, pid);
+    if numel(data_list) == 3
+        opts.colorField = 'colors_3';
+        opts.defaultColors = [0 0 0; 1 0 0; 0 0 1];
     end
-
-    valid = isgraphics(h_lines);
-    if any(valid)
-        labels = {data_list(valid).pid};
-        lg = legend(h_lines(valid), labels, 'Location', 'northeast', 'Box', 'off');
-        lg.AutoUpdate = 'off';
-    end
-
-    ticks = dt0 + (dt1 - dt0) * (0:4) / 4;
-    ax = gca;
-    ax.XLim = [dt0 dt1];
-    ax.XTick = ticks;
-    xtickformat('yyyy-MM-dd');
-
-    xlabel('时间');
-    ylabel(get_style_field(style, 'ylabel', '倾角 (°)'));
-    title(sprintf('%s %s', get_style_field(style, 'title_prefix', '倾角时程'), char(string(suffix))));
-
-    warn_lines = normalize_warn_lines(warn_lines);
-    for k = 1:numel(warn_lines)
-        wl = warn_lines{k};
-        if ~isstruct(wl) || ~isfield(wl, 'y') || ~isnumeric(wl.y) || ~isscalar(wl.y) || ~isfinite(wl.y)
-            continue;
-        end
-        yl = yline(wl.y, '--', get_warn_label(wl), 'LabelHorizontalAlignment', 'left');
-        if isfield(wl, 'color') && isnumeric(wl.color) && numel(wl.color) == 3
-            yl.Color = wl.color;
-        end
-    end
-
-    ylim_auto = get_style_field(style, 'ylim_auto', false);
-    if (islogical(ylim_auto) && ylim_auto) || (isnumeric(ylim_auto) && ylim_auto ~= 0)
-        ylim auto;
-    else
-        ylim_val = get_style_field(style, 'ylim', []);
-        pid = '';
-        if numel(data_list) == 1 && isfield(data_list, 'pid')
-            pid = data_list(1).pid;
-        end
-        ylim_override = get_ylim_for_pid(style, pid, ylim_val);
-        if is_valid_ylim(ylim_override)
-            ylim(ylim_override);
-        else
-            ylim auto;
-        end
-    end
-
-    grid on;
-    grid minor;
-
-    ts = datestr(now, 'yyyymmdd_HHMMSS');
-    out_dir = char(string(get_style_field(style, 'output_dir', '时程曲线_倾角')));
-    out_dir = fullfile(root_dir, out_dir);
-    bms.core.PathResolver.ensureDir(out_dir);
-    fname = sanitize_filename(sprintf('Tilt_%s_%s_%s', char(string(suffix)), datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd')));
-    bms.plot.PlotService.saveModuleBundle(fig, out_dir, [fname '_' ts], cfg);
+    bms.analyzer.StructuralTimeSeriesPlotService.plotDataList(root_dir, data_list, start_date, end_date, opts, cfg);
 end
 
 function warn_lines = resolve_warn_lines(style, cfg, pid)
-    warn_lines = bms.analyzer.StructuralPlotConfigService.resolveWarnLines(style, cfg, 'tilt', pid);
-end
-
-function ccell = normalize_warn_lines(v)
-    ccell = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(v);
-end
-
-function lbl = get_warn_label(wl)
-    lbl = bms.analyzer.StructuralPlotConfigService.warnLabel(wl);
+    warn_lines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines(style, cfg, 'tilt', pid);
 end
 
 function groups = get_groups(cfg, key)
@@ -214,10 +145,6 @@ function pts = flatten_groups(groups)
     pts = bms.analyzer.StructuralPlotConfigService.flattenGroups(groups);
 end
 
-function pts = normalize_points(v)
-    pts = bms.analyzer.StructuralPlotConfigService.normalizePoints(v);
-end
-
 function tf = is_jiulongjiang(cfg)
     tf = bms.analyzer.StructuralPlotConfigService.isJiulongjiang(cfg);
 end
@@ -230,26 +157,10 @@ function val = get_style_field(style, field, default)
     val = bms.analyzer.StructuralPlotConfigService.getStyleField(style, field, default);
 end
 
-function y = get_ylim_for_pid(style, pid, default)
-    y = bms.analyzer.StructuralPlotConfigService.resolveNamedYLim(style, pid, default);
-end
-
-function ok = is_valid_ylim(v)
-    ok = bms.analyzer.StructuralPlotConfigService.isValidYLim(v);
-end
-
-function ccell = normalize_colors(c)
-    ccell = bms.analyzer.StructuralPlotConfigService.normalizeColors(c, {});
-end
-
 function tf = has_plot_data(data_list)
     tf = bms.analyzer.StructuralPlotConfigService.hasPlotData(data_list);
 end
 
 function sheet = make_sheet_name(name)
     sheet = bms.analyzer.StructuralPlotConfigService.sheetName(name, 'Tilt_');
-end
-
-function out = sanitize_filename(name)
-    out = bms.analyzer.StructuralPlotConfigService.sanitizeFilename(name);
 end

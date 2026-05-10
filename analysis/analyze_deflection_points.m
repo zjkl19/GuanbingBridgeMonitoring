@@ -101,42 +101,11 @@ function plot_deflection_curve(times_list, vals_list, pid_list, root_dir, start_
 if nargin < 10
     cfg = struct();
 end
-fig = figure('Position',[100 100 1000 469]); hold on;
-dt0 = datetime(start_date,'InputFormat','yyyy-MM-dd'); dt1 = datetime(end_date,'InputFormat','yyyy-MM-dd');
-if dt1 <= dt0
-    dt1 = dt0 + days(1);
-end
 N = numel(pid_list);
-
-colors_2 = normalize_colors(get_style_field(style,'colors_2', {[0 0 1], [0 0.7 0]}));
-colors_3 = normalize_colors(get_style_field(style,'colors_3', {[0.5 0 0.7], [0 0 1], [0 0.7 0]}));
-
-for i = 1:N
-    if N == 2
-        c = colors_2{i};
-    elseif N == 3
-        c = colors_3{i};
-    else
-        cmap = lines(N);
-        c = cmap(i,:);
-    end
-if isempty(vals_list{i}), continue; end
-    [times_plot, vals_plot] = prepare_plot_series(times_list{i}, vals_list{i});
-    plot(times_plot, vals_plot, 'LineWidth', 1.0, 'Color', c);
-end
 valid = ~cellfun(@isempty, vals_list);
-if ~any(valid), close(fig); return; end
+if ~any(valid), return; end
 
-goodLines = findobj(gca,'Type','line');
-goodLines = flipud(goodLines(:));
-lg = legend(goodLines(valid), pid_list(valid),'Location','northeast','Box','off');
-lg.AutoUpdate = 'off';
-
-% X 轴
-numDiv = 4;
-ticks = dt0 + (dt1 - dt0) * (0:numDiv) / numDiv;
-ax = gca; ax.XLim = [dt0 dt1]; ax.XTick = ticks; xtickformat('yyyy-MM-dd');
-xlabel('时间'); ylabel(get_style_field(style,'ylabel','挠度 (mm)'));
+[dt0, dt1] = bms.analyzer.StructuralTimeSeriesPlotService.dateRange(start_date, end_date);
 prefix = get_style_field(style,'title_prefix','挠度时程');
 if nargin < 9 || isempty(suffix)
     suffix = '';
@@ -150,50 +119,29 @@ else
     name_tag = char(group_idx);
     title_str = sprintf('%s %s%s', prefix, group_idx, suffix);
 end
-title(title_str);
-
-% 预警线
 warn_lines = get_style_field(style,'warn_lines', {});
-if isstruct(warn_lines) && ~iscell(warn_lines)
-    warn_lines = num2cell(warn_lines);
+pid = '';
+if numel(pid_list) == 1
+    pid = pid_list{1};
 end
-if iscell(warn_lines)
-    for k = 1:numel(warn_lines)
-        wl = warn_lines{k};
-        if isstruct(wl) && isfield(wl,'y')
-            yl = yline(wl.y, '--', get_label(wl), 'LabelHorizontalAlignment','left');
-            if isfield(wl,'color'), yl.Color = wl.color; end
-        end
-    end
+opts = struct();
+opts.style = style;
+opts.ylabel = get_style_field(style,'ylabel','挠度 (mm)');
+opts.titleText = title_str;
+opts.outputDir = '时程曲线_挠度';
+opts.baseName = sprintf('Defl_%s_%s_%s_%s_%s', name_tag, make_file_suffix_tag(suffix), ...
+    datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'), datestr(now,'yyyymmdd_HHMMSS'));
+opts.warnLines = warn_lines;
+opts.ylimRange = bms.analyzer.StructuralTimeSeriesPlotService.resolveStyleYLim(style, pid);
+if N == 2
+    opts.colorField = 'colors_2';
+    opts.defaultColors = [0 0 1; 0 0.7 0];
+elseif N == 3
+    opts.colorField = 'colors_3';
+    opts.defaultColors = [0.5 0 0.7; 0 0 1; 0 0.7 0];
 end
-
-% Y 轴范围
-ylim_auto = get_style_field(style,'ylim_auto', false);
-if (islogical(ylim_auto) && ylim_auto) || (isnumeric(ylim_auto) && ylim_auto ~= 0)
-    ylim auto;
-else
-    ylim_val = get_style_field(style,'ylim', []);
-    pid = '';
-    if numel(pid_list)==1
-        pid = pid_list{1};
-    end
-    ylim_override = get_ylim_for_pid(style, pid, ylim_val);
-    if ~is_valid_ylim(ylim_override), ylim_override = []; end
-    if ~isempty(ylim_override)
-        ylim(ylim_override);
-    else
-        ylim auto;
-    end
-end
-
-grid on; grid minor;
-
-% 保存
-ts = datestr(now,'yyyymmdd_HHMMSS');
-out = fullfile(root_dir, '时程曲线_挠度'); bms.core.PathResolver.ensureDir(out);
-    suffix_tag = make_file_suffix_tag(suffix);
-    fname = sprintf('Defl_%s_%s_%s_%s', name_tag, suffix_tag, datestr(dt0,'yyyymmdd'), datestr(dt1,'yyyymmdd'));
-bms.plot.PlotService.saveModuleBundle(fig, out, [fname '_' ts], cfg);
+bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
+    root_dir, times_list, vals_list, pid_list, start_date, end_date, opts, cfg);
 end
 
 function tag = make_file_suffix_tag(suffix)
@@ -224,14 +172,6 @@ function tf = is_jiulongjiang(cfg)
     tf = bms.analyzer.StructuralPlotConfigService.isJiulongjiang(cfg);
 end
 
-function y = get_ylim_for_pid(style, pid, default)
-    y = bms.analyzer.StructuralPlotConfigService.resolveNamedYLim(style, pid, default);
-end
-
-function ok = is_valid_ylim(v)
-    ok = bms.analyzer.StructuralPlotConfigService.isValidYLim(v);
-end
-
 function tf = has_groups(cfg, key)
     groups = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, key, []);
     tf = bms.analyzer.StructuralPlotConfigService.hasGroups(groups);
@@ -250,12 +190,4 @@ end
 
 function val = get_style_field(style, field, default)
     val = bms.analyzer.StructuralPlotConfigService.getStyleField(style, field, default);
-end
-
-function lbl = get_label(wl)
-    lbl = bms.analyzer.StructuralPlotConfigService.warnLabel(wl);
-end
-
-function ccell = normalize_colors(c)
-    ccell = bms.analyzer.StructuralPlotConfigService.normalizeColors(c, {});
 end
