@@ -308,22 +308,14 @@ function acc = init_accumulators(wim, start_date, end_date)
     acc.critical_lanes = critical_lanes;
     acc.custom_per_lane = zeros(numel(critical_lanes), numel(custom_weights));
 
-    acc.topn = init_topn(double(wim.topn));
-    acc.topn_max_axle = init_topn(double(wim.topn));
+    acc.topn = bms.analyzer.WimAccumulatorService.initTopN(double(wim.topn));
+    acc.topn_max_axle = bms.analyzer.WimAccumulatorService.initTopN(double(wim.topn));
     acc.topn_raw_headers = {};
 
     acc.overload_factors = double(wim.overload_factors(:))';
     acc.design_total = double(wim.design_total_kg);
     acc.design_axle = double(wim.design_axle_kg);
     acc.overload_counts = zeros(2, numel(acc.overload_factors)); % row1: total, row2: axle
-end
-
-function topn = init_topn(n)
-    topn.n = n;
-    topn.values = -inf(n,1);
-    topn.times = inf(n,1);
-    topn.std_rows = cell(n, 1);
-    topn.raw_rows = cell(n, 1);
 end
 
 % =========================
@@ -373,16 +365,16 @@ function acc = process_zhichen_bcp(fmt_path, bcp_path, acc, wim)
         acc = update_accumulators(acc, t_dn, lane, gross, speed, axle_w, axle_num);
         acc = update_overload(acc, gross, axle_w);
 
-        std_row = build_std_row(lane, t_dn, axle_num, gross, speed, plate, axle_w, axle_d);
+        std_row = bms.analyzer.WimAccumulatorService.standardRow(lane, t_dn, axle_num, gross, speed, plate, axle_w, axle_d);
 
-        acc.topn = update_topn(acc.topn, gross, t_dn, std_row, []);
+        acc.topn = bms.analyzer.WimAccumulatorService.updateTopN(acc.topn, gross, t_dn, std_row, []);
         [max_axle, ~] = max(axle_w, [], 'omitnan');
         raw_vals = [];
-        if qualifies_for_topn(acc.topn_max_axle, max_axle, t_dn)
+        if bms.analyzer.WimAccumulatorService.qualifiesForTopN(acc.topn_max_axle, max_axle, t_dn)
             raw_vals = decode_all_row(fmt, row_bytes, encoding);
             acc.topn_raw_headers = {fmt.name};
         end
-        acc.topn_max_axle = update_topn(acc.topn_max_axle, max_axle, t_dn, std_row, raw_vals);
+        acc.topn_max_axle = bms.analyzer.WimAccumulatorService.updateTopN(acc.topn_max_axle, max_axle, t_dn, std_row, raw_vals);
     end
 end
 
@@ -408,16 +400,16 @@ function acc = process_jiulongjiang_excel(files, acc, wim)
             acc = update_accumulators(acc, t_dn(i), lane(i), gross(i), speed(i), axle_w(i,:), axle_num(i));
             acc = update_overload(acc, gross(i), axle_w(i,:));
 
-            std_row = build_std_row(lane(i), t_dn(i), axle_num(i), gross(i), speed(i), plate{i}, axle_w(i,:), axle_d(i,:));
-            acc.topn = update_topn(acc.topn, gross(i), t_dn(i), std_row, []);
+            std_row = bms.analyzer.WimAccumulatorService.standardRow(lane(i), t_dn(i), axle_num(i), gross(i), speed(i), plate{i}, axle_w(i,:), axle_d(i,:));
+            acc.topn = bms.analyzer.WimAccumulatorService.updateTopN(acc.topn, gross(i), t_dn(i), std_row, []);
 
             [max_axle, ~] = max(axle_w(i,:), [], 'omitnan');
             raw_row = [];
-            if qualifies_for_topn(acc.topn_max_axle, max_axle, t_dn(i))
+            if bms.analyzer.WimAccumulatorService.qualifiesForTopN(acc.topn_max_axle, max_axle, t_dn(i))
                 raw_row = table2cell(tbl(i,:));
                 acc.topn_raw_headers = tbl.Properties.VariableNames;
             end
-            acc.topn_max_axle = update_topn(acc.topn_max_axle, max_axle, t_dn(i), std_row, raw_row);
+            acc.topn_max_axle = bms.analyzer.WimAccumulatorService.updateTopN(acc.topn_max_axle, max_axle, t_dn(i), std_row, raw_row);
         end
     end
 end
@@ -435,14 +427,14 @@ function reports = build_report_tables(acc, wim)
     % Lane / Speed / Gross (LaneSpeedWeight)
     reports.LaneSpeedWeight_Lane = table(acc.lanes(:), acc.lane_counts(:), ...
         'VariableNames', {'lane','count'});
-    [labels, counts] = bin_table(acc.speed_edges, acc.speed_counts);
+    [labels, counts] = bms.analyzer.WimReportTableService.binTable(acc.speed_edges, acc.speed_counts);
     reports.LaneSpeedWeight_Speed = table((1:numel(counts)).', labels, counts, ...
         'VariableNames', {'bin_id','label','count'});
-    [labels, counts] = bin_table(acc.gross_edges, acc.gross_counts);
+    [labels, counts] = bms.analyzer.WimReportTableService.binTable(acc.gross_edges, acc.gross_counts);
     reports.LaneSpeedWeight_Gross = table((1:numel(counts)).', labels, counts, ...
         'VariableNames', {'bin_id','label','count'});
     % Per-lane gross bins
-    [labels2, ~] = bin_table(acc.gross_edges, acc.gross_counts);
+    [labels2, ~] = bms.analyzer.WimReportTableService.binTable(acc.gross_edges, acc.gross_counts);
     [lane_grid, bin_grid] = ndgrid(acc.lanes(:), 1:numel(labels2));
     label_grid = repmat(labels2(:).', numel(acc.lanes), 1);
     reports.LaneSpeedWeight_GrossPerLane = table( ...
@@ -450,7 +442,7 @@ function reports = build_report_tables(acc, wim)
         'VariableNames', {'lane','bin_id','label','count'});
 
     % Hourly
-    [labels, counts] = bin_table(acc.hour_edges, acc.hour_counts);
+    [labels, counts] = bms.analyzer.WimReportTableService.binTable(acc.hour_edges, acc.hour_counts);
     avg_speed = acc.hour_speed_sum ./ acc.hour_speed_cnt;
     avg_speed(acc.hour_speed_cnt==0) = NaN;
     reports.Hourly_Count = table((1:numel(counts)).', labels, counts, ...
@@ -469,31 +461,13 @@ function reports = build_report_tables(acc, wim)
         'VariableNames', {'lane','weight_threshold','over_cnt'});
 
     % TopN (gross)
-    reports.TopN = build_topn_table(acc.topn);
-    reports.TopN_MaxAxle = build_topn_table(acc.topn_max_axle);
+    reports.TopN = bms.analyzer.WimReportTableService.buildTopNTable(acc.topn);
+    reports.TopN_MaxAxle = bms.analyzer.WimReportTableService.buildTopNTable(acc.topn_max_axle);
 
     % Raw topn max axle
     if ~isempty(acc.topn_raw_headers) && ~isempty(acc.topn_max_axle.raw_rows)
-        raw_rows = acc.topn_max_axle.raw_rows;
-        raw_rows = raw_rows(~cellfun('isempty', raw_rows));
-        if isempty(raw_rows)
-            reports.TopN_MaxAxle_Raw = table();
-        else
-            headers = acc.topn_raw_headers;
-            ncol = numel(headers);
-            for i = 1:numel(raw_rows)
-                r = raw_rows{i};
-                if numel(r) < ncol
-                    r = [r, repmat({[]}, 1, ncol - numel(r))];
-                elseif numel(r) > ncol
-                    r = r(1:ncol);
-                end
-                raw_rows{i} = r;
-            end
-            headers = normalize_headers(headers);
-            mat = vertcat(raw_rows{:});
-            reports.TopN_MaxAxle_Raw = cell2table(mat, 'VariableNames', headers);
-        end
+        reports.TopN_MaxAxle_Raw = bms.analyzer.WimReportTableService.buildRawTopNTable( ...
+            acc.topn_raw_headers, acc.topn_max_axle.raw_rows);
     else
         reports.TopN_MaxAxle_Raw = table();
     end
@@ -507,94 +481,6 @@ function reports = build_report_tables(acc, wim)
         [total_thr; axle_thr], ...
         [acc.overload_counts(1,:).'; acc.overload_counts(2,:).'], ...
         'VariableNames', {'type','threshold_kg','count'});
-end
-
-function [labels, counts] = bin_table(edges, counts)
-    n = numel(edges)-1;
-    labels = strings(n,1);
-    for i = 1:n
-        lo = edges(i);
-        hi = edges(i+1);
-        if i == n
-            labels(i) = sprintf('>=%.0f', lo);
-        else
-            labels(i) = sprintf('%.0f-%.0f', lo, hi-1);
-        end
-    end
-end
-
-function headers = normalize_headers(headers)
-    if ischar(headers) || isstring(headers)
-        headers = cellstr(headers);
-    end
-    for i = 1:numel(headers)
-        if isempty(headers{i})
-            headers{i} = sprintf('Var%d', i);
-        end
-    end
-end
-
-function T = build_topn_table(topn)
-    rows = topn.std_rows;
-    rows = rows(~cellfun('isempty', rows));
-    if isempty(rows)
-        T = table();
-        return;
-    end
-    cols = {'lane','time','axle_num','gross_kg','speed_kmh','plate', ...
-        'axle1','axle2','axle3','axle4','axle5','axle6','axle7','axle8', ...
-        'axledis1','axledis2','axledis3','axledis4','axledis5','axledis6','axledis7'};
-    % normalize row width and stack to matrix
-    ncol = numel(cols);
-    for i = 1:numel(rows)
-        r = rows{i};
-        if numel(r) < ncol
-            r = [r, repmat({[]}, 1, ncol - numel(r))];
-        elseif numel(r) > ncol
-            r = r(1:ncol);
-        end
-        rows{i} = r;
-    end
-    mat = vertcat(rows{:});
-    T = cell2table(mat, 'VariableNames', cols);
-    if ismember('plate', T.Properties.VariableNames)
-        if iscell(T.plate)
-            T.plate = string(cellfun(@to_string_scalar, T.plate, 'UniformOutput', false));
-        else
-            T.plate = string(T.plate);
-        end
-    end
-    T = addvars(T, (1:height(T)).', 'Before', 1, 'NewVariableNames','rank');
-end
-
-function s = to_string_scalar(x)
-    if isstring(x)
-        if numel(x) > 1
-            s = strjoin(x(:).', '');
-        else
-            s = x;
-        end
-    elseif ischar(x)
-        if size(x,1) > 1
-            s = strjoin(cellstr(x), '');
-        else
-            s = string(x);
-        end
-    elseif isnumeric(x)
-        s = string(x);
-        if numel(s) > 1
-            s = strjoin(s(:).', '');
-        end
-    else
-        try
-            s = string(x);
-            if numel(s) > 1
-                s = strjoin(s(:).', '');
-            end
-        catch
-            s = "";
-        end
-    end
 end
 
 % =========================
@@ -665,21 +551,8 @@ function write_topn_metric_sheet(csv_paths, excel_path, src_name, dst_name)
         return;
     end
 
-    Tm = convert_axledis_mm_to_m(T);
+    Tm = bms.analyzer.WimReportTableService.convertAxleDistancesMmToM(T);
     writetable(Tm, excel_path, 'Sheet', safe_sheet_name(dst_name));
-end
-
-function T = convert_axledis_mm_to_m(T)
-    if ~istable(T) || isempty(T), return; end
-
-    var_names = T.Properties.VariableNames;
-    for i = 1:numel(var_names)
-        name = var_names{i};
-        if startsWith(name, 'axledis', 'IgnoreCase', true)
-            vals = to_double(T.(name));
-            T.(name) = round(vals ./ 1000, 3);
-        end
-    end
 end
 
 % =========================
@@ -702,12 +575,12 @@ function acc = update_accumulators(acc, t_dn, lane, gross, speed, axle_w, axle_n
     end
 
     if isfinite(speed)
-        bi = find_bin(speed, acc.speed_edges);
+        bi = bms.analyzer.WimAccumulatorService.findBin(speed, acc.speed_edges);
         if bi > 0, acc.speed_counts(bi) = acc.speed_counts(bi) + 1; end
     end
 
     if isfinite(gross)
-        bi = find_bin(gross, acc.gross_edges);
+        bi = bms.analyzer.WimAccumulatorService.findBin(gross, acc.gross_edges);
         if bi > 0
             acc.gross_counts(bi) = acc.gross_counts(bi) + 1;
             if isfinite(lane) && isKey(acc.lane_map, lane)
@@ -718,7 +591,7 @@ function acc = update_accumulators(acc, t_dn, lane, gross, speed, axle_w, axle_n
     end
 
     hh = floor(mod(t_dn, 1) * 24);
-    bi = find_bin(hh, acc.hour_edges);
+    bi = bms.analyzer.WimAccumulatorService.findBin(hh, acc.hour_edges);
     if bi > 0
         acc.hour_counts(bi) = acc.hour_counts(bi) + 1;
         if isfinite(speed)
@@ -764,71 +637,6 @@ function acc = update_overload(acc, gross, axle_w)
             end
         end
     end
-end
-
-function idx = find_bin(val, edges)
-    if ~isfinite(val), idx = 0; return; end
-    n = numel(edges) - 1;
-    for i = 1:n
-        lo = edges(i);
-        hi = edges(i+1);
-        if i == n
-            if val >= lo
-                idx = i; return;
-            end
-        else
-            if val >= lo && val < hi
-                idx = i; return;
-            end
-        end
-    end
-    idx = 0;
-end
-
-% =========================
-% TopN helpers
-% =========================
-function ok = qualifies_for_topn(topn, key, t_dn)
-    ok = false;
-    if ~isfinite(key), return; end
-    min_val = topn.values(end);
-    if key > min_val
-        ok = true;
-    elseif key == min_val && t_dn < topn.times(end)
-        ok = true;
-    end
-end
-
-function topn = update_topn(topn, key, t_dn, std_row, raw_row)
-    if ~isfinite(key), return; end
-    idx = find_insert_index(topn, key, t_dn);
-    if isempty(idx), return; end
-    if idx < topn.n
-        topn.values(idx+1:end) = topn.values(idx:end-1);
-        topn.times(idx+1:end) = topn.times(idx:end-1);
-        topn.std_rows(idx+1:end) = topn.std_rows(idx:end-1);
-        topn.raw_rows(idx+1:end) = topn.raw_rows(idx:end-1);
-    end
-    topn.values(idx) = key;
-    topn.times(idx) = t_dn;
-    topn.std_rows{idx} = std_row;
-    topn.raw_rows{idx} = raw_row;
-end
-
-function idx = find_insert_index(topn, key, t_dn)
-    idx = [];
-    for i = 1:topn.n
-        if key > topn.values(i)
-            idx = i; return;
-        elseif key == topn.values(i) && t_dn < topn.times(i)
-            idx = i; return;
-        end
-    end
-end
-
-function row = build_std_row(lane, t_dn, axle_num, gross, speed, plate, axle_w, axle_d)
-    t_str = datestr(t_dn, 'yyyy-mm-dd HH:MM:SS');
-    row = [{lane, t_str, axle_num, gross, speed, plate}, num2cell(axle_w), num2cell(axle_d)];
 end
 
 % =========================
