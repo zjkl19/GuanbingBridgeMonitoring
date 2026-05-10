@@ -1,4 +1,4 @@
-classdef GnssAnalyzer < bms.analyzer.BaseAnalyzer
+classdef GnssAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     %GNSSANALYZER OOP adapter for the legacy GNSS analysis.
 
     methods
@@ -6,13 +6,8 @@ classdef GnssAnalyzer < bms.analyzer.BaseAnalyzer
             if nargin < 7
                 points = {};
             end
-            obj@bms.analyzer.BaseAnalyzer('gnss', root, startDate, endDate, statsFile, subfolder, cfg, points);
-        end
-    end
-
-    methods (Access = protected)
-        function executeLegacy(obj)
-            analyze_gnss_points(obj.Root, obj.Points, obj.StartDate, obj.EndDate, obj.StatsFile, obj.Subfolder, obj.Config);
+            obj@bms.analyzer.LegacyFunctionAnalyzer('gnss', root, startDate, endDate, statsFile, subfolder, cfg, points, ...
+                @(self) analyze_gnss_points(self.Root, self.Points, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
         end
     end
 end

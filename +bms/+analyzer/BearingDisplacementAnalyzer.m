@@ -1,15 +1,10 @@
-classdef BearingDisplacementAnalyzer < bms.analyzer.BaseAnalyzer
+classdef BearingDisplacementAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     %BEARINGDISPLACEMENTANALYZER OOP adapter for bearing displacement.
 
     methods
         function obj = BearingDisplacementAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg)
-            obj@bms.analyzer.BaseAnalyzer('bearing_displacement', root, startDate, endDate, statsFile, subfolder, cfg, {});
-        end
-    end
-
-    methods (Access = protected)
-        function executeLegacy(obj)
-            analyze_bearing_displacement_points(obj.Root, obj.StartDate, obj.EndDate, obj.StatsFile, obj.Subfolder, obj.Config);
+            obj@bms.analyzer.LegacyFunctionAnalyzer('bearing_displacement', root, startDate, endDate, statsFile, subfolder, cfg, {}, ...
+                @(self) analyze_bearing_displacement_points(self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
         end
     end
 end

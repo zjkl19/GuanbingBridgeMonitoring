@@ -1,15 +1,10 @@
-classdef DeflectionAnalyzer < bms.analyzer.BaseAnalyzer
+classdef DeflectionAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     %DEFLECTIONANALYZER OOP adapter for the legacy deflection analysis.
 
     methods
         function obj = DeflectionAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg)
-            obj@bms.analyzer.BaseAnalyzer('deflection', root, startDate, endDate, statsFile, subfolder, cfg, {});
-        end
-    end
-
-    methods (Access = protected)
-        function executeLegacy(obj)
-            analyze_deflection_points(obj.Root, obj.StartDate, obj.EndDate, obj.StatsFile, obj.Subfolder, obj.Config);
+            obj@bms.analyzer.LegacyFunctionAnalyzer('deflection', root, startDate, endDate, statsFile, subfolder, cfg, {}, ...
+                @(self) analyze_deflection_points(self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
         end
     end
 end

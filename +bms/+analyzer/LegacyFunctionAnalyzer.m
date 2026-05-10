@@ -20,7 +20,11 @@ classdef LegacyFunctionAnalyzer < bms.analyzer.BaseAnalyzer
                 executeLegacy@bms.analyzer.BaseAnalyzer(obj);
                 return;
             end
-            obj.FunctionHandle();
+            if nargin(obj.FunctionHandle) == 0
+                obj.FunctionHandle();
+            else
+                obj.FunctionHandle(obj);
+            end
         end
     end
 end

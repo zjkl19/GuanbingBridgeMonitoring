@@ -1,4 +1,4 @@
-classdef CableAccelerationSpectrumAnalyzer < bms.analyzer.BaseAnalyzer
+classdef CableAccelerationSpectrumAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     %CABLEACCELERATIONSPECTRUMANALYZER OOP adapter for cable spectrum.
 
     properties
@@ -17,16 +17,11 @@ classdef CableAccelerationSpectrumAnalyzer < bms.analyzer.BaseAnalyzer
             if nargin < 9
                 tol = [];
             end
-            obj@bms.analyzer.BaseAnalyzer('cable_accel_spectrum', root, startDate, endDate, statsFile, subfolder, cfg, points);
+            obj@bms.analyzer.LegacyFunctionAnalyzer('cable_accel_spectrum', root, startDate, endDate, statsFile, subfolder, cfg, points, ...
+                @(self) analyze_cable_accel_spectrum_points(self.Root, self.StartDate, self.EndDate, self.Points, ...
+                    self.StatsFile, self.Subfolder, self.Frequencies, self.Tolerance, false, self.Config));
             obj.Frequencies = freqs;
             obj.Tolerance = tol;
-        end
-    end
-
-    methods (Access = protected)
-        function executeLegacy(obj)
-            analyze_cable_accel_spectrum_points(obj.Root, obj.StartDate, obj.EndDate, obj.Points, ...
-                obj.StatsFile, obj.Subfolder, obj.Frequencies, obj.Tolerance, false, obj.Config);
         end
     end
 end

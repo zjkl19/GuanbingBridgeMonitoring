@@ -1,15 +1,10 @@
-classdef HumidityAnalyzer < bms.analyzer.BaseAnalyzer
+classdef HumidityAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     %HUMIDITYANALYZER OOP adapter for humidity analysis.
 
     methods
         function obj = HumidityAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, points)
-            obj@bms.analyzer.BaseAnalyzer('humidity', root, startDate, endDate, statsFile, subfolder, cfg, points);
-        end
-    end
-
-    methods (Access = protected)
-        function executeLegacy(obj)
-            analyze_humidity_points(obj.Root, obj.Points, obj.StartDate, obj.EndDate, obj.StatsFile, obj.Subfolder, obj.Config);
+            obj@bms.analyzer.LegacyFunctionAnalyzer('humidity', root, startDate, endDate, statsFile, subfolder, cfg, points, ...
+                @(self) analyze_humidity_points(self.Root, self.Points, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
         end
     end
 end

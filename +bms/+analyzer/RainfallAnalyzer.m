@@ -1,15 +1,10 @@
-classdef RainfallAnalyzer < bms.analyzer.BaseAnalyzer
+classdef RainfallAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     %RAINFALLANALYZER OOP adapter for rainfall analysis.
 
     methods
         function obj = RainfallAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, points)
-            obj@bms.analyzer.BaseAnalyzer('rainfall', root, startDate, endDate, statsFile, subfolder, cfg, points);
-        end
-    end
-
-    methods (Access = protected)
-        function executeLegacy(obj)
-            analyze_rainfall_points(obj.Root, obj.Points, obj.StartDate, obj.EndDate, obj.StatsFile, obj.Subfolder, obj.Config);
+            obj@bms.analyzer.LegacyFunctionAnalyzer('rainfall', root, startDate, endDate, statsFile, subfolder, cfg, points, ...
+                @(self) analyze_rainfall_points(self.Root, self.Points, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
         end
     end
 end

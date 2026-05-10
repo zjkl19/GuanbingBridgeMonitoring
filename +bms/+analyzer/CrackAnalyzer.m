@@ -1,15 +1,10 @@
-classdef CrackAnalyzer < bms.analyzer.BaseAnalyzer
+classdef CrackAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     %CRACKANALYZER OOP adapter for the legacy crack analysis.
 
     methods
         function obj = CrackAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg)
-            obj@bms.analyzer.BaseAnalyzer('crack', root, startDate, endDate, statsFile, subfolder, cfg, {});
-        end
-    end
-
-    methods (Access = protected)
-        function executeLegacy(obj)
-            analyze_crack_points(obj.Root, obj.StartDate, obj.EndDate, obj.StatsFile, obj.Subfolder, obj.Config);
+            obj@bms.analyzer.LegacyFunctionAnalyzer('crack', root, startDate, endDate, statsFile, subfolder, cfg, {}, ...
+                @(self) analyze_crack_points(self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
         end
     end
 end

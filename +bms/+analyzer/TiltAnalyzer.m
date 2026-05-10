@@ -1,15 +1,10 @@
-classdef TiltAnalyzer < bms.analyzer.BaseAnalyzer
+classdef TiltAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     %TILTANALYZER OOP adapter for the legacy tilt analysis.
 
     methods
         function obj = TiltAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg)
-            obj@bms.analyzer.BaseAnalyzer('tilt', root, startDate, endDate, statsFile, subfolder, cfg, {});
-        end
-    end
-
-    methods (Access = protected)
-        function executeLegacy(obj)
-            analyze_tilt_points(obj.Root, obj.StartDate, obj.EndDate, obj.StatsFile, obj.Subfolder, obj.Config);
+            obj@bms.analyzer.LegacyFunctionAnalyzer('tilt', root, startDate, endDate, statsFile, subfolder, cfg, {}, ...
+                @(self) analyze_tilt_points(self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
         end
     end
 end

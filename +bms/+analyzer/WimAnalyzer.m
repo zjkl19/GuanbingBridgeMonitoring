@@ -1,15 +1,10 @@
-classdef WimAnalyzer < bms.analyzer.BaseAnalyzer
+classdef WimAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     %WIMANALYZER OOP adapter for WIM report analysis.
 
     methods
         function obj = WimAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg)
-            obj@bms.analyzer.BaseAnalyzer('wim', root, startDate, endDate, statsFile, subfolder, cfg, {});
-        end
-    end
-
-    methods (Access = protected)
-        function executeLegacy(obj)
-            analyze_wim_reports(obj.Root, obj.StartDate, obj.EndDate, obj.Config);
+            obj@bms.analyzer.LegacyFunctionAnalyzer('wim', root, startDate, endDate, statsFile, subfolder, cfg, {}, ...
+                @(self) analyze_wim_reports(self.Root, self.StartDate, self.EndDate, self.Config));
         end
     end
 end

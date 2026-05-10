@@ -1,4 +1,4 @@
-classdef AccelerationAnalyzer < bms.analyzer.BaseAnalyzer
+classdef AccelerationAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     %ACCELERATIONANALYZER OOP adapter for the legacy acceleration analysis.
 
     properties
@@ -10,14 +10,9 @@ classdef AccelerationAnalyzer < bms.analyzer.BaseAnalyzer
             if nargin < 7 || isempty(saveFigures)
                 saveFigures = true;
             end
-            obj@bms.analyzer.BaseAnalyzer('acceleration', root, startDate, endDate, statsFile, subfolder, cfg, {});
+            obj@bms.analyzer.LegacyFunctionAnalyzer('acceleration', root, startDate, endDate, statsFile, subfolder, cfg, {}, ...
+                @(self) analyze_acceleration_points(self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.SaveFigures, self.Config));
             obj.SaveFigures = logical(saveFigures);
-        end
-    end
-
-    methods (Access = protected)
-        function executeLegacy(obj)
-            analyze_acceleration_points(obj.Root, obj.StartDate, obj.EndDate, obj.StatsFile, obj.Subfolder, obj.SaveFigures, obj.Config);
         end
     end
 end

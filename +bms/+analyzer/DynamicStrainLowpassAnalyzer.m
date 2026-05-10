@@ -1,16 +1,11 @@
-classdef DynamicStrainLowpassAnalyzer < bms.analyzer.BaseAnalyzer
+classdef DynamicStrainLowpassAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     %DYNAMICSTRAINLOWPASSANALYZER OOP adapter for lowpass dynamic strain.
 
     methods
         function obj = DynamicStrainLowpassAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg)
-            obj@bms.analyzer.BaseAnalyzer('dynamic_strain_lowpass', root, startDate, endDate, statsFile, subfolder, cfg, {});
-        end
-    end
-
-    methods (Access = protected)
-        function executeLegacy(obj)
-            analyze_dynamic_strain_lowpass_boxplot(obj.Root, obj.StartDate, obj.EndDate, ...
-                'Cfg', obj.Config, 'Subfolder', obj.Subfolder);
+            obj@bms.analyzer.LegacyFunctionAnalyzer('dynamic_strain_lowpass', root, startDate, endDate, statsFile, subfolder, cfg, {}, ...
+                @(self) analyze_dynamic_strain_lowpass_boxplot(self.Root, self.StartDate, self.EndDate, ...
+                    'Cfg', self.Config, 'Subfolder', self.Subfolder));
         end
     end
 end
