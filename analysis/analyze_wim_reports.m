@@ -322,12 +322,10 @@ end
 % Vendor processors
 % =========================
 function acc = process_zhichen_bcp(fmt_path, bcp_path, acc, wim)
-    fmt = parse_bcp_fmt(fmt_path);
+    spec = bms.analyzer.WimZhichenBcpSource.loadSpec(fmt_path);
+    fmt = spec.fmt;
+    idx = spec.index;
     encoding = get_field_default(get_vendor_input(wim, 'zhichen'), 'encoding', 'gbk');
-
-    idx = index_map(fmt);
-    required = required_columns();
-    check_required(idx, required);
 
     fid = fopen(bcp_path, 'r', 'ieee-le');
     if fid < 0
@@ -336,42 +334,25 @@ function acc = process_zhichen_bcp(fmt_path, bcp_path, acc, wim)
     cleanup = onCleanup(@() fclose(fid)); %#ok<NASGU>
 
     while true
-        [row_bytes, ok] = read_bcp_row(fid, fmt);
+        [row_bytes, ok] = bms.analyzer.WimZhichenBcpSource.readRowBytes(fid, fmt);
         if ~ok, break; end
 
-        % Decode needed columns for stats
-        t_dn = decode_datetime(row_bytes{idx.HSData_DT});
+        row = bms.analyzer.WimZhichenBcpSource.decodeRecord(fmt, idx, row_bytes, encoding);
+        t_dn = row.time_datenum;
         if isempty(t_dn) || ~isfinite(t_dn), continue; end
         if t_dn < acc.t0 || t_dn >= acc.t1, continue; end
 
-        lane = decode_int(row_bytes{idx.Lane_Id});
-        axle_num = decode_int(row_bytes{idx.Axle_Num});
-        gross = decode_int(row_bytes{idx.Gross_Load});
-        speed = decode_int(row_bytes{idx.Speed});
+        acc = update_accumulators(acc, t_dn, row.lane, row.gross, row.speed, row.axle_weights, row.axle_num);
+        acc = update_overload(acc, row.gross, row.axle_weights);
 
-        axle_w = zeros(1,8);
-        for k = 1:8
-            lw = decode_int(row_bytes{idx.(['LWheel_' num2str(k) '_W'])});
-            rw = decode_int(row_bytes{idx.(['RWheel_' num2str(k) '_W'])});
-            axle_w(k) = nansum([lw rw]);
-        end
-        axle_d = zeros(1,7);
-        for k = 1:7
-            axle_d(k) = decode_int(row_bytes{idx.(['AxleDis' num2str(k)])});
-        end
+        std_row = bms.analyzer.WimAccumulatorService.standardRow( ...
+            row.lane, t_dn, row.axle_num, row.gross, row.speed, row.plate, row.axle_weights, row.axle_distances);
 
-        plate = decode_string(row_bytes{idx.License_Plate}, 'utf-16le');
-
-        acc = update_accumulators(acc, t_dn, lane, gross, speed, axle_w, axle_num);
-        acc = update_overload(acc, gross, axle_w);
-
-        std_row = bms.analyzer.WimAccumulatorService.standardRow(lane, t_dn, axle_num, gross, speed, plate, axle_w, axle_d);
-
-        acc.topn = bms.analyzer.WimAccumulatorService.updateTopN(acc.topn, gross, t_dn, std_row, []);
-        [max_axle, ~] = max(axle_w, [], 'omitnan');
+        acc.topn = bms.analyzer.WimAccumulatorService.updateTopN(acc.topn, row.gross, t_dn, std_row, []);
+        [max_axle, ~] = max(row.axle_weights, [], 'omitnan');
         raw_vals = [];
         if bms.analyzer.WimAccumulatorService.qualifiesForTopN(acc.topn_max_axle, max_axle, t_dn)
-            raw_vals = decode_all_row(fmt, row_bytes, encoding);
+            raw_vals = bms.analyzer.WimZhichenBcpSource.decodeAllRow(fmt, row_bytes, encoding);
             acc.topn_raw_headers = {fmt.name};
         end
         acc.topn_max_axle = bms.analyzer.WimAccumulatorService.updateTopN(acc.topn_max_axle, max_axle, t_dn, std_row, raw_vals);
@@ -639,210 +620,6 @@ function acc = update_overload(acc, gross, axle_w)
 end
 
 % =========================
-% BCP parsing
-% =========================
-function fmt = parse_bcp_fmt(fmt_path)
-    lines = readlines(fmt_path, 'WhitespaceRule','preserve');
-    if numel(lines) < 3
-        error('Invalid fmt file: %s', fmt_path);
-    end
-    ncols = str2double(strtrim(lines(2)));
-    fmt = repmat(struct('name','','type','','prefix',0,'len',0), ncols, 1);
-    for i = 1:ncols
-        line = strtrim(lines(i+2));
-        if line == "", continue; end
-        tokens = regexp(line, '\s+', 'split');
-        % tokens: id type prefix len term order name [collation]
-        if numel(tokens) < 7
-            error('Fmt line parse error: %s', line);
-        end
-        fmt(i).type = tokens{2};
-        fmt(i).prefix = str2double(tokens{3});
-        fmt(i).len = str2double(tokens{4});
-        fmt(i).name = tokens{7};
-    end
-end
-
-function idx = index_map(fmt)
-    idx = struct();
-    for i = 1:numel(fmt)
-        idx.(fmt(i).name) = i;
-    end
-end
-
-function required = required_columns()
-    required = {'HSData_DT','Lane_Id','Axle_Num','Gross_Load','Speed','License_Plate'};
-    for k = 1:8
-        required{end+1} = sprintf('LWheel_%d_W', k); %#ok<AGROW>
-        required{end+1} = sprintf('RWheel_%d_W', k); %#ok<AGROW>
-    end
-    for k = 1:7
-        required{end+1} = sprintf('AxleDis%d', k); %#ok<AGROW>
-    end
-end
-
-function check_required(idx, required)
-    for i = 1:numel(required)
-        if ~isfield(idx, required{i})
-            error('Missing column in fmt: %s', required{i});
-        end
-    end
-end
-
-function [row_bytes, ok] = read_bcp_row(fid, fmt)
-    n = numel(fmt);
-    row_bytes = cell(1, n);
-    ok = true;
-    for i = 1:n
-        [bytes, ok] = read_field_bytes(fid, fmt(i));
-        if ~ok
-            row_bytes = {};
-            return;
-        end
-        row_bytes{i} = bytes;
-    end
-end
-
-function [bytes, ok] = read_field_bytes(fid, spec)
-    ok = true;
-    if spec.prefix > 0
-        len = read_prefix_len(fid, spec.prefix);
-        if isempty(len)
-            ok = false; bytes = []; return;
-        end
-        if len == 0
-            bytes = [];
-            return;
-        end
-        bytes = fread(fid, len, 'uint8=>uint8');
-        if numel(bytes) < len
-            ok = false;
-        end
-    else
-        bytes = fread(fid, spec.len, 'uint8=>uint8');
-        if numel(bytes) < spec.len
-            ok = false;
-        end
-    end
-end
-
-function len = read_prefix_len(fid, prefix_len)
-    switch prefix_len
-        case 1
-            len = fread(fid, 1, 'uint8=>double');
-        case 2
-            len = fread(fid, 1, 'uint16=>double');
-        case 4
-            len = fread(fid, 1, 'uint32=>double');
-        case 8
-            len = fread(fid, 1, 'uint64=>double');
-        otherwise
-            len = fread(fid, 1, 'uint32=>double');
-    end
-end
-
-function dt = decode_datetime(bytes)
-    if isempty(bytes) || numel(bytes) < 8
-        dt = NaN; return;
-    end
-    days = typecast(uint8(bytes(1:4)), 'int32');
-    ticks = typecast(uint8(bytes(5:8)), 'int32');
-    dt = datenum('1900-01-01') + double(days) + double(ticks) / 300 / 86400;
-end
-
-function v = decode_int(bytes)
-    if isempty(bytes), v = NaN; return; end
-    n = numel(bytes);
-    if n == 1
-        v = double(typecast(uint8(bytes), 'uint8'));
-    elseif n == 2
-        v = double(typecast(uint8(bytes), 'int16'));
-    elseif n == 4
-        v = double(typecast(uint8(bytes), 'int32'));
-    else
-        v = double(bytes(1));
-    end
-end
-
-function s = decode_string(bytes, encoding)
-    if isempty(bytes)
-        s = '';
-        return;
-    end
-    try
-        if strcmpi(encoding, 'utf-16le')
-            s = native2unicode(uint8(bytes), 'UTF-16LE');
-        else
-            s = native2unicode(uint8(bytes), encoding);
-        end
-    catch
-        s = native2unicode(uint8(bytes), 'UTF-8');
-    end
-    s = strtrim(s);
-end
-
-function vals = decode_all_row(fmt, row_bytes, encoding)
-    vals = cell(1, numel(fmt));
-    for i = 1:numel(fmt)
-        vals{i} = decode_by_type(fmt(i).type, row_bytes{i}, encoding);
-    end
-end
-
-function v = decode_by_type(type_name, bytes, encoding)
-    if isempty(bytes)
-        v = '';
-        return;
-    end
-    switch upper(type_name)
-        case 'SQLINT'
-            v = double(typecast(uint8(bytes), 'int32'));
-        case 'SQLTINYINT'
-            v = double(typecast(uint8(bytes), 'uint8'));
-        case 'SQLSMALLINT'
-            v = double(typecast(uint8(bytes), 'int16'));
-        case 'SQLBIGINT'
-            v = double(typecast(uint8(bytes), 'int64'));
-        case 'SQLDATETIME'
-            dt = decode_datetime(bytes);
-            if isfinite(dt)
-                v = datestr(dt, 'yyyy-mm-dd HH:MM:SS');
-            else
-                v = '';
-            end
-        case 'SQLCHAR'
-            v = decode_string(bytes, encoding);
-        case 'SQLNCHAR'
-            v = decode_string(bytes, 'utf-16le');
-        case 'SQLNUMERIC'
-            v = decode_numeric(bytes);
-        case 'SQLFLT4'
-            v = double(typecast(uint8(bytes), 'single'));
-        case 'SQLFLT8'
-            v = double(typecast(uint8(bytes), 'double'));
-        otherwise
-            v = decode_string(bytes, encoding);
-    end
-end
-
-function v = decode_numeric(bytes)
-    if isempty(bytes)
-        v = NaN; return;
-    end
-    sign_byte = bytes(1);
-    mag = 0;
-    if numel(bytes) > 1
-        for i = 2:numel(bytes)
-            mag = mag + double(bytes(i)) * 256^(i-2);
-        end
-    end
-    if sign_byte == 0
-        v = -mag;
-    else
-        v = mag;
-    end
-end
-
-% =========================
 % Database pipeline
 % =========================
 function run_wim_database_pipeline(root_dir, start_date, end_date, wim, cfg)
@@ -876,7 +653,7 @@ function run_wim_database_pipeline(root_dir, start_date, end_date, wim, cfg)
             if should_import(db, src_table)
                 import_bcp_with_fmt(db, src_table, bcp_path, fmt_path);
             end
-            fmt = parse_bcp_fmt(fmt_path);
+            fmt = bms.analyzer.WimZhichenBcpSource.parseFmt(fmt_path);
             raw_meta.mode = 'zhichen';
             raw_meta.headers = {fmt.name};
             raw_meta.raw_table = src_table;
@@ -1125,41 +902,14 @@ function sql = create_raw_table_sql(table_name, headers)
 end
 
 function sql = create_table_sql_from_fmt(table_name, fmt_path, db)
-    fmt = parse_bcp_fmt(fmt_path);
+    fmt = bms.analyzer.WimZhichenBcpSource.parseFmt(fmt_path);
     cols = cell(1, numel(fmt));
     for i = 1:numel(fmt)
-        cols{i} = sprintf('%s %s NULL', quote_identifier(fmt(i).name), map_fmt_type(fmt(i)));
+        cols{i} = sprintf('%s %s NULL', quote_identifier(fmt(i).name), bms.analyzer.WimZhichenBcpSource.sqlType(fmt(i)));
     end
     col_sql = strjoin(cols, ',');
     sql = sprintf('IF OBJECT_ID(''%s'', ''U'') IS NULL BEGIN CREATE TABLE %s (%s); END;', ...
         object_id_name(table_name), quote_table_name(table_name), col_sql);
-end
-
-function t = map_fmt_type(spec)
-    switch upper(spec.type)
-        case 'SQLINT'
-            t = 'INT';
-        case 'SQLTINYINT'
-            t = 'TINYINT';
-        case 'SQLSMALLINT'
-            t = 'SMALLINT';
-        case 'SQLBIGINT'
-            t = 'BIGINT';
-        case 'SQLDATETIME'
-            t = 'DATETIME';
-        case 'SQLCHAR'
-            t = sprintf('VARCHAR(%d)', spec.len);
-        case 'SQLNCHAR'
-            t = sprintf('NVARCHAR(%d)', spec.len);
-        case 'SQLNUMERIC'
-            t = sprintf('NUMERIC(%d,0)', max(1, min(38, spec.len)));
-        case 'SQLFLT4'
-            t = 'REAL';
-        case 'SQLFLT8'
-            t = 'FLOAT';
-        otherwise
-            t = 'NVARCHAR(255)';
-    end
 end
 
 function csv_paths = run_wim_sql_reports(db, wim, out_dir, yyyymm, src_table, start_str, finish_str, raw_meta)
