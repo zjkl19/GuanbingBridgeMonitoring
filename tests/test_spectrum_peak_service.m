@@ -31,5 +31,32 @@ classdef test_spectrum_peak_service < matlab.unittest.TestCase
             tc.verifyTrue(any(f > 0));
             tc.verifyTrue(all(isfinite(Pdb)));
         end
+
+        function spectrumPipelineResolvesPointOverrides(tc)
+            spec = bms.analyzer.SpectrumAnalysisPipeline.spec('accel_spectrum');
+            cfg = struct();
+            cfg.per_point.accel_spectrum.P_1 = struct( ...
+                'target_freqs', [1.1 2.2], ...
+                'tolerance', 0.25, ...
+                'theor_freqs', [1.0 2.0], ...
+                'theor_labels', ["一阶", "二阶"]);
+
+            [freqs, tol, theorFreqs, theorLabels] = ...
+                bms.analyzer.SpectrumAnalysisPipeline.pointParams(cfg, 'P-1', spec, [9.9], 0.01, [], {});
+
+            tc.verifyEqual(freqs, [1.1 2.2]);
+            tc.verifyEqual(tol, 0.25);
+            tc.verifyEqual(theorFreqs, [1.0 2.0]);
+            tc.verifyEqual(theorLabels(:), {'一阶'; '二阶'});
+        end
+
+        function cableSpectrumSpecKeepsCableForceBehavior(tc)
+            spec = bms.analyzer.SpectrumAnalysisPipeline.spec('cable_accel_spectrum');
+
+            tc.verifyEqual(spec.sensorType, 'cable_accel');
+            tc.verifyEqual(spec.perPointKey, 'cable_accel');
+            tc.verifyTrue(spec.includeForce);
+            tc.verifyTrue(ismember('cable_force', spec.pointKeys));
+        end
     end
 end
