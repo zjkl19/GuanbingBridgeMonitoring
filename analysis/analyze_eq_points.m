@@ -54,18 +54,6 @@ function analyze_eq_points(root_dir, start_date, end_date, subfolder, cfg)
     fprintf('总用时: %.2f sec', elapsed);
 end
 
-function [sensor_type, comp] = get_eq_component(pid)
-    comp = 'X';
-    sensor_type = 'eq_x';
-    if contains(pid, '-Y')
-        comp = 'Y'; sensor_type = 'eq_y';
-    elseif contains(pid, '-Z')
-        comp = 'Z'; sensor_type = 'eq_z';
-    elseif contains(pid, '-X')
-        comp = 'X'; sensor_type = 'eq_x';
-    end
-end
-
 function plot_eq_timeseries(times, vals, pid, comp, params, style, out_root, start_date, end_date, cfg)
     if nargin < 10
         cfg = struct();
@@ -218,20 +206,10 @@ function txt = to_char(v)
 end
 
 function rec = init_eq_record()
-rec = struct('pid', '', 'sensor_type', '', 'comp', '', ...
-    'times', [], 'vals', [], 'params', struct(), 'has_data', false);
+rec = bms.analyzer.EarthquakeSeriesService.initRecord();
 end
 
 function rec = collect_eq_record(root_dir, subfolder, pid, start_date, end_date, cfg)
-rec = init_eq_record();
-rec.pid = pid;
-[rec.sensor_type, rec.comp] = get_eq_component(pid);
-[times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, rec.sensor_type);
-rec.params = get_eq_params(cfg, pid);
-if isempty(vals)
-    return;
-end
-rec.times = times;
-rec.vals = vals;
-rec.has_data = true;
+rec = bms.analyzer.EarthquakeSeriesService.collectRecord( ...
+    root_dir, subfolder, pid, start_date, end_date, cfg, get_eq_params(cfg, pid));
 end

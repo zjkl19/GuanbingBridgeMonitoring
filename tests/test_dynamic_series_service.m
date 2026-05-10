@@ -40,6 +40,18 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(tMax, times(4));
         end
 
+        function movingMeanSeriesMatchesWindWindowBehavior(tc)
+            times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:5)';
+            vals = [2; NaN; NaN; 4; 6; 8];
+
+            [meanVals, meanMax, tMax] = bms.analyzer.DynamicSeriesService.movingMeanSeries(times, vals, 1, 3 / 60, 0.7);
+
+            tc.verifySize(meanVals, size(vals));
+            tc.verifyTrue(isnan(meanVals(2)));
+            tc.verifyEqual(meanMax, 7);
+            tc.verifyEqual(tMax, times(6));
+        end
+
         function collectRecordLoadsStatsAndRmsPeak(tc)
             values = 2 * ones(601, 1);
             write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'A1.csv'), values);
@@ -65,6 +77,15 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
 
             tc.verifyEqual(T.Properties.VariableNames, ...
                 {'PointID', 'Min', 'Max', 'Mean', 'RMS10minMax', 'RMSStartTime'});
+        end
+
+        function windStatsTableKeepsAnalyzerColumnNames(tc)
+            rows = {'W1', 1, 3, 2, 2.5, datetime(2026, 1, 1, 0, 0, 0)};
+
+            T = bms.analyzer.DynamicSeriesService.windStatsTable(rows);
+
+            tc.verifyEqual(T.Properties.VariableNames, ...
+                {'PointID', 'MinSpeed', 'MaxSpeed', 'MeanSpeed', 'Mean10minMax', 'Mean10minTime'});
         end
     end
 end

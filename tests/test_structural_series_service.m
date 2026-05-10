@@ -42,6 +42,16 @@ classdef test_structural_series_service < matlab.unittest.TestCase
             tc.verifyEqual(T.FiltMean_mm(1), 1.7);
         end
 
+        function crackStatsTableKeepsAnalyzerColumnNames(tc)
+            T = bms.analyzer.StructuralSeriesService.crackStatsTable( ...
+                {'C1', 1, 2, 1.5, 20, 22, 21});
+
+            tc.verifyEqual(T.Properties.VariableNames, ...
+                {'PointID', 'CrkMin', 'CrkMax', 'CrkMean', 'TmpMin', 'TmpMax', 'TmpMean'});
+            tc.verifyEqual(T.CrkMean(1), 1.5);
+            tc.verifyEqual(T.TmpMean(1), 21);
+        end
+
         function collectPointsLoadsSeriesAndStats(tc)
             write_series_csv(fullfile(tc.Root, '2026-01-01', 'features', 'S1.csv'), [1; 2; NaN]);
             write_series_csv(fullfile(tc.Root, '2026-01-01', 'features', 'S2.csv'), [4; 6; 8]);

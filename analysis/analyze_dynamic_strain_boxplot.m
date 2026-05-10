@@ -195,7 +195,7 @@ function make_boxplot_and_stats(dataMat, labels, groupName, outdir, ds_cfg, tag,
         cfg = struct();
     end
     f = figure('Position',[100 100 1100 520]);
-    plotMat = sample_boxplot_matrix(dataMat, 50000);
+    plotMat = bms.analyzer.DynamicStrainBoxplotService.sampleBoxplotMatrix(dataMat, 50000);
     if ds_cfg.ShowOutliers
         boxplot(plotMat, 'Labels', labels, 'LabelOrientation','horizontal', 'Whisker', ds_cfg.Whisker);
     else
@@ -209,7 +209,7 @@ function make_boxplot_and_stats(dataMat, labels, groupName, outdir, ds_cfg, tag,
     base = sprintf('boxplot_%s_%s', groupName, tag);
     bms.plot.PlotService.saveModuleBundle(f, outdir, [base '_' ts], cfg);
 
-    statsTbl = calc_stats_table(dataMat, labels);
+    statsTbl = bms.analyzer.DynamicStrainBoxplotService.statsTable(dataMat, labels);
     txtPath  = fullfile(outdir, sprintf('boxplot_stats_%s_%s.txt', groupName, tag));
     xlsxPath = fullfile(outdir, sprintf('boxplot_stats_%s.xlsx', tag));
     write_stats_txt(txtPath, statsTbl, dt0, dt1);
@@ -270,53 +270,6 @@ function plot_timeseries_group(tsList, labels, groupName, outdir_ts, dt0, dt1, d
 
     base = sprintf('dynstrain_hp_%s_%s', groupName, tag);
     bms.plot.PlotService.saveModuleBundle(f, outdir_ts, [base '_' ts], cfg);
-end
-
-function plotMat = sample_boxplot_matrix(dataMat, max_points_per_series)
-    if nargin < 2 || isempty(max_points_per_series) || ~isscalar(max_points_per_series) || ...
-            ~isfinite(max_points_per_series) || max_points_per_series < 1000
-        max_points_per_series = 50000;
-    end
-    max_points_per_series = round(max_points_per_series);
-    nCols = size(dataMat, 2);
-    keepCols = cell(nCols, 1);
-    maxLen = 0;
-    for c = 1:nCols
-        v = dataMat(:, c);
-        v = v(isfinite(v));
-        if numel(v) > max_points_per_series
-            idx = unique(round(linspace(1, numel(v), max_points_per_series)), 'stable');
-            v = v(idx);
-        end
-        keepCols{c} = v;
-        maxLen = max(maxLen, numel(v));
-    end
-    plotMat = NaN(maxLen, nCols);
-    for c = 1:nCols
-        v = keepCols{c};
-        plotMat(1:numel(v), c) = v;
-    end
-end
-
-function T = calc_stats_table(dataMat, labels)
-    N = numel(labels);
-    mins  = NaN(N,1); q1s = NaN(N,1); meds = NaN(N,1); q3s = NaN(N,1);
-    maxs  = NaN(N,1); means=NaN(N,1); stds=NaN(N,1); cnts=NaN(N,1);
-    for k = 1:N
-        v = dataMat(:,k);
-        v = v(~isnan(v) & isfinite(v));
-        if isempty(v), continue; end
-        mins(k)  = min(v);
-        q1s(k)   = quantile(v,0.25);
-        meds(k)  = quantile(v,0.50);
-        q3s(k)   = quantile(v,0.75);
-        maxs(k)  = max(v);
-        means(k) = mean(v);
-        stds(k)  = std(v);
-        cnts(k)  = numel(v);
-    end
-    T = table(labels(:), mins, q1s, meds, q3s, maxs, means, stds, cnts, ...
-        'VariableNames', {'PointID','Min','Q1','Median','Q3','Max','Mean','Std','Count'});
 end
 
 function write_stats_txt(path, T, dt0, dt1)

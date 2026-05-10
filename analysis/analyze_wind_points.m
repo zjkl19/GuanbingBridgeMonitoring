@@ -39,10 +39,11 @@
             continue;
         end
 
-        fs = estimate_fs(t_speed);
+        fs = bms.analyzer.DynamicSeriesService.sampleRate(t_speed, true, 1);
         params = get_wind_params(cfg, pid);
 
-        [v10, t10_max, v10_max] = compute_speed_10min(t_speed, v_speed, fs, params.window_minutes);
+        [v10, v10_max, t10_max] = bms.analyzer.DynamicSeriesService.movingMeanSeries( ...
+            t_speed, v_speed, fs, params.window_minutes, 0.7);
 
         speed_stats = bms.analyzer.StructuralSeriesService.statsTriple(v_speed, params.decimals);
         stats(i,:) = {pid, speed_stats(1), speed_stats(2), speed_stats(3), v10_max, t10_max};
@@ -57,7 +58,7 @@
         end
     end
 
-    T = cell2table(stats, 'VariableNames', {'PointID','MinSpeed','MaxSpeed','MeanSpeed','Mean10minMax','Mean10minTime'});
+    T = bms.analyzer.DynamicSeriesService.windStatsTable(stats);
     bms.io.StatsWriter.writeModuleTableChecked(T, stats_file, 'wind');
     fprintf('Wind stats saved to %s\n', stats_file);
 
@@ -79,39 +80,6 @@ function stats_file = get_wind_stats_file(cfg)
         stats_file = cfg.plot_styles.wind.output.stats_file;
     end
 end
-function fs = estimate_fs(times)
-    fs = 1;
-    if numel(times) < 2
-        return;
-    end
-    dts = seconds(diff(times));
-    dts = dts(isfinite(dts) & dts > 0);
-    if isempty(dts)
-        return;
-    end
-    fs = 1 / median(dts);
-    if ~isfinite(fs) || fs <= 0
-        fs = 1;
-    end
-end
-
-function [v10, t_max, v_max] = compute_speed_10min(times, vals, fs, window_minutes)
-    if nargin < 4 || isempty(window_minutes)
-        window_minutes = 10;
-    end
-    win_len = max(1, round(window_minutes * 60 * fs));
-    valid_cnt = movsum(isfinite(vals), win_len, 'Endpoints', 'shrink');
-    v10 = movmean(vals, win_len, 'omitnan', 'Endpoints', 'shrink');
-    min_need = max(1, round(0.7 * win_len));
-    v10(valid_cnt < min_need) = NaN;
-
-    [v_max, idx_max] = max(v10, [], 'omitnan');
-    t_max = NaT;
-    if ~isempty(idx_max) && isfinite(v_max)
-        t_max = times(idx_max);
-    end
-end
-
 function [speed_aligned, dir_aligned] = align_for_rose(t_speed, v_speed, t_dir, v_dir)
     if isempty(v_speed) || isempty(v_dir)
         speed_aligned = [];

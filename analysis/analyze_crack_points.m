@@ -67,7 +67,7 @@
         stats = stats(1:row,:);
     end
 
-    T = cell2table(stats, 'VariableNames', {'PointID','CrkMin','CrkMax','CrkMean','TmpMin','TmpMax','TmpMean'});
+    T = bms.analyzer.StructuralSeriesService.crackStatsTable(stats);
     bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'crack');
 
     crack_ylabel = get_style_field(style, 'ylabel_crack', 'Crack Width (mm)');

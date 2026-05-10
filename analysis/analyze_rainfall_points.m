@@ -44,7 +44,7 @@ function analyze_rainfall_points(root_dir, point_ids, start_date, end_date, exce
 
         t_valid = all_time(valid);
         v_valid = all_val(valid);
-        total_mm = calc_total_rainfall_mm(t_valid, v_valid);
+        total_mm = bms.analyzer.ScalarSeriesService.rainfallTotalMm(t_valid, v_valid);
         max_val = max(v_valid);
         mean_val = mean(v_valid);
 
@@ -78,34 +78,9 @@ function analyze_rainfall_points(root_dir, point_ids, start_date, end_date, exce
         stats{i,7} = total_mm;
     end
 
-    T = cell2table(stats, 'VariableNames', ...
-        {'PointID','StartTime','EndTime','ValidCount','Max_mm_h','Mean_mm_h','Total_mm'});
+    T = bms.analyzer.ScalarSeriesService.rainfallStatsTable(stats);
     bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'rainfall');
     fprintf('雨量统计结果已保存至 %s\n', excel_file);
-end
-
-function total_mm = calc_total_rainfall_mm(t, v)
-    total_mm = NaN;
-    if isempty(t) || isempty(v)
-        return;
-    end
-    [t, order] = sort(t(:));
-    v = v(order);
-    valid = ~isnat(t) & isfinite(v);
-    t = t(valid);
-    v = v(valid);
-    if numel(v) < 2
-        total_mm = 0;
-        return;
-    end
-    dt_hours = hours(diff(t));
-    good = isfinite(dt_hours) & dt_hours >= 0;
-    if ~any(good)
-        total_mm = 0;
-        return;
-    end
-    vv = (v(1:end-1) + v(2:end)) / 2;
-    total_mm = sum(vv(good) .* dt_hours(good));
 end
 
 function s = format_time(t)

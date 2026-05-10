@@ -109,9 +109,39 @@ classdef DynamicSeriesService
             tMax = times(idxMax);
         end
 
+        function [meanSeries, meanMax, tMax] = movingMeanSeries(times, vals, fs, windowMinutes, minCoverage)
+            if nargin < 4 || isempty(windowMinutes), windowMinutes = 10; end
+            if nargin < 5 || isempty(minCoverage), minCoverage = 0.7; end
+
+            meanSeries = [];
+            meanMax = NaN;
+            tMax = NaT;
+            if isempty(vals) || numel(times) ~= numel(vals)
+                return;
+            end
+
+            winLen = bms.analyzer.DynamicSeriesService.rmsWindowLength(fs, windowMinutes);
+            validCnt = movsum(isfinite(vals), winLen, 'Endpoints', 'shrink');
+            meanSeries = movmean(vals, winLen, 'omitnan', 'Endpoints', 'shrink');
+            minNeed = max(1, round(minCoverage * winLen));
+            meanSeries(validCnt < minNeed) = NaN;
+
+            [meanMax, idxMax] = max(meanSeries, [], 'omitnan');
+            if isempty(idxMax) || ~isfinite(meanMax)
+                meanMax = NaN;
+                return;
+            end
+            tMax = times(idxMax);
+        end
+
         function T = dynamicStatsTable(rows)
             T = cell2table(rows, 'VariableNames', ...
                 {'PointID', 'Min', 'Max', 'Mean', 'RMS10minMax', 'RMSStartTime'});
+        end
+
+        function T = windStatsTable(rows)
+            T = cell2table(rows, 'VariableNames', ...
+                {'PointID', 'MinSpeed', 'MaxSpeed', 'MeanSpeed', 'Mean10minMax', 'Mean10minTime'});
         end
     end
 end

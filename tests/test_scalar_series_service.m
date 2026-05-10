@@ -69,6 +69,20 @@ classdef test_scalar_series_service < matlab.unittest.TestCase
             tc.verifyEqual(T.Mean_mm_h(1), 4);
             tc.verifyEqual(T.Total_mm(1), 8 / 60, 'AbsTol', 1e-12);
         end
+
+        function rainfallTotalAndStatsTableAreSharedHelpers(tc)
+            times = datetime(2026, 1, 1, 0, 0, 0) + minutes([2; 0; 1]);
+            values = [6; 2; 4];
+
+            total = bms.analyzer.ScalarSeriesService.rainfallTotalMm(times, values);
+            T = bms.analyzer.ScalarSeriesService.rainfallStatsTable( ...
+                {'R1', '2026-01-01 00:00:00', '2026-01-01 00:02:00', 3, 6, 4, total});
+
+            tc.verifyEqual(total, 8 / 60, 'AbsTol', 1e-12);
+            tc.verifyEqual(T.Properties.VariableNames, ...
+                {'PointID', 'StartTime', 'EndTime', 'ValidCount', 'Max_mm_h', 'Mean_mm_h', 'Total_mm'});
+            tc.verifyEqual(T.Total_mm(1), 8 / 60, 'AbsTol', 1e-12);
+        end
     end
 end
 

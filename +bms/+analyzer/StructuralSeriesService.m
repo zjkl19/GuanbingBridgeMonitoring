@@ -140,6 +140,11 @@ classdef StructuralSeriesService
                 'ValidCount', 'Min_mm', 'Max_mm', 'Mean_mm', 'PeakToPeak_mm'});
         end
 
+        function T = crackStatsTable(rows)
+            T = cell2table(rows, 'VariableNames', ...
+                {'PointID', 'CrkMin', 'CrkMax', 'CrkMean', 'TmpMin', 'TmpMax', 'TmpMean'});
+        end
+
         function stats = statsTriple(values, decimals)
             if nargin < 2 || isempty(decimals), decimals = 3; end
             values = bms.analyzer.StructuralSeriesService.finiteValues(values);

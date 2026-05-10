@@ -84,6 +84,38 @@ classdef ScalarSeriesService
             T = cell2table(rows, 'VariableNames', {'PointID', 'Min', 'Max', 'Mean'});
         end
 
+        function total = rainfallTotalMm(times, values)
+            total = NaN;
+            if isempty(times) || isempty(values)
+                return;
+            end
+
+            [times, order] = sort(times(:));
+            values = values(order);
+            valid = ~isnat(times) & isfinite(values);
+            times = times(valid);
+            values = values(valid);
+            if numel(values) < 2
+                total = 0;
+                return;
+            end
+
+            dtHours = hours(diff(times));
+            good = isfinite(dtHours) & dtHours >= 0;
+            if ~any(good)
+                total = 0;
+                return;
+            end
+
+            intervalValues = (values(1:end-1) + values(2:end)) / 2;
+            total = sum(intervalValues(good) .* dtHours(good));
+        end
+
+        function T = rainfallStatsTable(rows)
+            T = cell2table(rows, 'VariableNames', ...
+                {'PointID', 'StartTime', 'EndTime', 'ValidCount', 'Max_mm_h', 'Mean_mm_h', 'Total_mm'});
+        end
+
         function value = styleField(style, field, defaultValue)
             value = bms.config.ConfigReader.getField(style, field, defaultValue);
         end
