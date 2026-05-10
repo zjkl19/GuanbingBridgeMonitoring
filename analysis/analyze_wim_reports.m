@@ -380,18 +380,17 @@ end
 
 function acc = process_jiulongjiang_excel(files, acc, wim)
     for fi = 1:numel(files)
-        tbl = readtable(files{fi}, 'VariableNamingRule','preserve');
+        [rows, tbl] = bms.analyzer.WimJiulongjiangExcelSource.readRecords(files{fi});
         if isempty(tbl), continue; end
 
-        cols = resolve_jiulongjiang_columns(tbl);
-        t_dn = get_time_column(tbl, cols.time);
-        lane = resolve_lane(tbl, cols);
-        gross = get_numeric_column(tbl, cols.gross, height(tbl));
-        speed = get_numeric_column(tbl, cols.speed, height(tbl));
-        axle_num = get_numeric_column(tbl, cols.axle_num, height(tbl));
-        axle_w = resolve_axle_weights(tbl, cols.axle_weights);
-        axle_d = resolve_axle_dists(tbl, cols.axle_dists);
-        plate = resolve_plate(tbl, cols);
+        t_dn = rows.time_datenum;
+        lane = rows.lane;
+        gross = rows.gross;
+        speed = rows.speed;
+        axle_num = rows.axle_num;
+        axle_w = rows.axle_weights;
+        axle_d = rows.axle_distances;
+        plate = rows.plate;
 
         for i = 1:numel(t_dn)
             if ~isfinite(t_dn(i)), continue; end
@@ -844,150 +843,6 @@ function v = decode_numeric(bytes)
 end
 
 % =========================
-% Jiulongjiang helpers
-% =========================
-function cols = resolve_jiulongjiang_columns(tbl)
-    names = tbl.Properties.VariableNames;
-    cols = struct();
-    cols.time = find_col(names, {'采集时间','时间','日期'});
-    cols.lane_id = find_col(names, {'车道号','车道编号'});
-    cols.lane_text = find_col(names, {'车道'});
-    cols.speed = find_col(names, {'车速','车速(Km/h)','车速(km/h)'});
-    cols.gross = find_col(names, {'总重','总重(kg)'});
-    cols.axle_num = find_col(names, {'轴数','轴数(个)'});
-    cols.plate = find_col(names, {'车牌号'});
-    cols.axle_weights = find_series_cols(names, '轴重', 8);
-    cols.axle_dists = find_series_cols(names, '轴距', 7);
-end
-
-function idx = find_col(names, candidates)
-    idx = [];
-    for i = 1:numel(candidates)
-        c = candidates{i};
-        hit = find(strcmp(names, c), 1);
-        if ~isempty(hit)
-            idx = hit; return;
-        end
-    end
-    for i = 1:numel(candidates)
-        c = candidates{i};
-        hit = find(contains(names, c), 1);
-        if ~isempty(hit)
-            idx = hit; return;
-        end
-    end
-end
-
-function idxs = find_series_cols(names, prefix, nmax)
-    idxs = zeros(1, nmax);
-    for k = 1:nmax
-        pat = sprintf('%s%d', prefix, k);
-        hit = find(contains(names, pat), 1);
-        if ~isempty(hit), idxs(k) = hit; end
-    end
-end
-
-function t_dn = excel_datetime_to_datenum(col)
-    if isdatetime(col)
-        t_dn = datenum(col);
-    else
-        try
-            t_dn = datenum(col);
-        catch
-            t_dn = datenum(datetime(col, 'InputFormat','yyyy-MM-dd HH:mm:ss.SSS'));
-        end
-    end
-end
-
-function t_dn = get_time_column(tbl, idx)
-    if isempty(idx)
-        t_dn = NaN(height(tbl),1);
-        return;
-    end
-    t_dn = excel_datetime_to_datenum(tbl{:, idx});
-end
-
-function v = get_numeric_column(tbl, idx, n)
-    if isempty(idx)
-        v = NaN(n,1);
-        return;
-    end
-    v = to_double(tbl{:, idx});
-end
-
-function lane = resolve_lane(tbl, cols)
-    n = height(tbl);
-    lane = NaN(n,1);
-    % Prefer text lane column (e.g., "车道2") when present
-    if ~isempty(cols.lane_text)
-        lane = parse_lane_text(tbl{:, cols.lane_text});
-        if any(isfinite(lane))
-            return;
-        end
-    end
-    % Fallback to numeric lane id column
-    if ~isempty(cols.lane_id)
-        lane = to_double(tbl{:, cols.lane_id});
-    end
-end
-
-function lane = parse_lane_text(col)
-    n = numel(col);
-    lane = NaN(n,1);
-    for i = 1:n
-        s = string(col(i));
-        d = regexp(s, '\d+', 'match');
-        if ~isempty(d)
-            lane(i) = str2double(d{1});
-        end
-    end
-end
-
-function plate = resolve_plate(tbl, cols)
-    n = height(tbl);
-    plate = repmat({''}, n, 1);
-    if ~isempty(cols.plate)
-        raw = tbl{:, cols.plate};
-        for i = 1:n
-            plate{i} = char(string(raw(i)));
-        end
-    end
-end
-
-function v = to_double(x)
-    v = NaN(size(x));
-    if iscell(x)
-        for i = 1:numel(x)
-            v(i) = str2double(string(x{i}));
-        end
-    elseif isstring(x) || ischar(x)
-        v = str2double(string(x));
-    else
-        v = double(x);
-    end
-end
-
-function axle_w = resolve_axle_weights(tbl, idxs)
-    n = height(tbl);
-    axle_w = zeros(n, numel(idxs));
-    for k = 1:numel(idxs)
-        if idxs(k) > 0
-            axle_w(:,k) = to_double(tbl{:, idxs(k)});
-        end
-    end
-end
-
-function axle_d = resolve_axle_dists(tbl, idxs)
-    n = height(tbl);
-    axle_d = zeros(n, numel(idxs));
-    for k = 1:numel(idxs)
-        if idxs(k) > 0
-            axle_d(:,k) = to_double(tbl{:, idxs(k)});
-        end
-    end
-end
-
-% =========================
 % Database pipeline
 % =========================
 function run_wim_database_pipeline(root_dir, start_date, end_date, wim, cfg)
@@ -1233,77 +1088,7 @@ function bulk_insert_csv(db, table_name, csv_path)
 end
 
 function [norm_csv, raw_csv, meta] = build_jiulongjiang_stage(files, stage_dir)
-    norm_csv = fullfile(stage_dir, 'jiulongjiang_norm.tsv');
-    raw_csv = fullfile(stage_dir, 'jiulongjiang_raw.tsv');
-    if exist(norm_csv, 'file'), delete(norm_csv); end
-    if exist(raw_csv, 'file'), delete(raw_csv); end
-
-    meta = struct();
-    meta.headers = {};
-    meta.axle_cols = {};
-    meta.time_col = '';
-
-    row_id = 0;
-    for fi = 1:numel(files)
-        tbl = readtable(files{fi}, 'VariableNamingRule', 'preserve');
-        if isempty(tbl), continue; end
-
-        if isempty(meta.headers)
-            meta.headers = tbl.Properties.VariableNames;
-        end
-
-        cols = resolve_jiulongjiang_columns(tbl);
-        if isempty(meta.time_col) && ~isempty(cols.time)
-            meta.time_col = tbl.Properties.VariableNames{cols.time};
-        end
-        if isempty(meta.axle_cols)
-            idxs = cols.axle_weights;
-            idxs = idxs(idxs > 0);
-            if ~isempty(idxs)
-                meta.axle_cols = tbl.Properties.VariableNames(idxs);
-            end
-        end
-
-        n = height(tbl);
-        ids = (1:n).' + row_id;
-        row_id = row_id + n;
-
-        t_dn = get_time_column(tbl, cols.time);
-        dt = datetime(t_dn, 'ConvertFrom', 'datenum');
-        dt.Format = 'yyyy-MM-dd HH:mm:ss.SSS';
-
-        lane = resolve_lane(tbl, cols);
-        gross = get_numeric_column(tbl, cols.gross, n);
-        speed = get_numeric_column(tbl, cols.speed, n);
-        axle_num = get_numeric_column(tbl, cols.axle_num, n);
-        axle_w = resolve_axle_weights(tbl, cols.axle_weights);
-        axle_d = resolve_axle_dists(tbl, cols.axle_dists);
-        plate = resolve_plate(tbl, cols);
-
-        L = axle_w;
-        R = zeros(size(axle_w));
-
-        Tnorm = table(ids, lane, dt, axle_num, gross, speed, plate, ...
-            L(:,1), L(:,2), L(:,3), L(:,4), L(:,5), L(:,6), L(:,7), L(:,8), ...
-            R(:,1), R(:,2), R(:,3), R(:,4), R(:,5), R(:,6), R(:,7), R(:,8), ...
-            axle_d(:,1), axle_d(:,2), axle_d(:,3), axle_d(:,4), axle_d(:,5), axle_d(:,6), axle_d(:,7), ...
-            'VariableNames', {'HSData_Id','Lane_Id','HSData_DT','Axle_Num','Gross_Load','Speed','License_Plate', ...
-            'LWheel_1_W','LWheel_2_W','LWheel_3_W','LWheel_4_W','LWheel_5_W','LWheel_6_W','LWheel_7_W','LWheel_8_W', ...
-            'RWheel_1_W','RWheel_2_W','RWheel_3_W','RWheel_4_W','RWheel_5_W','RWheel_6_W','RWheel_7_W','RWheel_8_W', ...
-            'AxleDis1','AxleDis2','AxleDis3','AxleDis4','AxleDis5','AxleDis6','AxleDis7'});
-
-        write_tsv(raw_csv, tbl, fi == 1);
-        write_tsv(norm_csv, Tnorm, fi == 1);
-    end
-end
-
-function write_tsv(path, T, write_header)
-    if nargin < 3, write_header = true; end
-    if write_header
-        writetable(T, path, 'Delimiter', '\t', 'Encoding', 'UTF-8');
-    else
-        writetable(T, path, 'Delimiter', '\t', 'Encoding', 'UTF-8', 'WriteMode', 'append', 'WriteVariableNames', false);
-    end
+    [norm_csv, raw_csv, meta] = bms.analyzer.WimJiulongjiangExcelSource.buildStage(files, stage_dir);
 end
 
 function sql = create_normalized_table_sql(table_name)
