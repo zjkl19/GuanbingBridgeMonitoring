@@ -4,7 +4,7 @@ classdef CrackAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     methods
         function obj = CrackAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg)
             obj@bms.analyzer.LegacyFunctionAnalyzer('crack', root, startDate, endDate, statsFile, subfolder, cfg, {}, ...
-                @(self) analyze_crack_points(self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
+                @(self) bms.analyzer.CrackAnalysisPipeline.run(self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
         end
     end
 end
