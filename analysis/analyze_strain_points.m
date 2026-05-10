@@ -41,21 +41,18 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
         for i = 1:numel(points_cfg)
             pid = points_cfg{i};
             fprintf('Per-point strain: %s ...\n', pid);
-            [times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'strain');
-            if isempty(vals)
+            data_one = bms.analyzer.StructuralSeriesService.loadPoint( ...
+                root_dir, subfolder, pid, start_date, end_date, cfg, 'strain');
+            if isempty(data_one.vals)
                 warning('Strain point %s has no data, skip', pid);
                 continue;
             end
 
-            [vmin, vmax, vmean] = summarize_vals(vals);
-            stats_rows(end+1, :) = { ... %#ok<AGROW>
-                pid, ...
-                round(vmin, 3), ...
-                round(vmax, 3), ...
-                round(vmean, 3)};
+            stats_rows(end+1, :) = bms.analyzer.StructuralSeriesService.basicStatsRow( ...
+                pid, data_one.vals, 3); %#ok<AGROW>
 
             warn_lines = resolve_warn_lines(style, cfg, pid);
-            plot_point_curve(root_dir, times, vals, start_date, end_date, pid, style, warn_lines, cfg);
+            plot_point_curve(root_dir, data_one.times, data_one.vals, start_date, end_date, pid, style, warn_lines, cfg);
         end
     end
 
@@ -93,43 +90,14 @@ function analyze_strain_points(root_dir, start_date, end_date, excel_file, subfo
         end
     end
 
-    T = cell2table(stats_rows, 'VariableNames', {'PointID', 'Min', 'Max', 'Mean'});
+    T = bms.analyzer.StructuralSeriesService.basicStatsTable(stats_rows);
     bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'strain');
     fprintf('Strain stats saved to %s\n', excel_file);
 end
 
 function [data_list, stats_rows] = collect_group_data(root_dir, subfolder, pids, start_date, end_date, cfg)
-    data_list = struct('pid', {}, 'times', {}, 'vals', {});
-    stats_rows = cell(0, 4);
-    for i = 1:numel(pids)
-        pid = pids{i};
-        fprintf('Extracting %s ...\n', pid);
-        [times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'strain');
-        if isempty(vals)
-            warning('Strain point %s has no data, skip', pid);
-            continue;
-        end
-        data_list(end+1, 1) = struct('pid', pid, 'times', times, 'vals', vals); %#ok<AGROW>
-        [vmin, vmax, vmean] = summarize_vals(vals);
-        stats_rows(end+1, :) = { ... %#ok<AGROW>
-            pid, ...
-            round(vmin, 3), ...
-            round(vmax, 3), ...
-            round(vmean, 3)};
-    end
-end
-
-function [vmin, vmax, vmean] = summarize_vals(vals)
-    vals = vals(isfinite(vals));
-    if isempty(vals)
-        vmin = NaN;
-        vmax = NaN;
-        vmean = NaN;
-        return;
-    end
-    vmin = min(vals);
-    vmax = max(vals);
-    vmean = mean(vals);
+    [data_list, stats_rows] = bms.analyzer.StructuralSeriesService.collectPoints( ...
+        root_dir, subfolder, pids, start_date, end_date, cfg, 'strain', 3, 'Strain point');
 end
 
 function plot_point_curve(root_dir, times, vals, start_date, end_date, pid, style, warn_lines, cfg)

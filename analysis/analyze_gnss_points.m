@@ -47,23 +47,14 @@
             if isempty(times) || isempty(vals)
                 continue;
             end
-            valid = ~isnat(times) & isfinite(vals);
-            if ~any(valid)
+            [times, vals] = bms.analyzer.StructuralSeriesService.validSeries(times, vals);
+            if isempty(vals)
                 continue;
             end
 
-            times = times(valid);
-            vals = vals(valid);
             series(end+1) = struct('label', comp.label, 'times', times, 'vals', vals); %#ok<AGROW>
-            stats(end+1, :) = { ... %#ok<AGROW>
-                pid, comp.suffix, comp.label, ...
-                datestr(min(times), 'yyyy-mm-dd HH:MM:SS'), ...
-                datestr(max(times), 'yyyy-mm-dd HH:MM:SS'), ...
-                numel(vals), ...
-                round(min(vals), 3), ...
-                round(max(vals), 3), ...
-                round(mean(vals, 'omitnan'), 3), ...
-                round(max(vals) - min(vals), 3)};
+            stats(end+1, :) = bms.analyzer.StructuralSeriesService.componentStatsRow( ...
+                pid, comp.suffix, comp.label, times, vals, 3); %#ok<AGROW>
         end
 
         if isempty(series)
@@ -109,9 +100,7 @@
         bms.plot.PlotService.saveModuleBundle(fig, out_dir, [fname '_' ts], cfg);
     end
 
-    T = cell2table(stats, 'VariableNames', ...
-        {'PointID', 'Component', 'ComponentLabel', 'StartTime', 'EndTime', ...
-         'ValidCount', 'Min_mm', 'Max_mm', 'Mean_mm', 'PeakToPeak_mm'});
+    T = bms.analyzer.StructuralSeriesService.componentStatsTable(stats);
     bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'gnss');
     fprintf('GNSS stats saved to %s\n', excel_file);
 end

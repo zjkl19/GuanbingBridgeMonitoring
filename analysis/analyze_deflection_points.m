@@ -44,23 +44,12 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
                 warning('Point %s has no data, skip', pid);
                 continue;
             end
-            if numel(times) >= 2
-                dts = seconds(diff(times));
-                fs = 1/median(dts);
-                window_sec = 10*60;
-                win_len = round(window_sec * fs);
-                if mod(win_len,2)==0, win_len = win_len + 1; end
-            else
-                win_len = 201;
-            end
-            vals_f = movmedian(vals, win_len, 'omitnan');
+            vals_f = bms.analyzer.StructuralSeriesService.movingMedian10Min(times, vals);
             vals_f = apply_threshold_rules(vals_f, times, ...
                 resolve_post_filter_thresholds(cfg, 'deflection', pid));
             if collect_per_point_stats
-                stats(row, :) = {
-                    pid, ...
-                    round(min(vals),1), round(max(vals),1), round(mean(vals, 'omitnan'), 1), ...
-                    round(min(vals_f),1), round(max(vals_f),1), round(mean(vals_f, 'omitnan'), 1)};
+                stats(row, :) = bms.analyzer.StructuralSeriesService.filteredStatsRow( ...
+                    pid, vals, vals_f, 1);
                 row = row + 1;
             end
             plot_deflection_curve({times}, {vals}, {pid}, root_dir, start_date, end_date, pid, style, 'Orig', cfg);
@@ -85,25 +74,14 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
             end
 
             % 中值滤波窗口（约 10 min）
-            if numel(times) >= 2
-                dts = seconds(diff(times));
-                fs = 1/median(dts);
-                window_sec = 10*60;
-                win_len = round(window_sec * fs);
-                if mod(win_len,2)==0, win_len = win_len + 1; end
-            else
-                win_len = 201;
-            end
-            vals_f = movmedian(vals, win_len, 'omitnan');
+            vals_f = bms.analyzer.StructuralSeriesService.movingMedian10Min(times, vals);
             vals_f = apply_threshold_rules(vals_f, times, ...
                 resolve_post_filter_thresholds(cfg, 'deflection', pid));
 
             orig_times{i} = times;  orig_vals{i} = vals;
             filt_times{i} = times;  filt_vals{i} = vals_f;
-            stats(row, :) = {
-                pid, ...
-                round(min(vals),1), round(max(vals),1), round(mean(vals,  'omitnan'), 1), ...
-                round(min(vals_f),1), round(max(vals_f),1), round(mean(vals_f,  'omitnan'), 1)};
+            stats(row, :) = bms.analyzer.StructuralSeriesService.filteredStatsRow( ...
+                pid, vals, vals_f, 1);
             row = row + 1;
         end
 
@@ -114,8 +92,7 @@ function analyze_deflection_points(root_dir, start_date, end_date, excel_file, s
     end
 
     % 写入 Excel
-    T = cell2table(stats, 'VariableNames', ...
-        {'PointID','OrigMin_mm','OrigMax_mm','OrigMean_mm','FiltMin_mm','FiltMax_mm','FiltMean_mm'});
+    T = bms.analyzer.StructuralSeriesService.filteredStatsTable(stats);
     bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'deflection');
     fprintf('挠度统计已保存至 %s\n', excel_file);
 end

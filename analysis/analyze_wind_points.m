@@ -44,10 +44,8 @@
 
         [v10, t10_max, v10_max] = compute_speed_10min(t_speed, v_speed, fs, params.window_minutes);
 
-        mn = round(min(v_speed, [], 'omitnan'), params.decimals);
-        mx = round(max(v_speed, [], 'omitnan'), params.decimals);
-        av = round(mean(v_speed, 'omitnan'), params.decimals);
-        stats(i,:) = {pid, mn, mx, av, v10_max, t10_max};
+        speed_stats = bms.analyzer.StructuralSeriesService.statsTriple(v_speed, params.decimals);
+        stats(i,:) = {pid, speed_stats(1), speed_stats(2), speed_stats(3), v10_max, t10_max};
 
         plot_speed_timeseries(t_speed, v_speed, pid, style, out_root, start_date, end_date, cfg);
         plot_direction_timeseries(t_dir, v_dir, pid, style, out_root, start_date, end_date, cfg);

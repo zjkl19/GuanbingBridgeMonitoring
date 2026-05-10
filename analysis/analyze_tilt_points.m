@@ -35,20 +35,17 @@ function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfold
         for i = 1:numel(points_cfg)
             pid = points_cfg{i};
             fprintf('Per-point tilt: %s ...\n', pid);
-            [times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'tilt');
-            if isempty(vals)
+            data_one = bms.analyzer.StructuralSeriesService.loadPoint( ...
+                root_dir, subfolder, pid, start_date, end_date, cfg, 'tilt');
+            if isempty(data_one.vals)
                 warning('Tilt point %s has no data, skip', pid);
                 continue;
             end
 
-            per_point_stats(end+1, :) = { ... %#ok<AGROW>
-                pid, ...
-                round(min(vals), 3), ...
-                round(max(vals), 3), ...
-                round(mean(vals, 'omitnan'), 3)};
+            per_point_stats(end+1, :) = bms.analyzer.StructuralSeriesService.basicStatsRow( ...
+                pid, data_one.vals, 3); %#ok<AGROW>
 
             warn_lines = resolve_warn_lines(style, cfg, pid);
-            data_one = struct('pid', pid, 'times', times, 'vals', vals);
             plot_tilt_curve(root_dir, data_one, start_date, end_date, pid, style, warn_lines, cfg);
         end
     end
@@ -73,11 +70,11 @@ function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfold
     end
 
     if ~isempty(per_point_stats)
-        T = cell2table(per_point_stats, 'VariableNames', {'PointID', 'Min', 'Max', 'Mean'});
+        T = bms.analyzer.StructuralSeriesService.basicStatsTable(per_point_stats);
         bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'tilt', 'Sheet', 'Tilt');
     end
     for i = 1:numel(group_stats)
-        T = cell2table(group_stats{i}, 'VariableNames', {'PointID', 'Min', 'Max', 'Mean'});
+        T = bms.analyzer.StructuralSeriesService.basicStatsTable(group_stats{i});
         bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'tilt', 'Sheet', make_sheet_name(group_names{i}));
     end
 
@@ -85,24 +82,8 @@ function analyze_tilt_points(root_dir, start_date, end_date, excel_file, subfold
 end
 
 function [stats, data_list] = process_group(root_dir, subfolder, pids, start_date, end_date, cfg)
-    stats = cell(0, 4);
-    data_list = struct('pid', {}, 'times', {}, 'vals', {});
-    for i = 1:numel(pids)
-        pid = pids{i};
-        fprintf('Extracting %s ...\n', pid);
-        [times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'tilt');
-        if isempty(vals)
-            warning('Tilt point %s has no data, skip', pid);
-            continue;
-        end
-
-        stats(end+1, :) = { ... %#ok<AGROW>
-            pid, ...
-            round(min(vals), 3), ...
-            round(max(vals), 3), ...
-            round(mean(vals, 'omitnan'), 3)};
-        data_list(end+1, 1) = struct('pid', pid, 'times', times, 'vals', vals); %#ok<AGROW>
-    end
+    [data_list, stats] = bms.analyzer.StructuralSeriesService.collectPoints( ...
+        root_dir, subfolder, pids, start_date, end_date, cfg, 'tilt', 3, 'Tilt point');
 end
 
 function plot_tilt_curve(root_dir, data_list, start_date, end_date, suffix, style, warn_lines, cfg)

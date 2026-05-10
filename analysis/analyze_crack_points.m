@@ -42,16 +42,18 @@
     for i = 1:numel(point_list)
         pid = point_list{i};
         S = fetch_point_series(cache, root_dir, subfolder, start_date, end_date, cfg, pid, opt.temp_enabled);
+        crack_stats = bms.analyzer.StructuralSeriesService.statsTriple(S.crack_vals, 3);
 
         row = row + 1;
         stats{row,1} = pid;
-        stats{row,2} = safe_stat(S.crack_vals, @min);
-        stats{row,3} = safe_stat(S.crack_vals, @max);
-        stats{row,4} = safe_stat(S.crack_vals, @mean);
+        stats{row,2} = crack_stats(1);
+        stats{row,3} = crack_stats(2);
+        stats{row,4} = crack_stats(3);
         if opt.temp_enabled
-            stats{row,5} = safe_stat(S.temp_vals, @min);
-            stats{row,6} = safe_stat(S.temp_vals, @max);
-            stats{row,7} = safe_stat(S.temp_vals, @mean);
+            temp_stats = bms.analyzer.StructuralSeriesService.statsTriple(S.temp_vals, 3);
+            stats{row,5} = temp_stats(1);
+            stats{row,6} = temp_stats(2);
+            stats{row,7} = temp_stats(3);
         else
             stats{row,5} = NaN;
             stats{row,6} = NaN;
@@ -234,19 +236,6 @@ end
 
 function out = sanitize_filename(name)
     out = regexprep(char(string(name)), '[\\/:*?"<>|]', '_');
-end
-
-function v = safe_stat(x, fcn)
-    if isempty(x)
-        v = NaN;
-        return;
-    end
-    x = x(isfinite(x));
-    if isempty(x)
-        v = NaN;
-        return;
-    end
-    v = round(fcn(x), 3);
 end
 
 function g = get_groups(cfg, key)

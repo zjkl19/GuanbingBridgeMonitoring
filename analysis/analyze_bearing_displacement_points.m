@@ -40,20 +40,13 @@
             continue;
         end
 
-        vals_f = moving_median_10min(times, vals);
+        vals_f = bms.analyzer.StructuralSeriesService.movingMedian10Min(times, vals);
         vals_f = apply_threshold_rules(vals_f, times, ...
             resolve_post_filter_thresholds(cfg, 'bearing_displacement', pid));
 
         row = row + 1;
-        stats(row, :) = {
-            pid, ...
-            round(min(vals), 3), ...
-            round(max(vals), 3), ...
-            round(mean(vals, 'omitnan'), 3), ...
-            round(min(vals_f), 3), ...
-            round(max(vals_f), 3), ...
-            round(mean(vals_f, 'omitnan'), 3)
-        };
+        stats(row, :) = bms.analyzer.StructuralSeriesService.filteredStatsRow( ...
+            pid, vals, vals_f, 3);
 
         warn_lines = resolve_warn_lines(style, cfg, pid);
         plot_bearing_curve({times}, {vals}, {pid}, root_dir, start_date, end_date, pid, style, 'Orig', warn_lines, cfg);
@@ -78,7 +71,7 @@
                 if isempty(vals)
                     continue;
                 end
-                vals_f = moving_median_10min(times, vals);
+                vals_f = bms.analyzer.StructuralSeriesService.movingMedian10Min(times, vals);
                 vals_f = apply_threshold_rules(vals_f, times, ...
                     resolve_post_filter_thresholds(cfg, 'bearing_displacement', pid));
                 orig_times{end+1,1} = times; %#ok<AGROW>
@@ -96,32 +89,9 @@
         end
     end
 
-    T = cell2table(stats, 'VariableNames', ...
-        {'PointID', 'OrigMin_mm', 'OrigMax_mm', 'OrigMean_mm', 'FiltMin_mm', 'FiltMax_mm', 'FiltMean_mm'});
+    T = bms.analyzer.StructuralSeriesService.filteredStatsTable(stats);
     bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'bearing_displacement');
     fprintf('Bearing displacement stats saved to %s\n', excel_file);
-end
-
-function vals_f = moving_median_10min(times, vals)
-    vals_f = vals;
-    if isempty(vals) || isempty(times)
-        return;
-    end
-    if numel(times) < 2
-        vals_f = movmedian(vals, 201, 'omitnan');
-        return;
-    end
-    dt = seconds(diff(times));
-    fs = 1 / median(dt, 'omitnan');
-    if ~isfinite(fs) || fs <= 0
-        vals_f = movmedian(vals, 201, 'omitnan');
-        return;
-    end
-    win_len = max(3, round(10 * 60 * fs));
-    if mod(win_len, 2) == 0
-        win_len = win_len + 1;
-    end
-    vals_f = movmedian(vals, win_len, 'omitnan');
 end
 
 function plot_bearing_curve(times_list, vals_list, pid_list, root_dir, start_date, end_date, name_tag, style, suffix, warn_lines, cfg)
