@@ -183,61 +183,8 @@ end
 
 % =========================================================================
 function [ampRow, freqRow] = process_one_day(day, pid, root_dir, subfolder, target_freqs, tolerance, psdRoot, style, cfg)
-    ampRow  = NaN(1, numel(target_freqs));
-    freqRow = NaN(1, numel(target_freqs));
-
-    dayStr = datestr(day,'yyyy-mm-dd');
-    [ts,val] = load_timeseries_range(root_dir, subfolder, pid, dayStr, dayStr, cfg, 'acceleration');
-    if isempty(ts),  return; end
-
-    t0 = day + duration(5,30,0);
-    t1 = day + duration(5,40,0);
-    winIdx = ts>=t0 & ts<=t1;
-    if ~any(winIdx), return; end
-
-    fs      = 1/median(seconds(diff(ts(winIdx))));
-    win_sec = 20;
-    wlen    = round(win_sec*fs);
-    if mod(wlen,2)==1, wlen = wlen+1; end
-    overlap = round(0.5*wlen);
-    nfft    = 2^nextpow2(max(wlen,8192));
-
-    x_raw = val(winIdx);
-    good  = ~isnan(x_raw) & isfinite(x_raw);
-    if nnz(good) < 3
-        return;
-    end
-    x = detrend(x_raw(good));
-    if numel(x) < wlen
-        wlen    = numel(x);
-        overlap = round(0.5*wlen);
-        nfft    = 2^nextpow2(max(wlen,512));
-    end
-
-    [Pxx,f] = pwelch(x, hamming(wlen), overlap, nfft, fs,'onesided');
-    Pdb = 10*log10(Pxx);
-
-    % 备查 PSD
-    psdDir = fullfile(psdRoot,pid);
-    bms.core.PathResolver.ensureDir(psdDir);
-    figPSD = figure('Visible','off','Position',[100 100 900 420]);
-    plot(f,Pdb,'Color',style.psd_color,'LineWidth',1); grid on; hold on;
-    xline(target_freqs,'--r');
-    xlabel('频率 (Hz)'); ylabel(style.psd_ylabel);
-    title(sprintf('%s %s  %s',style.psd_title_prefix,pid,dayStr));
-    bms.plot.PlotService.saveModuleBundle(figPSD, psdDir, sprintf('PSD_%s_%s',pid,dayStr), cfg, struct('save_emf', false));
-
-    for fi = 1:numel(target_freqs)
-        f0 = target_freqs(fi);
-        idxBand = f>=f0-tolerance & f<=f0+tolerance;
-        if ~any(idxBand), continue; end
-
-        [pk, idxRel] = max(Pdb(idxBand));
-        bandF        = f(idxBand);
-
-        ampRow(fi)  = pk;
-        freqRow(fi) = bandF(idxRel);
-    end
+    [ampRow, freqRow] = bms.analyzer.SpectrumPeakService.processOneDay( ...
+        day, pid, root_dir, subfolder, 'acceleration', target_freqs, tolerance, psdRoot, style, cfg);
 end
 
 % =========================================================================

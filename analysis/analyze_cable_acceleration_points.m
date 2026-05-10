@@ -91,7 +91,7 @@
         plot_accel_rms_curve(root_dir, pid, times, vals, rec.fs, start_date, end_date, style, cfg);
     end
 
-    T = cell2table(stats, 'VariableNames',{'PointID','Min','Max','Mean','RMS10minMax','RMSStartTime'});
+    T = bms.analyzer.DynamicSeriesService.dynamicStatsTable(stats);
     bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'cable_accel');
     fprintf('统计结果已保存至 %s\n', excel_file);
 
@@ -177,17 +177,7 @@ if ~any(valid_time_mask)
     return;
 end
 
-win_len = max(1, round(600 * fs));  % 10 min
-valid_cnt = movsum(~isnan(vals) & isfinite(vals), win_len, 'Endpoints','shrink');
-rms_series = sqrt(movmean(vals.^2, win_len, 'omitnan', 'Endpoints','shrink'));
-min_need = max(1, round(0.7 * win_len));
-rms_series(valid_cnt < min_need) = NaN;
-
-[rms_max, idx_max] = max(rms_series, [], 'omitnan');
-t_max = NaT;
-if ~isempty(idx_max) && ~isnan(rms_max)
-    t_max = times(idx_max);
-end
+[rms_series, rms_max, t_max] = bms.analyzer.DynamicSeriesService.rmsSeries(times, vals, fs, 10, 0.7);
 
 fig = figure('Position',[100 100 1000 469]);
 [times_plot, rms_plot] = prepare_plot_series(times, rms_series);
@@ -296,42 +286,11 @@ function tf = is_truthy(v)
 end
 
 function rec = init_cable_accel_record()
-rec = struct('pid', '', 'fs', NaN, ...
-    'mn', NaN, 'mx', NaN, 'av', NaN, 'rms_max', NaN, ...
-    'rms_time', NaT, 'has_data', false);
+rec = bms.analyzer.DynamicSeriesService.initRecord();
 end
 
 function rec = collect_cable_accel_record(root_dir, subfolder, pid, start_date, end_date, cfg, auto_detect_fs)
-rec = init_cable_accel_record();
-rec.pid = pid;
-[times, vals] = load_timeseries_range(root_dir, subfolder, pid, start_date, end_date, cfg, 'cable_accel');
-if isempty(vals)
-    return;
-end
-
-if auto_detect_fs
-    dts = seconds(diff(times));
-    fs = 1 / median(dts);
-else
-    fs = 100;
-end
-
-window_sec = 10 * 60;
-win_len = round(window_sec * fs);
-
-rec.fs = fs;
-rec.mn = round(min(vals), 3);
-rec.mx = round(max(vals), 3);
-rec.av = round(mean(vals, 'omitnan'), 3);
-rec.rms_max = NaN;
-rec.rms_time = NaT;
-rec.has_data = true;
-
-if numel(vals) >= win_len
-    rms_vals = sqrt(movmean(vals.^2, win_len, 'Endpoints', 'shrink'));
-    [rms_max, idx] = max(rms_vals);
-    rec.rms_max = round(rms_max, 3);
-    rec.rms_time = times(idx);
-end
+rec = bms.analyzer.DynamicSeriesService.collectRecord( ...
+    root_dir, subfolder, pid, start_date, end_date, cfg, 'cable_accel', auto_detect_fs, false);
 end
 
