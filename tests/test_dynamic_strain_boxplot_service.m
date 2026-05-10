@@ -27,5 +27,65 @@ classdef test_dynamic_strain_boxplot_service < matlab.unittest.TestCase
             tc.verifyEqual(T.Max(2), 18);
             tc.verifyEqual(T.Count(2), 3);
         end
+
+        function estimateSampleRateUsesDatetimeSpacing(tc)
+            times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:0.5:2);
+
+            fs = bms.analyzer.DynamicStrainBoxplotService.estimateSampleRate(times, [], 'test_dynamic_strain:fs');
+
+            tc.verifyEqual(fs, 2, 'AbsTol', 1e-12);
+        end
+
+        function resolveLowpassCutoffUsesAutoPeriod(tc)
+            cfg = struct('FilterMode', 'auto', 'AutoCutoffPeriodMinutes', 10, 'MinSamplesPerCutoff', 20);
+
+            [fc, periodMinutes] = bms.analyzer.DynamicStrainBoxplotService.resolveLowpassCutoff(cfg, 1);
+
+            tc.verifyEqual(periodMinutes, 10);
+            tc.verifyEqual(fc, 1 / 600, 'AbsTol', 1e-12);
+        end
+
+        function lowpassBySegmentsKeepsGapAsMissing(tc)
+            times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:19);
+            values = sin((0:19)' / 3);
+            values(8:10) = NaN;
+            cfg = struct('MaxGapSec', 2);
+
+            filtered = bms.analyzer.DynamicStrainBoxplotService.lowpassBySegments(times, values, 1, 0.2, 2, cfg);
+
+            tc.verifyTrue(all(isnan(filtered(8:10))));
+            tc.verifyTrue(all(isfinite(filtered([1:7 11:20]))));
+        end
+
+        function trimEdgesDropsExpectedSamples(tc)
+            times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:9);
+            values = (1:10)';
+
+            [trimmedValues, trimmedTimes] = bms.analyzer.DynamicStrainBoxplotService.trimEdges(values, times, 1, 2);
+
+            tc.verifyEqual(trimmedValues, (3:8)');
+            tc.verifyEqual(trimmedTimes(1), times(3));
+            tc.verifyEqual(trimmedTimes(end), times(8));
+        end
+
+        function pipelineLowpassFallsBackToDynamicStrainGroups(tc)
+            cfg.groups.dynamic_strain = struct('G1', {{'S1', 'S2'}});
+            cfg.plot_styles.dynamic_strain = struct('ylims', struct('G1', [-1 1]));
+            spec = bms.analyzer.DynamicStrainBoxplotPipeline.modeSpec('lowpass');
+
+            [groups, names, style] = bms.analyzer.DynamicStrainBoxplotPipeline.groupsAndStyle(cfg, spec);
+
+            tc.verifyEqual(names, {'G1'});
+            tc.verifyEqual(groups{1}, {'S1'; 'S2'});
+            tc.verifyEqual(style.ylims.G1, [-1 1]);
+        end
+
+        function pipelineHighpassSpecKeepsModuleKey(tc)
+            spec = bms.analyzer.DynamicStrainBoxplotPipeline.modeSpec('highpass');
+
+            tc.verifyEqual(spec.mode, 'highpass');
+            tc.verifyEqual(spec.moduleKey, 'dynamic_strain_highpass');
+            tc.verifyEqual(spec.timeseriesBase, 'dynstrain_hp');
+        end
     end
 end
