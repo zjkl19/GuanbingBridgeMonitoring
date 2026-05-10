@@ -63,13 +63,23 @@ classdef StructuralTimeSeriesPlotService
                 lg = legend(h(valid), labels, ...
                     'Location', bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'legendLocation', 'northeast'), ...
                     'Box', bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'legendBox', 'off'));
+                legendInterpreter = bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'legendInterpreter', '');
+                if ~isempty(legendInterpreter)
+                    lg.Interpreter = legendInterpreter;
+                end
                 lg.AutoUpdate = 'off';
             end
 
             bms.analyzer.StructuralTimeSeriesPlotService.applyDateAxis(dt0, dt1);
             xlabel(bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'xlabel', '时间'));
             ylabel(bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'ylabel', ''));
-            title(bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'titleText', ''));
+            titleText = bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'titleText', '');
+            titleInterpreter = bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'titleInterpreter', '');
+            if isempty(titleInterpreter)
+                title(titleText);
+            else
+                title(titleText, 'Interpreter', titleInterpreter);
+            end
             bms.analyzer.StructuralTimeSeriesPlotService.drawWarnLines( ...
                 bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'warnLines', {}));
             bms.analyzer.StructuralTimeSeriesPlotService.applyYLim( ...
