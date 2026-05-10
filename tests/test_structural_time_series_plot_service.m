@@ -88,6 +88,52 @@ classdef test_structural_time_series_plot_service < matlab.unittest.TestCase
             figs = dir(fullfile(tc.Root, 'tilt_plots', '*.fig'));
             tc.verifyGreaterThanOrEqual(numel(figs), 1);
         end
+
+        function bearingPipelineProcessesGroupFallback(tc)
+            mkdir(fullfile(tc.Root, '2026-01-01', 'features'));
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'features', 'B1.csv'), [1; 2; 4; 3]);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'features', 'B2.csv'), [2; 3; 5; 4]);
+            cfg = struct();
+            cfg.defaults = struct('header_marker', 'Time');
+            cfg.subfolders = struct('bearing_displacement', 'features');
+            cfg.groups = struct('bearing_displacement', {{{'B1', 'B2'}}});
+            cfg.plot_styles = struct('bearing_displacement', struct('output_dir', 'bearing_plots', 'ylim_auto', true));
+            excelPath = fullfile(tc.Root, 'bearing_stats.xlsx');
+
+            analyze_bearing_displacement_points(tc.Root, '2026-01-01', '2026-01-01', excelPath, '', cfg);
+
+            T = readtable(excelPath, 'VariableNamingRule', 'preserve');
+            tc.verifyEqual(height(T), 2);
+            figs = dir(fullfile(tc.Root, 'bearing_plots', '*.fig'));
+            tc.verifyGreaterThanOrEqual(numel(figs), 6);
+        end
+
+        function bridgeConfigsResolveFilteredPipelineInputs(tc)
+            projectRoot = fileparts(fileparts(mfilename('fullpath')));
+            configFiles = { ...
+                'default_config.json', ...
+                'hongtang_config.json', ...
+                'jiulongjiang_config.json', ...
+                'shuixianhua_config.json'};
+            for i = 1:numel(configFiles)
+                cfg = load_config(fullfile(projectRoot, 'config', configFiles{i}));
+
+                defSpec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('deflection');
+                bearSpec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('bearing_displacement');
+
+                tc.verifyEqual( ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.resolveSubfolder(cfg, defSpec), ...
+                    bms.config.ConfigReader.getSubfolder(cfg, 'deflection', defSpec.defaultSubfolder));
+                tc.verifyEqual( ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.resolveSubfolder(cfg, bearSpec), ...
+                    bms.config.ConfigReader.getSubfolder(cfg, 'bearing_displacement', ...
+                        bms.config.ConfigReader.getSubfolder(cfg, 'deflection', bearSpec.defaultSubfolder)));
+                tc.verifyClass( ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.groupsAsCell( ...
+                        bms.analyzer.StructuralPlotConfigService.getGroups(cfg, 'bearing_displacement', {})), ...
+                    'cell');
+            end
+        end
     end
 end
 
