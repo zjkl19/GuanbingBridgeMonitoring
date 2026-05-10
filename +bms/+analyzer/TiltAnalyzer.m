@@ -4,7 +4,7 @@ classdef TiltAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     methods
         function obj = TiltAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg)
             obj@bms.analyzer.LegacyFunctionAnalyzer('tilt', root, startDate, endDate, statsFile, subfolder, cfg, {}, ...
-                @(self) analyze_tilt_points(self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
+                @(self) bms.analyzer.StructuralFilteredSeriesPipeline.run('tilt', self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
         end
     end
 end

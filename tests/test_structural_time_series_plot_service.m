@@ -120,6 +120,7 @@ classdef test_structural_time_series_plot_service < matlab.unittest.TestCase
 
                 defSpec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('deflection');
                 bearSpec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('bearing_displacement');
+                tiltSpec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('tilt');
 
                 tc.verifyEqual( ...
                     bms.analyzer.StructuralFilteredSeriesPipeline.resolveSubfolder(cfg, defSpec), ...
@@ -132,7 +133,20 @@ classdef test_structural_time_series_plot_service < matlab.unittest.TestCase
                     bms.analyzer.StructuralFilteredSeriesPipeline.groupsAsCell( ...
                         bms.analyzer.StructuralPlotConfigService.getGroups(cfg, 'bearing_displacement', {})), ...
                     'cell');
+                tc.verifyEqual( ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.resolveSubfolder(cfg, tiltSpec), ...
+                    bms.config.ConfigReader.getSubfolder(cfg, 'tilt', tiltSpec.defaultSubfolder));
             end
+        end
+
+        function structuralAnalyzersUseSharedPipelineAdapters(tc)
+            defl = bms.analyzer.DeflectionAnalyzer('root', '2026-01-01', '2026-01-01', '', 'features', struct());
+            tilt = bms.analyzer.TiltAnalyzer('root', '2026-01-01', '2026-01-01', '', 'wave', struct());
+            bearing = bms.analyzer.BearingDisplacementAnalyzer('root', '2026-01-01', '2026-01-01', '', 'features', struct());
+
+            tc.verifyEqual(defl.Key, 'deflection');
+            tc.verifyEqual(tilt.Key, 'tilt');
+            tc.verifyEqual(bearing.Key, 'bearing_displacement');
         end
     end
 end

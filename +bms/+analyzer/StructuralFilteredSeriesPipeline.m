@@ -38,6 +38,10 @@ classdef StructuralFilteredSeriesPipeline
                 case 'bearing_displacement'
                     rows = bms.analyzer.StructuralFilteredSeriesPipeline.runBearingDisplacement( ...
                         rootDir, startDate, endDate, subfolder, cfg, style, spec);
+                case 'tilt'
+                    bms.analyzer.StructuralFilteredSeriesPipeline.runTiltAndWrite( ...
+                        rootDir, startDate, endDate, excelFile, subfolder, cfg, style, spec);
+                    return;
                 otherwise
                     error('StructuralFilteredSeriesPipeline:UnsupportedKind', ...
                         'Unsupported filtered structural kind: %s', spec.moduleKey);
@@ -93,6 +97,27 @@ classdef StructuralFilteredSeriesPipeline
                     spec.groupMessage = '';
                     spec.groupTitlePattern = '%s %s %s';
                     spec.pointTitlePattern = '%s %s %s';
+                case 'tilt'
+                    spec.moduleKey = 'tilt';
+                    spec.sensorType = 'tilt';
+                    spec.pointKey = 'tilt';
+                    spec.groupKey = 'tilt';
+                    spec.styleKey = 'tilt';
+                    spec.fallbackStyleKey = '';
+                    spec.defaultExcel = 'tilt_stats.xlsx';
+                    spec.subfolderKeys = {'tilt'};
+                    spec.defaultSubfolder = '波形_重采样';
+                    spec.defaultOutputDir = '时程曲线_倾角';
+                    spec.defaultYLabel = '倾角 (°)';
+                    spec.defaultTitlePrefix = '倾角时程';
+                    spec.filePrefix = 'Tilt';
+                    spec.decimals = 3;
+                    spec.promptForDates = false;
+                    spec.doneMessage = 'Tilt stats saved to %s';
+                    spec.emptyPointWarning = 'Tilt point %s has no data, skip';
+                    spec.groupMessage = '';
+                    spec.groupTitlePattern = '';
+                    spec.pointTitlePattern = '';
                 otherwise
                     error('StructuralFilteredSeriesPipeline:UnsupportedKind', ...
                         'Unsupported filtered structural kind: %s', kind);
@@ -174,6 +199,122 @@ classdef StructuralFilteredSeriesPipeline
                 bms.analyzer.StructuralFilteredSeriesPipeline.plotRecords(records, rootDir, startDate, endDate, nameTag, style, 'Orig', spec, cfg, groupWarn);
                 bms.analyzer.StructuralFilteredSeriesPipeline.plotRecords(records, rootDir, startDate, endDate, nameTag, style, 'Filt', spec, cfg, groupWarn);
             end
+        end
+
+        function runTiltAndWrite(rootDir, startDate, endDate, excelFile, subfolder, cfg, style, spec)
+            [perPointRows, groupRows, groupNames] = bms.analyzer.StructuralFilteredSeriesPipeline.runTilt( ...
+                rootDir, startDate, endDate, subfolder, cfg, style, spec);
+
+            if ~isempty(perPointRows)
+                T = bms.analyzer.StructuralSeriesService.basicStatsTable(perPointRows);
+                bms.io.StatsWriter.writeModuleTableChecked(T, excelFile, spec.moduleKey, 'Sheet', 'Tilt');
+            end
+            for i = 1:numel(groupRows)
+                T = bms.analyzer.StructuralSeriesService.basicStatsTable(groupRows{i});
+                bms.io.StatsWriter.writeModuleTableChecked(T, excelFile, spec.moduleKey, ...
+                    'Sheet', bms.analyzer.StructuralPlotConfigService.sheetName(groupNames{i}, 'Tilt_'));
+            end
+
+            fprintf('%s\n', sprintf(spec.doneMessage, excelFile));
+        end
+
+        function [perPointRows, groupRows, groupNames] = runTilt(rootDir, startDate, endDate, subfolder, cfg, style, spec)
+            pointsCfg = bms.analyzer.StructuralPlotConfigService.getPoints(cfg, spec.pointKey, {});
+            groupsCfg = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, spec.groupKey, []);
+            explicitPoints = ~isempty(pointsCfg);
+            explicitGroups = bms.analyzer.StructuralPlotConfigService.hasGroups(groupsCfg);
+
+            if ~explicitPoints && ~explicitGroups
+                groupsCfg = bms.analyzer.StructuralFilteredSeriesPipeline.legacyTiltGroups();
+                explicitGroups = true;
+                pointsCfg = bms.analyzer.StructuralPlotConfigService.flattenGroups(groupsCfg);
+            end
+
+            perPointRows = cell(0, 4);
+            if explicitPoints || bms.analyzer.StructuralPlotConfigService.isJiulongjiang(cfg)
+                for i = 1:numel(pointsCfg)
+                    pid = pointsCfg{i};
+                    fprintf('Per-point tilt: %s ...\n', pid);
+                    data = bms.analyzer.StructuralSeriesService.loadPoint( ...
+                        rootDir, subfolder, pid, startDate, endDate, cfg, spec.sensorType);
+                    if isempty(data.vals)
+                        warning(spec.emptyPointWarning, pid);
+                        continue;
+                    end
+
+                    perPointRows(end+1, :) = bms.analyzer.StructuralSeriesService.basicStatsRow( ...
+                        pid, data.vals, spec.decimals); %#ok<AGROW>
+
+                    warnLines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
+                        style, cfg, spec.moduleKey, pid);
+                    bms.analyzer.StructuralFilteredSeriesPipeline.plotTiltCurve( ...
+                        rootDir, data, startDate, endDate, pid, style, warnLines, spec, cfg);
+                end
+            end
+
+            groupRows = {};
+            groupNames = {};
+            if ~explicitGroups
+                return;
+            end
+
+            groupsMap = bms.analyzer.StructuralPlotConfigService.normalizeGroupMap(groupsCfg);
+            names = fieldnames(groupsMap);
+            for i = 1:numel(names)
+                groupName = names{i};
+                [dataList, rows] = bms.analyzer.StructuralSeriesService.collectPoints( ...
+                    rootDir, subfolder, groupsMap.(groupName), startDate, endDate, cfg, ...
+                    spec.sensorType, spec.decimals, 'Tilt point');
+                if ~isempty(rows)
+                    groupNames{end+1, 1} = groupName; %#ok<AGROW>
+                    groupRows{end+1, 1} = rows; %#ok<AGROW>
+                end
+                if bms.analyzer.StructuralPlotConfigService.hasPlotData(dataList)
+                    groupWarn = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
+                        style, cfg, spec.moduleKey, '');
+                    bms.analyzer.StructuralFilteredSeriesPipeline.plotTiltCurve( ...
+                        rootDir, dataList, startDate, endDate, groupName, style, groupWarn, spec, cfg);
+                end
+            end
+        end
+
+        function plotTiltCurve(rootDir, dataList, startDate, endDate, suffix, style, warnLines, spec, cfg)
+            if isempty(dataList) || ~bms.analyzer.StructuralPlotConfigService.hasPlotData(dataList)
+                return;
+            end
+
+            [dt0, dt1] = bms.analyzer.StructuralTimeSeriesPlotService.dateRange(startDate, endDate);
+            pid = '';
+            if numel(dataList) == 1 && isfield(dataList, 'pid')
+                pid = dataList(1).pid;
+            end
+
+            opts = struct();
+            opts.style = style;
+            opts.ylabel = bms.analyzer.StructuralPlotConfigService.getStyleField( ...
+                style, 'ylabel', spec.defaultYLabel);
+            opts.titleText = sprintf('%s %s', ...
+                bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'title_prefix', spec.defaultTitlePrefix), ...
+                char(string(suffix)));
+            opts.outputDir = bms.analyzer.StructuralPlotConfigService.getStyleField( ...
+                style, 'output_dir', spec.defaultOutputDir);
+            opts.baseName = sprintf('%s_%s_%s_%s_%s', spec.filePrefix, char(string(suffix)), ...
+                datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd'), datestr(now, 'yyyymmdd_HHMMSS'));
+            opts.warnLines = warnLines;
+            opts.ylimRange = bms.analyzer.StructuralTimeSeriesPlotService.resolveStyleYLim(style, pid);
+            if numel(dataList) == 3
+                opts.colorField = 'colors_3';
+                opts.defaultColors = [0 0 0; 1 0 0; 0 0 1];
+            end
+
+            bms.analyzer.StructuralTimeSeriesPlotService.plotDataList( ...
+                rootDir, dataList, startDate, endDate, opts, cfg);
+        end
+
+        function groups = legacyTiltGroups()
+            groups = struct( ...
+                'X', {{'GB-DIS-P04-001-01-X', 'GB-DIS-P05-001-01-X', 'GB-DIS-P06-001-01-X'}}, ...
+                'Y', {{'GB-DIS-P04-001-01-Y', 'GB-DIS-P05-001-01-Y', 'GB-DIS-P06-001-01-Y'}});
         end
 
         function rec = loadFilteredPoint(rootDir, subfolder, pid, startDate, endDate, cfg, spec)
