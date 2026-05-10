@@ -11,7 +11,8 @@ classdef AccelerationAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
                 saveFigures = true;
             end
             obj@bms.analyzer.LegacyFunctionAnalyzer('acceleration', root, startDate, endDate, statsFile, subfolder, cfg, {}, ...
-                @(self) analyze_acceleration_points(self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.SaveFigures, self.Config));
+                @(self) bms.analyzer.DynamicAccelerationPipeline.run('acceleration', ...
+                    self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.SaveFigures, self.Config));
             obj.SaveFigures = logical(saveFigures);
         end
     end

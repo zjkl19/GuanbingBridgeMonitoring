@@ -87,6 +87,26 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(T.Properties.VariableNames, ...
                 {'PointID', 'MinSpeed', 'MaxSpeed', 'MeanSpeed', 'Mean10minMax', 'Mean10minTime'});
         end
+
+        function accelerationPipelineSpecKeepsOutputDirs(tc)
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('acceleration');
+
+            tc.verifyEqual(spec.moduleKey, 'acceleration');
+            tc.verifyEqual(spec.sensorType, 'acceleration');
+            tc.verifyEqual(spec.outputDir, '时程曲线_加速度');
+            tc.verifyTrue(spec.keepSeries);
+        end
+
+        function cableAccelerationFallsBackToCableForcePoints(tc)
+            cfg.points.cable_force = {'S1', 'S2'};
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('cable_accel');
+
+            points = bms.analyzer.DynamicAccelerationPipeline.resolvePoints(cfg, spec);
+
+            tc.verifyEqual(points, {'S1'; 'S2'});
+            tc.verifyEqual(spec.sensorType, 'cable_accel');
+            tc.verifyFalse(spec.keepSeries);
+        end
     end
 end
 

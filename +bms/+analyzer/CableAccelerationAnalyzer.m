@@ -11,7 +11,8 @@ classdef CableAccelerationAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
                 saveFigures = true;
             end
             obj@bms.analyzer.LegacyFunctionAnalyzer('cable_accel', root, startDate, endDate, statsFile, subfolder, cfg, {}, ...
-                @(self) analyze_cable_acceleration_points(self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.SaveFigures, self.Config));
+                @(self) bms.analyzer.DynamicAccelerationPipeline.run('cable_accel', ...
+                    self.Root, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.SaveFigures, self.Config));
             obj.SaveFigures = logical(saveFigures);
         end
     end
