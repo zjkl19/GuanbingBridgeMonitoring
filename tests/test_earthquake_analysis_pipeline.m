@@ -1,0 +1,108 @@
+classdef test_earthquake_analysis_pipeline < matlab.unittest.TestCase
+    properties
+        Root
+        ProjectRoot
+        OldFigureVisible
+    end
+
+    methods (TestMethodSetup)
+        function setupCase(tc)
+            tc.ProjectRoot = fileparts(fileparts(mfilename('fullpath')));
+            addpath(tc.ProjectRoot, ...
+                fullfile(tc.ProjectRoot, 'config'), ...
+                fullfile(tc.ProjectRoot, 'pipeline'), ...
+                fullfile(tc.ProjectRoot, 'analysis'));
+            tc.Root = tempname;
+            mkdir(fullfile(tc.Root, '2026-01-01', 'wave'));
+            tc.OldFigureVisible = get(0, 'DefaultFigureVisible');
+            set(0, 'DefaultFigureVisible', 'off');
+        end
+    end
+
+    methods (TestMethodTeardown)
+        function cleanupCase(tc)
+            close all force;
+            set(0, 'DefaultFigureVisible', tc.OldFigureVisible);
+            if exist(tc.Root, 'dir')
+                rmdir(tc.Root, 's');
+            end
+        end
+    end
+
+    methods (Test)
+        function earthquakePipelineWritesComponentPlots(tc)
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'EQ-UT-X.csv'), [0.1; 0.4; 0.2]);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'EQ-UT-Y.csv'), [0.2; 0.5; 0.3]);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'EQ-UT-Z.csv'), [0.3; 0.6; 0.4]);
+            cfg = eq_cfg();
+
+            analyze_eq_points(tc.Root, '2026-01-01', '2026-01-01', 'wave', cfg);
+
+            figs = dir(fullfile(tc.Root, 'eq_out', 'series', '*.fig'));
+            tc.verifyGreaterThanOrEqual(numel(figs), 3);
+            names = string({figs.name});
+            tc.verifyTrue(any(contains(names, 'EQ_X_2026-01-01_2026-01-01')));
+            tc.verifyTrue(any(contains(names, 'EQ_Y_2026-01-01_2026-01-01')));
+            tc.verifyTrue(any(contains(names, 'EQ_Z_2026-01-01_2026-01-01')));
+        end
+
+        function bridgeConfigsResolveEarthquakePipelineInputs(tc)
+            configFiles = { ...
+                'default_config.json', ...
+                'hongtang_config.json', ...
+                'jiulongjiang_config.json', ...
+                'shuixianhua_config.json'};
+
+            for i = 1:numel(configFiles)
+                cfg = load_config(fullfile(tc.ProjectRoot, 'config', configFiles{i}));
+                style = bms.analyzer.EarthquakeAnalysisPipeline.style(cfg);
+                points = bms.analyzer.EarthquakeAnalysisPipeline.resolvePoints(cfg);
+                params = bms.analyzer.EarthquakeAnalysisPipeline.params(cfg, '');
+
+                tc.verifyEqual( ...
+                    bms.analyzer.EarthquakeAnalysisPipeline.resolveSubfolder(cfg), ...
+                    bms.config.ConfigReader.getSubfolder(cfg, 'eq_raw', '波形'), configFiles{i});
+                tc.verifyTrue(iscell(points), configFiles{i});
+                tc.verifyNotEmpty(style.output.root_dir, configFiles{i});
+                tc.verifyNotEmpty(style.output.series_dir, configFiles{i});
+                tc.verifyTrue(isnumeric(params.alarm_levels), configFiles{i});
+            end
+        end
+
+        function earthquakeAnalyzerUsesSharedPipelineAdapter(tc)
+            analyzer = bms.analyzer.EarthquakeAnalyzer('root', '2026-01-01', '2026-01-01', '', 'wave', struct());
+
+            tc.verifyEqual(analyzer.Key, 'earthquake');
+            tc.verifyEqual(analyzer.Points, {});
+        end
+    end
+end
+
+function cfg = eq_cfg()
+    cfg = struct();
+    cfg.defaults = struct('header_marker', 'Time');
+    cfg.subfolders = struct('eq_raw', 'wave');
+    cfg.points = struct('eq', {{'EQ-UT-X', 'EQ-UT-Y', 'EQ-UT-Z'}});
+    cfg.file_patterns = struct();
+    cfg.file_patterns.eq_x = struct('default', '{point}.csv', 'per_point', struct());
+    cfg.file_patterns.eq_y = struct('default', '{point}.csv', 'per_point', struct());
+    cfg.file_patterns.eq_z = struct('default', '{point}.csv', 'per_point', struct());
+    cfg.eq_params = struct('alarm_levels', [0.5, 1.0]);
+    cfg.plot_styles = struct('eq', struct( ...
+        'output', struct('root_dir', 'eq_out', 'series_dir', 'series', 'prefix', 'EQ'), ...
+        'ylabel', 'EQ acceleration', ...
+        'title_prefix', 'EQ', ...
+        'ylim_auto', true, ...
+        'color', [0 0.447 0.741]));
+end
+
+function write_series_csv(path, values)
+    fid = fopen(path, 'w', 'n', 'UTF-8');
+    assert(fid > 0, 'Failed to create test csv.');
+    cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+    fprintf(fid, 'Time,Value\n');
+    base = datetime(2026, 1, 1, 0, 0, 0);
+    for i = 1:numel(values)
+        fprintf(fid, '%s,%.6f\n', datestr(base + seconds(i - 1), 'yyyy-mm-dd HH:MM:SS.FFF'), values(i));
+    end
+end
