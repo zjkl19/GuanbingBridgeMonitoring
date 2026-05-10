@@ -227,7 +227,7 @@ classdef WimPlotService
             ax = gca;
             ax.FontSize = plotCfg.font_tick;
             ax.TickLabelInterpreter = 'none';
-            labels = wim_build_xtick_labels(xlabels, yvals, showPct, plotCfg.percent_on_newline);
+            labels = bms.analyzer.WimPlotService.buildXTickLabels(xlabels, yvals, showPct, plotCfg.percent_on_newline);
             ax.XTick = 1:numel(labels);
             ax.XTickLabel = labels;
             if showPct
@@ -320,6 +320,27 @@ classdef WimPlotService
                 fprintf(fid, "占比: %s = %.2f%%\n", lab, mx / total * 100);
             end
             fprintf(fid, "\n");
+        end
+
+        function labels = buildXTickLabels(xlabels, yvals, showPct, percentOnNewline)
+            labels = cellstr(string(xlabels));
+            if ~showPct
+                return;
+            end
+            total = sum(yvals);
+            if total <= 0
+                return;
+            end
+            pct = yvals ./ total * 100;
+            n = numel(xlabels);
+            labels = cell(n, 1);
+            for i = 1:n
+                if percentOnNewline
+                    labels{i} = sprintf('%s\n(%.2f%%)', char(string(xlabels(i))), pct(i));
+                else
+                    labels{i} = sprintf('%s (%.2f%%)', char(string(xlabels(i))), pct(i));
+                end
+            end
         end
 
         function name = safeName(name)

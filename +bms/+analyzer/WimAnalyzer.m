@@ -4,7 +4,7 @@ classdef WimAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
     methods
         function obj = WimAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg)
             obj@bms.analyzer.LegacyFunctionAnalyzer('wim', root, startDate, endDate, statsFile, subfolder, cfg, {}, ...
-                @(self) analyze_wim_reports(self.Root, self.StartDate, self.EndDate, self.Config));
+                @(self) bms.analyzer.WimReportPipeline.run(self.Root, self.StartDate, self.EndDate, self.Config));
         end
     end
 end
