@@ -7,7 +7,7 @@ classdef GnssAnalyzer < bms.analyzer.LegacyFunctionAnalyzer
                 points = {};
             end
             obj@bms.analyzer.LegacyFunctionAnalyzer('gnss', root, startDate, endDate, statsFile, subfolder, cfg, points, ...
-                @(self) analyze_gnss_points(self.Root, self.Points, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
+                @(self) bms.analyzer.GnssAnalysisPipeline.run(self.Root, self.Points, self.StartDate, self.EndDate, self.StatsFile, self.Subfolder, self.Config));
         end
     end
 end
