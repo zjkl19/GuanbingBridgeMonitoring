@@ -56,6 +56,7 @@ classdef test_module_registry < matlab.unittest.TestCase
             cableAccel = bms.module.ModuleRegistry.fromKey('cable_accel');
             accelSpec = bms.module.ModuleRegistry.fromKey('accel_spectrum');
             cableSpec = bms.module.ModuleRegistry.fromKey('cable_accel_spectrum');
+            wind = bms.module.ModuleRegistry.fromKey('wind');
             crack = bms.module.ModuleRegistry.fromKey('crack');
             strain = bms.module.ModuleRegistry.fromKey('strain');
             dynHigh = bms.module.ModuleRegistry.fromKey('dynamic_strain_highpass');
@@ -64,7 +65,8 @@ classdef test_module_registry < matlab.unittest.TestCase
             tc.verifyTrue(startsWith(string(temp.GuiLabel), "🌡"));
             tc.verifyTrue(startsWith(string(rain.GuiLabel), "🌧"));
             tc.verifyTrue(startsWith(string(wim.GuiLabel), "🚚"));
-            tc.verifyTrue(startsWith(string(gnss.GuiLabel), "📍"));
+            tc.verifyTrue(startsWith(string(gnss.GuiLabel), "🛰"));
+            tc.verifyTrue(startsWith(string(wind.GuiLabel), "🌀"));
             tc.verifyTrue(startsWith(string(accel.GuiLabel), "📈"));
             tc.verifyTrue(startsWith(string(cableAccel.GuiLabel), "〰"));
             tc.verifyTrue(startsWith(string(accelSpec.GuiLabel), "📶"));
