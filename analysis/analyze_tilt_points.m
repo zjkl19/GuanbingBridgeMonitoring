@@ -177,130 +177,27 @@ function plot_tilt_curve(root_dir, data_list, start_date, end_date, suffix, styl
 end
 
 function warn_lines = resolve_warn_lines(style, cfg, pid)
-    warn_lines = {};
-    global_warn = get_style_field(style, 'warn_lines', {});
-    if ~isempty(global_warn)
-        warn_lines = normalize_warn_lines(global_warn);
-    end
-    if isempty(pid)
-        return;
-    end
-    if ~isfield(cfg, 'per_point') || ~isfield(cfg.per_point, 'tilt')
-        return;
-    end
-    safe_id = strrep(pid, '-', '_');
-    if ~isfield(cfg.per_point.tilt, safe_id)
-        return;
-    end
-    pt = cfg.per_point.tilt.(safe_id);
-    if isfield(pt, 'warn_lines')
-        if isempty(pt.warn_lines)
-            warn_lines = {};
-        else
-            warn_lines = normalize_warn_lines(pt.warn_lines);
-        end
-    elseif isfield(pt, 'alarm_bounds') && ~isempty(pt.alarm_bounds)
-        warn_lines = bounds_to_warn_lines(pt.alarm_bounds, style);
-    end
-end
-
-function warn_lines = bounds_to_warn_lines(bounds, style)
-    warn_lines = {};
-    if isempty(bounds) || ~isstruct(bounds)
-        return;
-    end
-
-    colors = get_style_field(style, 'alarm_colors', []);
-    level2_color = [0.929 0.694 0.125];
-    level3_color = [0.85 0.1 0.1];
-    if isnumeric(colors) && size(colors, 2) == 3
-        if size(colors, 1) >= 1
-            level2_color = colors(1, :);
-        end
-        if size(colors, 1) >= 2
-            level3_color = colors(2, :);
-        end
-    elseif iscell(colors)
-        if numel(colors) >= 1 && isnumeric(colors{1}) && numel(colors{1}) == 3
-            level2_color = reshape(colors{1}, 1, 3);
-        end
-        if numel(colors) >= 2 && isnumeric(colors{2}) && numel(colors{2}) == 3
-            level3_color = reshape(colors{2}, 1, 3);
-        end
-    end
-
-    warn_lines = [warn_lines; append_alarm_pair(bounds, 'level2', '二级', level2_color)]; %#ok<AGROW>
-    warn_lines = [warn_lines; append_alarm_pair(bounds, 'level3', '三级', level3_color)]; %#ok<AGROW>
-end
-
-function lines = append_alarm_pair(bounds, field_name, prefix, color)
-    lines = {};
-    if ~isfield(bounds, field_name)
-        return;
-    end
-    vals = bounds.(field_name);
-    if ~isnumeric(vals) || numel(vals) ~= 2
-        return;
-    end
-    vals = sort(vals(:));
-    labels = {sprintf('%s下限', prefix), sprintf('%s上限', prefix)};
-    for i = 1:2
-        if ~isfinite(vals(i))
-            continue;
-        end
-        lines{end+1, 1} = struct('y', vals(i), 'label', labels{i}, 'color', color); %#ok<AGROW>
-    end
+    warn_lines = bms.analyzer.StructuralPlotConfigService.resolveWarnLines(style, cfg, 'tilt', pid);
 end
 
 function ccell = normalize_warn_lines(v)
-    ccell = {};
-    if isempty(v)
-        return;
-    end
-    if isstruct(v)
-        ccell = num2cell(v);
-        return;
-    end
-    if isnumeric(v)
-        vv = v(:);
-        ccell = cell(numel(vv), 1);
-        for i = 1:numel(vv)
-            ccell{i} = struct('y', vv(i));
-        end
-        return;
-    end
-    if iscell(v)
-        for i = 1:numel(v)
-            item = v{i};
-            if isstruct(item)
-                ccell{end+1, 1} = item; %#ok<AGROW>
-            elseif isnumeric(item) && isscalar(item)
-                ccell{end+1, 1} = struct('y', item); %#ok<AGROW>
-            end
-        end
-    end
+    ccell = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(v);
 end
 
 function lbl = get_warn_label(wl)
-    lbl = '';
-    if isfield(wl, 'label') && (ischar(wl.label) || isstring(wl.label))
-        lbl = char(string(wl.label));
-    end
+    lbl = bms.analyzer.StructuralPlotConfigService.warnLabel(wl);
 end
 
 function groups = get_groups(cfg, key)
-    groups = [];
-    if isfield(cfg, 'groups') && isfield(cfg.groups, key)
-        groups = cfg.groups.(key);
-    end
+    groups = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, key, []);
 end
 
 function groups = normalize_group_map(groups_cfg)
-    groups = bms.data.PointResolver.normalizeGroups(groups_cfg);
+    groups = bms.analyzer.StructuralPlotConfigService.normalizeGroupMap(groups_cfg);
 end
 
 function tf = has_groups(groups_cfg)
-    tf = bms.data.PointResolver.hasGroups(groups_cfg);
+    tf = bms.analyzer.StructuralPlotConfigService.hasGroups(groups_cfg);
 end
 
 function groups = legacy_tilt_groups()
@@ -310,66 +207,49 @@ function groups = legacy_tilt_groups()
 end
 
 function pts = get_points(cfg, key, fallback)
-    pts = bms.data.PointResolver.fromConfig(cfg, key, fallback);
+    pts = bms.analyzer.StructuralPlotConfigService.getPoints(cfg, key, fallback);
 end
 
 function pts = flatten_groups(groups)
-    pts = bms.data.PointResolver.flattenGroups(groups);
+    pts = bms.analyzer.StructuralPlotConfigService.flattenGroups(groups);
 end
 
 function pts = normalize_points(v)
-    pts = bms.data.PointResolver.normalize(v);
+    pts = bms.analyzer.StructuralPlotConfigService.normalizePoints(v);
 end
 
 function tf = is_jiulongjiang(cfg)
-    tf = isfield(cfg, 'vendor') && strcmpi(cfg.vendor, 'jiulongjiang');
+    tf = bms.analyzer.StructuralPlotConfigService.isJiulongjiang(cfg);
 end
 
 function style = get_style(cfg, key)
-    style = bms.config.ConfigReader.getPlotStyle(cfg, key);
+    style = bms.analyzer.StructuralPlotConfigService.getStyle(cfg, key);
 end
 
 function val = get_style_field(style, field, default)
-    val = bms.config.ConfigReader.getField(style, field, default);
+    val = bms.analyzer.StructuralPlotConfigService.getStyleField(style, field, default);
 end
 
 function y = get_ylim_for_pid(style, pid, default)
-    ylims = bms.config.ConfigReader.getField(style, 'ylims', []);
-    y = bms.plot.PlotService.resolveNamedYLim(ylims, pid, default);
+    y = bms.analyzer.StructuralPlotConfigService.resolveNamedYLim(style, pid, default);
 end
 
 function ok = is_valid_ylim(v)
-    ok = bms.plot.PlotService.isValidYLim(v);
+    ok = bms.analyzer.StructuralPlotConfigService.isValidYLim(v);
 end
 
 function ccell = normalize_colors(c)
-    ccell = bms.plot.PlotService.normalizeColors(c, {});
+    ccell = bms.analyzer.StructuralPlotConfigService.normalizeColors(c, {});
 end
 
 function tf = has_plot_data(data_list)
-    tf = false;
-    for i = 1:numel(data_list)
-        if isfield(data_list(i), 'vals') && ~isempty(data_list(i).vals)
-            tf = true;
-            return;
-        end
-    end
+    tf = bms.analyzer.StructuralPlotConfigService.hasPlotData(data_list);
 end
 
 function sheet = make_sheet_name(name)
-    sheet = regexprep(char(string(name)), '[:\\/?*\[\]]', '_');
-    if strlength(string(sheet)) > 31
-        sheet = extractBefore(string(sheet), 32);
-        sheet = char(sheet);
-    end
-    if ~startsWith(sheet, 'Tilt_', 'IgnoreCase', true)
-        sheet = ['Tilt_' sheet];
-    end
-    if strlength(string(sheet)) > 31
-        sheet = char(extractBefore(string(sheet), 32));
-    end
+    sheet = bms.analyzer.StructuralPlotConfigService.sheetName(name, 'Tilt_');
 end
 
 function out = sanitize_filename(name)
-    out = regexprep(char(string(name)), '[\\/:*?"<>|]', '_');
+    out = bms.analyzer.StructuralPlotConfigService.sanitizeFilename(name);
 end

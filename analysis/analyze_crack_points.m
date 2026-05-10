@@ -231,80 +231,51 @@ function plot_group_curve(times_cell, vals_cell, labels, ylabel_str, title_prefi
 end
 
 function ok = is_valid_ylim(v)
-    ok = bms.plot.PlotService.isValidYLim(v);
+    ok = bms.analyzer.StructuralPlotConfigService.isValidYLim(v);
 end
 
 function out = sanitize_filename(name)
-    out = regexprep(char(string(name)), '[\\/:*?"<>|]', '_');
+    out = bms.analyzer.StructuralPlotConfigService.sanitizeFilename(name);
 end
 
 function g = get_groups(cfg, key)
-    g = [];
-    if isfield(cfg,'groups') && isfield(cfg.groups, key)
-        g = cfg.groups.(key);
-    end
+    g = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, key, []);
 end
 
 function tf = has_group_config(groups_cfg)
-    tf = isstruct(groups_cfg) && ~isempty(fieldnames(groups_cfg));
+    tf = bms.analyzer.StructuralPlotConfigService.hasGroupConfig(groups_cfg);
 end
 
 function pts = flatten_group_points(groups_cfg)
-    pts = {};
-    if ~has_group_config(groups_cfg)
-        return;
-    end
-    gn = fieldnames(groups_cfg);
-    for i = 1:numel(gn)
-        pts = [pts; normalize_points(groups_cfg.(gn{i}))]; %#ok<AGROW>
-    end
+    pts = bms.analyzer.StructuralPlotConfigService.flattenGroupPoints(groups_cfg);
 end
 
 function pts = get_points(cfg, key, fallback)
-    pts = normalize_points(fallback);
-    if isfield(cfg, 'points') && isfield(cfg.points, key)
-        raw = cfg.points.(key);
-        if isempty(raw)
-            pts = {};
-            return;
-        end
-        pts = normalize_points(raw);
-    end
+    pts = bms.analyzer.StructuralPlotConfigService.getPoints(cfg, key, fallback);
 end
 
 function pts = normalize_points(v)
-    pts = bms.data.PointResolver.normalize(v);
+    pts = bms.analyzer.StructuralPlotConfigService.normalizePoints(v);
 end
 
 function style = get_style(cfg, key)
-    style = bms.config.ConfigReader.getPlotStyle(cfg, key);
+    style = bms.analyzer.StructuralPlotConfigService.getStyle(cfg, key);
 end
 
 function val = get_style_field(style, field, default)
-    val = bms.config.ConfigReader.getField(style, field, default);
+    val = bms.analyzer.StructuralPlotConfigService.getStyleField(style, field, default);
 end
 
 function ylim_val = get_named_ylim(style, grp_name, default_ylim)
-    ylims = bms.config.ConfigReader.getField(style, 'ylims', []);
-    ylim_val = bms.plot.PlotService.resolveNamedYLim(ylims, grp_name, default_ylim);
+    ylim_val = bms.analyzer.StructuralPlotConfigService.resolveNamedYLim(style, grp_name, default_ylim);
 end
 
 function ylim_val = get_default_ylim(style)
-    ylim_val = [];
-    if ~isstruct(style)
-        return;
-    end
-    ylim_auto = false;
-    if isfield(style,'ylim_auto') && ~isempty(style.ylim_auto)
-        ylim_auto = logical(style.ylim_auto);
-    end
-    if ~ylim_auto && isfield(style,'ylim')
-        ylim_val = style.ylim;
-    end
+    ylim_val = bms.analyzer.StructuralPlotConfigService.defaultYLim(style);
 end
 
 function ccell = normalize_colors(c)
-    ccell = bms.plot.PlotService.normalizeColors(c, {});
+    ccell = bms.analyzer.StructuralPlotConfigService.normalizeColors(c, {});
 end
 
 function opt = get_crack_options(style)
@@ -340,11 +311,5 @@ function g = default_crack_groups()
 end
 
 function txt = to_char(v)
-    if isstring(v)
-        txt = char(v);
-    elseif ischar(v)
-        txt = v;
-    else
-        txt = char(string(v));
-    end
+    txt = bms.analyzer.StructuralPlotConfigService.toChar(v);
 end

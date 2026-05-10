@@ -213,62 +213,49 @@ function tag = make_file_suffix_tag(suffix)
 end
 
 function pts = get_points(cfg, key, groups)
-    pts = {};
-    if isfield(cfg,'points') && isfield(cfg.points, key)
-        pts = cfg.points.(key);
-    elseif ~isempty(groups)
-        pts = flatten_groups(groups);
-    end
+    pts = bms.analyzer.StructuralPlotConfigService.getPointsOrFlattenFallback(cfg, key, groups);
 end
 
 function pts = flatten_groups(groups)
-    pts = bms.data.PointResolver.flattenGroups(groups);
+    pts = bms.analyzer.StructuralPlotConfigService.flattenGroups(groups);
 end
 
 function tf = is_jiulongjiang(cfg)
-    tf = isfield(cfg,'vendor') && strcmpi(cfg.vendor,'jiulongjiang');
+    tf = bms.analyzer.StructuralPlotConfigService.isJiulongjiang(cfg);
 end
 
 function y = get_ylim_for_pid(style, pid, default)
-    ylims = bms.config.ConfigReader.getField(style, 'ylims', []);
-    y = bms.plot.PlotService.resolveNamedYLim(ylims, pid, default);
+    y = bms.analyzer.StructuralPlotConfigService.resolveNamedYLim(style, pid, default);
 end
 
 function ok = is_valid_ylim(v)
-    ok = bms.plot.PlotService.isValidYLim(v);
+    ok = bms.analyzer.StructuralPlotConfigService.isValidYLim(v);
 end
 
 function tf = has_groups(cfg, key)
-    tf = isstruct(cfg) && isfield(cfg, 'groups') && isstruct(cfg.groups) && ...
-        isfield(cfg.groups, key) && bms.data.PointResolver.hasGroups(cfg.groups.(key));
+    groups = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, key, []);
+    tf = bms.analyzer.StructuralPlotConfigService.hasGroups(groups);
 end
 
 function groups = get_groups(cfg, key, fallback)
-    groups = fallback;
-    if isfield(cfg, 'groups') && isfield(cfg.groups, key)
-        g = cfg.groups.(key);
-        if iscell(g)
-            groups = g;
-        end
+    groups = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, key, fallback);
+    if ~iscell(groups)
+        groups = fallback;
     end
 end
 
 function style = get_style(cfg, key)
-    style = bms.config.ConfigReader.getPlotStyle(cfg, key);
+    style = bms.analyzer.StructuralPlotConfigService.getStyle(cfg, key);
 end
 
 function val = get_style_field(style, field, default)
-    val = bms.config.ConfigReader.getField(style, field, default);
+    val = bms.analyzer.StructuralPlotConfigService.getStyleField(style, field, default);
 end
 
 function lbl = get_label(wl)
-    if isfield(wl,'label')
-        lbl = wl.label;
-    else
-        lbl = '';
-    end
+    lbl = bms.analyzer.StructuralPlotConfigService.warnLabel(wl);
 end
 
 function ccell = normalize_colors(c)
-    ccell = bms.plot.PlotService.normalizeColors(c, {});
+    ccell = bms.analyzer.StructuralPlotConfigService.normalizeColors(c, {});
 end
