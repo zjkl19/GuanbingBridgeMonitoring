@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -185,6 +186,17 @@ def check_jlj_report(docx_path: Path | str) -> ReportQcResult:
                 "info",
                 "（转下页）与（续上页）数量不一致，仅作为分页提示复核信息。",
                 f"transfer={summary['transfer_marker_count']}, continue={summary['continue_marker_count']}",
+            )
+        )
+
+    bad_unit_matches = sorted(set(re.findall(r"(?:cm|m)/s[?？2]", text)))
+    if bad_unit_matches:
+        issues.append(
+            ReportQcIssue(
+                "unit-superscript-risk",
+                "warning",
+                "报告中仍存在疑似加速度单位上标错误。",
+                ", ".join(bad_unit_matches),
             )
         )
 

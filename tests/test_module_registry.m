@@ -46,5 +46,16 @@ classdef test_module_registry < matlab.unittest.TestCase
             warns = bms.config.SchemaValidator.validate(cfg);
             tc.verifyTrue(any(contains(warns, 'points.not_a_module is not registered')));
         end
+
+        function analysisModulesExposeIconGuiLabels(tc)
+            temp = bms.module.ModuleRegistry.fromKey('temperature');
+            rain = bms.module.ModuleRegistry.fromKey('rainfall');
+            wim = bms.module.ModuleRegistry.fromKey('wim');
+
+            tc.verifyTrue(startsWith(string(temp.GuiLabel), "🌡"));
+            tc.verifyTrue(startsWith(string(rain.GuiLabel), "🌧"));
+            tc.verifyTrue(startsWith(string(wim.GuiLabel), "🚗"));
+            tc.verifyEqual(wim.Label, 'WIM');
+        end
     end
 end

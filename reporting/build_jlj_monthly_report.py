@@ -165,6 +165,15 @@ def clean_jlj_report_xml_text(docx_path: Path) -> None:
                         text = text.replace(phrase, "")
                     for sentence in JLJ_REPORT_REMOVE_SENTENCES:
                         text = text.replace(sentence, "")
+                    for bad, good in (
+                        ("cm/s?", "cm/s²"),
+                        ("cm/s？", "cm/s²"),
+                        ("cm/s2", "cm/s²"),
+                        ("m/s?", "m/s²"),
+                        ("m/s？", "m/s²"),
+                        ("m/s2", "m/s²"),
+                    ):
+                        text = text.replace(bad, good)
                     if text != original:
                         data = text.encode("utf-8")
                         changed = True
@@ -1389,6 +1398,17 @@ def sort_rows_by_point(rows: list[dict]) -> list[dict]:
     return sorted(rows, key=lambda row: safe_text(row.get("PointID")))
 
 
+def sort_rows_by_category(rows: list[dict], order: Iterable[str]) -> list[dict]:
+    priority = {name: idx for idx, name in enumerate(order)}
+    return sorted(
+        rows,
+        key=lambda row: (
+            priority.get(safe_text(row.get("Category")), len(priority)),
+            safe_text(row.get("PointID")),
+        ),
+    )
+
+
 def read_stats_rows(stats_root: Path, filename: str, fallback_root: Path | None = None) -> list[dict]:
     path = resolve_existing_file(stats_root, fallback_root, filename)
     return load_sheet_rows(path)
@@ -1520,8 +1540,18 @@ def classify_humidity_point(point_id: str) -> str:
     return "主梁箱室相对湿度"
 
 
-def numeric_table_formatters(keys: Iterable[str], decimals: int, keep_trailing: bool = False) -> dict[str, Callable[[object], str]]:
+def numeric_table_formatters(keys: Iterable[str], decimals: int, keep_trailing: bool = True) -> dict[str, Callable[[object], str]]:
     return {key: (lambda value, d=decimals, keep=keep_trailing: format_table_number(value, d, keep)) for key in keys}
+
+
+def row_abs_metric(row: dict, keys: Iterable[str]) -> float:
+    values = [abs(value) for key in keys if (value := parse_float(row.get(key))) is not None]
+    return max(values, default=float("-inf"))
+
+
+def choose_extreme_points(rows: list[dict], keys: Iterable[str], limit: int = 2) -> list[dict]:
+    compact = [row for row in rows if safe_text(row.get("PointID"))]
+    return sorted(compact, key=lambda row: (row_abs_metric(row, keys), safe_text(row.get("PointID"))), reverse=True)[:limit]
 
 
 def build_missing_section(text: str) -> SectionContent:
@@ -1757,6 +1787,7 @@ def build_temperature_section(cfg: dict, result_root: Path, stats_root: Path, fa
     )
     for row in table_rows:
         row["Category"] = classify_temperature_point(safe_text(row.get("PointID")))
+    table_rows = sort_rows_by_category(table_rows, ("桥面温度", "拱肋温度", "主梁箱室温度", "主梁内温度", "桥址区环境温度"))
     image_items = make_priority_image_items(
         image_root,
         "时程曲线_温度",
@@ -2337,10 +2368,11 @@ def build_vibration_section(cfg: dict, result_root: Path, stats_root: Path, fall
             if pid in first_mode_freqs:
                 row["FirstFreqHz"] = format_table_number(first_mode_freqs[pid], 3, False)
     image_items: list[ImageItem] = []
-    representative_rows = choose_representative_points(rows, 2) if rows else [{"PointID": point_id} for point_id in pick_evenly([{"PointID": point_id} for point_id in first_mode_points], 2)]
+    representative_rows = choose_extreme_points(rows, ("Min", "Max", "RMS10minMax"), 2) if rows else [{"PointID": point_id} for point_id in pick_evenly([{"PointID": point_id} for point_id in first_mode_points], 2)]
     for row in representative_rows:
         pid = safe_text(row.get("PointID"))
         image_items.append(ImageItem(f"{pid} 振动时程", image_for_point(image_root, "时程曲线_加速度", pid, [f"{pid}_*.jpg"])))
+        image_items.append(ImageItem(f"{pid} 10min RMS时程", image_for_point(image_root, "时程曲线_加速度_RMS10min", pid, [f"AccelRMS10_{pid}_*.jpg"])))
         image_items.append(ImageItem(f"{pid} PSD", image_for_point(image_root, f"PSD_备查/{pid}", pid, [f"PSD_{pid}_*.jpg"])))
         image_items.append(ImageItem(f"{pid} 频谱峰值曲线", image_for_point(image_root, "频谱峰值曲线_加速度", pid, [f"SpecFreq_{pid}_*.jpg"])))
     return SectionContent(
@@ -2485,9 +2517,12 @@ def build_cable_section(cfg: dict, result_root: Path, stats_root: Path, fallback
         formatters=numeric_table_formatters(("Min", "Max", "RMS10minMax"), 3),
     )
     image_items: list[ImageItem] = []
-    for row in choose_representative_points(rows, 2):
+    for row in choose_extreme_points(rows, ("Min", "Max", "RMS10minMax"), 2):
         pid = safe_text(row.get("PointID"))
         image_items.append(ImageItem(f"{pid} 吊杆加速度时程", image_for_point(image_root, "时程曲线_索力加速度", pid, [f"{pid}_*.jpg"])))
+        image_items.append(ImageItem(f"{pid} 10min RMS时程", image_for_point(image_root, "时程曲线_索力加速度_RMS10min", pid, [f"CableAccelRMS10_{pid}_*.jpg"])))
+        image_items.append(ImageItem(f"{pid} PSD", image_for_point(image_root, f"PSD_备查_索力加速度/{pid}", pid, [f"PSD_{pid}_*.jpg"])))
+        image_items.append(ImageItem(f"{pid} 频谱峰值曲线", image_for_point(image_root, "频谱峰值曲线_索力加速度", pid, [f"SpecFreq_{pid}_*.jpg"])))
         image_items.append(ImageItem(f"{pid} 索力时程图", image_for_point(image_root, "索力时程图", pid, [f"CableForce_{pid}_*.jpg"])))
     return SectionContent(
         narrative=narrative,
@@ -2768,6 +2803,32 @@ def update_cover_metadata(doc: Document, monitoring_range: str, report_date: str
             set_cell_text_preserve(doc.tables[1].rows[1].cells[4], monitoring_range)
 
 
+def stress_limit_with_strain_text(stress_mpa: float, elastic_modulus_mpa: float) -> str:
+    strain_micro = stress_mpa / elastic_modulus_mpa * 1e6
+    return f"{format_number_fixed(stress_mpa, 1, 'MPa')}（{format_number_fixed(strain_micro, 1, 'με')}）"
+
+
+def update_jlj_warning_threshold_table(doc: Document) -> None:
+    """Add strain-conversion values to the template warning threshold table."""
+    for table in doc.tables:
+        table_text = "\n".join(cell.text for row in table.rows for cell in row.cells)
+        if "报警类别" not in table_text or "主梁跨中静应变" not in table_text:
+            continue
+        for row in table.rows:
+            cells = row.cells
+            if len(cells) < 6:
+                continue
+            item = cells[1].text.strip()
+            rule = cells[2].text.strip()
+            if item == "主梁跨中静应变" and "超过设计" in rule:
+                set_cell_text_preserve(cells[4], stress_limit_with_strain_text(JLG_MAIN_GIRDER_STRESS_LIMITS_MPA[1], JLG_CONCRETE_ELASTIC_MODULUS_MPA))
+                set_cell_text_preserve(cells[5], stress_limit_with_strain_text(JLG_MAIN_GIRDER_STRESS_LIMITS_MPA[0], JLG_CONCRETE_ELASTIC_MODULUS_MPA))
+            elif item == "主拱拱顶静应变" and "超过设计" in rule:
+                set_cell_text_preserve(cells[4], stress_limit_with_strain_text(JLG_ARCH_RIB_STRESS_LIMITS_MPA[1], JLG_STEEL_ELASTIC_MODULUS_MPA))
+                set_cell_text_preserve(cells[5], stress_limit_with_strain_text(JLG_ARCH_RIB_STRESS_LIMITS_MPA[0], JLG_STEEL_ELASTIC_MODULUS_MPA))
+        break
+
+
 
 def render_section_block(anchor: Paragraph, content: SectionBlock, body_template: ParagraphTemplate, caption_templates: CaptionTemplates) -> None:
     if content.narrative:
@@ -2955,6 +3016,7 @@ def build_report(
             target_month=period_label_month(period_label),
         )
     update_summary_table(doc, section_map, data_acquisition_summary)
+    update_jlj_warning_threshold_table(doc)
     set_repeat_headers_for_all_tables(doc)
     if not any("以下无正文" in para.text for para in doc.paragraphs):
         ending_para = doc.add_paragraph()

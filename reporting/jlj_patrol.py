@@ -84,11 +84,29 @@ def add_page_break_to_paragraph_element(element) -> None:
     element.insert(0, run)
 
 
+def paragraph_has_page_break(element) -> bool:
+    return any(node.tag == qn("w:br") and node.get(qn("w:type")) == "page" for node in element.iter(qn("w:br")))
+
+
 def ensure_patrol_attachment_page_break(element) -> None:
     if element.tag != qn("w:p"):
         return
-    if paragraph_text(element).strip().startswith("附件："):
+    text = paragraph_text(element).strip()
+    if paragraph_has_page_break(element):
+        return
+    if text.startswith(("附件：", "附件", "附图")) or "缺损照片" in text:
         add_page_break_to_paragraph_element(element)
+
+
+def ensure_subsequent_patrol_form_page_break(element, form_count: int) -> int:
+    if element.tag != qn("w:p"):
+        return form_count
+    text = paragraph_text(element).strip()
+    if not text.startswith("城市桥梁日常巡检报表"):
+        return form_count
+    if form_count > 0 and not paragraph_has_page_break(element):
+        add_page_break_to_paragraph_element(element)
+    return form_count + 1
 
 
 def element_text(element) -> str:
@@ -165,6 +183,7 @@ def insert_docx_body_after_heading(
 
     source_doc = Document(str(source_docx))
     insert_after = heading_para._p
+    patrol_form_count = 0
     for child in source_doc.element.body:
         if child.tag == qn("w:sectPr"):
             continue
@@ -172,6 +191,7 @@ def insert_docx_body_after_heading(
             continue
         new_child = deepcopy(child)
         replace_text_nodes_in_element(new_child, target_month)
+        patrol_form_count = ensure_subsequent_patrol_form_page_break(new_child, patrol_form_count)
         ensure_patrol_attachment_page_break(new_child)
         remap_copied_image_relationships(new_child, source_doc.part, target_doc.part)
         clean_patrol_photo_table_blanks(new_child)
