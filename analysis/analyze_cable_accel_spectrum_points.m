@@ -94,10 +94,10 @@
             end
         end
 
-        [rho, L, force_decimals, has_params] = get_cable_params(cfg, pid);
-        force_ylim = get_force_ylim(cfg, pid, style);
-        forceSeries = compute_cable_force(freqDay(:,1), rho, L, force_decimals);
-        force_warn_lines = get_force_warn_lines(cfg, pid, style, '');
+        [rho, L, force_decimals, has_params] = bms.analyzer.CableForceService.params(cfg, pid);
+        force_ylim = bms.analyzer.CableForceService.resolveYLim(cfg, pid, style);
+        forceSeries = bms.analyzer.CableForceService.compute(freqDay(:,1), rho, L, force_decimals);
+        force_warn_lines = bms.analyzer.CableForceService.warnLines(cfg, pid, style, '');
         force_series_all{ii} = forceSeries;
         force_valid_all(ii) = any(isfinite(forceSeries));
         if ~has_params
@@ -143,7 +143,7 @@
 
         warn_line_sets = cell(numel(labels), 1);
         for pi = 1:numel(labels)
-            warn_line_sets{pi} = get_force_warn_lines(cfg, labels{pi}, style, labels{pi});
+            warn_line_sets{pi} = bms.analyzer.CableForceService.warnLines(cfg, labels{pi}, style, labels{pi});
         end
         group_display_name = build_group_display_name(group_name, labels);
         plot_force_timeseries(repmat({dates_all}, numel(labels), 1), force_list, labels, group_display_name, outDirForceGroup, style, [], warn_line_sets, cfg);
@@ -317,64 +317,6 @@ function plot_freq_timeseries(dates_all, freqDay, pid, target_freqs, outDirFig, 
 end
 
 
-function [rho, L, decimals, has_params] = get_cable_params(cfg, pid)
-    rho = NaN; L = NaN; decimals = 2; has_params = false;
-    if isfield(cfg,'per_point') && isfield(cfg.per_point,'cable_accel')
-        safe_id = strrep(pid, '-', '_');
-        if isfield(cfg.per_point.cable_accel, safe_id)
-            pt = cfg.per_point.cable_accel.(safe_id);
-            if isfield(pt,'rho'), rho = pt.rho; end
-            if isfield(pt,'L'), L = pt.L; end
-            if isfield(pt,'force_decimals') && ~isempty(pt.force_decimals)
-                decimals = pt.force_decimals;
-            end
-            if isfinite(rho) && isfinite(L)
-                has_params = true;
-            end
-        end
-    end
-end
-
-function force_ylim = get_force_ylim(cfg, pid, style)
-    force_ylim = [];
-    if nargin >= 3 && isfield(style,'force_ylim') && ~isempty(style.force_ylim)
-        force_ylim = style.force_ylim;
-    end
-    if isfield(cfg,'per_point') && isfield(cfg.per_point,'cable_accel')
-        safe_id = strrep(pid, '-', '_');
-        if isfield(cfg.per_point.cable_accel, safe_id)
-            pt = cfg.per_point.cable_accel.(safe_id);
-            if isfield(pt,'force_ylim') && ~isempty(pt.force_ylim)
-                force_ylim = pt.force_ylim;
-            end
-        end
-    end
-    if ~isempty(force_ylim)
-        if ~(isnumeric(force_ylim) && numel(force_ylim)==2 && all(isfinite(force_ylim(:))))
-            warning('测点 %s force_ylim 无效，使用自动范围', pid);
-            force_ylim = [];
-            return;
-        end
-        force_ylim = reshape(force_ylim,1,2);
-        if ~(force_ylim(2) > force_ylim(1))
-            warning('测点 %s force_ylim 无效（min>=max），使用自动范围', pid);
-            force_ylim = [];
-        end
-    end
-end
-
-function force = compute_cable_force(freqs, rho, L, decimals)
-    force = NaN(size(freqs));
-    if isempty(freqs), return; end
-    if isempty(rho) || isempty(L) || ~isfinite(rho) || ~isfinite(L)
-        return;
-    end
-    force = 4 * rho .* (L.^2) .* (freqs.^2) / 1000;
-    if ~isempty(decimals) && isnumeric(decimals)
-        force = round(force, decimals);
-    end
-end
-
 function plot_force_timeseries(times_list, force_list, labels, name_tag, out_dir, style, force_ylim, warn_line_sets, cfg)
     if nargin < 9
         cfg = struct();
@@ -431,7 +373,7 @@ function plot_force_timeseries(times_list, force_list, labels, name_tag, out_dir
                 if ~isstruct(wl) || ~isfield(wl,'y') || ~isnumeric(wl.y) || ~isfinite(wl.y)
                     continue;
                 end
-                yl = yline(wl.y, '--', get_force_warn_label(wl), 'LabelHorizontalAlignment', 'left');
+                yl = yline(wl.y, '--', bms.analyzer.CableForceService.warnLabel(wl), 'LabelHorizontalAlignment', 'left');
                 if isfield(wl,'color') && isnumeric(wl.color) && numel(wl.color)==3
                     yl.Color = reshape(wl.color,1,3);
                 end
@@ -473,158 +415,6 @@ function plot_force_timeseries(times_list, force_list, labels, name_tag, out_dir
         datestr(dt1,'yyyymmdd')));
     [force_dir, force_name] = fileparts(fname);
     bms.plot.PlotService.saveModuleBundle(fig, force_dir, force_name, cfg);
-end
-
-function warn_lines = get_force_warn_lines(cfg, pid, style, label_prefix)
-    warn_lines = {};
-    if nargin >= 3 && isfield(style,'force_warn_lines') && ~isempty(style.force_warn_lines)
-        warn_lines = normalize_force_warn_lines(style.force_warn_lines, style);
-    end
-    if ~isfield(cfg,'per_point') || ~isfield(cfg.per_point,'cable_accel')
-        return;
-    end
-    safe_id = strrep(pid, '-', '_');
-    if ~isfield(cfg.per_point.cable_accel, safe_id)
-        return;
-    end
-    pt = cfg.per_point.cable_accel.(safe_id);
-    if isfield(pt,'force_alarm_bounds') && ~isempty(pt.force_alarm_bounds)
-        warn_lines = normalize_force_alarm_bounds(pt.force_alarm_bounds, style, label_prefix);
-    elseif isfield(pt,'force_alarm_levels')
-        warn_lines = normalize_force_warn_lines(pt.force_alarm_levels, style, label_prefix);
-    end
-end
-
-function labels = get_force_default_warn_labels()
-    labels = {'黄色预警','红色预警'};
-end
-
-function labels = get_force_bound_warn_labels()
-    labels = {'二级下限','二级上限','三级下限','三级上限'};
-end
-
-function warn_lines = normalize_force_alarm_bounds(v, style, label_prefix)
-    warn_lines = {};
-    if isempty(v) || ~isstruct(v)
-        return;
-    end
-    if nargin < 3
-        label_prefix = '';
-    end
-
-    colors = get_force_alarm_colors(style);
-    labels = get_force_bound_warn_labels();
-    bounds = {
-        'level2', 1, labels{1}, labels{2};
-        'level3', 2, labels{3}, labels{4}
-    };
-    for i = 1:size(bounds,1)
-        field = bounds{i,1};
-        color_idx = bounds{i,2};
-        lower_label = bounds{i,3};
-        upper_label = bounds{i,4};
-        if ~isfield(v, field) || isempty(v.(field))
-            continue;
-        end
-        vals = v.(field);
-        if ~(isnumeric(vals) && numel(vals) == 2 && all(isfinite(vals(:))))
-            continue;
-        end
-        vals = sort(reshape(vals,1,2));
-        warn_lines{end+1,1} = struct( ... %#ok<AGROW>
-            'y', vals(1), ...
-            'color', colors(color_idx,:), ...
-            'label', compose_force_warn_label(label_prefix, lower_label));
-        warn_lines{end+1,1} = struct( ... %#ok<AGROW>
-            'y', vals(2), ...
-            'color', colors(color_idx,:), ...
-            'label', compose_force_warn_label(label_prefix, upper_label));
-    end
-end
-
-function warn_lines = normalize_force_warn_lines(v, style, label_prefix)
-    warn_lines = {};
-    if isempty(v)
-        return;
-    end
-    if nargin < 3
-        label_prefix = '';
-    end
-
-    if nargin < 2 || isempty(style)
-        colors = [0.929 0.694 0.125; 0.85 0.1 0.1];
-    else
-        colors = get_force_alarm_colors(style);
-    end
-    labels = get_force_default_warn_labels();
-
-    if isnumeric(v)
-        vv = v(:);
-        vv = vv(isfinite(vv));
-        warn_lines = cell(numel(vv), 1);
-        for i = 1:numel(vv)
-            warn_lines{i} = struct('y', vv(i));
-            if i <= size(colors,1)
-                warn_lines{i}.color = colors(i,:);
-            end
-            if i <= numel(labels)
-                warn_lines{i}.label = compose_force_warn_label(label_prefix, labels{i});
-            end
-        end
-        return;
-    end
-
-    if isstruct(v)
-        warn_lines = num2cell(v);
-    elseif iscell(v)
-        warn_lines = v(:);
-    else
-        return;
-    end
-
-    for i = 1:numel(warn_lines)
-        wl = warn_lines{i};
-        if ~isstruct(wl)
-            continue;
-        end
-        if (~isfield(wl,'color') || isempty(wl.color)) && i <= size(colors,1)
-            wl.color = colors(i,:);
-        end
-        if (~isfield(wl,'label') || isempty(wl.label)) && i <= numel(labels)
-            wl.label = compose_force_warn_label(label_prefix, labels{i});
-        end
-        warn_lines{i} = wl;
-    end
-end
-
-function c = get_force_alarm_colors(style)
-    c = [0.929 0.694 0.125; 0.85 0.1 0.1];
-    if nargin < 1 || ~isfield(style,'force_alarm_colors') || isempty(style.force_alarm_colors)
-        return;
-    end
-    val = style.force_alarm_colors;
-    if isnumeric(val) && size(val,2) == 3
-        c = val;
-    elseif isstruct(val) && isfield(val,'yellow') && isfield(val,'red')
-        c = [reshape(val.yellow,1,3); reshape(val.red,1,3)];
-    elseif iscell(val) && numel(val) >= 2
-        c = [reshape(val{1},1,3); reshape(val{2},1,3)];
-    end
-end
-
-function label = get_force_warn_label(wl)
-    label = '';
-    if isstruct(wl) && isfield(wl,'label') && ~isempty(wl.label)
-        label = wl.label;
-    end
-end
-
-function label = compose_force_warn_label(prefix, base_label)
-    if nargin < 1 || isempty(prefix)
-        label = base_label;
-    else
-        label = sprintf('%s %s', char(string(prefix)), char(string(base_label)));
-    end
 end
 
 function pts = normalize_points(v)

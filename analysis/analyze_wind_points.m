@@ -53,7 +53,7 @@
         plot_speed_10min(t_speed, v10, pid, params, style, out_root, start_date, end_date, cfg);
 
         if ~isempty(v_dir)
-            [rose_speed, rose_dir] = align_for_rose(t_speed, v_speed, t_dir, v_dir);
+            [rose_speed, rose_dir] = bms.analyzer.WindRoseService.alignForRose(t_speed, v_speed, t_dir, v_dir);
             plot_wind_rose(rose_dir, rose_speed, pid, params, style, out_root, start_date, end_date, cfg);
         end
     end
@@ -80,26 +80,6 @@ function stats_file = get_wind_stats_file(cfg)
         stats_file = cfg.plot_styles.wind.output.stats_file;
     end
 end
-function [speed_aligned, dir_aligned] = align_for_rose(t_speed, v_speed, t_dir, v_dir)
-    if isempty(v_speed) || isempty(v_dir)
-        speed_aligned = [];
-        dir_aligned = [];
-        return;
-    end
-    x_dir = posixtime(t_dir);
-    x_spd = posixtime(t_speed);
-    if numel(unique(x_dir)) < 2
-        speed_aligned = [];
-        dir_aligned = [];
-        return;
-    end
-    dir_interp = interp1(x_dir, v_dir, x_spd, 'nearest', NaN);
-    mask = isfinite(v_speed) & isfinite(dir_interp);
-    speed_aligned = v_speed(mask);
-    dir_aligned = dir_interp(mask);
-    dir_aligned = mod(dir_aligned, 360);
-end
-
 function plot_speed_timeseries(times, vals, pid, style, out_root, start_date, end_date, cfg)
     if nargin < 8
         cfg = struct();
@@ -191,7 +171,7 @@ function plot_wind_rose(dir_deg, speed, pid, params, style, out_root, start_date
     if isempty(dir_deg)
         return;
     end
-    [rose_mat, sector_edges, speed_edges, total_count] = build_wind_rose_matrix(dir_deg, speed, params);
+    [rose_mat, sector_edges, speed_edges, total_count] = bms.analyzer.WindRoseService.buildMatrix(dir_deg, speed, params);
     if total_count == 0
         return;
     end
@@ -206,7 +186,7 @@ function plot_wind_rose(dir_deg, speed, pid, params, style, out_root, start_date
     draw_polar_grid(ax, max(sum(rose_mat, 2)));
     draw_direction_labels(ax, max(sum(rose_mat, 2)) * 1.08);
 
-    speed_labels = speed_bin_labels(speed_edges);
+    speed_labels = bms.analyzer.WindRoseService.speedBinLabels(speed_edges);
     legend_handles = gobjects(numel(speed_labels),1);
     for k = 1:numel(speed_labels)
         legend_handles(k) = patch(ax, NaN, NaN, colors(k,:), 'EdgeColor','none');
@@ -218,79 +198,7 @@ function plot_wind_rose(dir_deg, speed, pid, params, style, out_root, start_date
     base_name = sprintf('%s_windrose_%s_%s', pid, start_date, end_date);
     save_plot(fig, out_dir, base_name, cfg);
 
-    write_wind_summary(out_dir, base_name, pid, dir_deg, speed, sector_edges, speed_edges, rose_mat, total_count);
-end
-
-function ang = circular_mean_deg(dir_deg)
-    if isempty(dir_deg)
-        ang = NaN;
-        return;
-    end
-    theta = deg2rad(dir_deg(:));
-    s = mean(sin(theta), 'omitnan');
-    c = mean(cos(theta), 'omitnan');
-    if ~isfinite(s) || ~isfinite(c) || (abs(s) < eps && abs(c) < eps)
-        ang = NaN;
-        return;
-    end
-    ang = mod(rad2deg(atan2(s, c)), 360);
-end
-
-
-function [mat, sector_edges, speed_edges, total_count] = build_wind_rose_matrix(dir_deg, speed, params)
-    dir_deg = mod(dir_deg(:), 360);
-    speed = speed(:);
-    mask = isfinite(dir_deg) & isfinite(speed);
-    dir_deg = dir_deg(mask);
-    speed = speed(mask);
-
-    if isempty(dir_deg)
-        mat = [];
-        sector_edges = [];
-        speed_edges = [];
-        total_count = 0;
-        return;
-    end
-
-    sector_deg = params.sector_deg;
-    if isempty(sector_deg) || sector_deg <= 0
-        sector_deg = 22.5;
-    end
-    sector_edges = 0:sector_deg:360;
-    if sector_edges(end) < 360
-        sector_edges = [sector_edges 360];
-    end
-
-    speed_edges = params.speed_bins(:)';
-    if isempty(speed_edges)
-        speed_edges = [0 2 4 6 8 10 15 20 25 30 35 40];
-    end
-    speed_edges = unique(speed_edges, 'stable');
-    if speed_edges(1) > 0
-        speed_edges = [0 speed_edges];
-    end
-    if speed_edges(end) < max(speed)
-        speed_edges = [speed_edges inf];
-    end
-
-    sector_idx = discretize(dir_deg, sector_edges, 'IncludedEdge','right');
-    sector_idx(sector_idx == 0) = 1;
-    bin_idx = discretize(speed, speed_edges);
-
-    n_sec = numel(sector_edges) - 1;
-    n_bin = numel(speed_edges) - 1;
-    mat = zeros(n_sec, n_bin);
-    for i = 1:numel(sector_idx)
-        si = sector_idx(i);
-        bi = bin_idx(i);
-        if ~isnan(si) && ~isnan(bi) && si >= 1 && si <= n_sec && bi >= 1 && bi <= n_bin
-            mat(si, bi) = mat(si, bi) + 1;
-        end
-    end
-    total_count = sum(mat, 'all');
-    if total_count > 0
-        mat = mat ./ total_count; % normalize to probability
-    end
+    bms.analyzer.WindRoseService.writeSummary(out_dir, base_name, pid, dir_deg, speed, sector_edges, speed_edges, rose_mat, total_count);
 end
 
 function colors = get_rose_colors(style, nbin)
@@ -373,52 +281,6 @@ function draw_direction_labels(ax, r)
         [x, y] = pol2cart(t, r);
         text(ax, x, y, labels{i}, 'HorizontalAlignment','center', 'VerticalAlignment','middle', 'FontWeight','bold');
     end
-end
-
-function labels = speed_bin_labels(edges)
-    labels = cell(1, numel(edges)-1);
-    for i = 1:numel(labels)
-        a = edges(i);
-        b = edges(i+1);
-        if isinf(b)
-            labels{i} = sprintf('>=%.0f m/s', a);
-        else
-            labels{i} = sprintf('%.0f-%.0f m/s', a, b);
-        end
-    end
-end
-
-function write_wind_summary(out_dir, base_name, pid, dir_deg, speed, sector_edges, speed_edges, mat, total_count)
-    if total_count <= 0
-        return;
-    end
-    mean_dir = circular_mean_deg(dir_deg);
-    mean_speed = mean(speed, 'omitnan');
-    max_speed = max(speed, [], 'omitnan');
-
-    sector_totals = sum(mat, 2);
-    [dom_val, dom_idx] = max(sector_totals);
-    dom_range = sprintf('%.1f°-%.1f°', sector_edges(dom_idx), sector_edges(dom_idx+1));
-
-    bin_totals = sum(mat, 1);
-    [~, bin_idx] = max(bin_totals);
-    speed_label = speed_bin_labels(speed_edges);
-    main_bin = speed_label{bin_idx};
-
-    fid = fopen(fullfile(out_dir, [base_name '_summary.txt']), 'w', 'n', 'UTF-8');
-    if fid < 0
-        return;
-    end
-    fprintf(fid, '风玫瑰简要结论（%s）\n', pid);
-    fprintf(fid, '样本总数: %d\n', total_count);
-    if isfinite(mean_dir)
-        fprintf(fid, '平均风向: %.1f°\n', mean_dir);
-    end
-    fprintf(fid, '主导风向: %s，占比 %.1f%%\n', dom_range, dom_val * 100);
-    fprintf(fid, '平均风速: %.2f m/s\n', mean_speed);
-    fprintf(fid, '最大风速: %.2f m/s\n', max_speed);
-    fprintf(fid, '主要风速等级: %s（依据：全样本风速分级占比最高）\n', main_bin);
-    fclose(fid);
 end
 
 function set_time_axis(times)

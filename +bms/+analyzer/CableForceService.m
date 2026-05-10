@@ -1,0 +1,230 @@
+classdef CableForceService
+    %CABLEFORCESERVICE Shared helpers for cable-force post-processing.
+
+    methods (Static)
+        function [rho, spanLength, decimals, hasParams] = params(cfg, pointId)
+            rho = NaN;
+            spanLength = NaN;
+            decimals = 2;
+            hasParams = false;
+            if ~isstruct(cfg) || ~isfield(cfg, 'per_point') || ~isfield(cfg.per_point, 'cable_accel')
+                return;
+            end
+
+            safeId = strrep(char(string(pointId)), '-', '_');
+            if ~isfield(cfg.per_point.cable_accel, safeId)
+                return;
+            end
+
+            pointCfg = cfg.per_point.cable_accel.(safeId);
+            if isfield(pointCfg, 'rho'), rho = pointCfg.rho; end
+            if isfield(pointCfg, 'L'), spanLength = pointCfg.L; end
+            if isfield(pointCfg, 'force_decimals') && ~isempty(pointCfg.force_decimals)
+                decimals = pointCfg.force_decimals;
+            end
+            hasParams = isfinite(rho) && isfinite(spanLength);
+        end
+
+        function force = compute(freqs, rho, spanLength, decimals)
+            force = NaN(size(freqs));
+            if isempty(freqs)
+                return;
+            end
+            if isempty(rho) || isempty(spanLength) || ~isfinite(rho) || ~isfinite(spanLength)
+                return;
+            end
+
+            force = 4 * rho .* (spanLength .^ 2) .* (freqs .^ 2) / 1000;
+            if nargin >= 4 && ~isempty(decimals) && isnumeric(decimals)
+                force = round(force, decimals);
+            end
+        end
+
+        function forceYLim = resolveYLim(cfg, pointId, style)
+            forceYLim = [];
+            if nargin >= 3 && isstruct(style) && isfield(style, 'force_ylim') && ~isempty(style.force_ylim)
+                forceYLim = style.force_ylim;
+            end
+            if isstruct(cfg) && isfield(cfg, 'per_point') && isfield(cfg.per_point, 'cable_accel')
+                safeId = strrep(char(string(pointId)), '-', '_');
+                if isfield(cfg.per_point.cable_accel, safeId)
+                    pointCfg = cfg.per_point.cable_accel.(safeId);
+                    if isfield(pointCfg, 'force_ylim') && ~isempty(pointCfg.force_ylim)
+                        forceYLim = pointCfg.force_ylim;
+                    end
+                end
+            end
+
+            if isempty(forceYLim)
+                return;
+            end
+            if ~(isnumeric(forceYLim) && numel(forceYLim) == 2 && all(isfinite(forceYLim(:))))
+                warning('测点 %s force_ylim 无效，使用自动范围', char(string(pointId)));
+                forceYLim = [];
+                return;
+            end
+            forceYLim = reshape(forceYLim, 1, 2);
+            if ~(forceYLim(2) > forceYLim(1))
+                warning('测点 %s force_ylim 无效（min>=max），使用自动范围', char(string(pointId)));
+                forceYLim = [];
+            end
+        end
+
+        function warnLines = warnLines(cfg, pointId, style, labelPrefix)
+            if nargin < 4
+                labelPrefix = '';
+            end
+            warnLines = {};
+            if nargin >= 3 && isstruct(style) && isfield(style, 'force_warn_lines') && ~isempty(style.force_warn_lines)
+                warnLines = bms.analyzer.CableForceService.normalizeWarnLines(style.force_warn_lines, style, labelPrefix);
+            end
+            if ~isstruct(cfg) || ~isfield(cfg, 'per_point') || ~isfield(cfg.per_point, 'cable_accel')
+                return;
+            end
+
+            safeId = strrep(char(string(pointId)), '-', '_');
+            if ~isfield(cfg.per_point.cable_accel, safeId)
+                return;
+            end
+
+            pointCfg = cfg.per_point.cable_accel.(safeId);
+            if isfield(pointCfg, 'force_alarm_bounds') && ~isempty(pointCfg.force_alarm_bounds)
+                warnLines = bms.analyzer.CableForceService.normalizeAlarmBounds(pointCfg.force_alarm_bounds, style, labelPrefix);
+            elseif isfield(pointCfg, 'force_alarm_levels')
+                warnLines = bms.analyzer.CableForceService.normalizeWarnLines(pointCfg.force_alarm_levels, style, labelPrefix);
+            end
+        end
+
+        function warnLines = normalizeAlarmBounds(value, style, labelPrefix)
+            warnLines = {};
+            if isempty(value) || ~isstruct(value)
+                return;
+            end
+            if nargin < 3
+                labelPrefix = '';
+            end
+
+            colors = bms.analyzer.CableForceService.alarmColors(style);
+            labels = bms.analyzer.CableForceService.boundWarnLabels();
+            bounds = {
+                'level2', 1, labels{1}, labels{2};
+                'level3', 2, labels{3}, labels{4}
+            };
+            for i = 1:size(bounds, 1)
+                field = bounds{i, 1};
+                colorIdx = bounds{i, 2};
+                lowerLabel = bounds{i, 3};
+                upperLabel = bounds{i, 4};
+                if ~isfield(value, field) || isempty(value.(field))
+                    continue;
+                end
+                vals = value.(field);
+                if ~(isnumeric(vals) && numel(vals) == 2 && all(isfinite(vals(:))))
+                    continue;
+                end
+                vals = sort(reshape(vals, 1, 2));
+                warnLines{end+1, 1} = struct( ... %#ok<AGROW>
+                    'y', vals(1), ...
+                    'color', colors(colorIdx, :), ...
+                    'label', bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, lowerLabel));
+                warnLines{end+1, 1} = struct( ... %#ok<AGROW>
+                    'y', vals(2), ...
+                    'color', colors(colorIdx, :), ...
+                    'label', bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, upperLabel));
+            end
+        end
+
+        function warnLines = normalizeWarnLines(value, style, labelPrefix)
+            warnLines = {};
+            if isempty(value)
+                return;
+            end
+            if nargin < 3
+                labelPrefix = '';
+            end
+
+            if nargin < 2 || isempty(style)
+                colors = [0.929 0.694 0.125; 0.85 0.1 0.1];
+            else
+                colors = bms.analyzer.CableForceService.alarmColors(style);
+            end
+            labels = bms.analyzer.CableForceService.defaultWarnLabels();
+
+            if isnumeric(value)
+                values = value(:);
+                values = values(isfinite(values));
+                warnLines = cell(numel(values), 1);
+                for i = 1:numel(values)
+                    warnLines{i} = struct('y', values(i));
+                    if i <= size(colors, 1)
+                        warnLines{i}.color = colors(i, :);
+                    end
+                    if i <= numel(labels)
+                        warnLines{i}.label = bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, labels{i});
+                    end
+                end
+                return;
+            end
+
+            if isstruct(value)
+                warnLines = num2cell(value);
+            elseif iscell(value)
+                warnLines = value(:);
+            else
+                return;
+            end
+
+            for i = 1:numel(warnLines)
+                warnLine = warnLines{i};
+                if ~isstruct(warnLine)
+                    continue;
+                end
+                if (~isfield(warnLine, 'color') || isempty(warnLine.color)) && i <= size(colors, 1)
+                    warnLine.color = colors(i, :);
+                end
+                if (~isfield(warnLine, 'label') || isempty(warnLine.label)) && i <= numel(labels)
+                    warnLine.label = bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, labels{i});
+                end
+                warnLines{i} = warnLine;
+            end
+        end
+
+        function colors = alarmColors(style)
+            colors = [0.929 0.694 0.125; 0.85 0.1 0.1];
+            if nargin < 1 || ~isstruct(style) || ~isfield(style, 'force_alarm_colors') || isempty(style.force_alarm_colors)
+                return;
+            end
+            value = style.force_alarm_colors;
+            if isnumeric(value) && size(value, 2) == 3
+                colors = value;
+            elseif isstruct(value) && isfield(value, 'yellow') && isfield(value, 'red')
+                colors = [reshape(value.yellow, 1, 3); reshape(value.red, 1, 3)];
+            elseif iscell(value) && numel(value) >= 2
+                colors = [reshape(value{1}, 1, 3); reshape(value{2}, 1, 3)];
+            end
+        end
+
+        function label = warnLabel(warnLine)
+            label = '';
+            if isstruct(warnLine) && isfield(warnLine, 'label') && ~isempty(warnLine.label)
+                label = warnLine.label;
+            end
+        end
+
+        function labels = defaultWarnLabels()
+            labels = {'黄色预警', '红色预警'};
+        end
+
+        function labels = boundWarnLabels()
+            labels = {'二级下限', '二级上限', '三级下限', '三级上限'};
+        end
+
+        function label = composeWarnLabel(prefix, baseLabel)
+            if nargin < 1 || isempty(prefix)
+                label = baseLabel;
+            else
+                label = sprintf('%s %s', char(string(prefix)), char(string(baseLabel)));
+            end
+        end
+    end
+end
