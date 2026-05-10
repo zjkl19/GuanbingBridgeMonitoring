@@ -91,6 +91,32 @@ classdef test_hongtang_lowfreq_loader < matlab.unittest.TestCase
             tc.verifyEmpty(v2);
         end
 
+        function testDataSourceReadRangeEntryPoint(tc)
+            range = struct( ...
+                'start', datetime(2025,12,1,1,0,0), ...
+                'end', datetime(2025,12,1,2,0,0));
+
+            [t, v, used, files] = bms.data.HongtangLowFreqDataSource.readRange( ...
+                tc.WorkRoot, 'Z11-1', 'bearing_displacement', range, tc.Cfg);
+
+            tc.verifyTrue(used);
+            tc.verifyEqual(numel(files), 1);
+            tc.verifyTrue(contains(files{1}, 'data.xlsx'));
+            tc.verifyEqual(numel(t), 2);
+            tc.verifyTrue(isnan(v(1))); % '--'
+            tc.verifyTrue(isnan(v(2))); % abs(value)>500
+        end
+
+        function testDataSourceUnsupportedSensorFallsBack(tc)
+            [t, v, used, files] = bms.data.HongtangLowFreqDataSource.readRange( ...
+                tc.WorkRoot, 'Z11-1', 'unsupported_sensor', struct(), tc.Cfg);
+
+            tc.verifyFalse(used);
+            tc.verifyEmpty(t);
+            tc.verifyEmpty(v);
+            tc.verifyEmpty(files);
+        end
+
         function testReadLowfreqTiltPoint(tc)
             [t, v, meta] = load_timeseries_range(tc.WorkRoot, '', 'Q1-Z', ...
                 '2025-12-01', '2025-12-01', tc.Cfg, 'tilt');

@@ -107,6 +107,267 @@ classdef TimeSeriesLoader
             series.valid_count = sum(~isnan(v));
         end
 
+        function [times, vals, meta] = readCachedCsvSeries(path, headerMarker, opts)
+            %READCACHEDCSVSERIES Load a two-column CSV series with local MAT cache.
+            if nargin < 2 || isempty(headerMarker)
+                headerMarker = '[绝对时间]';
+            end
+            if nargin < 3 || isempty(opts), opts = struct(); end
+
+            times = [];
+            vals = [];
+            meta = struct('path', char(string(path)), 'cache_path', '', ...
+                'header_lines', 0, 'cache_hit', false, 'read_ok', false);
+            if nargin < 1 || isempty(path) || ~isfile(path)
+                return;
+            end
+
+            cacheDir = bms.data.TimeSeriesLoader.optionValue(opts, 'cache_dir', ...
+                bms.data.CacheManager.cacheDir(fileparts(char(path))));
+            if ~exist(cacheDir, 'dir'), mkdir(cacheDir); end
+            [~, name, ~] = fileparts(char(path));
+            cacheFile = fullfile(cacheDir, [name '.mat']);
+            meta.cache_path = cacheFile;
+            cacheVersion = char(string(bms.data.TimeSeriesLoader.optionValue(opts, 'cache_version', 'csv_timeseries_v2')));
+
+            if bms.data.TimeSeriesLoader.canUseSeriesCache(cacheFile, path, cacheVersion)
+                try
+                    tmp = load(cacheFile, 'times', 'vals');
+                    if isfield(tmp, 'times') && isfield(tmp, 'vals')
+                        times = tmp.times;
+                        vals = tmp.vals;
+                        meta.cache_hit = true;
+                        meta.read_ok = true;
+                        return;
+                    end
+                catch
+                end
+            end
+
+            headerLines = bms.data.TimeSeriesLoader.detectHeaderLines(path, headerMarker);
+            meta.header_lines = headerLines;
+            [times, vals, ok] = bms.data.TimeSeriesLoader.readCsvSeriesWithFallback(path, headerLines);
+            if ~ok
+                times = [];
+                vals = [];
+                return;
+            end
+            meta.read_ok = true;
+            try
+                save(cacheFile, 'times', 'vals');
+                bms.data.CacheManager.writeMetadata(cacheFile, {path}, struct(), cacheVersion);
+            catch
+            end
+        end
+
+        function fp = findCsvForPoint(dirp, pointId, cfg, sensorType)
+            %FINDCSVFORPOINT Resolve a configured point ID to a CSV file path.
+            fp = '';
+            if nargin < 4 || isempty(sensorType)
+                sensorType = 'generic';
+            end
+            if isempty(dirp) || ~exist(dirp, 'dir')
+                return;
+            end
+            if nargin < 3 || isempty(cfg)
+                cfg = struct();
+            end
+
+            sensorType = char(string(sensorType));
+            pointId = char(string(pointId));
+            safeId = strrep(pointId, '-', '_');
+            fileId = bms.data.TimeSeriesLoader.resolveFileId(cfg, sensorType, pointId);
+            patterns = {};
+            if isstruct(cfg) && isfield(cfg, 'file_patterns') && isstruct(cfg.file_patterns) ...
+                    && isfield(cfg.file_patterns, sensorType)
+                ft = cfg.file_patterns.(sensorType);
+                if isstruct(ft) && isfield(ft, 'default')
+                    patterns = [patterns; bms.data.TimeSeriesLoader.normalizePatterns(ft.default)]; %#ok<AGROW>
+                end
+                if isstruct(ft) && isfield(ft, 'per_point') && isstruct(ft.per_point) ...
+                        && isfield(ft.per_point, safeId)
+                    pointPatterns = ft.per_point.(safeId);
+                    patterns = [bms.data.TimeSeriesLoader.normalizePatterns(pointPatterns); patterns]; %#ok<AGROW>
+                end
+            end
+
+            for k = 1:numel(patterns)
+                pat = patterns{k};
+                pat = strrep(pat, '{point}', pointId);
+                pat = strrep(pat, '{file_id}', fileId);
+                matches = dir(fullfile(dirp, pat));
+                if ~isempty(matches)
+                    fp = fullfile(matches(1).folder, matches(1).name);
+                    return;
+                end
+            end
+
+            files = dir(fullfile(dirp, '*.csv'));
+            idx = find(arrayfun(@(f) contains(f.name, fileId), files), 1);
+            if isempty(idx)
+                idx = find(arrayfun(@(f) contains(f.name, pointId), files), 1);
+            end
+            if ~isempty(idx)
+                fp = fullfile(files(idx).folder, files(idx).name);
+            end
+        end
+
+        function fileId = resolveFileId(cfg, sensorType, pointId)
+            fileId = char(string(pointId));
+            if nargin < 2 || isempty(sensorType)
+                sensorType = 'generic';
+            end
+            sensorType = char(string(sensorType));
+            safeId = strrep(fileId, '-', '_');
+            if ~isstruct(cfg) || ~isfield(cfg, 'per_point') || ~isstruct(cfg.per_point)
+                return;
+            end
+
+            if strncmp(sensorType, 'wind_', 5) && isfield(cfg.per_point, 'wind') ...
+                    && isstruct(cfg.per_point.wind) && isfield(cfg.per_point.wind, safeId)
+                pt = cfg.per_point.wind.(safeId);
+                key = '';
+                if strcmp(sensorType, 'wind_speed')
+                    key = 'speed_point_id';
+                elseif strcmp(sensorType, 'wind_direction')
+                    key = 'dir_point_id';
+                end
+                fileId = bms.data.TimeSeriesLoader.resolveAlias(pt, key, fileId);
+                return;
+            end
+
+            if strncmp(sensorType, 'eq_', 3) && isfield(cfg.per_point, 'eq') ...
+                    && isstruct(cfg.per_point.eq) && isfield(cfg.per_point.eq, safeId)
+                fileId = bms.data.TimeSeriesLoader.resolveAlias(cfg.per_point.eq.(safeId), 'file_id', fileId);
+            end
+        end
+
+        function patterns = normalizePatterns(value)
+            if isstring(value)
+                patterns = cellstr(value(:));
+            elseif ischar(value)
+                patterns = {value};
+            elseif iscell(value)
+                patterns = cellstr(string(value(:)));
+            else
+                patterns = {};
+            end
+        end
+
+        function value = resolveAlias(pointCfg, fieldName, fallback)
+            value = fallback;
+            if isempty(fieldName) || ~isstruct(pointCfg) || ~isfield(pointCfg, fieldName) || isempty(pointCfg.(fieldName))
+                return;
+            end
+            alias = pointCfg.(fieldName);
+            if isstring(alias), alias = char(alias); end
+            if ischar(alias)
+                value = alias;
+            end
+        end
+
+        function headerLines = detectHeaderLines(path, headerMarker)
+            headerLines = 0;
+            if nargin < 2 || isempty(headerMarker)
+                headerMarker = '[绝对时间]';
+            end
+            if nargin < 1 || isempty(path) || ~isfile(path)
+                return;
+            end
+
+            fid = fopen(path, 'rt');
+            if fid < 0
+                return;
+            end
+            cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+            found = false;
+            buf = {};
+            h = 0;
+            while h < 200 && ~feof(fid)
+                ln = fgetl(fid);
+                h = h + 1;
+                if ~(ischar(ln) || isstring(ln))
+                    break;
+                end
+                ln = char(ln);
+                buf{end+1} = ln; %#ok<AGROW>
+                if contains(ln, headerMarker)
+                    found = true;
+                    break;
+                end
+            end
+            if found
+                headerLines = h;
+                return;
+            end
+
+            pat = '^\s*\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?\s*,';
+            idx = find(~cellfun(@isempty, regexp(buf, pat, 'once')), 1);
+            if ~isempty(idx)
+                headerLines = idx - 1;
+            end
+        end
+
+        function [times, vals, ok] = readCsvSeriesWithFallback(path, headerLines)
+            times = [];
+            vals = [];
+            ok = false;
+            if nargin < 2 || isempty(headerLines), headerLines = 0; end
+
+            fmts = { ...
+                '%{yyyy-MM-dd HH:mm:ss.SSS}D%f', ...
+                '%{yyyy-MM-dd HH:mm:ss}D%f' ...
+                };
+            encs = {'auto','UTF-8','UTF-16LE'};
+
+            for ei = 1:numel(encs)
+                enc = encs{ei};
+                for fi = 1:numel(fmts)
+                    fmt = fmts{fi};
+                    try
+                        T = readtable(path, ...
+                            'Delimiter', ',', ...
+                            'HeaderLines', headerLines, ...
+                            'ReadVariableNames', false, ...
+                            'FileEncoding', enc, ...
+                            'Format', fmt);
+                        if size(T, 2) < 2
+                            continue;
+                        end
+                        times = T{:, 1};
+                        vals = T{:, 2};
+                        ok = true;
+                        return;
+                    catch
+                    end
+                end
+            end
+
+            for ei = 1:numel(encs)
+                enc = encs{ei};
+                try
+                    fid = fopen(path, 'r', 'n', enc);
+                    if fid == -1, continue; end
+                    cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+                    for k = 1:headerLines
+                        if feof(fid), break; end
+                        fgetl(fid);
+                    end
+                    C = textscan(fid, '%s %f', 'Delimiter', ',', 'CollectOutput', true);
+                    if isempty(C) || numel(C) < 2
+                        continue;
+                    end
+                    times = datetime(C{1}, 'InputFormat', 'yyyy-MM-dd HH:mm:ss.SSS');
+                    vals = C{2};
+                    if numel(times) == numel(vals)
+                        ok = true;
+                        return;
+                    end
+                catch
+                end
+            end
+        end
+
         function [t, v] = clipClosedRange(t, v, rangeStart, rangeEnd)
             if ~isdatetime(t)
                 t = bms.data.TimeSeriesLoader.toDatetime(t);
@@ -165,6 +426,29 @@ classdef TimeSeriesLoader
                 catch
                     t = datetime(txt);
                 end
+            end
+        end
+
+        function ok = canUseSeriesCache(cacheFile, sourcePath, cacheVersion)
+            ok = false;
+            if isempty(cacheFile) || ~isfile(cacheFile)
+                return;
+            end
+            if bms.data.CacheManager.metadataMatchesFull(cacheFile, {sourcePath}, struct(), cacheVersion)
+                ok = true;
+                return;
+            end
+            if isfile(sourcePath)
+                cacheInfo = dir(cacheFile);
+                sourceInfo = dir(sourcePath);
+                ok = cacheInfo.datenum > sourceInfo.datenum;
+            end
+        end
+
+        function value = optionValue(opts, field, defaultValue)
+            value = defaultValue;
+            if isstruct(opts) && isfield(opts, field) && ~isempty(opts.(field))
+                value = opts.(field);
             end
         end
     end

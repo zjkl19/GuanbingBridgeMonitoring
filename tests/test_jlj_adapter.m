@@ -8,7 +8,8 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
     methods (TestClassSetup)
         function addPaths(testCase)
             testCase.ProjectRoot = fileparts(fileparts(mfilename('fullpath')));
-            addpath(fullfile(testCase.ProjectRoot, 'config'), ...
+            addpath(testCase.ProjectRoot, ...
+                    fullfile(testCase.ProjectRoot, 'config'), ...
                     fullfile(testCase.ProjectRoot, 'pipeline'), ...
                     fullfile(testCase.ProjectRoot, 'analysis'));
         end
@@ -77,6 +78,55 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             testCase.verifyEqual(numel(tX), numel(vX));
             testCase.verifyEqual(numel(tY), numel(vY));
             testCase.verifyEqual(numel(tZ), numel(vZ));
+        end
+
+        function test_data_source_direct_read_file_and_cache(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            base = 'DZY-DS-01';
+            day = datetime(2026,1,1);
+            write_jlj_eq_csv(root, day, base);
+
+            src = bms.data.JiulongjiangCsvDataSource(root, cfg);
+            [dirp, meta] = src.dayDir('2026-01-01', struct());
+            fp = bms.data.JiulongjiangCsvDataSource.findFile(dirp, [base '-Y']);
+            range = struct('start', day + hours(1), 'end', day + hours(1) + seconds(1));
+            [t, v] = bms.data.JiulongjiangCsvDataSource.readFile(fp, 'eq_y', [base '-Y'], cfg, ...
+                struct('range', range, 'cache_dir', meta.cache_dir));
+
+            testCase.verifyNotEmpty(t);
+            testCase.verifyEqual(numel(t), numel(v));
+            testCase.verifyLessThan(numel(t), 2400);
+            testCase.verifyTrue(exist(fullfile(meta.cache_dir, [base '.mat']), 'file') == 2);
+        end
+
+        function test_data_source_extracts_daily_zip(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            cfg.data_adapter.zip.staging_root = fullfile(root, 'stage');
+            sourceRoot = fullfile(root, 'zip_source');
+            csvDir = fullfile(sourceRoot, 'data', 'jlj', 'csv');
+            mkdir(csvDir);
+            pid = 'WDCGQ-ZIP-01';
+            write_simple_jlj_csv(csvDir, pid);
+            zip(fullfile(root, 'data_jlj_2026-01-01.zip'), fullfile(sourceRoot, 'data'), sourceRoot);
+            rmdir(sourceRoot, 's');
+
+            src = bms.data.JiulongjiangCsvDataSource(root, cfg);
+            [dirp, meta] = src.dayDir('2026-01-01', struct());
+            fp = bms.data.JiulongjiangCsvDataSource.findFile(dirp, pid);
+            [t, v] = bms.data.JiulongjiangCsvDataSource.readFile(fp, 'temperature', pid, cfg, meta);
+
+            testCase.verifyTrue(contains(dirp, fullfile('stage', 'data_jlj_2026-01-01')));
+            testCase.verifyTrue(exist(fp, 'file') == 2);
+            testCase.verifyEqual(numel(t), 2);
+            testCase.verifyEqual(v(:), [12.5; 13.5], 'AbsTol', 1e-10);
         end
 
         function test_acceleration_single_channel(testCase)
@@ -521,6 +571,17 @@ function write_jlj_eq_csv(rootDir, day, base)
     for i = 1:n
         fprintf(fid, '"%s",%.6f,%.6f,%.6f\n', datestr(ts(i), 'yyyy-mm-dd HH:MM:SS.FFF'), x(i), y(i), z(i));
     end
+end
+
+function write_simple_jlj_csv(csvDir, pid)
+    if ~exist(csvDir, 'dir'), mkdir(csvDir); end
+    fp = fullfile(csvDir, [pid '.csv']);
+    fid = fopen(fp, 'wt');
+    assert(fid > 0, 'Failed to create test csv: %s', fp);
+    cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+    fprintf(fid, 'ts,value_x\n');
+    fprintf(fid, '"2026-01-01 00:00:00.000",12.5\n');
+    fprintf(fid, '"2026-01-01 01:00:00.000",13.5\n');
 end
 
 function cleanup_temp_dir(rootDir)

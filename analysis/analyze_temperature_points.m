@@ -1,32 +1,28 @@
 function analyze_temperature_points(root_dir, point_ids, start_date, end_date, excel_file, subfolder, cfg)
 % analyze_temperature_points 批量绘制多个测点温度时程并统计
-    if nargin<1||isempty(root_dir),    root_dir = pwd; end
-    if nargin<2||isempty(point_ids),    error('请提供 point_ids cell 数组'); end
-    if nargin<3||isempty(start_date),   start_date = input('开始日期(yyyy-MM-dd): ','s'); end
-    if nargin<4||isempty(end_date),     end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
-    if nargin<5||isempty(excel_file),   excel_file = 'temperature_stats.xlsx'; end
-    excel_file = resolve_data_output_path(root_dir, excel_file, 'stats');
-    if nargin<6||isempty(subfolder)
-        cfg_tmp = load_config();
-        if isfield(cfg_tmp,'subfolders') && isfield(cfg_tmp.subfolders,'temperature')
-            subfolder = cfg_tmp.subfolders.temperature;
-        else
-            subfolder = '特征值';
-        end
-    end
-    if nargin<7||isempty(cfg),          cfg = load_config(); end
+    if nargin < 7, cfg = []; end
+    if nargin < 6, subfolder = []; end
+    if nargin < 5, excel_file = []; end
+    if nargin < 4, end_date = []; end
+    if nargin < 3, start_date = []; end
+    if nargin < 2, point_ids = []; end
+    if nargin < 1, root_dir = []; end
 
-    style = get_style(cfg,'temperature');
+    args = bms.analyzer.ScalarSeriesService.resolveInputs(root_dir, point_ids, start_date, end_date, ...
+        excel_file, subfolder, cfg, 'temperature', 'temperature_stats.xlsx', '特征值');
+    root_dir = args.root_dir;
+    point_ids = args.point_ids;
+    start_date_str = args.start_date;
+    end_date_str = args.end_date;
+    excel_file = args.excel_file;
+    subfolder = args.subfolder;
+    cfg = args.cfg;
+    style = args.style;
+
     nPts = numel(point_ids);
     stats = cell(nPts,4);
 
-    start_date_str = normalize_ymd_input(start_date);
-    end_date_str = normalize_ymd_input(end_date);
-    dn0 = datenum(start_date_str,'yyyy-mm-dd');
-    dn1 = datenum(end_date_str,  'yyyy-mm-dd');
-    if dn1 <= dn0
-        dn1 = dn0 + 1;
-    end
+    range = bms.analyzer.ScalarSeriesService.dateRange(start_date_str, end_date_str);
     timestamp = datestr(now,'yyyymmdd_HHMMSS');
     outDir = fullfile(root_dir,'时程曲线_温度');
     bms.core.PathResolver.ensureDir(outDir);
@@ -41,8 +37,8 @@ function analyze_temperature_points(root_dir, point_ids, start_date, end_date, e
         end
         fig = figure('Position',[100 100 1000 469]); hold on;
         [time_plot, val_plot] = prepare_plot_series(all_time, all_val);
-        plot(time_plot, val_plot,'LineWidth',1, 'Color', get_color(style,1));
-        finite_val = all_val(isfinite(all_val));
+        plot(time_plot, val_plot,'LineWidth',1, 'Color', bms.analyzer.ScalarSeriesService.color(style,1));
+        finite_val = bms.analyzer.ScalarSeriesService.finiteValues(all_val);
         if isempty(finite_val)
             avg_val = NaN;
         else
@@ -50,107 +46,20 @@ function analyze_temperature_points(root_dir, point_ids, start_date, end_date, e
             yline(avg_val,'--r',sprintf('平均值 %.1f',avg_val),...
                 'LabelHorizontalAlignment','center','LabelVerticalAlignment','bottom');
         end
-        numDiv = 4;
-        tk = linspace(dn0,dn1,numDiv+1);
-        xt = datetime(tk,'ConvertFrom','datenum');
+        xt = bms.analyzer.ScalarSeriesService.dateTicks(range, 5);
         ax = gca;
         ax.XLim = [xt(1) xt(end)];
         ax.XTick = xt;
         xtickformat('yyyy-MM-dd');
-        xlabel('时间'); ylabel(get_style_field(style,'ylabel','温度 (°C)'));
-        yl = resolve_named_ylim(get_style_field(style,'ylims', []), pid, get_style_field(style,'ylim', []));
-if is_valid_ylim(yl)
-    ylim(yl);
-elseif is_truthy(get_style_field(style,'ylim_auto', false))
-    ylim auto;
-elseif ~isempty(get_style_field(style,'ylim', []))
-    ylim(get_style_field(style,'ylim', []));
-else
-    ylim auto;
-end
-grid on; grid minor;
-title(sprintf('%s %s', get_style_field(style,'title_prefix','温度时程'), pid));
-        base = sprintf('%s_%s_%s', pid, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
+        xlabel('时间'); ylabel(bms.analyzer.ScalarSeriesService.styleField(style,'ylabel','温度 (°C)'));
+        bms.analyzer.ScalarSeriesService.applyYLim(style, pid, false);
+        grid on; grid minor;
+        title(sprintf('%s %s', bms.analyzer.ScalarSeriesService.styleField(style,'title_prefix','温度时程'), pid));
+        base = sprintf('%s_%s_%s', pid, datestr(range.dn0,'yyyymmdd'), datestr(range.dn1,'yyyymmdd'));
         bms.plot.PlotService.saveModuleBundle(fig, outDir, [base '_' timestamp], cfg);
-        mn = safe_min(finite_val);
-        mx = safe_max(finite_val);
-        stats{i,1} = pid;
-        stats{i,2} = mn;
-        stats{i,3} = mx;
-        stats{i,4} = avg_val;
+        stats(i,:) = bms.analyzer.ScalarSeriesService.basicStatsRow(pid, finite_val, 1);
     end
-    T = cell2table(stats,'VariableNames',{'PointID','Min','Max','Mean'});
+    T = bms.analyzer.ScalarSeriesService.basicStatsTable(stats);
     bms.io.StatsWriter.writeModuleTableChecked(T, excel_file, 'temperature');
     fprintf('统计结果已保存至 %s\n',excel_file);
-end
-
-function out = normalize_ymd_input(value)
-    if isa(value, 'datetime')
-        out = datestr(value, 'yyyy-mm-dd');
-        return;
-    end
-    if isstring(value)
-        value = char(value);
-    end
-    out = value;
-end
-
-% helpers
-function style = get_style(cfg, key)
-    style = bms.config.ConfigReader.getPlotStyle(cfg, key);
-end
-
-function val = get_style_field(style, field, default)
-    val = bms.config.ConfigReader.getField(style, field, default);
-end
-
-function c = get_color(style, idx)
-    c = [];
-    if isfield(style,'colors') && isnumeric(style.colors)
-        if size(style.colors,1) >= idx
-            c = style.colors(idx,:);
-        end
-    end
-    if isempty(c)
-        cmap = lines(3);
-        c = cmap(idx,:);
-    end
-end
-
-function yl = resolve_named_ylim(ylims, name, default_ylim)
-    yl = bms.plot.PlotService.resolveNamedYLim(ylims, name, default_ylim);
-end
-
-function ok = is_valid_ylim(v)
-    ok = bms.plot.PlotService.isValidYLim(v);
-end
-
-function v = safe_min(x)
-    if isempty(x)
-        v = NaN;
-    else
-        v = min(x);
-    end
-end
-
-function v = safe_max(x)
-    if isempty(x)
-        v = NaN;
-    else
-        v = max(x);
-    end
-end
-
-function tf = is_truthy(v)
-    tf = bms.config.ConfigReader.boolValue(v, false);
-end
-
-function txt = to_char(v)
-    if isstring(v)
-        txt = char(v);
-    elseif ischar(v)
-        txt = v;
-    else
-        txt = char(string(v));
-    end
 end

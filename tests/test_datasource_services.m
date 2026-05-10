@@ -46,6 +46,20 @@ classdef test_datasource_services < matlab.unittest.TestCase
             tc.verifyEqual(files{1}, char(java.io.File(p).getCanonicalPath()));
         end
 
+        function jiulongjiangSourceUsesLegacyJljDataFolder(tc)
+            csvDir = fullfile(tc.TempDir, 'jljData20260323-20260324', 'data', 'csv');
+            mkdir(csvDir);
+            p = fullfile(csvDir, 'GNSS-LEGACY-01.csv');
+            fclose(fopen(p, 'w'));
+
+            src = bms.data.DataSourceFactory.create(tc.TempDir, struct());
+            tc.verifyClass(src, 'bms.data.JiulongjiangCsvDataSource');
+            files = src.findPointFiles('GNSS-LEGACY-01', '', '2026-03-23', '2026-03-23', {'*GNSS-LEGACY-01*.csv'});
+
+            tc.verifyEqual(numel(files), 1);
+            tc.verifyEqual(files{1}, char(java.io.File(p).getCanonicalPath()));
+        end
+
         function wimSourceFindsMonthlyPairs(tc)
             mkdir(fullfile(tc.TempDir, 'WIM'));
             fclose(fopen(fullfile(tc.TempDir, 'WIM', 'HS_Data_202601.fmt'), 'w'));

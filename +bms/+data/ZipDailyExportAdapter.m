@@ -69,16 +69,22 @@ classdef ZipDailyExportAdapter
         end
 
         function globs = defaultGlobs(prefixes)
-            globs = cell(1, numel(prefixes));
+            globs = {};
             for i = 1:numel(prefixes)
-                globs{i} = sprintf('data_%s_*.zip', prefixes{i});
+                globs{end+1} = sprintf('data_%s_*.zip', prefixes{i}); %#ok<AGROW>
+                if strcmpi(prefixes{i}, 'jlj')
+                    globs{end+1} = 'jljData*.zip'; %#ok<AGROW>
+                end
             end
         end
 
         function patterns = defaultDatePatterns(prefixes)
-            patterns = cell(1, numel(prefixes));
+            patterns = {};
             for i = 1:numel(prefixes)
-                patterns{i} = ['data_' prefixes{i} '_(\d{4})-(\d{2})-(\d{2})'];
+                patterns{end+1} = ['data_' prefixes{i} '_(\d{4})-(\d{2})-(\d{2})']; %#ok<AGROW>
+                if strcmpi(prefixes{i}, 'jlj')
+                    patterns{end+1} = 'jljData(\d{8})-\d{8}'; %#ok<AGROW>
+                end
             end
         end
 
@@ -89,6 +95,10 @@ classdef ZipDailyExportAdapter
             tf = false;
             for i = 1:numel(prefixes)
                 d = dir(fullfile(root, sprintf('data_%s_*', prefixes{i})));
+                tf = tf || any([d.isdir]);
+            end
+            if any(strcmpi(prefixes, 'jlj'))
+                d = dir(fullfile(root, 'jljData*'));
                 tf = tf || any([d.isdir]);
             end
         end
@@ -112,11 +122,21 @@ classdef ZipDailyExportAdapter
             folders = {};
             for i = 1:numel(daysList)
                 dayText = datestr(daysList(i), 'yyyy-mm-dd');
+                found = false;
                 for p = 1:numel(prefixes)
                     folder = fullfile(root, sprintf('data_%s_%s', prefixes{p}, dayText));
                     if isfolder(folder)
                         folders{end+1} = folder; %#ok<AGROW>
+                        found = true;
                         break;
+                    end
+                end
+                if any(strcmpi(prefixes, 'jlj'))
+                    startText = datestr(daysList(i), 'yyyymmdd');
+                    endText = datestr(daysList(i) + days(1), 'yyyymmdd');
+                    legacyFolder = fullfile(root, sprintf('jljData%s-%s', startText, endText));
+                    if isfolder(legacyFolder) && (~found || ~strcmp(folder, legacyFolder))
+                        folders{end+1} = legacyFolder; %#ok<AGROW>
                     end
                 end
             end
@@ -132,7 +152,7 @@ classdef ZipDailyExportAdapter
                 for p = 1:numel(prefixes)
                     candidates{end+1} = fullfile(dayFolders{i}, 'data', prefixes{p}, 'csv'); %#ok<AGROW>
                 end
-                candidates = [candidates, {fullfile(dayFolders{i}, 'data', 'jlj', 'csv'), fullfile(dayFolders{i}, 'data', 'sxh', 'csv'), fullfile(dayFolders{i}, 'csv')}]; %#ok<AGROW>
+                candidates = [candidates, {fullfile(dayFolders{i}, 'data', 'jlj', 'csv'), fullfile(dayFolders{i}, 'data', 'sxh', 'csv'), fullfile(dayFolders{i}, 'data', 'csv'), fullfile(dayFolders{i}, 'csv')}]; %#ok<AGROW>
                 candidates = unique(candidates, 'stable');
                 for j = 1:numel(candidates)
                     if isfolder(candidates{j})

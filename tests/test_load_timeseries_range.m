@@ -60,6 +60,18 @@ classdef test_load_timeseries_range < matlab.unittest.TestCase
             tc.verifyEqual(v(2), 2.0);
         end
 
+        function testRangeLoaderClassMatchesLegacyWrapper(tc)
+            [t1, v1, meta1] = load_timeseries_range(tc.DataRoot, '特征值', 'TEST-STRAIN-001', ...
+                '2025-01-01', '2025-01-01', tc.Cfg, 'strain');
+            [t2, v2, meta2] = bms.data.TimeSeriesRangeLoader.load(tc.DataRoot, '特征值', 'TEST-STRAIN-001', ...
+                '2025-01-01', '2025-01-01', tc.Cfg, 'strain');
+
+            tc.verifyEqual(t2, t1);
+            tc.verifyEqual(v2, v1);
+            tc.verifyEqual(meta2.applied_offset_correction, meta1.applied_offset_correction);
+            tc.verifyEqual(meta2.files, meta1.files);
+        end
+
         function testUtf16BomLoad(tc)
             [t,v,~] = load_timeseries_range(tc.DataRoot, '特征值', 'UTF16-PID', ...
                 '2025-01-02', '2025-01-02', tc.Cfg, 'strain');

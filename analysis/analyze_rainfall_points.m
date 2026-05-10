@@ -1,29 +1,29 @@
-﻿function analyze_rainfall_points(root_dir, point_ids, start_date, end_date, excel_file, subfolder, cfg)
+function analyze_rainfall_points(root_dir, point_ids, start_date, end_date, excel_file, subfolder, cfg)
 % analyze_rainfall_points 批量绘制雨量计时程并统计降雨强度/累计降雨量
-    if nargin<1||isempty(root_dir),    root_dir = pwd; end
-    if nargin<2||isempty(point_ids),    error('请提供 point_ids cell 数组'); end
-    if nargin<3||isempty(start_date),   start_date = input('开始日期(yyyy-MM-dd): ','s'); end
-    if nargin<4||isempty(end_date),     end_date   = input('结束日期 (yyyy-MM-dd): ','s'); end
-    if nargin<5||isempty(excel_file),   excel_file = 'rainfall_stats.xlsx'; end
-    excel_file = resolve_data_output_path(root_dir, excel_file, 'stats');
-    if nargin<6||isempty(subfolder)
-        cfg_tmp = load_config();
-        if isfield(cfg_tmp,'subfolders') && isfield(cfg_tmp.subfolders,'rainfall')
-            subfolder = cfg_tmp.subfolders.rainfall;
-        else
-            subfolder = '特征值';
-        end
-    end
-    if nargin<7||isempty(cfg),          cfg = load_config(); end
+    if nargin < 7, cfg = []; end
+    if nargin < 6, subfolder = []; end
+    if nargin < 5, excel_file = []; end
+    if nargin < 4, end_date = []; end
+    if nargin < 3, start_date = []; end
+    if nargin < 2, point_ids = []; end
+    if nargin < 1, root_dir = []; end
 
-    style = get_style(cfg, 'rainfall');
+    args = bms.analyzer.ScalarSeriesService.resolveInputs(root_dir, point_ids, start_date, end_date, ...
+        excel_file, subfolder, cfg, 'rainfall', 'rainfall_stats.xlsx', '特征值');
+    root_dir = args.root_dir;
+    point_ids = args.point_ids;
+    start_date = args.start_date;
+    end_date = args.end_date;
+    excel_file = args.excel_file;
+    subfolder = args.subfolder;
+    cfg = args.cfg;
+    style = args.style;
+
     nPts = numel(point_ids);
     stats = cell(nPts, 7);
-
-    dn0 = datenum(start_date, 'yyyy-mm-dd');
-    dn1 = datenum(end_date,   'yyyy-mm-dd');
+    range = bms.analyzer.ScalarSeriesService.dateRange(start_date, end_date);
     timestamp = datestr(now, 'yyyymmdd_HHMMSS');
-    outDir = fullfile(root_dir, get_style_field(style, 'output_dir', '时程曲线_雨量'));
+    outDir = fullfile(root_dir, bms.analyzer.ScalarSeriesService.styleField(style, 'output_dir', '时程曲线_雨量'));
     bms.core.PathResolver.ensureDir(outDir);
 
     for i = 1:nPts
@@ -50,25 +50,23 @@
 
         fig = figure('Position', [100 100 1000 469]); hold on;
         [time_plot, val_plot] = prepare_plot_series(all_time, all_val);
-        plot(time_plot, val_plot, 'LineWidth', 1, 'Color', get_color(style, 1));
+        plot(time_plot, val_plot, 'LineWidth', 1, 'Color', bms.analyzer.ScalarSeriesService.color(style, 1));
         avg_val = round(mean_val, 2);
         yline(avg_val, '--r', sprintf('平均降雨强度 %.2f mm/h', avg_val), ...
             'LabelHorizontalAlignment', 'center', 'LabelVerticalAlignment', 'bottom');
 
-        numDiv = 4;
-        tk = linspace(dn0, dn1, numDiv+1);
-        xt = datetime(tk, 'ConvertFrom', 'datenum');
+        xt = bms.analyzer.ScalarSeriesService.dateTicks(range, 5);
         ax = gca;
         ax.XLim = [xt(1) xt(end)];
         ax.XTick = xt;
         xtickformat('yyyy-MM-dd');
         xlabel('时间');
-        ylabel(get_style_field(style, 'ylabel', '降雨强度 (mm/h)'));
-        apply_ylim(style, pid);
+        ylabel(bms.analyzer.ScalarSeriesService.styleField(style, 'ylabel', '降雨强度 (mm/h)'));
+        bms.analyzer.ScalarSeriesService.applyYLimAutoFirst(style, pid, true);
         grid on; grid minor;
-        title(sprintf('%s %s', get_style_field(style, 'title_prefix', '降雨强度时程'), pid));
+        title(sprintf('%s %s', bms.analyzer.ScalarSeriesService.styleField(style, 'title_prefix', '降雨强度时程'), pid));
 
-        base = sprintf('Rainfall_%s_%s_%s', pid, datestr(dn0,'yyyymmdd'), datestr(dn1,'yyyymmdd'));
+        base = sprintf('Rainfall_%s_%s_%s', pid, datestr(range.dn0, 'yyyymmdd'), datestr(range.dn1, 'yyyymmdd'));
         bms.plot.PlotService.saveModuleBundle(fig, outDir, [base '_' timestamp], cfg);
 
         stats{i,1} = pid;
@@ -108,62 +106,6 @@ function total_mm = calc_total_rainfall_mm(t, v)
     end
     vv = (v(1:end-1) + v(2:end)) / 2;
     total_mm = sum(vv(good) .* dt_hours(good));
-end
-
-function apply_ylim(style, pid)
-    yl = resolve_named_ylim(get_style_field(style,'ylims', []), pid, get_style_field(style,'ylim', []));
-    if is_truthy(get_style_field(style,'ylim_auto', true))
-        ylim auto;
-    elseif is_valid_ylim(yl)
-        ylim(yl);
-    elseif ~isempty(get_style_field(style,'ylim', []))
-        ylim(get_style_field(style,'ylim', []));
-    else
-        ylim auto;
-    end
-end
-
-function style = get_style(cfg, key)
-    style = bms.config.ConfigReader.getPlotStyle(cfg, key);
-end
-
-function val = get_style_field(style, field, default)
-    val = bms.config.ConfigReader.getField(style, field, default);
-end
-
-function c = get_color(style, idx)
-    c = [];
-    if isfield(style,'colors') && isnumeric(style.colors)
-        if size(style.colors,1) >= idx
-            c = style.colors(idx,:);
-        end
-    end
-    if isempty(c)
-        cmap = lines(3);
-        c = cmap(idx,:);
-    end
-end
-
-function yl = resolve_named_ylim(ylims, name, default_ylim)
-    yl = bms.plot.PlotService.resolveNamedYLim(ylims, name, default_ylim);
-end
-
-function ok = is_valid_ylim(v)
-    ok = bms.plot.PlotService.isValidYLim(v);
-end
-
-function tf = is_truthy(v)
-    tf = bms.config.ConfigReader.boolValue(v, false);
-end
-
-function txt = to_char(v)
-    if isstring(v)
-        txt = char(v);
-    elseif ischar(v)
-        txt = v;
-    else
-        txt = char(string(v));
-    end
 end
 
 function s = format_time(t)
