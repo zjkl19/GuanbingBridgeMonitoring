@@ -43,11 +43,17 @@ classdef test_spectrum_peak_service < matlab.unittest.TestCase
 
             [freqs, tol, theorFreqs, theorLabels] = ...
                 bms.analyzer.SpectrumAnalysisPipeline.pointParams(cfg, 'P-1', spec, [9.9], 0.01, [], {});
+            [serviceFreqs, serviceTol, serviceTheorFreqs, serviceTheorLabels] = ...
+                bms.analyzer.SpectrumConfigService.pointParams(cfg, 'P-1', spec, [9.9], 0.01, [], {});
 
             tc.verifyEqual(freqs, [1.1 2.2]);
             tc.verifyEqual(tol, 0.25);
             tc.verifyEqual(theorFreqs, [1.0 2.0]);
             tc.verifyEqual(theorLabels(:), {'一阶'; '二阶'});
+            tc.verifyEqual(serviceFreqs, freqs);
+            tc.verifyEqual(serviceTol, tol);
+            tc.verifyEqual(serviceTheorFreqs, theorFreqs);
+            tc.verifyEqual(serviceTheorLabels(:), theorLabels(:));
         end
 
         function cableSpectrumSpecKeepsCableForceBehavior(tc)
@@ -57,6 +63,18 @@ classdef test_spectrum_peak_service < matlab.unittest.TestCase
             tc.verifyEqual(spec.perPointKey, 'cable_accel');
             tc.verifyTrue(spec.includeForce);
             tc.verifyTrue(ismember('cable_force', spec.pointKeys));
+        end
+
+        function spectrumServicesKeepPipelineHelperBehavior(tc)
+            spec = bms.analyzer.SpectrumAnalysisPipeline.spec('cable_accel_spectrum');
+            cfg.points.cable_force = {'S1', 'S2'};
+
+            tc.verifyEqual( ...
+                bms.analyzer.SpectrumConfigService.resolvePoints(cfg, spec), ...
+                bms.analyzer.SpectrumAnalysisPipeline.resolvePoints(cfg, spec));
+            tc.verifyEqual( ...
+                bms.analyzer.SpectrumPlotService.groupDisplayName('GroupA', {'S1', 'S2'}), ...
+                bms.analyzer.SpectrumAnalysisPipeline.groupDisplayName('GroupA', {'S1', 'S2'}));
         end
     end
 end

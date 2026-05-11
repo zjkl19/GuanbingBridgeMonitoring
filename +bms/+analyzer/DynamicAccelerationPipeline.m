@@ -41,233 +41,52 @@ classdef DynamicAccelerationPipeline
             fprintf('总用时 %.2f 秒\n', seconds(timeEnd - timeStart));
         end
 
-        function stats = runSequential(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, points, style, stats, spec)
-            parallelPlan = get_parallel_plan(cfg, numel(points), spec.parallelLabel);
-            if parallelPlan.enabled
-                fprintf('%s分析检测到并行配置，但为避免整段波形累积导致内存不足，改为逐测点顺序处理。\n', spec.displayName);
-            end
-
-            for i = 1:numel(points)
-                rec = bms.analyzer.DynamicAccelerationPipeline.collectRecord( ...
-                    rootDir, subfolder, points{i}, startDate, endDate, cfg, autoDetectFs, spec, true);
-                fprintf('处理测点 %s ...\n', rec.pid);
-                if ~rec.has_data
-                    warning('测点 %s 无数据，跳过', rec.pid);
-                    continue;
-                end
-                bms.analyzer.DynamicAccelerationPipeline.printSampleRate(rec.fs, autoDetectFs, false);
-                stats(i, :) = {rec.pid, rec.mn, rec.mx, rec.av, rec.rms_max, rec.rms_time};
-                bms.analyzer.DynamicAccelerationPipeline.plotAccelCurve( ...
-                    rootDir, rec.pid, rec.times, rec.vals, rec.mn, rec.mx, style, cfg, spec);
-                bms.analyzer.DynamicAccelerationPipeline.plotRmsCurve( ...
-                    rootDir, rec.pid, rec.times, rec.vals, rec.fs, style, cfg, spec);
-            end
+        function stats = runSequential(varargin)
+            stats = bms.analyzer.DynamicAccelerationSeriesService.runSequential(varargin{:});
         end
 
-        function stats = runWithOptionalParallel(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, points, style, stats, spec)
-            records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), numel(points), 1);
-            parallelPlan = get_parallel_plan(cfg, numel(points), spec.parallelLabel);
-            if parallelPlan.enabled
-                dayCount = days(datetime(endDate, 'InputFormat', 'yyyy-MM-dd') - datetime(startDate, 'InputFormat', 'yyyy-MM-dd')) + 1;
-                if dayCount > 7
-                    fprintf('%s分析时间跨度为 %d 天，禁用并行数据收集以避免内存峰值。\n', spec.displayName, round(dayCount));
-                    parallelPlan.enabled = false;
-                end
-            end
-
-            if parallelPlan.enabled
-                fprintf('%s分析使用并行数据收集 (%d workers)\n', spec.displayName, parallelPlan.worker_count);
-                parfor i = 1:numel(points)
-                    records(i) = bms.analyzer.DynamicAccelerationPipeline.collectRecord( ...
-                        rootDir, subfolder, points{i}, startDate, endDate, cfg, autoDetectFs, spec, false);
-                end
-            else
-                for i = 1:numel(points)
-                    records(i) = bms.analyzer.DynamicAccelerationPipeline.collectRecord( ...
-                        rootDir, subfolder, points{i}, startDate, endDate, cfg, autoDetectFs, spec, false);
-                end
-            end
-
-            for i = 1:numel(points)
-                rec = records(i);
-                fprintf('处理测点 %s ...\n', rec.pid);
-                if ~rec.has_data
-                    warning('测点 %s 无数据，跳过', rec.pid);
-                    continue;
-                end
-                [times, values] = load_timeseries_range(rootDir, subfolder, rec.pid, startDate, endDate, cfg, spec.sensorType);
-                if isempty(values)
-                    warning('测点 %s 在绘图阶段无数据，跳过', rec.pid);
-                    continue;
-                end
-                bms.analyzer.DynamicAccelerationPipeline.printSampleRate(rec.fs, autoDetectFs, parallelPlan.enabled);
-                if parallelPlan.enabled
-                    record_parallel_offset_correction(cfg, spec.sensorType, rec.pid, times, values);
-                end
-                stats(i, :) = {rec.pid, rec.mn, rec.mx, rec.av, rec.rms_max, rec.rms_time};
-                bms.analyzer.DynamicAccelerationPipeline.plotAccelCurve(rootDir, rec.pid, times, values, rec.mn, rec.mx, style, cfg, spec);
-                bms.analyzer.DynamicAccelerationPipeline.plotRmsCurve(rootDir, rec.pid, times, values, rec.fs, style, cfg, spec);
-            end
+        function stats = runWithOptionalParallel(varargin)
+            stats = bms.analyzer.DynamicAccelerationSeriesService.runWithOptionalParallel(varargin{:});
         end
 
-        function rec = collectRecord(rootDir, subfolder, pointId, startDate, endDate, cfg, autoDetectFs, spec, keepSeries)
-            rec = bms.analyzer.DynamicSeriesService.collectRecord( ...
-                rootDir, subfolder, pointId, startDate, endDate, cfg, spec.sensorType, autoDetectFs, keepSeries);
+        function rec = collectRecord(varargin)
+            rec = bms.analyzer.DynamicAccelerationSeriesService.collectRecord(varargin{:});
         end
 
-        function printSampleRate(fs, autoDetectFs, parallelEnabled)
-            if parallelEnabled
-                fprintf('并行收集完成，采样率 %.2f Hz\n', fs);
-            elseif bms.config.ConfigReader.boolValue(autoDetectFs, false)
-                fprintf('自动检测采样率 %.2f Hz\n', fs);
-            else
-                fprintf('使用默认采样率 %d Hz\n', round(fs));
-            end
+        function printSampleRate(varargin)
+            bms.analyzer.DynamicAccelerationSeriesService.printSampleRate(varargin{:});
         end
 
-        function points = resolvePoints(cfg, spec)
-            points = {};
-            for i = 1:numel(spec.pointKeys)
-                points = bms.data.PointResolver.fromConfig(cfg, spec.pointKeys{i}, {});
-                if ~isempty(points)
-                    return;
-                end
-            end
-            points = spec.defaultPoints;
+        function points = resolvePoints(varargin)
+            points = bms.analyzer.DynamicAccelerationSeriesService.resolvePoints(varargin{:});
         end
 
-        function style = plotStyle(cfg, spec)
-            style = bms.config.ConfigReader.getPlotStyle(cfg, spec.styleKey, spec.defaultStyle);
+        function style = plotStyle(varargin)
+            style = bms.analyzer.DynamicAccelerationSeriesService.plotStyle(varargin{:});
         end
 
-        function plotAccelCurve(rootDir, pointId, times, values, minVal, maxVal, style, cfg, spec)
-            fig = figure('Position', [100 100 1000 469]);
-            [timesPlot, valuesPlot] = prepare_plot_series(times, values);
-            plot(timesPlot, valuesPlot, 'LineWidth', 1, 'Color', style.color_main);
-            xlabel('时间');
-            ylabel(style.ylabel);
-            bms.analyzer.DynamicAccelerationPipeline.applyMainYLim(style, pointId);
-            hold on;
-            h1 = yline(maxVal, '--r');
-            h1.Label = sprintf('最大值 %.3f', maxVal);
-            h1.LabelHorizontalAlignment = 'left';
-            h2 = yline(minVal, '--r');
-            h2.Label = sprintf('最小值 %.3f', minVal);
-            h2.LabelHorizontalAlignment = 'left';
-
-            bms.analyzer.DynamicAccelerationPipeline.applyTimeAxis(times);
-            grid on;
-            grid minor;
-            title([style.title_prefix ' ' pointId]);
-
-            outDir = fullfile(rootDir, spec.outputDir);
-            bms.core.PathResolver.ensureDir(outDir);
-            timestamp = datestr(now, 'yyyymmdd_HHMMSS');
-            fname = [pointId '_' datestr(times(1), 'yyyymmdd') '_' datestr(times(end), 'yyyymmdd')];
-            bms.plot.PlotService.saveModuleBundle(fig, outDir, [fname '_' timestamp], cfg);
+        function plotAccelCurve(varargin)
+            bms.analyzer.DynamicAccelerationPlotService.plotAccelCurve(varargin{:});
         end
 
-        function plotRmsCurve(rootDir, pointId, times, values, fs, style, cfg, spec)
-            if isempty(values) || numel(times) ~= numel(values)
-                return;
-            end
-            validTimeMask = ~isnat(times);
-            if ~any(validTimeMask)
-                return;
-            end
-
-            [rmsSeries, rmsMax, tMax] = bms.analyzer.DynamicSeriesService.rmsSeries(times, values, fs, 10, 0.7);
-            fig = figure('Position', [100 100 1000 469]);
-            [timesPlot, rmsPlot] = prepare_plot_series(times, rmsSeries);
-            if isempty(timesPlot)
-                timesPlot = times(validTimeMask);
-                rmsPlot = NaN(size(timesPlot));
-            end
-            plot(timesPlot, rmsPlot, 'LineWidth', 1.2, 'Color', style.color_rms);
-            xlabel('时间');
-            ylabel(style.rms_ylabel);
-            bms.analyzer.DynamicAccelerationPipeline.applyRmsYLim(style, pointId);
-            title(sprintf('%s %s', style.rms_title_prefix, pointId));
-            grid on;
-            grid minor;
-            hold on;
-
-            if ~isnan(rmsMax)
-                h1 = yline(rmsMax, '--r');
-                h1.Label = sprintf('最大值 %.3f', rmsMax);
-                h1.LabelHorizontalAlignment = 'left';
-                if ~isnat(tMax)
-                    plot(tMax, rmsMax, 'ro', 'MarkerFaceColor', 'r');
-                end
-            end
-
-            validTimes = times(validTimeMask);
-            xmin = min(validTimes);
-            xmax = max(validTimes);
-            if xmin >= xmax
-                xmin = xmin - minutes(1);
-                xmax = xmax + minutes(1);
-            end
-            bms.analyzer.DynamicAccelerationPipeline.applyTimeAxisLimits(xmin, xmax);
-
-            outDir = fullfile(rootDir, spec.rmsOutputDir);
-            bms.core.PathResolver.ensureDir(outDir);
-            timestamp = datestr(now, 'yyyymmdd_HHMMSS');
-            fname = sprintf('%s_%s_%s_%s', spec.rmsFilePrefix, pointId, datestr(xmin, 'yyyymmdd'), datestr(xmax, 'yyyymmdd'));
-            bms.plot.PlotService.saveModuleBundle(fig, outDir, [fname '_' timestamp], cfg);
+        function plotRmsCurve(varargin)
+            bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve(varargin{:});
         end
 
-        function applyMainYLim(style, pointId)
-            if bms.config.ConfigReader.boolValue(style.ylim_auto, false)
-                ylim auto;
-                return;
-            end
-            yl = bms.plot.PlotService.resolveNamedYLim(style.ylims, pointId, style.ylim);
-            if bms.plot.PlotService.isValidYLim(yl)
-                ylim(yl);
-            elseif ~isempty(style.ylim)
-                ylim(style.ylim);
-            else
-                ylim auto;
-            end
+        function applyMainYLim(varargin)
+            bms.analyzer.DynamicAccelerationPlotService.applyMainYLim(varargin{:});
         end
 
-        function applyRmsYLim(style, pointId)
-            yl = bms.plot.PlotService.resolveNamedYLim(style.rms_ylims, pointId, style.rms_ylim);
-            if bms.plot.PlotService.isValidYLim(yl)
-                ylim(yl);
-            elseif ~isempty(style.rms_ylim)
-                ylim(style.rms_ylim);
-            else
-                ylim auto;
-            end
+        function applyRmsYLim(varargin)
+            bms.analyzer.DynamicAccelerationPlotService.applyRmsYLim(varargin{:});
         end
 
-        function applyTimeAxis(times)
-            dn0 = datenum(times(1));
-            dn1 = datenum(times(end));
-            ticks = datetime(linspace(dn0, dn1, 5), 'ConvertFrom', 'datenum');
-            ax = gca;
-            ax.XLim = ticks([1 end]);
-            ax.XTick = ticks;
-            xtickformat('yyyy-MM-dd');
+        function applyTimeAxis(varargin)
+            bms.analyzer.DynamicAccelerationPlotService.applyTimeAxis(varargin{:});
         end
 
-        function applyTimeAxisLimits(xmin, xmax)
-            ax = gca;
-            ax.XLim = [xmin xmax];
-            ticks = datetime(linspace(datenum(xmin), datenum(xmax), 5), 'ConvertFrom', 'datenum');
-            ticks = unique(ticks, 'stable');
-            if numel(ticks) >= 2 && all(diff(ticks) > duration(0, 0, 0))
-                ax.XTick = ticks;
-            else
-                ax.XTickMode = 'auto';
-            end
-            if days(xmax - xmin) >= 1
-                xtickformat('yyyy-MM-dd');
-            else
-                xtickformat('MM-dd HH:mm');
-            end
+        function applyTimeAxisLimits(varargin)
+            bms.analyzer.DynamicAccelerationPlotService.applyTimeAxisLimits(varargin{:});
         end
 
         function spec = spec(kind)

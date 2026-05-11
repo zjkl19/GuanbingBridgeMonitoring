@@ -104,8 +104,20 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             points = bms.analyzer.DynamicAccelerationPipeline.resolvePoints(cfg, spec);
 
             tc.verifyEqual(points, {'S1'; 'S2'});
+            tc.verifyEqual(bms.analyzer.DynamicAccelerationSeriesService.resolvePoints(cfg, spec), points);
             tc.verifyEqual(spec.sensorType, 'cable_accel');
             tc.verifyFalse(spec.keepSeries);
+        end
+
+        function accelerationPipelineDelegatesStyleResolution(tc)
+            cfg.plot_styles.acceleration = struct('ylabel', 'Custom Accel', 'ylim_auto', true);
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('acceleration');
+
+            pipelineStyle = bms.analyzer.DynamicAccelerationPipeline.plotStyle(cfg, spec);
+            serviceStyle = bms.analyzer.DynamicAccelerationSeriesService.plotStyle(cfg, spec);
+
+            tc.verifyEqual(serviceStyle.ylabel, pipelineStyle.ylabel);
+            tc.verifyTrue(serviceStyle.ylim_auto);
         end
     end
 end
