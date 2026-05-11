@@ -1394,6 +1394,14 @@ def first_nonempty(rows: Iterable[dict], key: str) -> object:
     return None
 
 
+def first_present(row: dict, keys: Iterable[str]) -> object:
+    for key in keys:
+        value = row.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
 def sort_rows_by_point(rows: list[dict]) -> list[dict]:
     return sorted(rows, key=lambda row: safe_text(row.get("PointID")))
 
@@ -2005,11 +2013,68 @@ def iter_daily_eq_files(result_root: Path) -> list[Path]:
     return sorted(result_root.glob("data_jlj_*/*/jlj/csv/DZY-*.csv"))
 
 
-def collect_eq_peak_rows(result_root: Path) -> list[dict]:
+def load_eq_peak_rows_from_stats(stats_root: Path, fallback_root: Path | None = None) -> list[dict]:
+    try:
+        rows = read_stats_rows(stats_root, "eq_stats.xlsx", fallback_root)
+    except FileNotFoundError:
+        return []
+
+    output: list[dict] = []
+    for row in rows:
+        point_id = safe_text(first_present(row, ("PointID", "point_id", "Point", "测点编号")))
+        component = safe_text(first_present(row, ("Component", "component", "分量"))).upper()
+        if not component:
+            match = re.search(r"[-_](X|Y|Z)$", point_id, flags=re.IGNORECASE)
+            if match:
+                component = match.group(1).upper()
+        point_id = normalize_jlj_raw_point_id(point_id)
+        peak = parse_float(first_present(row, ("Peak", "AbsMax", "MaxAbs", "Max", "峰值(m/s²)", "峰值(m/s^2)", "峰值")))
+        if not point_id or component not in {"X", "Y", "Z"} or peak is None:
+            continue
+        output.append(
+            {
+                "PointID": point_id,
+                "Component": component,
+                "Peak": abs(peak),
+                "PeakTime": safe_text(first_present(row, ("PeakTime", "Time", "ts", "对应时间"))),
+            }
+        )
+    return output
+
+
+def eq_raw_scan_limit_bytes() -> int:
+    raw_value = os.environ.get("JLJ_EQ_RAW_SCAN_LIMIT_MB", "200")
+    try:
+        mb = float(raw_value)
+    except ValueError:
+        mb = 200.0
+    if mb < 0:
+        return -1
+    return int(mb * 1024 * 1024)
+
+
+def collect_eq_peak_rows(
+    result_root: Path,
+    stats_root: Path | None = None,
+    fallback_root: Path | None = None,
+    max_raw_scan_bytes: int | None = None,
+) -> list[dict]:
     import csv
+
+    if stats_root is not None:
+        rows = load_eq_peak_rows_from_stats(stats_root, fallback_root)
+        if rows:
+            return rows
 
     peaks: dict[tuple[str, str], tuple[float, str]] = {}
     files = iter_daily_eq_files(result_root)
+    if max_raw_scan_bytes is None:
+        max_raw_scan_bytes = eq_raw_scan_limit_bytes()
+    if max_raw_scan_bytes >= 0:
+        total_bytes = sum(path.stat().st_size for path in files if path.exists())
+        if total_bytes > max_raw_scan_bytes:
+            return []
+
     component_keys = [("X", "value_x"), ("Y", "value_y"), ("Z", "value_z")]
     for path in files:
         point_id = path.stem
@@ -2031,10 +2096,23 @@ def collect_eq_peak_rows(result_root: Path) -> list[dict]:
     return output
 
 
-def build_eq_section(cfg: dict, result_root: Path, image_root: Path) -> SectionContent:
-    rows = collect_eq_peak_rows(result_root)
-    if not rows:
-        return build_missing_section("本月未获取到主桥地震动监测有效数据。")
+def build_eq_image_items(image_root: Path) -> list[ImageItem]:
+    return [
+        ImageItem("(a) X向地震动时程", find_latest_image_patterns(image_root, "地震动结果/地震动时程", ["EQ_X_*.jpg"])),
+        ImageItem("(b) Y向地震动时程", find_latest_image_patterns(image_root, "地震动结果/地震动时程", ["EQ_Y_*.jpg"])),
+        ImageItem("(c) Z向地震动时程", find_latest_image_patterns(image_root, "地震动结果/地震动时程", ["EQ_Z_*.jpg"])),
+    ]
+
+
+def build_eq_section(
+    cfg: dict,
+    result_root: Path,
+    stats_root: Path,
+    fallback_root: Path | None,
+    image_root: Path,
+) -> SectionContent:
+    rows = collect_eq_peak_rows(result_root, stats_root, fallback_root)
+    image_items = build_eq_image_items(image_root)
     horizontal = [row for row in rows if row["Component"] in {"X", "Y"}]
     vertical = [row for row in rows if row["Component"] == "Z"]
     h_peak = numeric_max(horizontal, "Peak")
@@ -2073,11 +2151,13 @@ def build_eq_section(cfg: dict, result_root: Path, image_root: Path) -> SectionC
             "PeakTime": format_table_datetime,
         },
     )
-    image_items = [
-        ImageItem("(a) X向地震动时程", find_latest_image_patterns(image_root, "地震动结果/地震动时程", ["EQ_X_*.jpg"])),
-        ImageItem("(b) Y向地震动时程", find_latest_image_patterns(image_root, "地震动结果/地震动时程", ["EQ_Y_*.jpg"])),
-        ImageItem("(c) Z向地震动时程", find_latest_image_patterns(image_root, "地震动结果/地震动时程", ["EQ_Z_*.jpg"])),
-    ]
+    if not rows:
+        if any(item.path is not None and item.path.exists() for item in image_items):
+            narrative = "本月已生成主桥地震动监测时程图，未找到地震动峰值统计表，峰值统计待补充。典型时程见下图。"
+            summary = "主桥地震动监测已生成时程图，未找到地震动峰值统计表，峰值统计待补充。"
+        else:
+            return build_missing_section("本月未获取到主桥地震动监测有效数据。")
+
     return SectionContent(
         narrative=narrative,
         summary_sentence=summary,
@@ -2761,7 +2841,7 @@ def build_section_map(cfg: dict, stats_root: Path, fallback_root: Path | None, r
         "main_humidity": build_humidity_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_rainfall": build_rainfall_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_wind": build_wind_section(cfg, result_root, stats_root, fallback_root, image_root),
-        "main_eq": build_eq_section(cfg, result_root, image_root),
+        "main_eq": build_eq_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_traffic": build_traffic_section(wim_root),
         "main_deflection": build_deflection_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_bearing": build_main_bearing_section(cfg, result_root, stats_root, fallback_root, image_root),

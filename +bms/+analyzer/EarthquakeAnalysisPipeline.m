@@ -28,6 +28,9 @@ classdef EarthquakeAnalysisPipeline
             records = bms.analyzer.EarthquakeAnalysisPipeline.collectRecords( ...
                 rootDir, subfolder, startDate, endDate, cfg, points, parallelPlan);
 
+            statsPath = bms.analyzer.EarthquakeAnalysisPipeline.writeStats(rootDir, records);
+            fprintf('地震动统计已写入: %s\n', statsPath);
+
             bms.analyzer.EarthquakeAnalysisPipeline.plotRecords( ...
                 records, style, outRoot, startDate, endDate, cfg, parallelPlan);
 
@@ -130,6 +133,54 @@ classdef EarthquakeAnalysisPipeline
                 end
                 bms.analyzer.EarthquakeAnalysisPipeline.plotTimeseries( ...
                     rec.times, rec.vals, rec.pid, rec.comp, rec.params, style, outRoot, startDate, endDate, cfg);
+            end
+        end
+
+        function path = writeStats(rootDir, records)
+            T = bms.analyzer.EarthquakeAnalysisPipeline.statsTable(records);
+            path = bms.data.DataLayoutResolver.statsFile(rootDir, 'eq_stats.xlsx');
+            bms.io.StatsWriter.writeModuleTableChecked(T, path, 'earthquake');
+        end
+
+        function T = statsTable(records)
+            pointIds = {};
+            components = {};
+            peaks = [];
+            peakTimes = {};
+            for i = 1:numel(records)
+                rec = records(i);
+                if ~isstruct(rec) || ~isfield(rec, 'has_data') || ~rec.has_data
+                    continue;
+                end
+                vals = rec.vals(:);
+                if isempty(vals)
+                    continue;
+                end
+                [peak, idx] = max(abs(vals), [], 'omitnan');
+                if isempty(idx) || ~isfinite(peak) || idx < 1 || idx > numel(rec.times)
+                    continue;
+                end
+                pointIds{end+1, 1} = bms.analyzer.EarthquakeAnalysisPipeline.basePointId(rec.pid); %#ok<AGROW>
+                components{end+1, 1} = char(string(rec.comp)); %#ok<AGROW>
+                peaks(end+1, 1) = peak; %#ok<AGROW>
+                peakTimes{end+1, 1} = bms.analyzer.EarthquakeAnalysisPipeline.formatTime(rec.times(idx)); %#ok<AGROW>
+            end
+            T = table(string(pointIds(:)), string(components(:)), peaks(:), string(peakTimes(:)), ...
+                'VariableNames', {'PointID', 'Component', 'Peak', 'PeakTime'});
+            T = bms.io.StatsSchema.normalizeTable(T, 'earthquake');
+        end
+
+        function pointId = basePointId(pointId)
+            pointId = regexprep(char(string(pointId)), '[-_][XYZxyz]$', '');
+        end
+
+        function text = formatTime(value)
+            if isdatetime(value)
+                text = char(string(value, 'yyyy-MM-dd HH:mm:ss'));
+            elseif isnumeric(value)
+                text = datestr(value, 'yyyy-mm-dd HH:MM:ss');
+            else
+                text = char(string(value));
             end
         end
 

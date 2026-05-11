@@ -44,6 +44,14 @@ classdef test_earthquake_analysis_pipeline < matlab.unittest.TestCase
             tc.verifyTrue(any(contains(names, 'EQ_X_2026-01-01_2026-01-01')));
             tc.verifyTrue(any(contains(names, 'EQ_Y_2026-01-01_2026-01-01')));
             tc.verifyTrue(any(contains(names, 'EQ_Z_2026-01-01_2026-01-01')));
+
+            statsPath = fullfile(tc.Root, 'stats', 'eq_stats.xlsx');
+            tc.verifyTrue(isfile(statsPath));
+            T = readtable(statsPath, 'TextType', 'string');
+            tc.verifyEqual(height(T), 3);
+            tc.verifyTrue(all(ismember({'PointID', 'Component', 'Peak', 'PeakTime'}, T.Properties.VariableNames)));
+            tc.verifyEqual(sort(T.Component), ["X"; "Y"; "Z"]);
+            tc.verifyEqual(max(T.Peak), 0.6, 'AbsTol', 1e-12);
         end
 
         function bridgeConfigsResolveEarthquakePipelineInputs(tc)
