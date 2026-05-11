@@ -27,11 +27,15 @@ classdef test_wind_analysis_pipeline < matlab.unittest.TestCase
                 subfolder = bms.analyzer.WindAnalysisPipeline.resolveSubfolder(cfg);
                 expectedSubfolder = bms.config.ConfigReader.getSubfolder(cfg, 'wind_raw', '波形');
                 tc.verifyEqual(subfolder, expectedSubfolder, configFiles{i});
+                tc.verifyEqual(bms.analyzer.WindSeriesService.resolveSubfolder(cfg), subfolder, configFiles{i});
 
                 points = bms.analyzer.WindAnalysisPipeline.resolvePoints(cfg);
                 tc.verifyTrue(iscell(points), configFiles{i});
+                tc.verifyEqual(bms.analyzer.WindSeriesService.resolvePoints(cfg), points, configFiles{i});
 
                 style = bms.analyzer.WindAnalysisPipeline.style(cfg);
+                serviceStyle = bms.analyzer.WindPlotService.style(cfg);
+                tc.verifyEqual(serviceStyle.output.root_dir, style.output.root_dir, configFiles{i});
                 tc.verifyNotEmpty(style.output.root_dir, configFiles{i});
                 tc.verifyNotEmpty(style.output.speed_dir, configFiles{i});
                 tc.verifyNotEmpty(style.output.direction_dir, configFiles{i});
@@ -40,6 +44,7 @@ classdef test_wind_analysis_pipeline < matlab.unittest.TestCase
                 tc.verifyNotEmpty(bms.analyzer.WindAnalysisPipeline.statsFileName(cfg), configFiles{i});
 
                 params = bms.analyzer.WindAnalysisPipeline.params(cfg, 'W1');
+                tc.verifyEqual(bms.analyzer.WindSeriesService.params(cfg, 'W1'), params, configFiles{i});
                 tc.verifyGreaterThan(params.window_minutes, 0, configFiles{i});
                 tc.verifyGreaterThan(params.sector_deg, 0, configFiles{i});
                 tc.verifyGreaterThan(numel(params.speed_bins), 1, configFiles{i});

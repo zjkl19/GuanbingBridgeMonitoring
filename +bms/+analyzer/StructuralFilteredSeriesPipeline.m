@@ -126,7 +126,7 @@ classdef StructuralFilteredSeriesPipeline
 
         function rows = runDeflection(rootDir, startDate, endDate, subfolder, cfg, style, spec)
             rows = cell(0, 7);
-            groups = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroups(cfg, spec);
+            groups = bms.analyzer.StructuralFilteredSeriesService.deflectionGroups(cfg, spec);
 
             if bms.analyzer.StructuralPlotConfigService.isJiulongjiang(cfg)
                 points = bms.analyzer.StructuralPlotConfigService.getPointsOrFlattenFallback(cfg, spec.pointKey, groups);
@@ -134,17 +134,17 @@ classdef StructuralFilteredSeriesPipeline
                 for i = 1:numel(points)
                     pid = points{i};
                     fprintf('Per-point deflection: %s ...\n', pid);
-                    rec = bms.analyzer.StructuralFilteredSeriesPipeline.loadFilteredPoint( ...
+                    rec = bms.analyzer.StructuralFilteredSeriesService.loadFilteredPoint( ...
                         rootDir, subfolder, pid, startDate, endDate, cfg, spec);
                     if ~rec.hasData
                         warning(spec.emptyPointWarning, pid);
                         continue;
                     end
                     if collectStats
-                        rows(end+1, :) = bms.analyzer.StructuralFilteredSeriesPipeline.statsRow(rec, spec); %#ok<AGROW>
+                        rows(end+1, :) = bms.analyzer.StructuralFilteredSeriesService.statsRow(rec, spec); %#ok<AGROW>
                     end
-                    bms.analyzer.StructuralFilteredSeriesPipeline.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Orig', spec, cfg);
-                    bms.analyzer.StructuralFilteredSeriesPipeline.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Filt', spec, cfg);
+                    bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Orig', spec, cfg);
+                    bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Filt', spec, cfg);
                 end
             end
 
@@ -154,16 +154,16 @@ classdef StructuralFilteredSeriesPipeline
                     continue;
                 end
                 fprintf(spec.groupMessage, g, strjoin(pidList, ', '));
-                [records, groupRows] = bms.analyzer.StructuralFilteredSeriesPipeline.collectGroup( ...
+                [records, groupRows] = bms.analyzer.StructuralFilteredSeriesService.collectGroup( ...
                     rootDir, subfolder, pidList, startDate, endDate, cfg, spec);
                 rows = [rows; groupRows]; %#ok<AGROW>
-                bms.analyzer.StructuralFilteredSeriesPipeline.plotRecords(records, rootDir, startDate, endDate, g, style, 'Orig', spec, cfg);
-                bms.analyzer.StructuralFilteredSeriesPipeline.plotRecords(records, rootDir, startDate, endDate, g, style, 'Filt', spec, cfg);
+                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, g, style, 'Orig', spec, cfg);
+                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, g, style, 'Filt', spec, cfg);
             end
         end
 
         function rows = runBearingDisplacement(rootDir, startDate, endDate, subfolder, cfg, style, spec)
-            groups = bms.analyzer.StructuralFilteredSeriesPipeline.groupsAsCell( ...
+            groups = bms.analyzer.StructuralFilteredSeriesService.groupsAsCell( ...
                 bms.analyzer.StructuralPlotConfigService.getGroups(cfg, spec.groupKey, {}));
             points = bms.data.PointResolver.fromConfig(cfg, spec.pointKey, ...
                 bms.data.PointResolver.flattenGroups(groups));
@@ -172,16 +172,16 @@ classdef StructuralFilteredSeriesPipeline
             rows = cell(0, 7);
             for i = 1:numel(points)
                 pid = points{i};
-                rec = bms.analyzer.StructuralFilteredSeriesPipeline.loadFilteredPoint( ...
+                rec = bms.analyzer.StructuralFilteredSeriesService.loadFilteredPoint( ...
                     rootDir, subfolder, pid, startDate, endDate, cfg, spec);
                 if ~rec.hasData
                     warning(spec.emptyPointWarning, pid);
                     continue;
                 end
-                rows(end+1, :) = bms.analyzer.StructuralFilteredSeriesPipeline.statsRow(rec, spec); %#ok<AGROW>
+                rows(end+1, :) = bms.analyzer.StructuralFilteredSeriesService.statsRow(rec, spec); %#ok<AGROW>
                 warnLines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines(style, cfg, spec.moduleKey, pid);
-                bms.analyzer.StructuralFilteredSeriesPipeline.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Orig', spec, cfg, warnLines);
-                bms.analyzer.StructuralFilteredSeriesPipeline.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Filt', spec, cfg, warnLines);
+                bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Orig', spec, cfg, warnLines);
+                bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Filt', spec, cfg, warnLines);
             end
 
             for g = 1:numel(groups)
@@ -189,15 +189,15 @@ classdef StructuralFilteredSeriesPipeline
                 if isempty(pidList)
                     continue;
                 end
-                records = bms.analyzer.StructuralFilteredSeriesPipeline.collectRecordsOnly( ...
+                records = bms.analyzer.StructuralFilteredSeriesService.collectRecordsOnly( ...
                     rootDir, subfolder, pidList, startDate, endDate, cfg, spec);
                 if isempty(records)
                     continue;
                 end
                 groupWarn = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines(style, cfg, spec.moduleKey, '');
                 nameTag = sprintf('G%d', g);
-                bms.analyzer.StructuralFilteredSeriesPipeline.plotRecords(records, rootDir, startDate, endDate, nameTag, style, 'Orig', spec, cfg, groupWarn);
-                bms.analyzer.StructuralFilteredSeriesPipeline.plotRecords(records, rootDir, startDate, endDate, nameTag, style, 'Filt', spec, cfg, groupWarn);
+                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, style, 'Orig', spec, cfg, groupWarn);
+                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, style, 'Filt', spec, cfg, groupWarn);
             end
         end
 
@@ -225,7 +225,7 @@ classdef StructuralFilteredSeriesPipeline
             explicitGroups = bms.analyzer.StructuralPlotConfigService.hasGroups(groupsCfg);
 
             if ~explicitPoints && ~explicitGroups
-                groupsCfg = bms.analyzer.StructuralFilteredSeriesPipeline.legacyTiltGroups();
+                groupsCfg = bms.analyzer.StructuralFilteredSeriesService.legacyTiltGroups();
                 explicitGroups = true;
                 pointsCfg = bms.analyzer.StructuralPlotConfigService.flattenGroups(groupsCfg);
             end
@@ -247,7 +247,7 @@ classdef StructuralFilteredSeriesPipeline
 
                     warnLines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
                         style, cfg, spec.moduleKey, pid);
-                    bms.analyzer.StructuralFilteredSeriesPipeline.plotTiltCurve( ...
+                    bms.analyzer.StructuralFilteredPlotService.plotTiltCurve( ...
                         rootDir, data, startDate, endDate, pid, style, warnLines, spec, cfg);
                 end
             end
@@ -272,213 +272,79 @@ classdef StructuralFilteredSeriesPipeline
                 if bms.analyzer.StructuralPlotConfigService.hasPlotData(dataList)
                     groupWarn = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
                         style, cfg, spec.moduleKey, '');
-                    bms.analyzer.StructuralFilteredSeriesPipeline.plotTiltCurve( ...
+                    bms.analyzer.StructuralFilteredPlotService.plotTiltCurve( ...
                         rootDir, dataList, startDate, endDate, groupName, style, groupWarn, spec, cfg);
                 end
             end
         end
 
-        function plotTiltCurve(rootDir, dataList, startDate, endDate, suffix, style, warnLines, spec, cfg)
-            if isempty(dataList) || ~bms.analyzer.StructuralPlotConfigService.hasPlotData(dataList)
-                return;
-            end
-
-            [dt0, dt1] = bms.analyzer.StructuralTimeSeriesPlotService.dateRange(startDate, endDate);
-            pid = '';
-            if numel(dataList) == 1 && isfield(dataList, 'pid')
-                pid = dataList(1).pid;
-            end
-
-            opts = struct();
-            opts.style = style;
-            opts.ylabel = bms.analyzer.StructuralPlotConfigService.getStyleField( ...
-                style, 'ylabel', spec.defaultYLabel);
-            opts.titleText = sprintf('%s %s', ...
-                bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'title_prefix', spec.defaultTitlePrefix), ...
-                char(string(suffix)));
-            opts.outputDir = bms.analyzer.StructuralPlotConfigService.getStyleField( ...
-                style, 'output_dir', spec.defaultOutputDir);
-            opts.baseName = sprintf('%s_%s_%s_%s_%s', spec.filePrefix, char(string(suffix)), ...
-                datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd'), datestr(now, 'yyyymmdd_HHMMSS'));
-            opts.warnLines = warnLines;
-            opts.ylimRange = bms.analyzer.StructuralTimeSeriesPlotService.resolveStyleYLim(style, pid);
-            if numel(dataList) == 3
-                opts.colorField = 'colors_3';
-                opts.defaultColors = [0 0 0; 1 0 0; 0 0 1];
-            end
-
-            bms.analyzer.StructuralTimeSeriesPlotService.plotDataList( ...
-                rootDir, dataList, startDate, endDate, opts, cfg);
+        function plotTiltCurve(varargin)
+            bms.analyzer.StructuralFilteredPlotService.plotTiltCurve(varargin{:});
         end
 
         function groups = legacyTiltGroups()
-            groups = struct( ...
-                'X', {{'GB-DIS-P04-001-01-X', 'GB-DIS-P05-001-01-X', 'GB-DIS-P06-001-01-X'}}, ...
-                'Y', {{'GB-DIS-P04-001-01-Y', 'GB-DIS-P05-001-01-Y', 'GB-DIS-P06-001-01-Y'}});
+            groups = bms.analyzer.StructuralFilteredSeriesService.legacyTiltGroups();
         end
 
         function rec = loadFilteredPoint(rootDir, subfolder, pid, startDate, endDate, cfg, spec)
-            [times, values] = load_timeseries_range(rootDir, subfolder, pid, startDate, endDate, cfg, spec.sensorType);
-            rec = struct('pid', pid, 'times', times, 'raw', values, 'filtered', [], 'hasData', ~isempty(values));
-            if ~rec.hasData
-                return;
-            end
-            filtered = bms.analyzer.StructuralSeriesService.movingMedian10Min(times, values);
-            rec.filtered = apply_threshold_rules(filtered, times, ...
-                resolve_post_filter_thresholds(cfg, spec.moduleKey, pid));
+            rec = bms.analyzer.StructuralFilteredSeriesService.loadFilteredPoint( ...
+                rootDir, subfolder, pid, startDate, endDate, cfg, spec);
         end
 
         function [records, rows] = collectGroup(rootDir, subfolder, pointIds, startDate, endDate, cfg, spec)
-            records = bms.analyzer.StructuralFilteredSeriesPipeline.collectRecordsOnly( ...
+            [records, rows] = bms.analyzer.StructuralFilteredSeriesService.collectGroup( ...
                 rootDir, subfolder, pointIds, startDate, endDate, cfg, spec);
-            rows = cell(0, 7);
-            for i = 1:numel(records)
-                rows(end+1, :) = bms.analyzer.StructuralFilteredSeriesPipeline.statsRow(records(i), spec); %#ok<AGROW>
-            end
         end
 
         function records = collectRecordsOnly(rootDir, subfolder, pointIds, startDate, endDate, cfg, spec)
-            records = repmat(bms.analyzer.StructuralFilteredSeriesPipeline.emptyRecord(), 0, 1);
-            for i = 1:numel(pointIds)
-                pid = pointIds{i};
-                rec = bms.analyzer.StructuralFilteredSeriesPipeline.loadFilteredPoint( ...
-                    rootDir, subfolder, pid, startDate, endDate, cfg, spec);
-                if ~rec.hasData
-                    if strcmp(spec.moduleKey, 'deflection')
-                        warning('测点 %s 无数据，跳过', pid);
-                    end
-                    continue;
-                end
-                records(end+1, 1) = rec; %#ok<AGROW>
-            end
+            records = bms.analyzer.StructuralFilteredSeriesService.collectRecordsOnly( ...
+                rootDir, subfolder, pointIds, startDate, endDate, cfg, spec);
         end
 
         function rec = emptyRecord()
-            rec = struct('pid', '', 'times', [], 'raw', [], 'filtered', [], 'hasData', false);
+            rec = bms.analyzer.StructuralFilteredSeriesService.emptyRecord();
         end
 
         function row = statsRow(rec, spec)
-            row = bms.analyzer.StructuralSeriesService.filteredStatsRow( ...
-                rec.pid, rec.raw, rec.filtered, spec.decimals);
+            row = bms.analyzer.StructuralFilteredSeriesService.statsRow(rec, spec);
         end
 
         function plotRecord(rec, rootDir, startDate, endDate, nameTag, style, suffix, spec, cfg, warnLines)
             if nargin < 10
-                warnLines = bms.analyzer.StructuralFilteredSeriesPipeline.defaultWarnLines(style, cfg, spec, rec.pid);
+                warnLines = bms.analyzer.StructuralFilteredPlotService.defaultWarnLines(style, cfg, spec, rec.pid);
             end
-            bms.analyzer.StructuralFilteredSeriesPipeline.plotRecords( ...
+            bms.analyzer.StructuralFilteredPlotService.plotRecord( ...
                 rec, rootDir, startDate, endDate, nameTag, style, suffix, spec, cfg, warnLines);
         end
 
         function plotRecords(records, rootDir, startDate, endDate, nameTag, style, suffix, spec, cfg, warnLines)
             if nargin < 10
-                warnLines = bms.analyzer.StructuralFilteredSeriesPipeline.defaultWarnLines(style, cfg, spec, '');
+                warnLines = bms.analyzer.StructuralFilteredPlotService.defaultWarnLines(style, cfg, spec, '');
             end
-            if isempty(records)
-                return;
-            end
-
-            valuesField = 'raw';
-            suffixTag = bms.analyzer.StructuralFilteredSeriesPipeline.fileSuffixTag(suffix);
-            if strcmpi(suffixTag, 'Filt')
-                valuesField = 'filtered';
-            end
-
-            timesList = cell(numel(records), 1);
-            valuesList = cell(numel(records), 1);
-            labels = cell(numel(records), 1);
-            for i = 1:numel(records)
-                timesList{i} = records(i).times;
-                valuesList{i} = records(i).(valuesField);
-                labels{i} = records(i).pid;
-            end
-
-            [dt0, dt1] = bms.analyzer.StructuralTimeSeriesPlotService.dateRange(startDate, endDate);
-            [titleText, fileNameTag, titleSuffix] = bms.analyzer.StructuralFilteredSeriesPipeline.titleParts( ...
-                style, spec, nameTag, suffix);
-            opts = struct();
-            opts.style = style;
-            opts.ylabel = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'ylabel', spec.defaultYLabel);
-            opts.titleText = titleText;
-            opts.outputDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'output_dir', spec.defaultOutputDir);
-            opts.baseName = bms.analyzer.StructuralFilteredSeriesPipeline.baseName( ...
-                spec, fileNameTag, suffixTag, dt0, dt1, titleSuffix);
-            opts.warnLines = warnLines;
-            pointId = '';
-            if numel(records) == 1
-                pointId = records(1).pid;
-            end
-            opts.ylimRange = bms.analyzer.StructuralTimeSeriesPlotService.resolveStyleYLim(style, pointId);
-            opts = bms.analyzer.StructuralFilteredSeriesPipeline.applyColorOptions(opts, numel(records));
-            bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
-                rootDir, timesList, valuesList, labels, startDate, endDate, opts, cfg);
+            bms.analyzer.StructuralFilteredPlotService.plotRecords( ...
+                records, rootDir, startDate, endDate, nameTag, style, suffix, spec, cfg, warnLines);
         end
 
         function warnLines = defaultWarnLines(style, cfg, spec, pid)
-            if strcmp(spec.moduleKey, 'deflection')
-                warnLines = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'warn_lines', {});
-            else
-                warnLines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines(style, cfg, spec.moduleKey, pid);
-            end
+            warnLines = bms.analyzer.StructuralFilteredPlotService.defaultWarnLines(style, cfg, spec, pid);
         end
 
         function [titleText, fileNameTag, titleSuffix] = titleParts(style, spec, nameTag, suffix)
-            prefix = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'title_prefix', spec.defaultTitlePrefix);
-            suffixText = char(string(suffix));
-            titleSuffix = suffixText;
-            if strcmp(spec.moduleKey, 'deflection')
-                if isempty(suffixText)
-                    titleSuffix = '';
-                else
-                    titleSuffix = [' ' suffixText];
-                end
-                if isnumeric(nameTag)
-                    fileNameTag = sprintf('G%d', nameTag);
-                    titleText = sprintf(spec.groupTitlePattern, prefix, nameTag, titleSuffix);
-                else
-                    fileNameTag = char(string(nameTag));
-                    titleText = sprintf(spec.pointTitlePattern, prefix, fileNameTag, titleSuffix);
-                end
-            else
-                fileNameTag = char(string(nameTag));
-                titleText = sprintf(spec.pointTitlePattern, prefix, fileNameTag, suffixText);
-            end
+            [titleText, fileNameTag, titleSuffix] = bms.analyzer.StructuralFilteredPlotService.titleParts( ...
+                style, spec, nameTag, suffix);
         end
 
         function base = baseName(spec, nameTag, suffixTag, dt0, dt1, titleSuffix)
-            if strcmp(spec.moduleKey, 'deflection')
-                base = sprintf('%s_%s_%s_%s_%s_%s', spec.filePrefix, nameTag, suffixTag, ...
-                    datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd'), datestr(now, 'yyyymmdd_HHMMSS'));
-            else
-                base = sprintf('%s_%s_%s_%s_%s_%s', spec.filePrefix, nameTag, ...
-                    datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd'), char(string(titleSuffix)), datestr(now, 'yyyymmdd_HHMMSS'));
-            end
+            base = bms.analyzer.StructuralFilteredPlotService.baseName( ...
+                spec, nameTag, suffixTag, dt0, dt1, titleSuffix);
         end
 
         function tag = fileSuffixTag(suffix)
-            tag = char(string(suffix));
-            if strcmpi(strtrim(tag), 'Filt') || strcmpi(strtrim(tag), 'Filtered')
-                tag = 'Filt';
-            elseif strcmpi(strtrim(tag), 'Orig') || strcmpi(strtrim(tag), 'Raw')
-                tag = 'Orig';
-            elseif isempty(strtrim(tag))
-                tag = 'Series';
-            else
-                tag = regexprep(tag, '[^\w-]', '');
-                if isempty(tag)
-                    tag = 'Series';
-                end
-            end
+            tag = bms.analyzer.StructuralFilteredPlotService.fileSuffixTag(suffix);
         end
 
         function opts = applyColorOptions(opts, nSeries)
-            if nSeries == 2
-                opts.colorField = 'colors_2';
-                opts.defaultColors = [0 0 1; 0 0.7 0];
-            elseif nSeries == 3
-                opts.colorField = 'colors_3';
-                opts.defaultColors = [0.5 0 0.7; 0 0 1; 0 0.7 0];
-            end
+            opts = bms.analyzer.StructuralFilteredPlotService.applyColorOptions(opts, nSeries);
         end
 
         function subfolder = resolveSubfolder(cfg, spec)
@@ -500,27 +366,11 @@ classdef StructuralFilteredSeriesPipeline
         end
 
         function groups = deflectionGroups(cfg, spec)
-            groups = {};
-            raw = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, spec.groupKey, {});
-            if bms.analyzer.StructuralPlotConfigService.hasGroups(raw)
-                groups = bms.analyzer.StructuralFilteredSeriesPipeline.groupsAsCell(raw);
-            end
+            groups = bms.analyzer.StructuralFilteredSeriesService.deflectionGroups(cfg, spec);
         end
 
         function groups = groupsAsCell(raw)
-            if isempty(raw)
-                groups = {};
-            elseif iscell(raw)
-                groups = raw;
-            elseif isstruct(raw)
-                names = fieldnames(raw);
-                groups = cell(numel(names), 1);
-                for i = 1:numel(names)
-                    groups{i} = bms.data.PointResolver.normalize(raw.(names{i}));
-                end
-            else
-                groups = {};
-            end
+            groups = bms.analyzer.StructuralFilteredSeriesService.groupsAsCell(raw);
         end
     end
 end
