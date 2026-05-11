@@ -56,16 +56,35 @@ classdef test_strain_analysis_pipeline < matlab.unittest.TestCase
             for i = 1:numel(configFiles)
                 cfg = load_config(fullfile(tc.ProjectRoot, 'config', configFiles{i}));
                 ctx = bms.analyzer.StrainAnalysisPipeline.context(cfg);
+                serviceCtx = bms.analyzer.StrainConfigService.context(cfg);
 
                 tc.verifyEqual( ...
                     bms.analyzer.StrainAnalysisPipeline.resolveSubfolder(cfg), ...
                     bms.config.ConfigReader.getSubfolder(cfg, 'strain', '特征值'), configFiles{i});
+                tc.verifyEqual( ...
+                    bms.analyzer.StrainConfigService.resolveSubfolder(cfg), ...
+                    bms.analyzer.StrainAnalysisPipeline.resolveSubfolder(cfg), configFiles{i});
                 tc.verifyTrue(isstruct(ctx.style), configFiles{i});
+                tc.verifyEqual(serviceCtx.explicit_points, ctx.explicit_points, configFiles{i});
+                tc.verifyEqual(serviceCtx.explicit_groups, ctx.explicit_groups, configFiles{i});
+                tc.verifyEqual(serviceCtx.explicit_ts_groups, ctx.explicit_ts_groups, configFiles{i});
                 tc.verifyTrue(iscell(ctx.points), configFiles{i});
                 tc.verifyTrue(islogical(ctx.explicit_points), configFiles{i});
                 tc.verifyTrue(islogical(ctx.explicit_groups), configFiles{i});
                 tc.verifyTrue(islogical(ctx.explicit_ts_groups), configFiles{i});
             end
+        end
+
+        function strainPipelineDelegatesBoxplotMatrix(tc)
+            dataList = struct( ...
+                'pid', {'S1', 'S2'}, ...
+                'times', {datetime(2026, 1, 1), datetime(2026, 1, 1)}, ...
+                'vals', {[1; 2; 3], [10; 11]});
+
+            pipelineMat = bms.analyzer.StrainAnalysisPipeline.buildBoxplotMatrix(dataList, 50000);
+            serviceMat = bms.analyzer.StrainPlotService.buildBoxplotMatrix(dataList, 50000);
+
+            tc.verifyEqual(serviceMat, pipelineMat);
         end
 
         function strainAnalyzerUsesSharedPipelineAdapter(tc)

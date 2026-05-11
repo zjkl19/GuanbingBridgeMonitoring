@@ -74,18 +74,36 @@ classdef test_dynamic_strain_boxplot_service < matlab.unittest.TestCase
             spec = bms.analyzer.DynamicStrainBoxplotPipeline.modeSpec('lowpass');
 
             [groups, names, style] = bms.analyzer.DynamicStrainBoxplotPipeline.groupsAndStyle(cfg, spec);
+            [serviceGroups, serviceNames, serviceStyle] = bms.analyzer.DynamicStrainConfigService.groupsAndStyle(cfg, spec);
 
             tc.verifyEqual(names, {'G1'});
             tc.verifyEqual(groups{1}, {'S1'; 'S2'});
             tc.verifyEqual(style.ylims.G1, [-1 1]);
+            tc.verifyEqual(serviceNames, names);
+            tc.verifyEqual(serviceGroups{1}, groups{1});
+            tc.verifyEqual(serviceStyle.ylims.G1, style.ylims.G1);
         end
 
         function pipelineHighpassSpecKeepsModuleKey(tc)
             spec = bms.analyzer.DynamicStrainBoxplotPipeline.modeSpec('highpass');
+            serviceSpec = bms.analyzer.DynamicStrainConfigService.modeSpec('highpass');
 
             tc.verifyEqual(spec.mode, 'highpass');
             tc.verifyEqual(spec.moduleKey, 'dynamic_strain_highpass');
             tc.verifyEqual(spec.timeseriesBase, 'dynstrain_hp');
+            tc.verifyEqual(serviceSpec.moduleKey, spec.moduleKey);
+        end
+
+        function pipelineDelegatesPathAndYLimHelpers(tc)
+            style.ylims.G1 = [-2 2];
+            ds = struct('YLimManual', true, 'YLimRange', [-1 1]);
+
+            tc.verifyEqual( ...
+                bms.analyzer.DynamicStrainConfigService.groupYLim(style, 'G1', ds), ...
+                bms.analyzer.DynamicStrainBoxplotPipeline.groupYLim(style, 'G1', ds));
+            tc.verifyEqual( ...
+                bms.analyzer.DynamicStrainConfigService.resolveDir('C:\root', 'plots', 'default'), ...
+                bms.analyzer.DynamicStrainBoxplotPipeline.resolveDir('C:\root', 'plots', 'default'));
         end
     end
 end
