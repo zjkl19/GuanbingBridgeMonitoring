@@ -172,6 +172,9 @@ def clean_jlj_report_xml_text(docx_path: Path) -> None:
                         ("m/s?", "m/s²"),
                         ("m/s？", "m/s²"),
                         ("m/s2", "m/s²"),
+                        ("加速度速度均方根", "加速度均方根"),
+                        ("桥墩沉降°", "桥墩沉降"),
+                        ("DYBCQG-", "DYBCGQ-"),
                     ):
                         text = text.replace(bad, good)
                     if text != original:
@@ -204,6 +207,16 @@ JLG_STEEL_ELASTIC_MODULUS_MPA = 206e3
 JLG_MAIN_GIRDER_STRESS_LIMITS_MPA = (-16.2, 17.6)
 JLG_ARCH_RIB_STRESS_LIMITS_MPA = (-25.9, 20.9)
 
+JLG_EXTRA_HEALTH_STATUS_POINTS: dict[str, list[str]] = {
+    # 新版竣工图新增伸缩缝位移测点；本月报告只纳入测点获取统计，
+    # 不在分析章节硬编码当月异常或排除测点。
+    "expansion_joint_displacement": ["SSFWYJ-01", "SSFWYJ-02", "SSFWYJ-03", "SSFWYJ-04"],
+}
+
+JLG_PENDING_ACCESS_REMARKS = {
+    "expansion_joint_displacement": "新版竣工图新增测点SSFWYJ-01~04，本月暂未接入，未获取有效数据",
+}
+
 JLG_HEALTH_STATUS_MODULES: list[tuple[str, list[str]]] = [
     ("温度监测", ["temperature", "temp_humidity"]),
     ("湿度监测", ["temp_humidity"]),
@@ -218,6 +231,7 @@ JLG_HEALTH_STATUS_MODULES: list[tuple[str, list[str]]] = [
     ("风向风速监测", ["wind"]),
     ("地震动监测", ["eq"]),
     ("GNSS 位移监测", ["gnss"]),
+    ("伸缩缝位移监测", ["expansion_joint_displacement"]),
 ]
 
 
@@ -334,6 +348,12 @@ def get_config_points(cfg: dict, key: str) -> list[str]:
     points = cfg.get("points", {}).get(key, [])
     if not isinstance(points, list):
         return []
+    return sorted_point_ids(points)
+
+
+def get_health_status_design_points(cfg: dict, key: str) -> list[str]:
+    points = get_config_points(cfg, key)
+    points.extend(JLG_EXTRA_HEALTH_STATUS_POINTS.get(key, []))
     return sorted_point_ids(points)
 
 
@@ -454,12 +474,11 @@ def csv_has_records(path: Path | None) -> bool:
 
 def collect_jlj_health_status_rows(cfg: dict, result_root: Path, start_date: date, end_date: date) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
-    points_cfg = cfg.get("points", {})
 
     for module_label, point_keys in JLG_HEALTH_STATUS_MODULES:
         module_points: list[str] = []
         for point_key in point_keys:
-            module_points.extend(get_config_points(cfg, point_key))
+            module_points.extend(get_health_status_design_points(cfg, point_key))
         module_points = sorted_point_ids(module_points)
         if not module_points:
             continue
@@ -519,7 +538,7 @@ def collect_jlj_data_acquisition_rows(cfg: dict, result_root: Path, start_date: 
     for module_label, point_keys in JLG_HEALTH_STATUS_MODULES:
         design_points: list[str] = []
         for point_key in point_keys:
-            design_points.extend(get_config_points(cfg, point_key))
+            design_points.extend(get_health_status_design_points(cfg, point_key))
         design_points = sorted_point_ids(design_points)
         if not design_points:
             continue
@@ -546,13 +565,18 @@ def collect_jlj_data_acquisition_rows(cfg: dict, result_root: Path, start_date: 
             remarks.append(f"日期目录缺失：{summarize_day_ranges(missing_days)}")
         if missing_points:
             remarks.append(f"未获取测点：{truncate_point_list(missing_points)}")
+        date_range = f"{start_date:%Y-%m-%d}~{end_date:%Y-%m-%d}"
+        pending_remark = next((JLG_PENDING_ACCESS_REMARKS[key] for key in point_keys if key in JLG_PENDING_ACCESS_REMARKS), None)
+        if pending_remark and acquired_count == 0:
+            date_range = "/"
+            remarks = [pending_remark]
         rows.append(
             {
                 "module": module_label,
                 "design_count": str(design_count),
                 "acquired_count": str(acquired_count),
                 "rate": f"{rate:.1f}%",
-                "date_range": f"{start_date:%Y-%m-%d}~{end_date:%Y-%m-%d}",
+                "date_range": date_range,
                 "missing_points": truncate_point_list(missing_points),
                 "remarks": "；".join(remarks) if remarks else "/",
             }
@@ -2877,10 +2901,22 @@ def find_caption_templates(doc: Document) -> CaptionTemplates:
     return CaptionTemplates(figure_paragraph=figure_para, table_paragraph=table_para)
 
 
-def update_cover_metadata(doc: Document, monitoring_range: str, report_date: str) -> None:
+def normalize_cover_monitoring_time(period_label: str, monitoring_range: str = "") -> str:
+    match = re.search(r"(\d{4})年\s*0?(\d{1,2})月", period_label or "")
+    if match:
+        return f"{match.group(1)}年{int(match.group(2))}月"
+    parsed_range = extract_dates_from_range(monitoring_range)
+    if parsed_range is not None:
+        start_date, end_date = parsed_range
+        if start_date.year == end_date.year and start_date.month == end_date.month:
+            return f"{start_date.year}年{start_date.month}月"
+    return monitoring_range
+
+
+def update_cover_metadata(doc: Document, period_label: str, report_date: str, monitoring_range: str = "") -> None:
     if len(doc.tables) > 1 and len(doc.tables[1].rows) > 1:
         if len(doc.tables[1].rows[1].cells) > 4:
-            set_cell_text_preserve(doc.tables[1].rows[1].cells[4], monitoring_range)
+            set_cell_text_preserve(doc.tables[1].rows[1].cells[4], normalize_cover_monitoring_time(period_label, monitoring_range))
 
 
 def stress_limit_with_strain_text(stress_mpa: float, elastic_modulus_mpa: float) -> str:
@@ -2906,6 +2942,8 @@ def update_jlj_warning_threshold_table(doc: Document) -> None:
             elif item == "主拱拱顶静应变" and "超过设计" in rule:
                 set_cell_text_preserve(cells[4], stress_limit_with_strain_text(JLG_ARCH_RIB_STRESS_LIMITS_MPA[1], JLG_STEEL_ELASTIC_MODULUS_MPA))
                 set_cell_text_preserve(cells[5], stress_limit_with_strain_text(JLG_ARCH_RIB_STRESS_LIMITS_MPA[0], JLG_STEEL_ELASTIC_MODULUS_MPA))
+            elif item == "拱桥主拱拱顶位移" and "0.8" in rule:
+                set_cell_text_preserve(cells[5], "-59.4mm")
         break
 
 
@@ -3078,7 +3116,7 @@ def build_report(
     body_template = capture_paragraph_template(find_body_template_paragraph(doc))
     chapter3_section_break = capture_section_break_before_heading(doc, "桥梁人工巡查结果", 1)
 
-    update_cover_metadata(doc, monitoring_range, report_date)
+    update_cover_metadata(doc, period_label, report_date, monitoring_range)
     apply_health_status_section(doc, cfg, result_root, monitoring_range)
     apply_monthly_data_status_section(doc, cfg, result_root, monitoring_range, caption_templates)
     start_date, end_date = resolve_jlj_monitoring_dates(monitoring_range, result_root)

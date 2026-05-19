@@ -153,6 +153,7 @@ classdef PlotService
             end
             name = char(string(name));
             safeName = bms.data.PointResolver.safeId(name);
+            legacySafeName = bms.data.PointResolver.legacySafeId(name);
             dashSafeName = strrep(name, '-', '_');
 
             if isa(ylims, 'containers.Map')
@@ -162,6 +163,10 @@ classdef PlotService
                 end
                 if isKey(ylims, safeName)
                     yl = ylims(safeName);
+                    return;
+                end
+                if isKey(ylims, legacySafeName)
+                    yl = ylims(legacySafeName);
                     return;
                 end
                 if isKey(ylims, dashSafeName)
@@ -177,6 +182,10 @@ classdef PlotService
                     yl = ylims.(safeName);
                     return;
                 end
+                if isfield(ylims, legacySafeName)
+                    yl = ylims.(legacySafeName);
+                    return;
+                end
                 if isfield(ylims, dashSafeName)
                     yl = ylims.(dashSafeName);
                     return;
@@ -184,7 +193,8 @@ classdef PlotService
                 if isfield(ylims, 'name') && isfield(ylims, 'ylim')
                     for i = 1:numel(ylims)
                         itemName = char(string(ylims(i).name));
-                        if strcmp(itemName, name) || strcmp(itemName, safeName) || strcmp(itemName, dashSafeName)
+                        if strcmp(itemName, name) || strcmp(itemName, safeName) ...
+                                || strcmp(itemName, legacySafeName) || strcmp(itemName, dashSafeName)
                             yl = ylims(i).ylim;
                             return;
                         end
@@ -195,7 +205,8 @@ classdef PlotService
                     item = ylims{i};
                     if isstruct(item) && isfield(item, 'name') && isfield(item, 'ylim')
                         itemName = char(string(item.name));
-                        if strcmp(itemName, name) || strcmp(itemName, safeName) || strcmp(itemName, dashSafeName)
+                        if strcmp(itemName, name) || strcmp(itemName, safeName) ...
+                                || strcmp(itemName, legacySafeName) || strcmp(itemName, dashSafeName)
                             yl = item.ylim;
                             return;
                         end

@@ -10,6 +10,7 @@ from docx import Document
 
 from build_guanbing_monthly_report import build_report as build_guanbing_monthly_report
 from build_jlj_monthly_report import build_report as build_jlj_monthly_report
+from build_shuixianhua_monthly_report import build_report as build_shuixianhua_monthly_report
 from build_period_report import build_period_report as build_hongtang_period_report
 from template_precheck import TemplatePrecheckError, check_template, write_precheck_report
 
@@ -35,6 +36,10 @@ def _default_jlj_template(repo_root: Path) -> Path:
 
 def _default_guanbing_template(repo_root: Path) -> Path:
     return repo_root / "reports" / "G104线管柄大桥监测月报模板-自动报告.docx"
+
+
+def _default_shuixianhua_template(repo_root: Path) -> Path:
+    return repo_root / "reports" / "水仙花大桥健康监测月报模板.docx"
 
 
 def _docx_contains(path: Path, fragment: str) -> bool:
@@ -173,10 +178,54 @@ def smoke_guanbing(args: argparse.Namespace, output_root: Path) -> None:
             print(f"  - {item}")
 
 
+def smoke_shuixianhua(args: argparse.Namespace, output_root: Path) -> None:
+    print(f"[shuixianhua] template: {args.shuixianhua_template}")
+    issues = check_template("shuixianhua_monthly", args.shuixianhua_template)
+    txt_path, json_path = write_precheck_report(
+        "shuixianhua_monthly",
+        args.shuixianhua_template,
+        issues,
+        output_root / "precheck",
+        context={"smoke_generate": args.generate},
+    )
+    print(f"[shuixianhua] precheck report: {txt_path}")
+    if issues:
+        raise TemplatePrecheckError(args.shuixianhua_template, issues)
+    print("[shuixianhua] template precheck OK")
+    if not args.generate:
+        return
+    if not args.shuixianhua_result_root.exists():
+        raise FileNotFoundError(f"Shuixianhua result root not found: {args.shuixianhua_result_root}")
+    out_dir = output_root / "shuixianhua"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report_path, pdf_path = build_shuixianhua_monthly_report(
+        template=args.shuixianhua_template,
+        config_path=args.shuixianhua_config,
+        result_root=args.shuixianhua_result_root,
+        output_dir=out_dir,
+        period_label=args.shuixianhua_period_label,
+        monitoring_range=args.shuixianhua_monitoring_range,
+        report_date=args.shuixianhua_report_date,
+    )
+    _assert_generated_docx(
+        report_path,
+        [
+            "水仙花大桥桥梁健康监测",
+            "主桥监测测点布置",
+            "报警阈值设置",
+            "自动化系统监测结果",
+            "结论与建议",
+        ],
+    )
+    print(f"[shuixianhua] generated OK: {report_path}")
+    if pdf_path:
+        print(f"[shuixianhua] pdf: {pdf_path}")
+
+
 def parse_args() -> argparse.Namespace:
     repo_root = _repo_root()
     parser = argparse.ArgumentParser(description="Smoke test bridge report templates and cached-result generation.")
-    parser.add_argument("--kind", choices=["all", "hongtang", "jlj", "guanbing"], default="all")
+    parser.add_argument("--kind", choices=["all", "hongtang", "jlj", "guanbing", "shuixianhua"], default="all")
     parser.add_argument("--generate", action="store_true", help="Also generate reports from existing stats/images.")
     parser.add_argument("--keep-output", action="store_true", help="Keep tmp smoke-test outputs.")
     parser.add_argument("--output-root", type=Path, default=repo_root / "tmp" / "report_smoke")
@@ -204,6 +253,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guanbing-monitoring-range", default="2026年02月26日~2026年03月25日")
     parser.add_argument("--guanbing-start-date", default="2026-02-26")
     parser.add_argument("--guanbing-end-date", default="2026-03-25")
+
+    parser.add_argument("--shuixianhua-template", type=Path, default=_default_shuixianhua_template(repo_root))
+    parser.add_argument("--shuixianhua-config", type=Path, default=repo_root / "config" / "shuixianhua_config.json")
+    parser.add_argument("--shuixianhua-result-root", type=Path, default=Path(r"E:\水仙花大桥数据\2026年3月"))
+    parser.add_argument("--shuixianhua-period-label", default="2026年3月份")
+    parser.add_argument("--shuixianhua-monitoring-range", default="2026年03月23日~2026年03月31日")
+    parser.add_argument("--shuixianhua-report-date", default="2026年04月05日")
     return parser.parse_args()
 
 
@@ -220,6 +276,8 @@ def main() -> None:
         smoke_jlj(args, output_root)
     if args.kind in ("all", "guanbing"):
         smoke_guanbing(args, output_root)
+    if args.kind in ("all", "shuixianhua"):
+        smoke_shuixianhua(args, output_root)
 
     if not args.generate and not args.keep_output and output_root.exists():
         shutil.rmtree(output_root)

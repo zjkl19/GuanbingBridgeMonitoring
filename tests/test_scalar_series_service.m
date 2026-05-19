@@ -40,6 +40,18 @@ classdef test_scalar_series_service < matlab.unittest.TestCase
             tc.verifyEqual(T.Mean(1), 11);
         end
 
+        function temperatureStatsSkipMissingPoints(tc)
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'features', 'TEMP-OK.csv'), [10; 12]);
+            cfg = scalar_cfg('temperature');
+
+            analyze_temperature_points(tc.Root, {'TEMP-OK', 'TEMP-MISSING'}, '2026-01-01', '2026-01-01', ...
+                'temperature_stats.xlsx', 'features', cfg);
+
+            T = readtable(fullfile(tc.Root, 'stats', 'temperature_stats.xlsx'), 'VariableNamingRule', 'preserve');
+            tc.verifyEqual(height(T), 1);
+            tc.verifyEqual(T.PointID{1}, 'TEMP-OK');
+        end
+
         function humidityAnalyzerUsesScalarSeriesService(tc)
             write_series_csv(fullfile(tc.Root, '2026-01-01', 'features', 'HUM-01.csv'), [60; 70; 80]);
             cfg = scalar_cfg('humidity');

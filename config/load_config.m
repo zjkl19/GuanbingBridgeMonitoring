@@ -21,23 +21,12 @@ function cfg = load_config(path)
     end
     cfg = jsondecode(txt);
 
-    % 记录原始字段名映射（point_id 可能含连字符），便于保存时还原
-    % 仅映射 per_point / file_patterns.per_point 中实际存在的测点字段
+    % Track original point ids for UI display and round-trip saving.
     safe_ids = collect_safe_point_ids(cfg);
     name_map = struct();
     if ~isempty(safe_ids)
-        safe_set = struct();
-        for i = 1:numel(safe_ids)
-            safe_set.(safe_ids{i}) = true;
-        end
-        tokens = regexp(txt, '"([^"]+)"\s*:', 'tokens');
-        for i = 1:numel(tokens)
-            orig = tokens{i}{1};
-            safe = strrep(orig,'-','_');  % jsondecode 会把连字符改成下划线
-            if isfield(safe_set, safe)
-                name_map.(safe) = orig;
-            end
-        end
+        name_map = collect_json_key_name_map(txt, safe_ids, name_map);
+        name_map = collect_configured_point_name_map(cfg, safe_ids, name_map);
     end
     if ~isempty(fieldnames(name_map))
         cfg.name_map_global = name_map;
@@ -48,7 +37,7 @@ function cfg = load_config(path)
 end
 
 function ids = collect_safe_point_ids(cfg)
-% Collect point_id fieldnames from per_point and file_patterns.per_point
+% Collect point_id fieldnames from per_point and file_patterns.per_point.
     ids = {};
     if isfield(cfg,'per_point') && isstruct(cfg.per_point)
         sens = fieldnames(cfg.per_point);
@@ -73,6 +62,36 @@ function ids = collect_safe_point_ids(cfg)
     end
 end
 
+function name_map = collect_json_key_name_map(txt, safe_ids, name_map)
+% Map JSON keys that jsondecode normalized back to their original text.
+    tokens = regexp(txt, '"([^"]+)"\s*:', 'tokens');
+    for i = 1:numel(tokens)
+        orig = tokens{i}{1};
+        candidates = bms.data.PointResolver.keyCandidates(orig);
+        for j = 1:numel(candidates)
+            key = candidates{j};
+            if any(strcmp(safe_ids, key))
+                name_map.(key) = orig;
+            end
+        end
+    end
+end
+
+function name_map = collect_configured_point_name_map(cfg, safe_ids, name_map)
+% Recover display ids for configs that were already saved with safe keys.
+    point_ids = bms.data.PointResolver.configuredIds(cfg);
+    for i = 1:numel(point_ids)
+        orig = point_ids{i};
+        candidates = bms.data.PointResolver.keyCandidates(orig);
+        for j = 1:numel(candidates)
+            key = candidates{j};
+            if any(strcmp(safe_ids, key))
+                name_map.(key) = orig;
+            end
+        end
+    end
+end
+
 function warns = validate_config(cfg)
 %VALIDATE_CONFIG Basic schema checks; returns cell array of warning strings.
     warns = {};
@@ -85,7 +104,7 @@ function warns = validate_config(cfg)
 
     % header marker
     if ~isfield(cfg,'defaults') || ~isfield(cfg.defaults,'header_marker')
-        warns{end+1} = 'defaults.header_marker not set; fallback to [绝对时间]';
+        warns{end+1} = 'defaults.header_marker not set; fallback to [absolute time]';
     elseif ~ischar(cfg.defaults.header_marker) && ~isstring(cfg.defaults.header_marker)
         warns{end+1} = 'defaults.header_marker should be string';
     end
@@ -96,7 +115,7 @@ function warns = validate_config(cfg)
     if isfield(cfg,'subfolders')
         for k = 1:numel(sub_keys)
             if ~isfield(cfg.subfolders, sub_keys{k})
-                warns{end+1} = sprintf('subfolders.%s missing; using fallback in code', sub_keys{k});
+                warns{end+1} = sprintf('subfolders.%s missing; using fallback in code', sub_keys{k}); %#ok<AGROW>
             end
         end
     end

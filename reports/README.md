@@ -13,6 +13,12 @@ Generated reports, temporary drafts, old revisions, reference spreadsheets, and 
 - `九龙江大桥健康监测2026年3月份月报_修订5.docx`
   - Current Jiulongjiang monthly report template.
   - Used by `reporting/build_jlj_monthly_report.py`.
+- `水仙花大桥健康监测月报模板.docx`
+  - Current Shuixianhua monthly report template.
+  - Used by `reporting/build_shuixianhua_monthly_report.py` and the report GUI.
+- `assets/shuixianhua_layouts/`
+  - Cropped Shuixianhua layout figures extracted from the as-built drawing PDF.
+  - Used by the Shuixianhua monthly report generator for measurement layout figures.
 
 ## Local Files
 

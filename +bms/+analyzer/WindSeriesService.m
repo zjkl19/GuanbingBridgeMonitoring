@@ -72,11 +72,12 @@ classdef WindSeriesService
             if nargin < 2 || isempty(pid)
                 return;
             end
-            safeId = strrep(pid, '-', '_');
             if isfield(cfg, 'per_point') && isfield(cfg.per_point, 'wind') ...
-                    && isfield(cfg.per_point.wind, safeId)
-                params = bms.analyzer.WindSeriesService.mergeWindParams( ...
-                    params, cfg.per_point.wind.(safeId));
+                    && isstruct(cfg.per_point.wind)
+                [ok, pointCfg] = bms.data.PointResolver.getPointConfig(cfg.per_point.wind, pid, cfg);
+                if ok
+                    params = bms.analyzer.WindSeriesService.mergeWindParams(params, pointCfg);
+                end
             end
         end
 

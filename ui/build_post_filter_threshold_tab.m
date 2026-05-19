@@ -98,11 +98,9 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
             pnames = fieldnames(pts);
             for i = 1:numel(pnames)
                 safeId = pnames{i};
-                dispId = safeId;
-                if isfield(cfgCache, 'name_map_global') && isfield(cfgCache.name_map_global, safeId)
-                    dispId = cfgCache.name_map_global.(safeId);
-                end
-                if ~isempty(filterStr) && isempty(strfind(lower(dispId), filterStr)) %#ok<STREMP>
+                dispId = bms.data.PointResolver.originalId(safeId, cfgCache);
+                filterKey = lower([dispId ' ' safeId]);
+                if ~isempty(filterStr) && isempty(strfind(filterKey, filterStr)) %#ok<STREMP>
                     continue;
                 end
                 currentVisibleSafeIds{end+1,1} = safeId; %#ok<AGROW>
@@ -252,7 +250,7 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
         for i = 1:size(pData, 1)
             pidOrig = strtrim(to_char(pData{i,1}));
             if isempty(pidOrig), continue; end
-            pidSafe = strrep(pidOrig, '-', '_');
+            pidSafe = bms.data.PointResolver.configKey(pidOrig);
             rowThreshold = row_to_threshold(pData(i, 2:5));
             if isempty(rowThreshold), continue; end
             if ~isfield(pointMap, pidSafe)

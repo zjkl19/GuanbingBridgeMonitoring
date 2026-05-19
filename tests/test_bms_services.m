@@ -35,6 +35,26 @@ classdef test_bms_services < matlab.unittest.TestCase
 
         function pointAndTimeResolversWork(tc)
             tc.verifyEqual(bms.data.PointResolver.safeId('A-1'), 'A_1');
+            rawPoint = 'GLYB-05-10#Pier-X';
+            legacyKey = bms.data.PointResolver.legacySafeId(rawPoint);
+            safeKey = bms.data.PointResolver.safeId(rawPoint);
+            tc.verifyNotEqual(safeKey, legacyKey);
+            tc.verifyNotEqual( ...
+                bms.data.PointResolver.safeId('P-1#A'), ...
+                bms.data.PointResolver.safeId('P-1/A'));
+
+            cfgForPoint = struct();
+            cfgForPoint.points = struct('strain', {{rawPoint}});
+            cfgForPoint.per_point = struct('strain', struct());
+            cfgForPoint.per_point.strain.(legacyKey) = struct( ...
+                'thresholds', struct('min', -1, 'max', 1));
+            [ok, pointCfg, matchedKey] = bms.data.PointResolver.getPointConfig( ...
+                cfgForPoint.per_point.strain, rawPoint, cfgForPoint);
+            tc.verifyTrue(ok);
+            tc.verifyEqual(matchedKey, legacyKey);
+            tc.verifyEqual(pointCfg.thresholds.min, -1);
+            tc.verifyEqual(bms.data.PointResolver.originalId(legacyKey, cfgForPoint), rawPoint);
+
             cfg = struct('points', struct('wind', {{'W1','W2'}}));
             tc.verifyEqual(bms.data.PointResolver.fromConfig(cfg, 'wind', {'fallback'}), {'W1'; 'W2'});
             tc.verifyEqual(bms.data.PointResolver.fromConfig(cfg, 'missing', {'fallback'}), {'fallback'});
@@ -53,6 +73,53 @@ classdef test_bms_services < matlab.unittest.TestCase
             statsPath = bms.data.DataLayoutResolver.statsFile(root, 'unit.xlsx');
             tc.verifyTrue(endsWith(statsPath, fullfile('stats', 'unit.xlsx')));
             tc.verifyTrue(isfolder(fileparts(statsPath)));
+        end
+
+        function loadConfigRecoversDisplayIdsFromConfiguredPoints(tc)
+            tmp = [tempname '.json'];
+            cleanup = onCleanup(@() cleanup_file(tmp)); %#ok<NASGU>
+            rawPoint = 'GLYB-05-10#Pier-X';
+            legacyKey = bms.data.PointResolver.legacySafeId(rawPoint);
+            fid = fopen(tmp, 'wt', 'n', 'UTF-8');
+            fprintf(fid, ['{"vendor":"unit","defaults":{"header_marker":"time"},' ...
+                '"subfolders":{},"file_patterns":{},"groups":{"strain":{"G1":["%s"]}},' ...
+                '"plot_styles":{},"per_point":{"strain":{"%s":{"thresholds":[{"min":-1,"max":1}]}}}}'], ...
+                rawPoint, legacyKey);
+            fclose(fid);
+
+            cfg = load_config(tmp);
+            tc.verifyTrue(isfield(cfg, 'name_map_global'));
+            tc.verifyEqual(cfg.name_map_global.(legacyKey), rawPoint);
+            tc.verifyEqual(bms.data.PointResolver.originalId(legacyKey, cfg), rawPoint);
+        end
+
+        function saveConfigRoundTripsRawPointKeys(tc)
+            tmp = [tempname '.json'];
+            cleanup = onCleanup(@() cleanup_file(tmp)); %#ok<NASGU>
+            rawPoint = 'GLYB-05-10#Pier-X';
+            safeKey = bms.data.PointResolver.configKey(rawPoint);
+
+            cfg = struct();
+            cfg.vendor = 'unit';
+            cfg.defaults = struct('header_marker', 'time');
+            cfg.subfolders = struct();
+            cfg.file_patterns = struct();
+            cfg.groups = struct('strain', struct('G1', {{rawPoint}}));
+            cfg.plot_styles = struct();
+            cfg.per_point = struct('strain', struct());
+            cfg.per_point.strain.(safeKey) = struct( ...
+                'thresholds', struct('min', -1, 'max', 1));
+            cfg.name_map_global = struct();
+            cfg.name_map_global.(safeKey) = rawPoint;
+
+            save_config(cfg, tmp, false);
+            txt = fileread(tmp);
+            tc.verifyTrue(contains(txt, ['"' rawPoint '":']));
+            loaded = load_config(tmp);
+            [ok, pointCfg] = bms.data.PointResolver.getPointConfig( ...
+                loaded.per_point.strain, rawPoint, loaded);
+            tc.verifyTrue(ok);
+            tc.verifyEqual(pointCfg.thresholds.max, 1);
         end
 
         function dataLayoutAdaptersDiscoverFolders(tc)
@@ -190,6 +257,21 @@ classdef test_bms_services < matlab.unittest.TestCase
             tc.verifyTrue(isfile(out2));
         end
 
+        function statsWriterReplacesStaleSingleSheetRows(tc)
+            tmp = tempname;
+            cleanup = onCleanup(@() cleanup_temp_dir(tmp)); %#ok<NASGU>
+            out = fullfile(tmp, 'stats.xlsx');
+            T1 = table((1:3)', ["a"; "b"; "c"], 'VariableNames', {'ID', 'Name'});
+            T2 = table(1, "a", 'VariableNames', {'ID', 'Name'});
+
+            bms.io.StatsWriter.writeTable(T1, out);
+            bms.io.StatsWriter.writeTable(T2, out);
+
+            R = readtable(out, 'VariableNamingRule', 'preserve');
+            tc.verifyEqual(height(R), 1);
+            tc.verifyEqual(R.ID(1), 1);
+        end
+
         function statsSchemaAndWarningEvaluatorWork(tc)
             schema = bms.io.StatsSchema.forModule('deflection');
             tc.verifyEqual(bms.io.StatsSchema.decimalsFor(schema, 'FiltMax_mm'), 1);
@@ -282,5 +364,11 @@ end
 function cleanup_temp_dir(p)
     if exist(p, 'dir')
         rmdir(p, 's');
+    end
+end
+
+function cleanup_file(p)
+    if exist(p, 'file')
+        delete(p);
     end
 end

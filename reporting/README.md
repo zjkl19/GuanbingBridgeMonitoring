@@ -185,6 +185,9 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.6.11` adds the Shuixianhua monthly report mode and keeps the GUI version aligned with the main MATLAB analysis GUI.
+版本 `v1.6.11` 增加水仙花月报模式，并与 MATLAB 数据分析 GUI 版本号保持一致。
+
 Version `v1.6.3` also replaces Guanbing monthly deflection/tilt figures from result images and refreshes the related statistics text.
 版本 `v1.6.3` 进一步支持管柄月报按结果图替换挠度/倾角插图，并刷新相关统计文字。
 

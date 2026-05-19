@@ -7,6 +7,9 @@ classdef StatsWriter
             if isempty(T) && ~istable(T)
                 T = table();
             end
+            if bms.io.StatsWriter.shouldReplaceExisting(path, varargin)
+                delete(path);
+            end
             writetable(T, path, varargin{:});
         end
 
@@ -102,6 +105,27 @@ classdef StatsWriter
                         end
                     end
                     T.(vars{i}) = col;
+                end
+            end
+        end
+
+        function tf = shouldReplaceExisting(path, options)
+            tf = isfile(path);
+            if ~tf
+                return;
+            end
+            for i = 1:2:numel(options)
+                name = char(string(options{i}));
+                if strcmpi(name, 'Sheet')
+                    tf = false;
+                    return;
+                end
+                if strcmpi(name, 'WriteMode') && i < numel(options)
+                    mode = char(string(options{i + 1}));
+                    if strcmpi(mode, 'append')
+                        tf = false;
+                        return;
+                    end
                 end
             end
         end

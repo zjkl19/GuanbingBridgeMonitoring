@@ -151,7 +151,16 @@ classdef ConfigStore
                     oldPoint = oldPts.(point);
                     if ~isstruct(oldPoint), continue; end
                     if isfield(oldPoint, 'offset_correction')
-                        if ~isfield(newPts, point) || ~isfield(newPts.(point), 'offset_correction')
+                        newPoint = [];
+                        hasNewPoint = false;
+                        if isfield(newPts, point)
+                            newPoint = newPts.(point);
+                            hasNewPoint = true;
+                        else
+                            originalPoint = bms.data.PointResolver.originalId(point, oldCfg);
+                            [hasNewPoint, newPoint] = bms.data.PointResolver.getPointConfig(newPts, originalPoint, newCfg);
+                        end
+                        if ~hasNewPoint || ~isstruct(newPoint) || ~isfield(newPoint, 'offset_correction')
                             error('BMS:Config:ProtectedFieldDropped', ...
                                 'Config save would drop per_point.%s.%s.offset_correction.', module, point);
                         end

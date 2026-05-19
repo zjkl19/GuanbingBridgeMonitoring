@@ -28,7 +28,7 @@ classdef ScalarSeriesPipeline
         end
 
         function runBasic(args, spec)
-            stats = cell(numel(args.point_ids), 4);
+            stats = cell(0, 4);
             range = bms.analyzer.ScalarSeriesService.dateRange(args.start_date, args.end_date);
             timestamp = bms.analyzer.ScalarSeriesPipeline.compactTimestamp();
             outDir = fullfile(args.root_dir, spec.outputDir);
@@ -53,7 +53,7 @@ classdef ScalarSeriesPipeline
 
                 bms.analyzer.ScalarSeriesPipeline.plotBasicSeries( ...
                     times, values, validValues, pid, range, outDir, timestamp, args.style, args.cfg, spec);
-                stats(i, :) = bms.analyzer.ScalarSeriesService.basicStatsRow( ...
+                stats(end + 1, :) = bms.analyzer.ScalarSeriesService.basicStatsRow( ... %#ok<AGROW>
                     pid, validValues, spec.decimals);
 
                 if spec.frequencyEnabled

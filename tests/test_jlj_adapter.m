@@ -56,6 +56,24 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             testCase.verifyEqual(v(:), [62.5; 63.5], 'AbsTol', 1e-10);
         end
 
+        function test_temperature_file_id_alias_uses_x_channel(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            designId = 'WSD-01-11#-S11';
+            fileId = 'WSD-01-11#-S02机箱';
+            cfg.per_point.temperature = struct();
+            cfg.per_point.temperature.(bms.data.PointResolver.legacySafeId(designId)) = struct('file_id', fileId);
+            write_jlj_xy_csv(root, datetime(2026,1,1), fileId, [18.5; 19.5], [62.5; 63.5]);
+
+            [t, v] = load_timeseries_range(root, '', designId, '2026-01-01', '2026-01-01', cfg, 'temperature');
+
+            testCase.verifyEqual(numel(t), 2);
+            testCase.verifyEqual(v(:), [18.5; 19.5], 'AbsTol', 1e-10);
+        end
+
         function test_wind_speed_direction(testCase)
             cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
             pid = 'CSFSY-01-K16-GD-A20';

@@ -81,7 +81,8 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
                     continue;
                 end
                 dispId = get_display_id(cfgCache, safeId);
-                if ~isempty(filterStr) && isempty(strfind(lower(dispId), filterStr)) %#ok<STREMP>
+                filterKey = lower([dispId ' ' safeId]);
+                if ~isempty(filterStr) && isempty(strfind(filterKey, filterStr)) %#ok<STREMP>
                     continue;
                 end
                 currentVisibleSafeIds{end+1,1} = safeId; %#ok<AGROW>
@@ -184,7 +185,7 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
             if isempty(pidOrig) || isempty(offset)
                 continue;
             end
-            pidSafe = strrep(pidOrig, '-', '_');
+            pidSafe = bms.data.PointResolver.configKey(pidOrig);
             if ~isfield(perStruct, pidSafe) || ~isstruct(perStruct.(pidSafe))
                 perStruct.(pidSafe) = struct();
             end
@@ -277,10 +278,7 @@ function label = format_sensor_label(sensor)
 end
 
 function dispId = get_display_id(cfg, safeId)
-    dispId = safeId;
-    if isfield(cfg, 'name_map_global') && isstruct(cfg.name_map_global) && isfield(cfg.name_map_global, safeId)
-        dispId = cfg.name_map_global.(safeId);
-    end
+    dispId = bms.data.PointResolver.originalId(safeId, cfg);
 end
 
 function txt = to_char(v)

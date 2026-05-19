@@ -137,12 +137,11 @@ classdef StructuralPlotConfigService
                 return;
             end
 
-            safeId = strrep(char(string(pid)), '-', '_');
             pointCfg = cfg.per_point.(key);
-            if ~isfield(pointCfg, safeId)
+            [ok, pointCfg] = bms.data.PointResolver.getPointConfig(pointCfg, pid, cfg);
+            if ~ok
                 return;
             end
-            pointCfg = pointCfg.(safeId);
             if isfield(pointCfg, 'warn_lines')
                 if isempty(pointCfg.warn_lines)
                     warnLines = {};

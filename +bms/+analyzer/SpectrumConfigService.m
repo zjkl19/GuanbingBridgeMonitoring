@@ -63,13 +63,9 @@ classdef SpectrumConfigService
                 return;
             end
             perPoint = cfg.per_point.(perPointKey);
-            candidates = {char(string(pid)), strrep(char(string(pid)), '-', '_'), bms.data.PointResolver.safeId(pid)};
-            candidates = unique(candidates, 'stable');
-            for i = 1:numel(candidates)
-                if isfield(perPoint, candidates{i})
-                    pt = perPoint.(candidates{i});
-                    return;
-                end
+            [ok, pt] = bms.data.PointResolver.getPointConfig(perPoint, pid, cfg);
+            if ~ok
+                pt = [];
             end
         end
 

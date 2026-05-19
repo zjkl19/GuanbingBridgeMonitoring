@@ -18,10 +18,12 @@ function thresholds = resolve_post_filter_thresholds(cfg, sensor_type, point_id)
     if isempty(point_id)
         return;
     end
-    safe_id = strrep(char(string(point_id)), '-', '_');
     if isfield(cfg, 'per_point') && isfield(cfg.per_point, sensor_type) ...
-            && isfield(cfg.per_point.(sensor_type), safe_id)
-        pt = cfg.per_point.(sensor_type).(safe_id);
+            && isstruct(cfg.per_point.(sensor_type))
+        [ok, pt] = bms.data.PointResolver.getPointConfig(cfg.per_point.(sensor_type), point_id, cfg);
+        if ~ok
+            return;
+        end
         thresholds = merge_thresholds(thresholds, get_post_thresholds(pt));
     end
 end

@@ -80,15 +80,18 @@ $requiredPaths = @(
     "_internal",
     "README.md",
     "REPORTING_LOGIC.md",
-    "reports\README.md"
+    "reports\README.md",
+    "reports\assets\shuixianhua_layouts"
 )
 
 $trackedReportFiles = @(& git -c core.quotepath=false ls-files -- "reports/*.docx")
-if ($trackedReportFiles.Count -lt 3) {
-    throw "Expected at least 3 tracked report templates, found $($trackedReportFiles.Count)."
+$untrackedReportFiles = @(& git -c core.quotepath=false ls-files --others --exclude-standard -- "reports/*.docx")
+$reportFiles = @($trackedReportFiles + $untrackedReportFiles | Where-Object { $_ } | Select-Object -Unique)
+if ($reportFiles.Count -lt 4) {
+    throw "Expected at least 4 report templates, found $($reportFiles.Count)."
 }
 
-foreach ($rel in $trackedReportFiles) {
+foreach ($rel in $reportFiles) {
     $requiredPaths += ($rel -replace '/', '\')
 }
 
@@ -98,7 +101,7 @@ foreach ($rel in $requiredPaths) {
 
 $versionPath = Join-Path $distRoot "VERSION.txt"
 $templateLines = @()
-foreach ($rel in $trackedReportFiles) {
+foreach ($rel in $reportFiles) {
     $distTemplate = Join-Path $distRoot ($rel -replace '/', '\')
     $item = Get-Item -LiteralPath $distTemplate
     $templateLines += "- $rel ($($item.Length) bytes)"

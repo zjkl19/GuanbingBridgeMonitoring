@@ -858,9 +858,9 @@
       "DYBCGQ-48-BZD",
       "DYBCGQ-49-BZD",
       "DYBCGQ-50-BZD",
-      "DYBCQG-24-K16-ZGD-A20",
-      "DYBCQG-25-K16-YFGD-G20",
-      "DYBCQG-26-K16-YFGD-G20"
+      "DYBCGQ-24-K16-ZGD-A20",
+      "DYBCGQ-25-K16-YFGD-G20",
+      "DYBCGQ-26-K16-YFGD-G20"
     ],
     "eq": [
       "DZY-01-D15-P15-X",
@@ -1906,7 +1906,6 @@
       "DZY": "eq",
       "ZDCQG": "acceleration",
       "DYBCGQ": "strain",
-      "DYBCQG": "strain",
       "NDY": "deflection",
       "LFJ": "crack",
       "SLCGQ": "cable_force",

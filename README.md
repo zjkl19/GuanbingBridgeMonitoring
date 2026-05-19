@@ -258,6 +258,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.6.11`: adds Shuixianhua sensor-ID mapping for the temperature/humidity combo sensor, keeps missing offline `WD-*` temperature points visible as data-availability issues, cleans stale scalar stats overwrites, and adjusts the GUI module display order.
+- `v1.6.11`：新增水仙花温湿度一体传感器的测点编号映射；`WD-*` 温度测点因现场离线导致的缺失继续按数据可用性问题提示；修复标量统计表覆盖旧行残留，并调整 GUI 模块显示顺序。
 - `v1.6.9`: refines the Jiulongjiang monthly summary page so monitoring operation status, data acquisition, and analysis conclusions are generated in the correct order with fewer internal table separators.
 - `v1.6.9`：调整九龙江月报结论页，按“监测系统运行情况、本月监测数据情况、监测数据分析结果”顺序生成，并减少监测结果内部横线分隔。
 - `v1.6.8`: improves Jiulongjiang monthly report output, especially patrol-report insertion, month-based date replacement, WPS-friendly blank-area cleanup, and page breaks before patrol photo attachments.
@@ -278,6 +280,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.6.11`: adds the Shuixianhua monthly report mode, template assets, and generator path while keeping the report GUI version aligned with the MATLAB GUI release.
+- `v1.6.11`：增加水仙花月报模式、模板资产和生成器入口，并保持报告 GUI 与 MATLAB GUI 版本一致。
 - `v1.6.9`: keeps Jiulongjiang patrol reports as replaceable references and updates the generated summary table structure without hard-coding current patrol dates or layouts.
 - `v1.6.9`：继续将九龙江巡查报告作为可替换参考源处理，并更新结论页监测结果表结构，不写死当前巡查日期和版式。
 - `v1.6.8`: uses the Jiulongjiang 0506 template by default and treats the patrol report as a replaceable reference source; future patrol dates and layout changes can be handled by replacing the reference document.

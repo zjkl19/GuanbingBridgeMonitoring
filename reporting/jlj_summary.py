@@ -318,10 +318,32 @@ def _summary_text(section_map: Mapping[str, Any], key: str) -> str:
     return str(getattr(content, "summary_sentence", "") or "")
 
 
+def default_summary_advice_lines() -> list[str]:
+    return [
+        "针对目前的监测状况，建议如下：",
+        "1、建议数据提供单位持续提高监测数据完整性和一致性，加强平台运维、采集链路巡检及数据质量闭环管理。",
+        "2、对人工巡查结果中发现的病害及时予以修复，并结合后续监测数据持续跟踪处置效果。",
+        "3、建议对本月存在幅值、趋势或量级异常特征的测点及测项开展专项排查，重点复核安装环境、传感器固定状态、单位换算、触发事件、量程、标定参数、采集链路、基准点稳定性、遮挡/多路径效应、坐标基准处理、桥路接线和灵敏系数等。",
+        "4、建议推动未接入及缺测测点完成现场接入、通信联调和数据质量验证，明确责任单位和完成时限，确保后续月报可纳入连续监测评价。",
+    ]
+
+
+def normalize_summary_advice_lines(advice_lines: list[str]) -> list[str]:
+    lines = [line for line in advice_lines if str(line or "").strip()]
+    if not lines:
+        return default_summary_advice_lines()
+    joined = "\n".join(lines)
+    if "专项排查" in joined or "未接入及缺测" in joined:
+        return lines
+    if len(lines) <= 3 and "数据提供单位" in joined:
+        return default_summary_advice_lines()
+    return lines
+
+
 def build_summary_result_lines(section_map: Mapping[str, Any], data_acquisition_summary: str | None = None) -> list[str]:
     return [
         "一、监测系统运行情况",
-        "",
+        "本月对监测系统运行和数据质量进行综合复核。对存在与同类测点或常规工程量级不一致的幅值、趋势或量级特征的数据，按数据质量问题处理，不直接作为结构状态异常判据。",
         "二、本月监测数据情况",
         data_acquisition_summary or "本月监测数据获取情况详见正文。",
         "三、监测数据分析结果",
@@ -375,7 +397,7 @@ def update_summary_table(doc: Document, section_map: Mapping[str, Any], data_acq
     cover_table = find_cover_summary_table(doc)
     if cover_table is not None:
         advice_left = "建  议"
-        advice_lines = ["建议结合监测数据变化情况进行持续跟踪。"]
+        advice_lines = default_summary_advice_lines()
         for table in following_front_summary_tables(doc, cover_table):
             advice_row_idx = find_first_row_index_by_first_cell(table, "建议")
             if advice_row_idx is None:
@@ -386,6 +408,7 @@ def update_summary_table(doc: Document, section_map: Mapping[str, Any], data_acq
                 for para in row_label_content_cells(table.rows[advice_row_idx])[1].paragraphs
                 if para.text.strip()
             ] or advice_lines
+            advice_lines = normalize_summary_advice_lines(advice_lines)
             break
         if update_cover_summary_tables(doc, cover_table, result_lines, advice_left, advice_lines):
             return
@@ -403,6 +426,7 @@ def update_summary_table(doc: Document, section_map: Mapping[str, Any], data_acq
             for para in summary_table.cell(advice_row_idx, 1).paragraphs
             if para.text.strip()
         ]
+    advice_lines = normalize_summary_advice_lines(advice_lines)
     rebuild_summary_table_rows(
         summary_table,
         result_lines,

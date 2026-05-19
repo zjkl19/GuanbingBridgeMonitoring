@@ -12,10 +12,12 @@ function offset = resolve_offset_correction(cfg, sensor_type, point_id)
         offset = get_offset_value(cfg.defaults.(sensor_type));
     end
 
-    safe_id = strrep(point_id, '-', '_');
     if isfield(cfg, 'per_point') && isfield(cfg.per_point, sensor_type) ...
-            && isfield(cfg.per_point.(sensor_type), safe_id)
-        pt = cfg.per_point.(sensor_type).(safe_id);
+            && isstruct(cfg.per_point.(sensor_type))
+        [ok, pt] = bms.data.PointResolver.getPointConfig(cfg.per_point.(sensor_type), point_id, cfg);
+        if ~ok
+            return;
+        end
         ptOffset = get_offset_value(pt);
         if ~isempty(ptOffset)
             offset = ptOffset;

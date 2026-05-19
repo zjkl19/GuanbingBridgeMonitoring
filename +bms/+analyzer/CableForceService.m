@@ -11,12 +11,11 @@ classdef CableForceService
                 return;
             end
 
-            safeId = strrep(char(string(pointId)), '-', '_');
-            if ~isfield(cfg.per_point.cable_accel, safeId)
+            [ok, pointCfg] = bms.data.PointResolver.getPointConfig(cfg.per_point.cable_accel, pointId, cfg);
+            if ~ok
                 return;
             end
 
-            pointCfg = cfg.per_point.cable_accel.(safeId);
             if isfield(pointCfg, 'rho'), rho = pointCfg.rho; end
             if isfield(pointCfg, 'L'), spanLength = pointCfg.L; end
             if isfield(pointCfg, 'force_decimals') && ~isempty(pointCfg.force_decimals)
@@ -46,9 +45,8 @@ classdef CableForceService
                 forceYLim = style.force_ylim;
             end
             if isstruct(cfg) && isfield(cfg, 'per_point') && isfield(cfg.per_point, 'cable_accel')
-                safeId = strrep(char(string(pointId)), '-', '_');
-                if isfield(cfg.per_point.cable_accel, safeId)
-                    pointCfg = cfg.per_point.cable_accel.(safeId);
+                [ok, pointCfg] = bms.data.PointResolver.getPointConfig(cfg.per_point.cable_accel, pointId, cfg);
+                if ok
                     if isfield(pointCfg, 'force_ylim') && ~isempty(pointCfg.force_ylim)
                         forceYLim = pointCfg.force_ylim;
                     end
@@ -82,12 +80,11 @@ classdef CableForceService
                 return;
             end
 
-            safeId = strrep(char(string(pointId)), '-', '_');
-            if ~isfield(cfg.per_point.cable_accel, safeId)
+            [ok, pointCfg] = bms.data.PointResolver.getPointConfig(cfg.per_point.cable_accel, pointId, cfg);
+            if ~ok
                 return;
             end
 
-            pointCfg = cfg.per_point.cable_accel.(safeId);
             if isfield(pointCfg, 'force_alarm_bounds') && ~isempty(pointCfg.force_alarm_bounds)
                 warnLines = bms.analyzer.CableForceService.normalizeAlarmBounds(pointCfg.force_alarm_bounds, style, labelPrefix);
             elseif isfield(pointCfg, 'force_alarm_levels')

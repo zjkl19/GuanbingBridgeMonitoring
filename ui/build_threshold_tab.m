@@ -156,11 +156,8 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
             pts = cfgCache.per_point.(sensor); pnames = fieldnames(pts);
             for i = 1:numel(pnames)
                 pid = pnames{i};
-                pidDisp = pid;
-                if isfield(cfgCache,'name_map_global') && isfield(cfgCache.name_map_global, pid)
-                    pidDisp = cfgCache.name_map_global.(pid);
-                end
-                pidKey = lower(pidDisp);
+                pidDisp = bms.data.PointResolver.originalId(pid, cfgCache);
+                pidKey = lower([pidDisp ' ' pid]);
                 if ~isempty(filterStr) && isempty(strfind(pidKey, filterStr)), continue; end %#ok<STREMP>
                 currentVisibleSafeIds{end+1,1} = pid; %#ok<AGROW>
                 rule = pts.(pid); ths = []; if isfield(rule,'thresholds'), ths = rule.thresholds; end
@@ -323,7 +320,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
         for i = 1:size(pData,1)
             pidOrig = strtrim(pData{i,1});
             if isempty(pidOrig), continue; end
-            pidSafe = strrep(pidOrig,'-','_');
+            pidSafe = bms.data.PointResolver.configKey(pidOrig);
             mn = str2num_safe(pData{i,2});
             mx = str2num_safe(pData{i,3});
             if isempty(mn) || isempty(mx), continue; end

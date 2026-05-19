@@ -8,7 +8,10 @@ from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.table import Table
 
-from docx_utils import set_cell_text_preserve
+try:
+    from docx_utils import set_cell_text_preserve
+except Exception:  # pragma: no cover - package import path
+    from .docx_utils import set_cell_text_preserve
 
 
 def normalize_cell_text(text: Any) -> str:

@@ -21,6 +21,7 @@ class BridgeProfile:
     wim_default_dir: str = ""
     default_period_label: str = ""
     default_monitoring_range: str = ""
+    default_report_date: str = ""
     default_start_date: str = ""
     default_end_date: str = ""
     enabled_modules: list[str] = field(default_factory=list)
@@ -40,6 +41,7 @@ class BridgeProfile:
             wim_default_dir=str(raw.get("wim_default_dir", "")),
             default_period_label=str(raw.get("default_period_label", "")),
             default_monitoring_range=str(raw.get("default_monitoring_range", "")),
+            default_report_date=str(raw.get("default_report_date", "")),
             default_start_date=str(raw.get("default_start_date", "")),
             default_end_date=str(raw.get("default_end_date", "")),
             enabled_modules=[str(item) for item in raw.get("enabled_modules", [])],
@@ -109,6 +111,20 @@ def fallback_profiles() -> list[BridgeProfile]:
             data_layout="jlj_daily_export",
             report_gui_type="jlj_monthly",
             report_template="reports/九龙江大桥健康监测2026年3月份月报_0508.docx",
+        ),
+        BridgeProfile(
+            bridge_id="shuixianhua",
+            bridge_name="水仙花大桥",
+            default_config="config/shuixianhua_config.json",
+            default_data_root=r"E:\水仙花大桥数据\2026年3月",
+            data_layout="jlj_daily_export",
+            report_gui_type="shuixianhua_monthly",
+            report_template="reports/水仙花大桥健康监测月报模板.docx",
+            default_period_label="2026年3月份",
+            default_monitoring_range="2026年03月23日~2026年03月31日",
+            default_report_date="2026年04月05日",
+            default_start_date="2026-03-23",
+            default_end_date="2026-03-31",
         ),
     ]
 

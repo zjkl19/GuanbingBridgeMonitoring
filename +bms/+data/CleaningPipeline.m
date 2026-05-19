@@ -17,13 +17,12 @@ classdef CleaningPipeline
                 rules = bms.data.CleaningPipeline.mergeDefaultRules(rules, cfg, sharedSensor);
             end
 
-            safeId = strrep(pointId, '-', '_');
-            rules = bms.data.CleaningPipeline.mergePointRules(rules, cfg, sensorType, safeId);
+            rules = bms.data.CleaningPipeline.mergePointRules(rules, cfg, sensorType, pointId);
             if ~isempty(sharedSensor)
-                rules = bms.data.CleaningPipeline.mergePointRules(rules, cfg, sharedSensor, safeId);
+                rules = bms.data.CleaningPipeline.mergePointRules(rules, cfg, sharedSensor, pointId);
             end
             if startsWith(sensorType, 'wind_')
-                rules = bms.data.CleaningPipeline.mergePointRules(rules, cfg, 'wind', safeId);
+                rules = bms.data.CleaningPipeline.mergePointRules(rules, cfg, 'wind', pointId);
             end
         end
 
@@ -162,13 +161,16 @@ classdef CleaningPipeline
             rules = bms.data.CleaningPipeline.applyRuleBlock(rules, cfg.defaults.(sensorType), false);
         end
 
-        function rules = mergePointRules(rules, cfg, sensorType, safeId)
+        function rules = mergePointRules(rules, cfg, sensorType, pointId)
             if ~isstruct(cfg) || ~isfield(cfg, 'per_point') || ~isstruct(cfg.per_point) ...
-                    || ~isfield(cfg.per_point, sensorType) || ~isstruct(cfg.per_point.(sensorType)) ...
-                    || ~isfield(cfg.per_point.(sensorType), safeId)
+                    || ~isfield(cfg.per_point, sensorType) || ~isstruct(cfg.per_point.(sensorType))
                 return;
             end
-            rules = bms.data.CleaningPipeline.applyRuleBlock(rules, cfg.per_point.(sensorType).(safeId), true);
+            [ok, block] = bms.data.PointResolver.getPointConfig(cfg.per_point.(sensorType), pointId, cfg);
+            if ~ok
+                return;
+            end
+            rules = bms.data.CleaningPipeline.applyRuleBlock(rules, block, true);
         end
 
         function rules = applyRuleBlock(rules, block, appendThresholds)

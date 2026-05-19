@@ -43,6 +43,15 @@ try:
         encoding="utf-8",
     )
     report_files = [Path(line.strip()) for line in output.splitlines() if line.strip()]
+    other_output = subprocess.check_output(
+        ["git", "-c", "core.quotepath=false", "ls-files", "--others", "--exclude-standard", "--", "reports/*.docx"],
+        cwd=repo,
+        text=True,
+        encoding="utf-8",
+    )
+    for path in [Path(line.strip()) for line in other_output.splitlines() if line.strip()]:
+        if path.exists() and path not in report_files:
+            report_files.append(path)
 except Exception:
     report_files = list((repo / "reports").glob("*.docx")) + [repo / "reports" / "README.md"]
 
@@ -53,6 +62,13 @@ for rel in report_files:
     dst = dest_root / rel
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dst)
+
+asset_root = repo / "reports" / "assets"
+if asset_root.exists():
+    dst_asset_root = dest_root / "reports" / "assets"
+    if dst_asset_root.exists():
+        shutil.rmtree(dst_asset_root)
+    shutil.copytree(asset_root, dst_asset_root)
 '@
 $copyReportsScriptPath = "reporting\build\copy_report_templates.py"
 Set-Content -LiteralPath $copyReportsScriptPath -Value $copyReportsScript -Encoding UTF8

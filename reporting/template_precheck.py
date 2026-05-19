@@ -361,6 +361,46 @@ def check_guanbing_monthly_template(template: Path) -> list[TemplateIssue]:
     return issues
 
 
+def check_shuixianhua_monthly_template(template: Path) -> list[TemplateIssue]:
+    doc = Document(str(template))
+    texts = _all_texts(doc)
+    fields = _field_instr_texts(doc)
+    issues: list[TemplateIssue] = []
+
+    if find_summary_table(doc) is None:
+        issues.append(TemplateIssue("missing-table", "Shuixianhua summary table with front-matter result/advice cells was not found."))
+
+    required = [
+        ("水仙花大桥桥梁健康监测", "Shuixianhua cover/project text"),
+        ("桥梁监测报告", "front report summary title"),
+        ("监测结果", "front summary result label"),
+        ("建  议", "front summary advice label"),
+        ("目  录", "TOC title"),
+        ("主桥监测测点布置", "design layout chapter anchor"),
+        ("桥梁环境（温湿度、风速风向）监测", "environment layout subsection anchor"),
+        ("结构温度监测", "temperature layout subsection anchor"),
+        ("地震动监测", "earthquake layout subsection anchor"),
+        ("主梁挠度监测", "deflection layout subsection anchor"),
+        ("支座及伸缩缝位移监测", "bearing/expansion layout subsection anchor"),
+        ("拱顶、拱脚位移监测（GNSS）", "GNSS layout subsection anchor"),
+        ("结构振动监测", "vibration layout subsection anchor"),
+        ("吊杆及系杆索力监测", "cable-force layout subsection anchor"),
+        ("结构应变及动应变监测", "strain layout subsection anchor"),
+        ("报警阈值设置", "threshold section anchor"),
+        ("水仙花大桥监测阈值汇总表", "threshold table caption anchor"),
+        ("测点布置图", "layout figure caption anchor"),
+    ]
+    for fragment, note in required:
+        _add_missing_fragment(issues, texts, fragment, note)
+
+    if not any("SEQ 图" in field for field in fields):
+        issues.append(TemplateIssue("missing-field", "No auto figure caption field (SEQ 图) found."))
+    if not any("SEQ 表" in field for field in fields):
+        issues.append(TemplateIssue("missing-field", "No auto table caption field (SEQ 表) found."))
+
+    return issues
+
+
 def check_template(kind: str, template: Path, manifest: dict | None = None) -> list[TemplateIssue]:
     if not template.exists():
         return [TemplateIssue("missing-file", f"Template file does not exist: {template}")]
@@ -370,6 +410,8 @@ def check_template(kind: str, template: Path, manifest: dict | None = None) -> l
         return check_jlj_monthly_template(template)
     if kind == "guanbing_monthly":
         return check_guanbing_monthly_template(template)
+    if kind == "shuixianhua_monthly":
+        return check_shuixianhua_monthly_template(template)
     raise ValueError(f"Unknown template kind: {kind}")
 
 
@@ -381,7 +423,7 @@ def raise_for_template(kind: str, template: Path, manifest: dict | None = None) 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Precheck bridge report DOCX templates.")
-    parser.add_argument("--kind", choices=["hongtang_period", "jlj_monthly", "guanbing_monthly"], required=True)
+    parser.add_argument("--kind", choices=["hongtang_period", "jlj_monthly", "guanbing_monthly", "shuixianhua_monthly"], required=True)
     parser.add_argument("--template", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, default=None, help="Optional analysis manifest for conditional anchor checks.")
     parser.add_argument("--output-dir", type=Path, default=None, help="Optional directory for txt/json precheck reports.")
