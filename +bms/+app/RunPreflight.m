@@ -232,7 +232,7 @@ classdef RunPreflight
                     missing = {};
                     matchedIds = {};
                     for j = 1:numel(expected)
-                        [tf, matched] = bms.app.RunPreflight.pointExists(actualMap, expected{j});
+                        [tf, matched] = bms.app.RunPreflight.pointExists(actualMap, expected{j}, cfg, spec.Key);
                         if tf
                             found{end+1} = expected{j}; %#ok<AGROW>
                             matchedIds{end+1} = matched; %#ok<AGROW>
@@ -389,10 +389,16 @@ classdef RunPreflight
             values = reshape(values, 1, []);
         end
 
-        function [tf, matched] = pointExists(actualMap, pointId)
+        function [tf, matched] = pointExists(actualMap, pointId, cfg, moduleKey)
             tf = false;
             matched = '';
             candidates = bms.app.RunPreflight.csvPointCandidates(pointId);
+            if nargin >= 4
+                sensorType = bms.app.RunPreflight.sensorTypeForPoint(moduleKey, pointId);
+                fileId = bms.data.TimeSeriesLoader.resolveFileId(cfg, sensorType, pointId);
+                candidates = bms.app.RunPreflight.uniqueText([candidates, ...
+                    bms.app.RunPreflight.csvPointCandidates(fileId)]);
+            end
             for i = 1:numel(candidates)
                 if isKey(actualMap, candidates{i})
                     tf = true;
@@ -409,6 +415,16 @@ classdef RunPreflight
             candidates{end+1} = regexprep(p, '[-_][XYZ][-_]?', '-');
             candidates{end+1} = regexprep(p, '[-_][XYZ][-_]([^\\/]*)$', '-$1');
             candidates = bms.app.RunPreflight.uniqueText(candidates);
+        end
+
+        function sensorType = sensorTypeForPoint(moduleKey, pointId)
+            sensorType = char(string(moduleKey));
+            switch sensorType
+                case 'earthquake'
+                    [sensorType, ~] = bms.analyzer.EarthquakeSeriesService.componentFromPoint(pointId);
+                case 'wind'
+                    sensorType = 'wind_speed';
+            end
         end
 
         function [tf, value] = resolveSubfolder(cfg, key)

@@ -15,7 +15,15 @@
     "deflection": {
       "thresholds": [],
       "zero_to_nan": false,
-      "outlier": []
+      "outlier": [],
+      "post_filter_thresholds": [
+        {
+          "min": -20,
+          "max": 1000000000,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
+      ]
     },
     "bearing_displacement": {
       "thresholds": [],
@@ -462,38 +470,38 @@
     "eq": {
       "JSD_01_10#墩_01_X": {
         "alarm_levels": [
-          150.0,
-          255.0
+          1.5,
+          2.55
         ]
       },
       "JSD_01_10#墩_01_Y": {
         "alarm_levels": [
-          150.0,
-          255.0
+          1.5,
+          2.55
         ]
       },
       "JSD_01_10#墩_01_Z": {
         "alarm_levels": [
-          150.0,
-          255.0
+          1.5,
+          2.55
         ]
       },
       "JSD_02_11#墩_01_X": {
         "alarm_levels": [
-          150.0,
-          255.0
+          1.5,
+          2.55
         ]
       },
       "JSD_02_11#墩_01_Y": {
         "alarm_levels": [
-          150.0,
-          255.0
+          1.5,
+          2.55
         ]
       },
       "JSD_02_11#墩_01_Z": {
         "alarm_levels": [
-          150.0,
-          255.0
+          1.5,
+          2.55
         ]
       }
     },
@@ -514,32 +522,11 @@
         ]
       }
     },
-    "temperature": {
-      "WSD_01_11#_S02机箱": {
-        "alarm_bounds": {
-          "level1": [
-            0.0,
-            40.0
-          ],
-          "level2": [
-            -2.0,
-            46.0
-          ]
-        }
-      }
-    },
+    "temperature": {},
     "humidity": {
-      "WSD_01_11#_S02机箱": {
-        "alarm_bounds": {
-          "level1": [
-            0.0,
-            40.0
-          ],
-          "level2": [
-            -2.0,
-            46.0
-          ]
-        }
+      "WSD_01_11#_S11": {
+        "file_id": "WSD-01-11#-S02机箱",
+        "alias_note": "与设计测点 WSD-01-11#-S11 为同一实体，平台导出文件名为 WSD-01-11#-S02机箱"
       }
     }
   },
@@ -772,10 +759,18 @@
       "SL-34-12#系杆"
     ],
     "temperature": [
-      "WSD-01-11#-S02机箱"
+      "WD-01-X-拱顶",
+      "WD-02-X11-1#",
+      "WD-03-X11-3#",
+      "WD-04-11-15#横梁",
+      "WD-05-S11-1#",
+      "WD-06-S11-3#",
+      "WD-07-S-拱顶",
+      "WD-08-10#墩-01",
+      "WD-09-11#墩-01"
     ],
     "humidity": [
-      "WSD-01-11#-S02机箱"
+      "WSD-01-11#-S11"
     ]
   },
   "groups": {
@@ -1619,7 +1614,7 @@
       }
     },
     "eq": {
-      "ylabel": "地震动加速度 (cm/s^2)",
+      "ylabel": "地震动加速度 (m/s^2)",
       "title_prefix": "地震动时程",
       "ylim_auto": true,
       "output": {
@@ -1665,9 +1660,11 @@
   },
   "eq_params": {
     "alarm_levels": [
-      150,
-      255
-    ]
+      1.5,
+      2.55
+    ],
+    "raw_min_filter": -50,
+    "value_scale": 0.01
   },
   "wim": {
     "enabled": false

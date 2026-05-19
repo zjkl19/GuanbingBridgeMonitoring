@@ -42,6 +42,16 @@ classdef test_earthquake_series_service < matlab.unittest.TestCase
             tc.verifyEqual(rec.params.alarm_levels, [1 2]);
             tc.verifyEqual(rec.vals, [0.1; 0.2], 'AbsTol', 1e-12);
         end
+
+        function valueRulesFilterBeforeUnitScale(tc)
+            params = struct('raw_min_filter', -50, 'value_scale', 0.01);
+
+            vals = bms.analyzer.EarthquakeSeriesService.applyValueRules([-60; -50; 100], params);
+
+            tc.verifyTrue(isnan(vals(1)));
+            tc.verifyEqual(vals(2), -0.5, 'AbsTol', 1e-12);
+            tc.verifyEqual(vals(3), 1.0, 'AbsTol', 1e-12);
+        end
     end
 end
 

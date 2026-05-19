@@ -77,6 +77,18 @@ classdef test_earthquake_analysis_pipeline < matlab.unittest.TestCase
             end
         end
 
+        function earthquakeParamsCarryScalingAndRawFilter(tc)
+            cfg = eq_cfg();
+            cfg.eq_params.raw_min_filter = -50;
+            cfg.eq_params.value_scale = 0.01;
+
+            params = bms.analyzer.EarthquakeAnalysisPipeline.params(cfg, 'EQ-UT-X');
+
+            tc.verifyEqual(params.alarm_levels, [0.5, 1.0]);
+            tc.verifyEqual(params.raw_min_filter, -50);
+            tc.verifyEqual(params.value_scale, 0.01);
+        end
+
         function earthquakeAnalyzerUsesSharedPipelineAdapter(tc)
             analyzer = bms.analyzer.EarthquakeAnalyzer('root', '2026-01-01', '2026-01-01', '', 'wave', struct());
 

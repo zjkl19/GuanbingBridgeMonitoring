@@ -101,21 +101,37 @@ classdef JiulongjiangCsvDataSource < bms.data.BaseDataSource
             [dirp, meta] = src.dayDir(day, meta);
         end
 
-        function fp = findFile(dirp, pointId)
+        function fp = findFile(dirp, pointId, sensorType, cfg)
             fp = '';
             if isempty(dirp) || ~exist(dirp, 'dir')
                 return;
             end
-            base = regexprep(pointId, '[-_][XYZ]$', '');
-            cand = fullfile(dirp, [base '.csv']);
-            if exist(cand, 'file')
-                fp = cand;
-                return;
+            if nargin < 3 || isempty(sensorType)
+                sensorType = 'generic';
             end
+            if nargin < 4
+                cfg = struct();
+            end
+
+            fileId = bms.data.TimeSeriesLoader.resolveFileId(cfg, sensorType, pointId);
+            candidates = bms.data.PointResolver.uniqueText({ ...
+                regexprep(fileId, '[-_][XYZxyz]$', ''), ...
+                regexprep(pointId, '[-_][XYZxyz]$', '')});
+            for i = 1:numel(candidates)
+                cand = fullfile(dirp, [candidates{i} '.csv']);
+                if exist(cand, 'file')
+                    fp = cand;
+                    return;
+                end
+            end
+
             files = dir(fullfile(dirp, '*.csv'));
-            idx = find(arrayfun(@(f) contains(f.name, base), files), 1);
-            if ~isempty(idx)
-                fp = fullfile(files(idx).folder, files(idx).name);
+            for i = 1:numel(candidates)
+                idx = find(arrayfun(@(f) contains(f.name, candidates{i}), files), 1);
+                if ~isempty(idx)
+                    fp = fullfile(files(idx).folder, files(idx).name);
+                    return;
+                end
             end
         end
 

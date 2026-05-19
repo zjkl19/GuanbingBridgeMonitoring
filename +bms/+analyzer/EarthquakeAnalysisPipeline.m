@@ -78,19 +78,35 @@ classdef EarthquakeAnalysisPipeline
         end
 
         function params = params(cfg, pointId)
-            params = struct('alarm_levels', [1, 2]);
+            params = struct('alarm_levels', [1, 2], 'raw_min_filter', [], 'value_scale', 1);
             ep = bms.config.ConfigReader.getStruct(cfg, 'eq_params', struct());
             if isfield(ep, 'alarm_levels') && ~isempty(ep.alarm_levels)
                 params.alarm_levels = double(ep.alarm_levels(:))';
+            end
+            if isfield(ep, 'raw_min_filter') && ~isempty(ep.raw_min_filter)
+                params.raw_min_filter = double(ep.raw_min_filter);
+            end
+            if isfield(ep, 'value_scale') && ~isempty(ep.value_scale)
+                params.value_scale = double(ep.value_scale);
             end
 
             if nargin < 2 || isempty(pointId)
                 return;
             end
-            safeId = strrep(char(string(pointId)), '-', '_');
-            [ok, perPoint] = bms.config.ConfigPatch.getPath(cfg, ['per_point.eq.' safeId]);
+            ok = false;
+            perPoint = [];
+            if isstruct(cfg) && isfield(cfg, 'per_point') && isfield(cfg.per_point, 'eq') ...
+                    && isstruct(cfg.per_point.eq)
+                [ok, perPoint] = bms.data.PointResolver.getPointConfig(cfg.per_point.eq, pointId, cfg);
+            end
             if ok && isstruct(perPoint) && isfield(perPoint, 'alarm_levels') && ~isempty(perPoint.alarm_levels)
                 params.alarm_levels = double(perPoint.alarm_levels(:))';
+            end
+            if ok && isstruct(perPoint) && isfield(perPoint, 'raw_min_filter') && ~isempty(perPoint.raw_min_filter)
+                params.raw_min_filter = double(perPoint.raw_min_filter);
+            end
+            if ok && isstruct(perPoint) && isfield(perPoint, 'value_scale') && ~isempty(perPoint.value_scale)
+                params.value_scale = double(perPoint.value_scale);
             end
         end
 

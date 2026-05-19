@@ -37,8 +37,30 @@ classdef EarthquakeSeriesService
                 return;
             end
             rec.times = times;
-            rec.vals = vals;
+            rec.vals = bms.analyzer.EarthquakeSeriesService.applyValueRules(vals, params);
             rec.has_data = true;
+        end
+
+        function vals = applyValueRules(vals, params)
+            if isempty(vals) || ~isstruct(params)
+                return;
+            end
+
+            if isfield(params, 'raw_min_filter') && ~isempty(params.raw_min_filter)
+                minValue = double(params.raw_min_filter);
+                minValue = minValue(1);
+                if isfinite(minValue)
+                    vals(vals < minValue) = NaN;
+                end
+            end
+
+            if isfield(params, 'value_scale') && ~isempty(params.value_scale)
+                scale = double(params.value_scale);
+                scale = scale(1);
+                if isfinite(scale) && scale ~= 1
+                    vals = vals .* scale;
+                end
+            end
         end
     end
 end

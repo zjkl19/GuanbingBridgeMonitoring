@@ -175,7 +175,6 @@ classdef TimeSeriesLoader
 
             sensorType = char(string(sensorType));
             pointId = char(string(pointId));
-            safeId = strrep(pointId, '-', '_');
             fileId = bms.data.TimeSeriesLoader.resolveFileId(cfg, sensorType, pointId);
             patterns = {};
             if isstruct(cfg) && isfield(cfg, 'file_patterns') && isstruct(cfg.file_patterns) ...
@@ -184,10 +183,11 @@ classdef TimeSeriesLoader
                 if isstruct(ft) && isfield(ft, 'default')
                     patterns = [patterns; bms.data.TimeSeriesLoader.normalizePatterns(ft.default)]; %#ok<AGROW>
                 end
-                if isstruct(ft) && isfield(ft, 'per_point') && isstruct(ft.per_point) ...
-                        && isfield(ft.per_point, safeId)
-                    pointPatterns = ft.per_point.(safeId);
-                    patterns = [bms.data.TimeSeriesLoader.normalizePatterns(pointPatterns); patterns]; %#ok<AGROW>
+                if isstruct(ft) && isfield(ft, 'per_point') && isstruct(ft.per_point)
+                    [ok, pointPatterns] = bms.data.PointResolver.getPointConfig(ft.per_point, pointId, cfg);
+                    if ok
+                        patterns = [bms.data.TimeSeriesLoader.normalizePatterns(pointPatterns); patterns]; %#ok<AGROW>
+                    end
                 end
             end
 
@@ -218,14 +218,16 @@ classdef TimeSeriesLoader
                 sensorType = 'generic';
             end
             sensorType = char(string(sensorType));
-            safeId = strrep(fileId, '-', '_');
             if ~isstruct(cfg) || ~isfield(cfg, 'per_point') || ~isstruct(cfg.per_point)
                 return;
             end
 
             if strncmp(sensorType, 'wind_', 5) && isfield(cfg.per_point, 'wind') ...
-                    && isstruct(cfg.per_point.wind) && isfield(cfg.per_point.wind, safeId)
-                pt = cfg.per_point.wind.(safeId);
+                    && isstruct(cfg.per_point.wind)
+                [ok, pt] = bms.data.PointResolver.getPointConfig(cfg.per_point.wind, fileId, cfg);
+                if ~ok
+                    return;
+                end
                 key = '';
                 if strcmp(sensorType, 'wind_speed')
                     key = 'speed_point_id';
@@ -237,8 +239,19 @@ classdef TimeSeriesLoader
             end
 
             if strncmp(sensorType, 'eq_', 3) && isfield(cfg.per_point, 'eq') ...
-                    && isstruct(cfg.per_point.eq) && isfield(cfg.per_point.eq, safeId)
-                fileId = bms.data.TimeSeriesLoader.resolveAlias(cfg.per_point.eq.(safeId), 'file_id', fileId);
+                    && isstruct(cfg.per_point.eq)
+                [ok, pt] = bms.data.PointResolver.getPointConfig(cfg.per_point.eq, fileId, cfg);
+                if ok
+                    fileId = bms.data.TimeSeriesLoader.resolveAlias(pt, 'file_id', fileId);
+                end
+                return;
+            end
+
+            if isfield(cfg.per_point, sensorType) && isstruct(cfg.per_point.(sensorType))
+                [ok, pt] = bms.data.PointResolver.getPointConfig(cfg.per_point.(sensorType), pointId, cfg);
+                if ok
+                    fileId = bms.data.TimeSeriesLoader.resolveAlias(pt, 'file_id', fileId);
+                end
             end
         end
 

@@ -38,6 +38,24 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             testCase.verifyEqual(numel(t), numel(v));
         end
 
+        function test_humidity_file_id_alias(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            designId = 'WSD-01-11#-S11';
+            fileId = 'WSD-01-11#-S02机箱';
+            cfg.per_point.humidity = struct();
+            cfg.per_point.humidity.(bms.data.PointResolver.legacySafeId(designId)) = struct('file_id', fileId);
+            write_jlj_xy_csv(root, datetime(2026,1,1), fileId, [18.5; 19.5], [62.5; 63.5]);
+
+            [t, v] = load_timeseries_range(root, '', designId, '2026-01-01', '2026-01-01', cfg, 'humidity');
+
+            testCase.verifyEqual(numel(t), 2);
+            testCase.verifyEqual(v(:), [62.5; 63.5], 'AbsTol', 1e-10);
+        end
+
         function test_wind_speed_direction(testCase)
             cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
             pid = 'CSFSY-01-K16-GD-A20';
@@ -582,6 +600,22 @@ function write_simple_jlj_csv(csvDir, pid)
     fprintf(fid, 'ts,value_x\n');
     fprintf(fid, '"2026-01-01 00:00:00.000",12.5\n');
     fprintf(fid, '"2026-01-01 01:00:00.000",13.5\n');
+end
+
+function write_jlj_xy_csv(rootDir, day, pid, x, y)
+    dayStart = datestr(day, 'yyyymmdd');
+    dayEnd = datestr(day + days(1), 'yyyymmdd');
+    csvDir = fullfile(rootDir, ['jljData' dayStart '-' dayEnd], 'data', 'csv');
+    if ~exist(csvDir, 'dir'), mkdir(csvDir); end
+
+    fp = fullfile(csvDir, [pid '.csv']);
+    fid = fopen(fp, 'wt');
+    assert(fid > 0, 'Failed to create test csv: %s', fp);
+    cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+    fprintf(fid, 'ts,value_x,value_y\n');
+    for i = 1:numel(x)
+        fprintf(fid, '"%s",%.6f,%.6f\n', datestr(day + hours(i - 1), 'yyyy-mm-dd HH:MM:SS.FFF'), x(i), y(i));
+    end
 end
 
 function cleanup_temp_dir(rootDir)

@@ -65,7 +65,7 @@ classdef DataIndex
 
             for i = 1:numel(points)
                 pointId = char(string(points{i}));
-                pointPatterns = bms.data.DataIndex.expandPatterns(patterns, pointId);
+                pointPatterns = bms.data.DataIndex.expandPatterns(patterns, pointId, cfg, spec.Key);
                 files = dataSource.findPointFiles(pointId, subfolder, startDate, endDate, pointPatterns);
                 pointRec = struct();
                 pointRec.point_id = pointId;
@@ -121,9 +121,14 @@ classdef DataIndex
             patterns = patterns(~cellfun(@isempty, patterns));
         end
 
-        function patterns = expandPatterns(patterns, pointId)
+        function patterns = expandPatterns(patterns, pointId, cfg, moduleKey)
             pointId = char(string(pointId));
             fileId = regexprep(pointId, '[-_][XYZ]$', '');
+            if nargin >= 4
+                sensorType = bms.data.DataIndex.sensorTypeForPoint(moduleKey, pointId);
+                fileId = bms.data.TimeSeriesLoader.resolveFileId(cfg, sensorType, pointId);
+                fileId = regexprep(fileId, '[-_][XYZ]$', '');
+            end
             out = {};
             for i = 1:numel(patterns)
                 p = char(string(patterns{i}));
@@ -134,6 +139,16 @@ classdef DataIndex
             out{end+1} = [pointId '.csv']; %#ok<AGROW>
             out = unique(out(~cellfun(@isempty, out)), 'stable');
             patterns = reshape(out, 1, []);
+        end
+
+        function sensorType = sensorTypeForPoint(moduleKey, pointId)
+            sensorType = char(string(moduleKey));
+            switch sensorType
+                case 'earthquake'
+                    [sensorType, ~] = bms.analyzer.EarthquakeSeriesService.componentFromPoint(pointId);
+                case 'wind'
+                    sensorType = 'wind_speed';
+            end
         end
 
         function days = daysFromFiles(files, root)
