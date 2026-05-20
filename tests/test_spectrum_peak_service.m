@@ -16,6 +16,19 @@ classdef test_spectrum_peak_service < matlab.unittest.TestCase
             tc.verifyEqual(freqRow(3), 4.7, 'AbsTol', 1e-12);
         end
 
+        function peakRowsSupportsPerOrderTolerance(tc)
+            f = (0:0.05:3)';
+            Pdb = -100 * ones(size(f));
+            Pdb(abs(f - 1.2) < 1e-12) = 10;
+            Pdb(abs(f - 2.15) < 1e-12) = 20;
+
+            [ampRow, freqRow] = bms.analyzer.SpectrumPeakService.peakRows(f, Pdb, [1.0 2.0], [0.1 0.2]);
+
+            tc.verifyLessThan(freqRow(1), 1.11);
+            tc.verifyEqual(ampRow(2), 20);
+            tc.verifyEqual(freqRow(2), 2.15, 'AbsTol', 1e-12);
+        end
+
         function computeWindowPsdUsesMorningAnalysisWindow(tc)
             day = datetime(2026, 1, 1);
             fs = 10;
@@ -54,6 +67,26 @@ classdef test_spectrum_peak_service < matlab.unittest.TestCase
             tc.verifyEqual(serviceTol, tol);
             tc.verifyEqual(serviceTheorFreqs, theorFreqs);
             tc.verifyEqual(serviceTheorLabels(:), theorLabels(:));
+        end
+
+        function spectrumPipelineResolvesConfiguredPeakOrders(tc)
+            spec = bms.analyzer.SpectrumAnalysisPipeline.spec('accel_spectrum');
+            cfg = struct();
+            cfg.accel_spectrum_params.peak_orders = struct( ...
+                'order', 1, ...
+                'label', '一阶', ...
+                'theoretical_hz', 1.05, ...
+                'search_center_hz', 1.20, ...
+                'search_half_width_hz', 0.10);
+
+            [freqs, tol, theorFreqs, theorLabels, peakLabels] = ...
+                bms.analyzer.SpectrumConfigService.pointParams(cfg, 'P-1', spec, [1 2 3], 0.15, [], {});
+
+            tc.verifyEqual(freqs, 1.20);
+            tc.verifyEqual(tol, 0.10);
+            tc.verifyEqual(theorFreqs, 1.05);
+            tc.verifyEqual(theorLabels(:), {'理论一阶频率 1.050Hz'});
+            tc.verifyEqual(peakLabels(:), {'一阶'});
         end
 
         function cableSpectrumSpecKeepsCableForceBehavior(tc)

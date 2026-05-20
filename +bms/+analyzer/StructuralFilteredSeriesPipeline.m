@@ -127,10 +127,10 @@ classdef StructuralFilteredSeriesPipeline
         function rows = runDeflection(rootDir, startDate, endDate, subfolder, cfg, style, spec)
             rows = cell(0, 7);
             groups = bms.analyzer.StructuralFilteredSeriesService.deflectionGroups(cfg, spec);
+            plottedPointIds = {};
 
-            if bms.analyzer.StructuralPlotConfigService.isJiulongjiang(cfg)
-                points = bms.analyzer.StructuralPlotConfigService.getPointsOrFlattenFallback(cfg, spec.pointKey, groups);
-                collectStats = isempty(groups);
+            points = bms.analyzer.StructuralPlotConfigService.getPointsOrFlattenFallback(cfg, spec.pointKey, groups);
+            if isempty(groups)
                 for i = 1:numel(points)
                     pid = points{i};
                     fprintf('Per-point deflection: %s ...\n', pid);
@@ -140,12 +140,11 @@ classdef StructuralFilteredSeriesPipeline
                         warning(spec.emptyPointWarning, pid);
                         continue;
                     end
-                    if collectStats
-                        rows(end+1, :) = bms.analyzer.StructuralFilteredSeriesService.statsRow(rec, spec); %#ok<AGROW>
-                    end
-                    bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Orig', spec, cfg);
-                    bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Filt', spec, cfg);
+                    rows(end+1, :) = bms.analyzer.StructuralFilteredSeriesService.statsRow(rec, spec); %#ok<AGROW>
+                    plottedPointIds = bms.analyzer.StructuralFilteredSeriesPipeline.plotDeflectionRecordOnce( ...
+                        rec, plottedPointIds, rootDir, startDate, endDate, style, spec, cfg);
                 end
+                return;
             end
 
             for g = 1:numel(groups)
@@ -157,8 +156,32 @@ classdef StructuralFilteredSeriesPipeline
                 [records, groupRows] = bms.analyzer.StructuralFilteredSeriesService.collectGroup( ...
                     rootDir, subfolder, pidList, startDate, endDate, cfg, spec);
                 rows = [rows; groupRows]; %#ok<AGROW>
-                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, g, style, 'Orig', spec, cfg);
-                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, g, style, 'Filt', spec, cfg);
+                for i = 1:numel(records)
+                    plottedPointIds = bms.analyzer.StructuralFilteredSeriesPipeline.plotDeflectionRecordOnce( ...
+                        records(i), plottedPointIds, rootDir, startDate, endDate, style, spec, cfg);
+                end
+                warnLines = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupWarnLines(records, style, cfg, spec);
+                groupStyle = style;
+                groupStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(style, spec);
+                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, g, groupStyle, 'Orig', spec, cfg, warnLines);
+                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, g, groupStyle, 'Filt', spec, cfg, warnLines);
+            end
+
+            for i = 1:numel(points)
+                pid = points{i};
+                if bms.analyzer.StructuralFilteredSeriesPipeline.containsPoint(plottedPointIds, pid)
+                    continue;
+                end
+                fprintf('Per-point deflection: %s ...\n', pid);
+                rec = bms.analyzer.StructuralFilteredSeriesService.loadFilteredPoint( ...
+                    rootDir, subfolder, pid, startDate, endDate, cfg, spec);
+                if ~rec.hasData
+                    warning(spec.emptyPointWarning, pid);
+                    continue;
+                end
+                rows(end+1, :) = bms.analyzer.StructuralFilteredSeriesService.statsRow(rec, spec); %#ok<AGROW>
+                plottedPointIds = bms.analyzer.StructuralFilteredSeriesPipeline.plotDeflectionRecordOnce( ...
+                    rec, plottedPointIds, rootDir, startDate, endDate, style, spec, cfg);
             end
         end
 
@@ -199,6 +222,53 @@ classdef StructuralFilteredSeriesPipeline
                 bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, style, 'Orig', spec, cfg, groupWarn);
                 bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, style, 'Filt', spec, cfg, groupWarn);
             end
+        end
+
+        function plottedPointIds = plotDeflectionRecordOnce(rec, plottedPointIds, rootDir, startDate, endDate, style, spec, cfg)
+            if isempty(rec) || ~isfield(rec, 'pid') || isempty(rec.pid) || ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.containsPoint(plottedPointIds, rec.pid)
+                return;
+            end
+
+            pointStyle = style;
+            pointStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(style, spec);
+            warnLines = bms.analyzer.StructuralFilteredPlotService.defaultWarnLines(style, cfg, spec, rec.pid);
+            bms.analyzer.StructuralFilteredPlotService.plotRecord( ...
+                rec, rootDir, startDate, endDate, rec.pid, pointStyle, 'Orig', spec, cfg, warnLines);
+            bms.analyzer.StructuralFilteredPlotService.plotRecord( ...
+                rec, rootDir, startDate, endDate, rec.pid, pointStyle, 'Filt', spec, cfg, warnLines);
+            plottedPointIds{end+1, 1} = char(string(rec.pid));
+        end
+
+        function outDir = deflectionSingleOutputDir(style, spec)
+            outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'single_output_dir', '');
+            if isempty(outDir)
+                outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'output_dir', spec.defaultOutputDir);
+            end
+        end
+
+        function outDir = deflectionGroupOutputDir(style, spec)
+            outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'group_output_dir', '');
+            if isempty(outDir)
+                singleDir = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(style, spec);
+                outDir = [char(string(singleDir)) '_组图'];
+            end
+        end
+
+        function warnLines = deflectionGroupWarnLines(records, style, cfg, spec)
+            warnLines = {};
+            for i = 1:numel(records)
+                warnLines = bms.analyzer.StructuralFilteredPlotService.defaultWarnLines( ...
+                    style, cfg, spec, records(i).pid);
+                if ~isempty(warnLines)
+                    return;
+                end
+            end
+            warnLines = bms.analyzer.StructuralFilteredPlotService.defaultWarnLines(style, cfg, spec, '');
+        end
+
+        function tf = containsPoint(pointIds, pid)
+            tf = any(strcmp(pointIds, char(string(pid))));
         end
 
         function runTiltAndWrite(rootDir, startDate, endDate, excelFile, subfolder, cfg, style, spec)

@@ -119,6 +119,43 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(serviceStyle.ylabel, pipelineStyle.ylabel);
             tc.verifyTrue(serviceStyle.ylim_auto);
         end
+
+        function accelerationPipelineWritesConfiguredGroupPlots(tc)
+            values = sin((0:600)' / 30);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'A1.csv'), values);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'A2.csv'), values * 0.5);
+            cfg = dynamic_cfg();
+            cfg.points = struct('acceleration', {{'A1', 'A2'}});
+            cfg.groups = struct('acceleration', struct('G1', {{'A1', 'A2'}}));
+            cfg.plot_common = struct('save_fig', false, 'append_timestamp', false);
+            cfg.plot_styles = struct('acceleration', struct( ...
+                'ylim_auto', true, ...
+                'group_output_dir', 'accel_group', ...
+                'rms_group_output_dir', 'accel_rms_group', ...
+                'group_labels', struct('G1', 'Main span')));
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('acceleration');
+            style = bms.analyzer.DynamicAccelerationPipeline.plotStyle(cfg, spec);
+            stats = cell(2, 6);
+
+            bms.analyzer.DynamicAccelerationPipeline.runSequential( ...
+                tc.Root, 'wave', '2026-01-01', '2026-01-01', cfg, true, {'A1', 'A2'}, style, stats, spec);
+
+            tc.verifyGreaterThanOrEqual(numel(dir(fullfile(tc.Root, 'accel_group', '*.jpg'))), 1);
+            tc.verifyGreaterThanOrEqual(numel(dir(fullfile(tc.Root, 'accel_rms_group', '*.jpg'))), 1);
+        end
+
+        function accelerationGroupWarnLinesResolveByGroupName(tc)
+            style = struct();
+            style.rms_warn_lines = struct( ...
+                'ZG', {{struct('y', 100, 'label', 'Level 1'), struct('y', 300, 'label', 'Level 2')}}, ...
+                'ZL', {{struct('y', 31.5, 'label', 'Level 1'), struct('y', 50, 'label', 'Level 2')}});
+
+            warnLines = bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
+                style, 'rms_warn_lines', 'ZL');
+
+            tc.verifyEqual(numel(warnLines), 2);
+            tc.verifyEqual(cellfun(@(x) x.y, warnLines), [31.5; 50]);
+        end
     end
 end
 

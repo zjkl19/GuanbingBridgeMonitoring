@@ -23,6 +23,9 @@ classdef DynamicAccelerationSeriesService
                 bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve( ...
                     rootDir, rec.pid, rec.times, rec.vals, rec.fs, style, cfg, spec);
             end
+
+            bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroups( ...
+                rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, style, spec);
         end
 
         function stats = runWithOptionalParallel(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, points, style, stats, spec)
@@ -69,6 +72,9 @@ classdef DynamicAccelerationSeriesService
                 bms.analyzer.DynamicAccelerationPlotService.plotAccelCurve(rootDir, rec.pid, times, values, rec.mn, rec.mx, style, cfg, spec);
                 bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve(rootDir, rec.pid, times, values, rec.fs, style, cfg, spec);
             end
+
+            bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroups( ...
+                rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, style, spec);
         end
 
         function rec = collectRecord(rootDir, subfolder, pointId, startDate, endDate, cfg, autoDetectFs, spec, keepSeries)
@@ -99,6 +105,45 @@ classdef DynamicAccelerationSeriesService
 
         function style = plotStyle(cfg, spec)
             style = bms.config.ConfigReader.getPlotStyle(cfg, spec.styleKey, spec.defaultStyle);
+        end
+
+        function plotConfiguredGroups(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, style, spec)
+            groupsCfg = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, spec.groupKey, []);
+            if ~bms.analyzer.StructuralPlotConfigService.hasGroups(groupsCfg)
+                return;
+            end
+
+            groups = bms.analyzer.StructuralPlotConfigService.normalizeGroupMap(groupsCfg);
+            names = fieldnames(groups);
+            for i = 1:numel(names)
+                groupName = names{i};
+                pointIds = groups.(groupName);
+                records = bms.analyzer.DynamicAccelerationSeriesService.collectGroupRecords( ...
+                    rootDir, subfolder, pointIds, startDate, endDate, cfg, autoDetectFs, spec);
+                if isempty(records)
+                    warning('%s组 %s 无有效数据，跳过组图', spec.displayName, groupName);
+                    continue;
+                end
+                bms.analyzer.DynamicAccelerationPlotService.plotAccelGroup( ...
+                    rootDir, groupName, records, startDate, endDate, style, cfg, spec);
+                bms.analyzer.DynamicAccelerationPlotService.plotRmsGroup( ...
+                    rootDir, groupName, records, startDate, endDate, style, cfg, spec);
+            end
+        end
+
+        function records = collectGroupRecords(rootDir, subfolder, pointIds, startDate, endDate, cfg, autoDetectFs, spec)
+            records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), 0, 1);
+            pointIds = bms.data.PointResolver.normalize(pointIds);
+            for i = 1:numel(pointIds)
+                pid = pointIds{i};
+                rec = bms.analyzer.DynamicAccelerationSeriesService.collectRecord( ...
+                    rootDir, subfolder, pid, startDate, endDate, cfg, autoDetectFs, spec, true);
+                if ~rec.has_data
+                    warning('%s组图测点 %s 无数据，跳过', spec.displayName, pid);
+                    continue;
+                end
+                records(end+1, 1) = rec; %#ok<AGROW>
+            end
         end
     end
 end

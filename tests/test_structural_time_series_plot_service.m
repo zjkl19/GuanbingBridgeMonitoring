@@ -56,19 +56,35 @@ classdef test_structural_time_series_plot_service < matlab.unittest.TestCase
         function deflectionPipelineUsesSharedPlotService(tc)
             mkdir(fullfile(tc.Root, '2026-01-01', 'features'));
             write_series_csv(fullfile(tc.Root, '2026-01-01', 'features', 'D1.csv'), [1; 2; 4; 3]);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'features', 'D2.csv'), [2; 3; 5; 4]);
             cfg = struct();
             cfg.defaults = struct('header_marker', 'Time');
             cfg.subfolders = struct('deflection', 'features');
-            cfg.points = struct('deflection', {{'D1'}});
-            cfg.groups = struct('deflection', {{{'D1'}}});
+            cfg.points = struct('deflection', {{'D1', 'D2'}});
+            cfg.groups = struct('deflection', {{{'D1', 'D2'}}});
             cfg.plot_styles = struct('deflection', struct('ylim_auto', true));
+            bounds = struct('level2', [-2 2], 'level3', [-3 3]);
+            cfg.per_point = struct('deflection', struct( ...
+                'D1', struct('alarm_bounds', bounds), ...
+                'D2', struct('alarm_bounds', bounds)));
             excelPath = fullfile(tc.Root, 'deflection_stats.xlsx');
 
             analyze_deflection_points(tc.Root, '2026-01-01', '2026-01-01', excelPath, 'features', cfg);
 
             tc.verifyTrue(exist(excelPath, 'file') == 2);
-            figs = dir(fullfile(tc.Root, '时程曲线_挠度', '*.fig'));
-            tc.verifyGreaterThanOrEqual(numel(figs), 2);
+            singleFigs = dir(fullfile(tc.Root, '时程曲线_挠度', '*.fig'));
+            groupFigs = dir(fullfile(tc.Root, '时程曲线_挠度_组图', '*.fig'));
+            tc.verifyGreaterThanOrEqual(numel(groupFigs), 2);
+            tc.verifyGreaterThanOrEqual(numel(singleFigs), 4);
+
+            spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('deflection');
+            warnLines = bms.analyzer.StructuralFilteredPlotService.defaultWarnLines( ...
+                cfg.plot_styles.deflection, cfg, spec, 'D1');
+            tc.verifyEqual(sort(cellfun(@(x) x.y, warnLines)), [-3; -2; 2; 3]);
+            records = struct('pid', {'D1', 'D2'});
+            groupWarnLines = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupWarnLines( ...
+                records, cfg.plot_styles.deflection, cfg, spec);
+            tc.verifyEqual(sort(cellfun(@(x) x.y, groupWarnLines)), [-3; -2; 2; 3]);
         end
 
         function tiltPipelineUsesSharedPlotService(tc)

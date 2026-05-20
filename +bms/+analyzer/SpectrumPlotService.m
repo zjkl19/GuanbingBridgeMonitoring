@@ -2,7 +2,11 @@ classdef SpectrumPlotService
     %SPECTRUMPLOTSERVICE Plot helpers for spectrum and cable force outputs.
 
     methods (Static)
-        function plotFrequencyTimeseries(datesAll, freqDay, pid, targetFreqs, outDir, style, theorFreqs, theorLabels, cfg)
+        function plotFrequencyTimeseries(datesAll, freqDay, pid, targetFreqs, outDir, style, theorFreqs, theorLabels, cfg, peakLabels)
+            if nargin < 10 || isempty(peakLabels)
+                peakLabels = bms.analyzer.SpectrumConfigService.defaultPeakLabels(targetFreqs);
+            end
+            peakLabels = bms.analyzer.SpectrumConfigService.normalizePeakLabels(peakLabels, targetFreqs);
             fig = figure('Visible', 'off', 'Position', [100 100 1000 470]);
             hold on;
             colors = bms.analyzer.SpectrumPlotService.normalizeColors(style.colors);
@@ -24,7 +28,7 @@ classdef SpectrumPlotService
             xtickformat('yyyy-MM-dd');
             xlabel('日期');
             ylabel(style.freq_ylabel);
-            labels = arrayfun(@(k, f) sprintf('峰%d (%.3fHz)', k, f), (1:numel(targetFreqs)).', targetFreqs(:), 'UniformOutput', false);
+            labels = arrayfun(@(k, f) sprintf('%s (%.3fHz)', peakLabels{k}, f), (1:numel(targetFreqs)).', targetFreqs(:), 'UniformOutput', false);
             if any(hasLine)
                 legend(h(hasLine), labels(hasLine), 'Location', 'eastoutside');
             end

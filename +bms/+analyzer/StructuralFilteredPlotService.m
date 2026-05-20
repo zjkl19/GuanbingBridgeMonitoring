@@ -89,6 +89,12 @@ classdef StructuralFilteredPlotService
 
         function warnLines = defaultWarnLines(style, cfg, spec, pid)
             if strcmp(spec.moduleKey, 'deflection')
+                if ~isempty(pid)
+                    warnLines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines(style, cfg, spec.moduleKey, pid);
+                    if ~isempty(warnLines)
+                        return;
+                    end
+                end
                 warnLines = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'warn_lines', {});
             else
                 warnLines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines(style, cfg, spec.moduleKey, pid);

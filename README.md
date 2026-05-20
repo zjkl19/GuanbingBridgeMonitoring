@@ -258,6 +258,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.0`: promotes the recent ShuiXianHua and data-processing work to a minor release: configurable acceleration-spectrum peak orders, standardized deflection single/group output folders, Shuixianhua deflection thresholds, and acceleration/RMS group plots with project threshold lines.
+- `v1.7.0`：将近期水仙花与数据处理功能升级作为小版本发布：支持加速度频谱按配置识别阶次，统一挠度单图/组图输出目录，补充水仙花挠度阈值，并新增振动加速度/RMS 组图及项目预警线。
 - `v1.6.11`: adds Shuixianhua sensor-ID mapping for the temperature/humidity combo sensor, keeps missing offline `WD-*` temperature points visible as data-availability issues, cleans stale scalar stats overwrites, and adjusts the GUI module display order.
 - `v1.6.11`：新增水仙花温湿度一体传感器的测点编号映射；`WD-*` 温度测点因现场离线导致的缺失继续按数据可用性问题提示；修复标量统计表覆盖旧行残留，并调整 GUI 模块显示顺序。
 - `v1.6.9`: refines the Jiulongjiang monthly summary page so monitoring operation status, data acquisition, and analysis conclusions are generated in the correct order with fewer internal table separators.
@@ -280,6 +282,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.0`: keeps the report GUI version aligned with the MATLAB GUI after the ShuiXianHua data-processing and plotting changes; report builders now look for the standardized deflection group-plot folder.
+- `v1.7.0`：在水仙花数据处理与绘图功能升级后同步报告 GUI 版本；报告生成器同步使用标准化后的挠度组图目录。
 - `v1.6.11`: adds the Shuixianhua monthly report mode, template assets, and generator path while keeping the report GUI version aligned with the MATLAB GUI release.
 - `v1.6.11`：增加水仙花月报模式、模板资产和生成器入口，并保持报告 GUI 与 MATLAB GUI 版本一致。
 - `v1.6.9`: keeps Jiulongjiang patrol reports as replaceable references and updates the generated summary table structure without hard-coding current patrol dates or layouts.

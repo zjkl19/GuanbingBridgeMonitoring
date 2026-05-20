@@ -1249,7 +1249,7 @@ def build_report(
     add_paragraph(doc, f"本月主梁挠度统计已剔除低于-21mm的异常低值，滤波后统计范围为{defl_range}。部分测点原始值为0，建议结合现场接入状态和零点修正记录复核。")
     add_stats_table(doc, "主梁挠度统计表", deflection_rows, [("PointID", "测点编号"), ("OrigMin_mm", "原始最小值(mm)"), ("OrigMax_mm", "原始最大值(mm)"), ("FiltMin_mm", "滤波最小值(mm)"), ("FiltMax_mm", "滤波最大值(mm)")])
     add_optional_picture(doc, stats_dir / "adjusted" / "figures" / "deflection_filtered_stats.png", "主梁挠度过滤后统计图")
-    for path in image_candidates(result_root, "时程曲线_挠度", ["*20260323_20260331*.jpg"], 2):
+    for path in image_candidates(result_root, "时程曲线_挠度_组图", ["*20260323_20260331*.jpg"], 2):
         add_picture(doc, path, "主梁挠度时程曲线")
 
     add_heading(doc, "2.3.5 支座及伸缩缝位移监测", 3)

@@ -1696,6 +1696,8 @@
       ]
     },
     "deflection": {
+      "output_dir": "时程曲线_挠度",
+      "group_output_dir": "时程曲线_挠度_组图",
       "colors_2": [
         [
           0,

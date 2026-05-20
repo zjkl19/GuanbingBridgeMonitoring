@@ -128,15 +128,15 @@ classdef ArtifactCollector
                 case 'gnss'
                     names = {'时程曲线_GNSS'};
                 case 'deflection'
-                    names = {'时程曲线_挠度','时程曲线_挠度_滤波'};
+                    names = {'时程曲线_挠度','时程曲线_挠度_组图'};
                 case 'bearing_displacement'
                     names = {'时程曲线_支座位移'};
                 case 'tilt'
                     names = {'时程曲线_倾斜'};
                 case 'acceleration'
-                    names = {'时程曲线_加速度','时程曲线_加速度_RMS10min'};
+                    names = {'时程曲线_加速度','时程曲线_加速度_组图','时程曲线_加速度_RMS10min','时程曲线_加速度_RMS10min_组图'};
                 case 'cable_accel'
-                    names = {'时程曲线_索力加速度','时程曲线_索力加速度_RMS10min'};
+                    names = {'时程曲线_索力加速度','时程曲线_索力加速度_组图','时程曲线_索力加速度_RMS10min','时程曲线_索力加速度_RMS10min_组图'};
                 case 'accel_spectrum'
                     names = {'频谱峰值曲线_加速度','PSD_备查'};
                 case 'cable_accel_spectrum'
@@ -171,7 +171,7 @@ classdef ArtifactCollector
                 return;
             end
             style = cfg.plot_styles.(styleKey);
-            fields = {'output_dir','group_output_dir','boxplot_output_dir','output_dir_crack','output_dir_temp'};
+            fields = {'output_dir','single_output_dir','group_output_dir','rms_group_output_dir','boxplot_output_dir','output_dir_crack','output_dir_temp'};
             for i = 1:numel(fields)
                 if isfield(style, fields{i}) && ~isempty(style.(fields{i}))
                     names{end+1} = style.(fields{i}); %#ok<AGROW>

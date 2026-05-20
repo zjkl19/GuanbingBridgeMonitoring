@@ -42,7 +42,7 @@ PERIOD_REPORT = "\u6d2a\u5858\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
 JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
 GUANBING_MONTHLY_REPORT = "管柄月报"
 SHUIXIANHUA_MONTHLY_REPORT = "水仙花月报"
-APP_VERSION = "v1.6.11"
+APP_VERSION = "v1.7.0"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_0508.docx"
@@ -815,6 +815,7 @@ class ReportGui(QMainWindow):
                 "时程曲线_湿度",
                 "频次分布_湿度",
                 "时程曲线_挠度",
+                "时程曲线_挠度_组图",
                 "时程曲线_倾角",
                 "时程曲线_加速度",
                 "时程曲线_加速度_RMS10min",
@@ -858,6 +859,7 @@ class ReportGui(QMainWindow):
                 "风速风向结果",
                 "地震动结果",
                 "时程曲线_挠度",
+                "时程曲线_挠度_组图",
                 "时程曲线_支座位移",
                 "时程曲线_应变_组图",
                 "箱线图_应变",

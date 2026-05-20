@@ -249,12 +249,17 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
 
             excelPath = fullfile(root, 'accel_spec_stats_test.xlsx');
             analyze_accel_spectrum_points(root, '2026-01-01', '2026-01-01', ...
+                {pid}, excelPath, '', [1.2 2.4], 0.2, false, cfg);
+            analyze_accel_spectrum_points(root, '2026-01-01', '2026-01-01', ...
                 {pid}, excelPath, '', [1.2], 0.2, false, cfg);
 
             testCase.verifyTrue(exist(excelPath, 'file') == 2);
             T = readtable(excelPath, 'Sheet', pid, 'VariableNamingRule', 'preserve');
+            vars = string(T.Properties.VariableNames);
             freqCol = find(startsWith(string(T.Properties.VariableNames), "Freq_"), 1);
             testCase.verifyNotEmpty(freqCol);
+            testCase.verifyTrue(any(vars == "Freq_1.200Hz"));
+            testCase.verifyFalse(any(vars == "Freq_2.400Hz"));
             testCase.verifyFalse(all(isnan(T{:,freqCol})));
             testCase.verifyLessThan(abs(T{1,freqCol} - 1.2), 0.1);
 

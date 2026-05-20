@@ -16,14 +16,7 @@
       "thresholds": [],
       "zero_to_nan": false,
       "outlier": [],
-      "post_filter_thresholds": [
-        {
-          "min": -20,
-          "max": 1000000000,
-          "t_range_start": "",
-          "t_range_end": ""
-        }
-      ]
+      "post_filter_thresholds": []
     },
     "bearing_displacement": {
       "thresholds": [],
@@ -92,7 +85,94 @@
     }
   },
   "per_point": {
-    "deflection": {},
+    "deflection": {
+      "GSNDY-01-10#跨-S侧壁": {
+        "alarm_bounds": {
+          "level2": [-6.8, 4.8],
+          "level3": [-8.5, 6.0]
+        }
+      },
+      "GSNDY-01-10#跨-X侧壁": {
+        "alarm_bounds": {
+          "level2": [-6.8, 4.8],
+          "level3": [-8.5, 6.0]
+        }
+      },
+      "GSNDY-01-11#跨-S侧壁": {
+        "alarm_bounds": {
+          "level2": [-48.0, 38.4],
+          "level3": [-60.0, 48.0]
+        }
+      },
+      "GSNDY-01-11#跨-X侧壁": {
+        "alarm_bounds": {
+          "level2": [-48.0, 38.4],
+          "level3": [-60.0, 48.0]
+        }
+      },
+      "GSNDY-01-12#跨-S侧壁": {
+        "thresholds": [
+          {
+            "min": -20,
+            "max": 1000000000,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "alarm_bounds": {
+          "level2": [-6.8, 4.8],
+          "level3": [-8.5, 6.0]
+        }
+      },
+      "GSNDY-01-12#跨-Y侧壁": {
+        "alarm_bounds": {
+          "level2": [-6.8, 4.8],
+          "level3": [-8.5, 6.0]
+        }
+      },
+      "GSNDY-02-10#跨-S侧壁": {
+        "alarm_bounds": {
+          "level2": [-6.8, 4.8],
+          "level3": [-8.5, 6.0]
+        }
+      },
+      "GSNDY-02-10#跨-X侧壁": {
+        "alarm_bounds": {
+          "level2": [-6.8, 4.8],
+          "level3": [-8.5, 6.0]
+        }
+      },
+      "GSNDY-02-11#跨-S侧壁": {
+        "alarm_bounds": {
+          "level2": [-48.0, 38.4],
+          "level3": [-60.0, 48.0]
+        }
+      },
+      "GSNDY-02-11#跨-X侧壁": {
+        "alarm_bounds": {
+          "level2": [-48.0, 38.4],
+          "level3": [-60.0, 48.0]
+        }
+      },
+      "GSNDY-02-12#跨-X侧壁": {
+        "alarm_bounds": {
+          "level2": [-6.8, 4.8],
+          "level3": [-8.5, 6.0]
+        }
+      },
+      "GSNDY-03-11#跨-S侧壁": {
+        "alarm_bounds": {
+          "level2": [-48.0, 38.4],
+          "level3": [-60.0, 48.0]
+        }
+      },
+      "GSNDY-03-11#跨-X侧壁": {
+        "alarm_bounds": {
+          "level2": [-48.0, 38.4],
+          "level3": [-60.0, 48.0]
+        }
+      }
+    },
     "bearing_displacement": {
       "SSF_01_3#伸缩缝_X侧壁": {
         "alarm_bounds": {
@@ -782,21 +862,49 @@
   "groups": {
     "deflection": [
       [
-        "GSNDY-01-10#跨-S侧壁",
-        "GSNDY-01-10#跨-X侧壁",
         "GSNDY-01-11#跨-S侧壁",
         "GSNDY-01-11#跨-X侧壁",
+        "GSNDY-03-11#跨-S侧壁",
+        "GSNDY-03-11#跨-X侧壁"
+      ],
+      [
+        "GSNDY-02-11#跨-S侧壁",
+        "GSNDY-02-11#跨-X侧壁"
+      ],
+      [
+        "GSNDY-01-10#跨-S侧壁",
+        "GSNDY-01-10#跨-X侧壁",
         "GSNDY-01-12#跨-S侧壁",
         "GSNDY-01-12#跨-Y侧壁",
         "GSNDY-02-10#跨-S侧壁",
         "GSNDY-02-10#跨-X侧壁",
-        "GSNDY-02-11#跨-S侧壁",
-        "GSNDY-02-11#跨-X侧壁",
-        "GSNDY-02-12#跨-X侧壁",
-        "GSNDY-03-11#跨-S侧壁",
-        "GSNDY-03-11#跨-X侧壁"
+        "GSNDY-02-12#跨-X侧壁"
       ]
     ],
+    "acceleration": {
+      "ZG": [
+        "ZGZD-01-X-拱顶",
+        "ZGZD-01-X-拱顶-Y",
+        "ZGZD-02-X-拱顶",
+        "ZGZD-02-X-拱顶-Y",
+        "ZGZD-03-S-拱顶",
+        "ZGZD-03-S-拱顶-Y",
+        "ZGZD-04-S-拱顶",
+        "ZGZD-04-S-拱顶-Y"
+      ],
+      "ZL": [
+        "ZLZD-01-X10-3#",
+        "ZLZD-02-X10-3#",
+        "ZLZD-03-X11-3#",
+        "ZLZD-04-X11-3#",
+        "ZLZD-05-X11-3#",
+        "ZLZD-06-X11-3#",
+        "ZLZD-07-X11-3#",
+        "ZLZD-08-X11-3#",
+        "ZLZD-09-X12-3#",
+        "ZLZD-10-X12-3#"
+      ]
+    },
     "bearing_displacement": [
       [
         "ZZWY-01-9#墩-1#支座",
@@ -974,6 +1082,13 @@
   },
   "plot_styles": {
     "acceleration": {
+      "group_output_dir": "时程曲线_加速度_组图",
+      "rms_group_output_dir": "时程曲线_加速度_RMS10min_组图",
+      "group_labels": {
+        "ZG": "ZG（主拱）",
+        "ZL": "ZL（主梁）"
+      },
+      "group_legend_location": "northeast",
       "ylabel": "振动加速度 (cm/s^2)",
       "title_prefix": "振动加速度时程",
       "ylim_auto": true,
@@ -994,11 +1109,11 @@
         ]
       ],
       "rms": {
-        "ylabel": "10 min RMS (m/s^2)",
+        "ylabel": "10 min RMS (cm/s^2)",
         "title_prefix": "10 min RMS 时程",
         "ylim": [
           0,
-          0.08
+          80
         ],
         "color": [
           0,
@@ -1007,7 +1122,65 @@
         ]
       },
       "rms_ylabel": "10min RMS (cm/s^2)",
-      "rms_title_prefix": "10min RMS 时程"
+      "rms_title_prefix": "10min RMS 时程",
+      "rms_ylims": [
+        {
+          "name": "ZG",
+          "ylim": [
+            0,
+            320
+          ]
+        },
+        {
+          "name": "ZL",
+          "ylim": [
+            0,
+            80
+          ]
+        }
+      ],
+      "rms_warn_lines": {
+        "ZG": [
+          {
+            "y": 100,
+            "label": "一级阈值 100cm/s²",
+            "color": [
+              0.929,
+              0.694,
+              0.125
+            ]
+          },
+          {
+            "y": 300,
+            "label": "二级阈值 300cm/s²",
+            "color": [
+              0.85,
+              0.1,
+              0.1
+            ]
+          }
+        ],
+        "ZL": [
+          {
+            "y": 31.5,
+            "label": "一级阈值 31.5cm/s²",
+            "color": [
+              0.929,
+              0.694,
+              0.125
+            ]
+          },
+          {
+            "y": 50,
+            "label": "二级阈值 50cm/s²",
+            "color": [
+              0.85,
+              0.1,
+              0.1
+            ]
+          }
+        ]
+      }
     },
     "accel_spectrum": {
       "psd_ylabel": "PSD (dB)",
@@ -1043,6 +1216,8 @@
       ]
     },
     "deflection": {
+      "output_dir": "时程曲线_挠度",
+      "group_output_dir": "时程曲线_挠度_组图",
       "colors_2": [
         [
           0,
@@ -1679,11 +1854,24 @@
   "wim_plot": {},
   "accel_spectrum_params": {
     "target_freqs": [
-      1,
-      2,
-      3
+      1.2
     ],
-    "tolerance": 0.15,
+    "tolerance": 0.1,
+    "theor_freqs": [
+      1.05
+    ],
+    "theor_labels": [
+      "理论一阶自振频率 1.05Hz"
+    ],
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "theoretical_hz": 1.05,
+        "search_center_hz": 1.2,
+        "search_half_width_hz": 0.1
+      }
+    ],
     "fs": 20,
     "auto_detect_fs": true
   },

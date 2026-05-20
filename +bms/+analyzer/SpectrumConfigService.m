@@ -40,20 +40,49 @@ classdef SpectrumConfigService
             labels = bms.analyzer.SpectrumConfigService.normalizeTheorLabels(labels, freqs);
         end
 
-        function [freqs, tol, theorFreqs, theorLabels] = pointParams(cfg, pid, spec, defaultFreqs, defaultTol, defaultTheorFreqs, defaultTheorLabels)
+        function [freqs, tol, theorFreqs, theorLabels, peakLabels] = pointParams(cfg, pid, spec, defaultFreqs, defaultTol, defaultTheorFreqs, defaultTheorLabels)
             freqs = defaultFreqs;
             tol = defaultTol;
             theorFreqs = defaultTheorFreqs;
             theorLabels = defaultTheorLabels;
+            peakLabels = bms.analyzer.SpectrumConfigService.defaultPeakLabels(freqs);
+
+            params = bms.config.ConfigReader.getStruct(cfg, spec.paramsKey, struct());
+            [ok, freqs2, tol2, theorFreqs2, theorLabels2, peakLabels2] = ...
+                bms.analyzer.SpectrumConfigService.peakOrdersToParams( ...
+                    bms.config.ConfigReader.getField(params, 'peak_orders', []), ...
+                    freqs, tol, theorFreqs, theorLabels, peakLabels);
+            if ok
+                freqs = freqs2;
+                tol = tol2;
+                theorFreqs = theorFreqs2;
+                theorLabels = theorLabels2;
+                peakLabels = peakLabels2;
+            end
 
             pt = bms.analyzer.SpectrumConfigService.pointConfig(cfg, spec.perPointKey, pid);
             if isstruct(pt)
-                freqs = bms.config.ConfigReader.getField(pt, 'target_freqs', freqs);
-                tol = bms.config.ConfigReader.getField(pt, 'tolerance', tol);
-                theorFreqs = bms.config.ConfigReader.getField(pt, 'theor_freqs', theorFreqs);
-                theorLabels = bms.config.ConfigReader.getField(pt, 'theor_labels', theorLabels);
+                [ok, freqs2, tol2, theorFreqs2, theorLabels2, peakLabels2] = ...
+                    bms.analyzer.SpectrumConfigService.peakOrdersToParams( ...
+                        bms.config.ConfigReader.getField(pt, 'peak_orders', []), ...
+                        freqs, tol, theorFreqs, theorLabels, peakLabels);
+                if ok
+                    freqs = freqs2;
+                    tol = tol2;
+                    theorFreqs = theorFreqs2;
+                    theorLabels = theorLabels2;
+                    peakLabels = peakLabels2;
+                else
+                    freqs = bms.config.ConfigReader.getField(pt, 'target_freqs', freqs);
+                    tol = bms.config.ConfigReader.getField(pt, 'tolerance', tol);
+                    theorFreqs = bms.config.ConfigReader.getField(pt, 'theor_freqs', theorFreqs);
+                    theorLabels = bms.config.ConfigReader.getField(pt, 'theor_labels', theorLabels);
+                    peakLabels = bms.config.ConfigReader.getField(pt, 'peak_labels', peakLabels);
+                end
             end
+            tol = bms.analyzer.SpectrumConfigService.normalizeTolerance(tol, freqs);
             theorLabels = bms.analyzer.SpectrumConfigService.normalizeTheorLabels(theorLabels, theorFreqs);
+            peakLabels = bms.analyzer.SpectrumConfigService.normalizePeakLabels(peakLabels, freqs);
         end
 
         function pt = pointConfig(cfg, perPointKey, pid)
@@ -83,6 +112,174 @@ classdef SpectrumConfigService
             end
             if numel(labels) ~= numel(freqs)
                 labels = arrayfun(@(f) sprintf('理论频率 %.3fHz', f), freqs(:), 'UniformOutput', false);
+            end
+        end
+
+        function labels = normalizePeakLabels(labels, freqs)
+            if isempty(freqs)
+                labels = {};
+                return;
+            end
+            if isstring(labels)
+                labels = cellstr(labels(:));
+            elseif ischar(labels)
+                labels = {labels};
+            elseif ~iscell(labels)
+                labels = {};
+            end
+            if numel(labels) ~= numel(freqs)
+                labels = bms.analyzer.SpectrumConfigService.defaultPeakLabels(freqs);
+            end
+        end
+
+        function labels = defaultPeakLabels(freqs)
+            labels = arrayfun(@(k) sprintf('峰%d', k), (1:numel(freqs)).', 'UniformOutput', false);
+        end
+
+        function tol = normalizeTolerance(tol, freqs)
+            if isempty(freqs)
+                tol = [];
+                return;
+            end
+            if isempty(tol)
+                tol = 0.15;
+            end
+            tol = double(tol(:).');
+            if isempty(tol)
+                tol = 0.15;
+            end
+            if isscalar(tol)
+                return;
+            end
+            if numel(tol) < numel(freqs)
+                tol(end+1:numel(freqs)) = tol(end);
+            elseif numel(tol) > numel(freqs)
+                tol = tol(1:numel(freqs));
+            end
+        end
+
+        function [ok, freqs, tol, theorFreqs, theorLabels, peakLabels] = peakOrdersToParams(orders, fallbackFreqs, fallbackTol, fallbackTheorFreqs, fallbackTheorLabels, fallbackPeakLabels)
+            ok = false;
+            freqs = fallbackFreqs;
+            tol = fallbackTol;
+            theorFreqs = fallbackTheorFreqs;
+            theorLabels = fallbackTheorLabels;
+            if nargin < 6 || isempty(fallbackPeakLabels)
+                peakLabels = bms.analyzer.SpectrumConfigService.defaultPeakLabels(fallbackFreqs);
+            else
+                peakLabels = fallbackPeakLabels;
+            end
+            if isempty(orders)
+                return;
+            end
+            if iscell(orders)
+                try
+                    orders = [orders{:}];
+                catch
+                    return;
+                end
+            end
+            if ~isstruct(orders)
+                return;
+            end
+
+            outFreqs = [];
+            outTol = [];
+            outTheor = [];
+            outTheorLabels = {};
+            outPeakLabels = {};
+
+            for i = 1:numel(orders)
+                item = orders(i);
+                center = bms.analyzer.SpectrumConfigService.firstNumericField( ...
+                    item, {'search_center_hz', 'target_hz', 'frequency_hz', 'freq_hz'});
+                if ~isfinite(center)
+                    center = bms.analyzer.SpectrumConfigService.firstNumericField( ...
+                        item, {'theoretical_hz', 'theor_hz'});
+                end
+                if ~isfinite(center)
+                    continue;
+                end
+                halfWidth = bms.analyzer.SpectrumConfigService.firstNumericField( ...
+                    item, {'search_half_width_hz', 'tolerance_hz', 'half_width_hz'});
+                if ~isfinite(halfWidth)
+                    if isscalar(fallbackTol) && ~isempty(fallbackTol)
+                        halfWidth = fallbackTol;
+                    else
+                        halfWidth = 0.15;
+                    end
+                end
+                theor = bms.analyzer.SpectrumConfigService.firstNumericField( ...
+                    item, {'theoretical_hz', 'theor_hz'});
+                label = bms.analyzer.SpectrumConfigService.orderLabel(item, numel(outFreqs) + 1);
+                theorLabel = bms.analyzer.SpectrumConfigService.firstTextField(item, {'theor_label', 'theoretical_label'});
+                if isempty(theorLabel) && isfinite(theor)
+                    theorLabel = sprintf('理论%s频率 %.3fHz', label, theor);
+                end
+
+                outFreqs(end+1) = center; %#ok<AGROW>
+                outTol(end+1) = halfWidth; %#ok<AGROW>
+                outPeakLabels{end+1} = label; %#ok<AGROW>
+                if isfinite(theor)
+                    outTheor(end+1) = theor; %#ok<AGROW>
+                    outTheorLabels{end+1} = theorLabel; %#ok<AGROW>
+                end
+            end
+
+            if isempty(outFreqs)
+                return;
+            end
+            freqs = outFreqs;
+            tol = outTol;
+            theorFreqs = outTheor;
+            theorLabels = outTheorLabels;
+            peakLabels = outPeakLabels;
+            ok = true;
+        end
+
+        function value = firstNumericField(s, names)
+            value = NaN;
+            for i = 1:numel(names)
+                name = names{i};
+                if isfield(s, name) && ~isempty(s.(name))
+                    raw = s.(name);
+                    if isnumeric(raw) && isscalar(raw)
+                        value = double(raw);
+                    elseif isstring(raw) || ischar(raw)
+                        value = str2double(char(string(raw)));
+                    end
+                    if isfinite(value)
+                        return;
+                    end
+                end
+            end
+        end
+
+        function value = firstTextField(s, names)
+            value = '';
+            for i = 1:numel(names)
+                name = names{i};
+                if isfield(s, name) && ~isempty(s.(name))
+                    value = char(string(s.(name)));
+                    return;
+                end
+            end
+        end
+
+        function label = orderLabel(item, fallbackOrder)
+            label = bms.analyzer.SpectrumConfigService.firstTextField(item, {'label', 'name'});
+            if ~isempty(label)
+                return;
+            end
+            order = bms.analyzer.SpectrumConfigService.firstNumericField(item, {'order'});
+            if ~isfinite(order)
+                order = fallbackOrder;
+            end
+            orderNames = {'一阶', '二阶', '三阶', '四阶', '五阶', '六阶'};
+            if order >= 1 && order <= numel(orderNames) && abs(order - round(order)) < eps
+                label = orderNames{round(order)};
+            else
+                label = sprintf('%g阶', order);
             end
         end
 

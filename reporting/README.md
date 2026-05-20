@@ -185,6 +185,9 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.7.0` aligns the report GUI with the main MATLAB GUI after the ShuiXianHua data-processing release, including standardized deflection group-plot folders and updated result-readiness checks.
+版本 `v1.7.0` 与 MATLAB 数据分析 GUI 同步，覆盖水仙花数据处理发布内容，包括标准化挠度组图目录和更新后的结果就绪检查。
+
 Version `v1.6.11` adds the Shuixianhua monthly report mode and keeps the GUI version aligned with the main MATLAB analysis GUI.
 版本 `v1.6.11` 增加水仙花月报模式，并与 MATLAB 数据分析 GUI 版本号保持一致。
 

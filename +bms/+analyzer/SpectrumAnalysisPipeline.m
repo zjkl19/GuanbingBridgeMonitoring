@@ -28,6 +28,9 @@ classdef SpectrumAnalysisPipeline
 
             rootDir = char(rootDir);
             excelFile = resolve_data_output_path(rootDir, excelFile, 'stats');
+            if isfile(excelFile)
+                delete(excelFile);
+            end
             style = bms.analyzer.SpectrumAnalysisPipeline.plotStyle(cfg, spec);
             dirs = bms.analyzer.SpectrumAnalysisPipeline.ensureOutputDirs(rootDir, spec);
             datesAll = (datetime(startDate):days(1):datetime(endDate)).';
@@ -46,7 +49,7 @@ classdef SpectrumAnalysisPipeline
                 pid = pointIds{i};
                 fprintf('\n---- 测点 %s ----\n', pid);
 
-                [targetFreqsPt, tolerancePt, theorFreqsPt, theorLabelsPt] = ...
+                [targetFreqsPt, tolerancePt, theorFreqsPt, theorLabelsPt, peakLabelsPt] = ...
                     bms.analyzer.SpectrumAnalysisPipeline.pointParams( ...
                         cfg, pid, spec, targetFreqs, tolerance, theorFreqs, theorLabels);
                 [ampDay, freqDay] = bms.analyzer.SpectrumAnalysisPipeline.processPoint( ...
@@ -66,7 +69,7 @@ classdef SpectrumAnalysisPipeline
                 bms.analyzer.SpectrumAnalysisPipeline.writePointSheet( ...
                     datesAll, freqDay, ampDay, forceSeries, targetFreqsPt, excelFile, spec.moduleKey, pid);
                 bms.analyzer.SpectrumAnalysisPipeline.plotFrequencyTimeseries( ...
-                    datesAll, freqDay, pid, targetFreqsPt, dirs.freqRoot, style, theorFreqsPt, theorLabelsPt, cfg);
+                    datesAll, freqDay, pid, targetFreqsPt, dirs.freqRoot, style, theorFreqsPt, theorLabelsPt, cfg, peakLabelsPt);
 
                 if spec.includeForce
                     bms.analyzer.SpectrumAnalysisPipeline.plotForceTimeseries( ...
@@ -164,8 +167,8 @@ classdef SpectrumAnalysisPipeline
             [freqs, labels] = bms.analyzer.SpectrumConfigService.theoreticalFrequencies(varargin{:});
         end
 
-        function [freqs, tol, theorFreqs, theorLabels] = pointParams(varargin)
-            [freqs, tol, theorFreqs, theorLabels] = bms.analyzer.SpectrumConfigService.pointParams(varargin{:});
+        function [freqs, tol, theorFreqs, theorLabels, peakLabels] = pointParams(varargin)
+            [freqs, tol, theorFreqs, theorLabels, peakLabels] = bms.analyzer.SpectrumConfigService.pointParams(varargin{:});
         end
 
         function pt = pointConfig(varargin)

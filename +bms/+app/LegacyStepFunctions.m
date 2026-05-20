@@ -105,6 +105,13 @@ classdef LegacyStepFunctions
                 ps = cfg.accel_spectrum_params;
                 if isfield(ps,'target_freqs') && ~isempty(ps.target_freqs), freqs = ps.target_freqs; end
                 if isfield(ps,'tolerance')   && ~isempty(ps.tolerance),    tol   = ps.tolerance;   end
+                if isfield(ps,'peak_orders') && ~isempty(ps.peak_orders)
+                    [ok, freqs2, tol2] = bms.analyzer.SpectrumConfigService.peakOrdersToParams(ps.peak_orders, freqs, tol, [], {}, {});
+                    if ok
+                        freqs = freqs2;
+                        tol = tol2;
+                    end
+                end
             end
         end
 
@@ -115,6 +122,13 @@ classdef LegacyStepFunctions
                 ps = cfg.cable_accel_spectrum_params;
                 if isfield(ps,'target_freqs') && ~isempty(ps.target_freqs), freqs = ps.target_freqs; end
                 if isfield(ps,'tolerance')   && ~isempty(ps.tolerance),    tol   = ps.tolerance;   end
+                if isfield(ps,'peak_orders') && ~isempty(ps.peak_orders)
+                    [ok, freqs2, tol2] = bms.analyzer.SpectrumConfigService.peakOrdersToParams(ps.peak_orders, freqs, tol, [], {}, {});
+                    if ok
+                        freqs = freqs2;
+                        tol = tol2;
+                    end
+                end
             end
         end
 

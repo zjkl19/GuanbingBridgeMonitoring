@@ -67,9 +67,11 @@ classdef SpectrumPeakService
         function [ampRow, freqRow] = peakRows(f, Pdb, targetFreqs, tolerance)
             ampRow = NaN(1, numel(targetFreqs));
             freqRow = NaN(1, numel(targetFreqs));
+            tolerance = bms.analyzer.SpectrumConfigService.normalizeTolerance(tolerance, targetFreqs);
             for i = 1:numel(targetFreqs)
                 f0 = targetFreqs(i);
-                idxBand = f >= f0 - tolerance & f <= f0 + tolerance;
+                tol = tolerance(min(i, numel(tolerance)));
+                idxBand = f >= f0 - tol & f <= f0 + tol;
                 if ~any(idxBand)
                     continue;
                 end
