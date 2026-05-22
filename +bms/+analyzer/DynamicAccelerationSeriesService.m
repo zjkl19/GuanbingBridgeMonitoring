@@ -100,6 +100,12 @@ classdef DynamicAccelerationSeriesService
                     return;
                 end
             end
+            groupsCfg = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, spec.groupKey, []);
+            points = bms.analyzer.StructuralPlotConfigService.flattenGroups(groupsCfg);
+            if ~isempty(points)
+                points = unique(points(:), 'stable');
+                return;
+            end
             points = spec.defaultPoints;
         end
 

@@ -34,14 +34,17 @@ classdef DynamicStrainBoxplotPipeline
             fprintf('日期范围: %s ~ %s\n', startStr, endStr);
             fprintf('数据目录: %s\\YYYY-MM-DD\\%s\n', rootDir, subfolder);
 
+            plottedPointIds = {};
             for gi = 1:numel(groups)
                 groupName = groupNames{gi};
                 fprintf('\n== 处理分组 %s ==\n', groupName);
                 [dataMat, labels, tsList] = bms.analyzer.DynamicStrainBoxplotPipeline.collectGroupData( ...
                     rootDir, subfolder, startStr, endStr, groups{gi}, ds, cfg, spec);
+                ylimGroup = bms.analyzer.DynamicStrainBoxplotPipeline.groupYLim(style, groupName, ds);
+                plottedPointIds = bms.analyzer.DynamicStrainPlotService.plotPointTimeseriesList( ...
+                    tsList, labels, outDirTs, dt0, dt1, ds, spec, ylimGroup, tag, timestamp, cfg, plottedPointIds);
                 bms.analyzer.DynamicStrainBoxplotPipeline.makeBoxplotAndStats( ...
                     dataMat, labels, groupName, outDir, ds, spec, tag, timestamp, dt0, dt1, cfg);
-                ylimGroup = bms.analyzer.DynamicStrainBoxplotPipeline.groupYLim(style, groupName, ds);
                 bms.analyzer.DynamicStrainBoxplotPipeline.plotTimeseriesGroup( ...
                     tsList, labels, groupName, outDirTs, dt0, dt1, ds, spec, ylimGroup, tag, timestamp, cfg);
             end

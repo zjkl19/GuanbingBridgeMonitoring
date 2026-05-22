@@ -10,6 +10,14 @@ classdef SpectrumConfigService
                     return;
                 end
             end
+            if isfield(spec, 'forceGroupKey') && ~isempty(spec.forceGroupKey)
+                groupsCfg = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, spec.forceGroupKey, []);
+                points = bms.analyzer.StructuralPlotConfigService.flattenGroups(groupsCfg);
+                if ~isempty(points)
+                    points = unique(points(:), 'stable');
+                    return;
+                end
+            end
             points = spec.defaultPoints;
         end
 
@@ -283,11 +291,23 @@ classdef SpectrumConfigService
             end
         end
 
-        function dirs = ensureOutputDirs(rootDir, spec)
+        function dirs = ensureOutputDirs(rootDir, spec, style)
+            if nargin < 3
+                style = struct();
+            end
             dirs.freqRoot = fullfile(rootDir, spec.freqOutputDir);
             dirs.psdRoot = fullfile(rootDir, spec.psdOutputDir);
             bms.core.PathResolver.ensureDir(dirs.freqRoot);
             bms.core.PathResolver.ensureDir(dirs.psdRoot);
+
+            if isfield(spec, 'freqGroupOutputDir') && ~isempty(spec.freqGroupOutputDir)
+                groupOutputDir = spec.freqGroupOutputDir;
+                if isstruct(style) && isfield(style, 'group_output_dir') && ~isempty(style.group_output_dir)
+                    groupOutputDir = style.group_output_dir;
+                end
+                dirs.freqGroupRoot = fullfile(rootDir, groupOutputDir);
+                bms.core.PathResolver.ensureDir(dirs.freqGroupRoot);
+            end
 
             if spec.includeForce
                 dirs.forceRoot = fullfile(rootDir, spec.forceOutputDir);

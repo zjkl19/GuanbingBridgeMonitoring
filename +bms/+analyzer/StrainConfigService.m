@@ -15,6 +15,7 @@ classdef StrainConfigService
             ctx.explicit_points = ~isempty(ctx.points);
             ctx.explicit_groups = bms.analyzer.StrainConfigService.hasGroups(ctx.groups);
             ctx.explicit_ts_groups = bms.analyzer.StrainConfigService.hasGroups(ctx.ts_groups);
+            ctx.points_derived_from_groups = false;
 
             if ~ctx.explicit_ts_groups && ctx.explicit_groups
                 ctx.ts_groups = ctx.groups;
@@ -26,6 +27,16 @@ classdef StrainConfigService
                 ctx.ts_groups = ctx.groups;
                 ctx.explicit_groups = true;
                 ctx.explicit_ts_groups = true;
+            end
+
+            if ~ctx.explicit_points
+                if ctx.explicit_ts_groups
+                    ctx.points = bms.analyzer.StrainConfigService.pointsFromGroups(ctx.ts_groups);
+                elseif ctx.explicit_groups
+                    ctx.points = bms.analyzer.StrainConfigService.pointsFromGroups(ctx.groups);
+                end
+                ctx.explicit_points = ~isempty(ctx.points);
+                ctx.points_derived_from_groups = ctx.explicit_points;
             end
         end
 
@@ -53,6 +64,15 @@ classdef StrainConfigService
 
         function points = resolvePoints(cfg)
             points = bms.analyzer.StructuralPlotConfigService.getPoints(cfg, 'strain', {});
+        end
+
+        function points = pointsFromGroups(groupsCfg)
+            points = bms.analyzer.StructuralPlotConfigService.flattenGroups(groupsCfg);
+            if isempty(points)
+                points = {};
+                return;
+            end
+            points = unique(points(:), 'stable');
         end
 
         function style = style(cfg)

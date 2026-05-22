@@ -81,7 +81,8 @@ classdef StructuralTimeSeriesPlotService
                 title(titleText, 'Interpreter', titleInterpreter);
             end
             bms.analyzer.StructuralTimeSeriesPlotService.drawWarnLines( ...
-                bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'warnLines', {}));
+                bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'warnLines', {}), ...
+                bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'style', struct()));
             bms.analyzer.StructuralTimeSeriesPlotService.applyYLim( ...
                 bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'ylimRange', []));
 
@@ -145,8 +146,11 @@ classdef StructuralTimeSeriesPlotService
             end
         end
 
-        function drawWarnLines(warnLines)
-            warnLines = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(warnLines);
+        function drawWarnLines(warnLines, style)
+            if nargin < 2
+                style = struct();
+            end
+            warnLines = bms.analyzer.StructuralPlotConfigService.applyWarnLineDefaults(warnLines, style);
             for k = 1:numel(warnLines)
                 wl = warnLines{k};
                 if ~isstruct(wl) || ~isfield(wl, 'y') || ~isnumeric(wl.y) || ~isscalar(wl.y) || ~isfinite(wl.y)
@@ -155,7 +159,13 @@ classdef StructuralTimeSeriesPlotService
                 yl = yline(wl.y, '--', bms.analyzer.StructuralPlotConfigService.warnLabel(wl), ...
                     'LabelHorizontalAlignment', 'left');
                 if isfield(wl, 'color') && isnumeric(wl.color) && numel(wl.color) == 3
-                    yl.Color = reshape(wl.color, 1, 3);
+                    yl.Color = bms.analyzer.StructuralPlotConfigService.warnDisplayColor(wl.color);
+                end
+                yl.LineWidth = 1.0;
+                if wl.y >= 0
+                    yl.LabelVerticalAlignment = 'bottom';
+                else
+                    yl.LabelVerticalAlignment = 'top';
                 end
             end
         end

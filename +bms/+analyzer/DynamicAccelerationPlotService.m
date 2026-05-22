@@ -221,14 +221,14 @@ classdef DynamicAccelerationPlotService
                 for i = 1:numel(candidates)
                     if isfield(raw, candidates{i})
                         raw = raw.(candidates{i});
-                        warnLines = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(raw);
+                        warnLines = bms.analyzer.StructuralPlotConfigService.applyWarnLineDefaults(raw, style);
                         return;
                     end
                 end
                 return;
             end
 
-            warnLines = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(raw);
+            warnLines = bms.analyzer.StructuralPlotConfigService.applyWarnLineDefaults(raw, style);
         end
 
         function outDir = groupOutputDir(style, spec)

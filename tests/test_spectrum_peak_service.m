@@ -109,5 +109,54 @@ classdef test_spectrum_peak_service < matlab.unittest.TestCase
                 bms.analyzer.SpectrumPlotService.groupDisplayName('GroupA', {'S1', 'S2'}), ...
                 bms.analyzer.SpectrumAnalysisPipeline.groupDisplayName('GroupA', {'S1', 'S2'}));
         end
+
+        function cableSpectrumPointsFallBackToForceGroups(tc)
+            spec = bms.analyzer.SpectrumAnalysisPipeline.spec('cable_accel_spectrum');
+            cfg.groups.cable_force = struct('G1', {{'S1', 'S2'}}, 'G2', {{'S2', 'S3'}});
+
+            points = bms.analyzer.SpectrumConfigService.resolvePoints(cfg, spec);
+
+            tc.verifyEqual(points, {'S1'; 'S2'; 'S3'});
+        end
+
+        function accelSpectrumSpecDefinesFrequencyGroupOutput(tc)
+            spec = bms.analyzer.SpectrumAnalysisPipeline.spec('accel_spectrum');
+
+            tc.verifyEqual(spec.freqGroupKey, 'acceleration');
+            tc.verifyTrue(isfield(spec, 'freqGroupOutputDir'));
+            tc.verifyFalse(isempty(spec.freqGroupOutputDir));
+        end
+
+        function plotFrequencyGroupsWritesGroupBundle(tc)
+            rootDir = tempname;
+            mkdir(rootDir);
+            tc.addTeardown(@() rmdir(rootDir, 's'));
+
+            cfg.groups.acceleration = struct('ZG', {{'A1', 'A2'}});
+            cfg.plot_common = struct( ...
+                'save_fig', false, ...
+                'append_timestamp', false, ...
+                'gap_mode', 'connect');
+            datesAll = (datetime(2026, 3, 23):days(1):datetime(2026, 3, 24)).';
+            freqSeriesAll = {[1.19; 1.21]; [1.18; 1.22]};
+            targetFreqsAll = {[1.20]; [1.20]};
+            peakLabelsAll = {{'P1'}; {'P1'}};
+            theorFreqsAll = {[1.05]; [1.05]};
+            theorLabelsAll = {{'Theoretical 1.050Hz'}; {'Theoretical 1.050Hz'}};
+            style = struct( ...
+                'freq_ylabel', 'Peak frequency (Hz)', ...
+                'freq_title_prefix', 'Peak frequency', ...
+                'group_labels', struct('ZG', 'ZG main'), ...
+                'group_legend_location', 'northeast', ...
+                'group_legend_box', 'off');
+            outDir = fullfile(rootDir, 'freq_groups');
+
+            bms.analyzer.SpectrumPlotService.plotFrequencyGroups( ...
+                cfg, {'A1'; 'A2'}, datesAll, freqSeriesAll, [true; true], outDir, style, ...
+                'acceleration', targetFreqsAll, peakLabelsAll, theorFreqsAll, theorLabelsAll);
+
+            files = dir(fullfile(outDir, 'SpecFreq_ZG_main_Group_*.jpg'));
+            tc.verifyEqual(numel(files), 1);
+        end
     end
 end

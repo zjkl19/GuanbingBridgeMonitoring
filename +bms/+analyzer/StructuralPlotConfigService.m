@@ -114,23 +114,51 @@ classdef StructuralPlotConfigService
         end
 
         function colors = distinctColors(nSeries)
-            if exist('turbo', 'builtin') == 5 || exist('turbo', 'file') == 2
-                colors = turbo(nSeries);
+            nSeries = max(0, round(nSeries));
+            if nSeries == 0
+                colors = zeros(0, 3);
                 return;
             end
 
-            idx = (0:nSeries-1)';
+            base = [
+                0.1216 0.4667 0.7059
+                1.0000 0.4980 0.0549
+                0.1725 0.6275 0.1725
+                0.8392 0.1529 0.1569
+                0.5804 0.4039 0.7412
+                0.5490 0.3373 0.2941
+                0.8902 0.4667 0.7608
+                0.4980 0.4980 0.4980
+                0.7373 0.7412 0.1333
+                0.0902 0.7451 0.8118
+                0.6824 0.7804 0.9098
+                1.0000 0.7333 0.4706
+                0.5961 0.8745 0.5412
+                1.0000 0.5961 0.5882
+                0.7725 0.6902 0.8353
+                0.7686 0.6118 0.5804
+                0.9686 0.7137 0.8235
+                0.7804 0.7804 0.7804
+                0.8588 0.8588 0.5529
+                0.6196 0.8549 0.8980
+            ];
+            if nSeries <= size(base, 1)
+                colors = base(1:nSeries, :);
+                return;
+            end
+
+            extraCount = nSeries - size(base, 1);
+            idx = (0:extraCount-1)';
             hues = mod(idx * 0.61803398875, 1.0);
-            sat = 0.65 + 0.20 * mod(idx * 0.31, 1.0);
-            val = 0.78 + 0.18 * mod(idx * 0.47, 1.0);
-            colors = hsv2rgb([hues, sat, val]);
+            extra = hsv2rgb([hues, repmat(0.72, extraCount, 1), repmat(0.85, extraCount, 1)]);
+            colors = [base; extra];
         end
 
         function warnLines = resolveWarnLines(style, cfg, key, pid)
             warnLines = {};
             globalWarn = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'warn_lines', {});
             if ~isempty(globalWarn)
-                warnLines = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(globalWarn);
+                warnLines = bms.analyzer.StructuralPlotConfigService.applyWarnLineDefaults(globalWarn, style);
             end
             if isempty(pid) || ~isstruct(cfg) || ~isfield(cfg, 'per_point') || ~isstruct(cfg.per_point) || ...
                     ~isfield(cfg.per_point, key) || ~isstruct(cfg.per_point.(key))
@@ -146,7 +174,7 @@ classdef StructuralPlotConfigService
                 if isempty(pointCfg.warn_lines)
                     warnLines = {};
                 else
-                    warnLines = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(pointCfg.warn_lines);
+                    warnLines = bms.analyzer.StructuralPlotConfigService.applyWarnLineDefaults(pointCfg.warn_lines, style);
                 end
             elseif isfield(pointCfg, 'alarm_bounds') && ~isempty(pointCfg.alarm_bounds)
                 warnLines = bms.analyzer.StructuralPlotConfigService.boundsToWarnLines(pointCfg.alarm_bounds, style);
@@ -160,7 +188,7 @@ classdef StructuralPlotConfigService
             end
 
             colors = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'alarm_colors', []);
-            level2Color = [0.929 0.694 0.125];
+            level2Color = [0.72 0.50 0.00];
             level3Color = [0.85 0.1 0.1];
             if isnumeric(colors) && size(colors, 2) == 3
                 if size(colors, 1) >= 1
@@ -180,28 +208,34 @@ classdef StructuralPlotConfigService
 
             level2 = char([20108 32423]);
             level3 = char([19977 32423]);
-            warnLines = [warnLines; bms.analyzer.StructuralPlotConfigService.appendAlarmPair(bounds, 'level2', level2, level2Color)]; %#ok<AGROW>
-            warnLines = [warnLines; bms.analyzer.StructuralPlotConfigService.appendAlarmPair(bounds, 'level3', level3, level3Color)]; %#ok<AGROW>
+            unit = bms.analyzer.StructuralPlotConfigService.warnUnit(style);
+            warnLines = [warnLines; bms.analyzer.StructuralPlotConfigService.appendAlarmPair(bounds, 'level2', level2, level2Color, unit)]; %#ok<AGROW>
+            warnLines = [warnLines; bms.analyzer.StructuralPlotConfigService.appendAlarmPair(bounds, 'level3', level3, level3Color, unit)]; %#ok<AGROW>
         end
 
-        function lines = appendAlarmPair(bounds, fieldName, prefix, color)
+        function lines = appendAlarmPair(bounds, fieldName, prefix, color, unit)
             lines = {};
             if ~isfield(bounds, fieldName)
                 return;
+            end
+            if nargin < 5
+                unit = '';
             end
             vals = bounds.(fieldName);
             if ~isnumeric(vals) || numel(vals) ~= 2
                 return;
             end
             vals = sort(vals(:));
-            lowerLabel = [char(string(prefix)) char([19979 38480])];
-            upperLabel = [char(string(prefix)) char([19978 38480])];
-            labels = {lowerLabel, upperLabel};
             for i = 1:2
                 if ~isfinite(vals(i))
                     continue;
                 end
-                lines{end+1, 1} = struct('y', vals(i), 'label', labels{i}, 'color', color); %#ok<AGROW>
+                lines{end+1, 1} = struct( ... %#ok<AGROW>
+                    'y', vals(i), ...
+                    'label', bms.analyzer.StructuralPlotConfigService.composeWarnValueLabel(prefix, vals(i), unit), ...
+                    'color', color, ...
+                    'level', char(string(prefix)), ...
+                    'unit', char(string(unit)));
             end
         end
 
@@ -234,11 +268,151 @@ classdef StructuralPlotConfigService
             end
         end
 
+        function lines = applyWarnLineDefaults(lines, style)
+            lines = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(lines);
+            unit = bms.analyzer.StructuralPlotConfigService.warnUnit(style);
+            for i = 1:numel(lines)
+                wl = lines{i};
+                if ~isstruct(wl)
+                    continue;
+                end
+                if ~isfield(wl, 'unit') || isempty(wl.unit)
+                    wl.unit = unit;
+                end
+                lines{i} = wl;
+            end
+        end
+
         function label = warnLabel(warnLine)
             label = '';
             if isstruct(warnLine) && isfield(warnLine, 'label') && ...
                     (ischar(warnLine.label) || isstring(warnLine.label))
                 label = char(string(warnLine.label));
+            end
+            if isempty(label) && isstruct(warnLine) && isfield(warnLine, 'level') && ...
+                    isfield(warnLine, 'y') && isnumeric(warnLine.y) && isscalar(warnLine.y)
+                unit = '';
+                if isfield(warnLine, 'unit')
+                    unit = warnLine.unit;
+                end
+                label = bms.analyzer.StructuralPlotConfigService.composeWarnValueLabel(warnLine.level, warnLine.y, unit);
+            end
+            label = bms.analyzer.StructuralPlotConfigService.normalizeWarnLabel(label, warnLine);
+        end
+
+        function label = normalizeWarnLabel(label, warnLine)
+            label = char(string(label));
+            if isempty(label)
+                return;
+            end
+
+            warnValueText = bms.analyzer.StructuralPlotConfigService.warnValueText();
+            levels = {char([19968 32423]), char([20108 32423]), char([19977 32423])};
+            oldTerms = {char([38408 20540]), char([25253 35686 20540]), ...
+                char([19978 38480]), char([19979 38480])};
+            for i = 1:numel(levels)
+                for j = 1:numel(oldTerms)
+                    label = strrep(label, [levels{i} oldTerms{j}], [levels{i} warnValueText]);
+                end
+            end
+            colorTerms = {char([40644 32447]), char([32418 32447])};
+            colorLevels = {levels{2}, levels{3}};
+            for i = 1:numel(colorTerms)
+                for j = 1:numel(oldTerms)
+                    label = strrep(label, [colorTerms{i} oldTerms{j}], [colorLevels{i} warnValueText]);
+                end
+            end
+            label = regexprep(label, [warnValueText '([+\-]?\d)'], [warnValueText ' $1']);
+
+            if isstruct(warnLine) && isfield(warnLine, 'y') && isnumeric(warnLine.y) && ...
+                    isscalar(warnLine.y) && isfinite(warnLine.y) && ...
+                    contains(label, warnValueText) && ...
+                    ~bms.analyzer.StructuralPlotConfigService.warnLabelHasValue(label)
+                unit = '';
+                if isfield(warnLine, 'unit')
+                    unit = warnLine.unit;
+                end
+                label = sprintf('%s %s%s', label, ...
+                    bms.analyzer.StructuralPlotConfigService.formatWarnValue(warnLine.y), ...
+                    char(string(unit)));
+            end
+        end
+
+        function tf = warnLabelHasValue(label)
+            warnValueText = bms.analyzer.StructuralPlotConfigService.warnValueText();
+            idx = strfind(label, warnValueText);
+            tf = false;
+            if isempty(idx)
+                return;
+            end
+            suffix = label(idx(end) + length(warnValueText):end);
+            tf = ~isempty(regexp(suffix, '[+\-]?\d', 'once'));
+        end
+
+        function label = composeWarnValueLabel(level, value, unit)
+            if nargin < 3
+                unit = '';
+            end
+            label = sprintf('%s%s %s%s', ...
+                char(string(level)), ...
+                bms.analyzer.StructuralPlotConfigService.warnValueText(), ...
+                bms.analyzer.StructuralPlotConfigService.formatWarnValue(value), ...
+                char(string(unit)));
+        end
+
+        function text = warnValueText()
+            text = char([39044 35686 20540]);
+        end
+
+        function text = formatWarnValue(value)
+            if abs(value) < 1e-12
+                value = 0;
+            end
+            text = regexprep(sprintf('%.6g', value), '^-0$', '0');
+        end
+
+        function unit = warnUnit(style)
+            unit = '';
+            if nargin < 1 || ~isstruct(style)
+                return;
+            end
+
+            directFields = {'warn_unit', 'unit'};
+            for i = 1:numel(directFields)
+                field = directFields{i};
+                if isfield(style, field) && ~isempty(style.(field))
+                    unit = bms.analyzer.StructuralPlotConfigService.normalizeUnit(style.(field));
+                    return;
+                end
+            end
+
+            labelFields = {'ylabel', 'rms_ylabel', 'force_ylabel'};
+            for i = 1:numel(labelFields)
+                field = labelFields{i};
+                if ~isfield(style, field) || isempty(style.(field))
+                    continue;
+                end
+                tokens = regexp(char(string(style.(field))), '\(([^)]*)\)', 'tokens', 'once');
+                if ~isempty(tokens)
+                    unit = bms.analyzer.StructuralPlotConfigService.normalizeUnit(tokens{1});
+                    return;
+                end
+            end
+        end
+
+        function unit = normalizeUnit(value)
+            unit = char(string(value));
+            unit = strrep(unit, '^2', char(178));
+        end
+
+        function color = warnDisplayColor(color)
+            if ~(isnumeric(color) && numel(color) == 3)
+                color = [];
+                return;
+            end
+            color = reshape(color, 1, 3);
+            if color(1) >= 0.85 && color(2) >= 0.60 && color(3) <= 0.25
+                color = [0.72 0.50 0.00];
             end
         end
 

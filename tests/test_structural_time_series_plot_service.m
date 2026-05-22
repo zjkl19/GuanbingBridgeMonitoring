@@ -121,7 +121,9 @@ classdef test_structural_time_series_plot_service < matlab.unittest.TestCase
             T = readtable(excelPath, 'VariableNamingRule', 'preserve');
             tc.verifyEqual(height(T), 2);
             figs = dir(fullfile(tc.Root, 'bearing_plots', '*.fig'));
-            tc.verifyGreaterThanOrEqual(numel(figs), 6);
+            tc.verifyGreaterThanOrEqual(numel(figs), 4);
+            groupFigs = dir(fullfile(tc.Root, 'bearing_plots_组图', '*.fig'));
+            tc.verifyGreaterThanOrEqual(numel(groupFigs), 2);
         end
 
         function bridgeConfigsResolveFilteredPipelineInputs(tc)

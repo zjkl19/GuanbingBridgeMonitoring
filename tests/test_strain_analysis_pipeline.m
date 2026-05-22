@@ -75,6 +75,17 @@ classdef test_strain_analysis_pipeline < matlab.unittest.TestCase
             end
         end
 
+        function strainContextDerivesPointCurvesFromGroups(tc)
+            cfg = strain_cfg();
+            cfg.points = struct();
+
+            ctx = bms.analyzer.StrainAnalysisPipeline.context(cfg);
+
+            tc.verifyTrue(ctx.explicit_points);
+            tc.verifyTrue(ctx.points_derived_from_groups);
+            tc.verifyEqual(ctx.points, {'S1'; 'S2'});
+        end
+
         function strainPipelineDelegatesBoxplotMatrix(tc)
             dataList = struct( ...
                 'pid', {'S1', 'S2'}, ...
@@ -85,6 +96,55 @@ classdef test_strain_analysis_pipeline < matlab.unittest.TestCase
             serviceMat = bms.analyzer.StrainPlotService.buildBoxplotMatrix(dataList, 50000);
 
             tc.verifyEqual(serviceMat, pipelineMat);
+        end
+
+        function strainGroupWarnLinesResolveWhenUniform(tc)
+            cfg = strain_cfg();
+            cfg.per_point = struct('strain', struct( ...
+                'S1', struct('alarm_bounds', struct('level2', [-18, 18])), ...
+                'S2', struct('alarm_bounds', struct('level2', [-18, 18]))));
+            style = bms.analyzer.StrainAnalysisPipeline.style(cfg);
+            dataList = struct( ...
+                'pid', {'S1', 'S2'}, ...
+                'times', {datetime(2026, 1, 1), datetime(2026, 1, 1)}, ...
+                'vals', {[1; 2], [3; 4]});
+
+            warnLines = bms.analyzer.StrainPlotService.resolveGroupWarnLines(dataList, style, cfg);
+
+            tc.verifyEqual(numel(warnLines), 2);
+            tc.verifyEqual(reshape(cellfun(@(x) x.y, warnLines), [], 1), [-18; 18]);
+        end
+
+        function strainGroupWarnLinesSkipWhenMixed(tc)
+            cfg = strain_cfg();
+            cfg.per_point = struct('strain', struct( ...
+                'S1', struct('alarm_bounds', struct('level2', [-18, 18])), ...
+                'S2', struct('alarm_bounds', struct('level2', [-36, 36]))));
+            style = bms.analyzer.StrainAnalysisPipeline.style(cfg);
+            dataList = struct( ...
+                'pid', {'S1', 'S2'}, ...
+                'times', {datetime(2026, 1, 1), datetime(2026, 1, 1)}, ...
+                'vals', {[1; 2], [3; 4]});
+
+            warnLines = bms.analyzer.StrainPlotService.resolveGroupWarnLines(dataList, style, cfg);
+
+            tc.verifyEmpty(warnLines);
+        end
+
+        function strainGroupLabelUsesConfiguredDisplayName(tc)
+            style = struct('group_labels', struct('G1', 'Display group'));
+
+            tc.verifyEqual(bms.analyzer.StrainPlotService.groupLabel(style, 'G1'), 'Display group');
+            tc.verifyEqual(bms.analyzer.StrainPlotService.groupLabel(style, 'G2'), 'G2');
+        end
+
+        function dynamicStrainGroupLabelFallsBackToStaticStyle(tc)
+            cfg = struct('plot_styles', struct( ...
+                'strain', struct('group_labels', struct('G1', 'Static label'))));
+            spec = bms.analyzer.DynamicStrainBoxplotPipeline.modeSpec('highpass');
+
+            tc.verifyEqual(bms.analyzer.DynamicStrainPlotService.groupLabel(cfg, spec, 'G1'), 'Static label');
+            tc.verifyEqual(bms.analyzer.DynamicStrainPlotService.groupLabel(cfg, spec, 'G2'), 'G2');
         end
 
         function strainAnalyzerUsesSharedPipelineAdapter(tc)

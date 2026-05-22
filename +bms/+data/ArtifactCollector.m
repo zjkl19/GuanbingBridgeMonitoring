@@ -130,7 +130,7 @@ classdef ArtifactCollector
                 case 'deflection'
                     names = {'时程曲线_挠度','时程曲线_挠度_组图'};
                 case 'bearing_displacement'
-                    names = {'时程曲线_支座位移'};
+                    names = {'时程曲线_支座位移','时程曲线_支座位移_组图'};
                 case 'tilt'
                     names = {'时程曲线_倾斜'};
                 case 'acceleration'
@@ -138,7 +138,7 @@ classdef ArtifactCollector
                 case 'cable_accel'
                     names = {'时程曲线_索力加速度','时程曲线_索力加速度_组图','时程曲线_索力加速度_RMS10min','时程曲线_索力加速度_RMS10min_组图'};
                 case 'accel_spectrum'
-                    names = {'频谱峰值曲线_加速度','PSD_备查'};
+                    names = {'频谱峰值曲线_加速度','频谱峰值曲线_加速度_组图','PSD_备查'};
                 case 'cable_accel_spectrum'
                     names = {'频谱峰值曲线_索力加速度','索力时程曲线','PSD_备查_索力加速度'};
                 case 'crack'

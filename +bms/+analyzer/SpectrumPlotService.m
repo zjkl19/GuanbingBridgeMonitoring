@@ -139,6 +139,126 @@ classdef SpectrumPlotService
             bms.plot.PlotService.saveModuleBundle(fig, outDir, baseName, cfg);
         end
 
+        function plotFrequencyGroups(cfg, pointIds, datesAll, freqSeriesAll, freqValidAll, outDir, style, groupKey, targetFreqsAll, peakLabelsAll, theorFreqsAll, theorLabelsAll)
+            if nargin < 11 || isempty(theorFreqsAll)
+                theorFreqsAll = cell(size(freqSeriesAll));
+            end
+            if nargin < 12 || isempty(theorLabelsAll)
+                theorLabelsAll = cell(size(freqSeriesAll));
+            end
+            groupsCfg = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, groupKey, struct());
+            groups = bms.analyzer.StructuralPlotConfigService.normalizeGroupMap(groupsCfg);
+            groupNames = fieldnames(groups);
+            for gi = 1:numel(groupNames)
+                groupName = groupNames{gi};
+                pidList = groups.(groupName);
+                if isempty(pidList)
+                    continue;
+                end
+
+                maxPeaks = bms.analyzer.SpectrumPlotService.maxGroupPeakCount(pointIds, pidList, freqSeriesAll, freqValidAll);
+                for peakIdx = 1:maxPeaks
+                    freqList = {};
+                    labels = {};
+                    theorFreq = NaN;
+                    theorLabel = '';
+                    peakLabel = sprintf('峰%d', peakIdx);
+                    for pi = 1:numel(pidList)
+                        idx = find(strcmp(pointIds, pidList{pi}), 1, 'first');
+                        if isempty(idx) || ~freqValidAll(idx) || size(freqSeriesAll{idx}, 2) < peakIdx
+                            continue;
+                        end
+                        values = freqSeriesAll{idx}(:, peakIdx);
+                        if ~any(isfinite(values))
+                            continue;
+                        end
+                        freqList{end+1, 1} = values; %#ok<AGROW>
+                        labels{end+1, 1} = pidList{pi}; %#ok<AGROW>
+                        if numel(peakLabelsAll{idx}) >= peakIdx && ~isempty(peakLabelsAll{idx}{peakIdx})
+                            peakLabel = peakLabelsAll{idx}{peakIdx};
+                        end
+                        if isnan(theorFreq) && numel(theorFreqsAll{idx}) >= peakIdx
+                            theorFreq = theorFreqsAll{idx}(peakIdx);
+                            if numel(theorLabelsAll{idx}) >= peakIdx && ~isempty(theorLabelsAll{idx}{peakIdx})
+                                theorLabel = theorLabelsAll{idx}{peakIdx};
+                            end
+                        end
+                    end
+                    if isempty(labels)
+                        continue;
+                    end
+
+                    groupDisplayName = bms.analyzer.SpectrumPlotService.styledGroupDisplayName(style, groupName, labels);
+                    bms.analyzer.SpectrumPlotService.plotFrequencyGroupTimeseries( ...
+                        repmat({datesAll}, numel(labels), 1), freqList, labels, groupDisplayName, ...
+                        outDir, style, cfg, peakIdx, peakLabel, theorFreq, theorLabel);
+                end
+            end
+        end
+
+        function plotFrequencyGroupTimeseries(timesList, freqList, labels, nameTag, outDir, style, cfg, peakIdx, peakLabel, theorFreq, theorLabel)
+            valid = false(numel(freqList), 1);
+            for i = 1:numel(freqList)
+                valid(i) = ~isempty(freqList{i}) && any(isfinite(freqList{i}));
+            end
+            if ~any(valid)
+                return;
+            end
+
+            fig = figure('Visible', 'off', 'Position', [100 100 1000 470]);
+            hold on;
+            colors = bms.analyzer.StructuralPlotConfigService.distinctColors(max(1, numel(freqList)));
+            h = gobjects(numel(freqList), 1);
+            for i = 1:numel(freqList)
+                if ~valid(i)
+                    continue;
+                end
+                [timesPlot, freqPlot] = prepare_plot_series(timesList{i}, freqList{i});
+                if isempty(timesPlot) || isempty(freqPlot) || ~any(isfinite(freqPlot))
+                    continue;
+                end
+                h(i) = plot(timesPlot, freqPlot, 'LineWidth', 1.2, 'Color', colors(i, :));
+            end
+            grid on;
+            xtickformat('yyyy-MM-dd');
+            xlabel('日期');
+            ylabel(style.freq_ylabel);
+
+            validLineMask = isgraphics(h);
+            goodLines = h(validLineMask);
+            if ~isempty(goodLines)
+                lgd = legend(goodLines, labels(validLineMask), ...
+                    'Location', bms.analyzer.SpectrumPlotService.styleField(style, 'group_legend_location', 'northeast'), ...
+                    'Box', bms.analyzer.SpectrumPlotService.styleField(style, 'group_legend_box', 'off'), ...
+                    'Interpreter', 'none');
+                lgd.AutoUpdate = 'off';
+            end
+
+            title(sprintf('%s %s %s', style.freq_title_prefix, nameTag, peakLabel), 'Interpreter', 'none');
+            freqMat = bms.analyzer.SpectrumPlotService.frequencyMatrix(freqList, valid);
+            bms.analyzer.SpectrumPlotService.applyFrequencyYLim(freqMat, theorFreq);
+            if isfinite(theorFreq)
+                if isempty(theorLabel)
+                    theorLabel = sprintf('理论频率 %.3fHz', theorFreq);
+                end
+                yline(theorFreq, '--', theorLabel, ...
+                    'Color', [0.35 0.35 0.35], 'LineWidth', 1, ...
+                    'LabelHorizontalAlignment', 'left', 'HandleVisibility', 'off');
+            end
+            hold off;
+
+            firstIdx = find(valid, 1, 'first');
+            dt0 = timesList{firstIdx}(1);
+            dt1 = timesList{firstIdx}(end);
+            safeName = bms.analyzer.StructuralPlotConfigService.sanitizeFilename(strrep(nameTag, ' ', '_'));
+            suffix = '';
+            if peakIdx > 1
+                suffix = sprintf('_P%d', peakIdx);
+            end
+            baseName = sprintf('SpecFreq_%s_Group%s_%s_%s', safeName, suffix, datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd'));
+            bms.plot.PlotService.saveModuleBundle(fig, outDir, baseName, cfg);
+        end
+
         function allWarnLines = drawWarnLines(warnLineSets)
             allWarnLines = {};
             if nargin < 1 || isempty(warnLineSets)
@@ -156,9 +276,14 @@ classdef SpectrumPlotService
                     end
                     yl = yline(wl.y, '--', bms.analyzer.CableForceService.warnLabel(wl), 'LabelHorizontalAlignment', 'left');
                     if isfield(wl, 'color') && isnumeric(wl.color) && numel(wl.color) == 3
-                        yl.Color = reshape(wl.color, 1, 3);
+                        yl.Color = bms.analyzer.StructuralPlotConfigService.warnDisplayColor(wl.color);
                     end
                     yl.LineWidth = 1.0;
+                    if wl.y >= 0
+                        yl.LabelVerticalAlignment = 'bottom';
+                    else
+                        yl.LabelVerticalAlignment = 'top';
+                    end
                     allWarnLines{end+1, 1} = wl; %#ok<AGROW>
                 end
             end
@@ -243,6 +368,56 @@ classdef SpectrumPlotService
                 name = strjoin(labels(:).', '-');
             else
                 name = groupName;
+            end
+        end
+
+        function name = styledGroupDisplayName(style, groupName, labels)
+            name = char(string(groupName));
+            if isstruct(style) && isfield(style, 'group_labels') && isstruct(style.group_labels) ...
+                    && isfield(style.group_labels, groupName)
+                name = char(string(style.group_labels.(groupName)));
+                return;
+            end
+            name = bms.analyzer.SpectrumPlotService.groupDisplayName(groupName, labels);
+        end
+
+        function n = maxGroupPeakCount(pointIds, pidList, freqSeriesAll, freqValidAll)
+            n = 0;
+            for pi = 1:numel(pidList)
+                idx = find(strcmp(pointIds, pidList{pi}), 1, 'first');
+                if isempty(idx) || ~freqValidAll(idx) || isempty(freqSeriesAll{idx})
+                    continue;
+                end
+                n = max(n, size(freqSeriesAll{idx}, 2));
+            end
+        end
+
+        function mat = frequencyMatrix(freqList, valid)
+            mat = [];
+            for i = 1:numel(freqList)
+                if ~valid(i)
+                    continue;
+                end
+                values = freqList{i}(:);
+                if isempty(mat)
+                    mat = values;
+                else
+                    n = max(size(mat, 1), numel(values));
+                    if size(mat, 1) < n
+                        mat(end+1:n, :) = NaN;
+                    end
+                    if numel(values) < n
+                        values(end+1:n, 1) = NaN;
+                    end
+                    mat(:, end+1) = values; %#ok<AGROW>
+                end
+            end
+        end
+
+        function value = styleField(style, fieldName, defaultValue)
+            value = defaultValue;
+            if isstruct(style) && isfield(style, fieldName) && ~isempty(style.(fieldName))
+                value = style.(fieldName);
             end
         end
 

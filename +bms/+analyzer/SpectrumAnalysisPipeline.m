@@ -32,7 +32,7 @@ classdef SpectrumAnalysisPipeline
                 delete(excelFile);
             end
             style = bms.analyzer.SpectrumAnalysisPipeline.plotStyle(cfg, spec);
-            dirs = bms.analyzer.SpectrumAnalysisPipeline.ensureOutputDirs(rootDir, spec);
+            dirs = bms.analyzer.SpectrumAnalysisPipeline.ensureOutputDirs(rootDir, spec, style);
             datesAll = (datetime(startDate):days(1):datetime(endDate)).';
             [theorFreqs, theorLabels] = bms.analyzer.SpectrumAnalysisPipeline.theoreticalFrequencies(cfg, spec);
 
@@ -42,6 +42,12 @@ classdef SpectrumAnalysisPipeline
             end
 
             nPts = numel(pointIds);
+            freqSeriesAll = cell(nPts, 1);
+            freqValidAll = false(nPts, 1);
+            targetFreqsAll = cell(nPts, 1);
+            theorFreqsAll = cell(nPts, 1);
+            theorLabelsAll = cell(nPts, 1);
+            peakLabelsAll = cell(nPts, 1);
             forceSeriesAll = cell(nPts, 1);
             forceValidAll = false(nPts, 1);
 
@@ -54,6 +60,13 @@ classdef SpectrumAnalysisPipeline
                         cfg, pid, spec, targetFreqs, tolerance, theorFreqs, theorLabels);
                 [ampDay, freqDay] = bms.analyzer.SpectrumAnalysisPipeline.processPoint( ...
                     datesAll, pid, rootDir, subfolder, targetFreqsPt, tolerancePt, dirs.psdRoot, style, cfg, spec, useParallel);
+
+                freqSeriesAll{i} = freqDay;
+                freqValidAll(i) = ~isempty(freqDay) && any(isfinite(freqDay), 'all');
+                targetFreqsAll{i} = targetFreqsPt;
+                theorFreqsAll{i} = theorFreqsPt;
+                theorLabelsAll{i} = theorLabelsPt;
+                peakLabelsAll{i} = peakLabelsPt;
 
                 forceSeries = [];
                 if spec.includeForce
@@ -75,6 +88,13 @@ classdef SpectrumAnalysisPipeline
                     bms.analyzer.SpectrumAnalysisPipeline.plotForceTimeseries( ...
                         {datesAll}, {forceSeries}, {pid}, pid, dirs.forceRoot, style, forceYLim, {forceWarnLines}, cfg);
                 end
+            end
+
+            if isfield(spec, 'freqGroupKey') && ~isempty(spec.freqGroupKey) ...
+                    && isfield(dirs, 'freqGroupRoot') && ~isempty(dirs.freqGroupRoot)
+                bms.analyzer.SpectrumAnalysisPipeline.plotFrequencyGroups( ...
+                    cfg, pointIds, datesAll, freqSeriesAll, freqValidAll, dirs.freqGroupRoot, style, ...
+                    spec.freqGroupKey, targetFreqsAll, peakLabelsAll, theorFreqsAll, theorLabelsAll);
             end
 
             if spec.includeForce
@@ -110,6 +130,8 @@ classdef SpectrumAnalysisPipeline
                     spec.subfolderKeys = {'acceleration_raw'};
                     spec.defaultSubfolder = '波形';
                     spec.freqOutputDir = '频谱峰值曲线_加速度';
+                    spec.freqGroupOutputDir = '频谱峰值曲线_加速度_组图';
+                    spec.freqGroupKey = 'acceleration';
                     spec.psdOutputDir = 'PSD_备查';
                     spec.defaultTargetFreqs = [1.150 1.480 2.310];
                     spec.defaultTolerance = 0.15;
@@ -197,6 +219,10 @@ classdef SpectrumAnalysisPipeline
 
         function plotFrequencyTimeseries(varargin)
             bms.analyzer.SpectrumPlotService.plotFrequencyTimeseries(varargin{:});
+        end
+
+        function plotFrequencyGroups(varargin)
+            bms.analyzer.SpectrumPlotService.plotFrequencyGroups(varargin{:});
         end
 
         function applyFrequencyYLim(varargin)

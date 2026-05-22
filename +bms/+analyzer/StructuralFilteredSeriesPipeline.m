@@ -219,8 +219,10 @@ classdef StructuralFilteredSeriesPipeline
                 end
                 groupWarn = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines(style, cfg, spec.moduleKey, '');
                 nameTag = sprintf('G%d', g);
-                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, style, 'Orig', spec, cfg, groupWarn);
-                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, style, 'Filt', spec, cfg, groupWarn);
+                groupStyle = style;
+                groupStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(style, spec);
+                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, groupStyle, 'Orig', spec, cfg, groupWarn);
+                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, groupStyle, 'Filt', spec, cfg, groupWarn);
             end
         end
 
@@ -251,6 +253,14 @@ classdef StructuralFilteredSeriesPipeline
             outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'group_output_dir', '');
             if isempty(outDir)
                 singleDir = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(style, spec);
+                outDir = [char(string(singleDir)) '_组图'];
+            end
+        end
+
+        function outDir = bearingGroupOutputDir(style, spec)
+            outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'group_output_dir', '');
+            if isempty(outDir)
+                singleDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'output_dir', spec.defaultOutputDir);
                 outDir = [char(string(singleDir)) '_组图'];
             end
         end

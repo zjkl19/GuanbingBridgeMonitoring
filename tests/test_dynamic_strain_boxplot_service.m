@@ -1,4 +1,33 @@
 classdef test_dynamic_strain_boxplot_service < matlab.unittest.TestCase
+    properties
+        Root
+        OldFigureVisible
+    end
+
+    methods (TestMethodSetup)
+        function setupCase(tc)
+            projectRoot = fileparts(fileparts(mfilename('fullpath')));
+            addpath(projectRoot, ...
+                fullfile(projectRoot, 'config'), ...
+                fullfile(projectRoot, 'pipeline'), ...
+                fullfile(projectRoot, 'analysis'));
+            tc.Root = tempname;
+            mkdir(tc.Root);
+            tc.OldFigureVisible = get(0, 'DefaultFigureVisible');
+            set(0, 'DefaultFigureVisible', 'off');
+        end
+    end
+
+    methods (TestMethodTeardown)
+        function cleanupCase(tc)
+            close all force;
+            set(0, 'DefaultFigureVisible', tc.OldFigureVisible);
+            if exist(tc.Root, 'dir')
+                rmdir(tc.Root, 's');
+            end
+        end
+    end
+
     methods (Test)
         function sampleBoxplotMatrixDropsNonFiniteAndCapsRows(tc)
             data = [1 10; NaN 11; 2 Inf; 3 12; 4 13];
@@ -104,6 +133,20 @@ classdef test_dynamic_strain_boxplot_service < matlab.unittest.TestCase
             tc.verifyEqual( ...
                 bms.analyzer.DynamicStrainConfigService.resolveDir('C:\root', 'plots', 'default'), ...
                 bms.analyzer.DynamicStrainBoxplotPipeline.resolveDir('C:\root', 'plots', 'default'));
+        end
+
+        function pointTimeseriesWritesSinglePlot(tc)
+            ts = struct( ...
+                'times', datetime(2026, 1, 1, 0, 0, 0) + minutes(0:3), ...
+                'vals', [0; 1; -1; 0.5]);
+            spec = bms.analyzer.DynamicStrainBoxplotPipeline.modeSpec('highpass');
+            ds = spec.defaults;
+
+            bms.analyzer.DynamicStrainPlotService.plotPointTimeseries( ...
+                ts, 'S1', tc.Root, datetime(2026, 1, 1), datetime(2026, 1, 1), ...
+                ds, spec, [], '20260101-20260101', 'test', struct());
+
+            tc.verifyGreaterThanOrEqual(numel(dir(fullfile(tc.Root, 'dynstrain_hp_S1_20260101-20260101_test.fig'))), 1);
         end
     end
 end

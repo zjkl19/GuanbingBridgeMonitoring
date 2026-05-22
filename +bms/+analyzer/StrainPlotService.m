@@ -22,7 +22,7 @@ classdef StrainPlotService
 
             if bms.analyzer.StrainConfigService.truthy( ...
                     bms.analyzer.StrainConfigService.styleField(style, 'show_warn_lines_point', true))
-                bms.analyzer.StructuralTimeSeriesPlotService.drawWarnLines(warnLines);
+                bms.analyzer.StructuralTimeSeriesPlotService.drawWarnLines(warnLines, style);
             end
 
             if bms.analyzer.StrainConfigService.truthy( ...
@@ -66,14 +66,19 @@ classdef StrainPlotService
             opts.outputDir = bms.analyzer.StrainConfigService.styleField(style, 'group_output_dir', '时程曲线_应变_组图');
             opts.baseName = sprintf('Strain_%s_%s_%s_%s', char(string(groupName)), ...
                 datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd'), datestr(now, 'yyyymmdd_HHMMSS'));
+            groupLabel = bms.analyzer.StrainPlotService.groupLabel(style, groupName);
             opts.titleText = sprintf('%s %s', ...
                 bms.analyzer.StrainConfigService.styleField(style, 'title_prefix', '应变时程曲线'), ...
-                char(string(groupName)));
+                groupLabel);
             opts.ylabel = bms.analyzer.StrainConfigService.styleField(style, 'ylabel', '主梁应变 (με)');
             opts.ylimRange = bms.analyzer.StrainConfigService.groupYLim(style, groupName, []);
             opts.defaultColors = bms.analyzer.StrainConfigService.groupColors(style, nSeries);
             opts.legendInterpreter = 'none';
             opts.titleInterpreter = 'none';
+            if bms.analyzer.StrainConfigService.truthy( ...
+                    bms.analyzer.StrainConfigService.styleField(style, 'show_warn_lines_group', false))
+                opts.warnLines = bms.analyzer.StrainPlotService.resolveGroupWarnLines(dataList, style, cfg);
+            end
             bms.analyzer.StructuralTimeSeriesPlotService.plotDataList( ...
                 rootDir, dataList, startDate, endDate, opts, cfg);
         end
@@ -108,7 +113,7 @@ classdef StrainPlotService
             ylabel(bms.analyzer.StrainConfigService.styleField(style, 'ylabel', '主梁应变 (με)'));
             title(sprintf('%s %s', ...
                 bms.analyzer.StrainConfigService.styleField(style, 'boxplot_title_prefix', '应变箱线图'), ...
-                char(string(groupName))), 'Interpreter', 'none');
+                bms.analyzer.StrainPlotService.groupLabel(style, groupName)), 'Interpreter', 'none');
 
             bms.analyzer.StructuralTimeSeriesPlotService.applyYLim( ...
                 bms.analyzer.StrainConfigService.groupYLim(style, groupName, []));
@@ -160,11 +165,67 @@ classdef StrainPlotService
                     end
                     color = [0.5 0.5 0.5];
                     if isfield(wl, 'color') && isnumeric(wl.color) && numel(wl.color) == 3
-                        color = reshape(wl.color, 1, 3);
+                        color = bms.analyzer.StructuralPlotConfigService.warnDisplayColor(wl.color);
                     end
                     line([i - 0.28, i + 0.28], [wl.y, wl.y], ...
                         'LineStyle', '--', 'LineWidth', 1.0, 'Color', color);
                 end
+            end
+        end
+
+        function warnLines = resolveGroupWarnLines(dataList, style, cfg)
+            warnLines = {};
+            if isempty(dataList)
+                return;
+            end
+
+            warnLines = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines( ...
+                bms.analyzer.StrainConfigService.resolveWarnLines(style, cfg, dataList(1).pid));
+            if isempty(warnLines)
+                return;
+            end
+
+            for i = 2:numel(dataList)
+                current = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines( ...
+                    bms.analyzer.StrainConfigService.resolveWarnLines(style, cfg, dataList(i).pid));
+                if ~bms.analyzer.StrainPlotService.warnLinesHaveSameY(warnLines, current)
+                    warnLines = {};
+                    return;
+                end
+            end
+        end
+
+        function tf = warnLinesHaveSameY(a, b)
+            tf = false;
+            if numel(a) ~= numel(b)
+                return;
+            end
+            ya = bms.analyzer.StrainPlotService.warnLineYValues(a);
+            yb = bms.analyzer.StrainPlotService.warnLineYValues(b);
+            tf = isequaln(ya, yb);
+        end
+
+        function values = warnLineYValues(warnLines)
+            values = NaN(numel(warnLines), 1);
+            for i = 1:numel(warnLines)
+                wl = warnLines{i};
+                if isstruct(wl) && isfield(wl, 'y') && isnumeric(wl.y) && isscalar(wl.y)
+                    values(i) = wl.y;
+                end
+            end
+            values = sort(values);
+        end
+
+        function label = groupLabel(style, groupName)
+            label = char(string(groupName));
+            if ~isstruct(style) || ~isfield(style, 'group_labels') || ~isstruct(style.group_labels)
+                return;
+            end
+
+            labels = style.group_labels;
+            key = char(string(groupName));
+            if isfield(labels, key)
+                label = char(string(labels.(key)));
             end
         end
     end

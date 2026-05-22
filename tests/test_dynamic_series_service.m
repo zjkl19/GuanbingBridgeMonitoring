@@ -156,6 +156,30 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(numel(warnLines), 2);
             tc.verifyEqual(cellfun(@(x) x.y, warnLines), [31.5; 50]);
         end
+
+        function accelerationGroupWarnLinesResolveGlobalList(tc)
+            style = struct();
+            style.rms_warn_lines = [ ...
+                struct('y', 100, 'label', 'Level 1'), ...
+                struct('y', 300, 'label', 'Level 2')];
+
+            warnLines = bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
+                style, 'rms_warn_lines', 'AnyGroup');
+
+            tc.verifyEqual(numel(warnLines), 2);
+            tc.verifyEqual(reshape(cellfun(@(x) x.y, warnLines), [], 1), [100; 300]);
+        end
+
+        function accelerationPointsFallBackToGroups(tc)
+            cfg = dynamic_cfg();
+            cfg.points = struct();
+            cfg.groups = struct('acceleration', struct('G1', {{'A1', 'A2'}}, 'G2', {{'A2', 'A3'}}));
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('acceleration');
+
+            points = bms.analyzer.DynamicAccelerationPipeline.resolvePoints(cfg, spec);
+
+            tc.verifyEqual(points, {'A1'; 'A2'; 'A3'});
+        end
     end
 end
 

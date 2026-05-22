@@ -1255,7 +1255,10 @@ def build_report(
     add_heading(doc, "2.3.5 支座及伸缩缝位移监测", 3)
     add_paragraph(doc, f"本月支座及伸缩缝位移滤波后统计范围为{bearing_range}。")
     add_stats_table(doc, "支座及伸缩缝位移统计表", bearing_rows, [("PointID", "测点编号"), ("OrigMin_mm", "原始最小值(mm)"), ("OrigMax_mm", "原始最大值(mm)"), ("FiltMin_mm", "滤波最小值(mm)"), ("FiltMax_mm", "滤波最大值(mm)")])
-    for path in image_candidates(result_root, "时程曲线_支座位移", ["*20260323_20260331*.jpg"], 2):
+    bearing_images = image_candidates(result_root, "时程曲线_支座位移_组图", ["*20260323_20260331*.jpg"], 2)
+    if not bearing_images:
+        bearing_images = image_candidates(result_root, "时程曲线_支座位移", ["*20260323_20260331*.jpg"], 2)
+    for path in bearing_images:
         add_picture(doc, path, "支座及伸缩缝位移时程曲线")
 
     add_heading(doc, "2.3.6 结构应变与动应变分析", 3)
@@ -1272,7 +1275,12 @@ def build_report(
         add_stats_table(doc, "结构振动一阶频率识别统计表", accel_first_mode_rows, [("测点编号", "测点编号"), ("一阶频率最小值(Hz)", "一阶频率最小值(Hz)"), ("一阶频率最大值(Hz)", "一阶频率最大值(Hz)"), ("一阶频率平均值(Hz)", "一阶频率平均值(Hz)"), ("理论一阶频率(Hz)", "理论一阶频率(Hz)")])
     add_optional_picture(doc, stats_dir / "adjusted" / "figures" / "accel_stats_mps2.png", "结构振动加速度统计图")
     add_optional_picture(doc, stats_dir / "adjusted" / "figures" / "accel_first_mode_stats.png", "结构振动一阶频率识别统计图")
-    for rel_dir, caption in [("时程曲线_加速度", "结构振动加速度时程曲线"), ("频谱峰值曲线_加速度", "结构振动频谱峰值曲线")]:
+    for rel_dir, caption in [
+        ("时程曲线_加速度_组图", "结构振动加速度时程组图"),
+        ("时程曲线_加速度", "结构振动加速度时程曲线"),
+        ("频谱峰值曲线_加速度_组图", "结构振动频谱峰值组图"),
+        ("频谱峰值曲线_加速度", "结构振动频谱峰值曲线"),
+    ]:
         for path in image_candidates(result_root, rel_dir, ["*20260323_20260331*.jpg"], 2):
             add_picture(doc, path, caption)
 

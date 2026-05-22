@@ -102,16 +102,16 @@ classdef CableForceService
             end
 
             colors = bms.analyzer.CableForceService.alarmColors(style);
+            unit = bms.analyzer.StructuralPlotConfigService.warnUnit(style);
             labels = bms.analyzer.CableForceService.boundWarnLabels();
             bounds = {
-                'level2', 1, labels{1}, labels{2};
-                'level3', 2, labels{3}, labels{4}
+                'level2', 1, labels{1};
+                'level3', 2, labels{2}
             };
             for i = 1:size(bounds, 1)
                 field = bounds{i, 1};
                 colorIdx = bounds{i, 2};
-                lowerLabel = bounds{i, 3};
-                upperLabel = bounds{i, 4};
+                levelLabel = bounds{i, 3};
                 if ~isfield(value, field) || isempty(value.(field))
                     continue;
                 end
@@ -123,11 +123,17 @@ classdef CableForceService
                 warnLines{end+1, 1} = struct( ... %#ok<AGROW>
                     'y', vals(1), ...
                     'color', colors(colorIdx, :), ...
-                    'label', bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, lowerLabel));
+                    'label', bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, ...
+                        bms.analyzer.StructuralPlotConfigService.composeWarnValueLabel(levelLabel, vals(1), unit)), ...
+                    'level', levelLabel, ...
+                    'unit', unit);
                 warnLines{end+1, 1} = struct( ... %#ok<AGROW>
                     'y', vals(2), ...
                     'color', colors(colorIdx, :), ...
-                    'label', bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, upperLabel));
+                    'label', bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, ...
+                        bms.analyzer.StructuralPlotConfigService.composeWarnValueLabel(levelLabel, vals(2), unit)), ...
+                    'level', levelLabel, ...
+                    'unit', unit);
             end
         end
 
@@ -141,11 +147,12 @@ classdef CableForceService
             end
 
             if nargin < 2 || isempty(style)
-                colors = [0.929 0.694 0.125; 0.85 0.1 0.1];
+                colors = [0.72 0.50 0.00; 0.85 0.1 0.1];
             else
                 colors = bms.analyzer.CableForceService.alarmColors(style);
             end
             labels = bms.analyzer.CableForceService.defaultWarnLabels();
+            unit = bms.analyzer.StructuralPlotConfigService.warnUnit(style);
 
             if isnumeric(value)
                 values = value(:);
@@ -157,7 +164,10 @@ classdef CableForceService
                         warnLines{i}.color = colors(i, :);
                     end
                     if i <= numel(labels)
-                        warnLines{i}.label = bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, labels{i});
+                        warnLines{i}.label = bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, ...
+                            bms.analyzer.StructuralPlotConfigService.composeWarnValueLabel(labels{i}, values(i), unit));
+                        warnLines{i}.level = labels{i};
+                        warnLines{i}.unit = unit;
                     end
                 end
                 return;
@@ -180,14 +190,27 @@ classdef CableForceService
                     warnLine.color = colors(i, :);
                 end
                 if (~isfield(warnLine, 'label') || isempty(warnLine.label)) && i <= numel(labels)
-                    warnLine.label = bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, labels{i});
+                    yValue = NaN;
+                    if isfield(warnLine, 'y') && isnumeric(warnLine.y) && isscalar(warnLine.y)
+                        yValue = warnLine.y;
+                    end
+                    if isfinite(yValue)
+                        warnLine.label = bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, ...
+                            bms.analyzer.StructuralPlotConfigService.composeWarnValueLabel(labels{i}, yValue, unit));
+                    else
+                        warnLine.label = bms.analyzer.CableForceService.composeWarnLabel(labelPrefix, labels{i});
+                    end
+                    warnLine.level = labels{i};
+                end
+                if (~isfield(warnLine, 'unit') || isempty(warnLine.unit)) && ~isempty(unit)
+                    warnLine.unit = unit;
                 end
                 warnLines{i} = warnLine;
             end
         end
 
         function colors = alarmColors(style)
-            colors = [0.929 0.694 0.125; 0.85 0.1 0.1];
+            colors = [0.72 0.50 0.00; 0.85 0.1 0.1];
             if nargin < 1 || ~isstruct(style) || ~isfield(style, 'force_alarm_colors') || isempty(style.force_alarm_colors)
                 return;
             end
@@ -202,18 +225,15 @@ classdef CableForceService
         end
 
         function label = warnLabel(warnLine)
-            label = '';
-            if isstruct(warnLine) && isfield(warnLine, 'label') && ~isempty(warnLine.label)
-                label = warnLine.label;
-            end
+            label = bms.analyzer.StructuralPlotConfigService.warnLabel(warnLine);
         end
 
         function labels = defaultWarnLabels()
-            labels = {'黄色预警', '红色预警'};
+            labels = {char([19968 32423]), char([20108 32423])};
         end
 
         function labels = boundWarnLabels()
-            labels = {'二级下限', '二级上限', '三级下限', '三级上限'};
+            labels = {char([20108 32423]), char([19977 32423])};
         end
 
         function label = composeWarnLabel(prefix, baseLabel)

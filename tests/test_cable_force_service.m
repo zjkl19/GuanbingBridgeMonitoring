@@ -26,13 +26,13 @@ classdef test_cable_force_service < matlab.unittest.TestCase
         end
 
         function warnLinesUseNumericLevelsAndLabels(tc)
-            style = struct('force_alarm_colors', [1 1 0; 1 0 0]);
+            style = struct('force_alarm_colors', [1 1 0; 1 0 0], 'force_ylabel', '索力 (kN)');
 
             warnLines = bms.analyzer.CableForceService.normalizeWarnLines([10 20], style, 'S1');
 
             tc.verifyEqual(numel(warnLines), 2);
             tc.verifyEqual(warnLines{1}.y, 10);
-            tc.verifyEqual(warnLines{1}.label, 'S1 黄色预警');
+            tc.verifyEqual(bms.analyzer.CableForceService.warnLabel(warnLines{1}), 'S1 一级预警值 10kN');
             tc.verifyEqual(warnLines{2}.color, [1 0 0]);
         end
 
@@ -40,14 +40,15 @@ classdef test_cable_force_service < matlab.unittest.TestCase
             cfg = struct();
             cfg.per_point.cable_accel.CABLE_01 = struct( ...
                 'force_alarm_bounds', struct('level2', [20 10], 'level3', [30 40]));
-            style = struct('force_warn_lines', [1 2], 'force_alarm_colors', [1 1 0; 1 0 0]);
+            style = struct('force_warn_lines', [1 2], 'force_alarm_colors', [1 1 0; 1 0 0], ...
+                'force_ylabel', '索力 (kN)');
 
             warnLines = bms.analyzer.CableForceService.warnLines(cfg, 'CABLE-01', style, 'C1');
 
             tc.verifyEqual(numel(warnLines), 4);
             tc.verifyEqual(warnLines{1}.y, 10);
             tc.verifyEqual(warnLines{2}.y, 20);
-            tc.verifyEqual(warnLines{3}.label, 'C1 三级下限');
+            tc.verifyEqual(bms.analyzer.CableForceService.warnLabel(warnLines{3}), 'C1 三级预警值 30kN');
             tc.verifyEqual(warnLines{4}.color, [1 0 0]);
         end
     end
