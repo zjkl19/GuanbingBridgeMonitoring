@@ -1701,7 +1701,27 @@
         "ZL": "ZL（主梁）"
       },
       "group_legend_location": "northeast",
-      "group_legend_box": "off"
+      "group_legend_box": "off",
+      "groups": {
+        "ZG": [
+          "ZGZD-01-X-拱顶",
+          "ZGZD-02-X-拱顶",
+          "ZGZD-03-S-拱顶",
+          "ZGZD-04-S-拱顶"
+        ],
+        "ZL": [
+          "ZLZD-01-X10-3#",
+          "ZLZD-02-X10-3#",
+          "ZLZD-03-X11-3#",
+          "ZLZD-04-X11-3#",
+          "ZLZD-05-X11-3#",
+          "ZLZD-06-X11-3#",
+          "ZLZD-07-X11-3#",
+          "ZLZD-08-X11-3#",
+          "ZLZD-09-X12-3#",
+          "ZLZD-10-X12-3#"
+        ]
+      }
     },
     "deflection": {
       "output_dir": "时程曲线_挠度",
@@ -2202,27 +2222,7 @@
           ]
         }
       ],
-      "ylim_auto": true,
-      "group_warn_lines": [
-        {
-          "y": 100,
-          "label": "一级预警值 100cm/s^2",
-          "color": [
-            0.72,
-            0.5,
-            0.0
-          ]
-        },
-        {
-          "y": 300,
-          "label": "二级预警值 300cm/s^2",
-          "color": [
-            0.85,
-            0.1,
-            0.1
-          ]
-        }
-      ]
+      "ylim_auto": true
     },
     "cable_accel_spectrum": {
       "psd_ylabel": "PSD (dB)",

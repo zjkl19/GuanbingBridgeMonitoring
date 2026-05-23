@@ -214,7 +214,7 @@ def smoke_shuixianhua(args: argparse.Namespace, output_root: Path) -> None:
             "主桥监测测点布置",
             "报警阈值设置",
             "自动化系统监测结果",
-            "结论与建议",
+            "结论",
         ],
     )
     print(f"[shuixianhua] generated OK: {report_path}")

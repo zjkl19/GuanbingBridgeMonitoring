@@ -158,5 +158,14 @@ classdef test_spectrum_peak_service < matlab.unittest.TestCase
             files = dir(fullfile(outDir, 'SpecFreq_ZG_main_Group_*.jpg'));
             tc.verifyEqual(numel(files), 1);
         end
+
+        function frequencyGroupsAllowStyleSpecificPointLists(tc)
+            cfg.groups.acceleration = struct('ZG', {{'A1', 'A1-Y', 'A2'}});
+            style.groups = struct('ZG', {{'A1', 'A2'}});
+
+            groups = bms.analyzer.SpectrumPlotService.resolveFrequencyGroups(cfg, style, 'acceleration');
+
+            tc.verifyEqual(groups.ZG(:), {'A1'; 'A2'});
+        end
     end
 end

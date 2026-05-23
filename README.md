@@ -198,6 +198,8 @@ E:/洪塘大桥数据/2026年1-3月
 
 For Jiulongjiang, GNSS and rainfall outputs also follow the same rule: write figures and stats under the data root.
 对于九龙江，GNSS 和雨量的输出也遵循同样规则：图表和统计结果直接写到数据根目录下。
+Dynamic strain boxplot figures remain in their figure folders; high-pass/low-pass boxplot stats are written to `stats/dynamic_strain_highpass_stats.xlsx` and `stats/dynamic_strain_lowpass_stats.xlsx`.
+动应变箱线图图片仍写入对应图片目录；高通/低通箱线图统计结果统一写入 `stats/dynamic_strain_highpass_stats.xlsx` 和 `stats/dynamic_strain_lowpass_stats.xlsx`。
 ```
 
 ## Config Files / 配置文件
@@ -258,6 +260,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.2`: refines the Shuixianhua March data-processing workflow with updated deflection, bearing/expansion-joint displacement, strain, cable-acceleration, and acceleration-spectrum outputs; group plots now use the current thresholds and folder conventions needed by the report workflow.
+- `v1.7.2`：完善水仙花 3 月数据处理流程，覆盖挠度、支座/伸缩缝位移、应变、索力加速度和加速度频谱等输出；组图统一使用当前预警值和报告生成所需的目录口径。
 - `v1.7.0`: promotes the recent ShuiXianHua and data-processing work to a minor release: configurable acceleration-spectrum peak orders, standardized deflection single/group output folders, Shuixianhua deflection thresholds, and acceleration/RMS group plots with project threshold lines.
 - `v1.7.0`：将近期水仙花与数据处理功能升级作为小版本发布：支持加速度频谱按配置识别阶次，统一挠度单图/组图输出目录，补充水仙花挠度阈值，并新增振动加速度/RMS 组图及项目预警线。
 - `v1.6.11`: adds Shuixianhua sensor-ID mapping for the temperature/humidity combo sensor, keeps missing offline `WD-*` temperature points visible as data-availability issues, cleans stale scalar stats overwrites, and adjusts the GUI module display order.
@@ -282,6 +286,10 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.2`: fills Shuixianhua section 2.2 from the acquisition summary when available, and falls back to config/stats-derived coverage rows when that Excel is absent, so the monthly data-availability table is generated deterministically.
+- `v1.7.2`：水仙花月报 2.2“本月监测数据情况”优先使用测点获取统计表，缺少该 Excel 时回退到配置和 stats 自动推导，确保数据获取情况表可确定性生成。
+- `v1.7.1`: switches the Shuixianhua monthly report builder to fill the accepted template in place, preserves auto-numbered captions and existing layout, refreshes the deterministic stats tables/text from current processing outputs, and disables tracked changes in generated DOCX/PDF output.
+- `v1.7.1`：水仙花月报生成器改为在已接受修订的模板上原位回填，保留自动编号题注和既有版式；按当前数据处理结果刷新可复现的统计表与文字，并关闭生成 DOCX/PDF 中的修订痕迹。
 - `v1.7.0`: keeps the report GUI version aligned with the MATLAB GUI after the ShuiXianHua data-processing and plotting changes; report builders now look for the standardized deflection group-plot folder.
 - `v1.7.0`：在水仙花数据处理与绘图功能升级后同步报告 GUI 版本；报告生成器同步使用标准化后的挠度组图目录。
 - `v1.6.11`: adds the Shuixianhua monthly report mode, template assets, and generator path while keeping the report GUI version aligned with the MATLAB GUI release.

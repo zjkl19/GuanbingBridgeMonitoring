@@ -26,8 +26,12 @@ classdef DynamicStrainBoxplotPipeline
 
             outDir = bms.analyzer.DynamicStrainBoxplotPipeline.resolveDir(rootDir, opt.OutputDir, spec.defaultOutputDir);
             outDirTs = bms.analyzer.DynamicStrainBoxplotPipeline.resolveDir(rootDir, opt.OutputDirTs, spec.defaultTimeseriesDir);
+            statsFile = bms.analyzer.DynamicStrainBoxplotPipeline.resolveStatsFile(rootDir, opt.StatsFile, spec.defaultStatsFile);
             bms.core.PathResolver.ensureDir(outDir);
             bms.core.PathResolver.ensureDir(outDirTs);
+            if isfile(statsFile)
+                delete(statsFile);
+            end
 
             [groups, groupNames, style] = bms.analyzer.DynamicStrainBoxplotPipeline.groupsAndStyle(cfg, spec);
 
@@ -44,7 +48,7 @@ classdef DynamicStrainBoxplotPipeline
                 plottedPointIds = bms.analyzer.DynamicStrainPlotService.plotPointTimeseriesList( ...
                     tsList, labels, outDirTs, dt0, dt1, ds, spec, ylimGroup, tag, timestamp, cfg, plottedPointIds);
                 bms.analyzer.DynamicStrainBoxplotPipeline.makeBoxplotAndStats( ...
-                    dataMat, labels, groupName, outDir, ds, spec, tag, timestamp, dt0, dt1, cfg);
+                    dataMat, labels, groupName, outDir, statsFile, ds, spec, tag, timestamp, dt0, dt1, cfg);
                 bms.analyzer.DynamicStrainBoxplotPipeline.plotTimeseriesGroup( ...
                     tsList, labels, groupName, outDirTs, dt0, dt1, ds, spec, ylimGroup, tag, timestamp, cfg);
             end
@@ -98,6 +102,10 @@ classdef DynamicStrainBoxplotPipeline
 
         function path = resolveDir(varargin)
             path = bms.analyzer.DynamicStrainConfigService.resolveDir(varargin{:});
+        end
+
+        function path = resolveStatsFile(varargin)
+            path = bms.analyzer.DynamicStrainConfigService.resolveStatsFile(varargin{:});
         end
 
         function tf = isAbsolutePath(varargin)

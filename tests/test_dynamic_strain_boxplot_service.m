@@ -133,6 +133,12 @@ classdef test_dynamic_strain_boxplot_service < matlab.unittest.TestCase
             tc.verifyEqual( ...
                 bms.analyzer.DynamicStrainConfigService.resolveDir('C:\root', 'plots', 'default'), ...
                 bms.analyzer.DynamicStrainBoxplotPipeline.resolveDir('C:\root', 'plots', 'default'));
+            tc.verifyEqual( ...
+                bms.analyzer.DynamicStrainBoxplotPipeline.resolveStatsFile('C:\root', '', 'dynamic_strain_highpass_stats.xlsx'), ...
+                fullfile('C:\root', 'stats', 'dynamic_strain_highpass_stats.xlsx'));
+            tc.verifyEqual( ...
+                bms.analyzer.DynamicStrainBoxplotPipeline.resolveStatsFile('C:\root', 'custom.xlsx', 'default.xlsx'), ...
+                fullfile('C:\root', 'stats', 'custom.xlsx'));
         end
 
         function pointTimeseriesWritesSinglePlot(tc)
@@ -147,6 +153,25 @@ classdef test_dynamic_strain_boxplot_service < matlab.unittest.TestCase
                 ds, spec, [], '20260101-20260101', 'test', struct());
 
             tc.verifyGreaterThanOrEqual(numel(dir(fullfile(tc.Root, 'dynstrain_hp_S1_20260101-20260101_test.fig'))), 1);
+        end
+
+        function boxplotStatsAreWrittenToCanonicalStatsFile(tc)
+            imageDir = fullfile(tc.Root, 'boxplots');
+            statsFile = fullfile(tc.Root, 'stats', 'dynamic_strain_highpass_stats.xlsx');
+            spec = bms.analyzer.DynamicStrainBoxplotPipeline.modeSpec('highpass');
+            ds = spec.defaults;
+
+            bms.analyzer.DynamicStrainPlotService.makeBoxplotAndStats( ...
+                [1 10; 2 11; 3 12], {'S1', 'S2'}, 'G1', imageDir, statsFile, ...
+                ds, spec, '20260101-20260101', 'test', datetime(2026, 1, 1), datetime(2026, 1, 1), struct());
+
+            tc.verifyTrue(isfile(statsFile));
+            tc.verifyEmpty(dir(fullfile(imageDir, 'boxplot_stats_*.xlsx')));
+            tc.verifyGreaterThanOrEqual(numel(dir(fullfile(imageDir, 'boxplot_G1_20260101-20260101_test.fig'))), 1);
+
+            T = readtable(statsFile, 'Sheet', 'G1', 'VariableNamingRule', 'preserve');
+            tc.verifyEqual(T.PointID, {'S1'; 'S2'});
+            tc.verifyTrue(isfile(fullfile(tc.Root, 'stats', 'dynamic_strain_highpass_G1_20260101-20260101.txt')));
         end
     end
 end

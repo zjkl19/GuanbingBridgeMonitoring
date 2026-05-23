@@ -10,6 +10,7 @@ classdef DynamicStrainConfigService
             addParameter(p, 'Cfg', [], @(x)isstruct(x)||ischar(x)||isstring(x));
             addParameter(p, 'OutputDir', '', @(s)ischar(s)||isstring(s));
             addParameter(p, 'OutputDirTs', '', @(s)ischar(s)||isstring(s));
+            addParameter(p, 'StatsFile', '', @(s)ischar(s)||isstring(s));
             addParameter(p, 'Subfolder', '', @(s)ischar(s)||isstring(s));
             addParameter(p, 'Fs', [], @(x)(isnumeric(x)&&isscalar(x))||isempty(x));
             addParameter(p, 'Fc', [], @(x)(isnumeric(x)&&isscalar(x))||isempty(x));
@@ -49,6 +50,7 @@ classdef DynamicStrainConfigService
                     spec.legacyStyleKeys = {'plot_styles_dynamic_strain'};
                     spec.defaultOutputDir = '动应变箱线图_高通滤波';
                     spec.defaultTimeseriesDir = '时程曲线_动应变_高通滤波';
+                    spec.defaultStatsFile = 'dynamic_strain_highpass_stats.xlsx';
                     spec.moduleKey = 'dynamic_strain_highpass';
                     spec.timeseriesBase = 'dynstrain_hp';
                     spec.boxTitle = '动应变箱线图（高通滤波后）%s [%s]';
@@ -67,6 +69,7 @@ classdef DynamicStrainConfigService
                     spec.legacyStyleKeys = {'plot_styles_dynamic_strain_lowpass', 'plot_styles_dynamic_strain'};
                     spec.defaultOutputDir = '动应变箱线图_低通滤波';
                     spec.defaultTimeseriesDir = '时程曲线_动应变_低通滤波';
+                    spec.defaultStatsFile = 'dynamic_strain_lowpass_stats.xlsx';
                     spec.moduleKey = 'dynamic_strain_lowpass';
                     spec.timeseriesBase = 'dynstrain_lp';
                     spec.boxTitle = '动应变箱线图（低通滤波后）%s [%s]';
@@ -180,6 +183,18 @@ classdef DynamicStrainConfigService
             else
                 path = fullfile(rootDir, defaultName);
             end
+        end
+
+        function path = resolveStatsFile(rootDir, userPath, defaultName)
+            if ~isempty(userPath)
+                path = char(userPath);
+                if ~bms.analyzer.DynamicStrainConfigService.isAbsolutePath(path)
+                    path = fullfile(rootDir, 'stats', path);
+                end
+            else
+                path = fullfile(rootDir, 'stats', defaultName);
+            end
+            bms.data.DataLayoutResolver.ensureParentDir(path);
         end
 
         function tf = isAbsolutePath(path)

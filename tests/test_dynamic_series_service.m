@@ -170,6 +170,20 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(reshape(cellfun(@(x) x.y, warnLines), [], 1), [100; 300]);
         end
 
+        function cableAccelerationSpecDisablesRawGroupWarnLines(tc)
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('cable_accel');
+            style.group_warn_lines = [ ...
+                struct('y', 100, 'label', 'Level 1'), ...
+                struct('y', 300, 'label', 'Level 2')];
+
+            warnField = bms.analyzer.DynamicAccelerationPlotService.specField(spec, 'groupWarnField', 'group_warn_lines');
+            warnLines = bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
+                style, warnField, 'X6_X16');
+
+            tc.verifyEqual(warnField, '');
+            tc.verifyEmpty(warnLines);
+        end
+
         function accelerationPointsFallBackToGroups(tc)
             cfg = dynamic_cfg();
             cfg.points = struct();

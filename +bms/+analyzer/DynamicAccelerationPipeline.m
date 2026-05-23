@@ -112,6 +112,7 @@ classdef DynamicAccelerationPipeline
                     spec.rmsOutputDir = '时程曲线_加速度_RMS10min';
                     spec.rmsGroupOutputDir = '时程曲线_加速度_RMS10min_组图';
                     spec.rmsFilePrefix = 'AccelRMS10';
+                    spec.groupWarnField = 'group_warn_lines';
                     spec.keepSeries = true;
                     spec.defaultPoints = defaultPoints;
                     spec.defaultStyle = struct('ylabel', '主梁竖向振动加速度 (m/s^2)', ...
@@ -142,6 +143,7 @@ classdef DynamicAccelerationPipeline
                     spec.rmsOutputDir = '时程曲线_索力加速度_RMS10min';
                     spec.rmsGroupOutputDir = '时程曲线_索力加速度_RMS10min_组图';
                     spec.rmsFilePrefix = 'CableAccelRMS10';
+                    spec.groupWarnField = '';
                     spec.keepSeries = false;
                     spec.defaultPoints = defaultPoints;
                     spec.defaultStyle = struct('ylabel', '索力加速度 (m/s^2)', ...

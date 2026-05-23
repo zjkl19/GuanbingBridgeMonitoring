@@ -96,8 +96,9 @@ classdef DynamicAccelerationPlotService
             opts.ylabel = style.ylabel;
             opts.titleText = sprintf('%s %s', style.title_prefix, groupLabel);
             opts.ylimRange = bms.analyzer.DynamicAccelerationPlotService.resolveMainYLim(style, groupName);
+            warnField = bms.analyzer.DynamicAccelerationPlotService.specField(spec, 'groupWarnField', 'group_warn_lines');
             opts.warnLines = bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
-                style, 'group_warn_lines', groupName);
+                style, warnField, groupName);
 
             bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
                 rootDir, timesList, valuesList, labels, startDate, endDate, opts, cfg);
@@ -282,6 +283,13 @@ classdef DynamicAccelerationPlotService
             value = defaultValue;
             if isstruct(style) && isfield(style, fieldName) && ~isempty(style.(fieldName))
                 value = style.(fieldName);
+            end
+        end
+
+        function value = specField(spec, fieldName, defaultValue)
+            value = defaultValue;
+            if isstruct(spec) && isfield(spec, fieldName)
+                value = spec.(fieldName);
             end
         end
 

@@ -185,6 +185,12 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.7.2` fills the Shuixianhua section 2.2 monthly data-availability table from the acquisition summary when present, and falls back to deterministic config/stats-derived rows when that Excel is absent.
+版本 `v1.7.2` 会在水仙花月报 2.2“本月监测数据情况”中优先读取测点获取统计表；缺少该 Excel 时，回退到配置和 stats 自动推导数据获取情况行。
+
+Version `v1.7.1` updates the Shuixianhua monthly builder to copy the accepted template, refresh deterministic statistics/text in place, preserve Word auto-numbering/layout, and emit DOCX/PDF without tracked changes.
+版本 `v1.7.1` 将水仙花月报生成改为复制已接受修订的模板后原位刷新可复现统计与文字，保留 Word 自动编号和版式，并输出不带修订痕迹的 DOCX/PDF。
+
 Version `v1.7.0` aligns the report GUI with the main MATLAB GUI after the ShuiXianHua data-processing release, including standardized deflection group-plot folders and updated result-readiness checks.
 版本 `v1.7.0` 与 MATLAB 数据分析 GUI 同步，覆盖水仙花数据处理发布内容，包括标准化挠度组图目录和更新后的结果就绪检查。
 

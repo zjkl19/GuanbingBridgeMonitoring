@@ -167,6 +167,14 @@ def find_latest_file(root: Path, configured_dir: str, pattern: str) -> Path | No
     return resolve_latest_file(root, configured_dir, pattern).path
 
 
+def find_dynamic_strain_stats_file(result_root: Path, file_name: str, legacy_dir: str) -> Path | None:
+    """Prefer canonical stats/ outputs, with fallback for older boxplot runs."""
+    stats_path = result_root / "stats" / file_name
+    if stats_path.exists():
+        return stats_path
+    return find_latest_file(result_root, legacy_dir, "boxplot_stats_*.xlsx")
+
+
 def find_latest_image(root: Path, configured_dir: str, name_prefix: str) -> Path | None:
     """Find the newest image by point/name prefix, preferring report-friendly rasters."""
     return resolve_latest_image(root, configured_dir, name_prefix).path
@@ -263,7 +271,9 @@ def build_stats_texts(result_root: Path, period_label: str) -> dict[str, str]:
             "未出现超过各级超限阈值和报警的情况，主墩未出现明显倾斜趋势。"
         )
 
-    hp_path = find_latest_file(result_root, "动应变箱线图_高通滤波", "boxplot_stats_*.xlsx")
+    hp_path = find_dynamic_strain_stats_file(
+        result_root, "dynamic_strain_highpass_stats.xlsx", "动应变箱线图_高通滤波"
+    )
     hp_sheets = load_workbook_sheet_rows(hp_path) if hp_path else {}
     if hp_sheets:
         pieces: list[str] = []
@@ -282,7 +292,9 @@ def build_stats_texts(result_root: Path, period_label: str) -> dict[str, str]:
                 "图中各应变传感器的上下四分位数距离较小，整体活载水平不高；最值之间距离较大，表明桥上时有重车通过。"
             )
 
-    lp_path = find_latest_file(result_root, "动应变箱线图_低通滤波", "boxplot_stats_*.xlsx")
+    lp_path = find_dynamic_strain_stats_file(
+        result_root, "dynamic_strain_lowpass_stats.xlsx", "动应变箱线图_低通滤波"
+    )
     lp_rows_by_sheet = load_workbook_sheet_rows(lp_path) if lp_path else {}
     all_lp_rows: list[dict] = []
     for rows in lp_rows_by_sheet.values():

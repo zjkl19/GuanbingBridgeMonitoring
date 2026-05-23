@@ -2,7 +2,7 @@ classdef DynamicStrainPlotService
     %DYNAMICSTRAINPLOTSERVICE Plot and stats writers for dynamic strain boxplots.
 
     methods (Static)
-        function makeBoxplotAndStats(dataMat, labels, groupName, outDir, ds, spec, tag, timestamp, dt0, dt1, cfg)
+        function makeBoxplotAndStats(dataMat, labels, groupName, outDir, statsFile, ds, spec, tag, timestamp, dt0, dt1, cfg)
             fig = figure('Position', [100 100 1100 520]);
             plotMat = bms.analyzer.DynamicStrainBoxplotService.sampleBoxplotMatrix(dataMat, 50000);
             if ds.ShowOutliers
@@ -26,10 +26,13 @@ classdef DynamicStrainPlotService
             bms.plot.PlotService.saveModuleBundle(fig, outDir, [base '_' timestamp], cfg);
 
             statsTable = bms.analyzer.DynamicStrainBoxplotService.statsTable(dataMat, labels);
-            txtPath = fullfile(outDir, sprintf('boxplot_stats_%s_%s.txt', groupName, tag));
-            xlsxPath = fullfile(outDir, sprintf('boxplot_stats_%s.xlsx', tag));
+            statsDir = fileparts(statsFile);
+            bms.data.DataLayoutResolver.ensureDir(statsDir);
+            safeGroupName = bms.analyzer.StructuralPlotConfigService.sanitizeFilename(groupName);
+            sheetName = bms.analyzer.StructuralPlotConfigService.sheetName(groupName);
+            txtPath = fullfile(statsDir, sprintf('%s_%s_%s.txt', spec.moduleKey, safeGroupName, tag));
             bms.analyzer.DynamicStrainPlotService.writeStatsTxt(txtPath, statsTable, dt0, dt1, spec);
-            bms.io.StatsWriter.writeModuleTableChecked(statsTable, xlsxPath, spec.moduleKey, 'Sheet', groupName);
+            bms.io.StatsWriter.writeModuleTableChecked(statsTable, statsFile, spec.moduleKey, 'Sheet', sheetName);
         end
 
         function plotTimeseriesGroup(tsList, labels, groupName, outDir, dt0, dt1, ds, spec, ylimGroup, tag, timestamp, cfg)

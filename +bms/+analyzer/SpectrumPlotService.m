@@ -146,8 +146,7 @@ classdef SpectrumPlotService
             if nargin < 12 || isempty(theorLabelsAll)
                 theorLabelsAll = cell(size(freqSeriesAll));
             end
-            groupsCfg = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, groupKey, struct());
-            groups = bms.analyzer.StructuralPlotConfigService.normalizeGroupMap(groupsCfg);
+            groups = bms.analyzer.SpectrumPlotService.resolveFrequencyGroups(cfg, style, groupKey);
             groupNames = fieldnames(groups);
             for gi = 1:numel(groupNames)
                 groupName = groupNames{gi};
@@ -379,6 +378,21 @@ classdef SpectrumPlotService
                 return;
             end
             name = bms.analyzer.SpectrumPlotService.groupDisplayName(groupName, labels);
+        end
+
+        function groups = resolveFrequencyGroups(cfg, style, groupKey)
+            groupsCfg = [];
+            if isstruct(style)
+                if isfield(style, 'groups') && ~isempty(style.groups)
+                    groupsCfg = style.groups;
+                elseif isfield(style, 'group_points') && ~isempty(style.group_points)
+                    groupsCfg = style.group_points;
+                end
+            end
+            if isempty(groupsCfg)
+                groupsCfg = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, groupKey, struct());
+            end
+            groups = bms.analyzer.StructuralPlotConfigService.normalizeGroupMap(groupsCfg);
         end
 
         function n = maxGroupPeakCount(pointIds, pidList, freqSeriesAll, freqValidAll)
