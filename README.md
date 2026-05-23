@@ -260,6 +260,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.4`: refactors config loading/editing around layered configs, adds a Shuixianhua layered-config pilot, clears config-lint warnings, and exposes analysis output contracts for report readiness checks.
+- `v1.7.4`：围绕分层配置重构配置加载与 GUI 编辑链路，新增水仙花分层配置试点，清零配置 lint 提示，并输出分析结果契约供报告就绪检查使用。
 - `v1.7.3`: refactors report/profile integration, reuses the shared dynamic-strain group plotting service, and keeps Jiulongjiang bearing-displacement outputs in profile-based readiness checks.
 - `v1.7.3`：重构报告生成与桥梁 profile 的衔接，动应变组图复用统一时程绘图服务，并将九龙江支座位移纳入 profile 化结果就绪检查。
 - `v1.7.2`: refines the Shuixianhua March data-processing workflow with updated deflection, bearing/expansion-joint displacement, strain, cable-acceleration, and acceleration-spectrum outputs; group plots now use the current thresholds and folder conventions needed by the report workflow.
@@ -288,6 +290,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.4`: reads the MATLAB analysis reporting contract in report build manifests, keeps missing-contract checks non-blocking for legacy outputs, and extracts reusable OOXML helpers for template table/text filling.
+- `v1.7.4`：报告构建清单读取 MATLAB 分析结果契约，对旧结果目录缺少契约的情况保持非阻断提示，并抽取可复用的 OOXML 表格/文本回填工具。
 - `v1.7.3`: refactors the Shuixianhua builder to update template tables by caption, moves result-readiness checks into a module/profile catalog, uses profile defaults in GUI and smoke tests, treats the Jiulongjiang patrol heading as optional, and adds a packaged-exe Shuixianhua self-test mode.
 - `v1.7.3`：水仙花报告生成器改为按题注定位表格，结果就绪检查收口到模块/profile 目录，GUI 与冒烟测试统一读取 profile 默认值；九龙江巡查章节按模板可选处理，并新增打包 exe 水仙花自测入口。
 - `v1.7.2`: fills Shuixianhua section 2.2 from the acquisition summary when available, and falls back to config/stats-derived coverage rows when that Excel is absent, so the monthly data-availability table is generated deterministically.
