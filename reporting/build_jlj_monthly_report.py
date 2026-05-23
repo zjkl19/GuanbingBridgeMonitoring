@@ -1086,6 +1086,14 @@ def find_heading(doc: Document, text: str, level: int, start_idx: int = 0, end_i
     raise ValueError(f"Heading not found: level={level}, text={text}")
 
 
+def has_heading(doc: Document, text: str, level: int) -> bool:
+    try:
+        find_heading(doc, text, level)
+        return True
+    except ValueError:
+        return False
+
+
 def next_heading_at_or_above(doc: Document, index: int, level: int) -> tuple[int, Paragraph] | None:
     paragraphs = doc.paragraphs
     for idx in range(index + 1, len(paragraphs)):
@@ -3114,7 +3122,8 @@ def build_report(
     doc = Document(str(template))
     caption_templates = find_caption_templates(doc)
     body_template = capture_paragraph_template(find_body_template_paragraph(doc))
-    chapter3_section_break = capture_section_break_before_heading(doc, "桥梁人工巡查结果", 1)
+    has_patrol_anchor = has_heading(doc, "桥梁人工巡查结果", 1)
+    chapter3_section_break = capture_section_break_before_heading(doc, "桥梁人工巡查结果", 1) if has_patrol_anchor else None
 
     update_cover_metadata(doc, period_label, report_date, monitoring_range)
     apply_health_status_section(doc, cfg, result_root, monitoring_range)
@@ -3124,9 +3133,10 @@ def build_report(
     section_map = build_section_map(cfg, result_root, None, result_root, ctx.image_root, wim_root)
     for key, parent_heading, child_heading, _ in JLG_MONTHLY_SECTIONS:
         add_section_content(doc, parent_heading, child_heading, section_map[key], body_template, caption_templates, ctx.assets_dir)
-    ensure_section_break_before_heading(doc, "桥梁人工巡查结果", chapter3_section_break, 1)
+    if has_patrol_anchor:
+        ensure_section_break_before_heading(doc, "桥梁人工巡查结果", chapter3_section_break, 1)
     patrol_report_docx = resolve_patrol_report_source(template, patrol_docx)
-    if patrol_report_docx is not None:
+    if patrol_report_docx is not None and has_patrol_anchor:
         insert_docx_body_after_heading(
             doc,
             "桥梁人工巡查结果",

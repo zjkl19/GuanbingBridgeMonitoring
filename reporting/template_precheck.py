@@ -316,7 +316,6 @@ def check_jlj_monthly_template(template: Path) -> list[TemplateIssue]:
     required = [
         ("监测结果", "summary table result cell"),
         ("温度监测", "body style fallback anchor"),
-        ("桥梁人工巡查结果", "Jiulongjiang patrol-report insertion anchor"),
     ]
     for fragment, note in required:
         _add_missing_fragment(issues, texts, fragment, note)

@@ -260,6 +260,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.3`: refactors report/profile integration, reuses the shared dynamic-strain group plotting service, and keeps Jiulongjiang bearing-displacement outputs in profile-based readiness checks.
+- `v1.7.3`：重构报告生成与桥梁 profile 的衔接，动应变组图复用统一时程绘图服务，并将九龙江支座位移纳入 profile 化结果就绪检查。
 - `v1.7.2`: refines the Shuixianhua March data-processing workflow with updated deflection, bearing/expansion-joint displacement, strain, cable-acceleration, and acceleration-spectrum outputs; group plots now use the current thresholds and folder conventions needed by the report workflow.
 - `v1.7.2`：完善水仙花 3 月数据处理流程，覆盖挠度、支座/伸缩缝位移、应变、索力加速度和加速度频谱等输出；组图统一使用当前预警值和报告生成所需的目录口径。
 - `v1.7.0`: promotes the recent ShuiXianHua and data-processing work to a minor release: configurable acceleration-spectrum peak orders, standardized deflection single/group output folders, Shuixianhua deflection thresholds, and acceleration/RMS group plots with project threshold lines.
@@ -286,6 +288,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.3`: refactors the Shuixianhua builder to update template tables by caption, moves result-readiness checks into a module/profile catalog, uses profile defaults in GUI and smoke tests, treats the Jiulongjiang patrol heading as optional, and adds a packaged-exe Shuixianhua self-test mode.
+- `v1.7.3`：水仙花报告生成器改为按题注定位表格，结果就绪检查收口到模块/profile 目录，GUI 与冒烟测试统一读取 profile 默认值；九龙江巡查章节按模板可选处理，并新增打包 exe 水仙花自测入口。
 - `v1.7.2`: fills Shuixianhua section 2.2 from the acquisition summary when available, and falls back to config/stats-derived coverage rows when that Excel is absent, so the monthly data-availability table is generated deterministically.
 - `v1.7.2`：水仙花月报 2.2“本月监测数据情况”优先使用测点获取统计表，缺少该 Excel 时回退到配置和 stats 自动推导，确保数据获取情况表可确定性生成。
 - `v1.7.1`: switches the Shuixianhua monthly report builder to fill the accepted template in place, preserves auto-numbered captions and existing layout, refreshes the deterministic stats tables/text from current processing outputs, and disables tracked changes in generated DOCX/PDF output.

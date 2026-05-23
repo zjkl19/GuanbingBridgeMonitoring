@@ -75,6 +75,7 @@
         "wind",
         "earthquake",
         "deflection",
+        "bearing_displacement",
         "tilt",
         "acceleration",
         "accel_spectrum",

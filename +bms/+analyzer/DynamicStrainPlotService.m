@@ -36,14 +36,11 @@ classdef DynamicStrainPlotService
         end
 
         function plotTimeseriesGroup(tsList, labels, groupName, outDir, dt0, dt1, ds, spec, ylimGroup, tag, timestamp, cfg)
-            fig = figure('Position', [100 100 1100 520]);
-            hold on;
-
+            timesList = {};
+            valuesList = {};
+            plotLabels = {};
             n = numel(tsList);
-            colors = bms.analyzer.StructuralPlotConfigService.distinctColors(max(1, n));
             labels = labels(:);
-            hLines = gobjects(n, 1);
-            hasLine = false(n, 1);
             for i = 1:n
                 times = tsList(i).times;
                 values = tsList(i).vals;
@@ -54,54 +51,40 @@ classdef DynamicStrainPlotService
                 if isempty(timesPlot) || isempty(valuesPlot) || ~any(isfinite(valuesPlot))
                     continue;
                 end
-                lineHandle = plot(timesPlot, valuesPlot, 'LineWidth', 1.0, 'Color', colors(i, :));
-                if ~isempty(lineHandle)
-                    hLines(i) = lineHandle(1);
-                    hasLine(i) = true;
+                timesList{end+1, 1} = times; %#ok<AGROW>
+                valuesList{end+1, 1} = values; %#ok<AGROW>
+                if i <= numel(labels)
+                    plotLabels{end+1, 1} = labels{i}; %#ok<AGROW>
+                else
+                    plotLabels{end+1, 1} = sprintf('S%d', i); %#ok<AGROW>
                 end
             end
-
-            xlabel('时间');
-            ylabel('应变 (με)');
-            title(sprintf(spec.timeseriesTitle, ...
-                bms.analyzer.DynamicStrainPlotService.groupLabel(cfg, spec, groupName), tag), ...
-                'Interpreter', 'none');
-            grid on;
-            grid minor;
-
-            allTimes = vertcat(tsList.times);
-            if ~isempty(allTimes)
-                xmin = min(allTimes);
-                xmax = max(allTimes);
-            else
-                xmin = dt0;
-                xmax = dt1;
-            end
-            if xmin == xmax
-                xmin = xmin - minutes(1);
-                xmax = xmax + minutes(1);
-            end
-            ax = gca;
-            ax.XLim = [xmin xmax];
-            ax.XTick = linspace(xmin, xmax, 5);
-            if days(xmax - xmin) >= 1
-                xtickformat('yyyy-MM-dd');
-            else
-                xtickformat('MM-dd HH:mm');
+            if isempty(timesList)
+                return;
             end
 
+            opts = struct();
+            opts.outputDir = outDir;
+            opts.baseName = sprintf('%s_%s_%s_%s', spec.timeseriesBase, groupName, tag, timestamp);
+            opts.ylabel = '应变 (με)';
+            opts.titleText = sprintf(spec.timeseriesTitle, ...
+                bms.analyzer.DynamicStrainPlotService.groupLabel(cfg, spec, groupName), tag);
+            opts.titleInterpreter = 'none';
+            opts.legendLocation = 'northeast';
+            opts.legendBox = 'off';
+            opts.legendInterpreter = 'none';
+            opts.defaultColors = bms.analyzer.StructuralPlotConfigService.distinctColors(max(1, numel(timesList)));
             if ~isempty(ylimGroup)
-                ylim(ylimGroup);
+                opts.ylimRange = ylimGroup;
             elseif ds.YLimManual
-                ylim(ds.YLimRange);
+                opts.ylimRange = ds.YLimRange;
+            else
+                opts.ylimRange = [];
             end
 
-            if any(hasLine)
-                legend(hLines(hasLine), labels(hasLine), 'Location', 'northeast', 'Box', 'off', 'Interpreter', 'none');
-            end
-
-            base = sprintf('%s_%s_%s', spec.timeseriesBase, groupName, tag);
-            bms.plot.PlotService.saveModuleBundle(fig, outDir, [base '_' timestamp], cfg);
+            bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
+                '', timesList, valuesList, plotLabels, char(string(dt0, 'yyyy-MM-dd')), ...
+                char(string(dt1, 'yyyy-MM-dd')), opts, cfg);
         end
 
         function plottedPointIds = plotPointTimeseriesList(tsList, labels, outDir, dt0, dt1, ds, spec, ylimGroup, tag, timestamp, cfg, plottedPointIds)

@@ -12,6 +12,7 @@ from build_guanbing_monthly_report import build_report as build_guanbing_monthly
 from build_jlj_monthly_report import build_report as build_jlj_monthly_report
 from build_shuixianhua_monthly_report import build_report as build_shuixianhua_monthly_report
 from build_period_report import build_period_report as build_hongtang_period_report
+from bridge_profiles import load_profiles, profile_by_id
 from template_precheck import TemplatePrecheckError, check_template, write_precheck_report
 
 
@@ -19,7 +20,21 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def _profile(repo_root: Path, bridge_id: str):
+    return profile_by_id(load_profiles(repo_root), bridge_id)
+
+
+def _profile_template(repo_root: Path, bridge_id: str, fallback: Path) -> Path:
+    profile = _profile(repo_root, bridge_id)
+    candidate = profile.template_path(repo_root)
+    return candidate if candidate.exists() else fallback
+
+
 def _default_hongtang_template(repo_root: Path) -> Path:
+    profile = _profile(repo_root, "hongtang")
+    configured = profile.template_path(repo_root)
+    if configured.exists():
+        return configured
     candidates = [
         repo_root / "reports" / "洪塘大桥健康监测2026年第一季季报-改4.docx",
         repo_root / "reports" / "洪塘大桥健康监测周期报模板-自动报告.docx",
@@ -31,15 +46,15 @@ def _default_hongtang_template(repo_root: Path) -> Path:
 
 
 def _default_jlj_template(repo_root: Path) -> Path:
-    return repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_0508.docx"
+    return _profile_template(repo_root, "jiulongjiang", repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_0508.docx")
 
 
 def _default_guanbing_template(repo_root: Path) -> Path:
-    return repo_root / "reports" / "G104线管柄大桥监测月报模板-自动报告.docx"
+    return _profile_template(repo_root, "guanbing", repo_root / "reports" / "G104线管柄大桥监测月报模板-自动报告.docx")
 
 
 def _default_shuixianhua_template(repo_root: Path) -> Path:
-    return repo_root / "reports" / "水仙花大桥健康监测月报模板.docx"
+    return _profile_template(repo_root, "shuixianhua", repo_root / "reports" / "水仙花大桥健康监测月报模板.docx")
 
 
 def _docx_contains(path: Path, fragment: str) -> bool:
@@ -224,6 +239,10 @@ def smoke_shuixianhua(args: argparse.Namespace, output_root: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     repo_root = _repo_root()
+    hongtang = _profile(repo_root, "hongtang")
+    jiulongjiang = _profile(repo_root, "jiulongjiang")
+    guanbing = _profile(repo_root, "guanbing")
+    shuixianhua = _profile(repo_root, "shuixianhua")
     parser = argparse.ArgumentParser(description="Smoke test bridge report templates and cached-result generation.")
     parser.add_argument("--kind", choices=["all", "hongtang", "jlj", "guanbing", "shuixianhua"], default="all")
     parser.add_argument("--generate", action="store_true", help="Also generate reports from existing stats/images.")
@@ -232,34 +251,34 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--report-date", default=datetime.now().strftime("%Y年%m月%d日"))
 
     parser.add_argument("--hongtang-template", type=Path, default=_default_hongtang_template(repo_root))
-    parser.add_argument("--hongtang-config", type=Path, default=repo_root / "config" / "hongtang_config.json")
-    parser.add_argument("--hongtang-result-root", type=Path, default=Path(r"E:\洪塘大桥数据\2026年1-3月"))
+    parser.add_argument("--hongtang-config", type=Path, default=hongtang.config_path(repo_root))
+    parser.add_argument("--hongtang-result-root", type=Path, default=hongtang.data_root_path())
     parser.add_argument("--hongtang-wim-root", type=Path, default=None)
-    parser.add_argument("--hongtang-period-label", default="2026年1-3月")
-    parser.add_argument("--hongtang-monitoring-range", default="2026年01月01日~2026年03月31日")
-    parser.add_argument("--hongtang-start-date", default="2026-01-01")
-    parser.add_argument("--hongtang-end-date", default="2026-03-31")
+    parser.add_argument("--hongtang-period-label", default=hongtang.default_period_label or "2026年1-3月")
+    parser.add_argument("--hongtang-monitoring-range", default=hongtang.default_monitoring_range or "2026年01月01日~2026年03月31日")
+    parser.add_argument("--hongtang-start-date", default=hongtang.default_start_date or "2026-01-01")
+    parser.add_argument("--hongtang-end-date", default=hongtang.default_end_date or "2026-03-31")
 
     parser.add_argument("--jlj-template", type=Path, default=_default_jlj_template(repo_root))
-    parser.add_argument("--jlj-config", type=Path, default=repo_root / "config" / "jiulongjiang_config.json")
-    parser.add_argument("--jlj-result-root", type=Path, default=Path(r"E:\九龙江数据\2026年3月"))
-    parser.add_argument("--jlj-period-label", default="2026年3月份")
-    parser.add_argument("--jlj-monitoring-range", default="2026.03.23~2026.03.31")
+    parser.add_argument("--jlj-config", type=Path, default=jiulongjiang.config_path(repo_root))
+    parser.add_argument("--jlj-result-root", type=Path, default=jiulongjiang.data_root_path())
+    parser.add_argument("--jlj-period-label", default=jiulongjiang.default_period_label or "2026年3月份")
+    parser.add_argument("--jlj-monitoring-range", default=jiulongjiang.default_monitoring_range or "2026.03.23~2026.03.31")
 
     parser.add_argument("--guanbing-template", type=Path, default=_default_guanbing_template(repo_root))
-    parser.add_argument("--guanbing-config", type=Path, default=repo_root / "config" / "default_config.json")
-    parser.add_argument("--guanbing-result-root", type=Path, default=Path(r"F:\管柄大桥数据\2026年3月"))
-    parser.add_argument("--guanbing-period-label", default="2026年03月")
-    parser.add_argument("--guanbing-monitoring-range", default="2026年02月26日~2026年03月25日")
-    parser.add_argument("--guanbing-start-date", default="2026-02-26")
-    parser.add_argument("--guanbing-end-date", default="2026-03-25")
+    parser.add_argument("--guanbing-config", type=Path, default=guanbing.config_path(repo_root))
+    parser.add_argument("--guanbing-result-root", type=Path, default=guanbing.data_root_path())
+    parser.add_argument("--guanbing-period-label", default=guanbing.default_period_label or "2026年03月")
+    parser.add_argument("--guanbing-monitoring-range", default=guanbing.default_monitoring_range or "2026年02月26日~2026年03月25日")
+    parser.add_argument("--guanbing-start-date", default=guanbing.default_start_date or "2026-02-26")
+    parser.add_argument("--guanbing-end-date", default=guanbing.default_end_date or "2026-03-25")
 
     parser.add_argument("--shuixianhua-template", type=Path, default=_default_shuixianhua_template(repo_root))
-    parser.add_argument("--shuixianhua-config", type=Path, default=repo_root / "config" / "shuixianhua_config.json")
-    parser.add_argument("--shuixianhua-result-root", type=Path, default=Path(r"E:\水仙花大桥数据\2026年3月"))
-    parser.add_argument("--shuixianhua-period-label", default="2026年3月份")
-    parser.add_argument("--shuixianhua-monitoring-range", default="2026年03月23日~2026年03月31日")
-    parser.add_argument("--shuixianhua-report-date", default="2026年04月05日")
+    parser.add_argument("--shuixianhua-config", type=Path, default=shuixianhua.config_path(repo_root))
+    parser.add_argument("--shuixianhua-result-root", type=Path, default=shuixianhua.data_root_path())
+    parser.add_argument("--shuixianhua-period-label", default=shuixianhua.default_period_label or "2026年3月份")
+    parser.add_argument("--shuixianhua-monitoring-range", default=shuixianhua.default_monitoring_range or "2026年03月23日~2026年03月31日")
+    parser.add_argument("--shuixianhua-report-date", default=shuixianhua.default_report_date or "2026年04月05日")
     return parser.parse_args()
 
 

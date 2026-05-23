@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+import json
 import os
 import re
 import sys
@@ -34,6 +36,7 @@ from bridge_profiles import BridgeProfile, load_profiles, profile_by_id
 from missing_summary import missing_summary_paths
 from analysis_manifest import manifest_precheck_warnings
 from report_build_manifest import find_latest_report_build_manifest
+from report_module_catalog import expected_result_dirs, expected_stats_files
 from template_precheck import TemplateIssue, check_template, write_precheck_report
 
 
@@ -42,7 +45,7 @@ PERIOD_REPORT = "\u6d2a\u5858\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
 JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
 GUANBING_MONTHLY_REPORT = "管柄月报"
 SHUIXIANHUA_MONTHLY_REPORT = "水仙花月报"
-APP_VERSION = "v1.7.2"
+APP_VERSION = "v1.7.3"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_0508.docx"
@@ -63,6 +66,10 @@ PROFILE_REPORT_TYPES = {
     "guanbing_monthly": GUANBING_MONTHLY_REPORT,
     "shuixianhua_monthly": SHUIXIANHUA_MONTHLY_REPORT,
 }
+
+
+def report_type_for_profile(profile: BridgeProfile) -> str:
+    return PROFILE_REPORT_TYPES.get(profile.report_gui_type, PERIOD_REPORT)
 
 
 def app_root() -> Path:
@@ -89,7 +96,17 @@ def candidate_report_roots() -> list[Path]:
     return unique
 
 
+def profile_for_report_type(report_type: str) -> BridgeProfile | None:
+    for profile in load_profiles(app_root()):
+        if report_type_for_profile(profile) == report_type:
+            return profile
+    return None
+
+
 def detect_default_config(report_type: str = PERIOD_REPORT) -> Path:
+    profile = profile_for_report_type(report_type)
+    if profile is not None:
+        return profile.config_path(app_root())
     if report_type == JLJ_MONTHLY_REPORT:
         for config_dir in candidate_config_roots():
             jlj_cfg = config_dir / "jiulongjiang_config.json"
@@ -122,6 +139,9 @@ def detect_default_config(report_type: str = PERIOD_REPORT) -> Path:
 
 
 def default_result_root(report_type: str) -> Path:
+    profile = profile_for_report_type(report_type)
+    if profile is not None and profile.default_data_root:
+        return profile.data_root_path()
     if report_type == JLJ_MONTHLY_REPORT:
         return DEFAULT_JLJ_RESULT_ROOT
     if report_type == GUANBING_MONTHLY_REPORT:
@@ -130,12 +150,12 @@ def default_result_root(report_type: str) -> Path:
         return DEFAULT_SHUIXIANHUA_RESULT_ROOT
     return DEFAULT_RESULT_ROOT
 
-
-def report_type_for_profile(profile: BridgeProfile) -> str:
-    return PROFILE_REPORT_TYPES.get(profile.report_gui_type, PERIOD_REPORT)
-
-
 def find_default_template(report_type: str) -> Path:
+    profile = profile_for_report_type(report_type)
+    if profile is not None and profile.report_template:
+        candidate = profile.template_path(app_root())
+        if candidate.exists():
+            return candidate
     if report_type == JLJ_MONTHLY_REPORT:
         preferred = JLJ_TEMPLATE_NAME
         fallback_candidates = [JLJ_TEMPLATE_NAME]
@@ -583,13 +603,19 @@ class ReportGui(QMainWindow):
 
     def _maybe_update_result_root_for_type(self) -> None:
         current = self.result_root_edit.text().strip()
-        known_roots = {DEFAULT_RESULT_ROOT, DEFAULT_JLJ_RESULT_ROOT, DEFAULT_GUANBING_RESULT_ROOT, DEFAULT_SHUIXIANHUA_RESULT_ROOT}
+        known_roots = {profile.data_root_path() for profile in self.profiles if profile.default_data_root}
         current_path = Path(current).expanduser() if current else None
         should_replace = (current_path is None) or (current_path in known_roots) or (not current_path.exists())
         if should_replace:
             new_root = default_result_root(self.report_type_combo.currentText())
             self.result_root_edit.setText(str(new_root))
             self._sync_result_dependent_paths(previous_root=current_path, force=True)
+
+    def _profile_for_report_type(self, report_type: str) -> BridgeProfile:
+        for profile in self.profiles:
+            if report_type_for_profile(profile) == report_type:
+                return profile
+        return self.current_profile
 
     def _browse_template(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "\u9009\u62e9\u6a21\u677f\u6587\u4ef6", str(app_root()), "Word files (*.docx)")
@@ -701,33 +727,11 @@ class ReportGui(QMainWindow):
             missing_months = [m for m in iter_months(start_date, end_date) if not (wim_root / m).exists()]
             if missing_months:
                 warnings.append(f"WIM \u7ed3\u679c\u76ee\u5f55\u7f3a\u5c11\u6708\u4efd\uff1a{', '.join(missing_months)}\u3002")
-        missing_stats = self._missing_stats_files(
-            result_root,
-            [
-                "strain_stats.xlsx",
-                "tilt_stats.xlsx",
-                "bearing_displacement_stats.xlsx",
-                "cable_accel_stats.xlsx",
-                "accel_stats.xlsx",
-                "accel_spec_stats.xlsx",
-                "cable_accel_spec_stats.xlsx",
-                "wind_stats.xlsx",
-            ],
-        )
+        profile = self._profile_for_report_type(PERIOD_REPORT)
+        missing_stats = self._missing_profile_stats(result_root, profile)
         if missing_stats:
             warnings.append(f"\u7f3a\u5c11\u7edf\u8ba1\u8868\uff1a{', '.join(missing_stats)}\u3002\u5bf9\u5e94\u7ae0\u8282\u53ef\u80fd\u4fdd\u6301\u6a21\u677f\u539f\u72b6\u6216\u663e\u793a\u7f3a\u5931\u3002")
-        missing_dirs = self._missing_result_dirs(
-            result_root,
-            [
-                "\u65f6\u7a0b\u66f2\u7ebf_\u5e94\u53d8",
-                "\u7bb1\u7ebf\u56fe_\u5e94\u53d8",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u503e\u659c",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u652f\u5ea7\u4f4d\u79fb",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u7d22\u529b\u52a0\u901f\u5ea6",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u52a0\u901f\u5ea6",
-                "\u98ce\u901f\u98ce\u5411\u7ed3\u679c",
-            ],
-        )
+        missing_dirs = self._missing_profile_dirs(result_root, profile)
         if missing_dirs:
             warnings.append(f"\u7f3a\u5c11\u5173\u952e\u56fe\u7247\u76ee\u5f55\uff1a{', '.join(missing_dirs)}\u3002")
         return warnings
@@ -739,51 +743,22 @@ class ReportGui(QMainWindow):
     def _missing_result_dirs(self, result_root: Path, names: list[str]) -> list[str]:
         return [name for name in names if not (result_root / name).exists()]
 
+    def _missing_profile_stats(self, result_root: Path, profile: BridgeProfile, *, extra: list[str] | None = None) -> list[str]:
+        return self._missing_stats_files(result_root, expected_stats_files(profile.enabled_modules, extra=extra))
+
+    def _missing_profile_dirs(self, result_root: Path, profile: BridgeProfile, *, extra: list[str] | None = None) -> list[str]:
+        return self._missing_result_dirs(result_root, expected_result_dirs(profile.bridge_id, profile.enabled_modules, extra=extra))
+
     def _collect_jlj_warnings(self, result_root: Path) -> list[str]:
         warnings: list[str] = []
         warnings.extend(manifest_precheck_warnings(result_root))
         if not (result_root / "stats").exists():
             warnings.append("`stats/` \u4e0d\u5b58\u5728\uff0c\u4e5d\u9f99\u6c5f\u6708\u62a5\u7edd\u5927\u90e8\u5206\u7edf\u8ba1\u8868\u65e0\u6cd5\u586b\u5145\u3002")
-        missing_stats = self._missing_stats_files(
-            result_root,
-            [
-                "temp_stats.xlsx",
-                "humidity_stats.xlsx",
-                "rainfall_stats.xlsx",
-                "wind_stats.xlsx",
-                "deflection_stats.xlsx",
-                "bearing_displacement_stats.xlsx",
-                "gnss_stats.xlsx",
-                "accel_stats.xlsx",
-                "accel_spec_stats.xlsx",
-                "strain_stats.xlsx",
-                "crack_stats.xlsx",
-                "cable_accel_stats.xlsx",
-                "cable_accel_spec_stats.xlsx",
-                "tilt_stats.xlsx",
-            ],
-        )
+        profile = self._profile_for_report_type(JLJ_MONTHLY_REPORT)
+        missing_stats = self._missing_profile_stats(result_root, profile, extra=["bearing_displacement_stats.xlsx"])
         if missing_stats:
             warnings.append(f"\u7f3a\u5c11\u4e5d\u9f99\u6c5f\u6708\u62a5\u7edf\u8ba1\u8868\uff1a{', '.join(missing_stats)}\u3002")
-        missing_dirs = self._missing_result_dirs(
-            result_root,
-            [
-                "\u65f6\u7a0b\u66f2\u7ebf_\u6e29\u5ea6",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u6e7f\u5ea6",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u96e8\u91cf",
-                "\u98ce\u901f\u98ce\u5411\u7ed3\u679c",
-                "\u5730\u9707\u52a8\u7ed3\u679c",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u6320\u5ea6",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u652f\u5ea7\u4f4d\u79fb",
-                "\u65f6\u7a0b\u66f2\u7ebf_GNSS",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u52a0\u901f\u5ea6",
-                "\u9891\u8c31\u5cf0\u503c\u66f2\u7ebf_\u52a0\u901f\u5ea6",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u5e94\u53d8",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u88c2\u7f1d\u5bbd\u5ea6",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u7d22\u529b\u52a0\u901f\u5ea6",
-                "\u65f6\u7a0b\u66f2\u7ebf_\u503e\u89d2",
-            ],
-        )
+        missing_dirs = self._missing_profile_dirs(result_root, profile, extra=["时程曲线_支座位移"])
         if missing_dirs:
             warnings.append(f"\u7f3a\u5c11\u4e5d\u9f99\u6c5f\u6708\u62a5\u5173\u952e\u56fe\u7247\u76ee\u5f55\uff1a{', '.join(missing_dirs)}\u3002")
         return warnings
@@ -793,38 +768,11 @@ class ReportGui(QMainWindow):
         warnings.extend(manifest_precheck_warnings(result_root))
         if not (result_root / "stats").exists():
             warnings.append("`stats/` 不存在，管柄月报统计文字无法完整刷新。")
-        missing_stats = self._missing_stats_files(
-            result_root,
-            [
-                "temp_stats.xlsx",
-                "humidity_stats.xlsx",
-                "deflection_stats.xlsx",
-                "tilt_stats.xlsx",
-                "accel_stats.xlsx",
-                "accel_spec_stats.xlsx",
-                "crack_stats.xlsx",
-                "strain_stats.xlsx",
-            ],
-        )
+        profile = self._profile_for_report_type(GUANBING_MONTHLY_REPORT)
+        missing_stats = self._missing_profile_stats(result_root, profile)
         if missing_stats:
             warnings.append(f"缺少管柄月报统计表：{', '.join(missing_stats)}。")
-        missing_dirs = self._missing_result_dirs(
-            result_root,
-            [
-                "时程曲线_温度",
-                "时程曲线_湿度",
-                "频次分布_湿度",
-                "时程曲线_挠度",
-                "时程曲线_挠度_组图",
-                "时程曲线_倾角",
-                "时程曲线_加速度",
-                "时程曲线_加速度_RMS10min",
-                "频谱峰值曲线_加速度",
-                "动应变箱线图_高通滤波",
-                "时程曲线_动应变_低通滤波",
-                "时程曲线_裂缝宽度",
-            ],
-        )
+        missing_dirs = self._missing_profile_dirs(result_root, profile)
         if missing_dirs:
             warnings.append(f"缺少管柄月报关键图片目录：{', '.join(missing_dirs)}。")
         return warnings
@@ -834,41 +782,11 @@ class ReportGui(QMainWindow):
         warnings.extend(manifest_precheck_warnings(result_root))
         if not (result_root / "stats").exists():
             warnings.append("`stats/` 不存在，水仙花月报统计表无法填充。")
-        missing_stats = self._missing_stats_files(
-            result_root,
-            [
-                "temp_stats.xlsx",
-                "humidity_stats.xlsx",
-                "wind_stats.xlsx",
-                "deflection_stats.xlsx",
-                "bearing_displacement_stats.xlsx",
-                "strain_stats.xlsx",
-                "accel_stats.xlsx",
-                "accel_spec_stats.xlsx",
-                "cable_accel_stats.xlsx",
-                "cable_accel_spec_stats.xlsx",
-            ],
-        )
+        profile = self._profile_for_report_type(SHUIXIANHUA_MONTHLY_REPORT)
+        missing_stats = self._missing_profile_stats(result_root, profile)
         if missing_stats:
             warnings.append(f"缺少水仙花月报统计表：{', '.join(missing_stats)}。")
-        missing_dirs = self._missing_result_dirs(
-            result_root,
-            [
-                "时程曲线_温度",
-                "频次分布_湿度",
-                "风速风向结果",
-                "地震动结果",
-                "时程曲线_挠度",
-                "时程曲线_挠度_组图",
-                "时程曲线_支座位移",
-                "时程曲线_应变_组图",
-                "箱线图_应变",
-                "时程曲线_加速度",
-                "频谱峰值曲线_加速度",
-                "时程曲线_索力加速度",
-                "频谱峰值曲线_索力加速度",
-            ],
-        )
+        missing_dirs = self._missing_profile_dirs(result_root, profile)
         if missing_dirs:
             warnings.append(f"缺少水仙花月报关键图片目录：{', '.join(missing_dirs)}。")
         return warnings
@@ -1129,7 +1047,104 @@ class ReportGui(QMainWindow):
             QMessageBox.critical(self, "\u6253\u5f00\u5931\u8d25", str(exc))
 
 
+def _self_test_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="BridgeReportBuilder hidden self-test entry.")
+    parser.add_argument("--self-test-shuixianhua", action="store_true")
+    parser.add_argument("--self-test-template", type=Path, default=None)
+    parser.add_argument("--self-test-config", type=Path, default=None)
+    parser.add_argument("--self-test-result-root", type=Path, default=None)
+    parser.add_argument("--self-test-output-root", type=Path, default=app_root() / "tmp" / "report_exe_selftest")
+    parser.add_argument("--self-test-period-label", default=None)
+    parser.add_argument("--self-test-monitoring-range", default=None)
+    parser.add_argument("--self-test-report-date", default=None)
+    parser.add_argument("--self-test-no-word-update", action="store_true")
+    return parser
+
+
+def maybe_run_self_test(argv: list[str]) -> int | None:
+    if "--self-test-shuixianhua" not in argv:
+        return None
+    parser = _self_test_parser()
+    args = parser.parse_args(argv)
+    if not args.self_test_shuixianhua:
+        return None
+    result_path = args.self_test_output_root / "selftest_result.json"
+    try:
+        profile = profile_for_report_type(SHUIXIANHUA_MONTHLY_REPORT)
+        template = (args.self_test_template or find_default_template(SHUIXIANHUA_MONTHLY_REPORT)).expanduser().resolve()
+        config_path = (args.self_test_config or detect_default_config(SHUIXIANHUA_MONTHLY_REPORT)).expanduser().resolve()
+        result_root = (args.self_test_result_root or default_result_root(SHUIXIANHUA_MONTHLY_REPORT)).expanduser().resolve()
+        output_dir = (args.self_test_output_root / "shuixianhua").expanduser().resolve()
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        period_label = args.self_test_period_label or (profile.default_period_label if profile else "") or "2026年3月份"
+        monitoring_range = (
+            args.self_test_monitoring_range
+            or (profile.default_monitoring_range if profile else "")
+            or "2026年3月23日~2026年3月31日"
+        )
+        report_date = args.self_test_report_date or (profile.default_report_date if profile else "") or "2026年4月5日"
+
+        issues = check_template("shuixianhua_monthly", template)
+        if issues:
+            joined = "; ".join(f"{issue.code}: {issue.message}" for issue in issues)
+            raise RuntimeError(f"Template precheck failed: {joined}")
+
+        report_path, pdf_path = build_shuixianhua_monthly_report(
+            template=template,
+            config_path=config_path,
+            result_root=result_root,
+            output_dir=output_dir,
+            period_label=period_label,
+            monitoring_range=monitoring_range,
+            report_date=report_date,
+            update_word=not args.self_test_no_word_update,
+        )
+        if not report_path.exists() or report_path.stat().st_size <= 0:
+            raise RuntimeError(f"Self-test report missing or empty: {report_path}")
+        if not args.self_test_no_word_update and (pdf_path is None or not pdf_path.exists() or pdf_path.stat().st_size <= 0):
+            raise RuntimeError("Self-test PDF was not generated.")
+
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(
+            json.dumps(
+                {
+                    "ok": True,
+                    "version": APP_VERSION,
+                    "template": str(template),
+                    "config": str(config_path),
+                    "result_root": str(result_root),
+                    "report": str(report_path),
+                    "pdf": str(pdf_path) if pdf_path else None,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(
+            json.dumps(
+                {
+                    "ok": False,
+                    "version": APP_VERSION,
+                    "error": str(exc),
+                    "traceback": traceback.format_exc(),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        return 1
+
+
 def main() -> None:
+    self_test_exit_code = maybe_run_self_test(sys.argv[1:])
+    if self_test_exit_code is not None:
+        sys.exit(self_test_exit_code)
     app = QApplication(sys.argv)
     win = ReportGui()
     win.show()
