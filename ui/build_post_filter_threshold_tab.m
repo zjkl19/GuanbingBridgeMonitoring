@@ -176,7 +176,7 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
 
     function onReloadCfg()
         try
-            cfgCache = load_config(cfgEdit.Value);
+            cfgCache = bms.gui.ConfigEditorService.load(cfgEdit.Value);
             cfgPath = cfgEdit.Value;
             refresh_tables();
             msgBox.Value = {'已重新加载配置。'};
@@ -204,9 +204,8 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
                 if isequal(fname, 0), return; end
                 targetPath = fullfile(fpath, fname);
             end
-            saveReport = bms.core.ConfigStore.saveGuardedWithReport(cfgNew, targetPath, true);
             validate_config(cfgNew, false);
-            cfgCache = cfgNew;
+            [cfgCache, saveReport] = bms.gui.ConfigEditorService.saveAndReload(cfgNew, targetPath, true);
             cfgPath = targetPath;
             cfgEdit.Value = targetPath;
             msgBox.Value = {sprintf('已保存配置到 %s（变更 %d 项）', targetPath, saveReport.changed_count)};
@@ -286,7 +285,7 @@ function pf = build_post_filter_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgE
     function onShow()
         if exist(cfgEdit.Value, 'file')
             try
-                cfgCache = load_config(cfgEdit.Value);
+                cfgCache = bms.gui.ConfigEditorService.load(cfgEdit.Value);
                 cfgPath = cfgEdit.Value;
             catch
             end
@@ -318,16 +317,7 @@ function [tableRef, rowIdx, startCol, endCol] = get_selected_time_target(defTabl
 end
 
 function sensorList = list_supported_sensors(cfg)
-    supported = {'deflection', 'bearing_displacement', 'dynamic_strain', 'dynamic_strain_lowpass'};
-    sensorList = {};
-    if isfield(cfg, 'defaults') && isstruct(cfg.defaults)
-        defaultsFields = fieldnames(cfg.defaults);
-        for i = 1:numel(supported)
-            if any(strcmp(defaultsFields, supported{i}))
-                sensorList{end+1} = supported{i}; %#ok<AGROW>
-            end
-        end
-    end
+    sensorList = bms.gui.ConfigEditorService.editableModuleKeys(cfg, 'post_filter');
 end
 
 function rows = thresholds_to_rows(ths)

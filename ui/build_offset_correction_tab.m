@@ -117,7 +117,7 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
 
     function onReloadCfg()
         try
-            cfgCache = load_config(cfgEdit.Value);
+            cfgCache = bms.gui.ConfigEditorService.load(cfgEdit.Value);
             cfgPath = cfgEdit.Value;
             refresh_table();
             msgBox.Value = {'已重新加载配置。'};
@@ -136,9 +136,8 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
                 if isequal(fname, 0), return; end
                 targetPath = fullfile(fpath, fname);
             end
-            saveReport = bms.core.ConfigStore.saveGuardedWithReport(cfgNew, targetPath, true);
             validate_config(cfgNew);
-            cfgCache = load_config(targetPath);
+            [cfgCache, saveReport] = bms.gui.ConfigEditorService.saveAndReload(cfgNew, targetPath, true);
             cfgPath = targetPath;
             cfgEdit.Value = targetPath;
             refresh_table();
@@ -211,7 +210,7 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
     function onShow()
         if exist(cfgEdit.Value, 'file')
             try
-                cfgCache = load_config(cfgEdit.Value);
+                cfgCache = bms.gui.ConfigEditorService.load(cfgEdit.Value);
                 cfgPath = cfgEdit.Value;
             catch
             end
@@ -223,39 +222,8 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
 end
 
 function [sensorItems, sensorValues] = list_supported_sensors(cfg)
-    sensorValues = {};
-    if isfield(cfg, 'defaults') && isstruct(cfg.defaults)
-        sensorValues = [sensorValues; fieldnames(cfg.defaults)]; %#ok<AGROW>
-    end
-    if isfield(cfg, 'per_point') && isstruct(cfg.per_point)
-        sensorValues = [sensorValues; fieldnames(cfg.per_point)]; %#ok<AGROW>
-    end
-    sensorValues = unique(sensorValues, 'stable');
-    exclude = {'header_marker', 'wind', 'eq', 'accel_spectrum', 'cable_accel_spectrum'};
-    mask = ~ismember(sensorValues, exclude);
-    sensorValues = sensorValues(mask);
-
-    preferredOrder = { ...
-        'deflection', 'bearing_displacement', 'tilt', 'strain', 'crack', ...
-        'temperature', 'humidity', 'gnss', 'acceleration', 'cable_accel', ...
-        'wind_speed', 'wind_direction', 'eq_x', 'eq_y', 'eq_z'};
-
-    ordered = {};
-    for i = 1:numel(preferredOrder)
-        if any(strcmp(sensorValues, preferredOrder{i}))
-            ordered{end+1, 1} = preferredOrder{i}; %#ok<AGROW>
-        end
-    end
-    for i = 1:numel(sensorValues)
-        if ~any(strcmp(ordered, sensorValues{i}))
-            ordered{end+1, 1} = sensorValues{i}; %#ok<AGROW>
-        end
-    end
-    sensorValues = ordered;
-    if isempty(sensorValues)
-        sensorValues = {'deflection'};
-    end
-    sensorItems = cellfun(@format_sensor_label, sensorValues, 'UniformOutput', false);
+    sensorValues = bms.gui.ConfigEditorService.editableModuleKeys(cfg, 'offset');
+    sensorItems = bms.gui.ConfigEditorService.moduleLabels(sensorValues);
 end
 
 function label = format_sensor_label(sensor)

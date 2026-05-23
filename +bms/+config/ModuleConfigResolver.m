@@ -59,9 +59,16 @@ classdef ModuleConfigResolver
             end
             spec = bms.config.ModuleConfigResolver.spec(module);
             points = bms.data.PointResolver.normalize(fallback);
-            if isstruct(cfg) && isfield(cfg, 'points') && isstruct(cfg.points) && ...
-                    ~isempty(spec.point_key) && isfield(cfg.points, spec.point_key)
-                points = bms.data.PointResolver.normalize(cfg.points.(spec.point_key));
+            if isstruct(cfg) && isfield(cfg, 'points') && isstruct(cfg.points)
+                aliases = bms.config.ModuleConfigRegistry.aliasesForKey(spec.value);
+                pointKeys = unique([{spec.point_key}, aliases(:)'], 'stable');
+                for i = 1:numel(pointKeys)
+                    key = pointKeys{i};
+                    if ~isempty(key) && isfield(cfg.points, key)
+                        points = [points; bms.data.PointResolver.normalize(cfg.points.(key))]; %#ok<AGROW>
+                    end
+                end
+                points = bms.data.PointResolver.uniqueText(points);
             end
             if isempty(points)
                 groups = bms.config.ModuleConfigResolver.resolveGroups(cfg, spec);
@@ -74,9 +81,15 @@ classdef ModuleConfigResolver
         end
 
         function groups = resolveGroups(cfg, module)
-            spec = bms.config.ModuleConfigResolver.spec(module);
             groups = struct();
             if ~isstruct(cfg) || ~isfield(cfg, 'groups') || ~isstruct(cfg.groups)
+                return;
+            end
+            rawKey = bms.config.ModuleConfigResolver.rawModuleKey(module);
+            spec = bms.config.ModuleConfigResolver.spec(module);
+            canonicalKeys = {spec.value, spec.style_key, spec.point_key, spec.group_key};
+            if ~isempty(rawKey) && ~any(strcmp(canonicalKeys, rawKey)) && isfield(cfg.groups, rawKey)
+                groups = bms.data.PointResolver.normalizeGroups(cfg.groups.(rawKey));
                 return;
             end
             keys = bms.config.ModuleConfigResolver.groupAliases(spec);
@@ -119,6 +132,15 @@ classdef ModuleConfigResolver
                 aliases = [{'dynamic_strain_lowpass', 'dynamic_strain', 'strain_timeseries', 'strain'}, aliases];
             end
             aliases = unique(aliases(~cellfun(@isempty, aliases)), 'stable');
+        end
+
+        function key = rawModuleKey(module)
+            key = '';
+            if ischar(module) || isstring(module)
+                key = char(string(module));
+            elseif isstruct(module)
+                key = bms.config.ModuleConfigRegistry.structKey(module);
+            end
         end
     end
 end

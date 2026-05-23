@@ -213,7 +213,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
 
     function onReloadCfg()
         try
-            draftCfg = load_config(cfgEdit.Value);
+            draftCfg = bms.gui.ConfigEditorService.load(cfgEdit.Value);
             cfgCache = draftCfg;
             cfgPath = cfgEdit.Value;
             currentModule = moduleDrop.Value;
@@ -349,8 +349,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
                 targetPath = fullfile(fpath, fname);
             end
 
-            saveReport = bms.core.ConfigStore.saveGuardedWithReport(cfgNew, targetPath, true);
-            cfgCache = load_config(targetPath);
+            [cfgCache, saveReport] = bms.gui.ConfigEditorService.saveAndReload(cfgNew, targetPath, true);
             draftCfg = cfgCache;
             cfgPath = targetPath;
             cfgEdit.Value = targetPath;
@@ -365,7 +364,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
     function onShow()
         if exist(cfgEdit.Value, 'file')
             try
-                cfgCache = load_config(cfgEdit.Value);
+                cfgCache = bms.gui.ConfigEditorService.load(cfgEdit.Value);
                 draftCfg = cfgCache;
                 cfgPath = cfgEdit.Value;
             catch

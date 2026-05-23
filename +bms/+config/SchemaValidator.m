@@ -97,9 +97,13 @@ classdef SchemaValidator
                     if isfield(rule, 'thresholds') && ~isempty(rule.thresholds)
                         ths = rule.thresholds;
                         for k = 1:numel(ths)
-                            if ~isfield(ths(k), 'min') || ~isfield(ths(k), 'max')
+                            hasMin = isfield(ths(k), 'min') && ~isempty(ths(k).min);
+                            hasMax = isfield(ths(k), 'max') && ~isempty(ths(k).max);
+                            if ~hasMin && ~hasMax
                                 warns{end+1} = ['threshold missing min/max: per_point.' modules{i} '.' pnames{j}]; %#ok<AGROW>
-                            elseif isnumeric(ths(k).min) && isnumeric(ths(k).max) && ths(k).min > ths(k).max
+                            elseif hasMin && hasMax && isnumeric(ths(k).min) && isnumeric(ths(k).max) && ...
+                                    ths(k).min > ths(k).max && ...
+                                    ~bms.config.SchemaValidator.isDisabledThreshold(ths(k))
                                 warns{end+1} = ['threshold min > max: per_point.' modules{i} '.' pnames{j}]; %#ok<AGROW>
                             end
                         end
@@ -237,6 +241,12 @@ classdef SchemaValidator
 
         function aliases = aliasesForKey(key)
             aliases = bms.config.ModuleConfigRegistry.aliasesForKey(key);
+        end
+
+        function tf = isDisabledThreshold(th)
+            tf = isstruct(th) && isfield(th, 'min') && isfield(th, 'max') && ...
+                isnumeric(th.min) && isnumeric(th.max) && isscalar(th.min) && isscalar(th.max) && ...
+                th.min == 1000 && th.max == -1000;
         end
     end
 end

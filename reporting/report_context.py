@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from analysis_manifest import analysis_manifest_context
+from reporting_contract import reporting_contract_context
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,9 @@ class ReportBuildContext:
 
     def analysis_context(self) -> dict[str, Any]:
         return analysis_manifest_context(self.result_root or self.stats_root)
+
+    def reporting_contract_context(self, analysis_context: dict[str, Any] | None = None) -> dict[str, Any]:
+        return reporting_contract_context(self.result_root or self.stats_root, analysis_context)
 
     def to_manifest_paths(self) -> dict[str, str]:
         payload = asdict(self)

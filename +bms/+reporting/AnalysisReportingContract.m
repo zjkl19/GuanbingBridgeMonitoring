@@ -62,7 +62,8 @@ classdef AnalysisReportingContract
             rec.point_count = numel(points);
             rec.groups = bms.reporting.AnalysisReportingContract.groupRecords(groups);
             rec.group_count = numel(rec.groups);
-            rec.output_dirs = bms.reporting.AnalysisReportingContract.collectOutputDirs(style);
+            rec.output_dir_records = bms.reporting.AnalysisReportingContract.collectOutputDirRecords(style);
+            rec.output_dirs = bms.reporting.AnalysisReportingContract.outputDirsFromRecords(rec.output_dir_records);
             rec.warn_fields = cfgSpec.warn_fields(:)';
             rec.is_spectrum = logical(cfgSpec.is_spectrum);
         end
@@ -108,16 +109,39 @@ classdef AnalysisReportingContract
         end
 
         function dirs = collectOutputDirs(style)
+            records = bms.reporting.AnalysisReportingContract.collectOutputDirRecords(style);
+            dirs = bms.reporting.AnalysisReportingContract.outputDirsFromRecords(records);
+        end
+
+        function dirs = outputDirsFromRecords(records)
             dirs = {};
-            if ~isstruct(style)
+            if isempty(records) || ~isstruct(records)
                 return;
             end
-            dirs = bms.reporting.AnalysisReportingContract.collectOutputDirsRecursive(style, '');
+            for i = 1:numel(records)
+                if isfield(records(i), 'dir') && ~isempty(records(i).dir)
+                    dirs{end+1} = records(i).dir; %#ok<AGROW>
+                end
+            end
             dirs = unique(dirs(~cellfun(@isempty, dirs)), 'stable');
         end
 
-        function dirs = collectOutputDirsRecursive(s, prefix)
-            dirs = {};
+        function records = collectOutputDirRecords(style)
+            records = struct('field', {}, 'dir', {}, 'role', {});
+            if ~isstruct(style)
+                return;
+            end
+            records = bms.reporting.AnalysisReportingContract.collectOutputDirRecordsRecursive(style, '');
+            if isempty(records)
+                return;
+            end
+            keys = cellfun(@(a, b) [a '=' b], {records.field}, {records.dir}, 'UniformOutput', false);
+            [~, idx] = unique(keys, 'stable');
+            records = records(idx);
+        end
+
+        function records = collectOutputDirRecordsRecursive(s, prefix)
+            records = struct('field', {}, 'dir', {}, 'role', {});
             if ~isstruct(s)
                 return;
             end
@@ -131,10 +155,30 @@ classdef AnalysisReportingContract
                 end
                 if (strcmp(name, 'output_dir') || endsWith(name, '_output_dir')) && ...
                         (ischar(value) || isstring(value)) && ~isempty(value)
-                    dirs{end+1} = char(string(value)); %#ok<AGROW>
+                    records(end+1) = struct( ...
+                        'field', pathName, ...
+                        'dir', char(string(value)), ...
+                        'role', bms.reporting.AnalysisReportingContract.outputDirRole(pathName)); %#ok<AGROW>
                 elseif isstruct(value)
-                    dirs = [dirs, bms.reporting.AnalysisReportingContract.collectOutputDirsRecursive(value, pathName)]; %#ok<AGROW>
+                    records = [records, bms.reporting.AnalysisReportingContract.collectOutputDirRecordsRecursive(value, pathName)]; %#ok<AGROW>
                 end
+            end
+        end
+
+        function role = outputDirRole(fieldPath)
+            text = lower(char(string(fieldPath)));
+            if contains(text, 'group')
+                role = 'group_plot';
+            elseif contains(text, 'stats') || contains(text, 'table')
+                role = 'stats';
+            elseif contains(text, 'box')
+                role = 'boxplot';
+            elseif contains(text, 'spec') || contains(text, 'spectrum') || contains(text, 'freq')
+                role = 'spectrum';
+            elseif contains(text, 'rms')
+                role = 'rms_plot';
+            else
+                role = 'single_plot';
             end
         end
     end

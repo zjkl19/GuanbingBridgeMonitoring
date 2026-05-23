@@ -16,6 +16,20 @@ classdef test_reporting_contract < matlab.unittest.TestCase
             tc.verifyEqual(rec.stats_file, 'deflection_stats.xlsx');
         end
 
+        function contractCapturesOutputDirRecords(tc)
+            cfg = load_config(fullfile(project_root(), 'tests', 'config', 'layered_bridge_project.json'));
+            cfg.plot_styles.deflection.output_dir = 'deflection';
+            cfg.plot_styles.deflection.group_output_dir = 'deflection_group';
+            opts = struct('doDeflect', true);
+
+            contract = bms.reporting.AnalysisReportingContract.build(cfg, opts);
+
+            rec = contract.modules{1};
+            tc.verifyEqual(rec.output_dirs, {'deflection', 'deflection_group'});
+            tc.verifyEqual({rec.output_dir_records.role}, {'single_plot', 'group_plot'});
+            tc.verifyEqual({rec.output_dir_records.field}, {'output_dir', 'group_output_dir'});
+        end
+
         function preflightAttachesReportingContract(tc)
             root = tempname;
             mkdir(root);

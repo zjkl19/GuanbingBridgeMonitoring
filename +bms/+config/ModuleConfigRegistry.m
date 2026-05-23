@@ -70,7 +70,7 @@ classdef ModuleConfigRegistry
             end
             keys = [keys, {'temp_humidity', 'wind_raw', 'eq_raw', 'acceleration_raw', ...
                 'cable_accel_raw', 'cable_force', 'dynamic_strain_highpass', 'wim', ...
-                'vibration', 'pending_gnss', 'pending_stress'}];
+                'vibration', 'pending_gnss', 'pending_stress', 'eq_x', 'eq_y', 'eq_z'}];
             keys = unique(keys(~cellfun(@isempty, keys)), 'stable');
         end
 

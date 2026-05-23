@@ -1,0 +1,822 @@
+{
+  "plot_styles": {
+    "acceleration": {
+      "group_output_dir": "时程曲线_加速度_组图",
+      "rms_group_output_dir": "时程曲线_加速度_RMS10min_组图",
+      "group_labels": {
+        "ZG": "ZG（主拱）",
+        "ZL": "ZL（主梁）"
+      },
+      "group_legend_location": "northeast",
+      "ylabel": "振动加速度 (cm/s^2)",
+      "title_prefix": "振动加速度时程",
+      "ylim_auto": true,
+      "ylim": [
+        -0.5,
+        0.5
+      ],
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ]
+      ],
+      "rms": {
+        "ylabel": "10 min RMS (cm/s^2)",
+        "title_prefix": "10 min RMS 时程",
+        "ylim": [
+          0,
+          80
+        ],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
+      },
+      "rms_ylabel": "10min RMS (cm/s^2)",
+      "rms_title_prefix": "10min RMS 时程",
+      "rms_ylims": [
+        {
+          "name": "ZG",
+          "ylim": [
+            0,
+            320
+          ]
+        },
+        {
+          "name": "ZL",
+          "ylim": [
+            0,
+            80
+          ]
+        }
+      ],
+      "rms_warn_lines": {
+        "ZG": [
+          {
+            "y": 100,
+            "label": "一级阈值 100cm/s²",
+            "color": [
+              0.929,
+              0.694,
+              0.125
+            ]
+          },
+          {
+            "y": 300,
+            "label": "二级阈值 300cm/s²",
+            "color": [
+              0.85,
+              0.1,
+              0.1
+            ]
+          }
+        ],
+        "ZL": [
+          {
+            "y": 31.5,
+            "label": "一级阈值 31.5cm/s²",
+            "color": [
+              0.929,
+              0.694,
+              0.125
+            ]
+          },
+          {
+            "y": 50,
+            "label": "二级阈值 50cm/s²",
+            "color": [
+              0.85,
+              0.1,
+              0.1
+            ]
+          }
+        ]
+      }
+    },
+    "accel_spectrum": {
+      "psd_ylabel": "PSD (dB)",
+      "psd_title_prefix": "PSD",
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "峰值频率时程",
+      "colors": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          0.5,
+          0,
+          0.7
+        ]
+      ],
+      "group_output_dir": "频谱峰值曲线_加速度_组图",
+      "group_labels": {
+        "ZG": "ZG（主拱）",
+        "ZL": "ZL（主梁）"
+      },
+      "group_legend_location": "northeast",
+      "group_legend_box": "off",
+      "groups": {
+        "ZG": [
+          "ZGZD-01-X-拱顶",
+          "ZGZD-02-X-拱顶",
+          "ZGZD-03-S-拱顶",
+          "ZGZD-04-S-拱顶"
+        ],
+        "ZL": [
+          "ZLZD-01-X10-3#",
+          "ZLZD-02-X10-3#",
+          "ZLZD-03-X11-3#",
+          "ZLZD-04-X11-3#",
+          "ZLZD-05-X11-3#",
+          "ZLZD-06-X11-3#",
+          "ZLZD-07-X11-3#",
+          "ZLZD-08-X11-3#",
+          "ZLZD-09-X12-3#",
+          "ZLZD-10-X12-3#"
+        ]
+      }
+    },
+    "deflection": {
+      "output_dir": "时程曲线_挠度",
+      "group_output_dir": "时程曲线_挠度_组图",
+      "colors_2": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "colors_3": [
+        [
+          0.5,
+          0,
+          0.7
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "warn_lines": [],
+      "ylim": [
+        -40,
+        50
+      ],
+      "ylabel": "位移 (mm)",
+      "title_prefix": "挠度时程",
+      "ylim_auto": true
+    },
+    "bearing_displacement": {
+      "colors_2": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "colors_3": [
+        [
+          0.5,
+          0,
+          0.7
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "warn_lines": [
+        {
+          "y": -80,
+          "label": "二级预警值 -80mm",
+          "color": [
+            0.72,
+            0.5,
+            0.0
+          ]
+        },
+        {
+          "y": 80,
+          "label": "二级预警值 80mm",
+          "color": [
+            0.72,
+            0.5,
+            0.0
+          ]
+        },
+        {
+          "y": -100,
+          "label": "三级预警值 -100mm",
+          "color": [
+            0.85,
+            0.1,
+            0.1
+          ]
+        },
+        {
+          "y": 100,
+          "label": "三级预警值 100mm",
+          "color": [
+            0.85,
+            0.1,
+            0.1
+          ]
+        }
+      ],
+      "ylim_auto": true,
+      "output_dir": "时程曲线_支座位移",
+      "ylabel": "位移 (mm)",
+      "title_prefix": "支座/伸缩缝位移时程",
+      "group_output_dir": "时程曲线_支座位移_组图"
+    },
+    "strain": {
+      "colors_6": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          1,
+          0.4,
+          0.8
+        ],
+        [
+          1,
+          0.6,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ]
+      ],
+      "ylims": {},
+      "ylabel": "应变 (με)",
+      "title_prefix": "应变时程曲线",
+      "show_boxplot_outliers": false,
+      "boxplot_title_prefix": "应变箱线图",
+      "ylim_auto": true,
+      "show_warn_lines_point": true,
+      "show_warn_lines_boxplot": true,
+      "show_warn_lines_group": true,
+      "group_labels": {
+        "XZYB": "小纵梁底部静应变",
+        "HLYB": "横梁底部静应变",
+        "GDDYB": "主拱拱顶静应变",
+        "GJYB": "主拱拱脚静应变"
+      }
+    },
+    "tilt": {
+      "colors_3": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ]
+      ],
+      "warn_lines": [
+        {
+          "y": -0.126,
+          "label": "二级报警值 -0.126",
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ]
+        },
+        {
+          "y": 0.126,
+          "label": "二级报警值 0.126",
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ]
+        },
+        {
+          "y": -0.155,
+          "label": "三级报警值 -0.155",
+          "color": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "y": 0.155,
+          "label": "三级报警值 0.155",
+          "color": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "ylim": [
+        -0.2,
+        0.2
+      ],
+      "ylabel": "倾角 (°)",
+      "title_prefix": "倾角时程",
+      "ylims": [
+        {
+          "name": "QJJ-01-CZD-PC20-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-01-CZD-PC20-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-02-AZD-PA2-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-02-AZD-PA2-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-03-AZD-A5-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-03-AZD-A5-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-04-AZD-A6-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-04-AZD-A6-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-05-BZD-B5-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-05-BZD-B5-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-06-BZD-B6-X",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        },
+        {
+          "name": "QJJ-06-BZD-B6-Y",
+          "ylim": [
+            -1.5,
+            1.5
+          ]
+        }
+      ],
+      "ylim_auto": true
+    },
+    "crack": {
+      "colors_4": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "ylims": {
+        "G05": [
+          -0.25,
+          0.25
+        ],
+        "G06": [
+          -0.3,
+          0.3
+        ]
+      },
+      "ylabel_crack": "裂缝宽度 (mm)",
+      "ylabel_temp": "裂缝温度 (°C)",
+      "title_prefix_crack": "裂缝宽度",
+      "title_prefix_temp": "裂缝温度",
+      "per_point_plot": true,
+      "group_plot": true,
+      "temp_enabled": false,
+      "skip_group_if_missing": true,
+      "output_dir_crack": "时程曲线_裂缝宽度",
+      "output_dir_temp": "时程曲线_裂缝温度"
+    },
+    "temperature": {
+      "ylabel": "温度 (°C)",
+      "title_prefix": "温度时程",
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "ylim": [
+        0,
+        40
+      ],
+      "ylim_auto": true,
+      "ylims": {
+        "JGWD-01-K16-ZFQM-G20": [
+          0,
+          100
+        ],
+        "WSDJ-04-K16-QM-G20": [
+          0,
+          100
+        ]
+      }
+    },
+    "humidity": {
+      "ylabel": "湿度 (%)",
+      "title_prefix": "湿度时程",
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ],
+        [
+          0,
+          0.7,
+          0
+        ]
+      ],
+      "ylim": [
+        20,
+        100
+      ],
+      "ylim_auto": true
+    },
+    "cable_accel": {
+      "group_output_dir": "时程曲线_索力加速度_组图",
+      "rms_group_output_dir": "时程曲线_索力加速度_RMS10min_组图",
+      "group_labels": {
+        "X6_X16": "X6~X16吊杆",
+        "S6_S16": "S6~S16吊杆",
+        "Tie": "系杆"
+      },
+      "group_legend_location": "northeast",
+      "ylabel": "索力振动加速度 (cm/s^2)",
+      "title_prefix": "索力振动加速度时程",
+      "ylim": [],
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ]
+      ],
+      "rms": {
+        "ylabel": "10 min RMS (cm/s^2)",
+        "title_prefix": "10 min RMS 时程",
+        "ylim": [],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
+      },
+      "rms_ylabel": "10min RMS (cm/s^2)",
+      "rms_title_prefix": "10min RMS 时程",
+      "rms_ylims": [
+        {
+          "name": "X6_X16",
+          "ylim": [
+            0,
+            320
+          ]
+        },
+        {
+          "name": "S6_S16",
+          "ylim": [
+            0,
+            320
+          ]
+        },
+        {
+          "name": "Tie",
+          "ylim": [
+            0,
+            320
+          ]
+        }
+      ],
+      "rms_warn_lines": [
+        {
+          "y": 100,
+          "label": "一级预警值 100cm/s^2",
+          "color": [
+            0.72,
+            0.5,
+            0.0
+          ]
+        },
+        {
+          "y": 300,
+          "label": "二级预警值 300cm/s^2",
+          "color": [
+            0.85,
+            0.1,
+            0.1
+          ]
+        }
+      ],
+      "ylim_auto": true
+    },
+    "cable_accel_spectrum": {
+      "psd_ylabel": "PSD (dB)",
+      "psd_title_prefix": "PSD",
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "峰值频率时程",
+      "colors": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0.7,
+          0
+        ],
+        [
+          0.5,
+          0,
+          0.7
+        ]
+      ],
+      "force_ylabel": "索力 (kN)",
+      "force_title_prefix": "索力时程",
+      "force_color": [
+        0,
+        0.447,
+        0.741
+      ],
+      "force_ylim": [
+        1000,
+        2200
+      ]
+    },
+    "rainfall": {
+      "ylabel": "降雨强度 (mm/h)",
+      "title_prefix": "降雨强度时程",
+      "output_dir": "时程曲线_雨量",
+      "ylim_auto": true,
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ]
+      ]
+    },
+    "gnss": {
+      "ylabel": "GNSS位移 (mm)",
+      "title_prefix": "GNSS位移时程",
+      "output_dir": "时程曲线_GNSS",
+      "ylim_auto": true,
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ],
+        [
+          0.85,
+          0.325,
+          0.098
+        ],
+        [
+          0.466,
+          0.674,
+          0.188
+        ]
+      ]
+    },
+    "wind": {
+      "output": {
+        "root_dir": "风速风向结果",
+        "speed_dir": "风速时程",
+        "direction_dir": "风向时程",
+        "speed10_dir": "10min平均风速",
+        "rose_dir": "风玫瑰",
+        "stats_file": "wind_stats.xlsx"
+      },
+      "speed": {
+        "ylabel": "风速 (m/s)",
+        "title_prefix": "风速时程",
+        "ylim": [
+          0,
+          40
+        ],
+        "color": [
+          0,
+          0.447,
+          0.741
+        ]
+      },
+      "direction": {
+        "ylabel": "风向 (°)",
+        "title_prefix": "风向时程",
+        "color": [
+          0.85,
+          0.325,
+          0.098
+        ]
+      },
+      "speed10": {
+        "ylabel": "10min平均风速 (m/s)",
+        "title_prefix": "10min平均风速",
+        "ylim": [
+          0,
+          40
+        ],
+        "color": [
+          0.466,
+          0.674,
+          0.188
+        ]
+      },
+      "rose": {
+        "title_prefix": "风玫瑰图"
+      }
+    },
+    "eq": {
+      "ylabel": "地震动加速度 (m/s^2)",
+      "title_prefix": "地震动时程",
+      "ylim_auto": true,
+      "output": {
+        "root_dir": "地震动结果",
+        "series_dir": "地震动时程",
+        "prefix": "EQ"
+      }
+    },
+    "dynamic_strain": {
+      "ylabel": "高通应变 (με)",
+      "title_prefix": "动应变高通时程",
+      "ylim_auto": true
+    },
+    "dynamic_strain_lowpass": {
+      "ylabel": "低通应变 (με)",
+      "title_prefix": "动应变低通时程",
+      "ylim_auto": true
+    }
+  },
+  "plot_common": {
+    "save_fig": true,
+    "lightweight_fig": true,
+    "fig_max_points": 50000,
+    "append_timestamp": false,
+    "gap_mode": "connect",
+    "gap_break_factor": 5
+  }
+}

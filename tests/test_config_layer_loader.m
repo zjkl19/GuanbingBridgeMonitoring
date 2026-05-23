@@ -33,6 +33,20 @@ classdef test_config_layer_loader < matlab.unittest.TestCase
             tc.verifyTrue(isfield(cfg.per_point.deflection, 'D_1'));
             tc.verifyTrue(isfield(cfg, 'warnings'));
         end
+
+        function shuixianhuaLayeredConfigMatchesProductionConfig(tc)
+            root = project_root();
+            original = load_config(fullfile(root, 'config', 'shuixianhua_config.json'));
+            layered = load_config(fullfile(root, 'config', 'shuixianhua_layered_config.json'));
+
+            volatile = {'source', 'warnings', 'name_map_global'};
+            for i = 1:numel(volatile)
+                if isfield(original, volatile{i}), original = rmfield(original, volatile{i}); end
+                if isfield(layered, volatile{i}), layered = rmfield(layered, volatile{i}); end
+            end
+
+            tc.verifyEqual(layered, original);
+        end
     end
 end
 

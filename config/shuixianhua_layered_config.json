@@ -1,0 +1,8 @@
+{
+  "extends": "shuixianhua_layers/base.json",
+  "layers": [
+    "shuixianhua_layers/points_groups.json",
+    "shuixianhua_layers/thresholds.json",
+    "shuixianhua_layers/plot_reporting.json"
+  ]
+}

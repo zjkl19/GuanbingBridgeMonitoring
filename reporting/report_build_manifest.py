@@ -7,6 +7,7 @@ from typing import Any
 
 from image_block_utils import count_docx_images
 from report_context import ReportBuildContext
+from reporting_contract import contract_precheck_warnings
 
 
 SCHEMA_VERSION = 1
@@ -42,6 +43,8 @@ def build_report_manifest(
     missing_items = normalize_missing(missing)
     warnings = warnings or []
     analysis_context = context.analysis_context()
+    reporting_contract = context.reporting_contract_context(analysis_context)
+    warnings = [*warnings, *contract_precheck_warnings(reporting_contract)]
     status = "warning" if missing_items or warnings else "ok"
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -54,6 +57,7 @@ def build_report_manifest(
         "output_docx": str(output_docx),
         "output_docx_image_count": count_docx_images(output_docx),
         "analysis_run_manifest": analysis_context,
+        "analysis_reporting_contract": reporting_contract,
         "missing_items": missing_items,
         "missing_count": len(missing_items),
         "warnings": warnings,

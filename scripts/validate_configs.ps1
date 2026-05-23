@@ -3,7 +3,8 @@ param(
         "config\default_config.json",
         "config\hongtang_config.json",
         "config\jiulongjiang_config.json",
-        "config\shuixianhua_config.json"
+        "config\shuixianhua_config.json",
+        "config\shuixianhua_layered_config.json"
     )
 )
 

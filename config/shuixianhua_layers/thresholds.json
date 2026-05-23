@@ -1,0 +1,956 @@
+{
+  "per_point": {
+    "deflection": {
+      "GSNDY-01-10#跨-S侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -6.8,
+            4.8
+          ],
+          "level3": [
+            -8.5,
+            6.0
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "post_filter_thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "GSNDY-01-10#跨-X侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -6.8,
+            4.8
+          ],
+          "level3": [
+            -8.5,
+            6.0
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "post_filter_thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "GSNDY-01-11#跨-S侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -48.0,
+            38.4
+          ],
+          "level3": [
+            -60.0,
+            48.0
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -48.0,
+            "max": 38.4,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "post_filter_thresholds": [
+          {
+            "min": -48.0,
+            "max": 38.4,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "GSNDY-01-11#跨-X侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -48.0,
+            38.4
+          ],
+          "level3": [
+            -60.0,
+            48.0
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -48.0,
+            "max": 38.4,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "post_filter_thresholds": [
+          {
+            "min": -48.0,
+            "max": 38.4,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "GSNDY-01-12#跨-S侧壁": {
+        "thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "alarm_bounds": {
+          "level2": [
+            -6.8,
+            4.8
+          ],
+          "level3": [
+            -8.5,
+            6.0
+          ]
+        },
+        "post_filter_thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "GSNDY-01-12#跨-Y侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -6.8,
+            4.8
+          ],
+          "level3": [
+            -8.5,
+            6.0
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "post_filter_thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "GSNDY-02-10#跨-S侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -6.8,
+            4.8
+          ],
+          "level3": [
+            -8.5,
+            6.0
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "post_filter_thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "GSNDY-02-10#跨-X侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -6.8,
+            4.8
+          ],
+          "level3": [
+            -8.5,
+            6.0
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "post_filter_thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "GSNDY-02-11#跨-S侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -48.0,
+            38.4
+          ],
+          "level3": [
+            -60.0,
+            48.0
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -48.0,
+            "max": 38.4,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "post_filter_thresholds": [
+          {
+            "min": -48.0,
+            "max": 38.4,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "GSNDY-02-11#跨-X侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -48.0,
+            38.4
+          ],
+          "level3": [
+            -60.0,
+            48.0
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -48.0,
+            "max": 38.4,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "post_filter_thresholds": [
+          {
+            "min": -48.0,
+            "max": 38.4,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "GSNDY-02-12#跨-X侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -6.8,
+            4.8
+          ],
+          "level3": [
+            -8.5,
+            6.0
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "post_filter_thresholds": [
+          {
+            "min": -6.8,
+            "max": 4.8,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "GSNDY-03-11#跨-S侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -48.0,
+            38.4
+          ],
+          "level3": [
+            -60.0,
+            48.0
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -48.0,
+            "max": 38.4,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "post_filter_thresholds": [
+          {
+            "min": -48.0,
+            "max": 38.4,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "GSNDY-03-11#跨-X侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -48.0,
+            38.4
+          ],
+          "level3": [
+            -60.0,
+            48.0
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -48.0,
+            "max": 38.4,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "post_filter_thresholds": [
+          {
+            "min": -48.0,
+            "max": 38.4,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      }
+    },
+    "bearing_displacement": {
+      "SSF_01_3#伸缩缝_X侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -80,
+            80
+          ],
+          "level3": [
+            -100,
+            100
+          ]
+        },
+        "offset_correction": 14.1843967
+      },
+      "SSF_02_3#伸缩缝_S侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -80,
+            80
+          ],
+          "level3": [
+            -100,
+            100
+          ]
+        },
+        "offset_correction": 25.7142849
+      },
+      "SSF_03_6#伸缩缝_X侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -80,
+            80
+          ],
+          "level3": [
+            -100,
+            100
+          ]
+        },
+        "offset_correction": 17.9577465
+      },
+      "SSF_04_6#伸缩缝_S侧壁": {
+        "alarm_bounds": {
+          "level2": [
+            -80,
+            80
+          ],
+          "level3": [
+            -100,
+            100
+          ]
+        },
+        "offset_correction": 16.666666
+      },
+      "ZZWY_01_9#墩_1#支座": {
+        "alarm_bounds": {
+          "level2": [
+            -80,
+            80
+          ],
+          "level3": [
+            -100,
+            100
+          ]
+        },
+        "offset_correction": 21.034483
+      },
+      "ZZWY_02_9#墩_2#支座": {
+        "alarm_bounds": {
+          "level2": [
+            -80,
+            80
+          ],
+          "level3": [
+            -100,
+            100
+          ]
+        },
+        "offset_correction": 16.4285717
+      },
+      "ZZWY_03_12#墩_1#支座": {
+        "alarm_bounds": {
+          "level2": [
+            -80,
+            80
+          ],
+          "level3": [
+            -100,
+            100
+          ]
+        },
+        "offset_correction": 24.0143375
+      },
+      "ZZWY_04_12#墩_2#支座": {
+        "alarm_bounds": {
+          "level2": [
+            -80,
+            80
+          ],
+          "level3": [
+            -100,
+            100
+          ]
+        },
+        "offset_correction": 16.666666
+      }
+    },
+    "strain": {
+      "GLYB_01_X10_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": -20.4819279
+      },
+      "GLYB_02_X10_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": 40.0602417
+      },
+      "GLYB_03_S10_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": 58.7349396
+      },
+      "GLYB_04_S10_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": 38.5542183
+      },
+      "GLYB_05_10#墩_X拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": -0.0
+      },
+      "GLYB_06_10#墩_X拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": -0.0
+      },
+      "GLYB_07_10#墩_S拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": -0.0
+      },
+      "GLYB_08_10#墩_S拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": -0.0
+      },
+      "GLYB_09_X_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": 141.8674774
+      },
+      "GLYB_10_X_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": 99.3975906
+      },
+      "GLYB_11_X_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": 21.9879513
+      },
+      "GLYB_12_X_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": 28.0120487
+      },
+      "GLYB_13_S_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": 34.9397583
+      },
+      "GLYB_14_S_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": 60.240963
+      },
+      "GLYB_15_S_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": 14.1566267
+      },
+      "GLYB_16_S_拱顶": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": 62.0481911
+      },
+      "GLYB_17_11#墩_X拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": -0.0
+      },
+      "GLYB_18_11#墩_X拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": -0.0
+      },
+      "GLYB_19_11#墩_S拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": -0.0
+      },
+      "GLYB_20_11#墩_S拱脚": {
+        "alarm_bounds": {
+          "level2": [
+            -264,
+            264
+          ]
+        },
+        "offset_correction": -0.0
+      },
+      "GLYB_21_X12_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": -14.4578314
+      },
+      "GLYB_22_X12_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": 34.9397583
+      },
+      "GLYB_23_S12_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": 18.3734932
+      },
+      "GLYB_24_S12_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": -3.0120482
+      },
+      "ZLYB_01_X11_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": 34.9397583
+      },
+      "ZLYB_02_X11_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": 31.3253021
+      },
+      "ZLYB_03_11_15#横梁": {
+        "alarm_bounds": {
+          "level2": [
+            -60,
+            60
+          ]
+        },
+        "offset_correction": 56.6265068
+      },
+      "ZLYB_04_S11_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": 27.710844
+      },
+      "ZLYB_05_S11_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": 33.1325302
+      },
+      "ZLYB_06_X11_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": 21.6867466
+      },
+      "ZLYB_07_X11_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": -0.0
+      },
+      "ZLYB_08_11_15#横梁": {
+        "alarm_bounds": {
+          "level2": [
+            -60,
+            60
+          ]
+        },
+        "offset_correction": 58.1325302
+      },
+      "ZLYB_09_S11_3#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": 11.7469883
+      },
+      "ZLYB_10_S11_1#": {
+        "alarm_bounds": {
+          "level2": [
+            -214,
+            217
+          ]
+        },
+        "offset_correction": 34.9397583
+      }
+    },
+    "acceleration": {},
+    "cable_accel": {
+      "SL-01-X6#吊杆": {
+        "offset_correction": 4.02
+      },
+      "SL-02-X7#吊杆": {
+        "offset_correction": 4.04
+      },
+      "SL-03-X8#吊杆": {
+        "offset_correction": 4.3200002
+      },
+      "SL-04-X9#吊杆": {
+        "offset_correction": 4.4000001
+      },
+      "SL-05-X10#吊杆": {
+        "offset_correction": 4.48
+      },
+      "SL-06-X11#吊杆": {
+        "offset_correction": 4.3800001
+      },
+      "SL-07-X12#吊杆": {
+        "offset_correction": 4.5999999
+      },
+      "SL-08-X13#吊杆": {
+        "offset_correction": 4.3000002
+      },
+      "SL-09-X14#吊杆": {
+        "offset_correction": 4.0
+      },
+      "SL-10-X15#吊杆": {
+        "offset_correction": 4.7399998
+      },
+      "SL-11-X16#吊杆": {
+        "offset_correction": 4.3600001
+      },
+      "SL-12-S6#吊杆": {
+        "offset_correction": 4.2800002
+      },
+      "SL-13-S7#吊杆": {
+        "offset_correction": 4.9000001
+      },
+      "SL-14-S8#吊杆": {
+        "offset_correction": 4.6799998
+      },
+      "SL-15-S9#吊杆": {
+        "offset_correction": 4.7800002
+      },
+      "SL-16-S10#吊杆": {
+        "offset_correction": 4.8000002
+      },
+      "SL-17-S11#吊杆": {
+        "offset_correction": 4.7800002
+      },
+      "SL-18-S12#吊杆": {
+        "offset_correction": 4.9000001
+      },
+      "SL-19-S13#吊杆": {
+        "offset_correction": 4.5
+      },
+      "SL-20-S14#吊杆": {
+        "offset_correction": 4.96
+      },
+      "SL-21-S15#吊杆": {
+        "offset_correction": 4.8800001
+      },
+      "SL-22-S16#吊杆": {
+        "offset_correction": 4.98
+      },
+      "SL-23-1#系杆": {
+        "offset_correction": 4.5999999
+      },
+      "SL-24-2#系杆": {
+        "offset_correction": 4.0799999
+      },
+      "SL-25-3#系杆": {
+        "offset_correction": 4.5599999
+      },
+      "SL-26-4#系杆": {
+        "offset_correction": 4.6999998
+      },
+      "SL-27-5#系杆": {
+        "offset_correction": 4.5599999
+      },
+      "SL-28-6#系杆": {
+        "offset_correction": 4.5599999
+      },
+      "SL-29-7#系杆": {
+        "offset_correction": 4.6599998
+      },
+      "SL-30-8#系杆": {
+        "offset_correction": 4.9400001
+      },
+      "SL-31-9#系杆": {
+        "offset_correction": 4.6799998
+      },
+      "SL-32-10#系杆": {
+        "offset_correction": 4.8600001
+      },
+      "SL-33-11#系杆": {
+        "offset_correction": 4.8200002
+      },
+      "SL-34-12#系杆": {
+        "offset_correction": 4.1999998
+      }
+    },
+    "eq": {
+      "JSD_01_10#墩_01_X": {
+        "alarm_levels": [
+          1.5,
+          2.55
+        ]
+      },
+      "JSD_01_10#墩_01_Y": {
+        "alarm_levels": [
+          1.5,
+          2.55
+        ]
+      },
+      "JSD_01_10#墩_01_Z": {
+        "alarm_levels": [
+          1.5,
+          2.55
+        ]
+      },
+      "JSD_02_11#墩_01_X": {
+        "alarm_levels": [
+          1.5,
+          2.55
+        ]
+      },
+      "JSD_02_11#墩_01_Y": {
+        "alarm_levels": [
+          1.5,
+          2.55
+        ]
+      },
+      "JSD_02_11#墩_01_Z": {
+        "alarm_levels": [
+          1.5,
+          2.55
+        ]
+      }
+    },
+    "gnss": {},
+    "wind_speed": {
+      "FSFX_01_11#_S11": {
+        "alarm_levels": [
+          25.0,
+          27.0,
+          34.0
+        ]
+      },
+      "FSFX_02_S_拱顶": {
+        "alarm_levels": [
+          25.0,
+          27.0,
+          34.0
+        ]
+      }
+    },
+    "temperature": {
+      "WSD_01_11#_S11": {
+        "file_id": "WSD-01-11#-S02机箱",
+        "alias_note": "与设计测点 WSD-01-11#-S11 为同一实体，平台导出文件名为 WSD-01-11#-S02机箱；温度分析读取 value_x 通道"
+      }
+    },
+    "humidity": {
+      "WSD_01_11#_S11": {
+        "file_id": "WSD-01-11#-S02机箱",
+        "alias_note": "与设计测点 WSD-01-11#-S11 为同一实体，平台导出文件名为 WSD-01-11#-S02机箱"
+      }
+    }
+  }
+}

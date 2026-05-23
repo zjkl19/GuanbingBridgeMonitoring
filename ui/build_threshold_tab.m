@@ -234,7 +234,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
     end
     function onReloadCfg()
         try
-            cfgCache = load_config(cfgEdit.Value); cfgPath = cfgEdit.Value; refresh_tables(); cfgMsg.Value = {'已重新加载配置。'};
+            cfgCache = bms.gui.ConfigEditorService.load(cfgEdit.Value); cfgPath = cfgEdit.Value; refresh_tables(); cfgMsg.Value = {'已重新加载配置。'};
         catch ME
             cfgMsg.Value = {['加载失败: ' ME.message]};
         end
@@ -258,8 +258,9 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
                 [fname,fpath] = uiputfile('*.json','另存为',cfgPath); if isequal(fname,0), return; end
                 targetPath = fullfile(fpath,fname);
             end
-            saveReport = bms.core.ConfigStore.saveGuardedWithReport(cfgNew, targetPath, true); validate_config(cfgNew, false);
-            cfgCache = cfgNew; cfgPath = targetPath; cfgEdit.Value = targetPath; cfgMsg.Value = {sprintf('已保存配置到 %s（变更 %d 项）', targetPath, saveReport.changed_count)};
+            validate_config(cfgNew, false);
+            [cfgCache, saveReport] = bms.gui.ConfigEditorService.saveAndReload(cfgNew, targetPath, true);
+            cfgPath = targetPath; cfgEdit.Value = targetPath; cfgMsg.Value = {sprintf('已保存配置到 %s（变更 %d 项）', targetPath, saveReport.changed_count)};
         catch ME
             cfgMsg.Value = {['保存失败: ' ME.message]};
         end
@@ -367,7 +368,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
         if ischar(x) || isstring(x), v = str2double(x); elseif isnumeric(x), v = x; else, v = []; end; if isnan(v), v=[]; end
     end
     function names = list_sensors(c)
-        names = {}; if isfield(c,'defaults'), fn = fieldnames(c.defaults); names = fn(~strcmp(fn,'header_marker')); end; if isempty(names), names={'deflection'}; end
+        names = bms.gui.ConfigEditorService.editableModuleKeys(c, 'threshold');
     end
     function ths = make_threshold(mn, mx, t0, t1)
         ths = struct('min', mn, 'max', mx, 't_range_start', '', 't_range_end', '');
@@ -397,7 +398,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
     function onShow()
         if exist(cfgEdit.Value, 'file')
             try
-                cfgCache = load_config(cfgEdit.Value);
+                cfgCache = bms.gui.ConfigEditorService.load(cfgEdit.Value);
                 cfgPath = cfgEdit.Value;
             catch
             end

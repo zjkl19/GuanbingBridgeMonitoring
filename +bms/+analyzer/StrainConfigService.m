@@ -63,7 +63,7 @@ classdef StrainConfigService
         end
 
         function points = resolvePoints(cfg)
-            points = bms.analyzer.StructuralPlotConfigService.getPoints(cfg, 'strain', {});
+            points = bms.data.PointResolver.fromConfig(cfg, 'strain', {});
         end
 
         function points = pointsFromGroups(groupsCfg)

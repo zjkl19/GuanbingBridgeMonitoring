@@ -570,14 +570,6 @@
         ],
         "zero_to_nan": false,
         "outlier": []
-      },
-      "GB-RSG-G05-001-06": {
-        "post_filter_thresholds": {
-          "min": -10,
-          "max": 16,
-          "t_range_start": "",
-          "t_range_end": ""
-        }
       }
     },
     "acceleration": {

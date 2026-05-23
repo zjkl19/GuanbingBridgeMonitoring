@@ -1,0 +1,286 @@
+{
+  "vendor": "shuixianhua",
+  "gui": {
+    "show_warnings": false
+  },
+  "notify": {
+    "enabled": true,
+    "on_analysis_done": true,
+    "on_task_done": true,
+    "on_error": true,
+    "mode": "beep"
+  },
+  "defaults": {
+    "header_marker": "[绝对时间]",
+    "deflection": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": [],
+      "post_filter_thresholds": []
+    },
+    "bearing_displacement": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "acceleration": {
+      "thresholds": [],
+      "zero_to_nan": false
+    },
+    "strain": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "tilt": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "crack": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "cable_accel": {
+      "thresholds": [],
+      "zero_to_nan": false
+    },
+    "wind_speed": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "wind_direction": {
+      "thresholds": [],
+      "zero_to_nan": false,
+      "outlier": []
+    },
+    "rainfall": {
+      "thresholds": [],
+      "zero_to_nan": false
+    },
+    "gnss": {
+      "thresholds": [],
+      "zero_to_nan": false
+    },
+    "dynamic_strain": {
+      "fs": 20,
+      "fc": 0.1,
+      "filter_order": 4,
+      "Whisker": 300,
+      "show_outliers": false,
+      "output_dir": "时程曲线_动应变_高通滤波",
+      "boxplot_output_dir": "动应变箱线图_高通滤波"
+    },
+    "dynamic_strain_lowpass": {
+      "fs": 20,
+      "fc": "auto",
+      "cutoff_minutes": 60,
+      "filter_order": 4,
+      "Whisker": 300,
+      "show_outliers": false,
+      "output_dir": "时程曲线_动应变_低通滤波",
+      "boxplot_output_dir": "动应变箱线图_低通滤波"
+    }
+  },
+  "subfolders": {
+    "deflection": "特征值_重采样",
+    "bearing_displacement": "特征值_重采样",
+    "acceleration": "波形_重采样",
+    "acceleration_raw": "波形",
+    "strain": "特征值",
+    "tilt": "波形_重采样",
+    "crack": "特征值",
+    "humidity": "特征值",
+    "temperature": "特征值",
+    "cable_accel": "索力加速度_重采样",
+    "cable_accel_raw": "索力加速度",
+    "wind_raw": "波形",
+    "rainfall": "特征值",
+    "gnss": "波形",
+    "eq_raw": "波形",
+    "eq": "波形"
+  },
+  "file_patterns": {
+    "wind_speed": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    },
+    "wind_direction": {
+      "default": [
+        "{file_id}.csv"
+      ]
+    },
+    "crack": {
+      "default": [
+        "{point}_*.csv"
+      ],
+      "per_point": {}
+    },
+    "crack_temp": {
+      "default": [
+        "{point}-t_*.csv"
+      ],
+      "per_point": {}
+    },
+    "temperature": {
+      "default": "{point}.csv"
+    },
+    "humidity": {
+      "default": "{point}.csv"
+    },
+    "deflection": {
+      "default": "{point}.csv"
+    },
+    "bearing_displacement": {
+      "default": "{point}.csv"
+    },
+    "acceleration": {
+      "default": "{point}.csv"
+    },
+    "accel_spectrum": {
+      "default": "{point}.csv"
+    },
+    "cable_accel": {
+      "default": "{point}.csv"
+    },
+    "cable_accel_spectrum": {
+      "default": "{point}.csv"
+    },
+    "strain": {
+      "default": "{point}.csv"
+    },
+    "dynamic_strain": {
+      "default": "{point}.csv"
+    },
+    "eq": {
+      "default": "{point}.csv"
+    },
+    "gnss": {
+      "default": "{point}.csv"
+    }
+  },
+  "wind_params": {
+    "default": {
+      "window_minutes": 10,
+      "alarm_levels": [
+        25,
+        27,
+        34
+      ],
+      "speed_bins": [
+        0,
+        2,
+        4,
+        6,
+        8,
+        10,
+        15,
+        20,
+        30,
+        100
+      ],
+      "direction_sector_deg": 22.5,
+      "decimals": 2
+    }
+  },
+  "eq_params": {
+    "alarm_levels": [
+      1.5,
+      2.55
+    ],
+    "raw_min_filter": -50,
+    "value_scale": 0.01
+  },
+  "wim": {
+    "enabled": false
+  },
+  "wim_db": {},
+  "wim_plot": {},
+  "accel_spectrum_params": {
+    "target_freqs": [
+      1.2
+    ],
+    "tolerance": 0.1,
+    "theor_freqs": [
+      1.05
+    ],
+    "theor_labels": [
+      "理论一阶自振频率 1.05Hz"
+    ],
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "theoretical_hz": 1.05,
+        "search_center_hz": 1.2,
+        "search_half_width_hz": 0.1
+      }
+    ],
+    "fs": 20,
+    "auto_detect_fs": true
+  },
+  "cable_accel_spectrum_params": {
+    "target_freqs": [
+      1,
+      2,
+      3
+    ],
+    "tolerance": 0.15,
+    "fs": 20,
+    "auto_detect_fs": true
+  },
+  "data_adapter": {
+    "vendor": "shuixianhua",
+    "zip": {
+      "glob": "data_sxh_*.zip",
+      "date_pattern": "data_sxh_(\\d{4})-(\\d{2})-(\\d{2})",
+      "subdir": "data/sxh/csv",
+      "staging_root": "outputs/_staging/sxh"
+    },
+    "csv": {
+      "encoding": "UTF-8",
+      "delimiter": ",",
+      "time_column": "ts",
+      "time_format": "yyyy-MM-dd HH:mm:ss.SSS",
+      "strip_quotes": true
+    },
+    "cache": {
+      "enabled": true,
+      "dir": "cache",
+      "validate": "mtime_size"
+    },
+    "prefix_map": {
+      "WSD": "temp_humidity",
+      "FSFX": "wind",
+      "JSD": "eq",
+      "GSNDY": "deflection",
+      "GNSS": "gnss",
+      "ZZWY": "bearing_displacement",
+      "SSF": "bearing_displacement",
+      "ZLYB": "strain",
+      "GLYB": "strain",
+      "SL": "cable_accel",
+      "ZLZD": "acceleration",
+      "ZGZD": "acceleration"
+    },
+    "channel_map": {
+      "temperature": "value_x",
+      "humidity": "value_y",
+      "wind_speed": "value_x",
+      "wind_direction": "value_y",
+      "eq_x": "value_x",
+      "eq_y": "value_y",
+      "eq_z": "value_z",
+      "deflection": "value_x",
+      "bearing_displacement": "value_x",
+      "strain": "value_x",
+      "cable_accel": "value_x",
+      "acceleration": "value_x"
+    }
+  },
+  "bridge_id": "shuixianhua",
+  "bridge_name": "水仙花大桥"
+}

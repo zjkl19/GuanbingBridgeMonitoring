@@ -778,6 +778,7 @@
     "cable_accel": "索力加速度_重采样",
     "cable_accel_raw": "索力加速度",
     "wind_raw": "波形",
+    "eq_raw": "波形",
     "rainfall": "特征值",
     "gnss": "波形"
   },
