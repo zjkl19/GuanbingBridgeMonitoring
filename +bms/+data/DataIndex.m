@@ -89,7 +89,7 @@ classdef DataIndex
         function patterns = patternsForModule(cfg, key)
             patterns = {};
             if isstruct(cfg) && isfield(cfg, 'file_patterns') && isstruct(cfg.file_patterns)
-                aliases = bms.config.SchemaValidator.aliasesForKey(key);
+                aliases = bms.config.ModuleConfigRegistry.aliasesForKey(key);
                 for i = 1:numel(aliases)
                     alias = aliases{i};
                     if isfield(cfg.file_patterns, alias)

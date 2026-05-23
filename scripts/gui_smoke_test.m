@@ -26,6 +26,7 @@ function gui_smoke_test()
     tables = findall(newHandles, 'Type', 'uitable');
     textAreas = findall(newHandles, 'Type', 'uitextarea');
     dropdowns = findall(newHandles, 'Type', 'uidropdown');
+    buttons = findall(newHandles, 'Type', 'uibutton');
 
     pos = newHandles(1).Position;
     assert(pos(4) >= 760, 'GUI smoke failed: default window height is too small.');
@@ -34,6 +35,8 @@ function gui_smoke_test()
     assert(hasSummaryTable(tables), 'GUI smoke failed: summary table was not created.');
     assert(~isempty(textAreas), 'GUI smoke failed: log/status text area was not created.');
     assert(summaryTableHasRows(tables), 'GUI smoke failed: result summary table was empty.');
+    assert(hasButton(buttons, '检查配置'), 'GUI smoke failed: config check button was not created.');
+    assert(hasButton(buttons, '打开报告生成器'), 'GUI smoke failed: report builder button was not created.');
     profileCount = bridgeProfileCount(dropdowns);
     assert(profileCount >= 4, 'GUI smoke failed: bridge profile dropdown missing expected profiles.');
 
@@ -43,6 +46,19 @@ function gui_smoke_test()
 
     fprintf('GUI smoke passed: windows=%d, height=%.0f, tabs=%d, tables=%d, profiles=%d\n', ...
         numel(newHandles), pos(4), numel(tabs), numel(tables), profileCount);
+end
+
+function tf = hasButton(buttons, text)
+    tf = false;
+    for i = 1:numel(buttons)
+        try
+            if strcmp(char(string(buttons(i).Text)), text)
+                tf = true;
+                return;
+            end
+        catch
+        end
+    end
 end
 
 function tf = hasSummaryTable(tables)

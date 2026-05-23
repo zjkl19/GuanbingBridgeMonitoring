@@ -6,9 +6,9 @@ classdef StructuralPlotConfigService
             if nargin < 3
                 fallback = [];
             end
-            groups = fallback;
-            if isstruct(cfg) && isfield(cfg, 'groups') && isstruct(cfg.groups) && isfield(cfg.groups, key)
-                groups = cfg.groups.(key);
+            groups = bms.config.ModuleConfigResolver.resolveGroups(cfg, key);
+            if isempty(fieldnames(groups))
+                groups = fallback;
             end
         end
 
@@ -36,13 +36,12 @@ classdef StructuralPlotConfigService
             if nargin < 3
                 fallback = {};
             end
-            pts = bms.data.PointResolver.fromConfig(cfg, key, fallback);
+            pts = bms.config.ModuleConfigResolver.resolvePoints(cfg, key, fallback);
         end
 
         function pts = getPointsOrFlattenFallback(cfg, key, fallbackGroups)
-            if isstruct(cfg) && isfield(cfg, 'points') && isstruct(cfg.points) && isfield(cfg.points, key)
-                pts = bms.data.PointResolver.normalize(cfg.points.(key));
-            else
+            pts = bms.config.ModuleConfigResolver.resolvePoints(cfg, key, {});
+            if isempty(pts)
                 pts = bms.analyzer.StructuralPlotConfigService.flattenGroups(fallbackGroups);
             end
         end

@@ -43,6 +43,8 @@ classdef RunPreflight
             result.run_health_report = struct();
             result.run_health_report_path = '';
             result.run_health_report_summary_path = '';
+            result.reporting_contract = struct();
+            result.reporting_contract_path = '';
             result.result_artifact_preflight = {};
             result.wim_month_files = struct('month', {}, 'fmt', {}, 'bcp', {}, 'exists', {});
             result.wim_preflight = struct();
@@ -55,6 +57,7 @@ classdef RunPreflight
             result = bms.app.RunPreflight.checkEnabledModuleConfig(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.checkStatsInventory(result, root, opts, cfg);
             result = bms.app.RunPreflight.checkDataIndex(result, root, startDate, endDate, opts, cfg);
+            result = bms.app.RunPreflight.checkReportingContract(result, root, opts, cfg);
             result = bms.app.RunPreflight.checkPointCoverage(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.checkResultArtifacts(result, root, startDate, endDate, opts, cfg);
             result = bms.app.RunPreflight.checkWimInputs(result, root, startDate, endDate, opts, cfg);
@@ -79,7 +82,7 @@ classdef RunPreflight
 
         function result = checkConfig(result, cfg)
             try
-                validation = bms.config.SchemaValidator.validateDetailed(cfg);
+                validation = bms.config.ConfigLinter.lint(cfg);
                 result.config_validation = validation;
                 if isfield(validation, 'errors') && ~isempty(validation.errors)
                     result.errors = [result.errors, validation.errors];
@@ -141,8 +144,8 @@ classdef RunPreflight
                         end
                     end
 
-                    if isfield(cfg, 'points') && isstruct(cfg.points) && isfield(cfg.points, spec.Key)
-                        points = cfg.points.(spec.Key);
+                    points = bms.app.RunPreflight.configuredPoints(cfg, spec.Key);
+                    if ~isempty(points)
                         if isempty(points)
                             result = bms.app.RunPreflight.addModuleConfigWarning(result, ...
                                 sprintf('%s points list is empty', spec.Key));
@@ -310,41 +313,11 @@ classdef RunPreflight
         function points = configuredPoints(cfg, key)
             points = {};
             if ~isstruct(cfg), return; end
-            aliases = bms.app.RunPreflight.pointAliases(key);
-            if isfield(cfg, 'points') && isstruct(cfg.points)
-                for i = 1:numel(aliases)
-                    if isfield(cfg.points, aliases{i})
-                        points = [points, bms.app.RunPreflight.flattenPointValues(cfg.points.(aliases{i}))]; %#ok<AGROW>
-                    end
-                end
-            end
-            if isfield(cfg, 'groups') && isstruct(cfg.groups)
-                for i = 1:numel(aliases)
-                    if isfield(cfg.groups, aliases{i})
-                        points = [points, bms.app.RunPreflight.flattenPointValues(cfg.groups.(aliases{i}))]; %#ok<AGROW>
-                    end
-                end
-            end
-            points = bms.app.RunPreflight.uniqueText(points);
+            points = bms.config.ModuleConfigResolver.resolvePoints(cfg, key, {});
         end
 
         function aliases = pointAliases(key)
-            key = char(key);
-            aliases = {key};
-            switch key
-                case 'earthquake'
-                    aliases = {'earthquake', 'eq'};
-                case 'accel_spectrum'
-                    aliases = {'accel_spectrum', 'acceleration'};
-                case 'cable_accel_spectrum'
-                    aliases = {'cable_accel_spectrum', 'cable_accel'};
-                case 'dynamic_strain_highpass'
-                    aliases = {'dynamic_strain', 'strain_timeseries', 'strain'};
-                case 'dynamic_strain_lowpass'
-                    aliases = {'dynamic_strain_lowpass', 'dynamic_strain', 'strain_timeseries', 'strain'};
-                case 'wind'
-                    aliases = {'wind', 'wind_speed', 'wind_direction'};
-            end
+            aliases = bms.config.ModuleConfigRegistry.aliasesForKey(key);
         end
 
         function points = flattenPointValues(value)
@@ -433,22 +406,11 @@ classdef RunPreflight
             if ~isstruct(cfg) || ~isfield(cfg, 'subfolders') || ~isstruct(cfg.subfolders)
                 return;
             end
-            key = char(key);
-            candidates = {key};
-            switch key
-                case 'wind_raw'
-                    candidates = {'wind_raw', 'wind'};
-                case 'eq_raw'
-                    candidates = {'eq_raw', 'eq', 'earthquake'};
-                case 'acceleration_raw'
-                    candidates = {'acceleration_raw', 'acceleration'};
-                case 'cable_accel_raw'
-                    candidates = {'cable_accel_raw', 'cable_accel'};
-            end
-            for i = 1:numel(candidates)
-                if isfield(cfg.subfolders, candidates{i})
+            aliases = bms.config.ModuleConfigRegistry.aliasesForKey(key);
+            for i = 1:numel(aliases)
+                if isfield(cfg.subfolders, aliases{i})
                     tf = true;
-                    value = char(string(cfg.subfolders.(candidates{i})));
+                    value = char(string(cfg.subfolders.(aliases{i})));
                     return;
                 end
             end
@@ -503,6 +465,19 @@ classdef RunPreflight
                 result.run_health_report_summary_path = bms.app.RunHealthReport.writeSummary(root, report, runId);
             catch ME
                 result.warnings{end+1} = ['run health report build failed: ' ME.message];
+            end
+        end
+
+        function result = checkReportingContract(result, root, opts, cfg)
+            try
+                contract = bms.reporting.AnalysisReportingContract.build(cfg, opts);
+                result.reporting_contract = contract;
+                if bms.app.RunHealthReport.enabled(opts, cfg)
+                    runId = datestr(datetime('now'), 'yyyymmdd_HHMMSS');
+                    result.reporting_contract_path = bms.reporting.AnalysisReportingContract.write(root, contract, runId);
+                end
+            catch ME
+                result.warnings{end+1} = ['reporting contract build failed: ' ME.message];
             end
         end
 
@@ -762,6 +737,17 @@ classdef RunPreflight
                 end
                 if isfield(result, 'run_health_report_summary_path') && ~isempty(result.run_health_report_summary_path)
                     lines{end+1} = ['run health summary=' char(string(result.run_health_report_summary_path))]; %#ok<AGROW>
+                end
+            end
+            if isfield(result, 'reporting_contract') && isstruct(result.reporting_contract) && ...
+                    isfield(result.reporting_contract, 'summary')
+                s = result.reporting_contract.summary;
+                lines{end+1} = sprintf('reporting contract: modules=%d, points=%d, groups=%d', ...
+                    bms.app.RunPreflight.numField(s, 'module_count'), ...
+                    bms.app.RunPreflight.numField(s, 'point_count'), ...
+                    bms.app.RunPreflight.numField(s, 'group_count'));
+                if isfield(result, 'reporting_contract_path') && ~isempty(result.reporting_contract_path)
+                    lines{end+1} = ['reporting contract json=' char(string(result.reporting_contract_path))]; %#ok<AGROW>
                 end
             end
             if isfield(result, 'warnings') && ~isempty(result.warnings)

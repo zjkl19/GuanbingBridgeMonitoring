@@ -48,7 +48,7 @@ classdef SchemaValidator
 
         function warns = checkModuleKeys(cfg)
             warns = {};
-            known = bms.module.ModuleRegistry.knownConfigKeys();
+            known = bms.config.ModuleConfigRegistry.knownConfigKeys();
             sections = {'points','plot_styles','subfolders','post_filter_thresholds'};
             for s = 1:numel(sections)
                 section = sections{s};
@@ -58,11 +58,11 @@ classdef SchemaValidator
                 names = fieldnames(cfg.(section));
                 for i = 1:numel(names)
                     key = names{i};
-                    if startsWith(key, '_') || ismember(key, {'global','common'})
+                    if startsWith(key, '_') || startsWith(key, 'pending_') || ismember(key, {'global','common'})
                         continue;
                     end
                     if ~ismember(key, known)
-                        warns{end+1} = [section '.' key ' is not registered in ModuleRegistry']; %#ok<AGROW>
+                        warns{end+1} = [section '.' key ' is not registered in ModuleConfigRegistry']; %#ok<AGROW>
                     end
                 end
             end
@@ -71,6 +71,9 @@ classdef SchemaValidator
                 names = fieldnames(cfg.points);
                 for i = 1:numel(names)
                     key = names{i};
+                    if startsWith(key, 'pending_')
+                        continue;
+                    end
                     if isfield(cfg, 'subfolders') && isstruct(cfg.subfolders) && ~isfield(cfg.subfolders, key) ...
                             && ~ismember(key, {'temp_humidity','accel_spectrum','cable_accel_spectrum','cable_force','wind','eq','acceleration_raw','cable_accel_raw'})
                         warns{end+1} = ['points.' key ' has no matching subfolders.' key]; %#ok<AGROW>
@@ -179,7 +182,7 @@ classdef SchemaValidator
             names = fieldnames(cfg.points);
             for i = 1:numel(names)
                 key = names{i};
-                if startsWith(key, '_') || ismember(key, {'common','global'})
+                if startsWith(key, '_') || startsWith(key, 'pending_') || ismember(key, {'common','global'})
                     continue;
                 end
                 if ~bms.config.SchemaValidator.hasSubfolderKey(cfg, key)
@@ -191,14 +194,14 @@ classdef SchemaValidator
             end
             if isfield(cfg, 'reporting') && isstruct(cfg.reporting)
                 reportNames = fieldnames(cfg.reporting);
-                known = bms.module.ModuleRegistry.knownConfigKeys();
+                known = bms.config.ModuleConfigRegistry.knownConfigKeys();
                 for i = 1:numel(reportNames)
                     key = reportNames{i};
                     if startsWith(key, '_') || ismember(key, {'common','defaults'})
                         continue;
                     end
                     if ~ismember(key, known)
-                        warns{end+1} = ['reporting.' key ' is not registered in ModuleRegistry']; %#ok<AGROW>
+                        warns{end+1} = ['reporting.' key ' is not registered in ModuleConfigRegistry']; %#ok<AGROW>
                     end
                 end
             end
@@ -233,23 +236,7 @@ classdef SchemaValidator
         end
 
         function aliases = aliasesForKey(key)
-            aliases = {char(key)};
-            switch char(key)
-                case 'wind'
-                    aliases = {'wind','wind_raw','wind_speed','wind_direction'};
-                case 'earthquake'
-                    aliases = {'earthquake','eq','eq_raw'};
-                case 'accel_spectrum'
-                    aliases = {'accel_spectrum','acceleration','acceleration_raw'};
-                case 'cable_accel_spectrum'
-                    aliases = {'cable_accel_spectrum','cable_accel','cable_accel_raw'};
-                case {'dynamic_strain_highpass','dynamic_strain_lowpass'}
-                    aliases = {char(key),'dynamic_strain','strain'};
-                case 'temperature'
-                    aliases = {'temperature','temp_humidity'};
-                case 'humidity'
-                    aliases = {'humidity','temp_humidity'};
-            end
+            aliases = bms.config.ModuleConfigRegistry.aliasesForKey(key);
         end
     end
 end

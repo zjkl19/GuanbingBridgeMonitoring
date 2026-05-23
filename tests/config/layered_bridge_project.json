@@ -1,0 +1,11 @@
+{
+  "extends": "layered_bridge_base.json",
+  "includes": {
+    "per_point": "layered_bridge_per_point.json"
+  },
+  "plot_styles": {
+    "deflection": {
+      "title_prefix": "挠度时程"
+    }
+  }
+}

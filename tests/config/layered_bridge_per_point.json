@@ -1,0 +1,12 @@
+{
+  "deflection": {
+    "D_1": {
+      "alarm_bounds": {
+        "level2": [
+          -2,
+          2
+        ]
+      }
+    }
+  }
+}

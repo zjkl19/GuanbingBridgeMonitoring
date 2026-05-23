@@ -1,0 +1,25 @@
+{
+  "vendor": "layered_fixture",
+  "defaults": {
+    "header_marker": "time"
+  },
+  "subfolders": {
+    "deflection": "features"
+  },
+  "file_patterns": {
+    "deflection": {
+      "default": "{point}.csv"
+    }
+  },
+  "groups": {},
+  "points": {
+    "deflection": [
+      "D-1"
+    ]
+  },
+  "plot_styles": {
+    "deflection": {
+      "ylabel": "位移 (mm)"
+    }
+  }
+}

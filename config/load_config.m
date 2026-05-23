@@ -2,6 +2,7 @@ function cfg = load_config(path)
 %LOAD_CONFIG Load JSON configuration for data loading/cleaning.
 %   cfg = load_config();                % loads config/default_config.json
 %   cfg = load_config('custom.json');   % loads specified JSON
+%   custom.json may use extends/layers/includes for layered config loading.
 %
 %   The config structure mirrors default_config.json fields and adds:
 %     - cfg.source: absolute path of the loaded file
@@ -14,12 +15,7 @@ function cfg = load_config(path)
     if ~isfile(path)
         error('Config file not found: %s', path);
     end
-    txt = fileread(path);
-    % Tolerate UTF-8 BOM introduced by external editors/scripts.
-    if ~isempty(txt) && double(txt(1)) == 65279
-        txt = txt(2:end);
-    end
-    cfg = jsondecode(txt);
+    [cfg, txt] = bms.config.ConfigLayerLoader.load(path);
 
     % Track original point ids for UI display and round-trip saving.
     safe_ids = collect_safe_point_ids(cfg);

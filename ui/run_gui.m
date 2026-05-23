@@ -48,13 +48,13 @@ function run_gui()
     bms.gui.GuiLayout.applyRunGridDefaults(gl);
 
     header = uipanel(gl,'BorderType','none'); header.Layout.Row = 1; header.Layout.Column = [1 4];
-    hgl = uigridlayout(header,[2 4]); hgl.RowHeight = {'1x',28}; hgl.ColumnWidth = {120,90,260,'1x'}; hgl.RowSpacing = 2; hgl.ColumnSpacing = 8;
+    hgl = uigridlayout(header,[2 6]); hgl.RowHeight = {'1x',28}; hgl.ColumnWidth = {120,90,260,'1x',110,150}; hgl.RowSpacing = 2; hgl.ColumnSpacing = 8;
     logoPath = fullfile(projRoot,'建科院标志PNG-01.png');
     uiimg = uiimage(hgl); uiimg.Layout.Row = [1 2]; uiimg.Layout.Column = 1; uiimg.ScaleMethod = 'fit';
     if exist(logoPath,'file'), uiimg.ImageSource = logoPath; end
     versionStr = 'v1.7.3';
     titleLbl = uilabel(hgl,'Text',['福建建科院健康监测大数据分析 ' versionStr],'FontSize',30,'FontWeight','bold','FontColor',primaryBlue,'HorizontalAlignment','center');
-    titleLbl.Layout.Row = 1; titleLbl.Layout.Column = [2 4];
+    titleLbl.Layout.Row = 1; titleLbl.Layout.Column = [2 6];
     profileLbl = uilabel(hgl, 'Text', '桥梁项目:', 'HorizontalAlignment', 'right', 'FontWeight', 'bold');
     profileLbl.Layout.Row = 2; profileLbl.Layout.Column = 2;
     [profileNames, profileIds] = profileDropdownItems(profiles);
@@ -62,6 +62,10 @@ function run_gui()
     profileDrop.Layout.Row = 2; profileDrop.Layout.Column = 3;
     profileNote = uilabel(hgl, 'Text', '选择项目后自动带出默认配置、数据目录和模块。', 'FontColor', [0.35 0.40 0.50]);
     profileNote.Layout.Row = 2; profileNote.Layout.Column = 4;
+    configCheckBtn = uibutton(hgl, 'Text', '检查配置', 'ButtonPushedFcn', @(btn,~) check_current_config());
+    configCheckBtn.Layout.Row = 2; configCheckBtn.Layout.Column = 5;
+    reportBuilderBtn = uibutton(hgl, 'Text', '打开报告生成器', 'ButtonPushedFcn', @(btn,~) open_report_builder());
+    reportBuilderBtn.Layout.Row = 2; reportBuilderBtn.Layout.Column = 6;
 
     lblRoot = uilabel(gl,'Text','数据根目录:','FontWeight','bold','HorizontalAlignment','right'); lblRoot.Layout.Row=2; lblRoot.Layout.Column=1;
     rootEdit = uieditfield(gl,'text','Value',defaultDataRoot); rootEdit.Layout.Row=2; rootEdit.Layout.Column=[2 3];
@@ -301,6 +305,59 @@ function run_gui()
         figure(f);
         drawnow;
     end
+
+    function open_report_builder()
+        exePath = fullfile(projRoot, 'reporting', 'dist', 'BridgeReportBuilder', 'BridgeReportBuilder.exe');
+        pyPath = fullfile(projRoot, 'reporting', '.venv', 'Scripts', 'python.exe');
+        scriptPath = fullfile(projRoot, 'reporting', 'report_gui.py');
+        try
+            if exist(exePath, 'file') == 2
+                cmd = sprintf('start "" "%s"', exePath);
+                [status, msg] = system(cmd);
+                if status ~= 0
+                    error('%s', msg);
+                end
+                addLog(['已打开报告生成器: ' exePath]);
+            elseif exist(pyPath, 'file') == 2 && exist(scriptPath, 'file') == 2
+                cmd = sprintf('start "" "%s" "%s"', pyPath, scriptPath);
+                [status, msg] = system(cmd);
+                if status ~= 0
+                    error('%s', msg);
+                end
+                addLog(['已用 Python 打开报告生成器: ' scriptPath]);
+            else
+                uialert(f, sprintf('未找到报告生成器 exe 或 Python 入口:\n%s\n%s', exePath, scriptPath), '打开失败', 'Icon', 'warning');
+            end
+        catch ME
+            uialert(f, ME.message, '打开报告生成器失败', 'Icon', 'error');
+        end
+    end
+
+    function check_current_config()
+        try
+            [cfg, loadedCfgPath] = bms.gui.GuiConfigBinder.loadConfig(cfgEdit.Value, defaultCfgPath);
+            if ~strcmp(loadedCfgPath, cfgEdit.Value)
+                cfgEdit.Value = loadedCfgPath;
+            end
+            cfg = apply_live_cfg(cfg);
+            result = bms.config.ConfigLinter.lint(cfg);
+            lines = bms.config.ConfigLinter.toLogLines(result, 12);
+            for il = 1:numel(lines)
+                addLog(lines{il});
+            end
+            icon = 'info';
+            if strcmp(result.status, 'failed')
+                icon = 'error';
+            elseif strcmp(result.status, 'warning')
+                icon = 'warning';
+            end
+            uialert(f, strjoin(lines, newline), '配置健康检查', 'Icon', icon);
+        catch ME
+            addLog(['配置健康检查失败: ' ME.message]);
+            uialert(f, ME.message, '配置健康检查失败', 'Icon', 'error');
+        end
+    end
+
     function onRun()
         global RUN_STOP_FLAG;
         runBtn.Enable='off'; stopBtn.Enable='on'; RUN_STOP_FLAG=false;
