@@ -40,6 +40,17 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(tMax, times(4));
         end
 
+        function rmsPeakForStatsIgnoresCleanedSparseNaNs(tc)
+            times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:5)';
+            vals = [2; 2; NaN; 2; 2; 2];
+
+            [rmsMax, tMax] = bms.analyzer.DynamicSeriesService.rmsPeakForStats( ...
+                times, vals, 1, 3 / 60, 3);
+
+            tc.verifyEqual(rmsMax, 2);
+            tc.verifyFalse(isnat(tMax));
+        end
+
         function movingMeanSeriesMatchesWindWindowBehavior(tc)
             times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:5)';
             vals = [2; NaN; NaN; 4; 6; 8];
@@ -107,6 +118,41 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(bms.analyzer.DynamicAccelerationSeriesService.resolvePoints(cfg, spec), points);
             tc.verifyEqual(spec.sensorType, 'cable_accel');
             tc.verifyFalse(spec.keepSeries);
+            tc.verifyTrue(spec.envelopeEnabled);
+            tc.verifyEqual(spec.envelopeFilePrefix, 'CableAccelEnvelope30');
+        end
+
+        function cableAccelerationWritesEnvelopePlot(tc)
+            values = sin((0:600)' / 30);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'C1.csv'), values);
+            cfg = dynamic_cfg();
+            cfg.points = struct('cable_accel', {{'C1'}});
+            cfg.plot_common = struct('save_fig', false, 'append_timestamp', false);
+            cfg.plot_styles = struct('cable_accel', struct( ...
+                'ylim_auto', true, ...
+                'envelope_bin_minutes', 10));
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('cable_accel');
+            style = bms.analyzer.DynamicAccelerationPipeline.plotStyle(cfg, spec);
+            stats = cell(1, 6);
+
+            bms.analyzer.DynamicAccelerationPipeline.runWithOptionalParallel( ...
+                tc.Root, 'wave', '2026-01-01', '2026-01-01', cfg, true, {'C1'}, style, stats, spec);
+
+            tc.verifyGreaterThanOrEqual(numel(dir(fullfile(tc.Root, spec.envelopeOutputDir, '*.jpg'))), 1);
+        end
+
+        function envelopeBandBreaksAcrossMissingBins(tc)
+            fig = figure('Visible', 'off');
+            cleaner = onCleanup(@() close(fig)); %#ok<NASGU>
+            ax = axes(fig);
+            t = datetime(2026, 1, 1, 0, 0, 0) + minutes(0:5)';
+            lo = [1; 1; NaN; NaN; 2; 2];
+            hi = [2; 2; NaN; NaN; 3; 3];
+
+            bms.analyzer.DynamicAccelerationPlotService.fillEnvelopeBand(ax, t, lo, hi, [0.5 0.5 0.8], 'band');
+
+            patches = findall(ax, 'Type', 'patch');
+            tc.verifyNumElements(patches, 2);
         end
 
         function accelerationPipelineDelegatesStyleResolution(tc)

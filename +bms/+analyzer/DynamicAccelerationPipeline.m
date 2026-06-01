@@ -112,6 +112,10 @@ classdef DynamicAccelerationPipeline
                     spec.rmsOutputDir = '时程曲线_加速度_RMS10min';
                     spec.rmsGroupOutputDir = '时程曲线_加速度_RMS10min_组图';
                     spec.rmsFilePrefix = 'AccelRMS10';
+                    spec.envelopeEnabled = false;
+                    spec.envelopeOutputDir = [char([26102 31243 26354 32447]) '_' char([32034 21147 21152 36895 24230]) '_' char([21253 32476]) '30min'];
+                    spec.envelopeFilePrefix = '';
+                    spec.envelopeBinMinutes = 30;
                     spec.groupWarnField = 'group_warn_lines';
                     spec.keepSeries = true;
                     spec.defaultPoints = defaultPoints;
@@ -143,6 +147,10 @@ classdef DynamicAccelerationPipeline
                     spec.rmsOutputDir = '时程曲线_索力加速度_RMS10min';
                     spec.rmsGroupOutputDir = '时程曲线_索力加速度_RMS10min_组图';
                     spec.rmsFilePrefix = 'CableAccelRMS10';
+                    spec.envelopeEnabled = true;
+                    spec.envelopeOutputDir = [char([26102 31243 26354 32447]) '_' char([32034 21147 21152 36895 24230]) '_' char([21253 32476]) '30min'];
+                    spec.envelopeFilePrefix = 'CableAccelEnvelope30';
+                    spec.envelopeBinMinutes = 30;
                     spec.groupWarnField = '';
                     spec.keepSeries = false;
                     spec.defaultPoints = defaultPoints;
@@ -156,7 +164,9 @@ classdef DynamicAccelerationPipeline
                         'rms_ylabel', '10 min RMS (m/s^2)', ...
                         'rms_title_prefix', '10 min RMS 时程', ...
                         'rms_ylim', [], ...
-                        'rms_ylims', []);
+                        'rms_ylims', [], ...
+                        'envelope_title_prefix', ['30 min ' char([21253 32476]) '/RMS'], ...
+                        'envelope_bin_minutes', 30);
                 otherwise
                     error('DynamicAccelerationPipeline:UnsupportedKind', 'Unsupported acceleration pipeline kind: %s', kind);
             end

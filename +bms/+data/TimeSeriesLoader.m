@@ -288,7 +288,12 @@ classdef TimeSeriesLoader
                 return;
             end
 
-            fid = fopen(path, 'rt');
+            encs = bms.data.TimeSeriesLoader.preferredEncodings(path);
+            if strcmp(encs{1}, 'auto')
+                fid = fopen(path, 'rt');
+            else
+                fid = fopen(path, 'rt', 'n', encs{1});
+            end
             if fid < 0
                 return;
             end
@@ -331,7 +336,7 @@ classdef TimeSeriesLoader
                 '%{yyyy-MM-dd HH:mm:ss.SSS}D%f', ...
                 '%{yyyy-MM-dd HH:mm:ss}D%f' ...
                 };
-            encs = {'auto','UTF-8','UTF-16LE'};
+            encs = bms.data.TimeSeriesLoader.preferredEncodings(path);
 
             for ei = 1:numel(encs)
                 enc = encs{ei};
@@ -378,6 +383,24 @@ classdef TimeSeriesLoader
                     end
                 catch
                 end
+            end
+        end
+
+        function encs = preferredEncodings(path)
+            encs = {'auto','UTF-8','UTF-16LE'};
+            if nargin < 1 || isempty(path) || ~isfile(path)
+                return;
+            end
+            fid = fopen(path, 'r');
+            if fid < 0
+                return;
+            end
+            cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+            bytes = fread(fid, 3, 'uint8=>uint8').';
+            if numel(bytes) >= 2 && isequal(bytes(1:2), uint8([255 254]))
+                encs = {'UTF-16LE','auto','UTF-8'};
+            elseif numel(bytes) >= 3 && isequal(bytes(1:3), uint8([239 187 191]))
+                encs = {'UTF-8','auto','UTF-16LE'};
             end
         end
 

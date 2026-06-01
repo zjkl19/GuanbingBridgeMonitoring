@@ -29,7 +29,7 @@ classdef CleaningPipeline
         function rules = emptyRules()
             rules = struct('thresholds', [], 'zero_to_nan', false, ...
                 'outlier_window_sec', [], 'outlier_threshold_factor', [], ...
-                'offset_correction', []);
+                'offset_correction', [], 'value_scale', []);
         end
 
         function [vals, log] = apply(vals, times, rules, opts)
@@ -48,12 +48,15 @@ classdef CleaningPipeline
             log.final_count = numel(vals);
             log.final_nan_count = sum(isnan(vals));
 
-            [vals, offsetApplied] = bms.data.CleaningPipeline.applyOffset(vals, rules);
+            [vals, offsetApplied, offsetValue] = bms.data.CleaningPipeline.applyOffset(vals, times, rules);
             log.offset_applied = offsetApplied;
             if offsetApplied
-                log.offset_correction = rules.offset_correction;
-                bms.data.CleaningPipeline.recordOffset(times, vals, rules, opts);
+                log.offset_correction = offsetValue;
+                bms.data.CleaningPipeline.recordOffset(times, vals, rules, opts, offsetValue);
             end
+            [vals, scaleApplied, scaleValue] = bms.data.CleaningPipeline.applyValueScale(vals, rules);
+            log.value_scale_applied = scaleApplied;
+            log.value_scale = scaleValue;
 
             thresholds = [];
             if isstruct(rules) && isfield(rules, 'thresholds')
@@ -78,13 +81,37 @@ classdef CleaningPipeline
             log.changed_count = bms.data.CleaningPipeline.changedCount(original, vals);
         end
 
-        function [vals, applied] = applyOffset(vals, rules)
+        function [vals, applied, offset] = applyOffset(vals, times, rules)
             applied = false;
-            if isstruct(rules) && isfield(rules, 'offset_correction') ...
-                    && ~isempty(rules.offset_correction) && isnumeric(rules.offset_correction) ...
-                    && isscalar(rules.offset_correction) && isfinite(rules.offset_correction) ...
-                    && rules.offset_correction ~= 0
-                vals = vals + rules.offset_correction;
+            offset = [];
+            if ~isstruct(rules) || ~isfield(rules, 'offset_correction') || isempty(rules.offset_correction)
+                return;
+            end
+
+            offset = bms.data.CleaningPipeline.resolveOffsetValue(rules.offset_correction, times, vals);
+            if isnumeric(offset) && ~isscalar(offset) && numel(offset) == numel(vals)
+                offset = reshape(offset, size(vals));
+            end
+            if bms.data.CleaningPipeline.isOffsetApplicable(offset, vals)
+                vals = vals + offset;
+                offset = bms.data.CleaningPipeline.compactOffsetLogValue(offset, rules.offset_correction);
+                applied = true;
+            end
+        end
+
+        function [vals, applied, scale] = applyValueScale(vals, rules)
+            applied = false;
+            scale = [];
+            if ~isstruct(rules) || ~isfield(rules, 'value_scale') || isempty(rules.value_scale)
+                return;
+            end
+            raw = rules.value_scale;
+            if ischar(raw) || isstring(raw)
+                raw = str2double(raw);
+            end
+            if isnumeric(raw) && isscalar(raw) && isfinite(raw) && raw ~= 1
+                scale = double(raw);
+                vals = vals .* scale;
                 applied = true;
             end
         end
@@ -102,10 +129,10 @@ classdef CleaningPipeline
                     t1 = bms.data.CleaningPipeline.parseRuleTime(th.t_range_end);
                     tmask = (times >= t0) & (times <= t1);
                 end
-                if isfield(th, 'min') && ~isempty(th.min)
+                if isfield(th, 'min') && ~isempty(th.min) && isfinite(th.min)
                     vals(tmask & vals < th.min) = NaN;
                 end
-                if isfield(th, 'max') && ~isempty(th.max)
+                if isfield(th, 'max') && ~isempty(th.max) && isfinite(th.max)
                     vals(tmask & vals > th.max) = NaN;
                 end
             end
@@ -133,9 +160,12 @@ classdef CleaningPipeline
             vals(mask) = NaN;
         end
 
-        function recordOffset(times, vals, rules, opts)
+        function recordOffset(times, vals, rules, opts, offsetValue)
             if nargin < 4 || ~isstruct(opts) || ~isfield(opts, 'record_offset') || ~logical(opts.record_offset)
                 return;
+            end
+            if nargin < 5 || isempty(offsetValue)
+                offsetValue = bms.data.CleaningPipeline.resolveOffsetValue(rules.offset_correction, times, vals);
             end
             try
                 sensorType = bms.data.CleaningPipeline.optionText(opts, 'sensor_type');
@@ -145,7 +175,7 @@ classdef CleaningPipeline
                 offset_correction_registry('record', struct( ...
                     'sensor_type', sensorType, ...
                     'point_id', pointId, ...
-                    'offset_correction', rules.offset_correction, ...
+                    'offset_correction', offsetValue, ...
                     'start_time', min(times), ...
                     'end_time', max(times), ...
                     'sample_count', numel(vals), ...
@@ -193,16 +223,191 @@ classdef CleaningPipeline
                 offset = bms.data.CleaningPipeline.parseOffsetValue(block.offset_correction);
                 if ~isempty(offset), rules.offset_correction = offset; end
             end
+            if isfield(block, 'value_scale') && ~isempty(block.value_scale)
+                scale = bms.data.CleaningPipeline.parseScaleValue(block.value_scale);
+                if ~isempty(scale), rules.value_scale = scale; end
+            elseif isfield(block, 'scale_factor') && ~isempty(block.scale_factor)
+                scale = bms.data.CleaningPipeline.parseScaleValue(block.scale_factor);
+                if ~isempty(scale), rules.value_scale = scale; end
+            end
         end
 
         function offset = parseOffsetValue(raw)
             offset = [];
             if isempty(raw), return; end
+            if isstruct(raw)
+                mode = bms.data.CleaningPipeline.offsetMode(raw);
+                if bms.data.CleaningPipeline.isSupportedOffsetMode(mode)
+                    offset = raw;
+                    return;
+                end
+            end
+            if ischar(raw) || isstring(raw)
+                txt = char(string(raw));
+                mode = lower(txt);
+                if bms.data.CleaningPipeline.isSupportedOffsetMode(mode)
+                    offset = struct('mode', mode);
+                    return;
+                end
+                raw = str2double(txt);
+            end
+            if isnumeric(raw) && isscalar(raw) && isfinite(raw)
+                offset = double(raw);
+            end
+        end
+
+        function scale = parseScaleValue(raw)
+            scale = [];
+            if isempty(raw), return; end
             if ischar(raw) || isstring(raw)
                 raw = str2double(raw);
             end
             if isnumeric(raw) && isscalar(raw) && isfinite(raw)
+                scale = double(raw);
+            end
+        end
+
+        function offset = resolveOffsetValue(raw, times, vals)
+            offset = [];
+            if isempty(raw), return; end
+            if isnumeric(raw) && isscalar(raw) && isfinite(raw)
                 offset = double(raw);
+                return;
+            end
+            if ischar(raw) || isstring(raw)
+                parsed = bms.data.CleaningPipeline.parseOffsetValue(raw);
+                offset = bms.data.CleaningPipeline.resolveOffsetValue(parsed, times, vals);
+                return;
+            end
+            if ~isstruct(raw)
+                return;
+            end
+
+            mode = bms.data.CleaningPipeline.offsetMode(raw);
+            if ~bms.data.CleaningPipeline.isSupportedOffsetMode(mode)
+                return;
+            end
+            if isempty(times) || isempty(vals) || numel(times) ~= numel(vals)
+                return;
+            end
+            if ~isdatetime(times)
+                times = bms.data.TimeSeriesLoader.toDatetime(times);
+            end
+            vals = vals(:);
+            times = times(:);
+            valid = isfinite(vals) & ~isnat(times);
+            if isfield(raw, 'start_date') && ~isempty(raw.start_date)
+                t0 = bms.data.CleaningPipeline.parseOffsetDate(raw.start_date, true);
+                valid = valid & times >= t0;
+            end
+            if isfield(raw, 'end_date') && ~isempty(raw.end_date)
+                t1 = bms.data.CleaningPipeline.parseOffsetDate(raw.end_date, false);
+                valid = valid & times <= t1;
+            end
+            if ~any(valid)
+                return;
+            end
+            switch mode
+                case {'first_day_mean', 'earliest_day_mean'}
+                    firstDay = dateshift(min(times(valid)), 'start', 'day');
+                    dayMask = valid & times >= firstDay & times < firstDay + days(1);
+                    if ~any(dayMask)
+                        return;
+                    end
+                    baseline = mean(vals(dayMask), 'omitnan');
+                    if isfinite(baseline)
+                        offset = -baseline;
+                    end
+                case {'daily_mean', 'day_mean', 'daily_median', 'day_median'}
+                    useMedian = contains(mode, 'median');
+                    offset = bms.data.CleaningPipeline.groupedBaselineOffset(times, vals, valid, 'day', useMedian);
+            end
+        end
+
+        function offset = groupedBaselineOffset(times, vals, valid, unit, useMedian)
+            offset = [];
+            if nargin < 5, useMedian = false; end
+            if ~any(valid), return; end
+            binTimes = dateshift(times(valid), 'start', unit);
+            [g, ~] = findgroups(binTimes);
+            if useMedian
+                baselines = splitapply(@(x) median(x, 'omitnan'), vals(valid), g);
+            else
+                baselines = splitapply(@(x) mean(x, 'omitnan'), vals(valid), g);
+            end
+            offset = zeros(size(vals));
+            offset(valid) = -baselines(g);
+        end
+
+        function tf = isSupportedOffsetMode(mode)
+            tf = any(strcmp(lower(char(string(mode))), { ...
+                'first_day_mean', 'earliest_day_mean', ...
+                'daily_mean', 'day_mean', 'daily_median', 'day_median'}));
+        end
+
+        function tf = isOffsetApplicable(offset, vals)
+            tf = false;
+            if isempty(offset) || ~isnumeric(offset)
+                return;
+            end
+            if isscalar(offset)
+                tf = isfinite(offset) && offset ~= 0;
+                return;
+            end
+            tf = isequal(size(offset), size(vals)) && any(isfinite(offset(:)) & offset(:) ~= 0);
+        end
+
+        function out = compactOffsetLogValue(offset, raw)
+            if isnumeric(offset) && isscalar(offset)
+                out = offset;
+                return;
+            end
+            out = struct();
+            if isstruct(raw)
+                out.mode = bms.data.CleaningPipeline.offsetMode(raw);
+            else
+                out.mode = char(string(raw));
+            end
+            finite = offset(isfinite(offset));
+            if ~isempty(finite)
+                out.min = min(finite);
+                out.max = max(finite);
+                out.mean = mean(finite, 'omitnan');
+            end
+        end
+
+        function mode = offsetMode(raw)
+            mode = '';
+            if ~isstruct(raw)
+                return;
+            end
+            if isfield(raw, 'mode') && ~isempty(raw.mode)
+                mode = lower(char(string(raw.mode)));
+            elseif isfield(raw, 'method') && ~isempty(raw.method)
+                mode = lower(char(string(raw.method)));
+            elseif isfield(raw, 'type') && ~isempty(raw.type)
+                mode = lower(char(string(raw.type)));
+            end
+        end
+
+        function t = parseOffsetDate(value, isStart)
+            if nargin < 2
+                isStart = true;
+            end
+            if isdatetime(value)
+                t = value;
+            else
+                txt = char(string(value));
+                try
+                    t = datetime(txt, 'InputFormat', 'yyyy-MM-dd HH:mm:ss');
+                catch
+                    t = datetime(txt, 'InputFormat', 'yyyy-MM-dd');
+                end
+            end
+            if ~isStart
+                if hour(t) == 0 && minute(t) == 0 && second(t) == 0
+                    t = dateshift(t, 'start', 'day') + days(1) - seconds(1);
+                end
             end
         end
 

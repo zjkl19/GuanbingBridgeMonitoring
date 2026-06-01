@@ -38,6 +38,23 @@ classdef test_plot_warning_line_resolver < matlab.unittest.TestCase
             tc.verifyTrue(contains(preview.hint, 'per_point.deflection'));
         end
 
+        function alarmBoundsCanDeriveLevel1Level2Level3(tc)
+            bounds = struct('level1', [-1 1], 'level2', [-2 2], 'level3', [-3 3]);
+            style = struct( ...
+                'ylabel', '应变 (με)', ...
+                'alarm_colors', [0.1 0.2 0.3; 0.4 0.5 0.6; 0.7 0.8 0.9]);
+
+            lines = bms.analyzer.StructuralPlotConfigService.boundsToWarnLines(bounds, style);
+            values = cellfun(@(x)x.y, lines);
+            levels = cellfun(@(x)x.level, lines, 'UniformOutput', false);
+
+            tc.verifyEqual(values(:), [-1; 1; -2; 2; -3; 3]);
+            tc.verifyEqual(levels(:), {'一级'; '一级'; '二级'; '二级'; '三级'; '三级'});
+            tc.verifyEqual(lines{1}.color, [0.1 0.2 0.3]);
+            tc.verifyEqual(lines{3}.color, [0.4 0.5 0.6]);
+            tc.verifyEqual(lines{5}.color, [0.7 0.8 0.9]);
+        end
+
         function derivesCommonGroupAlarmBounds(tc)
             cfg.groups.strain_timeseries.GDDYB = {'S-1', 'S-2'};
             cfg.per_point.strain.S_1.alarm_bounds = struct('level2', [-264 264]);

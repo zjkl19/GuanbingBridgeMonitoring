@@ -13,6 +13,7 @@ classdef test_bridge_profile < matlab.unittest.TestCase
             tc.verifyTrue(ismember('guanbing', ids));
             tc.verifyTrue(ismember('hongtang', ids));
             tc.verifyTrue(ismember('jiulongjiang', ids));
+            tc.verifyTrue(ismember('zhishan', ids));
 
             p = bms.profile.BridgeProfileRegistry.fromId('hongtang');
             tc.verifyEqual(p.DataLayout, 'hongtang_period');
@@ -20,12 +21,23 @@ classdef test_bridge_profile < matlab.unittest.TestCase
             tc.verifyEqual(p.BridgeName, '洪塘大桥');
             tc.verifyNotEmpty(p.DefaultDataRoot);
             tc.verifyTrue(contains(p.wimDirForRoot('E:\洪塘大桥数据\2026年1-3月'), 'WIM'));
+
+            z = bms.profile.BridgeProfileRegistry.fromId('zhishan');
+            tc.verifyEqual(z.DataLayout, 'dated_folders');
+            tc.verifyEqual(z.DefaultReportType, 'analysis_only');
+            tc.verifyTrue(z.configExists());
+            tc.verifyTrue(ismember('cable_accel_spectrum', z.EnabledModuleHints));
+            tc.verifyFalse(ismember('cable_force', z.EnabledModuleHints));
         end
 
         function registryInfersFromConfigSource(tc)
             cfg = struct('source', fullfile('D:', 'repo', 'config', 'jiulongjiang_config.json'));
             p = bms.profile.BridgeProfileRegistry.infer(cfg, 'E:\data');
             tc.verifyEqual(p.BridgeId, 'jiulongjiang');
+
+            cfg = struct('vendor', 'zhishan');
+            p = bms.profile.BridgeProfileRegistry.infer(cfg, 'D:\芝山大桥数据\2026年1-3月');
+            tc.verifyEqual(p.BridgeId, 'zhishan');
         end
     end
 end

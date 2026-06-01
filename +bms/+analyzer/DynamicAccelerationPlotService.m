@@ -79,6 +79,101 @@ classdef DynamicAccelerationPlotService
             bms.plot.PlotService.saveModuleBundle(fig, outDir, [fname '_' timestamp], cfg);
         end
 
+        function plotEnvelopeCurve(rootDir, pointId, times, values, style, cfg, spec)
+            enabled = bms.analyzer.DynamicAccelerationPlotService.specField(spec, 'envelopeEnabled', false);
+            enabled = bms.config.ConfigReader.boolValue( ...
+                bms.analyzer.DynamicAccelerationPlotService.styleField(style, 'envelope_enabled', enabled), enabled);
+            if ~enabled || isempty(values) || numel(times) ~= numel(values) || ~isdatetime(times)
+                return;
+            end
+
+            valid = isfinite(values) & ~isnat(times);
+            if ~any(valid)
+                return;
+            end
+
+            binMinutes = bms.analyzer.DynamicAccelerationPlotService.styleField( ...
+                style, 'envelope_bin_minutes', ...
+                bms.analyzer.DynamicAccelerationPlotService.specField(spec, 'envelopeBinMinutes', 30));
+            if isempty(binMinutes) || ~isscalar(binMinutes) || ~isfinite(binMinutes) || binMinutes <= 0
+                binMinutes = 30;
+            end
+
+            validTimes = times(valid);
+            xmin = dateshift(min(validTimes), 'start', 'day');
+            xmax = dateshift(max(validTimes), 'start', 'day') + days(1);
+            if xmin >= xmax
+                xmax = xmin + days(1);
+            end
+            binEdges = xmin:minutes(binMinutes):xmax;
+            if numel(binEdges) < 2
+                return;
+            end
+
+            idx = discretize(times(valid), binEdges);
+            good = ~isnan(idx);
+            if ~any(good)
+                return;
+            end
+            idx = idx(good);
+            vals = values(valid);
+            vals = vals(good);
+            binCenters = binEdges(1:end-1)' + minutes(binMinutes / 2);
+            nBins = numel(binCenters);
+
+            p01 = accumarray(idx, vals, [nBins 1], @(x) prctile(x, 1), NaN);
+            p05 = accumarray(idx, vals, [nBins 1], @(x) prctile(x, 5), NaN);
+            p50 = accumarray(idx, vals, [nBins 1], @(x) median(x, 'omitnan'), NaN);
+            p95 = accumarray(idx, vals, [nBins 1], @(x) prctile(x, 95), NaN);
+            p99 = accumarray(idx, vals, [nBins 1], @(x) prctile(x, 99), NaN);
+            ymin = accumarray(idx, vals, [nBins 1], @(x) min(x, [], 'omitnan'), NaN);
+            ymax = accumarray(idx, vals, [nBins 1], @(x) max(x, [], 'omitnan'), NaN);
+            rmsv = accumarray(idx, vals, [nBins 1], @(x) sqrt(mean(x.^2, 'omitnan')), NaN);
+
+            outDir = bms.analyzer.DynamicAccelerationPlotService.specField(spec, 'envelopeOutputDir', '');
+            if isempty(outDir)
+                return;
+            end
+
+            fig = figure('Visible', 'off', 'Position', [100 100 1200 620]);
+            tiledlayout(fig, 2, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+
+            ax1 = nexttile;
+            hold(ax1, 'on');
+            bms.analyzer.DynamicAccelerationPlotService.fillEnvelopeBand(ax1, binCenters, p01, p99, [0.78 0.86 0.96], '1%~99%');
+            bms.analyzer.DynamicAccelerationPlotService.fillEnvelopeBand(ax1, binCenters, p05, p95, [0.45 0.68 0.90], '5%~95%');
+            plot(ax1, binCenters, p50, 'Color', [0 0.25 0.55], 'LineWidth', 1.2, 'DisplayName', 'median');
+            plot(ax1, binCenters, ymin, ':', 'Color', [0.65 0.65 0.65], 'LineWidth', 0.6, 'DisplayName', 'min/max');
+            plot(ax1, binCenters, ymax, ':', 'Color', [0.65 0.65 0.65], 'LineWidth', 0.6, 'HandleVisibility', 'off');
+            hold(ax1, 'off');
+            grid(ax1, 'on');
+            grid(ax1, 'minor');
+            xlim(ax1, [xmin xmax - seconds(1)]);
+            ylabel(ax1, style.ylabel);
+            titlePrefix = bms.analyzer.DynamicAccelerationPlotService.styleField(style, ...
+                'envelope_title_prefix', [num2str(round(binMinutes)) ' min ' char([21253 32476]) '/RMS']);
+            title(ax1, sprintf('%s %s', titlePrefix, pointId), 'Interpreter', 'none');
+            legend(ax1, 'Location', 'northeast', 'Box', 'off');
+
+            ax2 = nexttile;
+            plot(ax2, binCenters, rmsv, 'LineWidth', 1.2, 'Color', style.color_rms);
+            grid(ax2, 'on');
+            grid(ax2, 'minor');
+            xlim(ax2, [xmin xmax - seconds(1)]);
+            ylabel(ax2, sprintf('%d min RMS (m/s^2)', round(binMinutes)));
+            xlabel(ax2, char([26102 38388]));
+            title(ax2, sprintf('%d min RMS %s', round(binMinutes), pointId), 'Interpreter', 'none');
+            xtickformat(ax1, 'yyyy-MM-dd');
+            xtickformat(ax2, 'yyyy-MM-dd');
+
+            outDir = fullfile(rootDir, outDir);
+            bms.core.PathResolver.ensureDir(outDir);
+            prefix = bms.analyzer.DynamicAccelerationPlotService.specField(spec, 'envelopeFilePrefix', 'Envelope');
+            timestamp = datestr(now, 'yyyymmdd_HHMMSS');
+            fname = sprintf('%s_%s_%s_%s_%s', prefix, pointId, datestr(xmin, 'yyyymmdd'), datestr(xmax - days(1), 'yyyymmdd'), timestamp);
+            bms.plot.PlotService.saveModuleBundle(fig, outDir, fname, cfg);
+        end
+
         function plotAccelGroup(rootDir, groupName, records, startDate, endDate, style, cfg, spec)
             if isempty(records)
                 return;
@@ -290,6 +385,44 @@ classdef DynamicAccelerationPlotService
             value = defaultValue;
             if isstruct(spec) && isfield(spec, fieldName)
                 value = spec.(fieldName);
+            end
+        end
+
+        function fillEnvelopeBand(ax, t, lo, hi, color, label)
+            t = t(:);
+            lo = lo(:);
+            hi = hi(:);
+            ok = isfinite(lo) & isfinite(hi) & ~isnat(t);
+            if ~any(ok)
+                return;
+            end
+
+            edges = diff([false; ok; false]);
+            starts = find(edges == 1);
+            stops = find(edges == -1) - 1;
+            wasHold = ishold(ax);
+            hold(ax, 'on');
+            holdCleaner = onCleanup(@() bms.analyzer.DynamicAccelerationPlotService.restoreHold(ax, wasHold)); %#ok<NASGU>
+            showLegend = true;
+            for i = 1:numel(starts)
+                runIdx = starts(i):stops(i);
+                if numel(runIdx) < 2
+                    continue;
+                end
+                args = {'FaceAlpha', 0.6, 'EdgeColor', 'none'};
+                if showLegend
+                    args = [args, {'DisplayName', label}]; %#ok<AGROW>
+                    showLegend = false;
+                else
+                    args = [args, {'HandleVisibility', 'off'}]; %#ok<AGROW>
+                end
+                fill(ax, [t(runIdx); flipud(t(runIdx))], [lo(runIdx); flipud(hi(runIdx))], color, args{:});
+            end
+        end
+
+        function restoreHold(ax, wasHold)
+            if isvalid(ax) && ~wasHold
+                hold(ax, 'off');
             end
         end
 

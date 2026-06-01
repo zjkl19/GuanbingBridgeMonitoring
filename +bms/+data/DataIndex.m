@@ -144,6 +144,12 @@ classdef DataIndex
         function sensorType = sensorTypeForPoint(moduleKey, pointId)
             sensorType = char(string(moduleKey));
             switch sensorType
+                case 'accel_spectrum'
+                    sensorType = 'acceleration';
+                case 'cable_accel_spectrum'
+                    sensorType = 'cable_accel';
+                case {'dynamic_strain', 'dynamic_strain_highpass', 'dynamic_strain_lowpass'}
+                    sensorType = 'strain';
                 case 'earthquake'
                     [sensorType, ~] = bms.analyzer.EarthquakeSeriesService.componentFromPoint(pointId);
                 case 'wind'

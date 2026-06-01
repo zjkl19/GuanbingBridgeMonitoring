@@ -47,6 +47,14 @@ classdef test_config_layer_loader < matlab.unittest.TestCase
 
             tc.verifyEqual(layered, original);
         end
+
+        function shuixianhuaAccelerationRmsWarnLinesMatchArchAndGirder(tc)
+            cfg = load_config(fullfile(project_root(), 'config', 'shuixianhua_config.json'));
+            lines = cfg.plot_styles.acceleration.rms_warn_lines;
+
+            tc.verifyEqual([lines.ZG.y], [31.5 50], 'AbsTol', 1e-12);
+            tc.verifyEqual([lines.ZL.y], [31.5 50], 'AbsTol', 1e-12);
+        end
     end
 end
 

@@ -39,6 +39,7 @@ function run_gui()
     tg = uitabgroup(mainGrid); tg.Layout.Row = 1; tg.Layout.Column = 1;
     tabRun = uitab(tg,'Title','运行');
     tabCfg = uitab(tg,'Title','阈值配置');
+    tabAutoThreshold = uitab(tg,'Title','自动清洗建议');
     tabPostCfg = uitab(tg,'Title','滤波后二次清洗');
     tabOffsetCfg = uitab(tg,'Title','零点修正');
     tabPlotCfg = uitab(tg,'Title','绘图参数');
@@ -52,7 +53,7 @@ function run_gui()
     logoPath = fullfile(projRoot,'建科院标志PNG-01.png');
     uiimg = uiimage(hgl); uiimg.Layout.Row = [1 2]; uiimg.Layout.Column = 1; uiimg.ScaleMethod = 'fit';
     if exist(logoPath,'file'), uiimg.ImageSource = logoPath; end
-    versionStr = 'v1.7.4';
+    versionStr = 'v1.7.5';
     titleLbl = uilabel(hgl,'Text',['福建建科院健康监测大数据分析 ' versionStr],'FontSize',30,'FontWeight','bold','FontColor',primaryBlue,'HorizontalAlignment','center');
     titleLbl.Layout.Row = 1; titleLbl.Layout.Column = [2 6];
     profileLbl = uilabel(hgl, 'Text', '桥梁项目:', 'HorizontalAlignment', 'right', 'FontWeight', 'bold');
@@ -114,6 +115,7 @@ function run_gui()
     cfgEdit = uieditfield(gl,'text','Value',defaultCfgPath); cfgEdit.Layout.Row=12; cfgEdit.Layout.Column=[2 3];
     cfgBtn  = uibutton(gl,'Text','选择','ButtonPushedFcn',@(btn,~) onBrowseFile(cfgEdit,'*.json')); cfgBtn.Layout.Row=12; cfgBtn.Layout.Column=4;
     apply_profile_defaults(activeProfile, false);
+    tg.SelectedTab = tabRun;
 
     presetSaveBtn = uibutton(gl,'Text','保存预设','ButtonPushedFcn',@(btn,~) onSavePreset()); presetSaveBtn.Layout.Row=13; presetSaveBtn.Layout.Column=1;
     presetLoadBtn = uibutton(gl,'Text','加载预设','ButtonPushedFcn',@(btn,~) onLoadPreset()); presetLoadBtn.Layout.Row=13; presetLoadBtn.Layout.Column=2;
@@ -154,6 +156,7 @@ function run_gui()
 
     %% 阈值配置页（拆分模块）
     th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
+    at = build_auto_threshold_tab(tabAutoThreshold, f, cfgCache, cfgPath, cfgEdit, rootEdit, startPicker, endPicker, @addLog, primaryBlue);
     pf = build_post_filter_threshold_tab(tabPostCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
     oc = build_offset_correction_tab(tabOffsetCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
     pp = build_plot_settings_tab(tabPlotCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
@@ -555,6 +558,8 @@ function run_gui()
         try
             if isequal(evt.NewValue, tabCfg) && isstruct(th) && isfield(th,'onShow')
                 th.onShow();
+            elseif isequal(evt.NewValue, tabAutoThreshold) && isstruct(at) && isfield(at,'onShow')
+                at.onShow();
             elseif isequal(evt.NewValue, tabPostCfg) && isstruct(pf) && isfield(pf,'onShow')
                 pf.onShow();
             elseif isequal(evt.NewValue, tabOffsetCfg) && isstruct(oc) && isfield(oc,'onShow')

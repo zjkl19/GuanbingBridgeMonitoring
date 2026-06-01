@@ -128,5 +128,44 @@ classdef test_datasource_services < matlab.unittest.TestCase
             summaryXlsx = bms.data.DataIndex.writeSummary(tc.TempDir, index, 'unit');
             tc.verifyTrue(isfile(summaryXlsx));
         end
+
+        function dataIndexUsesUnderlyingSensorFileIdsForDerivedModules(tc)
+            dayDir = fullfile(tc.TempDir, '2026-03-01', 'wave');
+            mkdir(dayDir);
+            fclose(fopen(fullfile(dayDir, 'STR123_1.csv'), 'w'));
+            fclose(fopen(fullfile(dayDir, 'ACC123_1.csv'), 'w'));
+            fclose(fopen(fullfile(dayDir, 'CAB123_1.csv'), 'w'));
+
+            cfg = struct();
+            cfg.defaults = struct();
+            cfg.subfolders = struct('strain', 'wave', 'acceleration_raw', 'wave', 'cable_accel_raw', 'wave');
+            cfg.file_patterns = struct( ...
+                'dynamic_strain', struct('default', '{file_id}_*.csv'), ...
+                'accel_spectrum', struct('default', '{file_id}_*.csv'), ...
+                'cable_accel_spectrum', struct('default', '{file_id}_*.csv'));
+            cfg.points = struct( ...
+                'dynamic_strain', {{'SX-1'}}, ...
+                'accel_spectrum', {{'AZ-1'}}, ...
+                'cable_accel_spectrum', {{'CF-1'}});
+            cfg.groups = struct('dynamic_strain', struct('G1', {{'SX-1'}}));
+            cfg.plot_styles = struct();
+            cfg.per_point = struct();
+            cfg.per_point.strain.SX_1 = struct('file_id', 'STR123');
+            cfg.per_point.acceleration.AZ_1 = struct('file_id', 'ACC123');
+            cfg.per_point.cable_accel.CF_1 = struct('file_id', 'CAB123');
+            opts = struct('doDynStrainBoxplot', true, 'doAccelSpectrum', true, ...
+                'doCableAccelSpectrum', true, 'buildDataIndex', true);
+
+            index = bms.data.DataIndex.build(tc.TempDir, '2026-03-01', '2026-03-01', cfg, opts);
+            rows = bms.data.DataIndex.moduleRows(index);
+
+            dynRow = rows(strcmp(rows.module_key, 'dynamic_strain_highpass'), :);
+            accelRow = rows(strcmp(rows.module_key, 'accel_spectrum'), :);
+            cableRow = rows(strcmp(rows.module_key, 'cable_accel_spectrum'), :);
+            tc.verifyEqual(dynRow.found_point_count, 1);
+            tc.verifyEqual(accelRow.found_point_count, 1);
+            tc.verifyEqual(cableRow.found_point_count, 1);
+            tc.verifyEqual(index.summary.missing_point_count, 0);
+        end
     end
 end

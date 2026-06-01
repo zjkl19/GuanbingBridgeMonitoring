@@ -187,27 +187,40 @@ classdef StructuralPlotConfigService
             end
 
             colors = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'alarm_colors', []);
+            level1Color = [0.929 0.694 0.125];
             level2Color = [0.72 0.50 0.00];
             level3Color = [0.85 0.1 0.1];
             if isnumeric(colors) && size(colors, 2) == 3
-                if size(colors, 1) >= 1
+                if size(colors, 1) >= 3
+                    level1Color = colors(1, :);
+                    level2Color = colors(2, :);
+                    level3Color = colors(3, :);
+                elseif size(colors, 1) >= 1
                     level2Color = colors(1, :);
-                end
-                if size(colors, 1) >= 2
-                    level3Color = colors(2, :);
+                    if size(colors, 1) >= 2
+                        level3Color = colors(2, :);
+                    end
                 end
             elseif iscell(colors)
-                if numel(colors) >= 1 && isnumeric(colors{1}) && numel(colors{1}) == 3
-                    level2Color = reshape(colors{1}, 1, 3);
-                end
-                if numel(colors) >= 2 && isnumeric(colors{2}) && numel(colors{2}) == 3
-                    level3Color = reshape(colors{2}, 1, 3);
+                if numel(colors) >= 3
+                    if isnumeric(colors{1}) && numel(colors{1}) == 3, level1Color = reshape(colors{1}, 1, 3); end
+                    if isnumeric(colors{2}) && numel(colors{2}) == 3, level2Color = reshape(colors{2}, 1, 3); end
+                    if isnumeric(colors{3}) && numel(colors{3}) == 3, level3Color = reshape(colors{3}, 1, 3); end
+                else
+                    if numel(colors) >= 1 && isnumeric(colors{1}) && numel(colors{1}) == 3
+                        level2Color = reshape(colors{1}, 1, 3);
+                    end
+                    if numel(colors) >= 2 && isnumeric(colors{2}) && numel(colors{2}) == 3
+                        level3Color = reshape(colors{2}, 1, 3);
+                    end
                 end
             end
 
+            level1 = char([19968 32423]);
             level2 = char([20108 32423]);
             level3 = char([19977 32423]);
             unit = bms.analyzer.StructuralPlotConfigService.warnUnit(style);
+            warnLines = [warnLines; bms.analyzer.StructuralPlotConfigService.appendAlarmPair(bounds, 'level1', level1, level1Color, unit)]; %#ok<AGROW>
             warnLines = [warnLines; bms.analyzer.StructuralPlotConfigService.appendAlarmPair(bounds, 'level2', level2, level2Color, unit)]; %#ok<AGROW>
             warnLines = [warnLines; bms.analyzer.StructuralPlotConfigService.appendAlarmPair(bounds, 'level3', level3, level3Color, unit)]; %#ok<AGROW>
         end

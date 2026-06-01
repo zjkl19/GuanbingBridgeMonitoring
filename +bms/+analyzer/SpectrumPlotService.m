@@ -125,7 +125,8 @@ classdef SpectrumPlotService
 
             goodLines = h(isgraphics(h));
             if numel(goodLines) > 1
-                legend(goodLines, labels(valid), 'Location', 'eastoutside');
+                lgd = legend(goodLines, labels(valid), 'Location', 'eastoutside');
+                lgd.AutoUpdate = 'off';
             end
 
             allWarnLines = bms.analyzer.SpectrumPlotService.drawWarnLines(warnLineSets);
@@ -273,7 +274,8 @@ classdef SpectrumPlotService
                     if ~isstruct(wl) || ~isfield(wl, 'y') || ~isnumeric(wl.y) || ~isfinite(wl.y)
                         continue;
                     end
-                    yl = yline(wl.y, '--', bms.analyzer.CableForceService.warnLabel(wl), 'LabelHorizontalAlignment', 'left');
+                    yl = yline(wl.y, '--', bms.analyzer.CableForceService.warnLabel(wl), 'LabelHorizontalAlignment', 'left', ...
+                        'HandleVisibility', 'off');
                     if isfield(wl, 'color') && isnumeric(wl.color) && numel(wl.color) == 3
                         yl.Color = bms.analyzer.StructuralPlotConfigService.warnDisplayColor(wl.color);
                     end

@@ -107,5 +107,34 @@ classdef test_run_preflight < matlab.unittest.TestCase
             messages = cellfun(@(r) string(r.message), records, 'UniformOutput', true);
             tc.verifyTrue(any(contains(messages, 'figure may be older than stats')));
         end
+
+        function sameRunFigureBeforeStatsDoesNotWarnFromManifest(tc)
+            statsDir = fullfile(tc.TempDir, 'stats');
+            figDir = fullfile(tc.TempDir, 'figs');
+            logDir = fullfile(tc.TempDir, 'run_logs');
+            mkdir(statsDir);
+            mkdir(figDir);
+            mkdir(logDir);
+            statsFile = fullfile(statsDir, 'temp_stats.xlsx');
+            figFile = fullfile(figDir, 'temp.jpg');
+            fclose(fopen(statsFile, 'w'));
+            fclose(fopen(figFile, 'w'));
+            oldFig = java.io.File(figFile);
+            oldFig.setLastModified(1000);
+            figTime = bms.app.RunPreflight.fileDatenum(figFile);
+
+            manifest = struct();
+            manifest.status = 'ok';
+            manifest.module_results = {struct('key','temperature', 'label','temperature', ...
+                'stats_path', statsFile, ...
+                'started_at', datestr(figTime - (1 / (24 * 60)), 'yyyy-mm-dd HH:MM:ss'), ...
+                'ended_at', datestr(figTime + (1 / (24 * 60)), 'yyyy-mm-dd HH:MM:ss'), ...
+                'artifacts', {{struct('kind','figure','path',figFile)}})};
+            bms.core.Logger.writeJson(fullfile(logDir, 'analysis_manifest_20260101_010101.json'), manifest);
+
+            records = bms.app.RunPreflight.checkPreviousManifestArtifacts(tc.TempDir);
+
+            tc.verifyTrue(isempty(records));
+        end
     end
 end

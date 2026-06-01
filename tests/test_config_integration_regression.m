@@ -1,4 +1,12 @@
 classdef test_config_integration_regression < matlab.unittest.TestCase
+    methods (TestMethodSetup)
+        function setupPaths(~)
+            rootDir = project_root();
+            addpath(rootDir);
+            addpath(fullfile(rootDir, 'config'));
+        end
+    end
+
     methods (Test)
         function fourBridgeConfigsLoadLintAndBuildContracts(tc)
             rootDir = project_root();
@@ -6,7 +14,8 @@ classdef test_config_integration_regression < matlab.unittest.TestCase
                 fullfile(rootDir, 'config', 'default_config.json'), ...
                 fullfile(rootDir, 'config', 'hongtang_config.json'), ...
                 fullfile(rootDir, 'config', 'jiulongjiang_config.json'), ...
-                fullfile(rootDir, 'config', 'shuixianhua_config.json')};
+                fullfile(rootDir, 'config', 'shuixianhua_config.json'), ...
+                fullfile(rootDir, 'config', 'zhishan_config.json')};
 
             for i = 1:numel(configPaths)
                 cfg = load_config(configPaths{i});

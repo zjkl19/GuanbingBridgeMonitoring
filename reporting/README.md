@@ -185,6 +185,7 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.7.5` keeps the report GUI aligned with the Zhishan March data-processing release and documents the new Zhishan analysis/report asset workflow.
 Version `v1.7.4` reads MATLAB analysis reporting contracts in report build manifests and reuses shared OOXML helpers for template table/text filling.
 Version `v1.7.3` refactors Shuixianhua template-table updates around caption anchors, moves result-readiness checks into a profile/module catalog, and adds a packaged-exe self-test entry with `BridgeReportBuilder.exe --self-test-shuixianhua`.
 版本 `v1.7.3` 将水仙花模板表格更新改为按题注锚点定位，结果就绪检查收口到 profile/module 目录，并新增 `BridgeReportBuilder.exe --self-test-shuixianhua` 打包程序自测入口。

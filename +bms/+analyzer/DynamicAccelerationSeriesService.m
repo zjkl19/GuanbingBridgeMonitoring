@@ -22,6 +22,8 @@ classdef DynamicAccelerationSeriesService
                     rootDir, rec.pid, rec.times, rec.vals, rec.mn, rec.mx, style, cfg, spec);
                 bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve( ...
                     rootDir, rec.pid, rec.times, rec.vals, rec.fs, style, cfg, spec);
+                bms.analyzer.DynamicAccelerationPlotService.plotEnvelopeCurve( ...
+                    rootDir, rec.pid, rec.times, rec.vals, style, cfg, spec);
             end
 
             bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroups( ...
@@ -71,6 +73,7 @@ classdef DynamicAccelerationSeriesService
                 stats(i, :) = {rec.pid, rec.mn, rec.mx, rec.av, rec.rms_max, rec.rms_time};
                 bms.analyzer.DynamicAccelerationPlotService.plotAccelCurve(rootDir, rec.pid, times, values, rec.mn, rec.mx, style, cfg, spec);
                 bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve(rootDir, rec.pid, times, values, rec.fs, style, cfg, spec);
+                bms.analyzer.DynamicAccelerationPlotService.plotEnvelopeCurve(rootDir, rec.pid, times, values, style, cfg, spec);
             end
 
             bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroups( ...

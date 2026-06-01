@@ -553,6 +553,10 @@ classdef RunPreflight
                     statsPath = bms.app.RunPreflight.recordFieldText(rec, 'stats_path');
                     statsTime = bms.app.RunPreflight.fileDatenum(statsPath);
                     if isnan(statsTime), continue; end
+                    startedTime = bms.app.RunPreflight.textDatenum( ...
+                        bms.app.RunPreflight.recordFieldText(rec, 'started_at'));
+                    endedTime = bms.app.RunPreflight.textDatenum( ...
+                        bms.app.RunPreflight.recordFieldText(rec, 'ended_at'));
                     artifacts = bms.app.RunPreflight.recordFieldValue(rec, 'artifacts', {});
                     artifacts = bms.app.ManifestReader.recordsToCell(artifacts);
                     for j = 1:numel(artifacts)
@@ -563,6 +567,9 @@ classdef RunPreflight
                         figPath = bms.app.RunPreflight.recordFieldText(artifact, 'path');
                         figTime = bms.app.RunPreflight.fileDatenum(figPath);
                         if isnan(figTime), continue; end
+                        if bms.app.RunPreflight.isWithinRunWindow(figTime, startedTime, endedTime)
+                            continue;
+                        end
                         if figTime + (1 / (24 * 60)) < statsTime
                             out = struct();
                             out.key = bms.app.RunPreflight.recordFieldText(rec, 'key');
@@ -590,6 +597,37 @@ classdef RunPreflight
             if ~isfile(p), return; end
             info = dir(p);
             if ~isempty(info), t = info(1).datenum; end
+        end
+
+        function t = textDatenum(value)
+            t = NaN;
+            if isempty(value), return; end
+            txt = char(string(value));
+            if isempty(txt), return; end
+            try
+                t = datenum(txt, 'yyyy-mm-dd HH:MM:ss');
+            catch
+                try
+                    t = datenum(datetime(txt));
+                catch
+                    t = NaN;
+                end
+            end
+        end
+
+        function tf = isWithinRunWindow(fileTime, startedTime, endedTime)
+            tf = false;
+            if isnan(fileTime) || isnan(startedTime)
+                return;
+            end
+            tolerance = 1 / (24 * 60);
+            if fileTime + tolerance < startedTime
+                return;
+            end
+            if ~isnan(endedTime) && fileTime > endedTime + tolerance
+                return;
+            end
+            tf = true;
         end
 
         function txt = recordFieldText(s, name)

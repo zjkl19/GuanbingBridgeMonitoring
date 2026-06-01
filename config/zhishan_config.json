@@ -30,19 +30,11 @@
       ]
     },
     "cable_accel": {
-      "thresholds": [
-        {
-          "min": -100,
-          "max": 100,
-          "t_range_start": "2026-03-01 00:00:00",
-          "t_range_end": "2026-03-31 23:59:59"
-        }
-      ],
       "offset_correction": {
         "mode": "daily_median",
         "start_date": "2026-03-01",
         "end_date": "2026-03-31",
-        "note": "Raw CF cable acceleration is already m/s^2; apply daily median baseline removal first, then [-100,100] m/s^2 filtering."
+        "note": "Raw CF cable acceleration is in mm/s^2; apply daily median baseline removal first, then per-point March 2026 filtering."
       }
     },
     "bearing_displacement": {
@@ -53,6 +45,14 @@
       }
     },
     "strain": {
+      "thresholds": [
+        {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "2026-03-01 00:00:00",
+          "t_range_end": "2026-03-31 23:59:59"
+        }
+      ],
       "offset_correction": {
         "mode": "first_day_mean",
         "start_date": "2026-03-01",
@@ -239,8 +239,8 @@
         "file_id": "C1802191464",
         "alarm_bounds": {
           "level2": [
-            -283,
-            414
+            -200,
+            400
           ]
         }
       },
@@ -248,18 +248,18 @@
         "file_id": "C1802191462",
         "alarm_bounds": {
           "level2": [
-            -283,
-            414
+            -200,
+            400
           ]
         },
-        "source_note": "验收报告表4中SX-2一级负阈值原文为-1897，按同组阈值和任务核对修正为-189。"
+        "source_note": "2026-06-01复核：SX-1~SX-10应变二级预警统一为[-200,400]με；2026-03-01~2026-03-31期间应变数据按[-200,200]με过滤。"
       },
       "SX-3": {
         "file_id": "C1802191467",
         "alarm_bounds": {
           "level2": [
-            -218,
-            298
+            -200,
+            400
           ]
         }
       },
@@ -267,8 +267,8 @@
         "file_id": "C1802191469",
         "alarm_bounds": {
           "level2": [
-            -218,
-            298
+            -200,
+            400
           ]
         }
       },
@@ -276,8 +276,8 @@
         "file_id": "C1802191470",
         "alarm_bounds": {
           "level2": [
-            -52,
-            405
+            -200,
+            400
           ]
         }
       },
@@ -285,8 +285,8 @@
         "file_id": "C1802191481",
         "alarm_bounds": {
           "level2": [
-            -52,
-            405
+            -200,
+            400
           ]
         }
       },
@@ -294,8 +294,8 @@
         "file_id": "C2006010002",
         "alarm_bounds": {
           "level2": [
-            -218,
-            298
+            -200,
+            400
           ]
         }
       },
@@ -303,8 +303,8 @@
         "file_id": "C2006010003",
         "alarm_bounds": {
           "level2": [
-            -218,
-            298
+            -200,
+            400
           ]
         }
       },
@@ -312,8 +312,8 @@
         "file_id": "C2006010053",
         "alarm_bounds": {
           "level2": [
-            -283,
-            414
+            -200,
+            400
           ]
         }
       },
@@ -321,8 +321,8 @@
         "file_id": "C2006010049",
         "alarm_bounds": {
           "level2": [
-            -283,
-            414
+            -200,
+            400
           ]
         }
       }
@@ -332,18 +332,18 @@
         "file_id": "C210419100",
         "alarm_bounds": {
           "level2": [
-            -49.16,
-            49.16
+            -80,
+            80
           ],
           "level3": [
-            -61.45,
-            61.45
+            -100,
+            100
           ]
         },
         "thresholds": [
           {
-            "min": -61.45,
-            "max": 61.45,
+            "min": -100,
+            "max": 100,
             "t_range_start": "2026-03-01 00:00:00",
             "t_range_end": "2026-03-31 23:59:59"
           }
@@ -353,40 +353,40 @@
         "file_id": "C210419103",
         "alarm_bounds": {
           "level2": [
-            -49.297,
-            49.297
+            -80,
+            80
           ],
           "level3": [
-            -61.621,
-            61.621
+            -100,
+            100
           ]
         },
         "thresholds": [
           {
-            "min": -30,
-            "max": 61.621,
+            "min": -100,
+            "max": 100,
             "t_range_start": "2026-03-01 00:00:00",
             "t_range_end": "2026-03-31 23:59:59"
           }
         ],
-        "source_note": "2026-06-01复核：DX-2按用户确认口径剔除2026-03-01~2026-03-31期间小于-30mm的数据，上限仍按三级阈值61.621mm过滤。"
+        "source_note": "2026-06-01复核：梁端纵向位移DX-1~DX-4统一按二级±80mm、三级±100mm口径预警；三级阈值外数据按[-100,100]mm过滤。"
       },
       "DX-3": {
         "file_id": "C210419101",
         "alarm_bounds": {
           "level2": [
-            -49.154,
-            49.154
+            -80,
+            80
           ],
           "level3": [
-            -61.443,
-            61.443
+            -100,
+            100
           ]
         },
         "thresholds": [
           {
-            "min": -61.443,
-            "max": 61.443,
+            "min": -100,
+            "max": 100,
             "t_range_start": "2026-03-01 00:00:00",
             "t_range_end": "2026-03-31 23:59:59"
           }
@@ -396,18 +396,18 @@
         "file_id": "C210419102",
         "alarm_bounds": {
           "level2": [
-            -49.298,
-            49.298
+            -80,
+            80
           ],
           "level3": [
-            -61.622,
-            61.622
+            -100,
+            100
           ]
         },
         "thresholds": [
           {
-            "min": -61.622,
-            "max": 61.622,
+            "min": -100,
+            "max": 100,
             "t_range_start": "2026-03-01 00:00:00",
             "t_range_end": "2026-03-31 23:59:59"
           }
@@ -556,6 +556,14 @@
     "cable_accel": {
       "CF-1": {
         "file_id": "C200303008",
+        "thresholds": [
+          {
+            "min": -300,
+            "max": 300,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
         "rho": 57.687,
         "L": 75.61,
         "target_freqs": [
@@ -588,6 +596,14 @@
       },
       "CF-2": {
         "file_id": "C200303004",
+        "thresholds": [
+          {
+            "min": -300,
+            "max": 300,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
         "rho": 57.687,
         "L": 87.45,
         "target_freqs": [
@@ -620,6 +636,14 @@
       },
       "CF-3": {
         "file_id": "C200303009",
+        "thresholds": [
+          {
+            "min": -100,
+            "max": 100,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
         "rho": 57.687,
         "L": 87.45,
         "target_freqs": [
@@ -652,6 +676,14 @@
       },
       "CF-4": {
         "file_id": "C200303005",
+        "thresholds": [
+          {
+            "min": -100,
+            "max": 100,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
         "rho": 57.687,
         "L": 75.61,
         "target_freqs": [
@@ -684,6 +716,14 @@
       },
       "CF-5": {
         "file_id": "C200303011",
+        "thresholds": [
+          {
+            "min": -100,
+            "max": 120,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
         "rho": 57.687,
         "L": 79.91,
         "target_freqs": [
@@ -716,6 +756,14 @@
       },
       "CF-6": {
         "file_id": "C200303006",
+        "thresholds": [
+          {
+            "min": -100,
+            "max": 100,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
         "rho": 57.687,
         "L": 82.99,
         "target_freqs": [
@@ -748,6 +796,14 @@
       },
       "CF-7": {
         "file_id": "C200303010",
+        "thresholds": [
+          {
+            "min": -300,
+            "max": 300,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
         "rho": 57.687,
         "L": 82.99,
         "target_freqs": [
@@ -780,6 +836,14 @@
       },
       "CF-8": {
         "file_id": "C200303007",
+        "thresholds": [
+          {
+            "min": -300,
+            "max": 300,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
         "rho": 57.687,
         "L": 79.91,
         "target_freqs": [
@@ -852,7 +916,7 @@
       "group_output_dir": "时程曲线_应变_组图",
       "boxplot_output_dir": "箱线图_应变",
       "show_warn_lines_point": true,
-      "show_warn_lines_group": false,
+      "show_warn_lines_group": true,
       "show_warn_lines_boxplot": true,
       "show_boxplot_outliers": false,
       "boxplot_max_points_per_series": 50000,
@@ -892,8 +956,8 @@
       "output_dir": "时程曲线_梁端纵向位移",
       "group_output_dir": "时程曲线_梁端纵向位移_组图",
       "ylim": [
-        -70,
-        70
+        -120,
+        120
       ],
       "alarm_colors": [
         [
@@ -978,11 +1042,57 @@
       }
     },
     "cable_accel": {
-      "ylabel": "索力加速度 (m/s^2)",
+      "ylabel": "索力加速度 (mm/s^2)",
       "title_prefix": "索力加速度时程",
-      "ylim_auto": true,
-      "ylim": [],
-      "ylims": [],
+      "ylim_auto": false,
+      "ylim": [
+        -120,
+        120
+      ],
+      "ylims": [
+        {
+          "name": "CF",
+          "ylim": [
+            -300,
+            300
+          ]
+        },
+        {
+          "name": "CF-1",
+          "ylim": [
+            -500,
+            500
+          ]
+        },
+        {
+          "name": "CF-2",
+          "ylim": [
+            -500,
+            500
+          ]
+        },
+        {
+          "name": "CF-5",
+          "ylim": [
+            -150,
+            150
+          ]
+        },
+        {
+          "name": "CF-7",
+          "ylim": [
+            -500,
+            500
+          ]
+        },
+        {
+          "name": "CF-8",
+          "ylim": [
+            -500,
+            500
+          ]
+        }
+      ],
       "color_main": [
         0,
         0.447,
@@ -993,7 +1103,7 @@
         0.325,
         0.098
       ],
-      "rms_ylabel": "10 min RMS (m/s^2)",
+      "rms_ylabel": "10 min RMS (mm/s^2)",
       "rms_title_prefix": "索力加速度10 min RMS时程",
       "rms_ylim": [],
       "rms_ylims": [],
@@ -1071,6 +1181,6 @@
     "cable_params": "E:/芝山大桥-彭仲鑫/报告及数据处理/索力/索力计算.xlsx，2022-10-23索力计算表。",
     "device_mapping": "E:/芝山大桥-彭仲鑫/芝山大桥设备参数表（20230308改）.xlsx。",
     "cable_params_ocr_20260528": "User image OCR rows 1~8 map to CF-1~CF-8 for length, line density, first frequency, cable force, completed-bridge force, and change rate.",
-    "cable_accel_cleaning_20260528": "CF cable acceleration is already m/s^2; cleaning uses daily median baseline removal, then [-100,100] m/s^2 filtering."
+    "cable_accel_cleaning_20260528": "CF cable acceleration is in mm/s^2; cleaning uses daily median baseline removal, then per-point March 2026 filtering: CF-1/2/7/8 [-300,300], CF-5 [-100,120], others [-100,100] mm/s^2."
   }
 }

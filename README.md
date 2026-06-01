@@ -210,6 +210,7 @@ Common files.
 - `config/default_config.json`
 - `config/hongtang_config.json`
 - `config/jiulongjiang_config.json`
+- `config/zhishan_config.json`
 
 Machine-specific overrides may be stored as `config/hongtang_config_<COMPUTERNAME>.json`.
 机器专用覆盖配置可保存为 `config/hongtang_config_<COMPUTERNAME>.json`。
@@ -260,6 +261,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.5`: adds the Zhishan Bridge March 2026 profile/config workflow, auto-cleaning proposal tooling, cable-acceleration display/review scripts, per-point cleaning/plot rules, and refreshed Zhishan strain, bearing-displacement, acceleration, cable-acceleration, and spectrum outputs.
+- `v1.7.5`：新增芝山大桥 2026 年 3 月 profile/config 接入流程、自动清洗建议工具、索力加速度展示/复核脚本、按测点清洗与绘图规则，并刷新芝山应变、梁端纵向位移、加速度、索力加速度和频谱输出口径。
 - `v1.7.4`: refactors config loading/editing around layered configs, adds a Shuixianhua layered-config pilot, clears config-lint warnings, and exposes analysis output contracts for report readiness checks.
 - `v1.7.4`：围绕分层配置重构配置加载与 GUI 编辑链路，新增水仙花分层配置试点，清零配置 lint 提示，并输出分析结果契约供报告就绪检查使用。
 - `v1.7.3`: refactors report/profile integration, reuses the shared dynamic-strain group plotting service, and keeps Jiulongjiang bearing-displacement outputs in profile-based readiness checks.
@@ -290,6 +293,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.5`: keeps the report GUI aligned with the Zhishan March data-processing release and documents the new Zhishan analysis/report asset workflow while preserving Shuixianhua report-builder fixes.
+- `v1.7.5`：报告 GUI 版本与芝山 3 月数据处理发布同步，补充芝山分析/报告图件流程说明，并保留水仙花报告生成器修正。
 - `v1.7.4`: reads the MATLAB analysis reporting contract in report build manifests, keeps missing-contract checks non-blocking for legacy outputs, and extracts reusable OOXML helpers for template table/text filling.
 - `v1.7.4`：报告构建清单读取 MATLAB 分析结果契约，对旧结果目录缺少契约的情况保持非阻断提示，并抽取可复用的 OOXML 表格/文本回填工具。
 - `v1.7.3`: refactors the Shuixianhua builder to update template tables by caption, moves result-readiness checks into a module/profile catalog, uses profile defaults in GUI and smoke tests, treats the Jiulongjiang patrol heading as optional, and adds a packaged-exe Shuixianhua self-test mode.

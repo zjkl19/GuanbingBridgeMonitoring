@@ -54,6 +54,30 @@ classdef test_time_series_loader < matlab.unittest.TestCase
             tc.verifyEqual(meta.header_lines, 1);
         end
 
+        function cachedCsvSeriesReadsUtf16LeBomWithoutWarnings(tc)
+            path = fullfile(tc.TempDir, 'series_utf16le.csv');
+            write_utf16le_bom(path, sprintf(['ignored header\n' ...
+                '2026-03-01 00:00:00.000,5.00\n' ...
+                '2026-03-01 00:00:01.000,6.00\n']));
+
+            lastwarn('');
+            [~, v, meta] = bms.data.TimeSeriesLoader.readCachedCsvSeries(path, '[missing marker]');
+            [warnMsg, ~] = lastwarn();
+
+            tc.verifyEmpty(warnMsg);
+            tc.verifyEqual(v(:), [5.00; 6.00]);
+            tc.verifyEqual(meta.header_lines, 1);
+        end
+
+        function preferredEncodingsDetectUtf16LeBom(tc)
+            path = fullfile(tc.TempDir, 'series_utf16le_order.csv');
+            write_utf16le_bom(path, '2026-03-01 00:00:00.000,1.00\n');
+
+            encs = bms.data.TimeSeriesLoader.preferredEncodings(path);
+
+            tc.verifyEqual(encs{1}, 'UTF-16LE');
+        end
+
         function findCsvForPointUsesPointPatternBeforeDefault(tc)
             write_text(fullfile(tc.TempDir, 'default_PT-01.csv'), 'x');
             write_text(fullfile(tc.TempDir, 'special_PT-01.csv'), 'x');
@@ -87,4 +111,12 @@ function write_text(path, text)
     assert(fid > 0, 'Failed to create test file.');
     cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
     fprintf(fid, '%s', text);
+end
+
+function write_utf16le_bom(path, text)
+    fid = fopen(path, 'w');
+    assert(fid > 0, 'Failed to create test file.');
+    cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+    bytes = [uint8([255 254]), unicode2native(text, 'UTF-16LE')];
+    fwrite(fid, bytes, 'uint8');
 end

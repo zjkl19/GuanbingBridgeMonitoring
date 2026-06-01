@@ -72,8 +72,11 @@ classdef DynamicSeriesService
                 return;
             end
 
-            rmsVals = sqrt(movmean(vals.^2, winLen, 'Endpoints', 'shrink'));
-            [rawMax, idx] = max(rmsVals);
+            validCnt = movsum(isfinite(vals), winLen, 'Endpoints', 'shrink');
+            rmsVals = sqrt(movmean(vals.^2, winLen, 'omitnan', 'Endpoints', 'shrink'));
+            minNeed = max(1, round(0.7 * winLen));
+            rmsVals(validCnt < minNeed) = NaN;
+            [rawMax, idx] = max(rmsVals, [], 'omitnan');
             if isempty(idx) || ~isfinite(rawMax)
                 return;
             end

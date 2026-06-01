@@ -54,6 +54,58 @@ classdef test_cleaning_pipeline < matlab.unittest.TestCase
             tc.verifyEqual(log.offset_correction, 1);
         end
 
+        function appliesFirstDayMeanOffsetWithinConfiguredRange(tc)
+            t = [ ...
+                datetime(2026,3,3,0,0,0) + hours(0:2), ...
+                datetime(2026,3,4,0,0,0) + hours(0:1)]';
+            v = [10; 12; 14; 16; 18];
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.offset_correction = struct( ...
+                'mode', 'first_day_mean', ...
+                'start_date', '2026-03-01', ...
+                'end_date', '2026-03-31');
+
+            [out, log] = bms.data.CleaningPipeline.apply(v, t, rules);
+
+            tc.verifyEqual(out(1:3), [-2; 0; 2], 'AbsTol', 1e-12);
+            tc.verifyEqual(out(4:5), [4; 6], 'AbsTol', 1e-12);
+            tc.verifyTrue(log.offset_applied);
+            tc.verifyEqual(log.offset_correction, -12, 'AbsTol', 1e-12);
+        end
+
+        function appliesDailyMedianOffsetScaleBeforeThresholds(tc)
+            t = [ ...
+                datetime(2026,3,3,0,0,0) + minutes(0:2), ...
+                datetime(2026,3,4,0,0,0) + minutes(0:2)]';
+            v = [100; 102; 200; 200; 202; 400];
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.offset_correction = struct('mode', 'daily_median');
+            rules.value_scale = 0.01;
+            rules.thresholds = struct('min', -1, 'max', 1);
+
+            [out, log] = bms.data.CleaningPipeline.apply(v, t, rules);
+
+            tc.verifyEqual(out(1:3), [-0.02; 0; 0.98], 'AbsTol', 1e-12);
+            tc.verifyEqual(out(4:5), [-0.02; 0], 'AbsTol', 1e-12);
+            tc.verifyTrue(isnan(out(6)));
+            tc.verifyTrue(log.offset_applied);
+            tc.verifyTrue(log.value_scale_applied);
+            tc.verifyEqual(log.value_scale, 0.01, 'AbsTol', 1e-12);
+            tc.verifyEqual(log.threshold_removed_count, 1);
+        end
+
+        function dailyMedianOffsetKeepsInputShape(tc)
+            t = datetime(2026,3,3,0,0,0) + minutes(0:2);
+            v = [100 102 104];
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.offset_correction = struct('mode', 'daily_median');
+
+            out = bms.data.CleaningPipeline.apply(v, t, rules);
+
+            tc.verifySize(out, size(v));
+            tc.verifyEqual(out, [-2 0 2], 'AbsTol', 1e-12);
+        end
+
         function minGreaterThanMaxCanFilterAllFiniteValues(tc)
             t = datetime(2026,1,1) + seconds(0:2)';
             v = [1; 2; 3];

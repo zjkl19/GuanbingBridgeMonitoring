@@ -8,7 +8,12 @@ from openpyxl import Workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 
-from build_shuixianhua_monthly_report import _sxh_context  # noqa: E402
+from build_shuixianhua_monthly_report import (  # noqa: E402
+    _sxh_accel_rms_limits_mps2,
+    _sxh_accel_rms_status,
+    _sxh_context,
+    scaled_accel_rows,
+)
 from shuixianhua_table_anchors import required_result_tables  # noqa: E402
 from lxml import etree  # noqa: E402
 
@@ -23,6 +28,42 @@ def _write_rows(path: Path, headers: list[str], rows: list[list[object]]) -> Non
 
 
 class ShuixianhuaReportGeneratorTest(unittest.TestCase):
+    def test_acceleration_rows_convert_cm_s2_to_m_s2(self):
+        rows = scaled_accel_rows([
+            {"PointID": "ZLZD-01", "Min": -68.3, "Max": 12.5, "Mean": 0, "RMS10minMax": 68.3}
+        ])
+
+        self.assertAlmostEqual(rows[0]["Min"], -0.683)
+        self.assertAlmostEqual(rows[0]["Max"], 0.125)
+        self.assertAlmostEqual(rows[0]["Mean"], 0.0)
+        self.assertAlmostEqual(rows[0]["RMS10minMax"], 0.683)
+
+    def test_acceleration_rms_limits_are_read_from_cm_s2_config(self):
+        cfg = {
+            "groups": {"acceleration": {"ZG": ["ZGZD-01"], "ZL": ["ZLZD-01"]}},
+            "plot_styles": {
+                "acceleration": {
+                    "rms_warn_lines": {
+                        "ZG": [{"y": 31.5}, {"y": 50}],
+                        "ZL": [{"y": 31.5}, {"y": 50}],
+                    }
+                }
+            },
+        }
+
+        first, second = _sxh_accel_rms_limits_mps2(cfg, "ZGZD-01")
+
+        self.assertAlmostEqual(first, 0.315)
+        self.assertAlmostEqual(second, 0.5)
+
+    def test_acceleration_rms_status_reports_exceedance(self):
+        level1_status = _sxh_accel_rms_status(0.4, 0.315, 0.5)
+        level2_status = _sxh_accel_rms_status(0.683, 0.315, 0.5)
+
+        self.assertIn("超过一级阈值0.315m/s²", level1_status)
+        self.assertIn("未超过二级阈值0.5m/s²", level1_status)
+        self.assertEqual(level2_status, "超过二级阈值0.5m/s²。")
+
     def test_template_tables_are_found_by_caption(self):
         template = Path(__file__).resolve().parents[1] / "reports" / "水仙花大桥健康监测月报模板.docx"
         with tempfile.TemporaryDirectory() as tmp:

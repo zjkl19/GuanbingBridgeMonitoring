@@ -157,15 +157,60 @@ def adjusted_rows(stats_dir: Path, filename: str, fallback: list[dict[str, Any]]
     return fallback or []
 
 def scaled_accel_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert Shuixianhua acceleration stats from cm/s² to m/s²."""
     out = []
     for row in rows:
         item = dict(row)
         for key in ["Min", "Max", "Mean", "RMS10minMax"]:
             value = safe_float(item.get(key))
             if value is not None:
-                item[key] = value / 1000.0
+                item[key] = value / 100.0
         out.append(item)
     return out
+
+def _sxh_accel_group_for_point(cfg: dict[str, Any], point_id: str) -> str | None:
+    groups = cfg.get("groups", {}).get("acceleration", {})
+    if not isinstance(groups, dict):
+        return None
+    for group_name, points in groups.items():
+        if isinstance(points, list) and point_id in {str(point) for point in points}:
+            return str(group_name)
+    return None
+
+def _sxh_accel_rms_limits_mps2(cfg: dict[str, Any], point_id: str | None = None) -> tuple[float, float]:
+    warn_lines = cfg.get("plot_styles", {}).get("acceleration", {}).get("rms_warn_lines", {})
+    lines = None
+    if isinstance(warn_lines, dict):
+        group_name = _sxh_accel_group_for_point(cfg, point_id or "")
+        if group_name:
+            lines = warn_lines.get(group_name)
+        if lines is None and warn_lines:
+            first_key = next(iter(warn_lines))
+            lines = warn_lines.get(first_key)
+    elif isinstance(warn_lines, list):
+        lines = warn_lines
+
+    values = []
+    if isinstance(lines, list):
+        for line in lines:
+            if isinstance(line, dict):
+                value = safe_float(line.get("y"))
+                if value is not None:
+                    values.append(value / 100.0)
+    if len(values) >= 2:
+        return values[0], values[1]
+    return 0.315, 0.5
+
+def _sxh_accel_rms_status(value: float | None, first_limit: float, second_limit: float) -> str:
+    if value is None:
+        return "暂不具备阈值判定条件。"
+    first_text = fmt_num(first_limit, 3)
+    second_text = fmt_num(second_limit, 3)
+    if value <= first_limit:
+        return f"未超过一级阈值{first_text}m/s²，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
+    if value <= second_limit:
+        return f"超过一级阈值{first_text}m/s²，未超过二级阈值{second_text}m/s²。"
+    return f"超过二级阈值{second_text}m/s²。"
 
 def report_acquisition_rows(acquisition_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
@@ -419,7 +464,11 @@ def _sxh_summary_payload(context: dict[str, Any]) -> dict[str, str]:
     freq_values = [value for pair in context["accel_freq_map"].values() for value in pair if value is not None]
     freq_range = f"{fmt_num(min(freq_values), 3)}Hz~{fmt_num(max(freq_values), 3)}Hz" if freq_values else "/"
     strain_ranges = "；".join(_sxh_strain_group_ranges(context["strain_rows"], context["cfg"]))
-    accel_body = f"监测结果表明，各测点10min均方根最大值为{fmt_num(accel_row.get('RMS10minMax') if accel_row else None, 3)}m/s²，对应测点为{accel_row.get('PointID') if accel_row else '/'}，未超过0.315m/s²，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。竖向1阶自振频率范围在{freq_range}之间，均大于结构相应理论计算的1阶竖弯频率1.050Hz。"
+    accel_point = str(accel_row.get("PointID")) if accel_row and accel_row.get("PointID") is not None else "/"
+    accel_value = safe_float(accel_row.get("RMS10minMax")) if accel_row else None
+    accel_first_limit, accel_second_limit = _sxh_accel_rms_limits_mps2(context["cfg"], accel_point)
+    accel_status = _sxh_accel_rms_status(accel_value, accel_first_limit, accel_second_limit)
+    accel_body = f"监测结果表明，各测点10min均方根最大值为{fmt_num(accel_value, 3)}m/s²，对应测点为{accel_point}，{accel_status}竖向1阶自振频率范围在{freq_range}之间，均大于结构相应理论计算的1阶竖弯频率1.050Hz。"
     cable_body = f"监测结果表明，各测点10min均方根最大值为{fmt_num(cable_row.get('RMS10minMax') if cable_row else None, 3)}m/s²，对应测点为{cable_row.get('PointID') if cable_row else '/'}，未超过1.000m/s²，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
     bearing_body = f"监测结果表明，支座位移原始数据实测值范围在{support_orig}之间，伸缩缝位移原始数据实测值范围在{expansion_orig}之间，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。支座位移滤波后实测值在{support_filt}之间，伸缩缝位移滤波后实测值范围在{expansion_filt}之间。"
     return {
