@@ -1,0 +1,1076 @@
+{
+  "vendor": "zhishan",
+  "bridge_id": "zhishan",
+  "bridge_name": "芝山大桥",
+  "data_layout": "dated_folders",
+  "defaults": {
+    "header_marker": "[绝对时间]",
+    "dynamic_strain": {
+      "Fs": [],
+      "Fc": 0.1,
+      "Whisker": 300,
+      "ShowOutliers": false,
+      "YLimManual": true,
+      "YLimRange": [
+        -80,
+        80
+      ],
+      "LowerBound": -500,
+      "UpperBound": 500,
+      "EdgeTrimSec": 5
+    },
+    "acceleration": {
+      "thresholds": [
+        {
+          "min": -0.2,
+          "max": 0.2,
+          "t_range_start": "2026-03-01 00:00:00",
+          "t_range_end": "2026-03-31 23:59:59"
+        }
+      ]
+    },
+    "cable_accel": {
+      "thresholds": [
+        {
+          "min": -100,
+          "max": 100,
+          "t_range_start": "2026-03-01 00:00:00",
+          "t_range_end": "2026-03-31 23:59:59"
+        }
+      ],
+      "offset_correction": {
+        "mode": "daily_median",
+        "start_date": "2026-03-01",
+        "end_date": "2026-03-31",
+        "note": "Raw CF cable acceleration is already m/s^2; apply daily median baseline removal first, then [-100,100] m/s^2 filtering."
+      }
+    },
+    "bearing_displacement": {
+      "offset_correction": {
+        "mode": "first_day_mean",
+        "start_date": "2026-03-01",
+        "end_date": "2026-03-31"
+      }
+    },
+    "strain": {
+      "offset_correction": {
+        "mode": "first_day_mean",
+        "start_date": "2026-03-01",
+        "end_date": "2026-03-31"
+      }
+    }
+  },
+  "subfolders": {
+    "temperature": "波形",
+    "humidity": "波形",
+    "deflection": "波形",
+    "bearing_displacement": "波形",
+    "acceleration": "波形",
+    "acceleration_raw": "波形",
+    "cable_accel": "波形",
+    "cable_accel_raw": "波形",
+    "strain": "波形",
+    "tilt": "波形",
+    "crack": "波形",
+    "wind_raw": "波形"
+  },
+  "file_patterns": {
+    "temperature": {
+      "default": "{file_id}_*.csv"
+    },
+    "humidity": {
+      "default": "{file_id}_*.csv"
+    },
+    "bearing_displacement": {
+      "default": "{file_id}_*.csv"
+    },
+    "acceleration": {
+      "default": "{file_id}_*.csv"
+    },
+    "accel_spectrum": {
+      "default": "{file_id}_*.csv"
+    },
+    "cable_accel": {
+      "default": "{file_id}_*.csv"
+    },
+    "cable_accel_spectrum": {
+      "default": "{file_id}_*.csv"
+    },
+    "strain": {
+      "default": "{file_id}_*.csv"
+    },
+    "dynamic_strain": {
+      "default": "{file_id}_*.csv"
+    }
+  },
+  "points": {
+    "strain": [
+      "SX-1",
+      "SX-2",
+      "SX-3",
+      "SX-4",
+      "SX-5",
+      "SX-6",
+      "SX-7",
+      "SX-8",
+      "SX-9",
+      "SX-10"
+    ],
+    "bearing_displacement": [
+      "DX-1",
+      "DX-2",
+      "DX-3",
+      "DX-4"
+    ],
+    "acceleration": [
+      "AZ-1",
+      "AZ-2",
+      "AZ-3",
+      "AZ-4",
+      "AZ-5"
+    ],
+    "accel_spectrum": [
+      "AZ-1",
+      "AZ-2",
+      "AZ-3",
+      "AZ-4",
+      "AZ-5"
+    ],
+    "cable_accel": [
+      "CF-1",
+      "CF-2",
+      "CF-3",
+      "CF-4",
+      "CF-5",
+      "CF-6",
+      "CF-7",
+      "CF-8"
+    ],
+    "cable_accel_spectrum": [
+      "CF-1",
+      "CF-2",
+      "CF-3",
+      "CF-4",
+      "CF-5",
+      "CF-6",
+      "CF-7",
+      "CF-8"
+    ]
+  },
+  "groups": {
+    "strain": {
+      "SX": [
+        "SX-1",
+        "SX-2",
+        "SX-3",
+        "SX-4",
+        "SX-5",
+        "SX-6",
+        "SX-7",
+        "SX-8",
+        "SX-9",
+        "SX-10"
+      ]
+    },
+    "strain_timeseries": {
+      "SX": [
+        "SX-1",
+        "SX-2",
+        "SX-3",
+        "SX-4",
+        "SX-5",
+        "SX-6",
+        "SX-7",
+        "SX-8",
+        "SX-9",
+        "SX-10"
+      ]
+    },
+    "dynamic_strain": {
+      "SX": [
+        "SX-1",
+        "SX-2",
+        "SX-3",
+        "SX-4",
+        "SX-5",
+        "SX-6",
+        "SX-7",
+        "SX-8",
+        "SX-9",
+        "SX-10"
+      ]
+    },
+    "bearing_displacement": {
+      "DX": [
+        "DX-1",
+        "DX-2",
+        "DX-3",
+        "DX-4"
+      ]
+    },
+    "acceleration": {
+      "AZ": [
+        "AZ-1",
+        "AZ-2",
+        "AZ-3",
+        "AZ-4",
+        "AZ-5"
+      ]
+    },
+    "cable_accel": {},
+    "cable_force": {
+      "CF_1_4": [
+        "CF-1",
+        "CF-2",
+        "CF-3",
+        "CF-4"
+      ],
+      "CF_5_8": [
+        "CF-5",
+        "CF-6",
+        "CF-7",
+        "CF-8"
+      ]
+    }
+  },
+  "per_point": {
+    "strain": {
+      "SX-1": {
+        "file_id": "C1802191464",
+        "alarm_bounds": {
+          "level2": [
+            -283,
+            414
+          ]
+        }
+      },
+      "SX-2": {
+        "file_id": "C1802191462",
+        "alarm_bounds": {
+          "level2": [
+            -283,
+            414
+          ]
+        },
+        "source_note": "验收报告表4中SX-2一级负阈值原文为-1897，按同组阈值和任务核对修正为-189。"
+      },
+      "SX-3": {
+        "file_id": "C1802191467",
+        "alarm_bounds": {
+          "level2": [
+            -218,
+            298
+          ]
+        }
+      },
+      "SX-4": {
+        "file_id": "C1802191469",
+        "alarm_bounds": {
+          "level2": [
+            -218,
+            298
+          ]
+        }
+      },
+      "SX-5": {
+        "file_id": "C1802191470",
+        "alarm_bounds": {
+          "level2": [
+            -52,
+            405
+          ]
+        }
+      },
+      "SX-6": {
+        "file_id": "C1802191481",
+        "alarm_bounds": {
+          "level2": [
+            -52,
+            405
+          ]
+        }
+      },
+      "SX-7": {
+        "file_id": "C2006010002",
+        "alarm_bounds": {
+          "level2": [
+            -218,
+            298
+          ]
+        }
+      },
+      "SX-8": {
+        "file_id": "C2006010003",
+        "alarm_bounds": {
+          "level2": [
+            -218,
+            298
+          ]
+        }
+      },
+      "SX-9": {
+        "file_id": "C2006010053",
+        "alarm_bounds": {
+          "level2": [
+            -283,
+            414
+          ]
+        }
+      },
+      "SX-10": {
+        "file_id": "C2006010049",
+        "alarm_bounds": {
+          "level2": [
+            -283,
+            414
+          ]
+        }
+      }
+    },
+    "bearing_displacement": {
+      "DX-1": {
+        "file_id": "C210419100",
+        "alarm_bounds": {
+          "level2": [
+            -49.16,
+            49.16
+          ],
+          "level3": [
+            -61.45,
+            61.45
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -61.45,
+            "max": 61.45,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "DX-2": {
+        "file_id": "C210419103",
+        "alarm_bounds": {
+          "level2": [
+            -49.297,
+            49.297
+          ],
+          "level3": [
+            -61.621,
+            61.621
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -30,
+            "max": 61.621,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ],
+        "source_note": "2026-06-01复核：DX-2按用户确认口径剔除2026-03-01~2026-03-31期间小于-30mm的数据，上限仍按三级阈值61.621mm过滤。"
+      },
+      "DX-3": {
+        "file_id": "C210419101",
+        "alarm_bounds": {
+          "level2": [
+            -49.154,
+            49.154
+          ],
+          "level3": [
+            -61.443,
+            61.443
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -61.443,
+            "max": 61.443,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "DX-4": {
+        "file_id": "C210419102",
+        "alarm_bounds": {
+          "level2": [
+            -49.298,
+            49.298
+          ],
+          "level3": [
+            -61.622,
+            61.622
+          ]
+        },
+        "thresholds": [
+          {
+            "min": -61.622,
+            "max": 61.622,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      }
+    },
+    "acceleration": {
+      "AZ-1": {
+        "file_id": "C2007120226"
+      },
+      "AZ-2": {
+        "file_id": "C2006070240"
+      },
+      "AZ-3": {
+        "file_id": "C2007120286"
+      },
+      "AZ-4": {
+        "file_id": "C2007120373"
+      },
+      "AZ-5": {
+        "file_id": "C2007120369"
+      }
+    },
+    "accel_spectrum": {
+      "AZ-1": {
+        "target_freqs": [
+          0.61
+        ],
+        "tolerance": 0.05,
+        "theor_freqs": [
+          0.385
+        ],
+        "theor_labels": [
+          "理论竖向一阶频率 0.385Hz"
+        ],
+        "peak_labels": [
+          "一阶"
+        ],
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "theoretical_hz": 0.385,
+            "search_center_hz": 0.61,
+            "search_half_width_hz": 0.05
+          }
+        ]
+      },
+      "AZ-2": {
+        "target_freqs": [
+          0.623
+        ],
+        "tolerance": 0.05,
+        "theor_freqs": [
+          0.385
+        ],
+        "theor_labels": [
+          "理论竖向一阶频率 0.385Hz"
+        ],
+        "peak_labels": [
+          "一阶"
+        ],
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "theoretical_hz": 0.385,
+            "search_center_hz": 0.623,
+            "search_half_width_hz": 0.05
+          }
+        ]
+      },
+      "AZ-3": {
+        "target_freqs": [
+          0.62
+        ],
+        "tolerance": 0.05,
+        "theor_freqs": [
+          0.385
+        ],
+        "theor_labels": [
+          "理论竖向一阶频率 0.385Hz"
+        ],
+        "peak_labels": [
+          "一阶"
+        ],
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "theoretical_hz": 0.385,
+            "search_center_hz": 0.62,
+            "search_half_width_hz": 0.05
+          }
+        ]
+      },
+      "AZ-4": {
+        "target_freqs": [
+          0.62
+        ],
+        "tolerance": 0.05,
+        "theor_freqs": [
+          0.385
+        ],
+        "theor_labels": [
+          "理论竖向一阶频率 0.385Hz"
+        ],
+        "peak_labels": [
+          "一阶"
+        ],
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "theoretical_hz": 0.385,
+            "search_center_hz": 0.62,
+            "search_half_width_hz": 0.05
+          }
+        ]
+      },
+      "AZ-5": {
+        "target_freqs": [
+          0.64
+        ],
+        "tolerance": 0.05,
+        "theor_freqs": [
+          0.385
+        ],
+        "theor_labels": [
+          "理论竖向一阶频率 0.385Hz"
+        ],
+        "peak_labels": [
+          "一阶"
+        ],
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "theoretical_hz": 0.385,
+            "search_center_hz": 0.64,
+            "search_half_width_hz": 0.05
+          }
+        ]
+      }
+    },
+    "cable_accel": {
+      "CF-1": {
+        "file_id": "C200303008",
+        "rho": 57.687,
+        "L": 75.61,
+        "target_freqs": [
+          1.621
+        ],
+        "tolerance": 0.08,
+        "peak_labels": [
+          "一阶"
+        ],
+        "force_decimals": 2,
+        "force_baseline_kN": 3466.27,
+        "force_alarm_bounds": {
+          "level2": [
+            3146,
+            3846
+          ],
+          "level3": [
+            2972,
+            4020
+          ]
+        },
+        "force_ylim": [
+          2850,
+          4150
+        ],
+        "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
+        "ocr_force_kN": 3466,
+        "completed_force_kN": 3496,
+        "contrast_change_pct": -0.9
+      },
+      "CF-2": {
+        "file_id": "C200303004",
+        "rho": 57.687,
+        "L": 87.45,
+        "target_freqs": [
+          1.465
+        ],
+        "tolerance": 0.08,
+        "peak_labels": [
+          "一阶"
+        ],
+        "force_decimals": 2,
+        "force_baseline_kN": 3787.33,
+        "force_alarm_bounds": {
+          "level2": [
+            3325,
+            4063
+          ],
+          "level3": [
+            3140,
+            4248
+          ]
+        },
+        "force_ylim": [
+          3050,
+          4350
+        ],
+        "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
+        "ocr_force_kN": 3787,
+        "completed_force_kN": 3694,
+        "contrast_change_pct": 2.5
+      },
+      "CF-3": {
+        "file_id": "C200303009",
+        "rho": 57.687,
+        "L": 87.45,
+        "target_freqs": [
+          1.4665
+        ],
+        "tolerance": 0.08,
+        "peak_labels": [
+          "一阶"
+        ],
+        "force_decimals": 2,
+        "force_baseline_kN": 3795.09,
+        "force_alarm_bounds": {
+          "level2": [
+            3419,
+            4179
+          ],
+          "level3": [
+            3229,
+            4369
+          ]
+        },
+        "force_ylim": [
+          3100,
+          4500
+        ],
+        "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
+        "ocr_force_kN": 3795,
+        "completed_force_kN": 3799,
+        "contrast_change_pct": -0.1
+      },
+      "CF-4": {
+        "file_id": "C200303005",
+        "rho": 57.687,
+        "L": 75.61,
+        "target_freqs": [
+          1.641
+        ],
+        "tolerance": 0.08,
+        "peak_labels": [
+          "一阶"
+        ],
+        "force_decimals": 2,
+        "force_baseline_kN": 3552.33,
+        "force_alarm_bounds": {
+          "level2": [
+            3047,
+            3725
+          ],
+          "level3": [
+            2878,
+            3894
+          ]
+        },
+        "force_ylim": [
+          2800,
+          4000
+        ],
+        "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
+        "ocr_force_kN": 3552,
+        "completed_force_kN": 3386,
+        "contrast_change_pct": 4.9
+      },
+      "CF-5": {
+        "file_id": "C200303011",
+        "rho": 57.687,
+        "L": 79.91,
+        "target_freqs": [
+          1.564
+        ],
+        "tolerance": 0.08,
+        "peak_labels": [
+          "一阶"
+        ],
+        "force_decimals": 2,
+        "force_baseline_kN": 3604.24,
+        "force_alarm_bounds": {
+          "level2": [
+            3474,
+            4246
+          ],
+          "level3": [
+            3281,
+            4439
+          ]
+        },
+        "force_ylim": [
+          3150,
+          4550
+        ],
+        "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
+        "ocr_force_kN": 3604,
+        "completed_force_kN": 3860,
+        "contrast_change_pct": -6.6
+      },
+      "CF-6": {
+        "file_id": "C200303006",
+        "rho": 57.687,
+        "L": 82.99,
+        "target_freqs": [
+          1.527
+        ],
+        "tolerance": 0.08,
+        "peak_labels": [
+          "一阶"
+        ],
+        "force_decimals": 2,
+        "force_baseline_kN": 3705.68,
+        "force_alarm_bounds": {
+          "level2": [
+            3458,
+            4226
+          ],
+          "level3": [
+            3266,
+            4418
+          ]
+        },
+        "force_ylim": [
+          3150,
+          4550
+        ],
+        "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
+        "ocr_force_kN": 3706,
+        "completed_force_kN": 3842,
+        "contrast_change_pct": -3.5
+      },
+      "CF-7": {
+        "file_id": "C200303010",
+        "rho": 57.687,
+        "L": 82.99,
+        "target_freqs": [
+          1.536
+        ],
+        "tolerance": 0.08,
+        "peak_labels": [
+          "一阶"
+        ],
+        "force_decimals": 2,
+        "force_baseline_kN": 3749.49,
+        "force_alarm_bounds": {
+          "level2": [
+            3407,
+            4165
+          ],
+          "level3": [
+            3218,
+            4354
+          ]
+        },
+        "force_ylim": [
+          3100,
+          4450
+        ],
+        "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
+        "ocr_force_kN": 3749,
+        "completed_force_kN": 3786,
+        "contrast_change_pct": -1.0
+      },
+      "CF-8": {
+        "file_id": "C200303007",
+        "rho": 57.687,
+        "L": 79.91,
+        "target_freqs": [
+          1.565
+        ],
+        "tolerance": 0.08,
+        "peak_labels": [
+          "一阶"
+        ],
+        "force_decimals": 2,
+        "force_baseline_kN": 3608.85,
+        "force_alarm_bounds": {
+          "level2": [
+            3293,
+            4025
+          ],
+          "level3": [
+            3110,
+            4208
+          ]
+        },
+        "force_ylim": [
+          3000,
+          4300
+        ],
+        "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
+        "ocr_force_kN": 3609,
+        "completed_force_kN": 3659,
+        "contrast_change_pct": -1.4
+      }
+    }
+  },
+  "accel_spectrum_params": {
+    "target_freqs": [
+      0.62
+    ],
+    "tolerance": 0.05,
+    "theor_freqs": [
+      0.385
+    ],
+    "theor_labels": [
+      "理论竖向一阶频率 0.385Hz"
+    ],
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "theoretical_hz": 0.385,
+        "search_center_hz": 0.62,
+        "search_half_width_hz": 0.05
+      }
+    ],
+    "fs": 20,
+    "auto_detect_fs": true
+  },
+  "cable_accel_spectrum_params": {
+    "target_freqs": [
+      1.55
+    ],
+    "tolerance": 0.08,
+    "fs": 20,
+    "auto_detect_fs": true
+  },
+  "plot_styles": {
+    "strain": {
+      "ylabel": "应变 (με)",
+      "title_prefix": "应变时程曲线",
+      "boxplot_title_prefix": "应变箱线图",
+      "output_dir": "时程曲线_应变",
+      "group_output_dir": "时程曲线_应变_组图",
+      "boxplot_output_dir": "箱线图_应变",
+      "show_warn_lines_point": true,
+      "show_warn_lines_group": false,
+      "show_warn_lines_boxplot": true,
+      "show_boxplot_outliers": false,
+      "boxplot_max_points_per_series": 50000,
+      "ylim": [
+        -500,
+        500
+      ],
+      "ylims": {
+        "SX": [
+          -500,
+          500
+        ]
+      },
+      "alarm_colors": [
+        [
+          0.929,
+          0.694,
+          0.125
+        ]
+      ],
+      "group_labels": {
+        "SX": "应变测点"
+      }
+    },
+    "dynamic_strain": {
+      "ylims": {
+        "SX": [
+          -80,
+          80
+        ]
+      },
+      "ShowOutliers": false
+    },
+    "bearing_displacement": {
+      "ylabel": "梁端纵向位移 (mm)",
+      "title_prefix": "梁端纵向位移时程",
+      "output_dir": "时程曲线_梁端纵向位移",
+      "group_output_dir": "时程曲线_梁端纵向位移_组图",
+      "ylim": [
+        -70,
+        70
+      ],
+      "alarm_colors": [
+        [
+          0.72,
+          0.5,
+          0.0
+        ],
+        [
+          0.85,
+          0.1,
+          0.1
+        ]
+      ]
+    },
+    "acceleration": {
+      "ylabel": "结构加速度 (m/s^2)",
+      "title_prefix": "结构加速度时程",
+      "ylim_auto": true,
+      "ylim": [],
+      "ylims": [],
+      "color_main": [
+        0,
+        0.447,
+        0.741
+      ],
+      "color_rms": [
+        0.85,
+        0.325,
+        0.098
+      ],
+      "rms_ylabel": "10 min RMS (m/s^2)",
+      "rms_title_prefix": "结构加速度10 min RMS时程",
+      "rms_ylim": [
+        0,
+        0.6
+      ],
+      "rms_ylims": [],
+      "rms_warn_lines": [
+        {
+          "y": 0.315,
+          "label": "一级预警值 0.315m/s^2",
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ]
+        },
+        {
+          "y": 0.5,
+          "label": "二级预警值 0.500m/s^2",
+          "color": [
+            0.85,
+            0.1,
+            0.1
+          ]
+        }
+      ],
+      "group_labels": {
+        "AZ": "结构加速度测点"
+      }
+    },
+    "accel_spectrum": {
+      "psd_ylabel": "PSD (dB)",
+      "psd_title_prefix": "PSD",
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
+      "freq_ylabel": "峰值频率 (Hz)",
+      "freq_title_prefix": "结构加速度峰值频率时程",
+      "group_output_dir": "频谱峰值曲线_结构加速度_组图",
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ]
+      ],
+      "group_labels": {
+        "AZ": "结构加速度测点"
+      }
+    },
+    "cable_accel": {
+      "ylabel": "索力加速度 (m/s^2)",
+      "title_prefix": "索力加速度时程",
+      "ylim_auto": true,
+      "ylim": [],
+      "ylims": [],
+      "color_main": [
+        0,
+        0.447,
+        0.741
+      ],
+      "color_rms": [
+        0.85,
+        0.325,
+        0.098
+      ],
+      "rms_ylabel": "10 min RMS (m/s^2)",
+      "rms_title_prefix": "索力加速度10 min RMS时程",
+      "rms_ylim": [],
+      "rms_ylims": [],
+      "group_labels": {
+        "CF": "索力加速度测点"
+      }
+    },
+    "cable_accel_spectrum": {
+      "psd_ylabel": "PSD (dB)",
+      "psd_title_prefix": "PSD",
+      "psd_color": [
+        0,
+        0,
+        0
+      ],
+      "freq_ylabel": "索力加速度峰值频率 (Hz)",
+      "freq_title_prefix": "索力加速度峰值频率时程",
+      "force_ylabel": "索力 (kN)",
+      "force_title_prefix": "索力时程",
+      "force_color": [
+        0,
+        0.447,
+        0.741
+      ],
+      "force_ylim": [],
+      "force_alarm_colors": [
+        [
+          0.929,
+          0.694,
+          0.125
+        ],
+        [
+          0.85,
+          0.1,
+          0.1
+        ]
+      ],
+      "colors": [
+        [
+          0,
+          0.447,
+          0.741
+        ]
+      ]
+    }
+  },
+  "plot_common": {
+    "append_timestamp": false,
+    "lightweight_fig": true,
+    "fig_max_points": 50000,
+    "gap_mode": "break"
+  },
+  "data_index": {
+    "enabled": false
+  },
+  "stats_inventory": {
+    "enabled": false
+  },
+  "design_points_pending": {
+    "temp_humidity": [
+      {
+        "point_id": "WS-T",
+        "file_id": "2207073069",
+        "status": "offline_design_only"
+      },
+      {
+        "point_id": "WS-H",
+        "file_id": "2207073070",
+        "status": "offline_design_only"
+      }
+    ]
+  },
+  "source_notes": {
+    "thresholds": "验收报告/20221114芝山大桥系统建设安装及试运营分析报告-FNIAL(1).docx 表4。",
+    "cable_params": "E:/芝山大桥-彭仲鑫/报告及数据处理/索力/索力计算.xlsx，2022-10-23索力计算表。",
+    "device_mapping": "E:/芝山大桥-彭仲鑫/芝山大桥设备参数表（20230308改）.xlsx。",
+    "cable_params_ocr_20260528": "User image OCR rows 1~8 map to CF-1~CF-8 for length, line density, first frequency, cable force, completed-bridge force, and change rate.",
+    "cable_accel_cleaning_20260528": "CF cable acceleration is already m/s^2; cleaning uses daily median baseline removal, then [-100,100] m/s^2 filtering."
+  }
+}
