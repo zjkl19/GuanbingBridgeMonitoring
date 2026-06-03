@@ -1,0 +1,707 @@
+{
+  "vendor": "chongyangxi",
+  "bridge_id": "chongyangxi",
+  "bridge_name": "崇阳溪大桥",
+  "data_layout": "dated_folders",
+  "notes": {
+    "bridge_alias": "赤岸大桥",
+    "data_export_window": "日期文件夹为导出结束日，当前数据约为前一日08:00到当日08:00。",
+    "source_priority": "测点与单位以设备表、condition.param和实际CSV为准；测点布置旧doc用于桥梁概况和空间位置说明。",
+    "deflection_mapping_status": "挠度仪485通道导出为新增测点1~36，首版按设备表视频位移标靶顺序映射，需结合现场标靶变量顺序复核。"
+  },
+  "defaults": {
+    "header_marker": "[绝对时间]",
+    "recursive_file_search": true,
+    "temperature": {
+      "alarm_bounds": {
+        "level1": [
+          -8.7,
+          41.1
+        ],
+        "level2": [
+          -10.4,
+          49.7
+        ]
+      }
+    },
+    "tilt": {
+      "alarm_bounds": {
+        "level2": [
+          -0.08,
+          0.08
+        ],
+        "level3": [
+          -0.1,
+          0.1
+        ]
+      }
+    }
+  },
+  "plot_common": {
+    "save_fig": true,
+    "lightweight_fig": true,
+    "fig_max_points": 50000,
+    "append_timestamp": false,
+    "gap_mode": "connect"
+  },
+  "subfolders": {
+    "temperature": "特征值",
+    "humidity": "特征值",
+    "deflection": "特征值",
+    "bearing_displacement": "特征值",
+    "tilt": "特征值",
+    "acceleration": "波形",
+    "acceleration_raw": "波形",
+    "strain": "特征值",
+    "crack": "特征值"
+  },
+  "file_patterns": {
+    "temperature": {
+      "default": "{file_id}_*.csv"
+    },
+    "humidity": {
+      "default": "{file_id}_*.csv"
+    },
+    "deflection": {
+      "default": "{file_id}_*.csv"
+    },
+    "bearing_displacement": {
+      "default": "{file_id}_*.csv"
+    },
+    "tilt": {
+      "default": "{file_id}_*.csv"
+    },
+    "acceleration": {
+      "default": "{file_id}_*.csv"
+    },
+    "accel_spectrum": {
+      "default": "{file_id}_*.csv"
+    },
+    "strain": {
+      "default": "{file_id}_*.csv"
+    },
+    "crack": {
+      "default": "{file_id}_*.csv"
+    }
+  },
+  "points": {
+    "temperature": [
+      "CYX-TMP-G05-005-01",
+      "CYX-TMP-G05-012-01",
+      "CYX-TMP-G02-005-01",
+      "CYX-TMP-G02-012-01",
+      "CYX-RTS-G05-016-01"
+    ],
+    "humidity": [
+      "CYX-RHS-G05-016-01"
+    ],
+    "strain": [
+      "CYX-RSG-G05-005-01",
+      "CYX-RSG-G05-007-01",
+      "CYX-RSG-G05-010-01",
+      "CYX-RSG-G05-012-01",
+      "CYX-RSG-G02-005-01",
+      "CYX-RSG-G02-007-01",
+      "CYX-RSG-G02-010-01",
+      "CYX-RSG-G02-012-01"
+    ],
+    "acceleration": [
+      "CYX-VIB-G05-005-01",
+      "CYX-VIB-G02-012-01"
+    ],
+    "deflection": [
+      "CYX-DIS-G05-005-01-X",
+      "CYX-DIS-G05-005-01-Y",
+      "CYX-DIS-G05-007-01-X",
+      "CYX-DIS-G05-007-01-Y",
+      "CYX-DIS-G05-010-01-X",
+      "CYX-DIS-G05-010-01-Y",
+      "CYX-DIS-G05-012-01-X",
+      "CYX-DIS-G05-012-01-Y",
+      "CYX-DIS-G04-007-01-X",
+      "CYX-DIS-G04-007-01-Y",
+      "CYX-DIS-G04-010-01-X",
+      "CYX-DIS-G04-010-01-Y",
+      "CYX-DIS-G06-007-01-X",
+      "CYX-DIS-G06-007-01-Y",
+      "CYX-DIS-G06-010-01-X",
+      "CYX-DIS-G06-010-01-Y",
+      "CYX-DIS-P03-001-01-X",
+      "CYX-DIS-P03-001-01-Y",
+      "CYX-DIS-G02-005-01-X",
+      "CYX-DIS-G02-005-01-Y",
+      "CYX-DIS-G02-007-01-X",
+      "CYX-DIS-G02-007-01-Y",
+      "CYX-DIS-G02-010-01-X",
+      "CYX-DIS-G02-010-01-Y",
+      "CYX-DIS-G02-012-01-X",
+      "CYX-DIS-G02-012-01-Y",
+      "CYX-DIS-G01-007-01-X",
+      "CYX-DIS-G01-007-01-Y",
+      "CYX-DIS-G01-010-01-X",
+      "CYX-DIS-G01-010-01-Y",
+      "CYX-DIS-G03-007-01-X",
+      "CYX-DIS-G03-007-01-Y",
+      "CYX-DIS-G03-010-01-X",
+      "CYX-DIS-G03-010-01-Y",
+      "CYX-DIS-P01-001-01-X",
+      "CYX-DIS-P01-001-01-Y"
+    ],
+    "bearing_displacement": [
+      "CYX-DIS-G07-005-01",
+      "CYX-DIS-G08-005-01",
+      "CYX-DIS-G07-012-01",
+      "CYX-DIS-G08-012-01"
+    ],
+    "tilt": [
+      "CYX-INC-P01-001-01-X",
+      "CYX-INC-P01-001-01-Y",
+      "CYX-INC-P02-001-01-X",
+      "CYX-INC-P02-001-01-Y",
+      "CYX-INC-P03-001-01-X",
+      "CYX-INC-P03-001-01-Y"
+    ],
+    "crack": [
+      "1#墩裂缝",
+      "2#敦裂缝",
+      "第1跨横隔板裂缝"
+    ]
+  },
+  "groups": {
+    "temperature": {
+      "structural_temperature": [
+        "CYX-TMP-G05-005-01",
+        "CYX-TMP-G05-012-01",
+        "CYX-TMP-G02-005-01",
+        "CYX-TMP-G02-012-01"
+      ],
+      "environment_temperature": [
+        "CYX-RTS-G05-016-01"
+      ]
+    },
+    "strain": {
+      "A_3rd_span": [
+        "CYX-RSG-G05-005-01",
+        "CYX-RSG-G05-007-01",
+        "CYX-RSG-G05-010-01",
+        "CYX-RSG-G05-012-01"
+      ],
+      "B_1st_span": [
+        "CYX-RSG-G02-005-01",
+        "CYX-RSG-G02-007-01",
+        "CYX-RSG-G02-010-01",
+        "CYX-RSG-G02-012-01"
+      ]
+    },
+    "strain_timeseries": {
+      "A_3rd_span": [
+        "CYX-RSG-G05-005-01",
+        "CYX-RSG-G05-007-01",
+        "CYX-RSG-G05-010-01",
+        "CYX-RSG-G05-012-01"
+      ],
+      "B_1st_span": [
+        "CYX-RSG-G02-005-01",
+        "CYX-RSG-G02-007-01",
+        "CYX-RSG-G02-010-01",
+        "CYX-RSG-G02-012-01"
+      ]
+    },
+    "deflection": {
+      "A_3rd_span": [
+        "CYX-DIS-G05-005-01-Y",
+        "CYX-DIS-G05-007-01-Y",
+        "CYX-DIS-G05-010-01-Y",
+        "CYX-DIS-G05-012-01-Y"
+      ],
+      "A1_3rd_span_quarter": [
+        "CYX-DIS-G04-007-01-Y",
+        "CYX-DIS-G04-010-01-Y"
+      ],
+      "A2_3rd_span_three_quarter": [
+        "CYX-DIS-G06-007-01-Y",
+        "CYX-DIS-G06-010-01-Y"
+      ],
+      "B_1st_span": [
+        "CYX-DIS-G02-005-01-Y",
+        "CYX-DIS-G02-007-01-Y",
+        "CYX-DIS-G02-010-01-Y",
+        "CYX-DIS-G02-012-01-Y"
+      ],
+      "B1_1st_span_quarter": [
+        "CYX-DIS-G01-007-01-Y",
+        "CYX-DIS-G01-010-01-Y"
+      ],
+      "B2_1st_span_three_quarter": [
+        "CYX-DIS-G03-007-01-Y",
+        "CYX-DIS-G03-010-01-Y"
+      ]
+    },
+    "bearing_displacement": {
+      "girder_end": [
+        "CYX-DIS-G07-005-01",
+        "CYX-DIS-G08-005-01",
+        "CYX-DIS-G07-012-01",
+        "CYX-DIS-G08-012-01"
+      ]
+    },
+    "tilt": {
+      "longitudinal_X": [
+        "CYX-INC-P01-001-01-X",
+        "CYX-INC-P02-001-01-X",
+        "CYX-INC-P03-001-01-X"
+      ],
+      "transverse_Y": [
+        "CYX-INC-P01-001-01-Y",
+        "CYX-INC-P02-001-01-Y",
+        "CYX-INC-P03-001-01-Y"
+      ]
+    },
+    "acceleration": {
+      "girder_vibration": [
+        "CYX-VIB-G05-005-01",
+        "CYX-VIB-G02-012-01"
+      ]
+    },
+    "crack": {
+      "installed_cracks": [
+        "1#墩裂缝",
+        "2#敦裂缝",
+        "第1跨横隔板裂缝"
+      ]
+    }
+  },
+  "per_point": {
+    "deflection": {
+      "CYX-DIS-G05-005-01-X": {
+        "file_id": "新增测点"
+      },
+      "CYX-DIS-G05-005-01-Y": {
+        "file_id": "新增测点2",
+        "warn_lines": [
+          {
+            "y": 3.57,
+            "label": "二级 3.57 mm",
+            "level": "二级"
+          },
+          {
+            "y": 4.46,
+            "label": "三级 4.46 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G05-007-01-X": {
+        "file_id": "新增测点3"
+      },
+      "CYX-DIS-G05-007-01-Y": {
+        "file_id": "新增测点4",
+        "warn_lines": [
+          {
+            "y": 4.41,
+            "label": "二级 4.41 mm",
+            "level": "二级"
+          },
+          {
+            "y": 5.51,
+            "label": "三级 5.51 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G05-010-01-X": {
+        "file_id": "新增测点5"
+      },
+      "CYX-DIS-G05-010-01-Y": {
+        "file_id": "新增测点6",
+        "warn_lines": [
+          {
+            "y": 4.41,
+            "label": "二级 4.41 mm",
+            "level": "二级"
+          },
+          {
+            "y": 5.51,
+            "label": "三级 5.51 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G05-012-01-X": {
+        "file_id": "新增测点7"
+      },
+      "CYX-DIS-G05-012-01-Y": {
+        "file_id": "新增测点8",
+        "warn_lines": [
+          {
+            "y": 3.57,
+            "label": "二级 3.57 mm",
+            "level": "二级"
+          },
+          {
+            "y": 4.46,
+            "label": "三级 4.46 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G04-007-01-X": {
+        "file_id": "新增测点9"
+      },
+      "CYX-DIS-G04-007-01-Y": {
+        "file_id": "新增测点10",
+        "warn_lines": [
+          {
+            "y": 3.01,
+            "label": "二级 3.01 mm",
+            "level": "二级"
+          },
+          {
+            "y": 3.76,
+            "label": "三级 3.76 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G04-010-01-X": {
+        "file_id": "新增测点11"
+      },
+      "CYX-DIS-G04-010-01-Y": {
+        "file_id": "新增测点12",
+        "warn_lines": [
+          {
+            "y": 3.01,
+            "label": "二级 3.01 mm",
+            "level": "二级"
+          },
+          {
+            "y": 3.76,
+            "label": "三级 3.76 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G06-007-01-X": {
+        "file_id": "新增测点13"
+      },
+      "CYX-DIS-G06-007-01-Y": {
+        "file_id": "新增测点14",
+        "warn_lines": [
+          {
+            "y": 3.02,
+            "label": "二级 3.02 mm",
+            "level": "二级"
+          },
+          {
+            "y": 3.78,
+            "label": "三级 3.78 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G06-010-01-X": {
+        "file_id": "新增测点15"
+      },
+      "CYX-DIS-G06-010-01-Y": {
+        "file_id": "新增测点16",
+        "warn_lines": [
+          {
+            "y": 3.02,
+            "label": "二级 3.02 mm",
+            "level": "二级"
+          },
+          {
+            "y": 3.78,
+            "label": "三级 3.78 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-P03-001-01-X": {
+        "file_id": "新增测点17"
+      },
+      "CYX-DIS-P03-001-01-Y": {
+        "file_id": "新增测点18"
+      },
+      "CYX-DIS-G02-005-01-X": {
+        "file_id": "新增测点19"
+      },
+      "CYX-DIS-G02-005-01-Y": {
+        "file_id": "新增测点20",
+        "warn_lines": [
+          {
+            "y": 4.27,
+            "label": "二级 4.27 mm",
+            "level": "二级"
+          },
+          {
+            "y": 5.34,
+            "label": "三级 5.34 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G02-007-01-X": {
+        "file_id": "新增测点21"
+      },
+      "CYX-DIS-G02-007-01-Y": {
+        "file_id": "新增测点22",
+        "warn_lines": [
+          {
+            "y": 5.18,
+            "label": "二级 5.18 mm",
+            "level": "二级"
+          },
+          {
+            "y": 6.47,
+            "label": "三级 6.47 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G02-010-01-X": {
+        "file_id": "新增测点23"
+      },
+      "CYX-DIS-G02-010-01-Y": {
+        "file_id": "新增测点24",
+        "warn_lines": [
+          {
+            "y": 5.18,
+            "label": "二级 5.18 mm",
+            "level": "二级"
+          },
+          {
+            "y": 6.47,
+            "label": "三级 6.47 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G02-012-01-X": {
+        "file_id": "新增测点25"
+      },
+      "CYX-DIS-G02-012-01-Y": {
+        "file_id": "新增测点26",
+        "warn_lines": [
+          {
+            "y": 4.27,
+            "label": "二级 4.27 mm",
+            "level": "二级"
+          },
+          {
+            "y": 5.34,
+            "label": "三级 5.34 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G01-007-01-X": {
+        "file_id": "新增测点27"
+      },
+      "CYX-DIS-G01-007-01-Y": {
+        "file_id": "新增测点28",
+        "warn_lines": [
+          {
+            "y": 3.58,
+            "label": "二级 3.58 mm",
+            "level": "二级"
+          },
+          {
+            "y": 4.47,
+            "label": "三级 4.47 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G01-010-01-X": {
+        "file_id": "新增测点29"
+      },
+      "CYX-DIS-G01-010-01-Y": {
+        "file_id": "新增测点30",
+        "warn_lines": [
+          {
+            "y": 3.58,
+            "label": "二级 3.58 mm",
+            "level": "二级"
+          },
+          {
+            "y": 4.47,
+            "label": "三级 4.47 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G03-007-01-X": {
+        "file_id": "新增测点31"
+      },
+      "CYX-DIS-G03-007-01-Y": {
+        "file_id": "新增测点32",
+        "warn_lines": [
+          {
+            "y": 3.62,
+            "label": "二级 3.62 mm",
+            "level": "二级"
+          },
+          {
+            "y": 4.53,
+            "label": "三级 4.53 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-G03-010-01-X": {
+        "file_id": "新增测点33"
+      },
+      "CYX-DIS-G03-010-01-Y": {
+        "file_id": "新增测点34",
+        "warn_lines": [
+          {
+            "y": 3.62,
+            "label": "二级 3.62 mm",
+            "level": "二级"
+          },
+          {
+            "y": 4.53,
+            "label": "三级 4.53 mm",
+            "level": "三级"
+          }
+        ]
+      },
+      "CYX-DIS-P01-001-01-X": {
+        "file_id": "新增测点35"
+      },
+      "CYX-DIS-P01-001-01-Y": {
+        "file_id": "新增测点36"
+      }
+    },
+    "tilt": {
+      "CYX-INC-P01-001-01-X": {
+        "alarm_bounds": {
+          "level2": [
+            -0.08,
+            0.08
+          ],
+          "level3": [
+            -0.1,
+            0.1
+          ]
+        }
+      },
+      "CYX-INC-P02-001-01-X": {
+        "alarm_bounds": {
+          "level2": [
+            -0.08,
+            0.08
+          ],
+          "level3": [
+            -0.1,
+            0.1
+          ]
+        }
+      },
+      "CYX-INC-P03-001-01-X": {
+        "alarm_bounds": {
+          "level2": [
+            -0.08,
+            0.08
+          ],
+          "level3": [
+            -0.1,
+            0.1
+          ]
+        }
+      }
+    }
+  },
+  "plot_styles": {
+    "temperature": {
+      "ylabel": "温度 (℃)",
+      "title_prefix": "温度时程",
+      "output_dir": "时程曲线_温度",
+      "ylim_auto": true
+    },
+    "humidity": {
+      "ylabel": "湿度 (%RH)",
+      "title_prefix": "湿度时程",
+      "output_dir": "时程曲线_湿度",
+      "ylim_auto": true
+    },
+    "strain": {
+      "ylabel": "表面应变 (με)",
+      "title_prefix": "表面应变时程",
+      "output_dir": "时程曲线_表面应变",
+      "group_output_dir": "时程曲线_表面应变_组图",
+      "boxplot_output_dir": "箱线图_表面应变",
+      "show_warn_lines_group": false,
+      "ylim_auto": true
+    },
+    "deflection": {
+      "ylabel": "挠度/标靶位移 (mm)",
+      "title_prefix": "主梁挠度时程",
+      "output_dir": "时程曲线_主梁挠度",
+      "single_output_dir": "时程曲线_主梁挠度_单点",
+      "group_output_dir": "时程曲线_主梁挠度_组图",
+      "warn_unit": "mm",
+      "ylim_auto": true,
+      "alarm_colors": [
+        [
+          0.929,
+          0.694,
+          0.125
+        ],
+        [
+          0.85,
+          0.1,
+          0.1
+        ]
+      ]
+    },
+    "bearing_displacement": {
+      "ylabel": "梁端位移 (mm)",
+      "title_prefix": "梁端位移时程",
+      "output_dir": "时程曲线_梁端位移",
+      "group_output_dir": "时程曲线_梁端位移_组图",
+      "ylim_auto": true
+    },
+    "tilt": {
+      "ylabel": "倾角 (°)",
+      "title_prefix": "墩身倾角时程",
+      "output_dir": "时程曲线_墩身倾角",
+      "warn_unit": "°",
+      "ylim_auto": true
+    },
+    "acceleration": {
+      "ylabel": "加速度 (mm/s²)",
+      "title_prefix": "主梁振动加速度时程",
+      "output_dir": "时程曲线_主梁加速度",
+      "group_output_dir": "时程曲线_主梁加速度_组图",
+      "ylim_auto": true
+    },
+    "accel_spectrum": {
+      "ylabel": "PSD",
+      "title_prefix": "主梁振动频谱",
+      "output_dir": "PSD_主梁加速度"
+    },
+    "crack": {
+      "ylabel_crack": "裂缝宽度 (mm)",
+      "title_prefix_crack": "裂缝宽度时程",
+      "output_dir_crack": "时程曲线_裂缝宽度",
+      "temp_enabled": false,
+      "ylim_auto": true
+    }
+  },
+  "spectra": {
+    "acceleration": {
+      "target_freqs": [
+        0.0,
+        0.0
+      ],
+      "peak_labels": [
+        "待确认",
+        "待确认"
+      ],
+      "tolerance_hz": 0.05,
+      "note": "崇阳溪主梁振动目标频率未在当前资料中确认，首版仅接入数据与PSD能力。"
+    }
+  }
+}

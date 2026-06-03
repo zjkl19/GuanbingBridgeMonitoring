@@ -129,6 +129,53 @@ classdef test_datasource_services < matlab.unittest.TestCase
             tc.verifyTrue(isfile(summaryXlsx));
         end
 
+        function dataIndexFindsCsvInsideNestedExportFolder(tc)
+            dayDir = fullfile(tc.TempDir, '2026-03-01', 'temperature', 'uuid-001');
+            mkdir(dayDir);
+            src = fullfile(dayDir, 'PT-1_value.csv');
+            fclose(fopen(src, 'w'));
+
+            cfg = struct();
+            cfg.defaults = struct();
+            cfg.subfolders = struct('temperature', 'temperature');
+            cfg.file_patterns = struct('temperature', struct('default', '{file_id}_*.csv'));
+            cfg.points = struct('temperature', {{'PT-1'}});
+            cfg.plot_styles = struct();
+            opts = struct('doTemp', true, 'buildDataIndex', true);
+
+            index = bms.data.DataIndex.build(tc.TempDir, '2026-03-01', '2026-03-01', cfg, opts);
+
+            tc.verifyEqual(index.summary.point_count, 1);
+            tc.verifyEqual(index.summary.found_point_count, 1);
+            tc.verifyEqual(index.summary.file_count, 1);
+            tc.verifyEqual(index.modules{1}.points{1}.files(1).path, char(java.io.File(src).getCanonicalPath()));
+        end
+
+        function dataIndexKeepsComponentSuffixWhenFileNameUsesIt(tc)
+            dayDir = fullfile(tc.TempDir, '2026-03-01', 'tilt');
+            mkdir(dayDir);
+            src = fullfile(dayDir, 'CYX-INC-P01-001-01-X_value.csv');
+            fclose(fopen(src, 'w'));
+
+            cfg = struct();
+            cfg.defaults = struct();
+            cfg.subfolders = struct('tilt', 'tilt');
+            cfg.file_patterns = struct('tilt', struct('default', '{file_id}_*.csv'));
+            cfg.points = struct('tilt', {{'CYX-INC-P01-001-01-X'}});
+            cfg.plot_styles = struct();
+            cfg.per_point = struct();
+            cfg.per_point.tilt = struct();
+            cfg.per_point.tilt.CYX_INC_P01_001_01_X = struct('file_id', 'CYX-INC-P01-001-01-X');
+            opts = struct('doTilt', true, 'buildDataIndex', true);
+
+            index = bms.data.DataIndex.build(tc.TempDir, '2026-03-01', '2026-03-01', cfg, opts);
+
+            tc.verifyEqual(index.summary.point_count, 1);
+            tc.verifyEqual(index.summary.found_point_count, 1);
+            tc.verifyEqual(index.summary.file_count, 1);
+            tc.verifyEqual(index.modules{1}.points{1}.files(1).path, char(java.io.File(src).getCanonicalPath()));
+        end
+
         function dataIndexUsesUnderlyingSensorFileIdsForDerivedModules(tc)
             dayDir = fullfile(tc.TempDir, '2026-03-01', 'wave');
             mkdir(dayDir);

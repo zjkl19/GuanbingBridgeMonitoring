@@ -114,6 +114,10 @@ classdef test_structural_time_series_plot_service < matlab.unittest.TestCase
             cfg.subfolders = struct('bearing_displacement', 'features');
             cfg.groups = struct('bearing_displacement', {{{'B1', 'B2'}}});
             cfg.plot_styles = struct('bearing_displacement', struct('output_dir', 'bearing_plots', 'ylim_auto', true));
+            bounds = struct('level2', [-80 80], 'level3', [-100 100]);
+            cfg.per_point = struct('bearing_displacement', struct( ...
+                'B1', struct('alarm_bounds', bounds), ...
+                'B2', struct('alarm_bounds', bounds)));
             excelPath = fullfile(tc.Root, 'bearing_stats.xlsx');
 
             analyze_bearing_displacement_points(tc.Root, '2026-01-01', '2026-01-01', excelPath, '', cfg);
@@ -124,6 +128,12 @@ classdef test_structural_time_series_plot_service < matlab.unittest.TestCase
             tc.verifyGreaterThanOrEqual(numel(figs), 4);
             groupFigs = dir(fullfile(tc.Root, 'bearing_plots_组图', '*.fig'));
             tc.verifyGreaterThanOrEqual(numel(groupFigs), 2);
+            origGroupFigs = groupFigs(contains({groupFigs.name}, 'Orig'));
+            filtGroupFigs = groupFigs(contains({groupFigs.name}, 'Filt'));
+            tc.verifyGreaterThanOrEqual(numel(origGroupFigs), 1);
+            tc.verifyGreaterThanOrEqual(numel(filtGroupFigs), 1);
+            tc.verifyEqual(constant_line_values(fullfile(origGroupFigs(1).folder, origGroupFigs(1).name)).', [-100 -80 80 100]);
+            tc.verifyEmpty(constant_line_values(fullfile(filtGroupFigs(1).folder, filtGroupFigs(1).name)));
         end
 
         function bridgeConfigsResolveFilteredPipelineInputs(tc)
@@ -186,4 +196,15 @@ function write_series_csv(path, values)
     for i = 1:numel(values)
         fprintf(fid, '%s,%.6f\n', datestr(base + minutes(i - 1), 'yyyy-mm-dd HH:MM:SS.FFF'), values(i));
     end
+end
+
+function values = constant_line_values(figPath)
+    fig = openfig(figPath, 'invisible');
+    cleaner = onCleanup(@() close(fig)); %#ok<NASGU>
+    lines = findall(fig, '-isa', 'matlab.graphics.chart.decoration.ConstantLine');
+    if isempty(lines)
+        values = [];
+        return;
+    end
+    values = sort(arrayfun(@(h) h.Value, lines));
 end

@@ -36,20 +36,39 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             tc.verifyEqual(cfg.defaults.cable_accel.offset_correction.mode, 'daily_median');
             tc.verifyFalse(isfield(cfg.defaults.cable_accel, 'value_scale'));
             tc.verifyFalse(bms.analyzer.StructuralPlotConfigService.hasGroups(cfg.groups.cable_accel));
-            tc.verifyEqual(cfg.defaults.strain.offset_correction.mode, 'first_day_mean');
-            tc.verifyEqual(cfg.defaults.bearing_displacement.offset_correction.mode, 'first_day_mean');
+            tc.verifyFalse(isfield(cfg.defaults.strain, 'offset_correction'));
+            tc.verifyFalse(isfield(cfg.defaults, 'bearing_displacement'));
+            tc.verifyEqual(cfg.per_point.strain.SX_1.offset_correction, 22.72326076, 'AbsTol', 1e-9);
+            tc.verifyEqual(cfg.per_point.strain.SX_10.offset_correction, -14.0941581, 'AbsTol', 1e-9);
+            tc.verifyEqual(cfg.per_point.bearing_displacement.DX_1.offset_correction, 34.36897508, 'AbsTol', 1e-9);
+            tc.verifyEqual(cfg.per_point.bearing_displacement.DX_4.offset_correction, 37.49498676, 'AbsTol', 1e-9);
             tc.verifyEqual(cfg.per_point.bearing_displacement.DX_1.alarm_bounds.level2(:).', [-80, 80]);
             tc.verifyEqual(cfg.per_point.bearing_displacement.DX_1.alarm_bounds.level3(:).', [-100, 100]);
             tc.verifyEqual(cfg.per_point.bearing_displacement.DX_1.thresholds.min, -100);
             tc.verifyEqual(cfg.per_point.bearing_displacement.DX_1.thresholds.max, 100);
             tc.verifyEqual(cfg.per_point.bearing_displacement.DX_2.thresholds.min, -100);
             tc.verifyEqual(cfg.per_point.bearing_displacement.DX_2.thresholds.max, 100);
-            tc.verifyEqual(cfg.per_point.cable_accel.CF_1.thresholds.min, -300);
-            tc.verifyEqual(cfg.per_point.cable_accel.CF_1.thresholds.max, 300);
+            tc.verifyEqual(cfg.per_point.cable_accel.CF_1.thresholds.min, -500);
+            tc.verifyEqual(cfg.per_point.cable_accel.CF_1.thresholds.max, 500);
+            tc.verifyEqual(cfg.per_point.cable_accel.CF_2.thresholds.min, -500);
+            tc.verifyEqual(cfg.per_point.cable_accel.CF_2.thresholds.max, 500);
             tc.verifyEqual(cfg.per_point.cable_accel.CF_5.thresholds.min, -100);
-            tc.verifyEqual(cfg.per_point.cable_accel.CF_5.thresholds.max, 120);
-            tc.verifyEqual(cfg.per_point.cable_accel.CF_7.thresholds.min, -300);
-            tc.verifyEqual(cfg.per_point.cable_accel.CF_7.thresholds.max, 300);
+            tc.verifyEqual(cfg.per_point.cable_accel.CF_5.thresholds.max, 140);
+            tc.verifyEqual(cfg.per_point.cable_accel.CF_7.thresholds.min, -500);
+            tc.verifyEqual(cfg.per_point.cable_accel.CF_7.thresholds.max, 500);
+            tc.verifyEqual(cfg.per_point.cable_accel.CF_8.thresholds.min, -500);
+            tc.verifyEqual(cfg.per_point.cable_accel.CF_8.thresholds.max, 500);
+            tc.verifyEqual(bms.plot.PlotService.resolveNamedYLim(cfg.plot_styles.cable_accel.ylims, 'CF-1', []), [-600; 600]);
+            tc.verifyEqual(bms.plot.PlotService.resolveNamedYLim(cfg.plot_styles.cable_accel.ylims, 'CF-2', []), [-600; 600]);
+            tc.verifyEqual(bms.plot.PlotService.resolveNamedYLim(cfg.plot_styles.cable_accel.ylims, 'CF-7', []), [-600; 600]);
+            tc.verifyEqual(bms.plot.PlotService.resolveNamedYLim(cfg.plot_styles.cable_accel.ylims, 'CF-8', []), [-600; 600]);
+            tc.verifyEqual(bms.plot.PlotService.resolveNamedYLim(cfg.plot_styles.cable_accel.ylims, 'CF_1_4', []), [-600; 600]);
+            tc.verifyEqual(bms.plot.PlotService.resolveNamedYLim(cfg.plot_styles.cable_accel.ylims, 'CF_5_8', []), [-600; 600]);
+            tc.verifyTrue(contains(cfg.plot_styles.cable_accel.ylabel, 'mm/s^2'));
+            tc.verifyTrue(contains(cfg.plot_styles.cable_accel.rms_ylabel, 'mm/s^2'));
+            tc.verifyEqual(numel(cfg.plot_styles.cable_accel.group_warn_lines), 2);
+            tc.verifyEqual(sort([cfg.plot_styles.cable_accel.group_warn_lines.y]).', [-500; 500]);
+            tc.verifyEqual(cfg.plot_common.gap_mode, 'connect');
         end
 
         function spectrumTargetsUseConfirmedZhishanFrequencies(tc)
@@ -87,8 +106,17 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             tc.verifyEqual(cf1.target_freqs, 1.621);
             tc.verifyEqual(cf1.ocr_force_kN, 3466);
             tc.verifyEqual(cf1.completed_force_kN, 3496);
+            tc.verifyEqual(cf1.force_alarm_bounds.level2(:).', [3146, 3846]);
+            tc.verifyEqual(cf1.force_alarm_bounds.level3(:).', [2972, 4020]);
             force = bms.analyzer.CableForceService.compute(cf1.target_freqs, rho, L, decimals);
             tc.verifyEqual(force(1), cf1.force_baseline_kN, 'AbsTol', 0.02);
+
+            [ok, cf3] = bms.data.PointResolver.getPointConfig(cfg.per_point.cable_accel, 'CF-3', cfg);
+            tc.verifyTrue(ok);
+            tc.verifyTrue(cf3.force_reference_from_target);
+            tc.verifyEqual(bms.analyzer.CableForceService.referenceFrequency(cfg, 'CF-3'), 1.4665);
+            tc.verifyEqual(cf3.force_alarm_bounds.level2(:).', [3419, 4179]);
+            tc.verifyEqual(cf3.force_alarm_bounds.level3(:).', [3229, 4369]);
         end
 
         function stagingCopiesOnlyConfiguredZhishanIds(tc)

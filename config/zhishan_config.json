@@ -37,13 +37,6 @@
         "note": "Raw CF cable acceleration is in mm/s^2; apply daily median baseline removal first, then per-point March 2026 filtering."
       }
     },
-    "bearing_displacement": {
-      "offset_correction": {
-        "mode": "first_day_mean",
-        "start_date": "2026-03-01",
-        "end_date": "2026-03-31"
-      }
-    },
     "strain": {
       "thresholds": [
         {
@@ -52,12 +45,7 @@
           "t_range_start": "2026-03-01 00:00:00",
           "t_range_end": "2026-03-31 23:59:59"
         }
-      ],
-      "offset_correction": {
-        "mode": "first_day_mean",
-        "start_date": "2026-03-01",
-        "end_date": "2026-03-31"
-      }
+      ]
     }
   },
   "subfolders": {
@@ -237,6 +225,7 @@
     "strain": {
       "SX-1": {
         "file_id": "C1802191464",
+        "offset_correction": 22.72326076,
         "alarm_bounds": {
           "level2": [
             -200,
@@ -246,6 +235,7 @@
       },
       "SX-2": {
         "file_id": "C1802191462",
+        "offset_correction": -4.195545562,
         "alarm_bounds": {
           "level2": [
             -200,
@@ -256,6 +246,7 @@
       },
       "SX-3": {
         "file_id": "C1802191467",
+        "offset_correction": 106.8296544,
         "alarm_bounds": {
           "level2": [
             -200,
@@ -265,6 +256,7 @@
       },
       "SX-4": {
         "file_id": "C1802191469",
+        "offset_correction": 41.59407587,
         "alarm_bounds": {
           "level2": [
             -200,
@@ -274,6 +266,7 @@
       },
       "SX-5": {
         "file_id": "C1802191470",
+        "offset_correction": 77.83411572,
         "alarm_bounds": {
           "level2": [
             -200,
@@ -283,6 +276,7 @@
       },
       "SX-6": {
         "file_id": "C1802191481",
+        "offset_correction": 40.1381648,
         "alarm_bounds": {
           "level2": [
             -200,
@@ -292,6 +286,7 @@
       },
       "SX-7": {
         "file_id": "C2006010002",
+        "offset_correction": 6.978382642,
         "alarm_bounds": {
           "level2": [
             -200,
@@ -301,6 +296,7 @@
       },
       "SX-8": {
         "file_id": "C2006010003",
+        "offset_correction": 13.79830098,
         "alarm_bounds": {
           "level2": [
             -200,
@@ -310,6 +306,7 @@
       },
       "SX-9": {
         "file_id": "C2006010053",
+        "offset_correction": 38.89312355,
         "alarm_bounds": {
           "level2": [
             -200,
@@ -319,6 +316,7 @@
       },
       "SX-10": {
         "file_id": "C2006010049",
+        "offset_correction": -14.0941581,
         "alarm_bounds": {
           "level2": [
             -200,
@@ -330,6 +328,7 @@
     "bearing_displacement": {
       "DX-1": {
         "file_id": "C210419100",
+        "offset_correction": 34.36897508,
         "alarm_bounds": {
           "level2": [
             -80,
@@ -351,6 +350,7 @@
       },
       "DX-2": {
         "file_id": "C210419103",
+        "offset_correction": 39.58149232,
         "alarm_bounds": {
           "level2": [
             -80,
@@ -373,6 +373,7 @@
       },
       "DX-3": {
         "file_id": "C210419101",
+        "offset_correction": 40.35461933,
         "alarm_bounds": {
           "level2": [
             -80,
@@ -394,6 +395,7 @@
       },
       "DX-4": {
         "file_id": "C210419102",
+        "offset_correction": 37.49498676,
         "alarm_bounds": {
           "level2": [
             -80,
@@ -558,8 +560,8 @@
         "file_id": "C200303008",
         "thresholds": [
           {
-            "min": -300,
-            "max": 300,
+            "min": -500,
+            "max": 500,
             "t_range_start": "2026-03-01 00:00:00",
             "t_range_end": "2026-03-31 23:59:59"
           }
@@ -598,8 +600,8 @@
         "file_id": "C200303004",
         "thresholds": [
           {
-            "min": -300,
-            "max": 300,
+            "min": -500,
+            "max": 500,
             "t_range_start": "2026-03-01 00:00:00",
             "t_range_end": "2026-03-31 23:59:59"
           }
@@ -655,6 +657,8 @@
         ],
         "force_decimals": 2,
         "force_baseline_kN": 3795.09,
+        "force_reference_from_target": true,
+        "force_reference_reason": "PSD质量异常，临时使用索力计算.xlsx目标一阶频率计算参考索力。",
         "force_alarm_bounds": {
           "level2": [
             3419,
@@ -695,6 +699,8 @@
         ],
         "force_decimals": 2,
         "force_baseline_kN": 3552.33,
+        "force_reference_from_target": true,
+        "force_reference_reason": "PSD质量异常，临时使用索力计算.xlsx目标一阶频率计算参考索力。",
         "force_alarm_bounds": {
           "level2": [
             3047,
@@ -719,7 +725,7 @@
         "thresholds": [
           {
             "min": -100,
-            "max": 120,
+            "max": 140,
             "t_range_start": "2026-03-01 00:00:00",
             "t_range_end": "2026-03-31 23:59:59"
           }
@@ -735,6 +741,8 @@
         ],
         "force_decimals": 2,
         "force_baseline_kN": 3604.24,
+        "force_reference_from_target": true,
+        "force_reference_reason": "PSD质量异常，临时使用索力计算.xlsx目标一阶频率计算参考索力。",
         "force_alarm_bounds": {
           "level2": [
             3474,
@@ -798,8 +806,8 @@
         "file_id": "C200303010",
         "thresholds": [
           {
-            "min": -300,
-            "max": 300,
+            "min": -500,
+            "max": 500,
             "t_range_start": "2026-03-01 00:00:00",
             "t_range_end": "2026-03-31 23:59:59"
           }
@@ -838,8 +846,8 @@
         "file_id": "C200303007",
         "thresholds": [
           {
-            "min": -300,
-            "max": 300,
+            "min": -500,
+            "max": 500,
             "t_range_start": "2026-03-01 00:00:00",
             "t_range_end": "2026-03-31 23:59:59"
           }
@@ -1058,17 +1066,31 @@
           ]
         },
         {
+          "name": "CF_1_4",
+          "ylim": [
+            -600,
+            600
+          ]
+        },
+        {
+          "name": "CF_5_8",
+          "ylim": [
+            -600,
+            600
+          ]
+        },
+        {
           "name": "CF-1",
           "ylim": [
-            -500,
-            500
+            -600,
+            600
           ]
         },
         {
           "name": "CF-2",
           "ylim": [
-            -500,
-            500
+            -600,
+            600
           ]
         },
         {
@@ -1081,15 +1103,15 @@
         {
           "name": "CF-7",
           "ylim": [
-            -500,
-            500
+            -600,
+            600
           ]
         },
         {
           "name": "CF-8",
           "ylim": [
-            -500,
-            500
+            -600,
+            600
           ]
         }
       ],
@@ -1107,6 +1129,26 @@
       "rms_title_prefix": "索力加速度10 min RMS时程",
       "rms_ylim": [],
       "rms_ylims": [],
+      "group_warn_lines": [
+        {
+          "y": -500,
+          "label": "下限预警值 -500mm/s^2",
+          "color": [
+            0.85,
+            0.1,
+            0.1
+          ]
+        },
+        {
+          "y": 500,
+          "label": "上限预警值 500mm/s^2",
+          "color": [
+            0.85,
+            0.1,
+            0.1
+          ]
+        }
+      ],
       "group_labels": {
         "CF": "索力加速度测点"
       }
@@ -1154,7 +1196,7 @@
     "append_timestamp": false,
     "lightweight_fig": true,
     "fig_max_points": 50000,
-    "gap_mode": "break"
+    "gap_mode": "connect"
   },
   "data_index": {
     "enabled": false
@@ -1181,6 +1223,6 @@
     "cable_params": "E:/芝山大桥-彭仲鑫/报告及数据处理/索力/索力计算.xlsx，2022-10-23索力计算表。",
     "device_mapping": "E:/芝山大桥-彭仲鑫/芝山大桥设备参数表（20230308改）.xlsx。",
     "cable_params_ocr_20260528": "User image OCR rows 1~8 map to CF-1~CF-8 for length, line density, first frequency, cable force, completed-bridge force, and change rate.",
-    "cable_accel_cleaning_20260528": "CF cable acceleration is in mm/s^2; cleaning uses daily median baseline removal, then per-point March 2026 filtering: CF-1/2/7/8 [-300,300], CF-5 [-100,120], others [-100,100] mm/s^2."
+    "cable_accel_cleaning_20260528": "CF cable acceleration is in mm/s^2; cleaning uses daily median baseline removal, then per-point March 2026 filtering: CF-1/2/7/8 [-500,500], CF-5 [-100,140], others [-100,100] mm/s^2."
   }
 }

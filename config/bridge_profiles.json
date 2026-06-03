@@ -116,6 +116,31 @@
       ]
     },
     {
+      "bridge_id": "chongyangxi",
+      "bridge_name": "崇阳溪大桥",
+      "default_config": "config/chongyangxi_config.json",
+      "default_data_root": "D:/崇阳溪数据",
+      "data_layout": "dated_folders",
+      "report_type": "analysis_only",
+      "report_gui_type": "",
+      "report_template": "",
+      "default_period_label": "2025年5月",
+      "default_monitoring_range": "2025年05月20日~2025年05月23日",
+      "default_start_date": "2025-05-20",
+      "default_end_date": "2025-05-23",
+      "enabled_modules": [
+        "temperature",
+        "humidity",
+        "deflection",
+        "bearing_displacement",
+        "tilt",
+        "acceleration",
+        "accel_spectrum",
+        "crack",
+        "strain"
+      ]
+    },
+    {
       "bridge_id": "zhishan",
       "bridge_name": "芝山大桥",
       "default_config": "config/zhishan_config.json",

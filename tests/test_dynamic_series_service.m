@@ -216,7 +216,7 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(reshape(cellfun(@(x) x.y, warnLines), [], 1), [100; 300]);
         end
 
-        function cableAccelerationSpecDisablesRawGroupWarnLines(tc)
+        function cableAccelerationSpecAllowsRawGroupWarnLines(tc)
             spec = bms.analyzer.DynamicAccelerationPipeline.spec('cable_accel');
             style.group_warn_lines = [ ...
                 struct('y', 100, 'label', 'Level 1'), ...
@@ -226,8 +226,71 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             warnLines = bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
                 style, warnField, 'X6_X16');
 
-            tc.verifyEqual(warnField, '');
+            tc.verifyEqual(warnField, 'group_warn_lines');
+            tc.verifyEqual(numel(warnLines), 2);
+            tc.verifyEqual(reshape(cellfun(@(x) x.y, warnLines), [], 1), [100; 300]);
+        end
+
+        function cableAccelerationGroupWarnLinesUseCommonPointThresholds(tc)
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('cable_accel');
+            style = struct('ylabel', 'Cable acceleration (mm/s^2)');
+            cfg.per_point.cable_accel.C1.thresholds = struct('min', -500, 'max', 500);
+            cfg.per_point.cable_accel.C2.thresholds = struct('min', -500, 'max', 500);
+            records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), 2, 1);
+            records(1).pid = 'C1';
+            records(2).pid = 'C2';
+
+            warnLines = bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
+                style, 'group_warn_lines', 'G1', cfg, spec, records);
+
+            tc.verifyEqual(numel(warnLines), 2);
+            tc.verifyEqual(sort(cellfun(@(x) x.y, warnLines)), [-500; 500]);
+            tc.verifyTrue(contains(warnLines{1}.unit, 'mm/s'));
+        end
+
+        function cableAccelerationGroupWarnLinesSkipMixedPointThresholds(tc)
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('cable_accel');
+            style = struct('ylabel', 'Cable acceleration (mm/s^2)');
+            cfg.per_point.cable_accel.C1.thresholds = struct('min', -500, 'max', 500);
+            cfg.per_point.cable_accel.C2.thresholds = struct('min', -100, 'max', 100);
+            records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), 2, 1);
+            records(1).pid = 'C1';
+            records(2).pid = 'C2';
+
+            warnLines = bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
+                style, 'group_warn_lines', 'G1', cfg, spec, records);
+
             tc.verifyEmpty(warnLines);
+        end
+
+        function cableAccelerationGroupsFallbackToCableForceGroups(tc)
+            values = sin((0:1200)' / 10);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'C1.csv'), values);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'C2.csv'), values * 0.5);
+            cfg = dynamic_cfg();
+            cfg.points = struct('cable_accel', {{'C1', 'C2'}});
+            cfg.groups = struct('cable_accel', struct(), 'cable_force', struct('G1', {{'C1', 'C2'}}));
+            cfg.per_point.cable_accel.C1.thresholds = struct('min', -500, 'max', 500);
+            cfg.per_point.cable_accel.C2.thresholds = struct('min', -500, 'max', 500);
+            cfg.plot_common = struct('save_fig', true, 'append_timestamp', false, 'lightweight_fig', false);
+            cfg.plot_styles = struct('cable_accel', struct( ...
+                'ylim_auto', false, ...
+                'ylim', [-600 600], ...
+                'group_output_dir', 'cable_accel_group', ...
+                'rms_group_output_dir', 'cable_accel_rms_group', ...
+                'envelope_enabled', false, ...
+                'ylabel', 'Cable acceleration (mm/s^2)', ...
+                'rms_ylabel', '10 min RMS (mm/s^2)'));
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('cable_accel');
+            style = bms.analyzer.DynamicAccelerationPipeline.plotStyle(cfg, spec);
+
+            bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroups( ...
+                tc.Root, 'wave', '2026-01-01', '2026-01-01', cfg, true, style, spec);
+
+            groupFigs = dir(fullfile(tc.Root, 'cable_accel_group', '*.fig'));
+            tc.verifyGreaterThanOrEqual(numel(groupFigs), 1);
+            values = constant_line_values(fullfile(groupFigs(1).folder, groupFigs(1).name));
+            tc.verifyEqual(values(:), [-500; 500]);
         end
 
         function accelerationPointsFallBackToGroups(tc)
@@ -258,4 +321,15 @@ function write_series_csv(path, values)
     for i = 1:numel(values)
         fprintf(fid, '%s,%.6f\n', datestr(base + seconds(i - 1), 'yyyy-mm-dd HH:MM:SS.FFF'), values(i));
     end
+end
+
+function values = constant_line_values(figPath)
+    fig = openfig(figPath, 'invisible');
+    cleaner = onCleanup(@() close(fig)); %#ok<NASGU>
+    lines = findall(fig, '-isa', 'matlab.graphics.chart.decoration.ConstantLine');
+    if isempty(lines)
+        values = [];
+        return;
+    end
+    values = sort(arrayfun(@(h) h.Value, lines));
 end

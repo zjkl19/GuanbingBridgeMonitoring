@@ -123,18 +123,24 @@ classdef DataIndex
 
         function patterns = expandPatterns(patterns, pointId, cfg, moduleKey)
             pointId = char(string(pointId));
-            fileId = regexprep(pointId, '[-_][XYZ]$', '');
+            fileIds = {regexprep(pointId, '[-_][XYZ]$', '')};
             if nargin >= 4
                 sensorType = bms.data.DataIndex.sensorTypeForPoint(moduleKey, pointId);
-                fileId = bms.data.TimeSeriesLoader.resolveFileId(cfg, sensorType, pointId);
-                fileId = regexprep(fileId, '[-_][XYZ]$', '');
+                resolvedFileId = bms.data.TimeSeriesLoader.resolveFileId(cfg, sensorType, pointId);
+                fileIds = { ...
+                    char(string(resolvedFileId)), ...
+                    regexprep(char(string(resolvedFileId)), '[-_][XYZ]$', ''), ...
+                    regexprep(pointId, '[-_][XYZ]$', '')};
             end
+            fileIds = unique(fileIds(~cellfun(@isempty, fileIds)), 'stable');
             out = {};
             for i = 1:numel(patterns)
                 p = char(string(patterns{i}));
-                p = strrep(p, '{point}', pointId);
-                p = strrep(p, '{file_id}', fileId);
-                out{end+1} = p; %#ok<AGROW>
+                for j = 1:numel(fileIds)
+                    expanded = strrep(p, '{point}', pointId);
+                    expanded = strrep(expanded, '{file_id}', fileIds{j});
+                    out{end+1} = expanded; %#ok<AGROW>
+                end
             end
             out{end+1} = [pointId '.csv']; %#ok<AGROW>
             out = unique(out(~cellfun(@isempty, out)), 'stable');

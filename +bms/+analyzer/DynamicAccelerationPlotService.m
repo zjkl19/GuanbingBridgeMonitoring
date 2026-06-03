@@ -160,7 +160,7 @@ classdef DynamicAccelerationPlotService
             grid(ax2, 'on');
             grid(ax2, 'minor');
             xlim(ax2, [xmin xmax - seconds(1)]);
-            ylabel(ax2, sprintf('%d min RMS (m/s^2)', round(binMinutes)));
+            ylabel(ax2, bms.analyzer.DynamicAccelerationPlotService.envelopeRmsYLabel(style, binMinutes));
             xlabel(ax2, char([26102 38388]));
             title(ax2, sprintf('%d min RMS %s', round(binMinutes), pointId), 'Interpreter', 'none');
             xtickformat(ax1, 'yyyy-MM-dd');
@@ -193,7 +193,7 @@ classdef DynamicAccelerationPlotService
             opts.ylimRange = bms.analyzer.DynamicAccelerationPlotService.resolveMainYLim(style, groupName);
             warnField = bms.analyzer.DynamicAccelerationPlotService.specField(spec, 'groupWarnField', 'group_warn_lines');
             opts.warnLines = bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
-                style, warnField, groupName);
+                style, warnField, groupName, cfg, spec, records);
 
             bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
                 rootDir, timesList, valuesList, labels, startDate, endDate, opts, cfg);
@@ -232,7 +232,7 @@ classdef DynamicAccelerationPlotService
             opts.titleText = sprintf('%s %s', style.rms_title_prefix, groupLabel);
             opts.ylimRange = bms.analyzer.DynamicAccelerationPlotService.resolveRmsYLim(style, groupName);
             opts.warnLines = bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
-                style, 'rms_warn_lines', groupName);
+                style, 'rms_warn_lines', groupName, cfg, spec, records);
 
             bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
                 rootDir, timesList, valuesList, labels, startDate, endDate, opts, cfg);
@@ -304,9 +304,28 @@ classdef DynamicAccelerationPlotService
             opts.warnLines = {};
         end
 
-        function warnLines = resolveGroupWarnLines(style, fieldName, groupName)
+        function warnLines = resolveGroupWarnLines(style, fieldName, groupName, cfg, spec, records)
             warnLines = {};
+            if nargin < 4
+                cfg = struct();
+            end
+            if nargin < 5
+                spec = struct();
+            end
+            if nargin < 6
+                records = [];
+            end
+
+            if isempty(fieldName)
+                warnLines = bms.analyzer.DynamicAccelerationPlotService.commonGroupWarnLines(cfg, spec, style, records);
+                return;
+            end
+
             if ~isstruct(style) || ~isfield(style, fieldName) || isempty(style.(fieldName))
+                if ~strcmp(fieldName, 'group_warn_lines')
+                    return;
+                end
+                warnLines = bms.analyzer.DynamicAccelerationPlotService.commonGroupWarnLines(cfg, spec, style, records);
                 return;
             end
 
@@ -321,10 +340,120 @@ classdef DynamicAccelerationPlotService
                         return;
                     end
                 end
+                if ~strcmp(fieldName, 'group_warn_lines')
+                    return;
+                end
+                warnLines = bms.analyzer.DynamicAccelerationPlotService.commonGroupWarnLines(cfg, spec, style, records);
                 return;
             end
 
             warnLines = bms.analyzer.StructuralPlotConfigService.applyWarnLineDefaults(raw, style);
+        end
+
+        function warnLines = commonGroupWarnLines(cfg, spec, style, records)
+            warnLines = {};
+            if isempty(records) || ~isstruct(cfg) || ~isstruct(spec) || ~isfield(spec, 'moduleKey')
+                return;
+            end
+
+            common = {};
+            for i = 1:numel(records)
+                if ~isfield(records(i), 'pid') || isempty(records(i).pid)
+                    continue;
+                end
+                pid = records(i).pid;
+                current = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
+                    style, cfg, spec.moduleKey, pid);
+                current = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(current);
+                if isempty(current)
+                    current = bms.analyzer.DynamicAccelerationPlotService.thresholdWarnLines(cfg, spec.moduleKey, pid, style);
+                end
+                if isempty(current)
+                    warnLines = {};
+                    return;
+                end
+                if isempty(common)
+                    common = current;
+                elseif ~bms.analyzer.DynamicAccelerationPlotService.warnLinesHaveSameY(common, current)
+                    warnLines = {};
+                    return;
+                end
+            end
+            warnLines = common;
+        end
+
+        function warnLines = thresholdWarnLines(cfg, moduleKey, pointId, style)
+            warnLines = {};
+            if ~isstruct(cfg) || ~isfield(cfg, 'per_point') || ~isstruct(cfg.per_point) || ...
+                    ~isfield(cfg.per_point, moduleKey) || ~isstruct(cfg.per_point.(moduleKey))
+                return;
+            end
+
+            [ok, pointCfg] = bms.data.PointResolver.getPointConfig(cfg.per_point.(moduleKey), pointId, cfg);
+            if ~ok || ~isfield(pointCfg, 'thresholds') || isempty(pointCfg.thresholds) || ~isstruct(pointCfg.thresholds)
+                return;
+            end
+
+            ths = pointCfg.thresholds(:);
+            unit = bms.analyzer.StructuralPlotConfigService.warnUnit(style);
+            lowerLabel = char([19979 38480]);
+            upperLabel = char([19978 38480]);
+            lineColor = [0.85 0.1 0.1];
+            values = [];
+            labels = {};
+            for i = 1:numel(ths)
+                th = ths(i);
+                if isfield(th, 'min') && isnumeric(th.min) && isscalar(th.min) && isfinite(th.min)
+                    values(end+1, 1) = th.min; %#ok<AGROW>
+                    labels{end+1, 1} = bms.analyzer.StructuralPlotConfigService.composeWarnValueLabel(lowerLabel, th.min, unit); %#ok<AGROW>
+                end
+                if isfield(th, 'max') && isnumeric(th.max) && isscalar(th.max) && isfinite(th.max)
+                    values(end+1, 1) = th.max; %#ok<AGROW>
+                    labels{end+1, 1} = bms.analyzer.StructuralPlotConfigService.composeWarnValueLabel(upperLabel, th.max, unit); %#ok<AGROW>
+                end
+            end
+            if isempty(values)
+                return;
+            end
+
+            [values, ia] = unique(values, 'stable');
+            labels = labels(ia);
+            warnLines = cell(numel(values), 1);
+            for i = 1:numel(values)
+                warnLines{i} = struct('y', values(i), 'label', labels{i}, ...
+                    'color', lineColor, 'unit', unit);
+            end
+        end
+
+        function tf = warnLinesHaveSameY(a, b)
+            av = bms.analyzer.DynamicAccelerationPlotService.warnLineYValues(a);
+            bv = bms.analyzer.DynamicAccelerationPlotService.warnLineYValues(b);
+            av = sort(av(isfinite(av)));
+            bv = sort(bv(isfinite(bv)));
+            tf = numel(av) == numel(bv) && all(abs(av(:) - bv(:)) < 1e-9);
+        end
+
+        function values = warnLineYValues(warnLines)
+            warnLines = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(warnLines);
+            values = NaN(numel(warnLines), 1);
+            for i = 1:numel(warnLines)
+                wl = warnLines{i};
+                if isstruct(wl) && isfield(wl, 'y') && isnumeric(wl.y) && isscalar(wl.y)
+                    values(i) = wl.y;
+                end
+            end
+        end
+
+        function label = envelopeRmsYLabel(style, binMinutes)
+            if nargin < 2 || isempty(binMinutes) || ~isfinite(binMinutes)
+                binMinutes = 30;
+            end
+            unit = bms.analyzer.StructuralPlotConfigService.warnUnit(style);
+            if isempty(unit)
+                label = sprintf('%d min RMS', round(binMinutes));
+            else
+                label = sprintf('%d min RMS (%s)', round(binMinutes), unit);
+            end
         end
 
         function outDir = groupOutputDir(style, spec)

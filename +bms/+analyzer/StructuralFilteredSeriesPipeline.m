@@ -204,7 +204,7 @@ classdef StructuralFilteredSeriesPipeline
                 rows(end+1, :) = bms.analyzer.StructuralFilteredSeriesService.statsRow(rec, spec); %#ok<AGROW>
                 warnLines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines(style, cfg, spec.moduleKey, pid);
                 bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Orig', spec, cfg, warnLines);
-                bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Filt', spec, cfg, warnLines);
+                bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Filt', spec, cfg, {});
             end
 
             for g = 1:numel(groups)
@@ -217,12 +217,12 @@ classdef StructuralFilteredSeriesPipeline
                 if isempty(records)
                     continue;
                 end
-                groupWarn = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines(style, cfg, spec.moduleKey, '');
+                groupWarn = bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupWarnLines(records, style, cfg, spec);
                 nameTag = sprintf('G%d', g);
                 groupStyle = style;
                 groupStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(style, spec);
                 bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, groupStyle, 'Orig', spec, cfg, groupWarn);
-                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, groupStyle, 'Filt', spec, cfg, groupWarn);
+                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, groupStyle, 'Filt', spec, cfg, {});
             end
         end
 
@@ -275,6 +275,54 @@ classdef StructuralFilteredSeriesPipeline
                 end
             end
             warnLines = bms.analyzer.StructuralFilteredPlotService.defaultWarnLines(style, cfg, spec, '');
+        end
+
+        function warnLines = bearingGroupWarnLines(records, style, cfg, spec)
+            warnLines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
+                style, cfg, spec.moduleKey, '');
+            if ~isempty(warnLines)
+                return;
+            end
+            warnLines = {};
+            common = {};
+            for i = 1:numel(records)
+                if ~isfield(records(i), 'pid') || isempty(records(i).pid)
+                    continue;
+                end
+                current = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
+                    style, cfg, spec.moduleKey, records(i).pid);
+                current = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(current);
+                if isempty(current)
+                    warnLines = {};
+                    return;
+                end
+                if isempty(common)
+                    common = current;
+                elseif ~bms.analyzer.StructuralFilteredSeriesPipeline.warnLinesHaveSameY(common, current)
+                    warnLines = {};
+                    return;
+                end
+            end
+            warnLines = common;
+        end
+
+        function tf = warnLinesHaveSameY(a, b)
+            av = bms.analyzer.StructuralFilteredSeriesPipeline.warnLineYValues(a);
+            bv = bms.analyzer.StructuralFilteredSeriesPipeline.warnLineYValues(b);
+            av = sort(av(isfinite(av)));
+            bv = sort(bv(isfinite(bv)));
+            tf = numel(av) == numel(bv) && all(abs(av(:) - bv(:)) < 1e-9);
+        end
+
+        function values = warnLineYValues(warnLines)
+            warnLines = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(warnLines);
+            values = NaN(numel(warnLines), 1);
+            for i = 1:numel(warnLines)
+                wl = warnLines{i};
+                if isstruct(wl) && isfield(wl, 'y') && isnumeric(wl.y) && isscalar(wl.y)
+                    values(i) = wl.y;
+                end
+            end
         end
 
         function tf = containsPoint(pointIds, pid)

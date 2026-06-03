@@ -35,7 +35,8 @@ classdef SpectrumPointService
         function [forceSeries, warnLines, forceYLim, hasParams] = cableForceSeries(cfg, pid, freqDay, style)
             [rho, L, forceDecimals, hasParams] = bms.analyzer.CableForceService.params(cfg, pid);
             forceYLim = bms.analyzer.CableForceService.resolveYLim(cfg, pid, style);
-            forceSeries = bms.analyzer.CableForceService.compute(freqDay(:, 1), rho, L, forceDecimals);
+            freqsForForce = bms.analyzer.CableForceService.forceFrequencies(cfg, pid, freqDay);
+            forceSeries = bms.analyzer.CableForceService.compute(freqsForForce, rho, L, forceDecimals);
             warnLines = bms.analyzer.CableForceService.warnLines(cfg, pid, style, '');
         end
     end

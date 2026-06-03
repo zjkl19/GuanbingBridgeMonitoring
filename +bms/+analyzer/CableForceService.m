@@ -39,6 +39,51 @@ classdef CableForceService
             end
         end
 
+        function freqs = forceFrequencies(cfg, pointId, freqDay)
+            freqs = [];
+            if isempty(freqDay)
+                return;
+            end
+            freqs = freqDay(:, 1);
+            refFreq = bms.analyzer.CableForceService.referenceFrequency(cfg, pointId);
+            if isfinite(refFreq)
+                freqs(isfinite(freqs)) = refFreq;
+            end
+        end
+
+        function refFreq = referenceFrequency(cfg, pointId)
+            refFreq = NaN;
+            if ~isstruct(cfg) || ~isfield(cfg, 'per_point') || ~isfield(cfg.per_point, 'cable_accel')
+                return;
+            end
+            [ok, pointCfg] = bms.data.PointResolver.getPointConfig(cfg.per_point.cable_accel, pointId, cfg);
+            if ~ok
+                return;
+            end
+
+            useReference = false;
+            if isfield(pointCfg, 'force_reference_from_target') && ~isempty(pointCfg.force_reference_from_target)
+                useReference = logical(pointCfg.force_reference_from_target);
+            end
+            if ~useReference
+                return;
+            end
+
+            if isfield(pointCfg, 'force_reference_freq') && ~isempty(pointCfg.force_reference_freq)
+                raw = pointCfg.force_reference_freq;
+            elseif isfield(pointCfg, 'target_freqs') && ~isempty(pointCfg.target_freqs)
+                raw = pointCfg.target_freqs(1);
+            else
+                raw = NaN;
+            end
+            if ischar(raw) || isstring(raw)
+                raw = str2double(raw);
+            end
+            if isnumeric(raw) && isscalar(raw) && isfinite(raw)
+                refFreq = double(raw);
+            end
+        end
+
         function forceYLim = resolveYLim(cfg, pointId, style)
             forceYLim = [];
             if nargin >= 3 && isstruct(style) && isfield(style, 'force_ylim') && ~isempty(style.force_ylim)

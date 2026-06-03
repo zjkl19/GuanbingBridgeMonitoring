@@ -50,6 +50,9 @@ classdef BaseDataSource
             for i = 1:numel(dirs)
                 for j = 1:numel(patterns)
                     hits = bms.core.Logger.listFiles(dirs{i}, char(patterns{j}));
+                    if isempty(hits)
+                        hits = bms.data.BaseDataSource.listFilesRecursive(dirs{i}, char(patterns{j}));
+                    end
                     files = [files, hits]; %#ok<AGROW>
                 end
             end
@@ -83,6 +86,18 @@ classdef BaseDataSource
                     seen(key) = true;
                     out{end+1} = key; %#ok<AGROW>
                 end
+            end
+        end
+
+        function files = listFilesRecursive(folder, pattern)
+            files = {};
+            if nargin < 2 || isempty(pattern), pattern = '*'; end
+            if ~exist(folder, 'dir'), return; end
+            d = dir(fullfile(folder, '**', char(string(pattern))));
+            d = d(~[d.isdir]);
+            files = cell(1, numel(d));
+            for i = 1:numel(d)
+                files{i} = fullfile(d(i).folder, d(i).name);
             end
         end
     end

@@ -118,6 +118,9 @@ classdef DynamicAccelerationSeriesService
 
         function plotConfiguredGroups(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, style, spec)
             groupsCfg = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, spec.groupKey, []);
+            if ~bms.analyzer.StructuralPlotConfigService.hasGroups(groupsCfg) && strcmp(spec.moduleKey, 'cable_accel')
+                groupsCfg = bms.analyzer.DynamicAccelerationSeriesService.cableForceGroups(cfg);
+            end
             if ~bms.analyzer.StructuralPlotConfigService.hasGroups(groupsCfg)
                 return;
             end
@@ -152,6 +155,14 @@ classdef DynamicAccelerationSeriesService
                     continue;
                 end
                 records(end+1, 1) = rec; %#ok<AGROW>
+            end
+        end
+
+        function groups = cableForceGroups(cfg)
+            groups = struct();
+            if isstruct(cfg) && isfield(cfg, 'groups') && isstruct(cfg.groups) && ...
+                    isfield(cfg.groups, 'cable_force')
+                groups = bms.data.PointResolver.normalizeGroups(cfg.groups.cable_force);
             end
         end
     end

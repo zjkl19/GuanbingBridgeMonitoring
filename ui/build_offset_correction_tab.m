@@ -92,6 +92,7 @@ function oc = build_offset_correction_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit,
         currentVisibleSafeIds = unique(currentVisibleSafeIds, 'stable');
         table.Data = rows;
         table.Selection = [];
+        msgBox.Value = offset_summary_message(cfgCache, sensor, size(rows, 1));
     end
 
     function add_row()
@@ -270,4 +271,59 @@ function offset = parse_offset(raw)
     if isnumeric(raw) && isscalar(raw) && isfinite(raw)
         offset = double(raw);
     end
+end
+
+function lines = offset_summary_message(cfg, sensor, perPointCount)
+    if nargin < 3
+        perPointCount = 0;
+    end
+    lines = {};
+    defaultText = describe_default_offset(cfg, sensor);
+    if ~isempty(defaultText)
+        lines{end+1} = ['模块默认零点修正: ' defaultText]; %#ok<AGROW>
+    else
+        lines{end+1} = '模块默认零点修正: 未配置'; %#ok<AGROW>
+    end
+    lines{end+1} = sprintf('逐点覆盖规则: %d 条。上方表格只显示 per_point.<module>.<point_id>.offset_correction。', perPointCount); %#ok<AGROW>
+    lines{end+1} = '计算时会先执行零点修正，再执行阈值过滤和统计。'; %#ok<AGROW>
+end
+
+function txt = describe_default_offset(cfg, sensor)
+    txt = '';
+    if ~isstruct(cfg) || ~isfield(cfg, 'defaults') || ~isstruct(cfg.defaults) ...
+            || ~isfield(cfg.defaults, sensor) || ~isstruct(cfg.defaults.(sensor)) ...
+            || ~isfield(cfg.defaults.(sensor), 'offset_correction') ...
+            || isempty(cfg.defaults.(sensor).offset_correction)
+        return;
+    end
+    raw = cfg.defaults.(sensor).offset_correction;
+    if isnumeric(raw) && isscalar(raw)
+        txt = sprintf('%g', raw);
+        return;
+    end
+    if ischar(raw) || isstring(raw)
+        txt = char(string(raw));
+        return;
+    end
+    if ~isstruct(raw)
+        txt = '<unsupported>';
+        return;
+    end
+    parts = {};
+    fields = fieldnames(raw);
+    for i = 1:numel(fields)
+        name = fields{i};
+        value = raw.(name);
+        if ischar(value) || isstring(value)
+            valueText = char(string(value));
+        elseif isnumeric(value) && isscalar(value)
+            valueText = sprintf('%g', value);
+        elseif islogical(value) && isscalar(value)
+            valueText = mat2str(value);
+        else
+            continue;
+        end
+        parts{end+1} = sprintf('%s=%s', name, valueText); %#ok<AGROW>
+    end
+    txt = strjoin(parts, ', ');
 end

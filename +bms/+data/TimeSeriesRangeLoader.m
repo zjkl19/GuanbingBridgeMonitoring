@@ -35,6 +35,7 @@ classdef TimeSeriesRangeLoader
             end
 
             [times, vals] = bms.data.TimeSeriesRangeLoader.sortSeries(allT, allV);
+            [times, vals] = bms.data.TimeSeriesLoader.clipClosedRange(times, vals, rangeStart, rangeEnd);
             [vals, meta] = bms.data.TimeSeriesRangeLoader.applyCleaning(vals, times, rules, sensorType, pointId, meta);
         end
 
@@ -114,6 +115,8 @@ classdef TimeSeriesRangeLoader
             switch vendor
                 case {'donghua'}
                     loader = bms.data.TimeSeriesRangeLoader.donghuaLoader(cfg);
+                case {'chongyangxi', 'cyx'}
+                    loader = bms.data.TimeSeriesRangeLoader.chongyangxiLoader(cfg);
                 case {'hongtang'}
                     loader = bms.data.TimeSeriesRangeLoader.hongtangLoader(cfg);
                 case {'jiulongjiang', 'jiulong', 'shuixianhua', 'sxh'}
@@ -130,6 +133,12 @@ classdef TimeSeriesRangeLoader
                 bms.data.TimeSeriesLoader.findCsvForPoint(dirp, pointId, cfg, sensorType);
             loader.read_file = @(fp, sensorType, varargin) ...
                 bms.data.TimeSeriesLoader.readCachedCsvSeries(fp, bms.data.TimeSeriesRangeLoader.defaultHeaderMarker(cfg)); %#ok<NASGU>
+        end
+
+        function loader = chongyangxiLoader(cfg)
+            loader = bms.data.TimeSeriesRangeLoader.donghuaLoader(cfg);
+            loader.read_range = @(rootDir, subfolder, pointId, sensorType, range) ...
+                bms.data.TimeSeriesRangeLoader.chongyangxiReadRange(rootDir, subfolder, pointId, sensorType, range, cfg);
         end
 
         function loader = hongtangLoader(cfg)
@@ -177,6 +186,51 @@ classdef TimeSeriesRangeLoader
                     dirp = '';
                 end
             end
+        end
+
+        function [t, v, used, files] = chongyangxiReadRange(rootDir, subfolder, pointId, sensorType, range, cfg)
+            t = [];
+            v = [];
+            files = {};
+            used = true;
+            folders = bms.data.TimeSeriesRangeLoader.chongyangxiCandidateDirs(rootDir, subfolder, range.start, range.end, cfg);
+            for i = 1:numel(folders)
+                fp = bms.data.TimeSeriesLoader.findCsvForPoint(folders{i}, pointId, cfg, sensorType);
+                if isempty(fp)
+                    continue;
+                end
+                [ti, vi] = bms.data.TimeSeriesLoader.readCachedCsvSeries( ...
+                    fp, bms.data.TimeSeriesRangeLoader.defaultHeaderMarker(cfg));
+                if isempty(vi)
+                    continue;
+                end
+                files{end+1} = fp; %#ok<AGROW>
+                t = [t; ti]; %#ok<AGROW>
+                v = [v; vi]; %#ok<AGROW>
+            end
+            if ~isempty(t)
+                [t, v] = bms.data.TimeSeriesLoader.clipClosedRange(t, v, range.start, range.end);
+            end
+        end
+
+        function folders = chongyangxiCandidateDirs(rootDir, subfolder, startDate, endDate, cfg)
+            %#ok<INUSD> cfg kept for future layout-specific options.
+            rootDir = char(string(rootDir));
+            subfolder = char(string(subfolder));
+            daysList = bms.data.TimeRangeResolver.daysBetween(startDate, endDate);
+            candidates = {};
+            for i = 1:numel(daysList)
+                exportDays = [daysList(i), daysList(i) + days(1)];
+                for j = 1:numel(exportDays)
+                    dayDir = fullfile(rootDir, datestr(exportDays(j), 'yyyy-mm-dd'));
+                    if isempty(subfolder)
+                        candidates{end+1} = dayDir; %#ok<AGROW>
+                    else
+                        candidates{end+1} = fullfile(dayDir, subfolder); %#ok<AGROW>
+                    end
+                end
+            end
+            folders = bms.data.BaseDataSource.uniqueExistingFolders(candidates);
         end
 
         function list = buildDateList(startDate, endDate)

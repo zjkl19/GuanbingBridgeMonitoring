@@ -51,5 +51,51 @@ classdef test_cable_force_service < matlab.unittest.TestCase
             tc.verifyEqual(bms.analyzer.CableForceService.warnLabel(warnLines{3}), 'C1 三级预警值 30kN');
             tc.verifyEqual(warnLines{4}.color, [1 0 0]);
         end
+
+        function forceFrequenciesCanUseReferenceTarget(tc)
+            cfg.per_point.cable_accel.CABLE_01 = struct( ...
+                'target_freqs', 1.4665, ...
+                'force_reference_from_target', true);
+            freqDay = [1.1; NaN; 1.9];
+
+            freqs = bms.analyzer.CableForceService.forceFrequencies(cfg, 'CABLE-01', freqDay);
+
+            tc.verifyEqual(freqs, [1.4665; NaN; 1.4665]);
+        end
+
+        function forceTimeseriesDrawsSinglePointWarnLines(tc)
+            rootDir = tempname;
+            mkdir(rootDir);
+            tc.addTeardown(@() rmdir(rootDir, 's'));
+            cfg.plot_common = struct('save_fig', true, 'append_timestamp', false, 'lightweight_fig', false);
+            style = struct( ...
+                'force_ylabel', 'Cable force (kN)', ...
+                'force_title_prefix', 'Cable force', ...
+                'force_color', [0 0.447 0.741], ...
+                'force_alarm_colors', [1 1 0; 1 0 0], ...
+                'colors', {{[0 0.447 0.741]}});
+            warnLines = bms.analyzer.CableForceService.normalizeAlarmBounds( ...
+                struct('level2', [97 103], 'level3', [95 105]), style, '');
+            datesAll = (datetime(2026, 3, 1):days(1):datetime(2026, 3, 2)).';
+
+            bms.analyzer.SpectrumPlotService.plotForceTimeseries( ...
+                {datesAll}, {[100; 101]}, {'C1'}, 'C1', rootDir, style, [], {warnLines}, cfg);
+
+            files = dir(fullfile(rootDir, 'CableForce_C1_*.fig'));
+            tc.verifyEqual(numel(files), 1);
+            values = local_constant_line_values(fullfile(files(1).folder, files(1).name));
+            tc.verifyEqual(values(:), [95; 97; 103; 105]);
+        end
     end
+end
+
+function values = local_constant_line_values(figPath)
+    fig = openfig(figPath, 'invisible');
+    cleaner = onCleanup(@() close(fig)); %#ok<NASGU>
+    lines = findall(fig, '-isa', 'matlab.graphics.chart.decoration.ConstantLine');
+    if isempty(lines)
+        values = [];
+        return;
+    end
+    values = sort(arrayfun(@(h) h.Value, lines));
 end

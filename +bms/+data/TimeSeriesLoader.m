@@ -200,9 +200,24 @@ classdef TimeSeriesLoader
                     fp = fullfile(matches(1).folder, matches(1).name);
                     return;
                 end
+                matches = bms.data.TimeSeriesLoader.findRecursiveMatches(dirp, pat);
+                if ~isempty(matches)
+                    fp = fullfile(matches(1).folder, matches(1).name);
+                    return;
+                end
             end
 
             files = dir(fullfile(dirp, '*.csv'));
+            idx = find(arrayfun(@(f) contains(f.name, fileId), files), 1);
+            if isempty(idx)
+                idx = find(arrayfun(@(f) contains(f.name, pointId), files), 1);
+            end
+            if ~isempty(idx)
+                fp = fullfile(files(idx).folder, files(idx).name);
+                return;
+            end
+
+            files = bms.data.TimeSeriesLoader.findRecursiveMatches(dirp, '*.csv');
             idx = find(arrayfun(@(f) contains(f.name, fileId), files), 1);
             if isempty(idx)
                 idx = find(arrayfun(@(f) contains(f.name, pointId), files), 1);
@@ -276,6 +291,17 @@ classdef TimeSeriesLoader
             if isstring(alias), alias = char(alias); end
             if ischar(alias)
                 value = alias;
+            end
+        end
+
+        function matches = findRecursiveMatches(dirp, pattern)
+            matches = [];
+            if isempty(dirp) || ~exist(dirp, 'dir') || isempty(pattern)
+                return;
+            end
+            matches = dir(fullfile(dirp, '**', char(string(pattern))));
+            if ~isempty(matches)
+                matches = matches(~[matches.isdir]);
             end
         end
 
