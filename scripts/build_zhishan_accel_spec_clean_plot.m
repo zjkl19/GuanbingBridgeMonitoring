@@ -2,7 +2,7 @@ function build_zhishan_accel_spec_clean_plot()
 % Build a report-ready acceleration spectrum peak-frequency figure.
 % This does not change the formal statistics workbook.
 
-dataRoot = 'D:\芝山大桥数据\2026年1-3月';
+dataRoot = 'D:\芝山大桥数据\2026年3月';
 statsFile = fullfile(dataRoot, 'stats', 'accel_spec_stats.xlsx');
 outDir = fullfile(dataRoot, 'report_assets_v3', 'accel_spec');
 if ~exist(outDir, 'dir')

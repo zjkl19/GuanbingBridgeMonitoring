@@ -2,7 +2,7 @@ function build_zhishan_report_assets_v3()
 % Build report-only cleaned statistics and figures for Zhishan Bridge.
 % Original raw data and formal spectrum statistics are not overwritten.
 
-dataRoot = 'D:\芝山大桥数据\2026年1-3月';
+dataRoot = 'D:\芝山大桥数据\2026年3月';
 statsDir = fullfile(dataRoot, 'stats');
 outRoot = fullfile(dataRoot, 'report_assets_v3');
 ensureDir(outRoot);
@@ -23,8 +23,8 @@ strainMap = {
     'SX-2',  'C1802191462', -283, 414
     'SX-3',  'C1802191467', -218, 298
     'SX-4',  'C1802191469', -218, 298
-    'SX-5',  'C1802191470',  -52, 405
-    'SX-6',  'C1802191481',  -52, 405
+    'SX-5',  'C1802191470', -252, 405
+    'SX-6',  'C1802191481', -252, 405
     'SX-7',  'C2006010002', -218, 298
     'SX-8',  'C2006010003', -218, 298
     'SX-9',  'C2006010053', -283, 414

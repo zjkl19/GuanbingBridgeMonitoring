@@ -16,7 +16,7 @@ addpath(fullfile(projectRoot, 'config'));
 addpath(fullfile(projectRoot, 'analysis'));
 addpath(fullfile(projectRoot, 'scripts'));
 
-dataRoot = ['D:' filesep '芝山大桥数据' filesep '2026年1-3月'];
+dataRoot = ['D:' filesep '芝山大桥数据' filesep '2026年3月'];
 cfg = load_config(fullfile(projectRoot, 'config', 'zhishan_config.json'));
 
 opts = struct( ...

@@ -8,7 +8,7 @@ function summary = stage_zhishan_subset(varargin)
 
     p = inputParser;
     addParameter(p, 'SourceRoot', 'E:\洪塘大桥数据\2026年1-3月', @(s)ischar(s)||isstring(s));
-    addParameter(p, 'TargetRoot', 'D:\芝山大桥数据\2026年1-3月', @(s)ischar(s)||isstring(s));
+    addParameter(p, 'TargetRoot', 'D:\芝山大桥数据\2026年3月', @(s)ischar(s)||isstring(s));
     addParameter(p, 'ConfigPath', defaultConfig, @(s)ischar(s)||isstring(s));
     addParameter(p, 'StartDate', '2026-03-01', @(s)ischar(s)||isstring(s));
     addParameter(p, 'EndDate', '2026-03-31', @(s)ischar(s)||isstring(s));

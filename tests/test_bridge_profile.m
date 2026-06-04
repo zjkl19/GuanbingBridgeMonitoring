@@ -25,6 +25,8 @@ classdef test_bridge_profile < matlab.unittest.TestCase
             z = bms.profile.BridgeProfileRegistry.fromId('zhishan');
             tc.verifyEqual(z.DataLayout, 'dated_folders');
             tc.verifyEqual(z.DefaultReportType, 'analysis_only');
+            tc.verifyTrue(contains(z.DefaultDataRoot, '2026年3月'));
+            tc.verifyFalse(contains(z.DefaultDataRoot, '2026年1-3月'));
             tc.verifyTrue(z.configExists());
             tc.verifyTrue(ismember('cable_accel_spectrum', z.EnabledModuleHints));
             tc.verifyFalse(ismember('cable_force', z.EnabledModuleHints));
@@ -36,7 +38,7 @@ classdef test_bridge_profile < matlab.unittest.TestCase
             tc.verifyEqual(p.BridgeId, 'jiulongjiang');
 
             cfg = struct('vendor', 'zhishan');
-            p = bms.profile.BridgeProfileRegistry.infer(cfg, 'D:\芝山大桥数据\2026年1-3月');
+            p = bms.profile.BridgeProfileRegistry.infer(cfg, 'D:\芝山大桥数据\2026年3月');
             tc.verifyEqual(p.BridgeId, 'zhishan');
         end
     end

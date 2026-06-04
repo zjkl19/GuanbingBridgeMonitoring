@@ -2,7 +2,7 @@ function outPath = rebuild_zhishan_cable_accel_envelope_sheet(dataRoot, cfg)
 %REBUILD_ZHISHAN_CABLE_ACCEL_ENVELOPE_SHEET Build a contact sheet from formal envelope plots.
 
 if nargin < 1 || isempty(dataRoot)
-    dataRoot = ['D:' filesep '芝山大桥数据' filesep '2026年1-3月'];
+    dataRoot = ['D:' filesep '芝山大桥数据' filesep '2026年3月'];
 end
 if nargin < 2 || isempty(cfg)
     projectRoot = fileparts(fileparts(mfilename('fullpath')));

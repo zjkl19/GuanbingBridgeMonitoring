@@ -27,8 +27,17 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             [ok, sx2] = bms.data.PointResolver.getPointConfig(cfg.per_point.strain, 'SX-2', cfg);
             tc.verifyTrue(ok);
             tc.verifyFalse(isfield(sx2.alarm_bounds, 'level1'));
-            tc.verifyEqual(sx2.alarm_bounds.level2(:).', [-200, 400]);
+            tc.verifyEqual(sx2.alarm_bounds.level2(:).', [-283, 414]);
             tc.verifyTrue(isfield(sx2, 'source_note'));
+            tc.verifyEqual(cfg.per_point.strain.SX_3.alarm_bounds.level2(:).', [-218, 298]);
+            tc.verifyEqual(cfg.per_point.strain.SX_4.alarm_bounds.level2(:).', [-218, 298]);
+            tc.verifyEqual(cfg.per_point.strain.SX_5.alarm_bounds.level2(:).', [-252, 405]);
+            tc.verifyEqual(cfg.per_point.strain.SX_6.alarm_bounds.level2(:).', [-252, 405]);
+            tc.verifyEqual(cfg.per_point.strain.SX_10.alarm_bounds.level2(:).', [-283, 414]);
+            tc.verifyEqual(fieldnames(cfg.groups.strain), {'SX_L2_414_283'; 'SX_L2_298_218'; 'SX_L2_405_252'});
+            tc.verifyEqual(cfg.groups.strain.SX_L2_414_283(:).', {'SX-1', 'SX-2', 'SX-9', 'SX-10'});
+            tc.verifyEqual(cfg.groups.strain.SX_L2_298_218(:).', {'SX-3', 'SX-4', 'SX-7', 'SX-8'});
+            tc.verifyEqual(cfg.groups.strain.SX_L2_405_252(:).', {'SX-5', 'SX-6'});
 
             tc.verifyEqual(cfg.defaults.acceleration.thresholds.min, -0.2);
             tc.verifyEqual(cfg.defaults.acceleration.thresholds.max, 0.2);

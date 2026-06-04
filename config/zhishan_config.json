@@ -147,31 +147,39 @@
   },
   "groups": {
     "strain": {
-      "SX": [
+      "SX_L2_414_283": [
         "SX-1",
         "SX-2",
-        "SX-3",
-        "SX-4",
-        "SX-5",
-        "SX-6",
-        "SX-7",
-        "SX-8",
         "SX-9",
         "SX-10"
+      ],
+      "SX_L2_298_218": [
+        "SX-3",
+        "SX-4",
+        "SX-7",
+        "SX-8"
+      ],
+      "SX_L2_405_252": [
+        "SX-5",
+        "SX-6"
       ]
     },
     "strain_timeseries": {
-      "SX": [
+      "SX_L2_414_283": [
         "SX-1",
         "SX-2",
-        "SX-3",
-        "SX-4",
-        "SX-5",
-        "SX-6",
-        "SX-7",
-        "SX-8",
         "SX-9",
         "SX-10"
+      ],
+      "SX_L2_298_218": [
+        "SX-3",
+        "SX-4",
+        "SX-7",
+        "SX-8"
+      ],
+      "SX_L2_405_252": [
+        "SX-5",
+        "SX-6"
       ]
     },
     "dynamic_strain": {
@@ -228,8 +236,8 @@
         "offset_correction": 22.72326076,
         "alarm_bounds": {
           "level2": [
-            -200,
-            400
+            -283,
+            414
           ]
         }
       },
@@ -238,19 +246,19 @@
         "offset_correction": -4.195545562,
         "alarm_bounds": {
           "level2": [
-            -200,
-            400
+            -283,
+            414
           ]
         },
-        "source_note": "2026-06-01复核：SX-1~SX-10应变二级预警统一为[-200,400]με；2026-03-01~2026-03-31期间应变数据按[-200,200]με过滤。"
+        "source_note": "2026-06-04复核：按用户提供的芝山大桥应变二级预警表配置，SX-1/2/9/10=[-283,414]με，SX-3/4/7/8=[-218,298]με，SX-5/6=[-252,405]με；三级预警为“/”。2026-03-01~2026-03-31期间应变数据仍按[-200,200]με清洗。"
       },
       "SX-3": {
         "file_id": "C1802191467",
         "offset_correction": 106.8296544,
         "alarm_bounds": {
           "level2": [
-            -200,
-            400
+            -218,
+            298
           ]
         }
       },
@@ -259,8 +267,8 @@
         "offset_correction": 41.59407587,
         "alarm_bounds": {
           "level2": [
-            -200,
-            400
+            -218,
+            298
           ]
         }
       },
@@ -269,8 +277,8 @@
         "offset_correction": 77.83411572,
         "alarm_bounds": {
           "level2": [
-            -200,
-            400
+            -252,
+            405
           ]
         }
       },
@@ -279,8 +287,8 @@
         "offset_correction": 40.1381648,
         "alarm_bounds": {
           "level2": [
-            -200,
-            400
+            -252,
+            405
           ]
         }
       },
@@ -289,8 +297,8 @@
         "offset_correction": 6.978382642,
         "alarm_bounds": {
           "level2": [
-            -200,
-            400
+            -218,
+            298
           ]
         }
       },
@@ -299,8 +307,8 @@
         "offset_correction": 13.79830098,
         "alarm_bounds": {
           "level2": [
-            -200,
-            400
+            -218,
+            298
           ]
         }
       },
@@ -309,8 +317,8 @@
         "offset_correction": 38.89312355,
         "alarm_bounds": {
           "level2": [
-            -200,
-            400
+            -283,
+            414
           ]
         }
       },
@@ -319,8 +327,8 @@
         "offset_correction": -14.0941581,
         "alarm_bounds": {
           "level2": [
-            -200,
-            400
+            -283,
+            414
           ]
         }
       }
@@ -840,7 +848,7 @@
         "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
         "ocr_force_kN": 3749,
         "completed_force_kN": 3786,
-        "contrast_change_pct": -1.0
+        "contrast_change_pct": -1
       },
       "CF-8": {
         "file_id": "C200303007",
@@ -933,7 +941,15 @@
         500
       ],
       "ylims": {
-        "SX": [
+        "SX_L2_414_283": [
+          -500,
+          500
+        ],
+        "SX_L2_298_218": [
+          -500,
+          500
+        ],
+        "SX_L2_405_252": [
           -500,
           500
         ]
@@ -946,8 +962,11 @@
         ]
       ],
       "group_labels": {
-        "SX": "应变测点"
-      }
+        "SX_L2_414_283": "SX-1、SX-2、SX-9、SX-10（二级+414/-283με）",
+        "SX_L2_298_218": "SX-3、SX-4、SX-7、SX-8（二级+298/-218με）",
+        "SX_L2_405_252": "SX-5、SX-6（二级+405/-252με）"
+      },
+      "warn_unit": "με"
     },
     "dynamic_strain": {
       "ylims": {
@@ -971,7 +990,7 @@
         [
           0.72,
           0.5,
-          0.0
+          0
         ],
         [
           0.85,
@@ -1223,6 +1242,7 @@
     "cable_params": "E:/芝山大桥-彭仲鑫/报告及数据处理/索力/索力计算.xlsx，2022-10-23索力计算表。",
     "device_mapping": "E:/芝山大桥-彭仲鑫/芝山大桥设备参数表（20230308改）.xlsx。",
     "cable_params_ocr_20260528": "User image OCR rows 1~8 map to CF-1~CF-8 for length, line density, first frequency, cable force, completed-bridge force, and change rate.",
-    "cable_accel_cleaning_20260528": "CF cable acceleration is in mm/s^2; cleaning uses daily median baseline removal, then per-point March 2026 filtering: CF-1/2/7/8 [-500,500], CF-5 [-100,140], others [-100,100] mm/s^2."
+    "cable_accel_cleaning_20260528": "CF cable acceleration is in mm/s^2; cleaning uses daily median baseline removal, then per-point March 2026 filtering: CF-1/2/7/8 [-500,500], CF-5 [-100,140], others [-100,100] mm/s^2.",
+    "strain_alarm_20260604": "按用户2026-06-04截图复核，芝山大桥应变仅配置二级预警，三级为“/”；组图按相同预警值分组绘制预警线。"
   }
 }
