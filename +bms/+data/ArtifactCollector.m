@@ -167,11 +167,14 @@ classdef ArtifactCollector
             end
             styleKey = char(key);
             if strcmp(styleKey, 'earthquake'), styleKey = 'eq'; end
+            if strcmp(styleKey, 'dynamic_strain_highpass'), styleKey = 'dynamic_strain'; end
+            if strcmp(styleKey, 'dynamic_strain_lowpass'), styleKey = 'dynamic_strain_lowpass'; end
             if ~isfield(cfg.plot_styles, styleKey) || ~isstruct(cfg.plot_styles.(styleKey))
                 return;
             end
             style = cfg.plot_styles.(styleKey);
-            fields = {'output_dir','single_output_dir','group_output_dir','rms_group_output_dir','boxplot_output_dir','output_dir_crack','output_dir_temp'};
+            fields = {'output_dir','single_output_dir','group_output_dir','rms_group_output_dir','boxplot_output_dir', ...
+                'output_dir_ts','group_output_dir_ts','output_dir_crack','output_dir_temp'};
             for i = 1:numel(fields)
                 if isfield(style, fields{i}) && ~isempty(style.(fields{i}))
                     names{end+1} = style.(fields{i}); %#ok<AGROW>

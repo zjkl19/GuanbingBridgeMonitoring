@@ -185,6 +185,27 @@ classdef DynamicStrainConfigService
             end
         end
 
+        function path = resolveTimeseriesSingleDir(rootDir, userPath, style, spec)
+            if ~isempty(userPath)
+                path = bms.analyzer.DynamicStrainConfigService.resolveDir(rootDir, userPath, spec.defaultTimeseriesDir);
+            elseif isstruct(style) && isfield(style, 'output_dir_ts') && ~isempty(style.output_dir_ts)
+                path = bms.analyzer.DynamicStrainConfigService.resolveDir(rootDir, style.output_dir_ts, spec.defaultTimeseriesDir);
+            else
+                path = bms.analyzer.DynamicStrainConfigService.resolveDir(rootDir, '', spec.defaultTimeseriesDir);
+            end
+        end
+
+        function path = resolveTimeseriesGroupDir(rootDir, singleDir, style)
+            if isstruct(style) && isfield(style, 'group_output_dir_ts') && ~isempty(style.group_output_dir_ts)
+                path = char(style.group_output_dir_ts);
+                if ~bms.analyzer.DynamicStrainConfigService.isAbsolutePath(path)
+                    path = fullfile(rootDir, path);
+                end
+            else
+                path = [char(singleDir), char([95 32452 22270])];
+            end
+        end
+
         function path = resolveStatsFile(rootDir, userPath, defaultName)
             if ~isempty(userPath)
                 path = char(userPath);

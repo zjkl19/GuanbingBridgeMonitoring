@@ -82,6 +82,14 @@ classdef test_chongyangxi_config < matlab.unittest.TestCase
             tc.verifyFalse(logical(cfg.defaults.dynamic_strain.YLimManual));
             tc.verifyEqual(cfg.defaults.dynamic_strain_lowpass.LowerBound, -1000);
             tc.verifyEqual(cfg.defaults.dynamic_strain_lowpass.UpperBound, 1000);
+            tc.verifyEqual(cfg.plot_styles.dynamic_strain.output_dir_ts, '时程曲线_动应变_高通滤波');
+            tc.verifyEqual(cfg.plot_styles.dynamic_strain.group_output_dir_ts, '时程曲线_动应变_高通滤波_组图');
+            tc.verifyEqual(cfg.plot_styles.dynamic_strain_lowpass.output_dir_ts, '时程曲线_动应变_低通滤波');
+            tc.verifyEqual(cfg.plot_styles.dynamic_strain_lowpass.group_output_dir_ts, '时程曲线_动应变_低通滤波_组图');
+            highpassArtifactDirs = bms.data.ArtifactCollector.configOutputDirNames('dynamic_strain_highpass', cfg);
+            lowpassArtifactDirs = bms.data.ArtifactCollector.configOutputDirNames('dynamic_strain_lowpass', cfg);
+            tc.verifyTrue(any(strcmp(highpassArtifactDirs, '时程曲线_动应变_高通滤波_组图')));
+            tc.verifyTrue(any(strcmp(lowpassArtifactDirs, '时程曲线_动应变_低通滤波_组图')));
             [ok, sx5] = bms.data.PointResolver.getPointConfig( ...
                 cfg.per_point.strain, 'CYX-RSG-G05-005-01', cfg);
             tc.verifyTrue(ok);

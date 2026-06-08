@@ -1144,12 +1144,14 @@
     },
     "dynamic_strain": {
       "output_dir": "动应变箱线图_高通",
-      "output_dir_ts": "时程曲线_动应变_高通",
+      "output_dir_ts": "时程曲线_动应变_高通滤波",
+      "group_output_dir_ts": "时程曲线_动应变_高通滤波_组图",
       "ylabel": "动应变 (με)"
     },
     "dynamic_strain_lowpass": {
       "output_dir": "动应变箱线图_低通",
-      "output_dir_ts": "时程曲线_动应变_低通",
+      "output_dir_ts": "时程曲线_动应变_低通滤波",
+      "group_output_dir_ts": "时程曲线_动应变_低通滤波_组图",
       "ylabel": "动应变 (με)"
     }
   },

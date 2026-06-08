@@ -17,7 +17,7 @@ classdef DynamicStrainBoxplotPipeline
             cfg = bms.analyzer.DynamicStrainBoxplotPipeline.loadConfig(opt.Cfg);
             ds = bms.analyzer.DynamicStrainBoxplotPipeline.dynamicConfig(cfg, spec);
             bms.analyzer.DynamicStrainBoxplotPipeline.applyPlotCommonRuntime(cfg);
-
+            [groups, groupNames, style] = bms.analyzer.DynamicStrainBoxplotPipeline.groupsAndStyle(cfg, spec);
             if ~isempty(opt.Subfolder)
                 subfolder = char(opt.Subfolder);
             else
@@ -25,15 +25,15 @@ classdef DynamicStrainBoxplotPipeline
             end
 
             outDir = bms.analyzer.DynamicStrainBoxplotPipeline.resolveDir(rootDir, opt.OutputDir, spec.defaultOutputDir);
-            outDirTs = bms.analyzer.DynamicStrainBoxplotPipeline.resolveDir(rootDir, opt.OutputDirTs, spec.defaultTimeseriesDir);
+            outDirTsSingle = bms.analyzer.DynamicStrainBoxplotPipeline.resolveTimeseriesSingleDir(rootDir, opt.OutputDirTs, style, spec);
+            outDirTsGroup = bms.analyzer.DynamicStrainBoxplotPipeline.resolveTimeseriesGroupDir(rootDir, outDirTsSingle, style);
             statsFile = bms.analyzer.DynamicStrainBoxplotPipeline.resolveStatsFile(rootDir, opt.StatsFile, spec.defaultStatsFile);
             bms.core.PathResolver.ensureDir(outDir);
-            bms.core.PathResolver.ensureDir(outDirTs);
+            bms.core.PathResolver.ensureDir(outDirTsSingle);
+            bms.core.PathResolver.ensureDir(outDirTsGroup);
             if isfile(statsFile)
                 delete(statsFile);
             end
-
-            [groups, groupNames, style] = bms.analyzer.DynamicStrainBoxplotPipeline.groupsAndStyle(cfg, spec);
 
             fprintf('日期范围: %s ~ %s\n', startStr, endStr);
             fprintf('数据目录: %s\\YYYY-MM-DD\\%s\n', rootDir, subfolder);
@@ -46,11 +46,11 @@ classdef DynamicStrainBoxplotPipeline
                     rootDir, subfolder, startStr, endStr, groups{gi}, ds, cfg, spec);
                 ylimGroup = bms.analyzer.DynamicStrainBoxplotPipeline.groupYLim(style, groupName, ds);
                 plottedPointIds = bms.analyzer.DynamicStrainPlotService.plotPointTimeseriesList( ...
-                    tsList, labels, outDirTs, dt0, dt1, ds, spec, ylimGroup, tag, timestamp, cfg, plottedPointIds);
+                    tsList, labels, outDirTsSingle, dt0, dt1, ds, spec, ylimGroup, tag, timestamp, cfg, plottedPointIds);
                 bms.analyzer.DynamicStrainBoxplotPipeline.makeBoxplotAndStats( ...
                     dataMat, labels, groupName, outDir, statsFile, ds, spec, tag, timestamp, dt0, dt1, cfg);
                 bms.analyzer.DynamicStrainBoxplotPipeline.plotTimeseriesGroup( ...
-                    tsList, labels, groupName, outDirTs, dt0, dt1, ds, spec, ylimGroup, tag, timestamp, cfg);
+                    tsList, labels, groupName, outDirTsGroup, dt0, dt1, ds, spec, ylimGroup, tag, timestamp, cfg);
             end
 
             fprintf('\n全部完成。\n');
@@ -102,6 +102,14 @@ classdef DynamicStrainBoxplotPipeline
 
         function path = resolveDir(varargin)
             path = bms.analyzer.DynamicStrainConfigService.resolveDir(varargin{:});
+        end
+
+        function path = resolveTimeseriesSingleDir(varargin)
+            path = bms.analyzer.DynamicStrainConfigService.resolveTimeseriesSingleDir(varargin{:});
+        end
+
+        function path = resolveTimeseriesGroupDir(varargin)
+            path = bms.analyzer.DynamicStrainConfigService.resolveTimeseriesGroupDir(varargin{:});
         end
 
         function path = resolveStatsFile(varargin)
