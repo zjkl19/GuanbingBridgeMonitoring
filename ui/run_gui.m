@@ -42,6 +42,7 @@ function run_gui()
     tabAutoThreshold = uitab(tg,'Title','自动清洗建议');
     tabPostCfg = uitab(tg,'Title','滤波后二次清洗');
     tabOffsetCfg = uitab(tg,'Title','零点修正');
+    tabGroupCfg = uitab(tg,'Title','组图配置');
     tabPlotCfg = uitab(tg,'Title','绘图参数');
 
     %% 运行页
@@ -159,6 +160,7 @@ function run_gui()
     at = build_auto_threshold_tab(tabAutoThreshold, f, cfgCache, cfgPath, cfgEdit, rootEdit, startPicker, endPicker, @addLog, primaryBlue);
     pf = build_post_filter_threshold_tab(tabPostCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
     oc = build_offset_correction_tab(tabOffsetCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
+    gc = build_group_config_tab(tabGroupCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
     pp = build_plot_settings_tab(tabPlotCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
     tg.SelectionChangedFcn = @(src,evt) onTabChanged(evt);
 
@@ -564,6 +566,8 @@ function run_gui()
                 pf.onShow();
             elseif isequal(evt.NewValue, tabOffsetCfg) && isstruct(oc) && isfield(oc,'onShow')
                 oc.onShow();
+            elseif isequal(evt.NewValue, tabGroupCfg) && isstruct(gc) && isfield(gc,'onShow')
+                gc.onShow();
             elseif isequal(evt.NewValue, tabPlotCfg) && isstruct(pp) && isfield(pp,'onShow')
                 pp.onShow();
             end
