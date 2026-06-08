@@ -89,13 +89,13 @@ classdef GuiResultSummary
                 rawStatus = bms.gui.GuiResultSummary.fieldText(rec, 'status', '');
                 status = bms.gui.GuiResultSummary.displayStatus(rawStatus);
                 elapsed = '';
-                if isfield(rec, 'elapsed_sec') && isnumeric(rec.elapsed_sec) && isfinite(rec.elapsed_sec)
+                if isfield(rec, 'elapsed_sec') && isnumeric(rec.elapsed_sec) && isscalar(rec.elapsed_sec) && isfinite(rec.elapsed_sec)
                     elapsed = sprintf('%.1f', double(rec.elapsed_sec));
                 end
                 statsFlag = '';
                 statsPath = bms.gui.GuiResultSummary.fieldText(rec, 'stats_path', '');
                 if ~isempty(statsPath)
-                    if isfield(rec, 'stats_exists') && islogical(rec.stats_exists)
+                    if isfield(rec, 'stats_exists') && islogical(rec.stats_exists) && isscalar(rec.stats_exists)
                         if rec.stats_exists, statsFlag = 'OK'; else, statsFlag = 'missing'; end
                     elseif isfile(statsPath)
                         statsFlag = 'OK';

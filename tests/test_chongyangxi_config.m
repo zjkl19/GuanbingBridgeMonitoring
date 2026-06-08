@@ -79,6 +79,7 @@ classdef test_chongyangxi_config < matlab.unittest.TestCase
             tc.verifyEqual(cfg.plot_styles.deflection.group_labels.B_1st_span_7_10, ...
                 'B截面 第1跨7#、10#梁');
             tc.verifyLessThan(cfg.dynamic_strain.fc, 0.009);
+            tc.verifyFalse(logical(cfg.defaults.dynamic_strain.YLimManual));
             tc.verifyEqual(cfg.defaults.dynamic_strain_lowpass.LowerBound, -1000);
             tc.verifyEqual(cfg.defaults.dynamic_strain_lowpass.UpperBound, 1000);
             [ok, sx5] = bms.data.PointResolver.getPointConfig( ...
@@ -112,9 +113,15 @@ classdef test_chongyangxi_config < matlab.unittest.TestCase
                 cfg.plot_styles.tilt, tiltSpec), '时程曲线_墩身倾角_组图');
 
             tc.verifyEqual(cfg.accel_spectrum_params.target_freqs(:).', 3.2);
+            tc.verifyEqual(cfg.accel_spectrum_params.theor_freqs(:).', 2.83);
+            tc.verifyEqual(cfg.accel_spectrum_params.theor_labels{1}, '理论竖向一阶自振频率 2.83Hz');
             tc.verifyEqual(cfg.accel_spectrum_params.tolerance, 0.15);
+            tc.verifyEqual(cfg.plot_styles.acceleration.group_output_dir, '时程曲线_加速度_组图');
+            tc.verifyTrue(contains(cfg.plot_styles.acceleration.ylabel, 'mm/s^2'));
+            tc.verifyTrue(contains(cfg.plot_styles.acceleration.rms_ylabel, 'mm/s^2'));
+            tc.verifyEqual(cfg.plot_styles.acceleration.warn_unit, 'mm/s^2');
             tc.verifyEqual(numel(cfg.plot_styles.acceleration.rms_warn_lines), 2);
-            tc.verifyEqual([cfg.plot_styles.acceleration.rms_warn_lines.y], [31.5, 50]);
+            tc.verifyEqual([cfg.plot_styles.acceleration.rms_warn_lines.y], [315, 500]);
             tc.verifyTrue(cfg.plot_styles.crack.per_point_plot);
             tc.verifyTrue(cfg.plot_styles.crack.group_plot);
             tc.verifyEqual(cfg.plot_styles.crack.single_output_dir_crack, '时程曲线_裂缝宽度');

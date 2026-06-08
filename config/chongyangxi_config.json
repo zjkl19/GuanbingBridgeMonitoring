@@ -41,7 +41,7 @@
       "Fc": 2.3148148148148147e-05,
       "Whisker": 300,
       "ShowOutliers": false,
-      "YLimManual": true,
+      "YLimManual": false,
       "YLimRange": [
         -30,
         30
@@ -911,10 +911,10 @@
           "一阶"
         ],
         "theor_freqs": [
-          3.2
+          2.83
         ],
         "theor_labels": [
-          "暂定一阶 3.2Hz"
+          "理论竖向一阶自振频率 2.83Hz"
         ],
         "tolerance": 0.15
       },
@@ -926,10 +926,10 @@
           "一阶"
         ],
         "theor_freqs": [
-          3.2
+          2.83
         ],
         "theor_labels": [
-          "暂定一阶 3.2Hz"
+          "理论竖向一阶自振频率 2.83Hz"
         ],
         "tolerance": 0.15
       }
@@ -1091,36 +1091,36 @@
       ]
     },
     "acceleration": {
-      "ylabel": "主梁竖向振动加速度 (cm/s^2)",
+      "ylabel": "主梁竖向振动加速度 (mm/s^2)",
       "title_prefix": "主梁振动加速度时程",
       "output_dir": "时程曲线_主梁加速度",
-      "group_output_dir": "时程曲线_主梁加速度_组图",
+      "group_output_dir": "时程曲线_加速度_组图",
       "ylim_auto": true,
-      "rms_ylabel": "10 min RMS (cm/s^2)",
+      "rms_ylabel": "10 min RMS (mm/s^2)",
       "rms_title_prefix": "主梁加速度10 min RMS时程",
-      "warn_unit": "cm/s^2",
+      "warn_unit": "mm/s^2",
       "rms_warn_lines": [
         {
-          "y": 31.5,
-          "label": "一级 31.5 cm/s^2",
+          "y": 315.0,
+          "label": "一级 315 mm/s^2",
           "level": "一级",
           "color": [
             0.0,
             0.447,
             0.741
           ],
-          "unit": "cm/s^2"
+          "unit": "mm/s^2"
         },
         {
-          "y": 50.0,
-          "label": "二级 50 cm/s^2",
+          "y": 500.0,
+          "label": "二级 500 mm/s^2",
           "level": "二级",
           "color": [
             0.929,
             0.694,
             0.125
           ],
-          "unit": "cm/s^2"
+          "unit": "mm/s^2"
         }
       ],
       "rms_ylim": [],
@@ -1162,7 +1162,7 @@
         "一阶"
       ],
       "tolerance_hz": 0.15,
-      "note": "崇阳溪主梁振动暂按一阶 3.2Hz 搜索峰值。"
+      "note": "崇阳溪主梁振动按一阶搜索频率 3.2Hz 搜索峰值；理论竖向一阶自振频率 2.83Hz 用于参考线。"
     }
   },
   "accel_spectrum_params": {
@@ -1173,10 +1173,10 @@
       "一阶"
     ],
     "theor_freqs": [
-      3.2
+      2.83
     ],
     "theor_labels": [
-      "暂定一阶 3.2Hz"
+      "理论竖向一阶自振频率 2.83Hz"
     ],
     "tolerance": 0.15
   },

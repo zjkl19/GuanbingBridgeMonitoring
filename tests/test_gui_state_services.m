@@ -98,6 +98,25 @@ classdef test_gui_state_services < matlab.unittest.TestCase
             tc.verifyEqual(summary.possible_stale_count, 1);
         end
 
+        function resultSummaryHandlesNonScalarModuleFields(tc)
+            rec = struct('key','temp', 'label','温度分析', 'category','analysis', ...
+                'status','ok', 'elapsed_sec', [1 2], 'stats_path', '', ...
+                'stats_exists', [true false], 'error_type', '', 'message', '', ...
+                'artifacts', []);
+            manifest = struct('status','ok', 'module_results', rec, ...
+                'module_status_counts', struct('ok',1,'fail',0,'skip',0,'missing',0,'other',0), ...
+                'artifact_count', 0);
+            ctx = struct('available', true, 'path', 'manifest.json', 'status', 'ok', ...
+                'manifest', manifest, 'artifact_count', 0);
+
+            summary = bms.gui.GuiResultSummary.fromManifestContext(ctx);
+
+            tc.verifyEqual(summary.status, 'ok');
+            tc.verifyTrue(any(strcmp(summary.module_rows(:, 1), '温度分析')));
+            tempRow = summary.module_rows(strcmp(summary.module_rows(:, 1), '温度分析'), :);
+            tc.verifyEqual(tempRow{1, 3}, '');
+        end
+
         function layoutUsesTallerScreenAwareWindow(tc)
             pos = bms.gui.GuiLayout.mainWindowPosition([1 1 1600 1000]);
             tc.verifyEqual(pos(3), 1380);
