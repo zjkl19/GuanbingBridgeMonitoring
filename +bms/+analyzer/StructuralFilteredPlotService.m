@@ -116,7 +116,8 @@ classdef StructuralFilteredPlotService
                     titleText = sprintf(spec.groupTitlePattern, prefix, nameTag, titleSuffix);
                 else
                     fileNameTag = char(string(nameTag));
-                    titleText = sprintf(spec.pointTitlePattern, prefix, fileNameTag, titleSuffix);
+                    displayTag = bms.analyzer.StructuralPlotConfigService.groupLabel(style, fileNameTag);
+                    titleText = sprintf(spec.pointTitlePattern, prefix, displayTag, titleSuffix);
                 end
             else
                 fileNameTag = char(string(nameTag));

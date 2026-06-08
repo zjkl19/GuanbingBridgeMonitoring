@@ -137,7 +137,9 @@
         "acceleration",
         "accel_spectrum",
         "crack",
-        "strain"
+        "strain",
+        "dynamic_strain_highpass",
+        "dynamic_strain_lowpass"
       ]
     },
     {

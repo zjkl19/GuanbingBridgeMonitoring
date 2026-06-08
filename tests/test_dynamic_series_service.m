@@ -190,6 +190,31 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyGreaterThanOrEqual(numel(dir(fullfile(tc.Root, 'accel_rms_group', '*.jpg'))), 1);
         end
 
+        function accelerationRmsPointDrawsConfiguredWarnLines(tc)
+            values = 10 * ones(1201, 1);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'A1.csv'), values);
+            cfg = dynamic_cfg();
+            cfg.points = struct('acceleration', {{'A1'}});
+            cfg.plot_common = struct('save_fig', true, 'append_timestamp', false, 'lightweight_fig', false);
+            cfg.plot_styles = struct('acceleration', struct( ...
+                'ylim_auto', true, ...
+                'rms_warn_lines', [ ...
+                    struct('y', 31.5, 'label', 'Level 1'), ...
+                    struct('y', 50, 'label', 'Level 2')]));
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('acceleration');
+            style = bms.analyzer.DynamicAccelerationPipeline.plotStyle(cfg, spec);
+            stats = cell(1, 6);
+
+            bms.analyzer.DynamicAccelerationPipeline.runSequential( ...
+                tc.Root, 'wave', '2026-01-01', '2026-01-01', cfg, true, {'A1'}, style, stats, spec);
+
+            figs = dir(fullfile(tc.Root, '**', 'AccelRMS10_A1*.fig'));
+            tc.verifyGreaterThanOrEqual(numel(figs), 1);
+            values = constant_line_values(fullfile(figs(1).folder, figs(1).name));
+            tc.verifyTrue(any(abs(values - 31.5) < 1e-9));
+            tc.verifyTrue(any(abs(values - 50) < 1e-9));
+        end
+
         function accelerationGroupWarnLinesResolveByGroupName(tc)
             style = struct();
             style.rms_warn_lines = struct( ...

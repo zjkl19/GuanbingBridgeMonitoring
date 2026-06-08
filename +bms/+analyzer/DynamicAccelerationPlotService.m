@@ -53,6 +53,9 @@ classdef DynamicAccelerationPlotService
             grid on;
             grid minor;
             hold on;
+            bms.analyzer.StructuralTimeSeriesPlotService.drawWarnLines( ...
+                bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
+                    style, 'rms_warn_lines', pointId, cfg, spec, []), style);
 
             if ~isnan(rmsMax)
                 h1 = yline(rmsMax, '--r');
@@ -493,14 +496,7 @@ classdef DynamicAccelerationPlotService
         end
 
         function label = groupLabel(style, groupName)
-            label = char(string(groupName));
-            if ~isstruct(style) || ~isfield(style, 'group_labels') || ~isstruct(style.group_labels)
-                return;
-            end
-            labels = style.group_labels;
-            if isfield(labels, groupName)
-                label = char(string(labels.(groupName)));
-            end
+            label = bms.analyzer.StructuralPlotConfigService.groupLabel(style, groupName);
         end
 
         function value = styleField(style, fieldName, defaultValue)

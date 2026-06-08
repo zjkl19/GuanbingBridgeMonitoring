@@ -1168,9 +1168,7 @@
           ]
         }
       ],
-      "group_labels": {
-        "CF": "索力加速度测点"
-      }
+      "group_labels": {}
     },
     "cable_accel_spectrum": {
       "psd_ylabel": "PSD (dB)",

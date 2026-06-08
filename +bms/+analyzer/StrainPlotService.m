@@ -217,16 +217,7 @@ classdef StrainPlotService
         end
 
         function label = groupLabel(style, groupName)
-            label = char(string(groupName));
-            if ~isstruct(style) || ~isfield(style, 'group_labels') || ~isstruct(style.group_labels)
-                return;
-            end
-
-            labels = style.group_labels;
-            key = char(string(groupName));
-            if isfield(labels, key)
-                label = char(string(labels.(key)));
-            end
+            label = bms.analyzer.StructuralPlotConfigService.groupLabel(style, groupName);
         end
     end
 end

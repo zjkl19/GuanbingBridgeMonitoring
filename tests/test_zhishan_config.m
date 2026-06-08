@@ -17,6 +17,8 @@ classdef test_zhishan_config < matlab.unittest.TestCase
     methods (Test)
         function configMapsZhishanPointIds(tc)
             cfg = load_config(tc.ConfigPath);
+            lint = bms.config.ConfigLinter.lint(cfg);
+            tc.verifyEqual(lint.status, 'ok', strjoin(lint.warnings, newline));
 
             tc.verifyEqual(cfg.vendor, 'zhishan');
             tc.verifyEqual(bms.data.TimeSeriesLoader.resolveFileId(cfg, 'strain', 'SX-1'), 'C1802191464');

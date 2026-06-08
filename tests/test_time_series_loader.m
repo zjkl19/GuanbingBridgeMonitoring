@@ -103,6 +103,23 @@ classdef test_time_series_loader < matlab.unittest.TestCase
 
             tc.verifyEqual(fp, fullfile(tc.TempDir, 'DIR-ALIAS.csv'));
         end
+
+        function findCsvForPointUsesConfiguredRegex(tc)
+            nested = fullfile(tc.TempDir, 'uuid-001');
+            mkdir(nested);
+            write_text(fullfile(nested, 'CH24_485缓变量_原始数据_1-41-24_202505210810.csv'), 'x');
+            write_text(fullfile(nested, 'CH2_485缓变量_原始数据_1-41-2_202505210810.csv'), 'x');
+
+            cfg = struct();
+            cfg.file_patterns.deflection.default = 'NO_MATCH_{file_id}.csv';
+            cfg.file_patterns.deflection.regex = '^CH24_485缓变量_原始数据_.*\.csv$';
+            cfg.per_point.deflection.CYX_DIS_G02_010_01_Y = struct('file_id', 'TARGET-24');
+
+            fp = bms.data.TimeSeriesLoader.findCsvForPoint( ...
+                tc.TempDir, 'CYX-DIS-G02-010-01-Y', cfg, 'deflection');
+
+            tc.verifyEqual(fp, fullfile(nested, 'CH24_485缓变量_原始数据_1-41-24_202505210810.csv'));
+        end
     end
 end
 

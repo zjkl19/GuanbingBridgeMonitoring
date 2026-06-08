@@ -61,6 +61,31 @@ classdef StructuralFilteredSeriesService
             end
         end
 
+        function [groups, names] = deflectionGroupsWithNames(cfg, spec)
+            raw = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, spec.groupKey, {});
+            groups = {};
+            names = {};
+            if ~bms.analyzer.StructuralPlotConfigService.hasGroups(raw)
+                return;
+            end
+
+            groups = bms.analyzer.StructuralFilteredSeriesService.groupsAsCell(raw);
+            if isstruct(raw)
+                names = fieldnames(raw);
+            else
+                names = cell(numel(groups), 1);
+                for i = 1:numel(groups)
+                    names{i} = sprintf('G%d', i);
+                end
+            end
+            if numel(names) ~= numel(groups)
+                names = cell(numel(groups), 1);
+                for i = 1:numel(groups)
+                    names{i} = sprintf('G%d', i);
+                end
+            end
+        end
+
         function groups = groupsAsCell(raw)
             if isempty(raw)
                 groups = {};

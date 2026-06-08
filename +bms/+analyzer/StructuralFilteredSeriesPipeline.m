@@ -126,7 +126,7 @@ classdef StructuralFilteredSeriesPipeline
 
         function rows = runDeflection(rootDir, startDate, endDate, subfolder, cfg, style, spec)
             rows = cell(0, 7);
-            groups = bms.analyzer.StructuralFilteredSeriesService.deflectionGroups(cfg, spec);
+            [groups, groupNames] = bms.analyzer.StructuralFilteredSeriesService.deflectionGroupsWithNames(cfg, spec);
             plottedPointIds = {};
 
             points = bms.analyzer.StructuralPlotConfigService.getPointsOrFlattenFallback(cfg, spec.pointKey, groups);
@@ -148,6 +148,7 @@ classdef StructuralFilteredSeriesPipeline
             end
 
             for g = 1:numel(groups)
+                groupName = groupNames{g};
                 pidList = bms.data.PointResolver.normalize(groups{g});
                 if isempty(pidList)
                     continue;
@@ -163,8 +164,8 @@ classdef StructuralFilteredSeriesPipeline
                 warnLines = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupWarnLines(records, style, cfg, spec);
                 groupStyle = style;
                 groupStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(style, spec);
-                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, g, groupStyle, 'Orig', spec, cfg, warnLines);
-                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, g, groupStyle, 'Filt', spec, cfg, warnLines);
+                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, groupName, groupStyle, 'Orig', spec, cfg, warnLines);
+                bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, groupName, groupStyle, 'Filt', spec, cfg, warnLines);
             end
 
             for i = 1:numel(points)
@@ -265,32 +266,50 @@ classdef StructuralFilteredSeriesPipeline
             end
         end
 
-        function warnLines = deflectionGroupWarnLines(records, style, cfg, spec)
-            warnLines = {};
-            for i = 1:numel(records)
-                warnLines = bms.analyzer.StructuralFilteredPlotService.defaultWarnLines( ...
-                    style, cfg, spec, records(i).pid);
-                if ~isempty(warnLines)
-                    return;
-                end
+        function outDir = tiltSingleOutputDir(style, spec)
+            outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'single_output_dir', '');
+            if isempty(outDir)
+                outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'output_dir', spec.defaultOutputDir);
             end
-            warnLines = bms.analyzer.StructuralFilteredPlotService.defaultWarnLines(style, cfg, spec, '');
+        end
+
+        function outDir = tiltGroupOutputDir(style, spec)
+            outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'group_output_dir', '');
+            if isempty(outDir)
+                singleDir = bms.analyzer.StructuralFilteredSeriesPipeline.tiltSingleOutputDir(style, spec);
+                outDir = [char(string(singleDir)) '_组图'];
+            end
+        end
+
+        function warnLines = deflectionGroupWarnLines(records, style, cfg, spec)
+            fallback = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'warn_lines', {});
+            pointResolver = @(pid) bms.analyzer.StructuralFilteredPlotService.defaultWarnLines( ...
+                style, cfg, spec, pid);
+            warnLines = bms.analyzer.StructuralFilteredSeriesPipeline.commonRecordWarnLines( ...
+                records, pointResolver, fallback);
         end
 
         function warnLines = bearingGroupWarnLines(records, style, cfg, spec)
-            warnLines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
+            fallback = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
                 style, cfg, spec.moduleKey, '');
+            pointResolver = @(pid) bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
+                style, cfg, spec.moduleKey, pid);
+            warnLines = bms.analyzer.StructuralFilteredSeriesPipeline.commonRecordWarnLines( ...
+                records, pointResolver, fallback);
+        end
+
+        function warnLines = commonRecordWarnLines(records, pointResolver, fallbackWarnLines)
+            warnLines = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(fallbackWarnLines);
             if ~isempty(warnLines)
                 return;
             end
-            warnLines = {};
+
             common = {};
             for i = 1:numel(records)
                 if ~isfield(records(i), 'pid') || isempty(records(i).pid)
                     continue;
                 end
-                current = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
-                    style, cfg, spec.moduleKey, records(i).pid);
+                current = pointResolver(records(i).pid);
                 current = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(current);
                 if isempty(current)
                     warnLines = {};
@@ -375,8 +394,10 @@ classdef StructuralFilteredSeriesPipeline
 
                     warnLines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
                         style, cfg, spec.moduleKey, pid);
+                    pointStyle = style;
+                    pointStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.tiltSingleOutputDir(style, spec);
                     bms.analyzer.StructuralFilteredPlotService.plotTiltCurve( ...
-                        rootDir, data, startDate, endDate, pid, style, warnLines, spec, cfg);
+                        rootDir, data, startDate, endDate, pid, pointStyle, warnLines, spec, cfg);
                 end
             end
 
@@ -400,8 +421,10 @@ classdef StructuralFilteredSeriesPipeline
                 if bms.analyzer.StructuralPlotConfigService.hasPlotData(dataList)
                     groupWarn = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines( ...
                         style, cfg, spec.moduleKey, '');
+                    groupStyle = style;
+                    groupStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.tiltGroupOutputDir(style, spec);
                     bms.analyzer.StructuralFilteredPlotService.plotTiltCurve( ...
-                        rootDir, dataList, startDate, endDate, groupName, style, groupWarn, spec, cfg);
+                        rootDir, dataList, startDate, endDate, groupName, groupStyle, groupWarn, spec, cfg);
                 end
             end
         end

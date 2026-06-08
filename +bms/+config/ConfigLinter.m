@@ -11,6 +11,8 @@ classdef ConfigLinter
             result.issues = bms.config.ConfigLinter.issueDetails(base.warnings, 'schema');
 
             extraWarnings = [bms.config.ConfigLinter.checkPerPointReferences(cfg), ...
+                bms.config.ConfigLinter.checkGroupReferences(cfg), ...
+                bms.config.ConfigLinter.checkGroupLabelReferences(cfg), ...
                 bms.config.ConfigLinter.checkPlotWarningPreviews(cfg)];
             result.issues = [result.issues, bms.config.ConfigLinter.issueDetails(extraWarnings, 'config')];
 
@@ -52,6 +54,34 @@ classdef ConfigLinter
             end
             if ~isempty(result.warnings)
                 result.status = 'warning';
+            end
+        end
+
+        function result = lintProfiles(projectRoot)
+            if nargin < 1 || isempty(projectRoot)
+                projectRoot = bms.core.PathResolver.projectRoot();
+            end
+            validation = bms.profile.BridgeProfileRegistry.validateCatalog(projectRoot);
+            issues = bms.config.ConfigLinter.issueDetails(validation.warnings, 'profile');
+
+            rootWarnings = bms.config.ConfigLinter.checkProfileDataRoots(projectRoot);
+            issues = [issues, bms.config.ConfigLinter.issueDetails(rootWarnings, 'profile')];
+
+            result = struct();
+            result.status = validation.status;
+            result.errors = validation.errors;
+            result.warnings = bms.config.ConfigLinter.messagesBySeverity(issues, {'warning'});
+            result.infos = bms.config.ConfigLinter.messagesBySeverity(issues, {'info'});
+            result.issues = issues;
+            result.profile_count = validation.profile_count;
+            result.profile_ids = validation.profile_ids;
+            result.summary = bms.config.ConfigLinter.issueSummary(issues, result.errors);
+            if ~isempty(result.errors)
+                result.status = 'failed';
+            elseif ~isempty(result.warnings)
+                result.status = 'warning';
+            else
+                result.status = 'ok';
             end
         end
 
@@ -144,6 +174,18 @@ classdef ConfigLinter
                 severity = 'warning';
                 category = 'orphan_per_point_rule';
                 action = 'per_point 规则未匹配到 points/groups 中的测点，建议清理或补齐测点映射。';
+            elseif contains(msg, 'group ') && contains(msg, 'references unknown point')
+                severity = 'warning';
+                category = 'group_point_reference';
+                action = '组图分组引用了该测项 points 中不存在的测点，建议修正 groups 或补齐 points。';
+            elseif contains(msg, 'group_labels') && contains(msg, 'references unknown group')
+                severity = 'warning';
+                category = 'group_label_reference';
+                action = 'group_labels 只能引用真实 group key，建议删除孤儿标签或补齐对应分组。';
+            elseif contains(msg, 'default_data_root not found')
+                severity = 'warning';
+                category = 'profile_data_root';
+                action = '默认数据目录当前不可读；如是换机环境可忽略，否则应修正 bridge_profiles.json。';
             elseif contains(msg, 'not registered')
                 severity = 'warning';
                 category = 'unknown_config_key';
@@ -217,6 +259,82 @@ classdef ConfigLinter
             end
         end
 
+        function warnings = checkGroupReferences(cfg)
+            warnings = {};
+            if ~isstruct(cfg) || ~isfield(cfg, 'groups') || ~isstruct(cfg.groups)
+                return;
+            end
+            groupKeys = fieldnames(cfg.groups);
+            for i = 1:numel(groupKeys)
+                groupKey = groupKeys{i};
+                groups = bms.data.PointResolver.normalizeGroups(cfg.groups.(groupKey));
+                if isempty(fieldnames(groups))
+                    continue;
+                end
+                moduleKey = bms.config.ConfigLinter.moduleKeyForGroup(groupKey);
+                configured = bms.config.ConfigLinter.explicitModulePoints(cfg, moduleKey);
+                if isempty(configured)
+                    continue;
+                end
+                names = fieldnames(groups);
+                for j = 1:numel(names)
+                    pts = groups.(names{j});
+                    for k = 1:numel(pts)
+                        if ~bms.config.ConfigLinter.pointMatchesConfigured(pts{k}, configured, cfg)
+                            warnings{end+1} = sprintf('groups.%s group %s references unknown point %s', ...
+                                groupKey, names{j}, pts{k}); %#ok<AGROW>
+                        end
+                    end
+                end
+            end
+        end
+
+        function warnings = checkGroupLabelReferences(cfg)
+            warnings = {};
+            if ~isstruct(cfg) || ~isfield(cfg, 'plot_styles') || ~isstruct(cfg.plot_styles)
+                return;
+            end
+            styleKeys = fieldnames(cfg.plot_styles);
+            for i = 1:numel(styleKeys)
+                styleKey = styleKeys{i};
+                style = cfg.plot_styles.(styleKey);
+                if ~isstruct(style) || ~isfield(style, 'group_labels') || ~isstruct(style.group_labels)
+                    continue;
+                end
+                spec = bms.config.ModuleConfigRegistry.fromKey(styleKey);
+                groups = bms.config.ModuleConfigResolver.resolveGroups(cfg, spec);
+                groupNames = fieldnames(groups);
+                labelKeys = fieldnames(style.group_labels);
+                for j = 1:numel(labelKeys)
+                    if ~any(strcmp(groupNames, labelKeys{j}))
+                        warnings{end+1} = sprintf('plot_styles.%s.group_labels.%s references unknown group', ...
+                            styleKey, labelKeys{j}); %#ok<AGROW>
+                    end
+                end
+            end
+        end
+
+        function warnings = checkProfileDataRoots(projectRoot)
+            warnings = {};
+            profiles = bms.profile.BridgeProfileRegistry.catalog(projectRoot);
+            for i = 1:numel(profiles)
+                p = profiles(i);
+                root = char(string(p.DefaultDataRoot));
+                if isempty(root) || contains(root, '<')
+                    continue;
+                end
+                if ~bms.profile.BridgeProfile.isAbsolutePath(root)
+                    warnings{end+1} = sprintf('profile[%d:%s] default_data_root should be absolute or placeholder: %s', ...
+                        i, p.BridgeId, root); %#ok<AGROW>
+                    continue;
+                end
+                if ~isfolder(root)
+                    warnings{end+1} = sprintf('profile[%d:%s] default_data_root not found: %s', ...
+                        i, p.BridgeId, root); %#ok<AGROW>
+                end
+            end
+        end
+
         function warnings = checkPlotWarningPreviews(cfg)
             warnings = {};
             if ~isstruct(cfg)
@@ -254,6 +372,48 @@ classdef ConfigLinter
                 end
             end
             original = bms.data.PointResolver.originalId(pointKey, cfg);
+            tf = any(strcmp(configured, original));
+        end
+
+        function moduleKey = moduleKeyForGroup(groupKey)
+            moduleKey = char(string(groupKey));
+            if strcmp(moduleKey, 'strain_timeseries')
+                moduleKey = 'strain';
+            end
+        end
+
+        function points = explicitModulePoints(cfg, moduleKey)
+            points = {};
+            if ~isstruct(cfg) || ~isfield(cfg, 'points') || ~isstruct(cfg.points)
+                return;
+            end
+            spec = bms.config.ModuleConfigRegistry.fromKey(moduleKey);
+            aliases = bms.config.ModuleConfigRegistry.aliasesForKey(spec.value);
+            keys = unique([{char(string(moduleKey)), spec.point_key}, aliases(:)'], 'stable');
+            for i = 1:numel(keys)
+                key = keys{i};
+                if ~isempty(key) && isfield(cfg.points, key)
+                    points = [points; bms.data.PointResolver.normalize(cfg.points.(key))]; %#ok<AGROW>
+                end
+            end
+            points = bms.data.PointResolver.uniqueText(points);
+        end
+
+        function tf = pointMatchesConfigured(pointId, configured, cfg)
+            tf = false;
+            pointId = char(string(pointId));
+            if any(strcmp(configured, pointId))
+                tf = true;
+                return;
+            end
+            for k = 1:numel(configured)
+                candidates = bms.data.PointResolver.keyCandidates(configured{k}, cfg);
+                if any(strcmp(candidates, pointId))
+                    tf = true;
+                    return;
+                end
+            end
+            original = bms.data.PointResolver.originalId(pointId, cfg);
             tf = any(strcmp(configured, original));
         end
     end

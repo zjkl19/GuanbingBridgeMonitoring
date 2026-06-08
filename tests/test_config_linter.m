@@ -45,6 +45,54 @@ classdef test_config_linter < matlab.unittest.TestCase
             tc.verifyTrue(any(contains(result.infos, 'points.rainfall is configured but empty')));
             tc.verifyGreaterThanOrEqual(result.summary.info, 1);
         end
+
+        function linterWarnsGroupReferencesUnknownPoint(tc)
+            cfg = minimal_config();
+            cfg.points.deflection = {'P-1', 'P-2'};
+            cfg.groups.deflection.G1 = {'P-1', 'P-3'};
+
+            result = bms.config.ConfigLinter.lint(cfg);
+
+            tc.verifyTrue(any(contains(result.warnings, ...
+                'groups.deflection group G1 references unknown point P-3')));
+            tc.verifyTrue(any(strcmp({result.issues.category}, 'group_point_reference')));
+        end
+
+        function linterAcceptsMatchingGroupLabels(tc)
+            cfg = minimal_config();
+            cfg.points.deflection = {'P-1', 'P-2'};
+            cfg.groups.deflection.G1 = {'P-1', 'P-2'};
+            cfg.plot_styles.deflection.group_labels.G1 = '测试分组';
+
+            result = bms.config.ConfigLinter.lint(cfg);
+
+            tc.verifyFalse(any(contains(result.warnings, ...
+                'plot_styles.deflection.group_labels.G1 references unknown group')));
+        end
+
+        function linterWarnsUnknownGroupLabels(tc)
+            cfg = minimal_config();
+            cfg.points.deflection = {'P-1', 'P-2'};
+            cfg.groups.deflection.G1 = {'P-1', 'P-2'};
+            cfg.plot_styles.deflection.group_labels.G2 = '孤儿分组';
+
+            result = bms.config.ConfigLinter.lint(cfg);
+
+            tc.verifyTrue(any(contains(result.warnings, ...
+                'plot_styles.deflection.group_labels.G2 references unknown group')));
+            tc.verifyTrue(any(strcmp({result.issues.category}, 'group_label_reference')));
+        end
+
+        function lintProfilesCoversBridgeCatalog(tc)
+            root = fileparts(fileparts(mfilename('fullpath')));
+
+            result = bms.config.ConfigLinter.lintProfiles(root);
+
+            tc.verifyTrue(isfield(result, 'profile_ids'));
+            tc.verifyTrue(ismember('zhishan', result.profile_ids));
+            tc.verifyTrue(ismember('chongyangxi', result.profile_ids));
+            tc.verifyNotEqual(result.status, 'failed');
+        end
     end
 end
 

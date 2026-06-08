@@ -177,16 +177,26 @@ classdef TimeSeriesLoader
             pointId = char(string(pointId));
             fileId = bms.data.TimeSeriesLoader.resolveFileId(cfg, sensorType, pointId);
             patterns = {};
+            regexes = {};
             if isstruct(cfg) && isfield(cfg, 'file_patterns') && isstruct(cfg.file_patterns) ...
                     && isfield(cfg.file_patterns, sensorType)
                 ft = cfg.file_patterns.(sensorType);
                 if isstruct(ft) && isfield(ft, 'default')
                     patterns = [patterns; bms.data.TimeSeriesLoader.normalizePatterns(ft.default)]; %#ok<AGROW>
                 end
+                if isstruct(ft) && isfield(ft, 'regex')
+                    regexes = [regexes; bms.data.TimeSeriesLoader.normalizePatterns(ft.regex)]; %#ok<AGROW>
+                end
                 if isstruct(ft) && isfield(ft, 'per_point') && isstruct(ft.per_point)
                     [ok, pointPatterns] = bms.data.PointResolver.getPointConfig(ft.per_point, pointId, cfg);
                     if ok
                         patterns = [bms.data.TimeSeriesLoader.normalizePatterns(pointPatterns); patterns]; %#ok<AGROW>
+                    end
+                end
+                if isstruct(ft) && isfield(ft, 'per_point_regex') && isstruct(ft.per_point_regex)
+                    [ok, pointRegexes] = bms.data.PointResolver.getPointConfig(ft.per_point_regex, pointId, cfg);
+                    if ok
+                        regexes = [bms.data.TimeSeriesLoader.normalizePatterns(pointRegexes); regexes]; %#ok<AGROW>
                     end
                 end
             end
@@ -201,6 +211,17 @@ classdef TimeSeriesLoader
                     return;
                 end
                 matches = bms.data.TimeSeriesLoader.findRecursiveMatches(dirp, pat);
+                if ~isempty(matches)
+                    fp = fullfile(matches(1).folder, matches(1).name);
+                    return;
+                end
+            end
+
+            for k = 1:numel(regexes)
+                expr = regexes{k};
+                expr = strrep(expr, '{point}', regexptranslate('escape', pointId));
+                expr = strrep(expr, '{file_id}', regexptranslate('escape', fileId));
+                matches = bms.data.TimeSeriesLoader.findRecursiveRegexMatches(dirp, expr);
                 if ~isempty(matches)
                     fp = fullfile(matches(1).folder, matches(1).name);
                     return;
@@ -303,6 +324,20 @@ classdef TimeSeriesLoader
             if ~isempty(matches)
                 matches = matches(~[matches.isdir]);
             end
+        end
+
+        function matches = findRecursiveRegexMatches(dirp, expr)
+            matches = [];
+            if isempty(dirp) || ~exist(dirp, 'dir') || isempty(expr)
+                return;
+            end
+            files = dir(fullfile(dirp, '**', '*.csv'));
+            if isempty(files)
+                return;
+            end
+            files = files(~[files.isdir]);
+            keep = arrayfun(@(f) ~isempty(regexp(f.name, char(string(expr)), 'once')), files);
+            matches = files(keep);
         end
 
         function headerLines = detectHeaderLines(path, headerMarker)

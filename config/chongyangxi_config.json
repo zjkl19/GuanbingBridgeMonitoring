@@ -35,6 +35,42 @@
           0.1
         ]
       }
+    },
+    "dynamic_strain": {
+      "Fs": [],
+      "Fc": 2.3148148148148147e-05,
+      "Whisker": 300,
+      "ShowOutliers": false,
+      "YLimManual": true,
+      "YLimRange": [
+        -30,
+        30
+      ],
+      "LowerBound": -150,
+      "UpperBound": 150,
+      "EdgeTrimSec": 5,
+      "CutoffPeriodMinutes": 720
+    },
+    "dynamic_strain_lowpass": {
+      "FilterMode": "auto",
+      "AutoPreset": "temperature",
+      "AutoCutoffPeriodMinutes": 720,
+      "MinSamplesPerCutoff": 20,
+      "Fs": [],
+      "Fc": [],
+      "CutoffPeriodMinutes": [],
+      "FilterOrder": 2,
+      "Whisker": 300,
+      "ShowOutliers": false,
+      "YLimManual": false,
+      "YLimRange": [
+        -150,
+        150
+      ],
+      "LowerBound": -1000,
+      "UpperBound": 1000,
+      "EdgeTrimSec": 5,
+      "MaxGapSec": []
     }
   },
   "plot_common": {
@@ -53,7 +89,9 @@
     "acceleration": "波形",
     "acceleration_raw": "波形",
     "strain": "特征值",
-    "crack": "特征值"
+    "crack": "特征值",
+    "dynamic_strain": "特征值",
+    "dynamic_strain_lowpass": "特征值"
   },
   "file_patterns": {
     "temperature": {
@@ -165,6 +203,26 @@
       "1#墩裂缝",
       "2#敦裂缝",
       "第1跨横隔板裂缝"
+    ],
+    "dynamic_strain": [
+      "CYX-RSG-G05-005-01",
+      "CYX-RSG-G05-007-01",
+      "CYX-RSG-G05-010-01",
+      "CYX-RSG-G05-012-01",
+      "CYX-RSG-G02-005-01",
+      "CYX-RSG-G02-007-01",
+      "CYX-RSG-G02-010-01",
+      "CYX-RSG-G02-012-01"
+    ],
+    "dynamic_strain_lowpass": [
+      "CYX-RSG-G05-005-01",
+      "CYX-RSG-G05-007-01",
+      "CYX-RSG-G05-010-01",
+      "CYX-RSG-G05-012-01",
+      "CYX-RSG-G02-005-01",
+      "CYX-RSG-G02-007-01",
+      "CYX-RSG-G02-010-01",
+      "CYX-RSG-G02-012-01"
     ]
   },
   "groups": {
@@ -180,39 +238,49 @@
       ]
     },
     "strain": {
-      "A_3rd_span": [
+      "A_3rd_span_mid_5_12": [
         "CYX-RSG-G05-005-01",
-        "CYX-RSG-G05-007-01",
-        "CYX-RSG-G05-010-01",
         "CYX-RSG-G05-012-01"
       ],
-      "B_1st_span": [
+      "A_3rd_span_mid_7_10": [
+        "CYX-RSG-G05-007-01",
+        "CYX-RSG-G05-010-01"
+      ],
+      "B_1st_span_mid_5_12": [
         "CYX-RSG-G02-005-01",
-        "CYX-RSG-G02-007-01",
-        "CYX-RSG-G02-010-01",
         "CYX-RSG-G02-012-01"
+      ],
+      "B_1st_span_mid_7_10": [
+        "CYX-RSG-G02-007-01",
+        "CYX-RSG-G02-010-01"
       ]
     },
     "strain_timeseries": {
-      "A_3rd_span": [
+      "A_3rd_span_mid_5_12": [
         "CYX-RSG-G05-005-01",
-        "CYX-RSG-G05-007-01",
-        "CYX-RSG-G05-010-01",
         "CYX-RSG-G05-012-01"
       ],
-      "B_1st_span": [
+      "A_3rd_span_mid_7_10": [
+        "CYX-RSG-G05-007-01",
+        "CYX-RSG-G05-010-01"
+      ],
+      "B_1st_span_mid_5_12": [
         "CYX-RSG-G02-005-01",
-        "CYX-RSG-G02-007-01",
-        "CYX-RSG-G02-010-01",
         "CYX-RSG-G02-012-01"
+      ],
+      "B_1st_span_mid_7_10": [
+        "CYX-RSG-G02-007-01",
+        "CYX-RSG-G02-010-01"
       ]
     },
     "deflection": {
-      "A_3rd_span": [
+      "A_3rd_span_5_12": [
         "CYX-DIS-G05-005-01-Y",
-        "CYX-DIS-G05-007-01-Y",
-        "CYX-DIS-G05-010-01-Y",
         "CYX-DIS-G05-012-01-Y"
+      ],
+      "A_3rd_span_7_10": [
+        "CYX-DIS-G05-007-01-Y",
+        "CYX-DIS-G05-010-01-Y"
       ],
       "A1_3rd_span_quarter": [
         "CYX-DIS-G04-007-01-Y",
@@ -222,11 +290,13 @@
         "CYX-DIS-G06-007-01-Y",
         "CYX-DIS-G06-010-01-Y"
       ],
-      "B_1st_span": [
+      "B_1st_span_5_12": [
         "CYX-DIS-G02-005-01-Y",
-        "CYX-DIS-G02-007-01-Y",
-        "CYX-DIS-G02-010-01-Y",
         "CYX-DIS-G02-012-01-Y"
+      ],
+      "B_1st_span_7_10": [
+        "CYX-DIS-G02-007-01-Y",
+        "CYX-DIS-G02-010-01-Y"
       ],
       "B1_1st_span_quarter": [
         "CYX-DIS-G01-007-01-Y",
@@ -268,6 +338,42 @@
         "1#墩裂缝",
         "2#敦裂缝",
         "第1跨横隔板裂缝"
+      ]
+    },
+    "dynamic_strain": {
+      "A_3rd_span_mid_5_12": [
+        "CYX-RSG-G05-005-01",
+        "CYX-RSG-G05-012-01"
+      ],
+      "A_3rd_span_mid_7_10": [
+        "CYX-RSG-G05-007-01",
+        "CYX-RSG-G05-010-01"
+      ],
+      "B_1st_span_mid_5_12": [
+        "CYX-RSG-G02-005-01",
+        "CYX-RSG-G02-012-01"
+      ],
+      "B_1st_span_mid_7_10": [
+        "CYX-RSG-G02-007-01",
+        "CYX-RSG-G02-010-01"
+      ]
+    },
+    "dynamic_strain_lowpass": {
+      "A_3rd_span_mid_5_12": [
+        "CYX-RSG-G05-005-01",
+        "CYX-RSG-G05-012-01"
+      ],
+      "A_3rd_span_mid_7_10": [
+        "CYX-RSG-G05-007-01",
+        "CYX-RSG-G05-010-01"
+      ],
+      "B_1st_span_mid_5_12": [
+        "CYX-RSG-G02-005-01",
+        "CYX-RSG-G02-012-01"
+      ],
+      "B_1st_span_mid_7_10": [
+        "CYX-RSG-G02-007-01",
+        "CYX-RSG-G02-010-01"
       ]
     }
   },
@@ -610,6 +716,222 @@
             0.1
           ]
         }
+      },
+      "CYX-INC-P01-001-01-Y": {
+        "alarm_bounds": {
+          "level2": [
+            -0.08,
+            0.08
+          ],
+          "level3": [
+            -0.1,
+            0.1
+          ]
+        }
+      },
+      "CYX-INC-P02-001-01-Y": {
+        "alarm_bounds": {
+          "level2": [
+            -0.08,
+            0.08
+          ],
+          "level3": [
+            -0.1,
+            0.1
+          ]
+        }
+      },
+      "CYX-INC-P03-001-01-Y": {
+        "alarm_bounds": {
+          "level2": [
+            -0.08,
+            0.08
+          ],
+          "level3": [
+            -0.1,
+            0.1
+          ]
+        }
+      }
+    },
+    "strain": {
+      "CYX-RSG-G05-005-01": {
+        "alarm_bounds": {
+          "level2": [
+            -62,
+            62
+          ],
+          "level3": [
+            -77,
+            77
+          ]
+        }
+      },
+      "CYX-RSG-G05-012-01": {
+        "alarm_bounds": {
+          "level2": [
+            -62,
+            62
+          ],
+          "level3": [
+            -77,
+            77
+          ]
+        }
+      },
+      "CYX-RSG-G05-007-01": {
+        "alarm_bounds": {
+          "level2": [
+            -78,
+            78
+          ],
+          "level3": [
+            -98,
+            98
+          ]
+        }
+      },
+      "CYX-RSG-G05-010-01": {
+        "alarm_bounds": {
+          "level2": [
+            -78,
+            78
+          ],
+          "level3": [
+            -98,
+            98
+          ]
+        }
+      },
+      "CYX-RSG-G02-005-01": {
+        "alarm_bounds": {
+          "level2": [
+            -62,
+            62
+          ],
+          "level3": [
+            -77,
+            77
+          ]
+        }
+      },
+      "CYX-RSG-G02-012-01": {
+        "alarm_bounds": {
+          "level2": [
+            -62,
+            62
+          ],
+          "level3": [
+            -77,
+            77
+          ]
+        }
+      },
+      "CYX-RSG-G02-007-01": {
+        "alarm_bounds": {
+          "level2": [
+            -82,
+            82
+          ],
+          "level3": [
+            -102,
+            102
+          ]
+        }
+      },
+      "CYX-RSG-G02-010-01": {
+        "alarm_bounds": {
+          "level2": [
+            -82,
+            82
+          ],
+          "level3": [
+            -102,
+            102
+          ]
+        }
+      }
+    },
+    "bearing_displacement": {
+      "CYX-DIS-G07-005-01": {
+        "alarm_bounds": {
+          "level2": [
+            -80,
+            80
+          ],
+          "level3": [
+            -100,
+            100
+          ]
+        }
+      },
+      "CYX-DIS-G08-005-01": {
+        "alarm_bounds": {
+          "level2": [
+            -80,
+            80
+          ],
+          "level3": [
+            -100,
+            100
+          ]
+        }
+      },
+      "CYX-DIS-G07-012-01": {
+        "alarm_bounds": {
+          "level2": [
+            -80,
+            80
+          ],
+          "level3": [
+            -100,
+            100
+          ]
+        }
+      },
+      "CYX-DIS-G08-012-01": {
+        "alarm_bounds": {
+          "level2": [
+            -80,
+            80
+          ],
+          "level3": [
+            -100,
+            100
+          ]
+        }
+      }
+    },
+    "accel_spectrum": {
+      "CYX-VIB-G05-005-01": {
+        "target_freqs": [
+          3.2
+        ],
+        "peak_labels": [
+          "一阶"
+        ],
+        "theor_freqs": [
+          3.2
+        ],
+        "theor_labels": [
+          "暂定一阶 3.2Hz"
+        ],
+        "tolerance": 0.15
+      },
+      "CYX-VIB-G02-012-01": {
+        "target_freqs": [
+          3.2
+        ],
+        "peak_labels": [
+          "一阶"
+        ],
+        "theor_freqs": [
+          3.2
+        ],
+        "theor_labels": [
+          "暂定一阶 3.2Hz"
+        ],
+        "tolerance": 0.15
       }
     }
   },
@@ -632,8 +954,23 @@
       "output_dir": "时程曲线_表面应变",
       "group_output_dir": "时程曲线_表面应变_组图",
       "boxplot_output_dir": "箱线图_表面应变",
-      "show_warn_lines_group": false,
-      "ylim_auto": true
+      "show_warn_lines_group": true,
+      "ylim_auto": true,
+      "warn_unit": "με",
+      "alarm_colors": [
+        [
+          0.929,
+          0.694,
+          0.125
+        ],
+        [
+          0.85,
+          0.1,
+          0.1
+        ]
+      ],
+      "show_warn_lines_point": true,
+      "show_warn_lines_boxplot": true
     },
     "deflection": {
       "ylabel": "挠度/标靶位移 (mm)",
@@ -643,6 +980,16 @@
       "group_output_dir": "时程曲线_主梁挠度_组图",
       "warn_unit": "mm",
       "ylim_auto": true,
+      "group_labels": {
+        "A_3rd_span_5_12": "A截面 第3跨5#、12#梁",
+        "A_3rd_span_7_10": "A截面 第3跨7#、10#梁",
+        "A1_3rd_span_quarter": "A1截面 第3跨7#、10#梁",
+        "A2_3rd_span_three_quarter": "A2截面 第3跨7#、10#梁",
+        "B_1st_span_5_12": "B截面 第1跨5#、12#梁",
+        "B_1st_span_7_10": "B截面 第1跨7#、10#梁",
+        "B1_1st_span_quarter": "B1截面 第1跨7#、10#梁",
+        "B2_1st_span_three_quarter": "B2截面 第1跨7#、10#梁"
+      },
       "alarm_colors": [
         [
           0.929,
@@ -661,21 +1008,123 @@
       "title_prefix": "梁端位移时程",
       "output_dir": "时程曲线_梁端位移",
       "group_output_dir": "时程曲线_梁端位移_组图",
-      "ylim_auto": true
+      "ylim_auto": true,
+      "warn_unit": "mm",
+      "alarm_colors": [
+        [
+          0.929,
+          0.694,
+          0.125
+        ],
+        [
+          0.85,
+          0.1,
+          0.1
+        ]
+      ]
     },
     "tilt": {
       "ylabel": "倾角 (°)",
       "title_prefix": "墩身倾角时程",
       "output_dir": "时程曲线_墩身倾角",
       "warn_unit": "°",
-      "ylim_auto": true
+      "ylim_auto": true,
+      "single_output_dir": "时程曲线_墩身倾角",
+      "group_output_dir": "时程曲线_墩身倾角_组图",
+      "alarm_colors": [
+        [
+          0.929,
+          0.694,
+          0.125
+        ],
+        [
+          0.85,
+          0.1,
+          0.1
+        ]
+      ],
+      "warn_lines": [
+        {
+          "y": -0.1,
+          "label": "三级 -0.10°",
+          "level": "三级",
+          "color": [
+            0.85,
+            0.1,
+            0.1
+          ],
+          "unit": "°"
+        },
+        {
+          "y": -0.08,
+          "label": "二级 -0.08°",
+          "level": "二级",
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ],
+          "unit": "°"
+        },
+        {
+          "y": 0.08,
+          "label": "二级 0.08°",
+          "level": "二级",
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ],
+          "unit": "°"
+        },
+        {
+          "y": 0.1,
+          "label": "三级 0.10°",
+          "level": "三级",
+          "color": [
+            0.85,
+            0.1,
+            0.1
+          ],
+          "unit": "°"
+        }
+      ]
     },
     "acceleration": {
-      "ylabel": "加速度 (mm/s²)",
+      "ylabel": "主梁竖向振动加速度 (cm/s^2)",
       "title_prefix": "主梁振动加速度时程",
       "output_dir": "时程曲线_主梁加速度",
       "group_output_dir": "时程曲线_主梁加速度_组图",
-      "ylim_auto": true
+      "ylim_auto": true,
+      "rms_ylabel": "10 min RMS (cm/s^2)",
+      "rms_title_prefix": "主梁加速度10 min RMS时程",
+      "warn_unit": "cm/s^2",
+      "rms_warn_lines": [
+        {
+          "y": 31.5,
+          "label": "一级 31.5 cm/s^2",
+          "level": "一级",
+          "color": [
+            0.0,
+            0.447,
+            0.741
+          ],
+          "unit": "cm/s^2"
+        },
+        {
+          "y": 50.0,
+          "label": "二级 50 cm/s^2",
+          "level": "二级",
+          "color": [
+            0.929,
+            0.694,
+            0.125
+          ],
+          "unit": "cm/s^2"
+        }
+      ],
+      "rms_ylim": [],
+      "rms_ylims": []
     },
     "accel_spectrum": {
       "ylabel": "PSD",
@@ -687,21 +1136,54 @@
       "title_prefix_crack": "裂缝宽度时程",
       "output_dir_crack": "时程曲线_裂缝宽度",
       "temp_enabled": false,
-      "ylim_auto": true
+      "ylim_auto": true,
+      "per_point_plot": true,
+      "group_plot": true,
+      "single_output_dir_crack": "时程曲线_裂缝宽度_单点",
+      "group_output_dir_crack": "时程曲线_裂缝宽度_组图"
+    },
+    "dynamic_strain": {
+      "output_dir": "动应变箱线图_高通",
+      "output_dir_ts": "时程曲线_动应变_高通",
+      "ylabel": "动应变 (με)"
+    },
+    "dynamic_strain_lowpass": {
+      "output_dir": "动应变箱线图_低通",
+      "output_dir_ts": "时程曲线_动应变_低通",
+      "ylabel": "动应变 (με)"
     }
   },
   "spectra": {
     "acceleration": {
       "target_freqs": [
-        0.0,
-        0.0
+        3.2
       ],
       "peak_labels": [
-        "待确认",
-        "待确认"
+        "一阶"
       ],
-      "tolerance_hz": 0.05,
-      "note": "崇阳溪主梁振动目标频率未在当前资料中确认，首版仅接入数据与PSD能力。"
+      "tolerance_hz": 0.15,
+      "note": "崇阳溪主梁振动暂按一阶 3.2Hz 搜索峰值。"
     }
+  },
+  "accel_spectrum_params": {
+    "target_freqs": [
+      3.2
+    ],
+    "peak_labels": [
+      "一阶"
+    ],
+    "theor_freqs": [
+      3.2
+    ],
+    "theor_labels": [
+      "暂定一阶 3.2Hz"
+    ],
+    "tolerance": 0.15
+  },
+  "dynamic_strain": {
+    "fc": 2.3148148148148147e-05,
+    "cutoff_period_minutes": 720,
+    "whisker": 300,
+    "output_dir": "动应变箱线图_高通"
   }
 }

@@ -373,10 +373,8 @@ classdef SpectrumPlotService
         end
 
         function name = styledGroupDisplayName(style, groupName, labels)
-            name = char(string(groupName));
-            if isstruct(style) && isfield(style, 'group_labels') && isstruct(style.group_labels) ...
-                    && isfield(style.group_labels, groupName)
-                name = char(string(style.group_labels.(groupName)));
+            name = bms.analyzer.StructuralPlotConfigService.groupLabel(style, groupName, '');
+            if ~isempty(name)
                 return;
             end
             name = bms.analyzer.SpectrumPlotService.groupDisplayName(groupName, labels);

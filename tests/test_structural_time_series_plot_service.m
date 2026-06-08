@@ -85,6 +85,19 @@ classdef test_structural_time_series_plot_service < matlab.unittest.TestCase
             groupWarnLines = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupWarnLines( ...
                 records, cfg.plot_styles.deflection, cfg, spec);
             tc.verifyEqual(sort(cellfun(@(x) x.y, groupWarnLines)), [-3; -2; 2; 3]);
+
+            cfgMismatch = cfg;
+            cfgMismatch.per_point.deflection.D2.alarm_bounds = struct( ...
+                'level2', [-4 4], 'level3', [-5 5]);
+            mismatchWarnLines = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupWarnLines( ...
+                records, cfg.plot_styles.deflection, cfgMismatch, spec);
+            tc.verifyEmpty(mismatchWarnLines);
+
+            labelStyle = struct('group_labels', struct('G1', '中文分组'));
+            [titleText, fileNameTag] = bms.analyzer.StructuralFilteredPlotService.titleParts( ...
+                labelStyle, spec, 'G1', 'Filt');
+            tc.verifyEqual(fileNameTag, 'G1');
+            tc.verifyEqual(titleText, '挠度时程 中文分组 Filt');
         end
 
         function tiltPipelineUsesSharedPlotService(tc)
@@ -94,15 +107,24 @@ classdef test_structural_time_series_plot_service < matlab.unittest.TestCase
             cfg.defaults = struct('header_marker', 'Time');
             cfg.subfolders = struct('tilt', 'wave');
             cfg.points = struct('tilt', {{'T1'}});
-            cfg.groups = struct('tilt', struct());
-            cfg.plot_styles = struct('tilt', struct('output_dir', 'tilt_plots', 'ylim_auto', true));
+            cfg.groups = struct('tilt', struct('G1', {{'T1'}}));
+            cfg.plot_styles = struct('tilt', struct( ...
+                'output_dir', 'tilt_plots', ...
+                'single_output_dir', 'tilt_point_plots', ...
+                'group_output_dir', 'tilt_group_plots', ...
+                'warn_lines', struct('y', 0.08, 'label', 'Level 2'), ...
+                'ylim_auto', true));
             excelPath = fullfile(tc.Root, 'tilt_stats.xlsx');
 
             analyze_tilt_points(tc.Root, '2026-01-01', '2026-01-01', excelPath, 'wave', cfg);
 
             tc.verifyTrue(exist(excelPath, 'file') == 2);
-            figs = dir(fullfile(tc.Root, 'tilt_plots', '*.fig'));
-            tc.verifyGreaterThanOrEqual(numel(figs), 1);
+            pointFigs = dir(fullfile(tc.Root, 'tilt_point_plots', '*.fig'));
+            groupFigs = dir(fullfile(tc.Root, 'tilt_group_plots', '*.fig'));
+            tc.verifyGreaterThanOrEqual(numel(pointFigs), 1);
+            tc.verifyGreaterThanOrEqual(numel(groupFigs), 1);
+            tc.verifyEqual(constant_line_values(fullfile(pointFigs(1).folder, pointFigs(1).name)), 0.08);
+            tc.verifyEqual(constant_line_values(fullfile(groupFigs(1).folder, groupFigs(1).name)), 0.08);
         end
 
         function bearingPipelineProcessesGroupFallback(tc)
@@ -134,6 +156,15 @@ classdef test_structural_time_series_plot_service < matlab.unittest.TestCase
             tc.verifyGreaterThanOrEqual(numel(filtGroupFigs), 1);
             tc.verifyEqual(constant_line_values(fullfile(origGroupFigs(1).folder, origGroupFigs(1).name)).', [-100 -80 80 100]);
             tc.verifyEmpty(constant_line_values(fullfile(filtGroupFigs(1).folder, filtGroupFigs(1).name)));
+
+            spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('bearing_displacement');
+            records = struct('pid', {'B1', 'B2'});
+            cfgMismatch = cfg;
+            cfgMismatch.per_point.bearing_displacement.B2.alarm_bounds = struct( ...
+                'level2', [-70 70], 'level3', [-90 90]);
+            mismatchWarnLines = bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupWarnLines( ...
+                records, cfg.plot_styles.bearing_displacement, cfgMismatch, spec);
+            tc.verifyEmpty(mismatchWarnLines);
         end
 
         function bridgeConfigsResolveFilteredPipelineInputs(tc)

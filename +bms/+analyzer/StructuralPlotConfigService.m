@@ -58,6 +58,22 @@ classdef StructuralPlotConfigService
             val = bms.config.ConfigReader.getField(style, field, defaultValue);
         end
 
+        function label = groupLabel(style, groupName, defaultValue)
+            if nargin < 3
+                defaultValue = groupName;
+            end
+            label = char(string(defaultValue));
+            if ~isstruct(style) || ~isfield(style, 'group_labels') || ~isstruct(style.group_labels)
+                return;
+            end
+
+            labels = style.group_labels;
+            key = char(string(groupName));
+            if isfield(labels, key)
+                label = char(string(labels.(key)));
+            end
+        end
+
         function y = resolveNamedYLim(style, name, defaultValue)
             ylims = bms.config.ConfigReader.getField(style, 'ylims', []);
             y = bms.plot.PlotService.resolveNamedYLim(ylims, name, defaultValue);

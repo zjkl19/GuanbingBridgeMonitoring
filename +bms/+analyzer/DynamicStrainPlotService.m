@@ -180,9 +180,9 @@ classdef DynamicStrainPlotService
                     continue;
                 end
                 style = cfg.plot_styles.(key);
-                if isfield(style, 'group_labels') && isstruct(style.group_labels) && ...
-                        isfield(style.group_labels, groupName)
-                    label = char(string(style.group_labels.(groupName)));
+                styleLabel = bms.analyzer.StructuralPlotConfigService.groupLabel(style, groupName, '');
+                if ~isempty(styleLabel)
+                    label = styleLabel;
                     return;
                 end
             end
