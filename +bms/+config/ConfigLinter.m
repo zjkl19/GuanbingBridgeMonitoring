@@ -13,6 +13,7 @@ classdef ConfigLinter
             extraWarnings = [bms.config.ConfigLinter.checkPerPointReferences(cfg), ...
                 bms.config.ConfigLinter.checkGroupReferences(cfg), ...
                 bms.config.ConfigLinter.checkGroupLabelReferences(cfg), ...
+                bms.config.ConfigLinter.checkSingleOutputDirs(cfg), ...
                 bms.config.ConfigLinter.checkPlotWarningPreviews(cfg)];
             result.issues = [result.issues, bms.config.ConfigLinter.issueDetails(extraWarnings, 'config')];
 
@@ -182,6 +183,10 @@ classdef ConfigLinter
                 severity = 'warning';
                 category = 'group_label_reference';
                 action = 'group_labels 只能引用真实 group key，建议删除孤儿标签或补齐对应分组。';
+            elseif contains(msg, 'single plot output dir should not end with _单点')
+                severity = 'warning';
+                category = 'single_output_dir_suffix';
+                action = '单图产物目录默认与测项主目录一致，不再追加 _单点 后缀；建议改为 output_dir 同名目录。';
             elseif contains(msg, 'default_data_root not found')
                 severity = 'warning';
                 category = 'profile_data_root';
@@ -225,6 +230,38 @@ classdef ConfigLinter
                     summary.categories.(category) = 0;
                 end
                 summary.categories.(category) = summary.categories.(category) + 1;
+            end
+        end
+
+        function warnings = checkSingleOutputDirs(cfg)
+            warnings = {};
+            if ~isstruct(cfg) || ~isfield(cfg, 'plot_styles') || ~isstruct(cfg.plot_styles)
+                return;
+            end
+            styleKeys = fieldnames(cfg.plot_styles);
+            for i = 1:numel(styleKeys)
+                styleKey = styleKeys{i};
+                style = cfg.plot_styles.(styleKey);
+                if ~isstruct(style)
+                    continue;
+                end
+                fields = fieldnames(style);
+                for j = 1:numel(fields)
+                    fieldName = fields{j};
+                    if ~startsWith(fieldName, 'single_output_dir')
+                        continue;
+                    end
+                    value = style.(fieldName);
+                    if ~(ischar(value) || (isstring(value) && isscalar(value)))
+                        continue;
+                    end
+                    dirValue = char(string(value));
+                    if endsWith(dirValue, '_单点') || contains(dirValue, '_单点\') || contains(dirValue, '_单点/')
+                        warnings{end+1} = sprintf( ...
+                            'plot_styles.%s.%s single plot output dir should not end with _单点: %s', ...
+                            styleKey, fieldName, dirValue); %#ok<AGROW>
+                    end
+                end
             end
         end
 

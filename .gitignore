@@ -4,6 +4,7 @@ output/
 run_logs/
 tmp/
 archive/
+release_packages/
 **/cache/
 **/__pycache__/
 *.pyc

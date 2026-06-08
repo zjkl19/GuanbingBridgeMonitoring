@@ -68,6 +68,12 @@ classdef test_chongyangxi_config < matlab.unittest.TestCase
             [defGroups, defGroupNames] = bms.analyzer.StructuralFilteredSeriesService.deflectionGroupsWithNames(cfg, defSpec);
             tc.verifyEqual(numel(defGroups), 8);
             tc.verifyEqual(defGroupNames(1:2).', {'A_3rd_span_5_12', 'A_3rd_span_7_10'});
+            tc.verifyEqual( ...
+                bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir( ...
+                cfg.plot_styles.deflection, defSpec), '时程曲线_主梁挠度');
+            tc.verifyEqual( ...
+                bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir( ...
+                cfg.plot_styles.deflection, defSpec), '时程曲线_主梁挠度_组图');
             tc.verifyEqual(cfg.plot_styles.deflection.group_labels.A_3rd_span_5_12, ...
                 'A截面 第3跨5#、12#梁');
             tc.verifyEqual(cfg.plot_styles.deflection.group_labels.B_1st_span_7_10, ...
@@ -111,6 +117,8 @@ classdef test_chongyangxi_config < matlab.unittest.TestCase
             tc.verifyEqual([cfg.plot_styles.acceleration.rms_warn_lines.y], [31.5, 50]);
             tc.verifyTrue(cfg.plot_styles.crack.per_point_plot);
             tc.verifyTrue(cfg.plot_styles.crack.group_plot);
+            tc.verifyEqual(cfg.plot_styles.crack.single_output_dir_crack, '时程曲线_裂缝宽度');
+            tc.verifyEqual(cfg.plot_styles.crack.group_output_dir_crack, '时程曲线_裂缝宽度_组图');
         end
 
         function rangeLoaderReadsNestedExportEndDayFolder(tc)

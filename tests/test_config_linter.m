@@ -83,6 +83,17 @@ classdef test_config_linter < matlab.unittest.TestCase
             tc.verifyTrue(any(strcmp({result.issues.category}, 'group_label_reference')));
         end
 
+        function linterWarnsSingleOutputDirSuffix(tc)
+            cfg = minimal_config();
+            cfg.plot_styles.deflection.single_output_dir = '时程曲线_主梁挠度_单点';
+
+            result = bms.config.ConfigLinter.lint(cfg);
+
+            tc.verifyTrue(any(contains(result.warnings, ...
+                'plot_styles.deflection.single_output_dir single plot output dir should not end with _单点')));
+            tc.verifyTrue(any(strcmp({result.issues.category}, 'single_output_dir_suffix')));
+        end
+
         function lintProfilesCoversBridgeCatalog(tc)
             root = fileparts(fileparts(mfilename('fullpath')));
 

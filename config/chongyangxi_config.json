@@ -976,7 +976,7 @@
       "ylabel": "挠度/标靶位移 (mm)",
       "title_prefix": "主梁挠度时程",
       "output_dir": "时程曲线_主梁挠度",
-      "single_output_dir": "时程曲线_主梁挠度_单点",
+      "single_output_dir": "时程曲线_主梁挠度",
       "group_output_dir": "时程曲线_主梁挠度_组图",
       "warn_unit": "mm",
       "ylim_auto": true,
@@ -1139,7 +1139,7 @@
       "ylim_auto": true,
       "per_point_plot": true,
       "group_plot": true,
-      "single_output_dir_crack": "时程曲线_裂缝宽度_单点",
+      "single_output_dir_crack": "时程曲线_裂缝宽度",
       "group_output_dir_crack": "时程曲线_裂缝宽度_组图"
     },
     "dynamic_strain": {
