@@ -47,6 +47,7 @@ New-Item -ItemType Directory -Force -Path $stage | Out-Null
 $includeDirs = @(
     "+bms",
     "analysis",
+    "bin",
     "config",
     "pipeline",
     "scripts",
@@ -100,6 +101,7 @@ foreach ($dir in $includeDirs) {
 
 $rootFiles = @(
     "README.md",
+    "run_request_cli.m",
     "start_gui.m",
     "run_all.m",
     "load_config.m",

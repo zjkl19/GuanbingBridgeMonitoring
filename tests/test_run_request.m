@@ -49,6 +49,106 @@ classdef test_run_request < matlab.unittest.TestCase
             tc.verifyEqual(runner.Context.DataRoot, tc.TempDir);
             tc.verifyEqual(runner.Request.DataRoot, tc.TempDir);
         end
+
+        function requestJsonRoundTripsForAsyncRun(tc)
+            opts = struct('doTemp', true);
+            cfg = struct('source', 'config/default_config.json', 'plot_common', struct('gap_mode', 'connect'));
+            req = bms.app.RunRequest(tc.TempDir, '2026-01-01', '2026-01-02', opts, cfg, ...
+                'StopFile', fullfile(tc.TempDir, 'stop.flag'), ...
+                'AsyncStatusFile', fullfile(tc.TempDir, 'status.json'), ...
+                'AsyncRunId', 'test_run');
+            path = fullfile(tc.TempDir, 'request.json');
+
+            req.writeJson(path);
+            loaded = bms.app.RunRequest.readJson(path);
+
+            tc.verifyEqual(loaded.DataRoot, tc.TempDir);
+            tc.verifyEqual(loaded.Options.doTemp, true);
+            tc.verifyEqual(loaded.Config.plot_common.gap_mode, 'connect');
+            tc.verifyEqual(loaded.StopFile, fullfile(tc.TempDir, 'stop.flag'));
+            tc.verifyEqual(loaded.AsyncStatusFile, fullfile(tc.TempDir, 'status.json'));
+            tc.verifyEqual(loaded.AsyncRunId, 'test_run');
+        end
+
+        function asyncRunServicePreparesStatusAndStopFiles(tc)
+            req = bms.app.RunRequest.fromLegacy(tc.TempDir, '2026-01-01', '2026-01-01', emptyOpts(), struct());
+
+            [state, prepared] = bms.app.AsyncRunService.prepare(req, ...
+                'RunId', 'unit_test', ...
+                'AutoDetectRunner', false, ...
+                'MatlabExecutable', matlabExecutable());
+            status = bms.app.AsyncRunService.readStatus(state);
+            bms.app.AsyncRunService.requestStop(state);
+
+            tc.verifyEqual(prepared.AsyncRunId, 'unit_test');
+            tc.verifyEqual(state.executor_type, 'matlab_batch');
+            tc.verifyTrue(isfile(state.request_path));
+            tc.verifyTrue(isfile(state.status_file));
+            tc.verifyEqual(status.status, 'prepared');
+            tc.verifyFalse(status.is_terminal);
+            tc.verifyTrue(isfile(state.stop_file));
+            tc.verifyTrue(contains(bms.app.AsyncRunService.batchCode(tc.TempDir, state.request_path), 'run_request_cli'));
+        end
+
+        function asyncRunServicePreparesWithCompiledRunner(tc)
+            req = bms.app.RunRequest.fromLegacy(tc.TempDir, '2026-01-01', '2026-01-01', emptyOpts(), struct());
+            runnerExe = fullfile(tc.TempDir, 'BridgeAnalysisRunner.exe');
+            fid = fopen(runnerExe, 'wt');
+            cleanup = onCleanup(@() fclose(fid)); %#ok<NASGU>
+            fprintf(fid, 'fake');
+
+            [state, prepared] = bms.app.AsyncRunService.prepare(req, ...
+                'RunId', 'runner_test', ...
+                'RunnerExecutable', runnerExe, ...
+                'MatlabExecutable', fullfile(tc.TempDir, 'missing_matlab.exe'));
+
+            tc.verifyEqual(prepared.AsyncRunId, 'runner_test');
+            tc.verifyEqual(state.executor_type, 'compiled_runner');
+            tc.verifyEqual(state.runner_executable, runnerExe);
+            tc.verifyTrue(isempty(state.matlab_executable));
+            tc.verifyTrue(isfile(state.request_path));
+        end
+
+        function asyncRunServiceAutoDetectsRunnerUnderProjectBin(tc)
+            projectRoot = fullfile(tc.TempDir, 'project');
+            dataRoot = fullfile(tc.TempDir, 'data');
+            runnerDir = fullfile(projectRoot, 'bin', 'BridgeAnalysisRunner');
+            mkdir(runnerDir);
+            mkdir(dataRoot);
+            runnerExe = fullfile(runnerDir, runnerExecutableName());
+            fid = fopen(runnerExe, 'wt');
+            fprintf(fid, 'fake');
+            fclose(fid);
+            req = bms.app.RunRequest(dataRoot, '2026-01-01', '2026-01-01', emptyOpts(), struct(), ...
+                'ProjectRoot', projectRoot);
+
+            [state, ~] = bms.app.AsyncRunService.prepare(req, ...
+                'RunId', 'autodetect_runner', ...
+                'MatlabExecutable', fullfile(tc.TempDir, 'missing_matlab.exe'));
+
+            tc.verifyEqual(state.executor_type, 'compiled_runner');
+            tc.verifyEqual(state.runner_executable, runnerExe);
+        end
+
+        function asyncRunServiceRejectsMissingRunnerExecutable(tc)
+            req = bms.app.RunRequest.fromLegacy(tc.TempDir, '2026-01-01', '2026-01-01', emptyOpts(), struct());
+
+            tc.verifyError(@() bms.app.AsyncRunService.prepare(req, ...
+                'RunId', 'bad_runner', ...
+                'RunnerExecutable', fullfile(tc.TempDir, 'missing_runner.exe'), ...
+                'MatlabExecutable', matlabExecutable()), ...
+                'BMS:AsyncRunService:RunnerExecutableMissing');
+        end
+
+        function asyncRunServiceRejectsMissingExecutor(tc)
+            req = bms.app.RunRequest.fromLegacy(tc.TempDir, '2026-01-01', '2026-01-01', emptyOpts(), struct());
+
+            tc.verifyError(@() bms.app.AsyncRunService.prepare(req, ...
+                'RunId', 'bad_exe', ...
+                'AutoDetectRunner', false, ...
+                'MatlabExecutable', fullfile(tc.TempDir, 'missing_matlab.exe')), ...
+                'BMS:AsyncRunService:ExecutorMissing');
+        end
     end
 end
 
@@ -61,5 +161,21 @@ function opts = emptyOpts()
         'doDynStrainBoxplot','doDynStrainLowpassBoxplot'};
     for i = 1:numel(keys)
         opts.(keys{i}) = false;
+    end
+end
+
+function exe = matlabExecutable()
+    if ispc
+        exe = fullfile(matlabroot, 'bin', 'matlab.exe');
+    else
+        exe = fullfile(matlabroot, 'bin', 'matlab');
+    end
+end
+
+function exe = runnerExecutableName()
+    if ispc
+        exe = 'BridgeAnalysisRunner.exe';
+    else
+        exe = 'BridgeAnalysisRunner';
     end
 end

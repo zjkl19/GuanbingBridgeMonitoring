@@ -29,6 +29,7 @@ classdef test_bridge_profile < matlab.unittest.TestCase
             tc.verifyFalse(contains(z.DefaultDataRoot, '2026年1-3月'));
             tc.verifyTrue(z.configExists());
             tc.verifyTrue(ismember('cable_accel_spectrum', z.EnabledModuleHints));
+            tc.verifyTrue(ismember('dynamic_strain_lowpass', z.EnabledModuleHints));
             tc.verifyFalse(ismember('cable_force', z.EnabledModuleHints));
         end
 

@@ -7,12 +7,13 @@ classdef PlotWarningLineResolver
     % - eq_params/per_point.eq.*.alarm_levels
 
     methods (Static)
-        function preview = tablePreview(cfg, moduleSpec, style, fieldName)
+        function preview = tablePreview(cfg, moduleSpec, style, fieldName, varargin)
             spec = bms.analyzer.PlotWarningLineResolver.normalizeSpec(moduleSpec);
             if nargin < 4 || isempty(fieldName)
                 fieldName = 'warn_lines';
             end
             fieldName = char(string(fieldName));
+            expandPoints = bms.analyzer.PlotWarningLineResolver.parseExpandPoints(varargin{:});
 
             if isstruct(style) && isfield(style, fieldName) && ~isempty(style.(fieldName))
                 [rows, isMap] = bms.analyzer.PlotWarningLineResolver.warnLinesToRows(style.(fieldName));
@@ -28,7 +29,7 @@ classdef PlotWarningLineResolver
                 return;
             end
 
-            [rows, reason, source] = bms.analyzer.PlotWarningLineResolver.deriveRows(cfg, spec, style, fieldName);
+            [rows, reason, source] = bms.analyzer.PlotWarningLineResolver.deriveRows(cfg, spec, style, fieldName, expandPoints);
             if isempty(rows)
                 preview = bms.analyzer.PlotWarningLineResolver.previewStruct(rows, false, ...
                     '当前字段没有显式图上预警线配置，也没有可从测点阈值推导出的统一预警线。', ...
@@ -121,7 +122,30 @@ classdef PlotWarningLineResolver
             spec = bms.config.ModuleConfigRegistry.normalize(moduleSpec);
         end
 
-        function [rows, reason, source] = deriveRows(cfg, spec, style, fieldName)
+        function expandPoints = parseExpandPoints(varargin)
+            expandPoints = false;
+            if isempty(varargin)
+                return;
+            end
+            if isscalar(varargin) && (islogical(varargin{1}) || isnumeric(varargin{1}))
+                expandPoints = logical(varargin{1});
+                return;
+            end
+            if mod(numel(varargin), 2) ~= 0
+                error('BMS:PlotWarningLineResolver:InvalidOptions', 'Options must be name-value pairs.');
+            end
+            for i = 1:2:numel(varargin)
+                key = lower(char(string(varargin{i})));
+                switch key
+                    case {'expandpoints', 'expand_points'}
+                        expandPoints = logical(varargin{i+1});
+                    otherwise
+                        error('BMS:PlotWarningLineResolver:InvalidOption', 'Unknown option: %s', key);
+                end
+            end
+        end
+
+        function [rows, reason, source] = deriveRows(cfg, spec, style, fieldName, expandPoints)
             rows = cell(0, 6);
             reason = '';
             source = 'none';
@@ -130,27 +154,48 @@ classdef PlotWarningLineResolver
             end
 
             if strcmp(spec.value, 'earthquake') && strcmp(fieldName, 'warn_lines')
-                [rows, reason] = bms.analyzer.PlotWarningLineResolver.deriveEarthquakeRows(cfg);
+                [rows, reason] = bms.analyzer.PlotWarningLineResolver.deriveEarthquakeRows(cfg, expandPoints);
                 source = 'eq_alarm_levels';
                 return;
             end
 
             warnKey = char(string(spec.per_point_key));
             if strcmp(fieldName, 'group_warn_lines')
-                [rows, reason] = bms.analyzer.PlotWarningLineResolver.deriveGroupRows(cfg, warnKey, style, spec);
+                [rows, reason] = bms.analyzer.PlotWarningLineResolver.deriveGroupRows(cfg, warnKey, style, spec, expandPoints);
                 source = 'per_point_group_alarm_bounds';
             elseif strcmp(fieldName, 'warn_lines')
-                [rows, reason] = bms.analyzer.PlotWarningLineResolver.derivePointRows(cfg, warnKey, style, spec);
+                [rows, reason] = bms.analyzer.PlotWarningLineResolver.derivePointRows(cfg, warnKey, style, spec, expandPoints);
                 source = 'per_point_alarm_bounds';
             end
         end
 
-        function [rows, reason] = deriveEarthquakeRows(cfg)
+        function [rows, reason] = deriveEarthquakeRows(cfg, expandPoints)
             rows = cell(0, 6);
             reason = '';
             points = bms.config.ModuleConfigResolver.resolvePoints(cfg, 'earthquake', {});
             if isempty(points)
                 points = {''};
+            end
+
+            if expandPoints
+                for i = 1:numel(points)
+                    pid = points{i};
+                    params = bms.analyzer.EarthquakeAnalysisPipeline.params(cfg, pid);
+                    lines = bms.analyzer.PlotWarningLineResolver.earthquakeAlarmLines(params);
+                    if isempty(lines)
+                        continue;
+                    end
+                    scope = pid;
+                    if isempty(scope)
+                        scope = 'global';
+                    end
+                    [partRows, ~] = bms.analyzer.PlotWarningLineResolver.warnLinesToRows(lines, scope);
+                    rows = [rows; partRows]; %#ok<AGROW>
+                end
+                if ~isempty(rows)
+                    reason = 'earthquake alarm lines expanded by point';
+                end
+                return;
             end
 
             grouped = containers.Map('KeyType', 'char', 'ValueType', 'any');
@@ -188,11 +233,28 @@ classdef PlotWarningLineResolver
             end
         end
 
-        function [rows, reason] = derivePointRows(cfg, warnKey, style, spec)
+        function [rows, reason] = derivePointRows(cfg, warnKey, style, spec, expandPoints)
             rows = cell(0, 6);
             reason = '';
             points = bms.analyzer.PlotWarningLineResolver.modulePoints(cfg, spec);
             if isempty(points)
+                return;
+            end
+
+            if expandPoints
+                for i = 1:numel(points)
+                    pid = points{i};
+                    lines = bms.analyzer.StructuralPlotConfigService.resolveWarnLines(style, cfg, warnKey, pid);
+                    lines = bms.analyzer.StructuralPlotConfigService.normalizeWarnLines(lines);
+                    if isempty(lines)
+                        continue;
+                    end
+                    [partRows, ~] = bms.analyzer.PlotWarningLineResolver.warnLinesToRows(lines, pid);
+                    rows = [rows; partRows]; %#ok<AGROW>
+                end
+                if ~isempty(rows)
+                    reason = sprintf('per_point.%s.*.alarm_bounds expanded by point', warnKey);
+                end
                 return;
             end
 
@@ -232,7 +294,7 @@ classdef PlotWarningLineResolver
             end
         end
 
-        function [rows, reason] = deriveGroupRows(cfg, warnKey, style, spec)
+        function [rows, reason] = deriveGroupRows(cfg, warnKey, style, spec, expandPoints)
             rows = cell(0, 6);
             reason = '';
             entries = bms.analyzer.PlotWarningLineResolver.moduleGroupEntries(cfg, spec);
@@ -246,8 +308,16 @@ classdef PlotWarningLineResolver
                 if isempty(lines)
                     continue;
                 end
-                [partRows, ~] = bms.analyzer.PlotWarningLineResolver.warnLinesToRows(lines, entries(i).name);
-                rows = [rows; partRows]; %#ok<AGROW>
+                if expandPoints
+                    for j = 1:numel(entries(i).points)
+                        scope = sprintf('%s/%s', entries(i).name, entries(i).points{j});
+                        [partRows, ~] = bms.analyzer.PlotWarningLineResolver.warnLinesToRows(lines, scope);
+                        rows = [rows; partRows]; %#ok<AGROW>
+                    end
+                else
+                    [partRows, ~] = bms.analyzer.PlotWarningLineResolver.warnLinesToRows(lines, entries(i).name);
+                    rows = [rows; partRows]; %#ok<AGROW>
+                end
             end
             if ~isempty(rows)
                 reason = sprintf('当前模块未显式配置 group_warn_lines，表内数值由 groups.%s 内测点的 alarm_bounds 推导', ...
@@ -256,7 +326,6 @@ classdef PlotWarningLineResolver
         end
 
         function points = modulePoints(cfg, spec)
-            points = {};
             key = char(string(spec.point_key));
             points = bms.data.PointResolver.fromConfig(cfg, key, {});
             if isempty(points)

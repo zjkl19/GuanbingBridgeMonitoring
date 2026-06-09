@@ -16,7 +16,23 @@ classdef DynamicStrainBoxplotService
                 v = dataMat(:, c);
                 v = v(isfinite(v));
                 if numel(v) > maxPointsPerSeries
+                    [~, minIdx] = min(v);
+                    [~, maxIdx] = max(v);
                     idx = unique(round(linspace(1, numel(v), maxPointsPerSeries)), 'stable');
+                    idx = unique([idx(:); minIdx; maxIdx]);
+                    if numel(idx) > maxPointsPerSeries
+                        protectedIdx = unique([minIdx; maxIdx]);
+                        candidateIdx = setdiff(idx(:), protectedIdx(:), 'stable');
+                        remaining = maxPointsPerSeries - numel(protectedIdx);
+                        if remaining > 0 && ~isempty(candidateIdx)
+                            pick = unique(round(linspace(1, numel(candidateIdx), remaining)), 'stable');
+                            candidateIdx = candidateIdx(pick);
+                        else
+                            candidateIdx = [];
+                        end
+                        idx = unique([protectedIdx(:); candidateIdx(:)]);
+                    end
+                    idx = sort(idx(:));
                     v = v(idx);
                 end
                 keepCols{c} = v;

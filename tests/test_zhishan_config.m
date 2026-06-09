@@ -40,6 +40,14 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             tc.verifyEqual(cfg.groups.strain.SX_L2_414_283(:).', {'SX-1', 'SX-2', 'SX-9', 'SX-10'});
             tc.verifyEqual(cfg.groups.strain.SX_L2_298_218(:).', {'SX-3', 'SX-4', 'SX-7', 'SX-8'});
             tc.verifyEqual(cfg.groups.strain.SX_L2_405_252(:).', {'SX-5', 'SX-6'});
+            tc.verifyEqual(fieldnames(cfg.groups.dynamic_strain), fieldnames(cfg.groups.strain));
+            tc.verifyEqual(fieldnames(cfg.groups.dynamic_strain_lowpass), fieldnames(cfg.groups.strain));
+            tc.verifyEqual(cfg.groups.dynamic_strain.SX_L2_414_283(:).', cfg.groups.strain.SX_L2_414_283(:).');
+            tc.verifyEqual(cfg.groups.dynamic_strain_lowpass.SX_L2_405_252(:).', cfg.groups.strain.SX_L2_405_252(:).');
+            tc.verifyEqual(cfg.per_point.dynamic_strain_lowpass.SX_3.post_filter_thresholds.max, 20);
+            tc.verifyEqual(cfg.per_point.dynamic_strain_lowpass.SX_4.post_filter_thresholds.max, 20);
+            tc.verifyEqual(cfg.per_point.dynamic_strain_lowpass.SX_5.post_filter_thresholds.max, 20);
+            tc.verifyEqual(cfg.per_point.dynamic_strain_lowpass.SX_6.post_filter_thresholds.max, 20);
 
             tc.verifyEqual(cfg.defaults.acceleration.thresholds.min, -0.2);
             tc.verifyEqual(cfg.defaults.acceleration.thresholds.max, 0.2);
@@ -80,18 +88,29 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             tc.verifyEqual(numel(cfg.plot_styles.cable_accel.group_warn_lines), 2);
             tc.verifyEqual(sort([cfg.plot_styles.cable_accel.group_warn_lines.y]).', [-500; 500]);
             tc.verifyEqual(cfg.plot_common.gap_mode, 'connect');
+            tc.verifyEqual(cfg.defaults.dynamic_strain.LowerBound, -60);
+            tc.verifyEqual(cfg.defaults.dynamic_strain.UpperBound, 40);
+            tc.verifyEqual(cfg.plot_styles.dynamic_strain.output_dir_ts, '时程曲线_动应变_高通滤波');
+            tc.verifyEqual(cfg.plot_styles.dynamic_strain.group_output_dir_ts, '时程曲线_动应变_高通滤波_组图');
+            tc.verifyTrue(isfield(cfg.defaults, 'dynamic_strain_lowpass'));
+            tc.verifyEqual(cfg.plot_styles.dynamic_strain_lowpass.output_dir_ts, '时程曲线_动应变_低通滤波');
+            tc.verifyEqual(cfg.plot_styles.dynamic_strain_lowpass.group_output_dir_ts, '时程曲线_动应变_低通滤波_组图');
         end
 
         function spectrumTargetsUseConfirmedZhishanFrequencies(tc)
             cfg = load_config(tc.ConfigPath);
 
-            tc.verifyEqual(cfg.accel_spectrum_params.theor_freqs, 0.385);
-            tc.verifyEqual(cfg.accel_spectrum_params.tolerance, 0.05);
-            tc.verifyEqual(cfg.per_point.accel_spectrum.AZ_1.target_freqs, 0.610);
-            tc.verifyEqual(cfg.per_point.accel_spectrum.AZ_2.target_freqs, 0.623);
-            tc.verifyEqual(cfg.per_point.accel_spectrum.AZ_3.target_freqs, 0.620);
-            tc.verifyEqual(cfg.per_point.accel_spectrum.AZ_4.target_freqs, 0.620);
-            tc.verifyEqual(cfg.per_point.accel_spectrum.AZ_5.target_freqs, 0.640);
+            tc.verifyEqual(cfg.accel_spectrum_params.theor_freqs, 0.593);
+            tc.verifyEqual(cfg.accel_spectrum_params.tolerance, 0.02);
+            tc.verifyEqual(cfg.accel_spectrum_params.peak_orders.search_half_width_hz, 0.02);
+
+            pointFields = {'AZ_1', 'AZ_2', 'AZ_3', 'AZ_4', 'AZ_5'};
+            for k = 1:numel(pointFields)
+                pointCfg = cfg.per_point.accel_spectrum.(pointFields{k});
+                tc.verifyEqual(pointCfg.target_freqs, 0.640);
+                tc.verifyEqual(pointCfg.tolerance, 0.02);
+                tc.verifyEqual(pointCfg.peak_orders.search_half_width_hz, 0.02);
+            end
         end
 
         function cableForceUsesCableAccelSpectrumParameters(tc)

@@ -13,8 +13,8 @@ set(0, 'DefaultAxesFontName', 'Microsoft YaHei');
 set(0, 'DefaultTextFontName', 'Microsoft YaHei');
 
 points = {'AZ-1', 'AZ-2', 'AZ-3', 'AZ-4', 'AZ-5'};
-targetFreq = [0.610, 0.623, 0.620, 0.620, 0.640];
-theoryFreq = 0.385;
+targetFreq = [0.640, 0.640, 0.640, 0.640, 0.640];
+theoryFreq = 0.593;
 
 fig = figure('Visible', 'off', 'Position', [80, 80, 1500, 760], 'Color', 'w');
 ax = axes(fig);

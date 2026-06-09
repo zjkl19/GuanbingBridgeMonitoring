@@ -24,10 +24,7 @@ classdef test_wim_reports < matlab.unittest.TestCase
         function testDatabaseSample(testCase)
             proj_root = fileparts(fileparts(mfilename('fullpath')));
             addpath(proj_root, fullfile(proj_root,'analysis'), fullfile(proj_root,'config'));
-            sqlcmd = fullfile(getenv('ProgramFiles'), 'Microsoft SQL Server', 'Client SDK', 'ODBC', '180', 'Tools', 'Binn', 'sqlcmd.exe');
-            if ~exist(sqlcmd, 'file')
-                testCase.assumeTrue(false, 'sqlcmd not found');
-            end
+            test_wim_reports.assumeSqlcmdAvailable(testCase);
 
             cfg = load_config(fullfile(proj_root,'config','hongtang_config.json'));
             sample_dir = fullfile(proj_root, 'data', '_samples', 'wim', 'zhichen', '202512');
@@ -45,11 +42,34 @@ classdef test_wim_reports < matlab.unittest.TestCase
             cfg.wim_db.trust_server_cert = true;
             cfg.wim_db.table_prefix = 'HS_Data_Sample_';
             cfg.wim_db.raw_table_prefix = 'WIM_Raw_Sample_';
+            test_wim_reports.assumeSqlServerRunning(testCase, cfg.wim_db);
 
             analyze_wim_reports(proj_root, '2025-12-01', '2025-12-31', cfg);
             out_dir = fullfile(cfg.wim.output_root, cfg.wim.bridge, '202512');
             testCase.verifyTrue(isfile(fullfile(out_dir, '202512_DailyTraffic.csv')));
             testCase.verifyTrue(isfile(fullfile(out_dir, 'WIM_Report_hongtang_202512.xlsx')));
+        end
+    end
+
+    methods (Static, Access = private)
+        function assumeSqlcmdAvailable(testCase)
+            try
+                bms.analyzer.WimSqlService.findSqlcmd();
+            catch ME
+                testCase.assumeTrue(false, ['sqlcmd not available: ' ME.message]);
+            end
+        end
+
+        function assumeSqlServerRunning(testCase, db)
+            try
+                svc = bms.analyzer.WimSqlService.resolveServiceName(db);
+                status = bms.analyzer.WimSqlService.serviceStatus(svc);
+            catch ME
+                testCase.assumeTrue(false, ['SQL Server service cannot be resolved: ' ME.message]);
+                return;
+            end
+            testCase.assumeTrue(strcmpi(status, 'Running'), ...
+                sprintf('SQL Server service %s is %s; skipping database integration test.', svc, status));
         end
     end
 end

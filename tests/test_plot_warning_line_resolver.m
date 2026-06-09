@@ -38,6 +38,23 @@ classdef test_plot_warning_line_resolver < matlab.unittest.TestCase
             tc.verifyTrue(contains(preview.hint, 'per_point.deflection'));
         end
 
+        function canExpandDerivedPointAlarmBounds(tc)
+            cfg.points.deflection = {'P-1', 'P-2'};
+            cfg.per_point.deflection.P_1.alarm_bounds = struct('level2', [-2 2]);
+            cfg.per_point.deflection.P_2.alarm_bounds = struct('level2', [-2 2]);
+            style = struct('ylabel', 'displacement (mm)');
+            spec = struct('value', 'deflection', 'style_key', 'deflection');
+
+            grouped = bms.analyzer.PlotWarningLineResolver.tablePreview(cfg, spec, style, 'warn_lines');
+            expanded = bms.analyzer.PlotWarningLineResolver.tablePreview(cfg, spec, style, 'warn_lines', ...
+                'ExpandPoints', true);
+
+            tc.verifyEqual(size(grouped.rows, 1), 2);
+            tc.verifyEqual(size(expanded.rows, 1), 4);
+            tc.verifyTrue(any(contains(expanded.rows(:, 2), 'P-1')));
+            tc.verifyTrue(any(contains(expanded.rows(:, 2), 'P-2')));
+        end
+
         function alarmBoundsCanDeriveLevel1Level2Level3(tc)
             bounds = struct('level1', [-1 1], 'level2', [-2 2], 'level3', [-3 3]);
             style = struct( ...
@@ -68,6 +85,22 @@ classdef test_plot_warning_line_resolver < matlab.unittest.TestCase
             tc.verifyTrue(preview.is_preview);
             tc.verifyEqual(sort(values(:)), [-264; 264]);
             tc.verifyTrue(all(contains(preview.rows(:, 2), 'GDDYB')));
+        end
+
+        function canExpandCommonGroupAlarmBounds(tc)
+            cfg.groups.strain_timeseries.GDDYB = {'S-1', 'S-2'};
+            cfg.per_point.strain.S_1.alarm_bounds = struct('level2', [-264 264]);
+            cfg.per_point.strain.S_2.alarm_bounds = struct('level2', [-264 264]);
+            style = struct('ylabel', 'strain');
+            spec = struct('value', 'strain', 'style_key', 'strain');
+
+            preview = bms.analyzer.PlotWarningLineResolver.tablePreview(cfg, spec, style, 'group_warn_lines', ...
+                'ExpandPoints', true);
+
+            tc.verifyTrue(preview.is_preview);
+            tc.verifyEqual(size(preview.rows, 1), 4);
+            tc.verifyTrue(any(contains(preview.rows(:, 2), 'GDDYB/S-1')));
+            tc.verifyTrue(any(contains(preview.rows(:, 2), 'GDDYB/S-2')));
         end
 
         function derivesEarthquakeAlarmLevels(tc)

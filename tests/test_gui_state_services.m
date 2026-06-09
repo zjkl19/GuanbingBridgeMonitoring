@@ -67,6 +67,25 @@ classdef test_gui_state_services < matlab.unittest.TestCase
             tc.verifyEqual(cfg2.plot_common.gap_mode, 'connect');
         end
 
+        function liveConfigTabStatesIncludesGroupConfig(tc)
+            th = struct('applyToCfg', @(cfg) setfield(cfg, 'threshold_marker', true));
+            pf = struct('applyToCfg', @(cfg) setfield(cfg, 'post_filter_marker', true));
+            oc = struct('applyToCfg', @(cfg) setfield(cfg, 'offset_marker', true));
+            gc = struct('applyToCfg', @(cfg) setfield(cfg, 'group_marker', true));
+            pp = struct('applyToCfg', @(cfg) setfield(cfg, 'plot_marker', true));
+            ignored = struct('onShow', @() []);
+
+            states = bms.gui.GuiRunController.liveConfigTabStates(th, pf, oc, gc, pp, ignored);
+            cfg2 = bms.gui.GuiConfigBinder.applyLiveTabs(struct(), states);
+
+            tc.verifyEqual(numel(states), 5);
+            tc.verifyTrue(cfg2.threshold_marker);
+            tc.verifyTrue(cfg2.post_filter_marker);
+            tc.verifyTrue(cfg2.offset_marker);
+            tc.verifyTrue(cfg2.group_marker);
+            tc.verifyTrue(cfg2.plot_marker);
+        end
+
         function resultSummaryIncludesErrorDetails(tc)
             rec = [struct('key','offset_correction_report', 'label','offset_correction_report', ...
                 'category','postprocess', 'status','ok', 'elapsed_sec', NaN, ...

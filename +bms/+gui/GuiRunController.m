@@ -68,6 +68,16 @@ classdef GuiRunController
             logLines = bms.app.RunPreflight.toLogLines(preflight);
         end
 
+        function states = liveConfigTabStates(varargin)
+            states = {};
+            for i = 1:nargin
+                tabState = varargin{i};
+                if isstruct(tabState) && isfield(tabState, 'applyToCfg')
+                    states{end+1} = tabState; %#ok<AGROW>
+                end
+            end
+        end
+
         function text = profileSummary(profile)
             if ~isa(profile, 'bms.profile.BridgeProfile') || isempty(profile.BridgeId)
                 text = '未选择桥梁项目';

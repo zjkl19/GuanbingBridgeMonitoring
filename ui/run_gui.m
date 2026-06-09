@@ -138,6 +138,10 @@ function run_gui()
     summaryTable.Layout.Row=16; summaryTable.Layout.Column=[1 4];
     logArea   = uitextarea(gl,'Editable','off','Value',{'准备就绪...'}); logArea.Layout.Row=17; logArea.Layout.Column=[1 4];
     statusPanel = bms.gui.GuiStatusPanel(statusLbl, summaryTable, logArea, primaryBlue);
+    asyncRunState = [];
+    asyncRunTimer = [];
+    asyncLastStatus = '';
+    f.CloseRequestFcn = @(~,~) onClose();
     clearBtn.ButtonPushedFcn = @(btn,~) statusPanel.clearLog();
 
     autoPreset = bms.gui.GuiPresetStore.defaultPath(projRoot);
@@ -366,7 +370,10 @@ function run_gui()
     function onRun()
         global RUN_STOP_FLAG;
         runBtn.Enable='off'; stopBtn.Enable='on'; RUN_STOP_FLAG=false;
-        statusPanel.setRunning('运行中...'); addLog('开始运行'); drawnow; t0=tic;
+        stop_async_timer();
+        asyncRunState = [];
+        asyncLastStatus = '';
+        statusPanel.setRunning('启动异步运行...'); addLog('开始异步运行'); drawnow;
         try
             [cfg, loadedCfgPath] = bms.gui.GuiConfigBinder.loadConfig(cfgEdit.Value, defaultCfgPath);
             if ~strcmp(loadedCfgPath, cfgEdit.Value)
@@ -377,14 +384,6 @@ function run_gui()
             showWarnings = logical(cbWarn.Value);
             if ~isfield(cfg,'gui') || ~isstruct(cfg.gui), cfg.gui = struct(); end
             cfg.gui.show_warnings = showWarnings;
-            warnState = warning('query','all');
-            btState = warning('query','backtrace');
-            if ~showWarnings
-                warning('off','all');
-                warning('off','backtrace');
-                addLog('Warnings suppressed for this run (gui.show_warnings=false).');
-            end
-            warnCleanup = onCleanup(@() restore_warnings(warnState, btState)); %#ok<NASGU>
             logEdit.Value = fullfile(rootEdit.Value, 'run_logs');
             state = build_gui_state();
             statusPanel.setPendingModules(state.toOptions());
@@ -411,17 +410,23 @@ function run_gui()
             end
             save_last_preset(state);
             addLog(sprintf('root=%s, %s -> %s', root, start_date, end_date));
-            session = bms.app.RunSession(runRequest);
-            session.run();
-            log_result_summary(root);
-            elapsed = toc(t0);
-            addLog(sprintf('运行完成，用时 %.2f 秒', elapsed));
-            statusPanel.setCompleted(elapsed);
+            asyncRunState = bms.app.AsyncRunService.start(runRequest);
+            asyncLastStatus = 'launched';
+            addLog(sprintf('异步执行器: %s', executor_label(asyncRunState)));
+            addLog(sprintf('异步子进程已启动：pid=%s', format_pid(asyncRunState)));
+            runnerPath = executor_path(asyncRunState);
+            if ~isempty(runnerPath)
+                addLog(['执行器路径: ' runnerPath]);
+            end
+            addLog(['异步请求文件: ' asyncRunState.request_path]);
+            addLog(['异步输出日志: ' asyncRunState.stdout_log]);
+            statusPanel.setRunning('运行中（异步子进程）...');
+            start_async_timer();
         catch ME
             addLog(['运行失败: ' ME.message]); statusPanel.setFailed('失败');
             show_wim_error_help(ME);
+            runBtn.Enable='on'; stopBtn.Enable='off';
         end
-        runBtn.Enable='on'; stopBtn.Enable='off';
     end
     function log_result_summary(resultRoot)
         statusPanel.refreshFromRoot(resultRoot, true);
@@ -451,7 +456,118 @@ function run_gui()
     end
 
     function onStop()
+        if isstruct(asyncRunState) && isfield(asyncRunState, 'stop_file') && ~isempty(asyncRunState.stop_file)
+            bms.app.AsyncRunService.requestStop(asyncRunState, false);
+            addLog(['已写入异步停止请求: ' asyncRunState.stop_file]);
+            statusPanel.setRunning('停止请求已发送，等待当前步骤结束...');
+            return;
+        end
         global RUN_STOP_FLAG; RUN_STOP_FLAG=true; addLog('收到停止请求，将跳过后续步骤');
+    end
+
+    function start_async_timer()
+        stop_async_timer();
+        asyncRunTimer = timer('ExecutionMode', 'fixedSpacing', ...
+            'Period', 2.0, ...
+            'TimerFcn', @(~,~) poll_async_run(), ...
+            'ErrorFcn', @(~,evt) on_async_timer_error(evt));
+        start(asyncRunTimer);
+    end
+
+    function stop_async_timer()
+        try
+            if ~isempty(asyncRunTimer) && isvalid(asyncRunTimer)
+                stop(asyncRunTimer);
+                delete(asyncRunTimer);
+            end
+        catch
+        end
+        asyncRunTimer = [];
+    end
+
+    function poll_async_run()
+        if isempty(asyncRunState) || ~isstruct(asyncRunState)
+            return;
+        end
+        st = bms.app.AsyncRunService.readStatus(asyncRunState);
+        statusText = async_status_text(st);
+        if isempty(statusText)
+            statusText = 'unknown';
+        end
+        if ~strcmp(statusText, asyncLastStatus)
+            addLog(['异步运行状态: ' statusText]);
+            asyncLastStatus = statusText;
+        end
+        if isfield(st, 'is_terminal') && st.is_terminal
+            stop_async_timer();
+            if strcmpi(statusText, 'completed')
+                log_result_summary(rootEdit.Value);
+                addLog('异步运行完成');
+                statusPanel.setReady('异步运行完成');
+            else
+                log_result_summary(rootEdit.Value);
+                msg = '异步运行失败';
+                if isfield(st, 'message') && ~isempty(st.message)
+                    msg = [msg ': ' char(string(st.message))];
+                end
+                addLog(msg);
+                statusPanel.setFailed('异步运行失败');
+            end
+            runBtn.Enable='on';
+            stopBtn.Enable='off';
+            return;
+        end
+        statusPanel.setRunning(['运行中（异步）：' statusText]);
+    end
+
+    function on_async_timer_error(evt)
+        msg = '未知错误';
+        try
+            if isprop(evt, 'Data') && isfield(evt.Data, 'message')
+                msg = evt.Data.message;
+            end
+        catch
+        end
+        addLog(['异步状态轮询失败: ' char(string(msg))]);
+    end
+
+    function txt = async_status_text(st)
+        txt = '';
+        if isstruct(st) && isfield(st, 'status') && ~isempty(st.status)
+            txt = char(string(st.status));
+        end
+    end
+
+    function txt = format_pid(state)
+        txt = 'unknown';
+        if isstruct(state) && isfield(state, 'pid') && isnumeric(state.pid) && isfinite(state.pid)
+            txt = sprintf('%d', round(state.pid));
+        end
+    end
+
+    function txt = executor_label(state)
+        txt = 'unknown';
+        if isstruct(state) && isfield(state, 'executor_type') && ~isempty(state.executor_type)
+            txt = char(string(state.executor_type));
+        end
+    end
+
+    function txt = executor_path(state)
+        txt = '';
+        if ~isstruct(state) || ~isfield(state, 'executor_type')
+            return;
+        end
+        type = lower(char(string(state.executor_type)));
+        if strcmp(type, 'compiled_runner') && isfield(state, 'runner_executable')
+            txt = char(string(state.runner_executable));
+        elseif strcmp(type, 'matlab_batch') && isfield(state, 'matlab_executable')
+            txt = char(string(state.matlab_executable));
+        end
+    end
+
+    function onClose()
+        stop_async_timer();
+        delete(f);
     end
     function onSavePreset()
         [fname,fpath] = uiputfile('*.json','保存预设','preset.json'); if isequal(fname,0), return; end
@@ -541,7 +657,8 @@ function run_gui()
         end
     end
     function cfg = apply_live_cfg(cfg)
-        cfg = bms.gui.GuiConfigBinder.applyLiveTabs(cfg, {th, pf, oc, pp});
+        tabStates = bms.gui.GuiRunController.liveConfigTabStates(th, pf, oc, gc, pp);
+        cfg = bms.gui.GuiConfigBinder.applyLiveTabs(cfg, tabStates);
     end
     function restore_warnings(warnState, btState)
         try

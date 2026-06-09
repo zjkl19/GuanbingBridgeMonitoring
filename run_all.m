@@ -1,4 +1,4 @@
-﻿function summary = run_all(root, start_date, end_date, opts, cfg)
+function summary = run_all(root, start_date, end_date, opts, cfg)
 %RUN_ALL Compatible public entry point for the MATLAB analysis workflow.
 %   The application-layer orchestration lives in bms.app.RunSession.
     if nargin < 5

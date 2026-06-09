@@ -39,6 +39,22 @@ classdef test_dynamic_strain_boxplot_service < matlab.unittest.TestCase
             tc.verifyEqual(plotMat(1:4, 2), [10; 11; 12; 13]);
         end
 
+        function sampleBoxplotMatrixPreservesExtremaWhenCapping(tc)
+            data = [(1:2000)' (1:2000)'];
+            data(2, 1) = -9999;
+            data(4, 1) = 9999;
+            data(3, 2) = -8888;
+            data(5, 2) = 8888;
+
+            plotMat = bms.analyzer.DynamicStrainBoxplotService.sampleBoxplotMatrix(data, 1000);
+
+            tc.verifyLessThanOrEqual(size(plotMat, 1), 1000);
+            tc.verifyEqual(min(plotMat(:, 1)), -9999);
+            tc.verifyEqual(max(plotMat(:, 1)), 9999);
+            tc.verifyEqual(min(plotMat(:, 2)), -8888);
+            tc.verifyEqual(max(plotMat(:, 2)), 8888);
+        end
+
         function statsTableMatchesDynamicStrainOutputShape(tc)
             data = [1 10; 2 NaN; 3 14; NaN 18];
 

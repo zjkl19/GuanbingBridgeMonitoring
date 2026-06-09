@@ -1,4 +1,4 @@
-﻿function settings = plot_runtime_settings(action, values)
+function settings = plot_runtime_settings(action, values)
 % plot_runtime_settings Store lightweight runtime plot-save settings.
 %   S = plot_runtime_settings() returns current settings.
 %   S = plot_runtime_settings('get') returns current settings.

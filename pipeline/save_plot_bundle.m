@@ -1,4 +1,4 @@
-﻿function paths = save_plot_bundle(fig, out_dir, file_stub, opts)
+function paths = save_plot_bundle(fig, out_dir, file_stub, opts)
 % save_plot_bundle Export full-resolution images and a lightweight .fig copy.
 %   Images are exported from the original full-data figure. The .fig file is
 %   saved after line data are reduced with peak-preserving bucket sampling so

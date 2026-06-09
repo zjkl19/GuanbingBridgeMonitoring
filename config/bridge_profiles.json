@@ -158,6 +158,7 @@
       "enabled_modules": [
         "strain",
         "dynamic_strain_highpass",
+        "dynamic_strain_lowpass",
         "bearing_displacement",
         "acceleration",
         "accel_spectrum",

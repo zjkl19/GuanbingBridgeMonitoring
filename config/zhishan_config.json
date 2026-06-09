@@ -15,8 +15,25 @@
         -80,
         80
       ],
-      "LowerBound": -500,
-      "UpperBound": 500,
+      "LowerBound": -60,
+      "UpperBound": 40,
+      "EdgeTrimSec": 5
+    },
+    "dynamic_strain_lowpass": {
+      "FilterMode": "auto",
+      "AutoPreset": "temperature",
+      "AutoCutoffPeriodMinutes": 720,
+      "MinSamplesPerCutoff": 20,
+      "FilterOrder": 2,
+      "Whisker": 300,
+      "ShowOutliers": false,
+      "YLimManual": false,
+      "YLimRange": [
+        -150,
+        150
+      ],
+      "LowerBound": -1000,
+      "UpperBound": 1000,
       "EdgeTrimSec": 5
     },
     "acceleration": {
@@ -183,17 +200,39 @@
       ]
     },
     "dynamic_strain": {
-      "SX": [
+      "SX_L2_414_283": [
         "SX-1",
         "SX-2",
-        "SX-3",
-        "SX-4",
-        "SX-5",
-        "SX-6",
-        "SX-7",
-        "SX-8",
         "SX-9",
         "SX-10"
+      ],
+      "SX_L2_298_218": [
+        "SX-3",
+        "SX-4",
+        "SX-7",
+        "SX-8"
+      ],
+      "SX_L2_405_252": [
+        "SX-5",
+        "SX-6"
+      ]
+    },
+    "dynamic_strain_lowpass": {
+      "SX_L2_414_283": [
+        "SX-1",
+        "SX-2",
+        "SX-9",
+        "SX-10"
+      ],
+      "SX_L2_298_218": [
+        "SX-3",
+        "SX-4",
+        "SX-7",
+        "SX-8"
+      ],
+      "SX_L2_405_252": [
+        "SX-5",
+        "SX-6"
       ]
     },
     "bearing_displacement": {
@@ -333,6 +372,44 @@
         }
       }
     },
+    "dynamic_strain_lowpass": {
+      "SX-3": {
+        "post_filter_thresholds": [
+          {
+            "max": 20,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "SX-4": {
+        "post_filter_thresholds": [
+          {
+            "max": 20,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "SX-5": {
+        "post_filter_thresholds": [
+          {
+            "max": 20,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      },
+      "SX-6": {
+        "post_filter_thresholds": [
+          {
+            "max": 20,
+            "t_range_start": "2026-03-01 00:00:00",
+            "t_range_end": "2026-03-31 23:59:59"
+          }
+        ]
+      }
+    },
     "bearing_displacement": {
       "DX-1": {
         "file_id": "C210419100",
@@ -444,14 +521,14 @@
     "accel_spectrum": {
       "AZ-1": {
         "target_freqs": [
-          0.61
+          0.64
         ],
-        "tolerance": 0.05,
+        "tolerance": 0.02,
         "theor_freqs": [
-          0.385
+          0.593
         ],
         "theor_labels": [
-          "理论竖向一阶频率 0.385Hz"
+          "理论竖向一阶频率 0.593Hz"
         ],
         "peak_labels": [
           "一阶"
@@ -460,22 +537,22 @@
           {
             "order": 1,
             "label": "一阶",
-            "theoretical_hz": 0.385,
-            "search_center_hz": 0.61,
-            "search_half_width_hz": 0.05
+            "theoretical_hz": 0.593,
+            "search_center_hz": 0.64,
+            "search_half_width_hz": 0.02
           }
         ]
       },
       "AZ-2": {
         "target_freqs": [
-          0.623
+          0.64
         ],
-        "tolerance": 0.05,
+        "tolerance": 0.02,
         "theor_freqs": [
-          0.385
+          0.593
         ],
         "theor_labels": [
-          "理论竖向一阶频率 0.385Hz"
+          "理论竖向一阶频率 0.593Hz"
         ],
         "peak_labels": [
           "一阶"
@@ -484,22 +561,22 @@
           {
             "order": 1,
             "label": "一阶",
-            "theoretical_hz": 0.385,
-            "search_center_hz": 0.623,
-            "search_half_width_hz": 0.05
+            "theoretical_hz": 0.593,
+            "search_center_hz": 0.64,
+            "search_half_width_hz": 0.02
           }
         ]
       },
       "AZ-3": {
         "target_freqs": [
-          0.62
+          0.64
         ],
-        "tolerance": 0.05,
+        "tolerance": 0.02,
         "theor_freqs": [
-          0.385
+          0.593
         ],
         "theor_labels": [
-          "理论竖向一阶频率 0.385Hz"
+          "理论竖向一阶频率 0.593Hz"
         ],
         "peak_labels": [
           "一阶"
@@ -508,22 +585,22 @@
           {
             "order": 1,
             "label": "一阶",
-            "theoretical_hz": 0.385,
-            "search_center_hz": 0.62,
-            "search_half_width_hz": 0.05
+            "theoretical_hz": 0.593,
+            "search_center_hz": 0.64,
+            "search_half_width_hz": 0.02
           }
         ]
       },
       "AZ-4": {
         "target_freqs": [
-          0.62
+          0.64
         ],
-        "tolerance": 0.05,
+        "tolerance": 0.02,
         "theor_freqs": [
-          0.385
+          0.593
         ],
         "theor_labels": [
-          "理论竖向一阶频率 0.385Hz"
+          "理论竖向一阶频率 0.593Hz"
         ],
         "peak_labels": [
           "一阶"
@@ -532,9 +609,9 @@
           {
             "order": 1,
             "label": "一阶",
-            "theoretical_hz": 0.385,
-            "search_center_hz": 0.62,
-            "search_half_width_hz": 0.05
+            "theoretical_hz": 0.593,
+            "search_center_hz": 0.64,
+            "search_half_width_hz": 0.02
           }
         ]
       },
@@ -542,12 +619,12 @@
         "target_freqs": [
           0.64
         ],
-        "tolerance": 0.05,
+        "tolerance": 0.02,
         "theor_freqs": [
-          0.385
+          0.593
         ],
         "theor_labels": [
-          "理论竖向一阶频率 0.385Hz"
+          "理论竖向一阶频率 0.593Hz"
         ],
         "peak_labels": [
           "一阶"
@@ -556,9 +633,9 @@
           {
             "order": 1,
             "label": "一阶",
-            "theoretical_hz": 0.385,
+            "theoretical_hz": 0.593,
             "search_center_hz": 0.64,
-            "search_half_width_hz": 0.05
+            "search_half_width_hz": 0.02
           }
         ]
       }
@@ -894,22 +971,22 @@
   },
   "accel_spectrum_params": {
     "target_freqs": [
-      0.62
+      0.64
     ],
-    "tolerance": 0.05,
+    "tolerance": 0.02,
     "theor_freqs": [
-      0.385
+      0.593
     ],
     "theor_labels": [
-      "理论竖向一阶频率 0.385Hz"
+      "理论竖向一阶频率 0.593Hz"
     ],
     "peak_orders": [
       {
         "order": 1,
         "label": "一阶",
-        "theoretical_hz": 0.385,
-        "search_center_hz": 0.62,
-        "search_half_width_hz": 0.05
+        "theoretical_hz": 0.593,
+        "search_center_hz": 0.64,
+        "search_half_width_hz": 0.02
       }
     ],
     "fs": 20,
@@ -969,12 +1046,27 @@
       "warn_unit": "με"
     },
     "dynamic_strain": {
+      "output_dir_ts": "时程曲线_动应变_高通滤波",
+      "group_output_dir_ts": "时程曲线_动应变_高通滤波_组图",
       "ylims": {
-        "SX": [
+        "SX_L2_414_283": [
+          -80,
+          80
+        ],
+        "SX_L2_298_218": [
+          -80,
+          80
+        ],
+        "SX_L2_405_252": [
           -80,
           80
         ]
       },
+      "ShowOutliers": false
+    },
+    "dynamic_strain_lowpass": {
+      "output_dir_ts": "时程曲线_动应变_低通滤波",
+      "group_output_dir_ts": "时程曲线_动应变_低通滤波_组图",
       "ShowOutliers": false
     },
     "bearing_displacement": {

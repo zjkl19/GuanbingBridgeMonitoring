@@ -16,6 +16,13 @@ start_gui
 Use this GUI for analysis runs, threshold configuration, post-filter cleaning, zero-offset correction, and plot settings.
 用于分析计算、阈值配置、滤波后二次清洗、零点修正和绘图参数配置。
 
+GUI runs are launched asynchronously. In production, build and copy the compiled runner first; the GUI prefers `bin/BridgeAnalysisRunner/BridgeAnalysisRunner.exe` and falls back to `matlab.exe -batch` only in a full MATLAB development environment.
+GUI 运行采用异步子进程。生产环境应先编译并随包复制独立 runner；GUI 会优先使用 `bin/BridgeAnalysisRunner/BridgeAnalysisRunner.exe`，只有完整 MATLAB 开发环境才回退到 `matlab.exe -batch`。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_analysis_runner.ps1 -Clean
+```
+
 ### Report GUI
 
 Prefer the packaged executable when available.

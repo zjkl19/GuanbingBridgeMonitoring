@@ -21,6 +21,7 @@ classdef StepPlan
             end
             results = {};
             for i = 1:numel(obj.Steps)
+                bms.app.StepPlan.pumpUiEvents();
                 item = obj.Steps{i};
                 switch item.mode
                     case 'run'
@@ -35,6 +36,15 @@ classdef StepPlan
             defs = bms.app.StepDefinition.empty();
             for i = 1:numel(obj.Steps)
                 defs(end+1) = obj.Steps{i}.def; %#ok<AGROW>
+            end
+        end
+    end
+
+    methods (Static)
+        function pumpUiEvents()
+            try
+                drawnow limitrate;
+            catch
             end
         end
     end

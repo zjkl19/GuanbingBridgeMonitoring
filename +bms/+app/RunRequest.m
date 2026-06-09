@@ -13,6 +13,9 @@ classdef RunRequest
         DataLayout struct = struct()
         StatsDir char = ''
         LogDir char = ''
+        StopFile char = ''
+        AsyncStatusFile char = ''
+        AsyncRunId char = ''
     end
 
     methods
@@ -42,6 +45,12 @@ classdef RunRequest
                         obj.ProjectRoot = char(value);
                     case 'configpath'
                         obj.ConfigPath = char(value);
+                    case 'stopfile'
+                        obj.StopFile = char(value);
+                    case 'asyncstatusfile'
+                        obj.AsyncStatusFile = char(value);
+                    case 'asyncrunid'
+                        obj.AsyncRunId = char(value);
                     otherwise
                         error('BMS:RunRequest:InvalidArgument', 'Unknown RunRequest option: %s', key);
                 end
@@ -77,11 +86,24 @@ classdef RunRequest
             s.log_dir = obj.LogDir;
             s.data_layout = obj.DataLayout;
             s.enabled_modules = bms.module.ModuleRegistry.enabledKeys(obj.Options);
+            s.async_run_id = obj.AsyncRunId;
+            s.stop_file = obj.StopFile;
+            s.async_status_file = obj.AsyncStatusFile;
             if isa(obj.Profile, 'bms.profile.BridgeProfile')
                 s.bridge_profile = obj.Profile.toStruct();
             else
                 s.bridge_profile = struct();
             end
+        end
+
+        function s = toJsonStruct(obj)
+            s = obj.toStruct();
+            s.options = obj.Options;
+            s.config = obj.Config;
+        end
+
+        function writeJson(obj, path)
+            bms.core.Logger.writeJson(path, obj.toJsonStruct());
         end
     end
 
@@ -101,6 +123,49 @@ classdef RunRequest
             path = '';
             if isstruct(cfg) && isfield(cfg, 'source') && ~isempty(cfg.source)
                 path = char(cfg.source);
+            end
+        end
+
+        function obj = fromJsonStruct(s)
+            if ~isstruct(s)
+                error('BMS:RunRequest:InvalidJson', 'Run request JSON must decode to a struct.');
+            end
+            opts = bms.app.RunRequest.fieldValue(s, 'options', struct());
+            cfg = bms.app.RunRequest.fieldValue(s, 'config', struct());
+            args = {};
+            configPath = bms.app.RunRequest.fieldText(s, 'config_path');
+            if ~isempty(configPath), args = [args, {'ConfigPath', configPath}]; end %#ok<AGROW>
+            stopFile = bms.app.RunRequest.fieldText(s, 'stop_file');
+            if ~isempty(stopFile), args = [args, {'StopFile', stopFile}]; end %#ok<AGROW>
+            statusFile = bms.app.RunRequest.fieldText(s, 'async_status_file');
+            if ~isempty(statusFile), args = [args, {'AsyncStatusFile', statusFile}]; end %#ok<AGROW>
+            asyncRunId = bms.app.RunRequest.fieldText(s, 'async_run_id');
+            if ~isempty(asyncRunId), args = [args, {'AsyncRunId', asyncRunId}]; end %#ok<AGROW>
+            projectRoot = bms.app.RunRequest.fieldText(s, 'project_root');
+            if ~isempty(projectRoot), args = [args, {'ProjectRoot', projectRoot}]; end %#ok<AGROW>
+            obj = bms.app.RunRequest( ...
+                bms.app.RunRequest.fieldText(s, 'data_root'), ...
+                bms.app.RunRequest.fieldText(s, 'start_date'), ...
+                bms.app.RunRequest.fieldText(s, 'end_date'), ...
+                opts, cfg, args{:});
+        end
+
+        function obj = readJson(path)
+            s = jsondecode(fileread(path));
+            obj = bms.app.RunRequest.fromJsonStruct(s);
+        end
+
+        function value = fieldValue(s, name, defaultValue)
+            value = defaultValue;
+            if isstruct(s) && isfield(s, name) && ~isempty(s.(name))
+                value = s.(name);
+            end
+        end
+
+        function text = fieldText(s, name)
+            text = '';
+            if isstruct(s) && isfield(s, name) && ~isempty(s.(name))
+                text = char(string(s.(name)));
             end
         end
     end

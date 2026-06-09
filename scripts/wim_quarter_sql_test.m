@@ -1,4 +1,4 @@
-﻿function wim_quarter_sql_test(input_dir, start_date, end_date)
+function wim_quarter_sql_test(input_dir, start_date, end_date)
 % wim_quarter_sql_test  Run quarterly WIM processing through SQL Server pipeline.
 
     if nargin < 1 || isempty(input_dir)

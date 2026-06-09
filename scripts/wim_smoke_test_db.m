@@ -1,4 +1,4 @@
-﻿function wim_smoke_test_db()
+function wim_smoke_test_db()
 % wim_smoke_test_db  Smoke test for WIM database pipeline using sample bcp/fmt.
     addpath(pwd, fullfile(pwd,'analysis'), fullfile(pwd,'config'));
     cfg = load_config('config/hongtang_config.json');

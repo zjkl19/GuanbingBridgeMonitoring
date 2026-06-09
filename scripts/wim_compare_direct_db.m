@@ -1,4 +1,4 @@
-﻿function diffs = wim_compare_direct_db()
+function diffs = wim_compare_direct_db()
 % wim_compare_direct_db  Compare direct vs database WIM outputs using sample data.
 % Returns a struct with per-report comparison results.
 

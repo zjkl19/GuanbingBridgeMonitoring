@@ -12,7 +12,9 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
     draftCfg = cfgCache;
     currentModule = moduleValues{1};
     currentWarnField = 'warn_lines';
+    warnExpanded = false;
     selectedYlimRows = [];
+    selectedAlarmRows = [];
     selectedWarnRows = [];
     selectedPeakRows = [];
     warnTableDerivedPreview = false;
@@ -144,9 +146,34 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
     delYlimBtn = uibutton(basicGrid, 'Text', '删除选中 ylims', 'ButtonPushedFcn', @(~,~) delete_ylims_rows());
     delYlimBtn.Layout.Row = 7; delYlimBtn.Layout.Column = 2;
 
-    warnGrid = uigridlayout(tabWarn, [3 4]);
-    warnGrid.RowHeight = {32, '1x', 32};
-    warnGrid.ColumnWidth = {120, '1x', 140, 140};
+    warnOuterGrid = uigridlayout(tabWarn, [1 1]);
+    warnOuterGrid.Padding = [0 0 0 0];
+    warnTabs = uitabgroup(warnOuterGrid);
+    warnTabs.Layout.Row = 1; warnTabs.Layout.Column = 1;
+    tabAlarmBounds = uitab(warnTabs, 'Title', '测点预警值');
+    tabWarnLines = uitab(warnTabs, 'Title', '图上自定义线');
+
+    alarmGrid = uigridlayout(tabAlarmBounds, [3 4]);
+    alarmGrid.RowHeight = {32, '1x', 32};
+    alarmGrid.ColumnWidth = {140, '1x', 140, 140};
+    alarmGrid.Padding = [8 8 8 8];
+    alarmHint = uilabel(alarmGrid, 'Text', ...
+        '编辑真实预警阈值：保存后写入 per_point.<模块>.<测点>.alarm_bounds；level 必须写成 level1、level2、level3。');
+    alarmHint.Layout.Row = 1; alarmHint.Layout.Column = [1 4];
+    alarmTable = uitable(alarmGrid, ...
+        'ColumnName', {'point_id', 'level', 'lower', 'upper', 'source'}, ...
+        'ColumnEditable', [true true true true false], ...
+        'CellSelectionCallback', @(~, evt) onAlarmSelected(evt), ...
+        'CellEditCallback', @(~,~) onAlarmTableEdited());
+    alarmTable.Layout.Row = 2; alarmTable.Layout.Column = [1 4];
+    addAlarmBtn = uibutton(alarmGrid, 'Text', '新增测点预警值', 'ButtonPushedFcn', @(~,~) add_alarm_row());
+    addAlarmBtn.Layout.Row = 3; addAlarmBtn.Layout.Column = 1;
+    delAlarmBtn = uibutton(alarmGrid, 'Text', '删除选中预警值', 'ButtonPushedFcn', @(~,~) delete_alarm_rows());
+    delAlarmBtn.Layout.Row = 3; delAlarmBtn.Layout.Column = 2;
+
+    warnGrid = uigridlayout(tabWarnLines, [4 4]);
+    warnGrid.RowHeight = {32, 28, '1x', 32};
+    warnGrid.ColumnWidth = {120, '1x', 120, 140};
     warnGrid.Padding = [8 8 8 8];
 
     warnFieldLabel = uilabel(warnGrid, 'Text', '预警线字段', 'HorizontalAlignment', 'right');
@@ -154,20 +181,23 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
     warnFieldDrop = uidropdown(warnGrid, 'Items', {'warn_lines', 'rms_warn_lines', 'group_warn_lines'}, ...
         'Value', currentWarnField, 'ValueChangedFcn', @(~,~) onWarnFieldChanged());
     warnFieldDrop.Layout.Row = 1; warnFieldDrop.Layout.Column = 2;
+    warnExpandCheck = uicheckbox(warnGrid, 'Text', '展开测点', ...
+        'Value', warnExpanded, 'ValueChangedFcn', @(~,~) onWarnExpandChanged());
+    warnExpandCheck.Layout.Row = 1; warnExpandCheck.Layout.Column = 3;
     warnHint = uilabel(warnGrid, 'Text', '仅编辑图上预警线；清洗阈值仍在“阈值配置/滤波后二次清洗”页。');
-    warnHint.Layout.Row = 1; warnHint.Layout.Column = [3 4];
+    warnHint.Layout.Row = 2; warnHint.Layout.Column = [1 4];
 
     warnTable = uitable(warnGrid, ...
         'ColumnName', {'y', 'label', 'R', 'G', 'B', 'LineStyle'}, ...
         'ColumnEditable', true(1, 6), ...
         'CellSelectionCallback', @(~, evt) onWarnSelected(evt), ...
         'CellEditCallback', @(~,~) onWarnTableEdited());
-    warnTable.Layout.Row = 2; warnTable.Layout.Column = [1 4];
+    warnTable.Layout.Row = 3; warnTable.Layout.Column = [1 4];
 
     addWarnBtn = uibutton(warnGrid, 'Text', '新增预警线', 'ButtonPushedFcn', @(~,~) add_warn_row());
-    addWarnBtn.Layout.Row = 3; addWarnBtn.Layout.Column = 1;
+    addWarnBtn.Layout.Row = 4; addWarnBtn.Layout.Column = 1;
     delWarnBtn = uibutton(warnGrid, 'Text', '删除选中预警线', 'ButtonPushedFcn', @(~,~) delete_warn_rows());
-    delWarnBtn.Layout.Row = 3; delWarnBtn.Layout.Column = 2;
+    delWarnBtn.Layout.Row = 4; delWarnBtn.Layout.Column = 2;
 
     spectrumGrid = uigridlayout(tabSpectrum, [3 4]);
     spectrumGrid.RowHeight = {36, '1x', 32};
@@ -264,12 +294,31 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         refresh_summary();
     end
 
+    function onWarnExpandChanged()
+        warnExpanded = logical(warnExpandCheck.Value);
+        refresh_warn_controls();
+    end
+
     function onWarnTableEdited()
         if updating
             return;
         end
         persist_warn_lines_to_draft(currentWarnField);
         refresh_summary();
+    end
+
+    function onAlarmTableEdited()
+        if updating
+            return;
+        end
+        try
+            persist_alarm_bounds_to_draft();
+            refresh_warn_controls();
+            refresh_summary();
+            msgBox.Value = {'测点预警值已更新到草稿；点击保存后写入配置文件。'};
+        catch ME
+            msgBox.Value = {['测点预警值无效: ' ME.message]};
+        end
     end
 
     function onPeakTableEdited()
@@ -288,6 +337,10 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         selectedWarnRows = selected_rows(evt);
     end
 
+    function onAlarmSelected(evt)
+        selectedAlarmRows = selected_rows(evt);
+    end
+
     function onPeakSelected(evt)
         selectedPeakRows = selected_rows(evt);
     end
@@ -301,6 +354,24 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         ylimsTable.Data = delete_rows_by_index(ylimsTable.Data, selectedYlimRows);
         selectedYlimRows = [];
         onModuleFieldChanged();
+    end
+
+    function add_alarm_row()
+        pointIds = bms.gui.AlarmBoundsEditorService.modulePointIds(draftCfg, current_def());
+        if isempty(pointIds)
+            pointId = '';
+        else
+            pointId = pointIds{1};
+        end
+        alarmTable.Data = append_row(alarmTable.Data, {pointId, 'level2', [], [], 'per_point'});
+        selectedAlarmRows = [];
+        msgBox.Value = {'已新增一行测点预警值；请填写 lower/upper 后保存。'};
+    end
+
+    function delete_alarm_rows()
+        alarmTable.Data = delete_rows_by_index(alarmTable.Data, selectedAlarmRows);
+        selectedAlarmRows = [];
+        onAlarmTableEdited();
     end
 
     function add_warn_row()
@@ -338,7 +409,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
 
     function onSaveCfg(doSaveAs)
         try
-            cfgNew = applyToCfg(cfgCache);
+            cfgNew = applyToCfg(draftCfg);
 
             targetPath = cfgPath;
             if doSaveAs
@@ -436,6 +507,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
 
         ylimsTable.Data = ylims_to_rows(getfield_default(style, 'ylims', []));
         selectedYlimRows = [];
+        refresh_alarm_controls();
         refresh_warn_controls();
         refresh_peak_controls();
         sync_module_enable_state();
@@ -446,10 +518,11 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
     function refresh_warn_controls()
         def = current_def();
         style = get_effective_style(draftCfg, def);
-        [rows, isPreview, hintText] = warn_rows_for_table(draftCfg, def, style, currentWarnField);
+        [rows, isPreview, hintText] = warn_rows_for_table(draftCfg, def, style, currentWarnField, warnExpanded);
         warnTable.Data = rows;
         warnTableDerivedPreview = isPreview;
         warnTable.ColumnEditable = repmat(~isPreview, 1, 6);
+        warnExpandCheck.Enable = on_off(isPreview);
         addWarnBtn.Text = ternary(isPreview, '改为自定义预警线', '新增预警线');
         delWarnBtn.Enable = on_off(~isPreview);
         warnHint.Text = hintText;
@@ -481,6 +554,30 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         def = current_def();
         style = get_effective_style(draftCfg, def);
         summaryTable.Data = build_summary_rows(draftCfg, def, style);
+    end
+
+    function refresh_alarm_controls()
+        def = current_def();
+        if isfield(def, 'is_spectrum') && logical(def.is_spectrum)
+            alarmTable.Data = cell(0, 5);
+            alarmTable.Enable = 'off';
+            addAlarmBtn.Enable = 'off';
+            delAlarmBtn.Enable = 'off';
+            alarmHint.Text = '频谱模块不编辑 alarm_bounds；理论频率或参考线请使用“图上自定义线/频谱找峰”。';
+            selectedAlarmRows = [];
+            return;
+        end
+        alarmTable.Enable = 'on';
+        addAlarmBtn.Enable = 'on';
+        delAlarmBtn.Enable = 'on';
+        try
+            alarmTable.Data = bms.gui.AlarmBoundsEditorService.rows(draftCfg, def);
+            alarmHint.Text = '编辑真实预警阈值：保存后写入 per_point.<模块>.<测点>.alarm_bounds；level 必须写成 level1、level2、level3。';
+        catch ME
+            alarmTable.Data = cell(0, 5);
+            alarmHint.Text = ['测点预警值读取失败: ' ME.message];
+        end
+        selectedAlarmRows = [];
     end
 
     function persist_global_to_draft()
@@ -530,8 +627,17 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         end
 
         draftCfg = set_style(draftCfg, def, style);
+        persist_alarm_bounds_to_draft();
         persist_warn_lines_to_draft(currentWarnField);
         persist_peak_orders_to_draft();
+    end
+
+    function persist_alarm_bounds_to_draft()
+        def = current_def();
+        if isfield(def, 'is_spectrum') && logical(def.is_spectrum)
+            return;
+        end
+        draftCfg = bms.gui.AlarmBoundsEditorService.applyRows(draftCfg, def, alarmTable.Data);
     end
 
     function persist_warn_lines_to_draft(fieldName)
@@ -578,7 +684,17 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         end
     end
 
-    psTab = struct('grid', grid, 'onShow', @onShow, 'applyToCfg', @applyToCfg);
+    psTab = struct('grid', grid, ...
+        'onShow', @onShow, ...
+        'applyToCfg', @applyToCfg, ...
+        'moduleDrop', moduleDrop, ...
+        'warnTabs', warnTabs, ...
+        'alarmTable', alarmTable, ...
+        'warnTable', warnTable, ...
+        'warnExpandCheck', warnExpandCheck, ...
+        'refreshWarnControls', @refresh_warn_controls, ...
+        'alarmHint', alarmHint, ...
+        'warnHint', warnHint);
 end
 
 function defs = plot_module_defs()
@@ -815,8 +931,12 @@ function ylims = rows_to_ylims(rows)
     end
 end
 
-function [rows, isPreview, hintText] = warn_rows_for_table(cfg, def, style, fieldName)
-    preview = bms.analyzer.PlotWarningLineResolver.tablePreview(cfg, def, style, fieldName);
+function [rows, isPreview, hintText] = warn_rows_for_table(cfg, def, style, fieldName, expandPoints)
+    if nargin < 5
+        expandPoints = false;
+    end
+    preview = bms.analyzer.PlotWarningLineResolver.tablePreview(cfg, def, style, fieldName, ...
+        'ExpandPoints', expandPoints);
     rows = preview.rows;
     isPreview = preview.is_preview;
     hintText = preview.hint;

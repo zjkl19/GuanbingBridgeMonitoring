@@ -224,13 +224,23 @@ classdef RunSession < handle
             end
         end
 
-        function tf = shouldStop(~)
+        function tf = shouldStop(obj)
             tf = false;
             try
                 global RUN_STOP_FLAG;
                 tf = ~isempty(RUN_STOP_FLAG) && RUN_STOP_FLAG;
+                if tf
+                    return;
+                end
             catch
                 tf = false;
+            end
+            try
+                if isprop(obj, 'Request') && isa(obj.Request, 'bms.app.RunRequest') && ...
+                        ~isempty(obj.Request.StopFile) && isfile(obj.Request.StopFile)
+                    tf = true;
+                end
+            catch
             end
         end
 

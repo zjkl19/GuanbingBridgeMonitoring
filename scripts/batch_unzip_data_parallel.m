@@ -1,4 +1,4 @@
-﻿function batch_unzip_data_parallel(root_dir, start_date, end_date, silent)
+function batch_unzip_data_parallel(root_dir, start_date, end_date, silent)
 % batch_unzip_data_parallel  批量解压监测数据 ZIP（PowerShell Expand-Archive）。
 %   batch_unzip_data_parallel(root_dir, start_date, end_date, silent)
 %   root_dir: 根目录，例如 'F:\管柄大桥健康监测数据\'
