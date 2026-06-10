@@ -126,6 +126,30 @@ def fallback_profiles() -> list[BridgeProfile]:
             default_start_date="2026-03-23",
             default_end_date="2026-03-31",
         ),
+        BridgeProfile(
+            bridge_id="zhishan",
+            bridge_name="芝山大桥",
+            default_config="config/zhishan_config.json",
+            default_data_root=r"D:\芝山大桥数据\2026年3月",
+            data_layout="dated_folders",
+            report_type="monthly",
+            report_gui_type="zhishan_monthly",
+            report_template="reports/芝山大桥健康监测2026年3月份月报_0609_1652.docx",
+            default_period_label="2026年3月",
+            default_monitoring_range="2026年03月01日~2026年03月31日",
+            default_start_date="2026-03-01",
+            default_end_date="2026-03-31",
+            enabled_modules=[
+                "strain",
+                "dynamic_strain_highpass",
+                "dynamic_strain_lowpass",
+                "bearing_displacement",
+                "acceleration",
+                "accel_spectrum",
+                "cable_accel",
+                "cable_accel_spectrum",
+            ],
+        ),
     ]
 
 

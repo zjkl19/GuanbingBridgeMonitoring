@@ -185,6 +185,8 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.7.7` upgrades the Zhishan monthly report generator to use main-analysis output figures for fallback-friendly report assembly and adds packaged-exe Zhishan self-test coverage.
+版本 `v1.7.7` 升级芝山月报生成器，改用主分析程序输出图件完成便于人工兜底的报告组装，并补充打包 exe 的芝山自测覆盖。
 Version `v1.7.6` keeps the report GUI version aligned with the Chongyangxi March processing/runtime package release; report-builder behavior is unchanged from v1.7.5.
 版本 `v1.7.6` 与崇阳溪 3 月数据处理/运行时打包发布同步；报告生成器行为沿用 v1.7.5。
 Version `v1.7.5` keeps the report GUI aligned with the Zhishan March data-processing release and documents the new Zhishan analysis/report asset workflow.

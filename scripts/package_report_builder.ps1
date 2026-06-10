@@ -86,7 +86,21 @@ $requiredPaths = @(
 
 $trackedReportFiles = @(& git -c core.quotepath=false ls-files -- "reports/*.docx")
 $untrackedReportFiles = @(& git -c core.quotepath=false ls-files --others --exclude-standard -- "reports/*.docx")
-$reportFiles = @($trackedReportFiles + $untrackedReportFiles | Where-Object { $_ } | Select-Object -Unique)
+$profileReportFiles = @()
+$profileConfigPath = Join-Path $RepoRoot "config\bridge_profiles.json"
+if (Test-Path -LiteralPath $profileConfigPath) {
+    $profileConfig = Get-Content -LiteralPath $profileConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    foreach ($profile in $profileConfig.profiles) {
+        $template = [string]$profile.report_template
+        if ($template -and -not [System.IO.Path]::IsPathRooted($template)) {
+            $templatePath = Join-Path $RepoRoot ($template -replace '/', '\')
+            if (Test-Path -LiteralPath $templatePath) {
+                $profileReportFiles += $template
+            }
+        }
+    }
+}
+$reportFiles = @($trackedReportFiles + $untrackedReportFiles + $profileReportFiles | Where-Object { $_ } | Select-Object -Unique)
 if ($reportFiles.Count -lt 4) {
     throw "Expected at least 4 report templates, found $($reportFiles.Count)."
 }

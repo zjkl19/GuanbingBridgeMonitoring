@@ -11,6 +11,7 @@ from docx import Document
 from build_guanbing_monthly_report import build_report as build_guanbing_monthly_report
 from build_jlj_monthly_report import build_report as build_jlj_monthly_report
 from build_shuixianhua_monthly_report import build_report as build_shuixianhua_monthly_report
+from build_zhishan_monthly_report import build_report as build_zhishan_monthly_report
 from build_period_report import build_period_report as build_hongtang_period_report
 from bridge_profiles import load_profiles, profile_by_id
 from template_precheck import TemplatePrecheckError, check_template, write_precheck_report
@@ -55,6 +56,10 @@ def _default_guanbing_template(repo_root: Path) -> Path:
 
 def _default_shuixianhua_template(repo_root: Path) -> Path:
     return _profile_template(repo_root, "shuixianhua", repo_root / "reports" / "水仙花大桥健康监测月报模板.docx")
+
+
+def _default_zhishan_template(repo_root: Path) -> Path:
+    return _profile_template(repo_root, "zhishan", repo_root / "reports" / "芝山大桥健康监测2026年3月份月报_0609_1652.docx")
 
 
 def _docx_contains(path: Path, fragment: str) -> bool:
@@ -237,14 +242,59 @@ def smoke_shuixianhua(args: argparse.Namespace, output_root: Path) -> None:
         print(f"[shuixianhua] pdf: {pdf_path}")
 
 
+def smoke_zhishan(args: argparse.Namespace, output_root: Path) -> None:
+    print(f"[zhishan] template: {args.zhishan_template}")
+    issues = check_template("zhishan_monthly", args.zhishan_template)
+    txt_path, json_path = write_precheck_report(
+        "zhishan_monthly",
+        args.zhishan_template,
+        issues,
+        output_root / "precheck",
+        context={"smoke_generate": args.generate},
+    )
+    print(f"[zhishan] precheck report: {txt_path}")
+    if issues:
+        raise TemplatePrecheckError(args.zhishan_template, issues)
+    print("[zhishan] template precheck OK")
+    if not args.generate:
+        return
+    if not args.zhishan_result_root.exists():
+        raise FileNotFoundError(f"Zhishan result root not found: {args.zhishan_result_root}")
+    out_dir = output_root / "zhishan"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report_path, manifest_path = build_zhishan_monthly_report(
+        template=args.zhishan_template,
+        config_path=args.zhishan_config,
+        result_root=args.zhishan_result_root,
+        output_dir=out_dir,
+        period_label=args.zhishan_period_label,
+        monitoring_range=args.zhishan_monitoring_range,
+        report_date=args.report_date,
+        update_word=False,
+    )
+    _assert_generated_docx(
+        report_path,
+        [
+            "芝山大桥",
+            "结构振动监测",
+            "结构应变监测",
+            "斜拉索索力加速度监测",
+            "索力监测结果",
+        ],
+    )
+    print(f"[zhishan] generated OK: {report_path}")
+    print(f"[zhishan] manifest: {manifest_path}")
+
+
 def parse_args() -> argparse.Namespace:
     repo_root = _repo_root()
     hongtang = _profile(repo_root, "hongtang")
     jiulongjiang = _profile(repo_root, "jiulongjiang")
     guanbing = _profile(repo_root, "guanbing")
     shuixianhua = _profile(repo_root, "shuixianhua")
+    zhishan = _profile(repo_root, "zhishan")
     parser = argparse.ArgumentParser(description="Smoke test bridge report templates and cached-result generation.")
-    parser.add_argument("--kind", choices=["all", "hongtang", "jlj", "guanbing", "shuixianhua"], default="all")
+    parser.add_argument("--kind", choices=["all", "hongtang", "jlj", "guanbing", "shuixianhua", "zhishan"], default="all")
     parser.add_argument("--generate", action="store_true", help="Also generate reports from existing stats/images.")
     parser.add_argument("--keep-output", action="store_true", help="Keep tmp smoke-test outputs.")
     parser.add_argument("--output-root", type=Path, default=repo_root / "tmp" / "report_smoke")
@@ -279,6 +329,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--shuixianhua-period-label", default=shuixianhua.default_period_label or "2026年3月份")
     parser.add_argument("--shuixianhua-monitoring-range", default=shuixianhua.default_monitoring_range or "2026年03月23日~2026年03月31日")
     parser.add_argument("--shuixianhua-report-date", default=shuixianhua.default_report_date or "2026年04月05日")
+
+    parser.add_argument("--zhishan-template", type=Path, default=_default_zhishan_template(repo_root))
+    parser.add_argument("--zhishan-config", type=Path, default=zhishan.config_path(repo_root))
+    parser.add_argument("--zhishan-result-root", type=Path, default=zhishan.data_root_path())
+    parser.add_argument("--zhishan-period-label", default=zhishan.default_period_label or "2026年3月")
+    parser.add_argument("--zhishan-monitoring-range", default=zhishan.default_monitoring_range or "2026年03月01日~2026年03月31日")
     return parser.parse_args()
 
 
@@ -297,6 +353,8 @@ def main() -> None:
         smoke_guanbing(args, output_root)
     if args.kind in ("all", "shuixianhua"):
         smoke_shuixianhua(args, output_root)
+    if args.kind in ("all", "zhishan"):
+        smoke_zhishan(args, output_root)
 
     if not args.generate and not args.keep_output and output_root.exists():
         shutil.rmtree(output_root)

@@ -400,6 +400,38 @@ def check_shuixianhua_monthly_template(template: Path) -> list[TemplateIssue]:
     return issues
 
 
+def check_zhishan_monthly_template(template: Path) -> list[TemplateIssue]:
+    doc = Document(str(template))
+    texts = _all_texts(doc)
+    fields = _field_instr_texts(doc)
+    issues: list[TemplateIssue] = []
+
+    if find_summary_table(doc) is None:
+        issues.append(TemplateIssue("missing-table", "Zhishan summary table with front-matter result/advice cells was not found."))
+
+    required = [
+        ("芝山大桥", "Zhishan cover/project text"),
+        ("监测结果", "front summary result label"),
+        ("建  议", "front summary advice label"),
+        ("梁端位移监测", "bearing displacement section anchor"),
+        ("结构振动监测", "structure vibration section anchor"),
+        ("结构应变监测", "strain section anchor"),
+        ("斜拉索索力加速度监测", "cable acceleration section anchor"),
+        ("索力监测结果", "cable force table anchor"),
+        ("活载动应变（高通滤波后）", "dynamic strain high-pass section anchor"),
+        ("低通滤波后", "dynamic strain low-pass section anchor"),
+    ]
+    for fragment, note in required:
+        _add_missing_fragment(issues, texts, fragment, note)
+
+    if not any("SEQ 图" in field for field in fields):
+        issues.append(TemplateIssue("missing-field", "No auto figure caption field (SEQ 图) found."))
+    if not any("SEQ 表" in field for field in fields):
+        issues.append(TemplateIssue("missing-field", "No auto table caption field (SEQ 表) found."))
+
+    return issues
+
+
 def check_template(kind: str, template: Path, manifest: dict | None = None) -> list[TemplateIssue]:
     if not template.exists():
         return [TemplateIssue("missing-file", f"Template file does not exist: {template}")]
@@ -411,6 +443,8 @@ def check_template(kind: str, template: Path, manifest: dict | None = None) -> l
         return check_guanbing_monthly_template(template)
     if kind == "shuixianhua_monthly":
         return check_shuixianhua_monthly_template(template)
+    if kind == "zhishan_monthly":
+        return check_zhishan_monthly_template(template)
     raise ValueError(f"Unknown template kind: {kind}")
 
 
@@ -422,7 +456,7 @@ def raise_for_template(kind: str, template: Path, manifest: dict | None = None) 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Precheck bridge report DOCX templates.")
-    parser.add_argument("--kind", choices=["hongtang_period", "jlj_monthly", "guanbing_monthly", "shuixianhua_monthly"], required=True)
+    parser.add_argument("--kind", choices=["hongtang_period", "jlj_monthly", "guanbing_monthly", "shuixianhua_monthly", "zhishan_monthly"], required=True)
     parser.add_argument("--template", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, default=None, help="Optional analysis manifest for conditional anchor checks.")
     parser.add_argument("--output-dir", type=Path, default=None, help="Optional directory for txt/json precheck reports.")

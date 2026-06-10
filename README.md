@@ -252,6 +252,15 @@ Jiulongjiang monthly reports use a dedicated builder and logic path instead of t
 python reporting/build_jlj_monthly_report.py --template <template.docx> --config config/jiulongjiang_config.json --result-root <data-root>
 ```
 
+Zhishan monthly reports use the edited `0609_1652` template. The builder preserves existing section structure and dynamic figure/table captions, then refreshes the main result tables and figures from `stats/` and the March result folders.
+芝山月报使用已编辑的 `0609_1652` 模板。生成器保留原章节结构和动态图表编号，并从 `stats/` 及 3 月结果目录刷新主要结果表和图件。
+
+```powershell
+python reporting/build_zhishan_monthly_report.py --no-word-update
+python reporting/smoke_report_generation.py --kind zhishan --generate --keep-output
+python reporting/report_gui.py --self-test-zhishan --self-test-no-word-update
+```
+
 Default period-report template.
 默认周期报模板。
 
@@ -302,6 +311,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.7`: upgrades the Zhishan monthly report generator to insert main-analysis output figures for AZ/CF PSD, cable acceleration, and cable-force time histories, preserving manual fallback assets; adds Zhishan packaged-exe smoke coverage.
+- `v1.7.7`：升级芝山月报生成器，AZ/CF 频谱、索力加速度、索力时程图均优先使用主分析程序输出图件，保留人工兜底图件来源；补充芝山打包 exe 冒烟覆盖。
 - `v1.7.6`: keeps the report GUI version aligned with the Chongyangxi March processing/runtime package release; report-builder behavior is unchanged from v1.7.5.
 - `v1.7.6`：报告 GUI 版本与崇阳溪 3 月数据处理/运行时打包发布同步；报告生成器行为沿用 v1.7.5。
 - `v1.7.5`: keeps the report GUI aligned with the Zhishan March data-processing release and documents the new Zhishan analysis/report asset workflow while preserving Shuixianhua report-builder fixes.

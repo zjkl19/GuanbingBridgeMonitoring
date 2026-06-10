@@ -24,7 +24,8 @@ classdef test_bridge_profile < matlab.unittest.TestCase
 
             z = bms.profile.BridgeProfileRegistry.fromId('zhishan');
             tc.verifyEqual(z.DataLayout, 'dated_folders');
-            tc.verifyEqual(z.DefaultReportType, 'analysis_only');
+            tc.verifyEqual(z.DefaultReportType, 'monthly');
+            tc.verifyTrue(contains(z.DefaultReportTemplate, '0609_1652'));
             tc.verifyTrue(contains(z.DefaultDataRoot, '2026年3月'));
             tc.verifyFalse(contains(z.DefaultDataRoot, '2026年1-3月'));
             tc.verifyTrue(z.configExists());

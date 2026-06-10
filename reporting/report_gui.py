@@ -32,6 +32,7 @@ from build_guanbing_monthly_report import build_report as build_guanbing_monthly
 from build_monthly_report import build_report as build_hongtang_monthly_report
 from build_period_report import build_period_report
 from build_shuixianhua_monthly_report import build_report as build_shuixianhua_monthly_report
+from build_zhishan_monthly_report import build_report as build_zhishan_monthly_report
 from bridge_profiles import BridgeProfile, load_profiles, profile_by_id
 from missing_summary import missing_summary_paths
 from analysis_manifest import manifest_precheck_warnings
@@ -45,12 +46,14 @@ PERIOD_REPORT = "\u6d2a\u5858\u5468\u671f\u62a5\uff08\u542bWIM\uff09"
 JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
 GUANBING_MONTHLY_REPORT = "管柄月报"
 SHUIXIANHUA_MONTHLY_REPORT = "水仙花月报"
-APP_VERSION = "v1.7.6"
+ZHISHAN_MONTHLY_REPORT = "芝山月报"
+APP_VERSION = "v1.7.7"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_0508.docx"
 GUANBING_TEMPLATE_NAME = "G104线管柄大桥监测月报模板-自动报告.docx"
 SHUIXIANHUA_TEMPLATE_NAME = "水仙花大桥健康监测月报模板.docx"
+ZHISHAN_TEMPLATE_NAME = "芝山大桥健康监测2026年3月份月报_0609_1652.docx"
 PERIOD_TEMPLATE_AUTO_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f-\u81ea\u52a8\u62a5\u544a.docx"
 PERIOD_TEMPLATE_LEGACY_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f0318.docx"
 PERIOD_TEMPLATE_FALLBACK_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u5468\u671f\u62a5\u6a21\u677f.docx"
@@ -58,6 +61,7 @@ DEFAULT_RESULT_ROOT = Path("E:" + "\\" + "\u6d2a\u5858\u5927\u6865\u6570\u636e" 
 DEFAULT_JLJ_RESULT_ROOT = Path("E:" + "\\" + "\u4e5d\u9f99\u6c5f\u6570\u636e" + "\\" + "2026\u5e743\u6708")
 DEFAULT_GUANBING_RESULT_ROOT = Path("F:" + "\\" + "管柄大桥数据" + "\\" + "2026年3月")
 DEFAULT_SHUIXIANHUA_RESULT_ROOT = Path("E:" + "\\" + "水仙花大桥数据" + "\\" + "2026年3月")
+DEFAULT_ZHISHAN_RESULT_ROOT = Path("D:" + "\\" + "芝山大桥数据" + "\\" + "2026年3月")
 
 PROFILE_REPORT_TYPES = {
     "hongtang_monthly": MONTHLY_REPORT,
@@ -65,6 +69,7 @@ PROFILE_REPORT_TYPES = {
     "jlj_monthly": JLJ_MONTHLY_REPORT,
     "guanbing_monthly": GUANBING_MONTHLY_REPORT,
     "shuixianhua_monthly": SHUIXIANHUA_MONTHLY_REPORT,
+    "zhishan_monthly": ZHISHAN_MONTHLY_REPORT,
 }
 
 
@@ -125,6 +130,12 @@ def detect_default_config(report_type: str = PERIOD_REPORT) -> Path:
             if shx_cfg.exists():
                 return shx_cfg.resolve()
         return (app_root() / "config" / "shuixianhua_config.json").resolve()
+    if report_type == ZHISHAN_MONTHLY_REPORT:
+        for config_dir in candidate_config_roots():
+            zhishan_cfg = config_dir / "zhishan_config.json"
+            if zhishan_cfg.exists():
+                return zhishan_cfg.resolve()
+        return (app_root() / "config" / "zhishan_config.json").resolve()
 
     computer_name = os.environ.get("COMPUTERNAME", "").strip()
     for config_dir in candidate_config_roots():
@@ -148,6 +159,8 @@ def default_result_root(report_type: str) -> Path:
         return DEFAULT_GUANBING_RESULT_ROOT
     if report_type == SHUIXIANHUA_MONTHLY_REPORT:
         return DEFAULT_SHUIXIANHUA_RESULT_ROOT
+    if report_type == ZHISHAN_MONTHLY_REPORT:
+        return DEFAULT_ZHISHAN_RESULT_ROOT
     return DEFAULT_RESULT_ROOT
 
 def find_default_template(report_type: str) -> Path:
@@ -165,6 +178,9 @@ def find_default_template(report_type: str) -> Path:
     elif report_type == SHUIXIANHUA_MONTHLY_REPORT:
         preferred = SHUIXIANHUA_TEMPLATE_NAME
         fallback_candidates = [SHUIXIANHUA_TEMPLATE_NAME, JLJ_TEMPLATE_NAME]
+    elif report_type == ZHISHAN_MONTHLY_REPORT:
+        preferred = ZHISHAN_TEMPLATE_NAME
+        fallback_candidates = [ZHISHAN_TEMPLATE_NAME, SHUIXIANHUA_TEMPLATE_NAME]
     elif report_type == PERIOD_REPORT:
         preferred = PERIOD_TEMPLATE_NAME
         fallback_candidates = [PERIOD_TEMPLATE_AUTO_NAME, PERIOD_TEMPLATE_LEGACY_NAME, PERIOD_TEMPLATE_FALLBACK_NAME, MONTHLY_TEMPLATE_NAME]
@@ -243,6 +259,8 @@ def report_type_description(report_type: str) -> str:
         return "管柄月报：使用管柄自动报告模板，按2026-02-26~2026-03-25这类月度周期从结果目录插入图片和统计文字；缺少挠度/倾角/加速度时程结果时保留模板原内容。"
     if report_type == SHUIXIANHUA_MONTHLY_REPORT:
         return "水仙花月报：使用水仙花独立模板，复用九龙江月报版式，按水仙花 stats、run_logs 和结果图片生成正文、摘要表、目录及 PDF。"
+    if report_type == ZHISHAN_MONTHLY_REPORT:
+        return "芝山月报：按芝山0609_1652模板生成，刷新梁端位移、结构振动、应变/动应变、索力加速度及索力换算表格和主要结果图。"
     return "\u6d2a\u5858\u6708\u62a5\uff1a\u4f7f\u7528\u65e7\u6d2a\u5858\u6708\u62a5\u6a21\u677f\u548c\u6708\u62a5\u751f\u6210\u6d41\u7a0b\uff0c\u9002\u7528\u5355\u6708\u5df2\u8ba1\u7b97\u597d\u7684\u7ed3\u679c\u76ee\u5f55\u3002"
 
 
@@ -346,6 +364,17 @@ class ReportWorker(QObject):
                 missing = []
                 if pdf_path is not None:
                     self.log.emit(f"PDF:      {pdf_path}")
+            elif self.report_type == ZHISHAN_MONTHLY_REPORT:
+                report_path, manifest_path = build_zhishan_monthly_report(
+                    template=self.template,
+                    config_path=self.config_path,
+                    result_root=self.result_root,
+                    output_dir=self.output_dir,
+                    period_label=self.period_label,
+                    monitoring_range=self.monitoring_range,
+                    report_date=self.report_date,
+                )
+                missing = []
             else:
                 manifest_path, report_path, missing = build_hongtang_monthly_report(
                     template=self.template,
@@ -424,7 +453,7 @@ class ReportGui(QMainWindow):
             self.profile_combo.addItem(profile.bridge_name, profile.bridge_id)
         self.profile_combo.setCurrentIndex(max(0, self.profile_combo.findData(self.current_profile.bridge_id)))
         self.report_type_combo = QComboBox()
-        self.report_type_combo.addItems([MONTHLY_REPORT, PERIOD_REPORT, JLJ_MONTHLY_REPORT, GUANBING_MONTHLY_REPORT, SHUIXIANHUA_MONTHLY_REPORT])
+        self.report_type_combo.addItems([MONTHLY_REPORT, PERIOD_REPORT, JLJ_MONTHLY_REPORT, GUANBING_MONTHLY_REPORT, SHUIXIANHUA_MONTHLY_REPORT, ZHISHAN_MONTHLY_REPORT])
         self.report_type_combo.setCurrentText(initial_report_type)
         self.report_type_desc_label: QLabel | None = None
         self.profile_desc_label: QLabel | None = None
@@ -578,6 +607,7 @@ class ReportGui(QMainWindow):
             JLJ_TEMPLATE_NAME,
             GUANBING_TEMPLATE_NAME,
             SHUIXIANHUA_TEMPLATE_NAME,
+            ZHISHAN_TEMPLATE_NAME,
             PERIOD_TEMPLATE_AUTO_NAME,
             PERIOD_TEMPLATE_LEGACY_NAME,
             PERIOD_TEMPLATE_FALLBACK_NAME,
@@ -593,6 +623,7 @@ class ReportGui(QMainWindow):
             "jiulongjiang_config.json",
             "default_config.json",
             "shuixianhua_config.json",
+            "zhishan_config.json",
         }
         computer_name = os.environ.get("COMPUTERNAME", "").strip()
         if computer_name:
@@ -698,6 +729,11 @@ class ReportGui(QMainWindow):
             self.start_edit.setText("2026-03-23")
             self.end_edit.setText("2026-03-31")
             self.date_edit.setText("2026年04月05日")
+        elif text == ZHISHAN_MONTHLY_REPORT:
+            self.period_edit.setText("2026年3月")
+            self.range_edit.setText("2026年03月01日~2026年03月31日")
+            self.start_edit.setText("2026-03-01")
+            self.end_edit.setText("2026-03-31")
 
     def _read_period_dates(self) -> tuple[date, date]:
         start_date = parse_iso_date(self.start_edit.text().strip())
@@ -791,6 +827,36 @@ class ReportGui(QMainWindow):
             warnings.append(f"缺少水仙花月报关键图片目录：{', '.join(missing_dirs)}。")
         return warnings
 
+    def _collect_zhishan_warnings(self, result_root: Path) -> list[str]:
+        warnings: list[str] = []
+        warnings.extend(manifest_precheck_warnings(result_root))
+        if not (result_root / "stats").exists():
+            warnings.append("`stats/` 不存在，芝山月报统计表无法填充。")
+        profile = self._profile_for_report_type(ZHISHAN_MONTHLY_REPORT)
+        missing_stats = self._missing_profile_stats(result_root, profile)
+        if missing_stats:
+            warnings.append(f"缺少芝山月报统计表：{', '.join(missing_stats)}。")
+        missing_dirs = self._missing_profile_dirs(
+            result_root,
+            profile,
+            extra=[
+                "时程曲线_梁端纵向位移_组图",
+                "时程曲线_加速度_组图",
+                "时程曲线_加速度_RMS10min_组图",
+                "频谱峰值曲线_结构加速度_组图",
+                "时程曲线_动应变_高通滤波_组图",
+                "时程曲线_动应变_低通滤波_组图",
+                "动应变箱线图_高通滤波",
+                "时程曲线_索力加速度",
+                "索力时程图",
+                "PSD_备查",
+                "PSD_备查_索力加速度",
+            ],
+        )
+        if missing_dirs:
+            warnings.append(f"缺少芝山月报关键图片目录：{', '.join(missing_dirs)}。")
+        return warnings
+
     def _template_check_kind(self, report_type: str) -> str | None:
         if report_type == PERIOD_REPORT:
             return "hongtang_period"
@@ -800,6 +866,8 @@ class ReportGui(QMainWindow):
             return "guanbing_monthly"
         if report_type == SHUIXIANHUA_MONTHLY_REPORT:
             return "shuixianhua_monthly"
+        if report_type == ZHISHAN_MONTHLY_REPORT:
+            return "zhishan_monthly"
         return None
 
     def _format_template_issues(self, issues: list[TemplateIssue]) -> str:
@@ -913,6 +981,8 @@ class ReportGui(QMainWindow):
             warnings.extend(self._collect_guanbing_warnings(result_root))
         elif report_type == SHUIXIANHUA_MONTHLY_REPORT:
             warnings.extend(self._collect_shuixianhua_warnings(result_root))
+        elif report_type == ZHISHAN_MONTHLY_REPORT:
+            warnings.extend(self._collect_zhishan_warnings(result_root))
 
         report_paths = self._write_precheck_report(template, report_type, template_issues, warnings)
         report_note = ""
@@ -1050,6 +1120,7 @@ class ReportGui(QMainWindow):
 def _self_test_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="BridgeReportBuilder hidden self-test entry.")
     parser.add_argument("--self-test-shuixianhua", action="store_true")
+    parser.add_argument("--self-test-zhishan", action="store_true")
     parser.add_argument("--self-test-template", type=Path, default=None)
     parser.add_argument("--self-test-config", type=Path, default=None)
     parser.add_argument("--self-test-result-root", type=Path, default=None)
@@ -1062,13 +1133,78 @@ def _self_test_parser() -> argparse.ArgumentParser:
 
 
 def maybe_run_self_test(argv: list[str]) -> int | None:
-    if "--self-test-shuixianhua" not in argv:
+    if "--self-test-shuixianhua" not in argv and "--self-test-zhishan" not in argv:
         return None
     parser = _self_test_parser()
     args = parser.parse_args(argv)
-    if not args.self_test_shuixianhua:
+    if not args.self_test_shuixianhua and not args.self_test_zhishan:
         return None
     result_path = args.self_test_output_root / "selftest_result.json"
+    if args.self_test_zhishan:
+        try:
+            profile = profile_for_report_type(ZHISHAN_MONTHLY_REPORT)
+            template = (args.self_test_template or find_default_template(ZHISHAN_MONTHLY_REPORT)).expanduser().resolve()
+            config_path = (args.self_test_config or detect_default_config(ZHISHAN_MONTHLY_REPORT)).expanduser().resolve()
+            result_root = (args.self_test_result_root or default_result_root(ZHISHAN_MONTHLY_REPORT)).expanduser().resolve()
+            output_dir = (args.self_test_output_root / "zhishan").expanduser().resolve()
+            output_dir.mkdir(parents=True, exist_ok=True)
+            period_label = args.self_test_period_label or (profile.default_period_label if profile else "") or "2026年3月"
+            monitoring_range = (
+                args.self_test_monitoring_range
+                or (profile.default_monitoring_range if profile else "")
+                or "2026年03月01日~2026年03月31日"
+            )
+            report_date = args.self_test_report_date or (profile.default_report_date if profile else "") or datetime.now().strftime("%Y年%m月%d日")
+            issues = check_template("zhishan_monthly", template)
+            if issues:
+                joined = "; ".join(f"{issue.code}: {issue.message}" for issue in issues)
+                raise RuntimeError(f"Template precheck failed: {joined}")
+            report_path, manifest_path = build_zhishan_monthly_report(
+                template=template,
+                config_path=config_path,
+                result_root=result_root,
+                output_dir=output_dir,
+                period_label=period_label,
+                monitoring_range=monitoring_range,
+                report_date=report_date,
+                update_word=not args.self_test_no_word_update,
+            )
+            if not report_path.exists() or report_path.stat().st_size <= 0:
+                raise RuntimeError(f"Self-test report missing or empty: {report_path}")
+            result_path.parent.mkdir(parents=True, exist_ok=True)
+            result_path.write_text(
+                json.dumps(
+                    {
+                        "ok": True,
+                        "version": APP_VERSION,
+                        "template": str(template),
+                        "config": str(config_path),
+                        "result_root": str(result_root),
+                        "report": str(report_path),
+                        "manifest": str(manifest_path),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            return 0
+        except Exception as exc:  # noqa: BLE001
+            result_path.parent.mkdir(parents=True, exist_ok=True)
+            result_path.write_text(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "version": APP_VERSION,
+                        "error": str(exc),
+                        "traceback": traceback.format_exc(),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            return 1
     try:
         profile = profile_for_report_type(SHUIXIANHUA_MONTHLY_REPORT)
         template = (args.self_test_template or find_default_template(SHUIXIANHUA_MONTHLY_REPORT)).expanduser().resolve()

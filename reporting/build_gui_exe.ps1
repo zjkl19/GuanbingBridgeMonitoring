@@ -30,6 +30,7 @@ New-Item -ItemType Directory -Force $distReports | Out-Null
 
 $copyReportsScript = @'
 from pathlib import Path
+import json
 import shutil
 import subprocess
 
@@ -54,6 +55,20 @@ try:
             report_files.append(path)
 except Exception:
     report_files = list((repo / "reports").glob("*.docx")) + [repo / "reports" / "README.md"]
+
+profile_path = repo / "config" / "bridge_profiles.json"
+if profile_path.exists():
+    data = json.loads(profile_path.read_text(encoding="utf-8"))
+    for profile in data.get("profiles", []):
+        template = str(profile.get("report_template") or "").strip()
+        if not template:
+            continue
+        rel = Path(template)
+        if rel.is_absolute():
+            continue
+        src = repo / rel
+        if src.exists() and rel not in report_files:
+            report_files.append(rel)
 
 for rel in report_files:
     src = repo / rel
