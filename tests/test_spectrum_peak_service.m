@@ -89,6 +89,25 @@ classdef test_spectrum_peak_service < matlab.unittest.TestCase
             tc.verifyEqual(peakLabels(:), {'一阶'});
         end
 
+        function spectrumPeakOrdersAcceptSearchMinMax(tc)
+            spec = bms.analyzer.SpectrumAnalysisPipeline.spec('accel_spectrum');
+            cfg = struct();
+            cfg.accel_spectrum_params.peak_orders = struct( ...
+                'order', 1, ...
+                'label', 'first', ...
+                'theoretical_hz', 0.593, ...
+                'search_min_hz', 0.44, ...
+                'search_max_hz', 0.84);
+
+            [freqs, tol, theorFreqs, ~, peakLabels] = ...
+                bms.analyzer.SpectrumConfigService.pointParams(cfg, 'AZ-1', spec, [], 0.15, [], {});
+
+            tc.verifyEqual(freqs, 0.64, 'AbsTol', 1e-12);
+            tc.verifyEqual(tol, 0.20, 'AbsTol', 1e-12);
+            tc.verifyEqual(theorFreqs, 0.593);
+            tc.verifyEqual(peakLabels(:), {'first'});
+        end
+
         function cableSpectrumSpecKeepsCableForceBehavior(tc)
             spec = bms.analyzer.SpectrumAnalysisPipeline.spec('cable_accel_spectrum');
 

@@ -199,26 +199,28 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
     delWarnBtn = uibutton(warnGrid, 'Text', '删除选中预警线', 'ButtonPushedFcn', @(~,~) delete_warn_rows());
     delWarnBtn.Layout.Row = 4; delWarnBtn.Layout.Column = 2;
 
-    spectrumGrid = uigridlayout(tabSpectrum, [3 4]);
-    spectrumGrid.RowHeight = {36, '1x', 32};
-    spectrumGrid.ColumnWidth = {'1x', 140, 140, 140};
+    spectrumGrid = uigridlayout(tabSpectrum, [3 5]);
+    spectrumGrid.RowHeight = {44, '1x', 32};
+    spectrumGrid.ColumnWidth = {'1x', 140, 140, 140, 140};
     spectrumGrid.Padding = [8 8 8 8];
 
     spectrumHint = uilabel(spectrumGrid, 'Text', ...
         '频谱模块保存为 peak_orders：阶次名称、找峰中心、找峰半宽、理论频率和理论标签集中在一个表内。');
-    spectrumHint.Layout.Row = 1; spectrumHint.Layout.Column = [1 4];
+    spectrumHint.Layout.Row = 1; spectrumHint.Layout.Column = [1 5];
 
     peakTable = uitable(spectrumGrid, ...
-        'ColumnName', {'label', 'order', 'search_center_hz', 'search_half_width_hz', 'theoretical_hz', 'theor_label'}, ...
-        'ColumnEditable', true(1, 6), ...
+        'ColumnName', bms.gui.SpectrumPeakOrderEditorService.columnNames(), ...
+        'ColumnEditable', [true true true true true true true true true false], ...
         'CellSelectionCallback', @(~, evt) onPeakSelected(evt), ...
         'CellEditCallback', @(~,~) onPeakTableEdited());
-    peakTable.Layout.Row = 2; peakTable.Layout.Column = [1 4];
+    peakTable.Layout.Row = 2; peakTable.Layout.Column = [1 5];
 
     addPeakBtn = uibutton(spectrumGrid, 'Text', '新增阶次', 'ButtonPushedFcn', @(~,~) add_peak_row());
     addPeakBtn.Layout.Row = 3; addPeakBtn.Layout.Column = 1;
+    addPointPeakBtn = uibutton(spectrumGrid, 'Text', '新增测点阶次', 'ButtonPushedFcn', @(~,~) add_point_peak_row());
+    addPointPeakBtn.Layout.Row = 3; addPointPeakBtn.Layout.Column = 2;
     delPeakBtn = uibutton(spectrumGrid, 'Text', '删除选中阶次', 'ButtonPushedFcn', @(~,~) delete_peak_rows());
-    delPeakBtn.Layout.Row = 3; delPeakBtn.Layout.Column = 2;
+    delPeakBtn.Layout.Row = 3; delPeakBtn.Layout.Column = 3;
 
     summaryGrid = uigridlayout(tabSummary, [1 1]);
     summaryGrid.Padding = [8 8 8 8];
@@ -325,8 +327,13 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         if updating
             return;
         end
-        persist_peak_orders_to_draft();
-        refresh_summary();
+        try
+            persist_peak_orders_to_draft();
+            refresh_summary();
+            msgBox.Value = {'频谱找峰配置已更新到草稿；scope=point 时必须填写 point_id，search_max_hz 必须大于 search_min_hz。'};
+        catch ME
+            msgBox.Value = {['频谱找峰配置无效: ' ME.message]};
+        end
     end
 
     function onYlimSelected(evt)
@@ -397,7 +404,22 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
     end
 
     function add_peak_row()
-        peakTable.Data = append_row(peakTable.Data, {'', [], [], [], [], ''});
+        peakTable.Data = append_row(peakTable.Data, bms.gui.SpectrumPeakOrderEditorService.defaultRow('', 'default'));
+        onPeakTableEdited();
+    end
+
+    function add_default_peak_row()
+        add_peak_row();
+    end
+
+    function add_point_peak_row()
+        pointIds = bms.gui.SpectrumPeakOrderEditorService.modulePointIds(draftCfg, current_def());
+        if isempty(pointIds)
+            pointId = '';
+        else
+            pointId = pointIds{1};
+        end
+        peakTable.Data = append_row(peakTable.Data, bms.gui.SpectrumPeakOrderEditorService.defaultRow(pointId, 'point'));
         onPeakTableEdited();
     end
 
@@ -532,14 +554,15 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
     function refresh_peak_controls()
         def = current_def();
         isSpec = ~isempty(def.params_key);
+        spectrumHint.Text = 'Frequency peak orders: scope=default edits module defaults; scope=point plus point_id edits one sensor. Use search_min_hz/search_max_hz as the peak search band.';
         peakTable.Enable = on_off(isSpec);
         addPeakBtn.Enable = on_off(isSpec);
+        addPointPeakBtn.Enable = on_off(isSpec);
         delPeakBtn.Enable = on_off(isSpec);
         if isSpec
-            params = get_params(draftCfg, def.params_key);
-            peakTable.Data = peak_orders_to_rows(params);
+            peakTable.Data = bms.gui.SpectrumPeakOrderEditorService.rows(draftCfg, def);
         else
-            peakTable.Data = cell(0, 6);
+            peakTable.Data = cell(0, numel(bms.gui.SpectrumPeakOrderEditorService.columnNames()));
         end
         selectedPeakRows = [];
     end
@@ -660,19 +683,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         if isempty(def.params_key)
             return;
         end
-        params = get_params(draftCfg, def.params_key);
-        orders = rows_to_peak_orders(peakTable.Data);
-        if isempty(orders)
-            params = rmfield_if_present(params, 'peak_orders');
-        else
-            params.peak_orders = orders;
-            params = rmfield_if_present(params, 'target_freqs');
-            params = rmfield_if_present(params, 'tolerance');
-            params = rmfield_if_present(params, 'theor_freqs');
-            params = rmfield_if_present(params, 'theor_labels');
-            params = rmfield_if_present(params, 'peak_labels');
-        end
-        draftCfg.(def.params_key) = params;
+        draftCfg = bms.gui.SpectrumPeakOrderEditorService.applyRows(draftCfg, def, peakTable.Data);
     end
 
     function def = current_def()
@@ -691,6 +702,8 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         'warnTabs', warnTabs, ...
         'alarmTable', alarmTable, ...
         'warnTable', warnTable, ...
+        'peakTable', peakTable, ...
+        'addPointPeakBtn', addPointPeakBtn, ...
         'warnExpandCheck', warnExpandCheck, ...
         'refreshWarnControls', @refresh_warn_controls, ...
         'alarmHint', alarmHint, ...

@@ -65,6 +65,28 @@ classdef test_plot_settings_tab_gui < matlab.unittest.TestCase
             tc.verifyTrue(any(contains(ps.warnTable.Data(:, 2), 'T-1')));
             tc.verifyTrue(any(contains(ps.warnTable.Data(:, 2), 'T-2')));
         end
+
+        function spectrumTableWritesPointPeakOrders(tc)
+            cfg = test_plot_settings_tab_gui.sampleSpectrumCfg();
+            tab = uitab(uitabgroup(tc.Fig), 'Title', 'plot');
+            cfgEdit = uieditfield(tc.Fig, 'text', 'Value', fullfile(tc.TempDir, 'config.json'));
+
+            ps = build_plot_settings_tab(tab, tc.Fig, cfg, cfgEdit.Value, cfgEdit, @(~) [], [0 0.3 0.7]);
+            ps.moduleDrop.Value = 'accel_spectrum';
+            ps.moduleDrop.ValueChangedFcn(ps.moduleDrop, []);
+
+            tc.verifyEqual(size(ps.peakTable.Data, 2), numel(bms.gui.SpectrumPeakOrderEditorService.columnNames()));
+
+            rows = ps.peakTable.Data;
+            rows(end+1, :) = {'point', 'AZ-2', 1, 'AZ-2 first', 0.600, 0.500, 0.700, true, 'AZ-2 theory', 'new'};
+            ps.peakTable.Data = rows;
+
+            cfgOut = ps.applyToCfg(cfg);
+
+            tc.verifyTrue(isfield(cfgOut.per_point.accel_spectrum.AZ_2, 'peak_orders'));
+            tc.verifyEqual(cfgOut.per_point.accel_spectrum.AZ_2.peak_orders.search_center_hz, 0.600, 'AbsTol', 1e-12);
+            tc.verifyEqual(cfgOut.per_point.accel_spectrum.AZ_2.peak_orders.search_half_width_hz, 0.100, 'AbsTol', 1e-12);
+        end
     end
 
     methods (Static, Access = private)
@@ -82,6 +104,17 @@ classdef test_plot_settings_tab_gui < matlab.unittest.TestCase
             cfg.per_point.temperature.T_1.alarm_bounds = struct('level2', [-8, 41]);
             cfg.per_point.temperature.T_2.alarm_bounds = struct('level2', [-8, 41]);
             cfg.plot_styles.temperature = struct('ylabel', 'Temperature', 'title_prefix', 'Temperature');
+        end
+
+        function cfg = sampleSpectrumCfg()
+            cfg = struct();
+            cfg.points.acceleration = {'AZ-1', 'AZ-2'};
+            cfg.accel_spectrum_params.peak_orders = struct( ...
+                'order', 1, ...
+                'label', 'default first', ...
+                'theoretical_hz', 0.593, ...
+                'search_center_hz', 0.640, ...
+                'search_half_width_hz', 0.200);
         end
     end
 end

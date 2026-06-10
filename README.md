@@ -277,6 +277,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.8`: adds expanded spectrum peak-order editing in the plot settings GUI, allowing per-module defaults and per-point overrides for each order's theoretical frequency and search band; the spectrum backend now accepts explicit `search_min_hz` / `search_max_hz` ranges.
+- `v1.7.8`：绘图参数 GUI 新增展开式频谱找峰配置，可分别编辑模块默认值和单测点覆盖值，支持按阶次设置理论频率与搜索范围；频谱计算后端同步支持显式 `search_min_hz` / `search_max_hz`。
 - `v1.7.6`: adds the Chongyangxi Bridge March 2025 processing profile refinements, fixes the acceleration group-plot folder name, separates 3.2 Hz peak-search frequency from the 2.83 Hz theoretical reference line, switches acceleration/RMS plots to `mm/s^2`, makes high-pass dynamic-strain time-series y-limits adaptive, and hardens GUI result-summary rendering.
 - `v1.7.6`：完善崇阳溪大桥 2025 年 3 月处理配置，修正加速度组图目录名，区分 3.2 Hz 搜索频率与 2.83 Hz 理论参考线，将加速度/RMS 图统一为 `mm/s^2`，动应变高通时程图改为 y 轴自适应，并增强 GUI 结果汇总表对异常字段的兼容性。
 - `v1.7.5`: adds the Zhishan Bridge March 2026 profile/config workflow, auto-cleaning proposal tooling, cable-acceleration display/review scripts, per-point cleaning/plot rules, and refreshed Zhishan strain, bearing-displacement, acceleration, cable-acceleration, and spectrum outputs.
@@ -311,6 +313,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.8`: reads Zhishan structural-vibration theoretical/search-frequency wording from the active config, so report summaries stay aligned with per-point spectrum peak-order settings.
+- `v1.7.8`：芝山结构振动理论频率和搜索频率说明改为从当前配置读取，使报告汇总文字与按测点频谱找峰配置保持一致。
 - `v1.7.7`: upgrades the Zhishan monthly report generator to insert main-analysis output figures for AZ/CF PSD, cable acceleration, and cable-force time histories, preserving manual fallback assets; adds Zhishan packaged-exe smoke coverage.
 - `v1.7.7`：升级芝山月报生成器，AZ/CF 频谱、索力加速度、索力时程图均优先使用主分析程序输出图件，保留人工兜底图件来源；补充芝山打包 exe 冒烟覆盖。
 - `v1.7.6`: keeps the report GUI version aligned with the Chongyangxi March processing/runtime package release; report-builder behavior is unchanged from v1.7.5.

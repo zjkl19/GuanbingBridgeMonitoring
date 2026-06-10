@@ -105,6 +105,100 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _as_float_list(value: object) -> list[float]:
+    if isinstance(value, (int, float)) and math.isfinite(float(value)):
+        return [float(value)]
+    if isinstance(value, list):
+        out: list[float] = []
+        for item in value:
+            if isinstance(item, (int, float)) and math.isfinite(float(item)):
+                out.append(float(item))
+        return out
+    return []
+
+
+def _first_order_frequencies(block: object) -> tuple[float | None, float | None]:
+    if not isinstance(block, dict):
+        return None, None
+    orders = block.get("peak_orders")
+    if isinstance(orders, dict):
+        orders = [orders]
+    if isinstance(orders, list):
+        for item in orders:
+            if not isinstance(item, dict):
+                continue
+            theor = as_float(item.get("theoretical_hz", item.get("theor_hz")))
+            center = as_float(
+                item.get("search_center_hz", item.get("target_hz", item.get("frequency_hz", item.get("freq_hz"))))
+            )
+            search_min = as_float(item.get("search_min_hz", item.get("min_hz", item.get("lower_hz"))))
+            search_max = as_float(item.get("search_max_hz", item.get("max_hz", item.get("upper_hz"))))
+            if center is None and search_min is not None and search_max is not None and search_max > search_min:
+                center = (search_min + search_max) / 2
+            if theor is not None or center is not None:
+                return theor, center
+
+    target_freqs = _as_float_list(block.get("target_freqs"))
+    theor_freqs = _as_float_list(block.get("theor_freqs"))
+    theor = theor_freqs[0] if theor_freqs else None
+    center = target_freqs[0] if target_freqs else None
+    return theor, center
+
+
+def _point_block(config: dict, per_point_key: str, point_id: str) -> dict:
+    per_point = config.get("per_point", {})
+    if not isinstance(per_point, dict):
+        return {}
+    block = per_point.get(per_point_key, {})
+    if not isinstance(block, dict):
+        return {}
+    candidates = [point_id, point_id.replace("-", "_")]
+    name_map = config.get("name_map_global", {})
+    if isinstance(name_map, dict):
+        for key, value in name_map.items():
+            if str(value) == point_id:
+                candidates.append(str(key))
+    for key in candidates:
+        value = block.get(key)
+        if isinstance(value, dict):
+            return value
+    return {}
+
+
+def _format_frequency_values(values: list[float], fallback: float) -> tuple[str, bool]:
+    finite = sorted({round(v, 3) for v in values if math.isfinite(v)})
+    if not finite:
+        finite = [fallback]
+    if len(finite) == 1:
+        return f"{finite[0]:.3f}Hz", False
+    return f"{min(finite):.3f}Hz~{max(finite):.3f}Hz", True
+
+
+def load_accel_frequency_note(config_path: Path) -> str:
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except Exception:
+        config = {}
+    params = config.get("accel_spectrum_params", {}) if isinstance(config, dict) else {}
+    default_theor, default_center = _first_order_frequencies(params)
+    points = ["AZ-1", "AZ-2", "AZ-3", "AZ-4", "AZ-5"]
+    theor_values: list[float] = []
+    center_values: list[float] = []
+    for point in points:
+        pt_theor, pt_center = _first_order_frequencies(_point_block(config, "accel_spectrum", point))
+        theor = pt_theor if pt_theor is not None else default_theor
+        center = pt_center if pt_center is not None else default_center
+        if theor is not None:
+            theor_values.append(theor)
+        if center is not None:
+            center_values.append(center)
+    theor_text, theor_is_range = _format_frequency_values(theor_values, 0.593)
+    center_text, center_is_range = _format_frequency_values(center_values, 0.640)
+    theor_word = "范围为" if theor_is_range else "为"
+    center_word = "范围附近" if center_is_range else "附近"
+    return f"结构理论竖向一阶频率{theor_word}{theor_text}，各测点按{center_text}{center_word}峰值进行识别，"
+
+
 def as_float(value: object) -> float | None:
     if value is None:
         return None
@@ -252,7 +346,7 @@ def load_group_stats(path: Path) -> dict[str, RangeStats]:
     return result
 
 
-def build_context(result_root: Path) -> dict:
+def build_context(result_root: Path, config_path: Path | None = None) -> dict:
     stats_dir = result_root / "stats"
     bearing_rows = load_sheet_rows(stats_dir / "bearing_displacement_stats.xlsx")
     accel_rows = load_sheet_rows(stats_dir / "accel_stats.xlsx")
@@ -276,6 +370,7 @@ def build_context(result_root: Path) -> dict:
         "dynamic_lp_group_stats": load_group_stats(stats_dir / "dynamic_strain_lowpass_stats.xlsx"),
         "cable_accel_rows": rows_by_point(cable_accel_rows),
         "cable_force": cable_force,
+        "accel_frequency_note": load_accel_frequency_note(config_path or (REPO_ROOT / "config" / "zhishan_config.json")),
     }
 
 
@@ -548,7 +643,7 @@ def update_narrative(doc: DocxDocument, context: dict) -> None:
         "监测周期内桥梁实测竖向1阶自振频率范围",
         (
             f"监测周期内桥梁实测竖向1阶自振频率范围为{fmt_range(freq_all, 3, 'Hz')}，"
-            "结构理论竖向一阶频率为0.593Hz，各测点按0.640Hz附近峰值进行识别，"
+            f"{context['accel_frequency_note']}"
             "频率结果总体处于合理范围内，桥梁结构实测刚度未见明显异常。"
         ),
     )
@@ -646,7 +741,7 @@ def update_summary_table(doc: DocxDocument, context: dict) -> None:
         ),
         (
             f"监测周期内桥梁实测竖向1阶自振频率范围为{fmt_range(freq_all, 3, 'Hz')}，"
-            "结构理论竖向一阶频率为0.593Hz，各测点按0.640Hz附近峰值进行识别，"
+            f"{context['accel_frequency_note']}"
             "频率结果总体处于合理范围内，桥梁结构实测刚度未见明显异常。"
         ),
         "4.5 结构应变监测",
@@ -837,11 +932,12 @@ def refresh_word_fields(path: Path) -> str | None:
 def update_document(
     doc: DocxDocument,
     result_root: Path,
+    config_path: Path,
     period_label: str,
     monitoring_range: str,
     report_date: str,
 ) -> list[str]:
-    context = build_context(result_root)
+    context = build_context(result_root, config_path)
     warnings: list[str] = []
     update_cover_dates(doc, period_label, report_date)
     update_period_table(doc, monitoring_range)
@@ -884,7 +980,7 @@ def build_report(
     shutil.copy2(template, output_docx)
 
     doc = Document(str(output_docx))
-    warnings = update_document(doc, result_root, period_label, monitoring_range, report_date)
+    warnings = update_document(doc, result_root, config_path, period_label, monitoring_range, report_date)
     doc.save(str(output_docx))
 
     if update_word:

@@ -185,6 +185,8 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.7.8` reads Zhishan structural-vibration theoretical/search-frequency wording from the active config, keeping report summaries aligned with per-point spectrum peak-order settings.
+版本 `v1.7.8` 会从当前配置读取芝山结构振动理论频率和搜索频率说明，使报告汇总文字与按测点频谱找峰配置保持一致。
 Version `v1.7.7` upgrades the Zhishan monthly report generator to use main-analysis output figures for fallback-friendly report assembly and adds packaged-exe Zhishan self-test coverage.
 版本 `v1.7.7` 升级芝山月报生成器，改用主分析程序输出图件完成便于人工兜底的报告组装，并补充打包 exe 的芝山自测覆盖。
 Version `v1.7.6` keeps the report GUI version aligned with the Chongyangxi March processing/runtime package release; report-builder behavior is unchanged from v1.7.5.

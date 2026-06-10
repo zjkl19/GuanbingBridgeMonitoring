@@ -199,8 +199,16 @@ classdef SpectrumConfigService
 
             for i = 1:numel(orders)
                 item = orders(i);
+                searchMin = bms.analyzer.SpectrumConfigService.firstNumericField( ...
+                    item, {'search_min_hz', 'min_hz', 'lower_hz'});
+                searchMax = bms.analyzer.SpectrumConfigService.firstNumericField( ...
+                    item, {'search_max_hz', 'max_hz', 'upper_hz'});
+                hasRange = isfinite(searchMin) && isfinite(searchMax) && searchMax > searchMin;
                 center = bms.analyzer.SpectrumConfigService.firstNumericField( ...
                     item, {'search_center_hz', 'target_hz', 'frequency_hz', 'freq_hz'});
+                if ~isfinite(center) && hasRange
+                    center = (searchMin + searchMax) / 2;
+                end
                 if ~isfinite(center)
                     center = bms.analyzer.SpectrumConfigService.firstNumericField( ...
                         item, {'theoretical_hz', 'theor_hz'});
@@ -210,12 +218,18 @@ classdef SpectrumConfigService
                 end
                 halfWidth = bms.analyzer.SpectrumConfigService.firstNumericField( ...
                     item, {'search_half_width_hz', 'tolerance_hz', 'half_width_hz'});
+                if ~isfinite(halfWidth) && hasRange
+                    halfWidth = (searchMax - searchMin) / 2;
+                end
                 if ~isfinite(halfWidth)
                     if isscalar(fallbackTol) && ~isempty(fallbackTol)
                         halfWidth = fallbackTol;
                     else
                         halfWidth = 0.15;
                     end
+                end
+                if ~isfinite(halfWidth) || halfWidth <= 0
+                    halfWidth = 0.15;
                 end
                 theor = bms.analyzer.SpectrumConfigService.firstNumericField( ...
                     item, {'theoretical_hz', 'theor_hz'});
