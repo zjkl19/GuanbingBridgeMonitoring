@@ -52,6 +52,39 @@ classdef test_cleaning_pipeline < matlab.unittest.TestCase
             tc.verifyTrue(isnan(out(5)));
             tc.verifyEqual(log.threshold_removed_count, 2);
             tc.verifyEqual(log.offset_correction, 1);
+            tc.verifyEqual(log.final_nan_count, 2);
+            tc.verifyEqual(log.final_count, 3);
+        end
+
+        function finalCountsExcludeInitialThresholdAndZeroNaNs(tc)
+            t = datetime(2026,1,1,0,0,0) + seconds(0:4)';
+            v = [NaN; 0; 2; 11; 5];
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.zero_to_nan = true;
+            rules.thresholds = struct('min', 0, 'max', 10);
+
+            [out, log] = bms.data.CleaningPipeline.apply(v, t, rules);
+
+            tc.verifyTrue(isnan(out(1)));
+            tc.verifyTrue(isnan(out(2)));
+            tc.verifyEqual(out(3), 2);
+            tc.verifyTrue(isnan(out(4)));
+            tc.verifyEqual(out(5), 5);
+            tc.verifyEqual(log.initial_count, 5);
+            tc.verifyEqual(log.initial_nan_count, 1);
+            tc.verifyEqual(log.threshold_removed_count, 1);
+            tc.verifyEqual(log.zero_removed_count, 1);
+            tc.verifyEqual(log.final_nan_count, 3);
+            tc.verifyEqual(log.final_count, 2);
+        end
+
+        function recordOffsetFailureEmitsWarning(tc)
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.offset_correction = 1;
+            opts = struct('record_offset', true);
+
+            tc.verifyWarning(@() bms.data.CleaningPipeline.recordOffset({datetime(2026,1,1)}, [], rules, opts, 1), ...
+                'CleaningPipeline:recordOffset');
         end
 
         function appliesFirstDayMeanOffsetWithinConfiguredRange(tc)

@@ -1,36 +1,61 @@
 function v_filtered = apply_lowpass(times, vals)
-    % APPLY_LOWPASS   对 vals 做零相位低通滤波
-    %   times: datetime 数组
-    %   vals:  数值向量（含 NaN）
-    
-    v_filtered = vals;  % 默认不变
-    if numel(times) < 2
+    % APPLY_LOWPASS Apply a zero-phase low-pass filter and preserve NaN gaps.
+    %
+    % The historical cutoff behavior is kept as a fixed fraction of Nyquist:
+    %   Wn = (fs / 50) / (fs / 2) = 0.04
+    %
+    % Missing segments are linearly interpolated only for filtfilt stability,
+    % then restored to NaN so downstream cleaning/statistics keep the original
+    % missing-data mask.
+
+    v_filtered = vals;
+    if numel(times) < 2 || isempty(vals)
+        return;
+    end
+    if numel(times) ~= numel(vals)
+        warning('apply_lowpass:SizeMismatch', ...
+            'Low-pass filtering skipped: times and values have different lengths.');
         return;
     end
 
-    % 计算采样频率
-    dt = seconds(times(2) - times(1));  
-    fs = 1 / dt;  % Hz
-    
-    % 用户可调参数
-    fc    = fs/50;  % 截止频率 (Hz)
-    order = 4;  % 滤波器阶数
+    dt_all = seconds(diff(times));
+    dt_all = dt_all(isfinite(dt_all) & dt_all > 0);
+    if isempty(dt_all)
+        warning('apply_lowpass:InvalidSamplingInterval', ...
+            'Low-pass filtering skipped: no valid sampling interval.');
+        return;
+    end
+    fs = 1 / median(dt_all);
 
-    % 计算归一化截止频率
-    Wn = fc / (fs/2);
+    cutoffRatio = 0.04;
+    order = 4;
+    Wn = cutoffRatio;
     if Wn <= 0 || Wn >= 1
-        warning('低通滤波：fc=%.2f Hz 不合法 (fs=%.2f Hz)，跳过滤波。', fc, fs);
+        warning('apply_lowpass:InvalidCutoff', ...
+            'Low-pass filtering skipped: normalized cutoff %.3f is invalid (fs=%.2f Hz).', Wn, fs);
         return;
     end
 
-    % 设计并应用四/六阶 Butterworth 零相位滤波
-    [b,a]     = butter(order, Wn);
-    % 保留 NaN 段：先把 NaN 替为 0，滤波后再还原
-    nan_mask = isnan(vals);
-    temp     = vals;
-    temp(nan_mask) = 0;
-    y        = filtfilt(b, a, temp);
-    y(nan_mask)= NaN;
+    [b, a] = butter(order, Wn);
 
+    nan_mask = isnan(vals);
+    temp = vals;
+    if any(nan_mask(:))
+        valid_mask = ~nan_mask;
+        if ~any(valid_mask(:))
+            return;
+        end
+
+        idx = (1:numel(vals))';
+        vals_col = vals(:);
+        nan_col = nan_mask(:);
+        temp_col = vals_col;
+        temp_col(nan_col) = interp1(idx(~nan_col), vals_col(~nan_col), ...
+            idx(nan_col), 'linear', 'extrap');
+        temp = reshape(temp_col, size(vals));
+    end
+
+    y = filtfilt(b, a, temp);
+    y(nan_mask) = NaN;
     v_filtered = y;
 end

@@ -277,6 +277,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.9`: fixes low-pass filtering across missing-data gaps by interpolating only for filter stability and restoring the original NaN mask, expands the default MATLAB test suite around cleaning, module registry, and Zhishan config checks, and adds safer Zhishan-from-Hongtang staging support for extracted CSV and ZIP sources.
+- `v1.7.9`：修复低通滤波跨缺测段时的边界振铃问题，滤波前仅为稳定性临时插值、滤波后恢复原始 NaN 掩码；扩展默认 MATLAB 测试覆盖清洗流程、模块注册表和芝山配置检查；补充从洪塘混合导出中安全分离芝山数据的 CSV/ZIP 暂存工具。
 - `v1.7.8`: adds expanded spectrum peak-order editing in the plot settings GUI, allowing per-module defaults and per-point overrides for each order's theoretical frequency and search band; the spectrum backend now accepts explicit `search_min_hz` / `search_max_hz` ranges.
 - `v1.7.8`：绘图参数 GUI 新增展开式频谱找峰配置，可分别编辑模块默认值和单测点覆盖值，支持按阶次设置理论频率与搜索范围；频谱计算后端同步支持显式 `search_min_hz` / `search_max_hz`。
 - `v1.7.6`: adds the Chongyangxi Bridge March 2025 processing profile refinements, fixes the acceleration group-plot folder name, separates 3.2 Hz peak-search frequency from the 2.83 Hz theoretical reference line, switches acceleration/RMS plots to `mm/s^2`, makes high-pass dynamic-strain time-series y-limits adaptive, and hardens GUI result-summary rendering.
@@ -313,6 +315,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.9`: refreshes Zhishan monthly report filling for month labels, data-availability wording, offline temperature/humidity placeholders, and config/result-aligned summary text while preserving the existing template-driven layout.
+- `v1.7.9`：完善芝山月报生成器的月份标题、数据可用性说明、温湿度离线占位和与配置/结果一致的汇总文字，继续保持基于模板的版式回填方式。
 - `v1.7.8`: reads Zhishan structural-vibration theoretical/search-frequency wording from the active config, so report summaries stay aligned with per-point spectrum peak-order settings.
 - `v1.7.8`：芝山结构振动理论频率和搜索频率说明改为从当前配置读取，使报告汇总文字与按测点频谱找峰配置保持一致。
 - `v1.7.7`: upgrades the Zhishan monthly report generator to insert main-analysis output figures for AZ/CF PSD, cable acceleration, and cable-force time histories, preserving manual fallback assets; adds Zhishan packaged-exe smoke coverage.

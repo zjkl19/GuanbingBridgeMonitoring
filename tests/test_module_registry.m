@@ -78,5 +78,21 @@ classdef test_module_registry < matlab.unittest.TestCase
             tc.verifyFalse(startsWith(string(dynHigh.GuiLabel), "📈"));
             tc.verifyEqual(wim.Label, 'WIM');
         end
+
+        function directChineseLabelsArePreserved(tc)
+            cases = {
+                'zip_precheck', '预检查压缩包数量'
+                'unzip', '批量解压'
+                'rename_csv', '批量重命名CSV'
+                'remove_header', '批量去除表头'
+                'dynamic_strain_lowpass', '动应变分析（低通+箱线图）'
+                'rename_crk', '裂缝重命名'
+            };
+
+            for k = 1:size(cases, 1)
+                spec = bms.module.ModuleRegistry.fromKey(cases{k, 1});
+                tc.verifyEqual(spec.Label, cases{k, 2});
+            end
+        end
     end
 end

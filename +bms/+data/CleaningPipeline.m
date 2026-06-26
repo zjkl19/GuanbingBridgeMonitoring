@@ -78,6 +78,7 @@ classdef CleaningPipeline
             log.outlier_removed_count = sum(after & ~before);
 
             log.final_nan_count = sum(isnan(vals));
+            log.final_count = numel(vals) - log.final_nan_count;
             log.changed_count = bms.data.CleaningPipeline.changedCount(original, vals);
         end
 
@@ -180,7 +181,9 @@ classdef CleaningPipeline
                     'end_time', max(times), ...
                     'sample_count', numel(vals), ...
                     'files', {files}));
-            catch
+            catch ME
+                warning('CleaningPipeline:recordOffset', ...
+                    'Failed to record offset: %s', ME.message);
             end
         end
 

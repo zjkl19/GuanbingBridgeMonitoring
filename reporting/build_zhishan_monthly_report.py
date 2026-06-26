@@ -3,9 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import shutil
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterable
 
@@ -103,6 +104,78 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--report-date", default=profile.get("default_report_date") or datetime.now().strftime("%Y年%m月%d日"))
     parser.add_argument("--no-word-update", action="store_true", help="Do not launch Word to refresh fields.")
     return parser.parse_args()
+
+
+def report_month_label(period_label: str) -> str:
+    match = re.search(r"(\d{4})年\s*(\d{1,2})月", period_label)
+    if match:
+        return f"{match.group(1)}年{int(match.group(2))}月份"
+    text = period_label.strip()
+    if text.endswith("月份"):
+        return text
+    if text.endswith("月"):
+        return f"{text[:-1]}月份"
+    return text
+
+
+def parse_chinese_date_range(text: str) -> tuple[datetime, datetime] | None:
+    match = re.search(
+        r"(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日\s*[~～至-]\s*"
+        r"(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日",
+        text,
+    )
+    if not match:
+        return None
+    values = [int(item) for item in match.groups()]
+    start = datetime(values[0], values[1], values[2])
+    end = datetime(values[3], values[4], values[5])
+    return start, end
+
+
+def month_range_from_label(period_label: str) -> tuple[datetime, datetime] | None:
+    match = re.search(r"(\d{4})年\s*(\d{1,2})月", period_label)
+    if not match:
+        return None
+    year = int(match.group(1))
+    month = int(match.group(2))
+    start = datetime(year, month, 1)
+    if month == 12:
+        next_month = datetime(year + 1, 1, 1)
+    else:
+        next_month = datetime(year, month + 1, 1)
+    return start, next_month - timedelta(days=1)
+
+
+def expected_dates(period_label: str, monitoring_range: str) -> list[datetime]:
+    parsed = parse_chinese_date_range(monitoring_range) or month_range_from_label(period_label)
+    if not parsed:
+        return []
+    start, end = parsed
+    if end < start:
+        return []
+    days = (end - start).days + 1
+    return [start + timedelta(days=idx) for idx in range(days)]
+
+
+def format_cn_date(day: datetime) -> str:
+    return f"{day.year}年{day.month}月{day.day}日"
+
+
+def build_coverage(result_root: Path, period_label: str, monitoring_range: str) -> dict:
+    expected = expected_dates(period_label, monitoring_range)
+    existing = {
+        child.name
+        for child in result_root.iterdir()
+        if child.is_dir() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", child.name)
+    }
+    missing = [day for day in expected if day.strftime("%Y-%m-%d") not in existing]
+    return {
+        "expected_days": len(expected),
+        "valid_days": max(0, len(expected) - len(missing)),
+        "missing": missing,
+        "missing_cn": "、".join(format_cn_date(day) for day in missing),
+        "missing_iso": "、".join(day.strftime("%Y-%m-%d") for day in missing),
+    }
 
 
 def _as_float_list(value: object) -> list[float]:
@@ -400,6 +473,31 @@ def replace_all_by_prefix(doc: DocxDocument, prefix: str, text: str) -> int:
     return count
 
 
+def iter_all_paragraphs(doc: DocxDocument):
+    for paragraph in doc.paragraphs:
+        yield paragraph
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    yield paragraph
+
+
+def replace_all_by_prefix_anywhere(doc: DocxDocument, prefix: str, text: str) -> int:
+    count = 0
+    for paragraph in iter_all_paragraphs(doc):
+        if paragraph.text.strip().startswith(prefix):
+            replace_text_in_paragraph(paragraph, text)
+            count += 1
+    return count
+
+
+def delete_table_row(row) -> None:
+    parent = row._tr.getparent()
+    if parent is not None:
+        parent.remove(row._tr)
+
+
 def update_cover_dates(doc: DocxDocument, period_label: str, report_date: str) -> None:
     replace_all_by_prefix(doc, "（监测时间：", f"（监测时间：{period_label}）")
     replace_all_by_prefix(doc, "报告日期：", f"报告日期：{report_date}")
@@ -467,6 +565,96 @@ def update_period_table(doc: DocxDocument, monitoring_range: str) -> bool:
                 set_cell_text_preserve(row.cells[idx + 1], monitoring_range)
                 return True
     return False
+
+
+def update_data_availability(doc: DocxDocument, result_root: Path, period_label: str, monitoring_range: str) -> None:
+    coverage = build_coverage(result_root, period_label, monitoring_range)
+    missing_cn = coverage["missing_cn"]
+    missing_iso = coverage["missing_iso"]
+    if missing_cn:
+        report_section_text = (
+            f"本月报告分析数据覆盖{period_label}，实际有效数据为{coverage['valid_days']}天，"
+            f"{missing_cn}由于未获取到整日有效数据，未纳入统计分析；其余时间段监测系统数据采集及传输状态正常。"
+        )
+        first_row_date_text = f"有效{coverage['valid_days']}天（缺{missing_iso}，下同）"
+    else:
+        report_section_text = (
+            f"本月报告分析数据覆盖{period_label}，实际有效数据为{coverage['valid_days']}天，"
+            "监测系统数据采集及传输状态正常。"
+        )
+        first_row_date_text = f"有效{coverage['valid_days']}天"
+
+    replace_all_by_prefix_anywhere(doc, "本月报告分析数据覆盖", report_section_text)
+    replace_all_by_prefix_anywhere(
+        doc,
+        "按本月监测数据获取情况表统计",
+        (
+            "按本月监测数据获取情况表统计，本次自动报告纳入梁端纵向位移、振动加速度、"
+            "结构应变、索力加速度共27项次，实际获取27项次，整体获取率100.0%；"
+            "温湿度数据另行处理，本报告不展开自动统计。"
+        ),
+    )
+    replace_all_by_prefix_anywhere(
+        doc,
+        "本月持续开展监测系统运行维护工作",
+        "本月持续开展监测系统运行维护工作，每日对系统运行状态进行检查，并结合数据处理结果进行质量复核。",
+    )
+    replace_all_by_prefix_anywhere(
+        doc,
+        "软件线上检查维护",
+        "软件线上检查维护：本月每日对系统运行情况进行检查，监测期内除上述整日缺失日期外，其余日期数据可用于本期统计分析。",
+    )
+
+    table = find_table(doc, ["配置测点数", "实际获取测点数", "获取日期"])
+    if table is not None:
+        rows = [
+            ["1", "温湿度", "1", "/", "/", "本次未纳入自动统计", "温湿度数据另行处理"],
+            ["2", "梁端纵向位移", "4", "4", "100%", first_row_date_text, "/"],
+            ["3", "振动加速度", "5", "5", "100%", f"有效{coverage['valid_days']}天", "/"],
+            ["4", "结构应变", "10", "10", "100%", f"有效{coverage['valid_days']}天", "/"],
+            ["5", "索力加速度", "8", "8", "100%", f"有效{coverage['valid_days']}天", "/"],
+        ]
+        while len(table.rows) > len(rows) + 1:
+            delete_table_row(table.rows[-1])
+        while len(table.rows) < len(rows) + 1:
+            table.add_row()
+        for idx, values in enumerate(rows, start=1):
+            set_row(table.rows[idx], values)
+
+
+def update_temperature_humidity_placeholders(doc: DocxDocument) -> None:
+    replace_first_by_prefix(
+        doc,
+        "监测结果表明，环境温度",
+        "本期温度数据未纳入本次自动报告统计，相关数据另行处理，本节暂不展开定量分析。",
+    )
+    replace_all_by_prefix_anywhere(
+        doc,
+        "温度传感器",
+        "本期温度数据未纳入本次自动报告统计，相关数据另行处理，本节暂不展开定量分析。",
+    )
+    replace_first_by_prefix(
+        doc,
+        "本月相对湿度",
+        "本期相对湿度数据未纳入本次自动报告统计，相关数据另行处理，本节暂不展开定量分析。",
+    )
+    replace_all_by_prefix_anywhere(
+        doc,
+        "本月相对湿度数据",
+        "本期相对湿度数据未纳入本次自动报告统计，相关数据另行处理，本节暂不展开定量分析。",
+    )
+    temp_table = find_table(doc, ["监测类型", "最小值(℃)", "最大值(℃)"])
+    if temp_table is not None and len(temp_table.rows) > 1:
+        set_row(temp_table.rows[1], ["1", "WS-T", "温度", "/", "/", "/"])
+    humidity_table = find_table(doc, ["监测类型", "最小值(%)", "最大值(%)"])
+    if humidity_table is not None and len(humidity_table.rows) > 1:
+        set_row(humidity_table.rows[1], ["1", "WS-H", "相对湿度", "/", "/", "/"])
+
+    for anchor_text in ["图 2-3 温度时程曲线", "图 2-4 湿度时程曲线"]:
+        anchor = find_paragraph_contains(doc, anchor_text)
+        if anchor is not None:
+            remove_nearby_pictures_before(anchor, limit=12)
+            replace_text_in_paragraph(anchor, f"{anchor_text}（本期未纳入自动统计）")
 
 
 def update_bearing_tables(doc: DocxDocument, context: dict) -> list[str]:
@@ -941,6 +1129,8 @@ def update_document(
     warnings: list[str] = []
     update_cover_dates(doc, period_label, report_date)
     update_period_table(doc, monitoring_range)
+    update_data_availability(doc, result_root, period_label, monitoring_range)
+    update_temperature_humidity_placeholders(doc)
     warnings.extend(update_bearing_tables(doc, context))
     warnings.extend(update_accel_table(doc, context))
     warnings.extend(update_strain_tables(doc, context))
@@ -976,7 +1166,7 @@ def build_report(
         assets_subdir="zhishan_report_assets",
     )
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_docx = context.output_dir / f"芝山大桥健康监测2026年3月份月报_自动生成_{timestamp}.docx"
+    output_docx = context.output_dir / f"芝山大桥健康监测{report_month_label(period_label)}月报_自动生成_{timestamp}.docx"
     shutil.copy2(template, output_docx)
 
     doc = Document(str(output_docx))

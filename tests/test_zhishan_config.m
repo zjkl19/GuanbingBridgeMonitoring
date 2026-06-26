@@ -171,6 +171,37 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             tc.verifyTrue(isfile(fullfile(targetRoot, '2026-03-03', '波形', 'C200303008_21.csv')));
             tc.verifyFalse(isfile(fullfile(targetRoot, '2026-03-03', '波形', 'UNRELATED_1.csv')));
         end
+
+        function stagingExtractsOnlyConfiguredZhishanIdsFromZip(tc)
+            sourceRoot = tempname;
+            targetRoot = tempname;
+            zipWorkRoot = tempname;
+            cleanup = onCleanup(@() local_cleanup({sourceRoot, targetRoot, zipWorkRoot})); %#ok<NASGU>
+            waveDir = fullfile(sourceRoot, '2026-04-01', '波形');
+            csvDir = fullfile(zipWorkRoot, 'payload');
+            mkdir(waveDir);
+            mkdir(csvDir);
+            local_write_csv(fullfile(csvDir, 'C1802191464_1.csv'));
+            local_write_csv(fullfile(csvDir, 'C200303008_21.csv'));
+            local_write_csv(fullfile(csvDir, 'UNRELATED_1.csv'));
+            zip(fullfile(waveDir, 'mixed.zip'), {'C1802191464_1.csv', 'C200303008_21.csv', 'UNRELATED_1.csv'}, csvDir);
+
+            summary = stage_zhishan_subset( ...
+                'SourceRoot', sourceRoot, ...
+                'TargetRoot', targetRoot, ...
+                'ConfigPath', tc.ConfigPath, ...
+                'StartDate', '2026-04-01', ...
+                'EndDate', '2026-04-01', ...
+                'SourceMode', 'zip');
+
+            tc.verifyEqual(summary.source_files, 2);
+            tc.verifyEqual(summary.extracted_files, 2);
+            tc.verifyTrue(contains(fileread(summary.copied_paths{1}), '1.0'), ...
+                'Extracted CSV content should be preserved, not zero-filled.');
+            tc.verifyTrue(isfile(fullfile(targetRoot, '2026-04-01', '波形', 'C1802191464_1.csv')));
+            tc.verifyTrue(isfile(fullfile(targetRoot, '2026-04-01', '波形', 'C200303008_21.csv')));
+            tc.verifyFalse(isfile(fullfile(targetRoot, '2026-04-01', '波形', 'UNRELATED_1.csv')));
+        end
     end
 end
 
