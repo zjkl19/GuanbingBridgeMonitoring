@@ -1450,7 +1450,10 @@ def sort_rows_by_category(rows: list[dict], order: Iterable[str]) -> list[dict]:
 
 
 def read_stats_rows(stats_root: Path, filename: str, fallback_root: Path | None = None) -> list[dict]:
-    path = resolve_existing_file(stats_root, fallback_root, filename)
+    try:
+        path = resolve_existing_file(stats_root, fallback_root, filename)
+    except FileNotFoundError:
+        return []
     return load_sheet_rows(path)
 
 

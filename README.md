@@ -277,6 +277,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.10`: fixes Jiulongjiang monthly defaults so the 0508 accepted template and static-strain module are used by default, and keeps report generation tolerant of missing optional stats files while still writing a missing-data summary.
+- `v1.7.10`：修正九龙江月报默认口径，默认使用已确认的 0508 模板并纳入静态应变模块；报告生成器在缺少可选统计表时不再直接中断，同时继续输出缺失数据清单。
 - `v1.7.9`: fixes low-pass filtering across missing-data gaps by interpolating only for filter stability and restoring the original NaN mask, expands the default MATLAB test suite around cleaning, module registry, and Zhishan config checks, and adds safer Zhishan-from-Hongtang staging support for extracted CSV and ZIP sources.
 - `v1.7.9`：修复低通滤波跨缺测段时的边界振铃问题，滤波前仅为稳定性临时插值、滤波后恢复原始 NaN 掩码；扩展默认 MATLAB 测试覆盖清洗流程、模块注册表和芝山配置检查；补充从洪塘混合导出中安全分离芝山数据的 CSV/ZIP 暂存工具。
 - `v1.7.8`: adds expanded spectrum peak-order editing in the plot settings GUI, allowing per-module defaults and per-point overrides for each order's theoretical frequency and search band; the spectrum backend now accepts explicit `search_min_hz` / `search_max_hz` ranges.
@@ -315,6 +317,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.10`: hardens the Jiulongjiang monthly report builder for production reruns by allowing missing optional stats sheets, aligning the default template with the accepted 0508 report, and adding regression coverage for the fallback.
+- `v1.7.10`：增强九龙江月报生成器的生产补跑稳定性，缺少可选统计表时允许继续生成报告，默认模板对齐已确认的 0508 版本，并补充相应回归测试。
 - `v1.7.9`: refreshes Zhishan monthly report filling for month labels, data-availability wording, offline temperature/humidity placeholders, and config/result-aligned summary text while preserving the existing template-driven layout.
 - `v1.7.9`：完善芝山月报生成器的月份标题、数据可用性说明、温湿度离线占位和与配置/结果一致的汇总文字，继续保持基于模板的版式回填方式。
 - `v1.7.8`: reads Zhishan structural-vibration theoretical/search-frequency wording from the active config, so report summaries stay aligned with per-point spectrum peak-order settings.

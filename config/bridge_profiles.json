@@ -63,7 +63,7 @@
       "data_layout": "jlj_daily_export",
       "report_type": "monthly",
       "report_gui_type": "jlj_monthly",
-      "report_template": "reports/九龙江大桥健康监测2026年3月份月报_修订5.docx",
+      "report_template": "reports/九龙江大桥健康监测2026年3月份月报_0508.docx",
       "default_period_label": "2026年3月",
       "default_monitoring_range": "2026年03月23日~2026年03月31日",
       "default_start_date": "2026-03-23",
@@ -82,7 +82,8 @@
         "cable_accel",
         "cable_accel_spectrum",
         "crack",
-        "gnss"
+        "gnss",
+        "strain"
       ]
     },
     {

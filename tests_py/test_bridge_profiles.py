@@ -31,6 +31,8 @@ class BridgeProfilesTest(unittest.TestCase):
 
         self.assertIn("bearing_displacement_stats.xlsx", stats)
         self.assertIn("accel_spec_stats.xlsx", stats)
+        self.assertIn("strain_stats.xlsx", stats)
+        self.assertTrue(jlj.report_template.endswith("九龙江大桥健康监测2026年3月份月报_0508.docx"))
 
 
 if __name__ == "__main__":

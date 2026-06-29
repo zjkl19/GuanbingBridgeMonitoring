@@ -12,6 +12,7 @@ from build_jlj_monthly_report import (  # noqa: E402
     clean_jlj_report_xml_text,
     collect_jlj_data_acquisition_rows,
     normalize_cover_monitoring_time,
+    read_stats_rows,
     update_jlj_warning_threshold_table,
 )
 
@@ -79,6 +80,10 @@ class TestJljReportGenerator(unittest.TestCase):
         self.assertIn("桥墩沉降", cleaned)
         self.assertIn("DYBCGQ-24-K16-ZGD-A20", cleaned)
         self.assertNotIn("DYBCQG", cleaned)
+
+    def test_missing_optional_stats_returns_empty_rows(self):
+        rows = read_stats_rows(self.tmp / "stats", "strain_stats.xlsx", self.tmp)
+        self.assertEqual(rows, [])
 
 
 if __name__ == "__main__":
