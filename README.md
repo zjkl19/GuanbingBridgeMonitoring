@@ -277,6 +277,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.11`: fixes the report-builder packaging workflow so packaged exe folders include the bridge profile config files required by hidden self-tests and production default report modes.
+- `v1.7.11`：修复报告生成器打包流程，打包后的 exe 目录会携带隐藏自测和生产默认报告模式所需的桥梁 profile 配置文件。
 - `v1.7.10`: fixes Jiulongjiang monthly defaults so the 0508 accepted template and static-strain module are used by default, and keeps report generation tolerant of missing optional stats files while still writing a missing-data summary.
 - `v1.7.10`：修正九龙江月报默认口径，默认使用已确认的 0508 模板并纳入静态应变模块；报告生成器在缺少可选统计表时不再直接中断，同时继续输出缺失数据清单。
 - `v1.7.9`: fixes low-pass filtering across missing-data gaps by interpolating only for filter stability and restoring the original NaN mask, expands the default MATLAB test suite around cleaning, module registry, and Zhishan config checks, and adds safer Zhishan-from-Hongtang staging support for extracted CSV and ZIP sources.
@@ -317,6 +319,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.11`: rebuilds the packaged report generator with copied bridge config files, restoring packaged ShuiXianHua/Zhishan self-tests and default config discovery in exe deployments.
+- `v1.7.11`：重打包报告生成器时同步复制桥梁配置文件，恢复打包版水仙花/芝山自测和 exe 部署下的默认配置发现。
 - `v1.7.10`: hardens the Jiulongjiang monthly report builder for production reruns by allowing missing optional stats sheets, aligning the default template with the accepted 0508 report, and adding regression coverage for the fallback.
 - `v1.7.10`：增强九龙江月报生成器的生产补跑稳定性，缺少可选统计表时允许继续生成报告，默认模板对齐已确认的 0508 版本，并补充相应回归测试。
 - `v1.7.9`: refreshes Zhishan monthly report filling for month labels, data-availability wording, offline temperature/humidity placeholders, and config/result-aligned summary text while preserving the existing template-driven layout.

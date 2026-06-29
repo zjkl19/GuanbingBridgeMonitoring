@@ -185,6 +185,8 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.7.11` fixes the packaged report-builder distribution so `config/bridge_profiles.json` and profile config files are copied next to the exe; packaged self-tests and default config discovery now work from `reporting/dist/BridgeReportBuilder`.
+版本 `v1.7.11` 修复报告生成器打包产物，`config/bridge_profiles.json` 及各桥梁 profile 配置会复制到 exe 目录；打包版自测和默认配置发现可从 `reporting/dist/BridgeReportBuilder` 正常运行。
 Version `v1.7.10` hardens the Jiulongjiang monthly report builder for production reruns: missing optional stats sheets no longer abort the build, the default Jiulongjiang template now uses the accepted 0508 report, and the profile default includes static strain output.
 版本 `v1.7.10` 增强九龙江月报生成器的生产补跑稳定性：缺少可选统计表时不再中断生成，九龙江默认模板改用已确认的 0508 版本，profile 默认模块纳入静态应变输出。
 Version `v1.7.9` refreshes Zhishan monthly report filling for month labels, data-availability wording, offline temperature/humidity placeholders, and config/result-aligned summary text while preserving the existing template-driven layout.

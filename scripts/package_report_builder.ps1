@@ -80,6 +80,7 @@ $requiredPaths = @(
     "_internal",
     "README.md",
     "REPORTING_LOGIC.md",
+    "config\bridge_profiles.json",
     "reports\README.md",
     "reports\assets\shuixianhua_layouts"
 )
@@ -87,10 +88,18 @@ $requiredPaths = @(
 $trackedReportFiles = @(& git -c core.quotepath=false ls-files -- "reports/*.docx")
 $untrackedReportFiles = @(& git -c core.quotepath=false ls-files --others --exclude-standard -- "reports/*.docx")
 $profileReportFiles = @()
+$profileConfigFiles = @()
 $profileConfigPath = Join-Path $RepoRoot "config\bridge_profiles.json"
 if (Test-Path -LiteralPath $profileConfigPath) {
     $profileConfig = Get-Content -LiteralPath $profileConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
     foreach ($profile in $profileConfig.profiles) {
+        $defaultConfig = [string]$profile.default_config
+        if ($defaultConfig -and -not [System.IO.Path]::IsPathRooted($defaultConfig)) {
+            $defaultConfigPath = Join-Path $RepoRoot ($defaultConfig -replace '/', '\')
+            if (Test-Path -LiteralPath $defaultConfigPath) {
+                $profileConfigFiles += $defaultConfig
+            }
+        }
         $template = [string]$profile.report_template
         if ($template -and -not [System.IO.Path]::IsPathRooted($template)) {
             $templatePath = Join-Path $RepoRoot ($template -replace '/', '\')
@@ -106,6 +115,11 @@ if ($reportFiles.Count -lt 4) {
 }
 
 foreach ($rel in $reportFiles) {
+    $requiredPaths += ($rel -replace '/', '\')
+}
+
+$configFiles = @($profileConfigFiles | Where-Object { $_ } | Select-Object -Unique)
+foreach ($rel in $configFiles) {
     $requiredPaths += ($rel -replace '/', '\')
 }
 
@@ -154,6 +168,9 @@ Assert-PathExists -Path $versionPath -Message "VERSION.txt was not written."
 
 $requiredPaths += "VERSION.txt"
 
+if (-not (Test-Path -LiteralPath $OutputDir)) {
+    New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+}
 $outputRoot = Resolve-Path $OutputDir
 $zipPath = Join-Path $outputRoot "BridgeReportBuilder_${version}_${timestamp}.zip"
 Write-Step "Writing package: $zipPath"

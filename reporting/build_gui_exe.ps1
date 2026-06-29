@@ -57,9 +57,25 @@ except Exception:
     report_files = list((repo / "reports").glob("*.docx")) + [repo / "reports" / "README.md"]
 
 profile_path = repo / "config" / "bridge_profiles.json"
+config_files = []
 if profile_path.exists():
     data = json.loads(profile_path.read_text(encoding="utf-8"))
+    config_files.append(Path("config") / "bridge_profiles.json")
     for profile in data.get("profiles", []):
+        default_config = str(profile.get("default_config") or "").strip()
+        if default_config:
+            rel_cfg = Path(default_config)
+            if not rel_cfg.is_absolute():
+                src_cfg = repo / rel_cfg
+                if src_cfg.exists() and rel_cfg not in config_files:
+                    config_files.append(rel_cfg)
+        machine_config = str(profile.get("machine_config_pattern") or "").strip()
+        if machine_config and "<COMPUTERNAME>" not in machine_config:
+            rel_machine_cfg = Path(machine_config)
+            if not rel_machine_cfg.is_absolute():
+                src_machine_cfg = repo / rel_machine_cfg
+                if src_machine_cfg.exists() and rel_machine_cfg not in config_files:
+                    config_files.append(rel_machine_cfg)
         template = str(profile.get("report_template") or "").strip()
         if not template:
             continue
@@ -84,6 +100,14 @@ if asset_root.exists():
     if dst_asset_root.exists():
         shutil.rmtree(dst_asset_root)
     shutil.copytree(asset_root, dst_asset_root)
+
+for rel in config_files:
+    src = repo / rel
+    if not src.exists():
+        continue
+    dst = dest_root / rel
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
 '@
 $copyReportsScriptPath = "reporting\build\copy_report_templates.py"
 Set-Content -LiteralPath $copyReportsScriptPath -Value $copyReportsScript -Encoding UTF8
