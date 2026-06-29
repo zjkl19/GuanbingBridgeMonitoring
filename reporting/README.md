@@ -185,6 +185,8 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.7.12` commits the ShuiXianHua monthly builder period-label parsing and output filename generalization so CLI runs, smoke tests, and packaged exe builds use the same source revision.
+版本 `v1.7.12` 提交水仙花月报生成器的监测期标签解析与输出文件名通用化修正，使 CLI、烟测和打包 exe 构建使用同一份源码。
 Version `v1.7.11` fixes the packaged report-builder distribution so `config/bridge_profiles.json` and profile config files are copied next to the exe; packaged self-tests and default config discovery now work from `reporting/dist/BridgeReportBuilder`.
 版本 `v1.7.11` 修复报告生成器打包产物，`config/bridge_profiles.json` 及各桥梁 profile 配置会复制到 exe 目录；打包版自测和默认配置发现可从 `reporting/dist/BridgeReportBuilder` 正常运行。
 Version `v1.7.10` hardens the Jiulongjiang monthly report builder for production reruns: missing optional stats sheets no longer abort the build, the default Jiulongjiang template now uses the accepted 0508 report, and the profile default includes static strain output.

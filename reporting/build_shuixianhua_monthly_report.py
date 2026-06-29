@@ -356,6 +356,26 @@ def _sxh_report_row(module: str, configured: int, found: int, missing_note: str 
         "缺失说明": missing_note or ("无" if missing == 0 else f"缺失{missing}个测点"),
     }
 
+def _sxh_monitoring_range_span(monitoring_range: str) -> str:
+    text = str(monitoring_range or "").strip()
+    chinese_dates = re.findall(r"(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日", text)
+    if len(chinese_dates) >= 2:
+        def fmt(parts: tuple[str, str, str]) -> str:
+            return f"{int(parts[0]):04d}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+        return f"{fmt(chinese_dates[0])}~{fmt(chinese_dates[1])}"
+    iso_dates = re.findall(r"(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})", text)
+    if len(iso_dates) >= 2:
+        def fmt_iso(parts: tuple[str, str, str]) -> str:
+            return f"{int(parts[0]):04d}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+        return f"{fmt_iso(iso_dates[0])}~{fmt_iso(iso_dates[1])}"
+    return text
+
+def _sxh_period_filename_label(period_label: str) -> str:
+    text = str(period_label or "").strip()
+    if text:
+        return re.sub(r'[\\/:*?"<>|]+', "_", text)
+    return "月度"
+
 def _sxh_fallback_report_rows(
     cfg: dict[str, Any],
     *,
@@ -424,7 +444,7 @@ def _sxh_context(config_path: Path, result_root: Path, monitoring_range: str) ->
     return {
         "cfg": cfg,
         "stats_dir": stats_dir,
-        "date_span": "2026-03-23~2026-03-31" if "2026" in monitoring_range else monitoring_range,
+        "date_span": _sxh_monitoring_range_span(monitoring_range),
         "report_rows": report_rows,
         "temp_rows": temp_rows,
         "humidity_rows": humidity_rows,
@@ -586,7 +606,7 @@ def build_report(
     output_dir = output_dir or result_root / "自动报告"
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output = output_dir / f"水仙花大桥健康监测2026年3月份月报_报告生成器_{timestamp}.docx"
+    output = output_dir / f"水仙花大桥健康监测{_sxh_period_filename_label(period_label)}月报_报告生成器_{timestamp}.docx"
     shutil.copy2(template, output)
 
     context = _sxh_context(config_path, result_root, monitoring_range)

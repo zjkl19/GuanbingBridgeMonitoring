@@ -277,6 +277,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.12`: keeps the MATLAB GUI version aligned with the report-generator release that commits the ShuiXianHua monthly period-label filename fix used by CLI and packaged exe self-tests.
+- `v1.7.12`：同步主 GUI 版本号，配合报告生成器提交水仙花月报 CLI/打包 exe 自测使用的监测期标签与输出文件名修正。
 - `v1.7.11`: fixes the report-builder packaging workflow so packaged exe folders include the bridge profile config files required by hidden self-tests and production default report modes.
 - `v1.7.11`：修复报告生成器打包流程，打包后的 exe 目录会携带隐藏自测和生产默认报告模式所需的桥梁 profile 配置文件。
 - `v1.7.10`: fixes Jiulongjiang monthly defaults so the 0508 accepted template and static-strain module are used by default, and keeps report generation tolerant of missing optional stats files while still writing a missing-data summary.
@@ -319,6 +321,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.12`: commits the ShuiXianHua monthly builder period-label parsing and output filename generalization so source, CLI, smoke tests, and packaged exe builds stay consistent.
+- `v1.7.12`：提交水仙花月报生成器的监测期标签解析与输出文件名通用化修正，使源码、CLI、烟测和打包 exe 构建保持一致。
 - `v1.7.11`: rebuilds the packaged report generator with copied bridge config files, restoring packaged ShuiXianHua/Zhishan self-tests and default config discovery in exe deployments.
 - `v1.7.11`：重打包报告生成器时同步复制桥梁配置文件，恢复打包版水仙花/芝山自测和 exe 部署下的默认配置发现。
 - `v1.7.10`: hardens the Jiulongjiang monthly report builder for production reruns by allowing missing optional stats sheets, aligning the default template with the accepted 0508 report, and adding regression coverage for the fallback.
