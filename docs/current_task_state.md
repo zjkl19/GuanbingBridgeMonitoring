@@ -1,10 +1,114 @@
 ﻿# Current Task State
 
-Last updated: 2026-05-30
+Last updated: 2026-06-30
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-06-30 Latest Operational Snapshot
+
+This section is the current recovery point. Older sections below remain useful for Zhishan March processing history, but some of their "Current Goal" / version notes are historical.
+
+Current repository:
+
+- Root: `D:\MatlabProjects\Guanbing`
+- Branch: `main`
+- Latest pushed commit: `22b86b8 Release v1.7.12 Shuixianhua report filename fix`
+- Latest pushed tag: `v1.7.12`
+- Recent release chain:
+  - `v1.7.12`: commits ShuiXianHua monthly report generator period-label/date-span/output-filename fix; keeps source, CLI, smoke tests, and packaged exe builds consistent.
+  - `v1.7.11`: fixes packaged report generator so `reporting\dist\BridgeReportBuilder\config\*.json` is copied into the exe folder/package.
+  - `v1.7.10`: fixes Jiulongjiang report generation defaults and missing optional stats handling; profile default uses the accepted Jiulongjiang `0508` template and includes static strain.
+- Current MATLAB GUI version in `ui/run_gui.m`: `v1.7.12`
+- Current report GUI version in `reporting/report_gui.py`: `v1.7.12`
+
+Latest verified commands:
+
+```powershell
+.\reporting\.venv\Scripts\python.exe -m unittest tests_py.test_shuixianhua_report_generator tests_py.test_bridge_profiles
+```
+
+```powershell
+matlab -batch "addpath(genpath(pwd)); results = runtests({'tests/test_bridge_profile.m','tests/test_run_request.m','tests/test_gui_state_services.m'}); assertSuccess(results);"
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File reporting\build_gui_exe.ps1 -PythonExe reporting\.venv\Scripts\python.exe
+```
+
+```powershell
+reporting\dist\BridgeReportBuilder\BridgeReportBuilder.exe --self-test-shuixianhua --self-test-no-word-update --self-test-output-root tmp\exe_selftest_v1712_sxh
+```
+
+Known report generator status:
+
+- Packaged exe path: `D:\MatlabProjects\Guanbing\reporting\dist\BridgeReportBuilder\BridgeReportBuilder.exe`
+- `BridgeReportBuilder.exe --self-test-shuixianhua` passed after rebuild and reported `version=v1.7.12`.
+- Earlier `v1.7.11` packaged self-tests also passed for ShuiXianHua and Zhishan after config-copy packaging was fixed.
+- The packaged report-builder archive smoke check confirmed these entries in zip:
+  - `BridgeReportBuilder.exe`
+  - `VERSION.txt`
+  - `config\bridge_profiles.json`
+  - `config\shuixianhua_config.json`
+  - `config\zhishan_config.json`
+  - `config\jiulongjiang_config.json`
+
+Remote production/test machine `192.168.100.133`:
+
+- SSH user used by Codex: `dell`
+- SSH command: `ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=no dell@192.168.100.133`
+- Port 2222 was enabled as an alternate OpenSSH port on 133.
+- 133 has been used for remote Guanbing runs under `F:\Guanbing`.
+- For long remote runs, prefer status JSON/log files and sparse polling instead of frequent chat updates.
+
+Jiulongjiang 2026-05 remote run status:
+
+- `F:\九龙江数据\2026年5月\stats\strain_stats.xlsx` was eventually generated on 133.
+- Remote report generated successfully:
+  - `F:\九龙江数据\2026年5月\自动报告\九龙江大桥健康监测2026年3月份月报_0508_2026年5月份_自动生成_20260630_062224.docx`
+  - Size observed: `18,259,786` bytes.
+- The code fixes from that work were committed in `v1.7.10`.
+- The previous heartbeat automation for Jiulongjiang strain补跑 was turned off by user request; resume checks manually when requested.
+
+Windows / Codex issue observed:
+
+- Codex sandbox setup error popup: `codex-windows-sandbox-setup.exe 找不到指定的模块`.
+- No code fix has been made for this local Codex-app issue. Treat separately from Guanbing project correctness.
+
+Local non-release items organized on 2026-06-30:
+
+- `CODE_REVIEW_HANDOFF.md` moved to `local_notes\reviews\CODE_REVIEW_HANDOFF_20260615.md`.
+- Cloud-platform algorithm drafts moved to `local_notes\cloud_platform_algorithm\`.
+- VPN/account request documents and VPN manual moved to `ops_local\vpn_ssh_133\`.
+- SSH/VPN helper scripts for `192.168.100.133` moved to `ops_local\vpn_ssh_133\scripts\`.
+- Previous `release\remote_133_sync` content moved to `ops_local\release_archives\release\`.
+- The accidental `%SystemDrive%\...` path-expansion artifact moved to `local_notes\quarantine\%SystemDrive%\` for review before deletion.
+- `.gitignore` now ignores `local_notes/`, `ops_local/`, `release/`, and `%SystemDrive%/`.
+
+Do not include these local items in normal release commits unless the user explicitly asks. They are mostly operational docs/scripts from VPN/SSH/cloud-platform work, not core Guanbing source.
+
+Remote data transfer recommendation:
+
+- For server `192.168.100.126`, the simplest current approach is still RDP over VPN:
+  - Try `mstsc` to `192.168.100.126:9833`.
+  - If VPN gives direct LAN access, also test `192.168.100.126:3389`.
+- For data movement between 126 and 133, prefer SMB share + `robocopy` from 133 as the first practical replacement for "RDP + FeiQ":
+
+```powershell
+robocopy \\192.168.100.126\监测数据 F:\来自126服务器\监测数据 /E /XO /R:2 /W:5 /MT:16 /NP /LOG+:F:\Guanbing\run_logs\sync_126.log
+```
+
+- Do not open port 135 just for file transfer.
+- Avoid plain FTP for production credentials/data. If command-line remote control is needed later, install OpenSSH/SFTP on 126 with firewall limited to 133/VPN network.
+
+State-file writing policy:
+
+- It is acceptable for `docs/current_task_state.md` to be fairly detailed because file size is small.
+- Still prefer concise, recoverable facts over full chat logs:
+  - paths, versions, commits/tags, commands that passed, generated report locations, active remote hosts, data-cleaning口径, known open risks.
+  - avoid raw terminal dumps, repeated failed attempts, or long temporary screenshots unless they define a future decision.
+- If this file gets too long to scan, add a latest snapshot near the top and keep older bridge-specific sections below as history instead of deleting them.
 
 ## Current Goal
 

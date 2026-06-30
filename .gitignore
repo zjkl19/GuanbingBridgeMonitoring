@@ -5,6 +5,10 @@ run_logs/
 tmp/
 archive/
 release_packages/
+release/
+local_notes/
+ops_local/
+%SystemDrive%/
 bin/BridgeAnalysisRunner/
 **/cache/
 **/__pycache__/
