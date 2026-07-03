@@ -24,8 +24,15 @@ classdef SpectrumPlotService
                 end
                 hasLine(k) = isgraphics(h(k));
             end
+            if ~any(hasLine)
+                hold off;
+                close(fig);
+                warning('SpectrumPlotService:NoFrequencyData', ...
+                    'No finite frequency values for point %s; skip frequency timeseries plot.', char(string(pid)));
+                return;
+            end
             grid on;
-            xtickformat('yyyy-MM-dd');
+            bms.analyzer.SpectrumPlotService.applyDateTickFormat(datesAll);
             xlabel('日期');
             ylabel(style.freq_ylabel);
             labels = arrayfun(@(k, f) sprintf('%s (%.3fHz)', peakLabels{k}, f), (1:numel(targetFreqs)).', targetFreqs(:), 'UniformOutput', false);
@@ -117,15 +124,23 @@ classdef SpectrumPlotService
                 end
                 h(i) = plot(timesPlot, forcePlot, 'LineWidth', 1.2, 'Color', c);
             end
+            lineMask = isgraphics(h);
+            if ~any(lineMask)
+                hold off;
+                close(fig);
+                warning('SpectrumPlotService:NoForceData', ...
+                    'No finite force values for group %s; skip force timeseries plot.', char(string(nameTag)));
+                return;
+            end
             grid on;
-            xtickformat('yyyy-MM-dd');
+            bms.analyzer.SpectrumPlotService.applyDateTickFormat(timesList{find(lineMask, 1, 'first')});
             xlabel('日期');
             ylabel(style.force_ylabel);
             title(sprintf('%s %s', style.force_title_prefix, nameTag));
 
-            goodLines = h(isgraphics(h));
+            goodLines = h(lineMask);
             if numel(goodLines) > 1
-                lgd = legend(goodLines, labels(valid), 'Location', 'eastoutside');
+                lgd = legend(goodLines, labels(lineMask), 'Location', 'eastoutside');
                 lgd.AutoUpdate = 'off';
             end
 
@@ -219,12 +234,19 @@ classdef SpectrumPlotService
                 end
                 h(i) = plot(timesPlot, freqPlot, 'LineWidth', 1.2, 'Color', colors(i, :));
             end
+            validLineMask = isgraphics(h);
+            if ~any(validLineMask)
+                hold off;
+                close(fig);
+                warning('SpectrumPlotService:NoGroupFrequencyData', ...
+                    'No finite frequency values for group %s; skip frequency group plot.', char(string(nameTag)));
+                return;
+            end
             grid on;
-            xtickformat('yyyy-MM-dd');
+            bms.analyzer.SpectrumPlotService.applyDateTickFormat(timesList{find(validLineMask, 1, 'first')});
             xlabel('日期');
             ylabel(style.freq_ylabel);
 
-            validLineMask = isgraphics(h);
             goodLines = h(validLineMask);
             if ~isempty(goodLines)
                 lgd = legend(goodLines, labels(validLineMask), ...
@@ -432,6 +454,29 @@ classdef SpectrumPlotService
             value = defaultValue;
             if isstruct(style) && isfield(style, fieldName) && ~isempty(style.(fieldName))
                 value = style.(fieldName);
+            end
+        end
+
+        function applyDateTickFormat(times)
+            if nargin < 1 || isempty(times)
+                return;
+            end
+            if iscell(times)
+                idx = find(~cellfun(@isempty, times), 1, 'first');
+                if isempty(idx)
+                    return;
+                end
+                times = times{idx};
+            end
+            try
+                if isdatetime(times)
+                    xtickformat('yyyy-MM-dd');
+                elseif isnumeric(times)
+                    datetick('x', 'yyyy-mm-dd', 'keeplimits');
+                end
+            catch ME
+                warning('SpectrumPlotService:DateTickFormat', ...
+                    'Unable to apply date tick format: %s', ME.message);
             end
         end
 

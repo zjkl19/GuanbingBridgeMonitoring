@@ -178,6 +178,30 @@ classdef test_spectrum_peak_service < matlab.unittest.TestCase
             tc.verifyEqual(numel(files), 1);
         end
 
+        function plotFrequencyTimeseriesSkipsAllNaNWithoutTickFormatError(tc)
+            rootDir = tempname;
+            mkdir(rootDir);
+            tc.addTeardown(@() rmdir(rootDir, 's'));
+
+            cfg.plot_common = struct( ...
+                'save_fig', false, ...
+                'append_timestamp', false, ...
+                'gap_mode', 'connect');
+            datesAll = (datetime(2026, 1, 1):days(1):datetime(2026, 1, 3)).';
+            freqDay = NaN(numel(datesAll), 1);
+            style = struct( ...
+                'colors', {{[0 0.447 0.741]}}, ...
+                'freq_ylabel', 'Peak frequency (Hz)', ...
+                'freq_title_prefix', 'Peak frequency');
+
+            tc.verifyWarning(@() bms.analyzer.SpectrumPlotService.plotFrequencyTimeseries( ...
+                datesAll, freqDay, 'P-EMPTY', 1.2, rootDir, style, [], {}, cfg, {'P1'}), ...
+                'SpectrumPlotService:NoFrequencyData');
+
+            files = dir(fullfile(rootDir, 'SpecFreq_P-EMPTY_*.jpg'));
+            tc.verifyEmpty(files);
+        end
+
         function frequencyGroupsAllowStyleSpecificPointLists(tc)
             cfg.groups.acceleration = struct('ZG', {{'A1', 'A1-Y', 'A2'}});
             style.groups = struct('ZG', {{'A1', 'A2'}});

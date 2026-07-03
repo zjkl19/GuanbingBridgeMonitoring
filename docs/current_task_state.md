@@ -61,6 +61,11 @@ Remote production/test machine `192.168.100.133`:
 - Port 2222 was enabled as an alternate OpenSSH port on 133.
 - 133 has been used for remote Guanbing runs under `F:\Guanbing`.
 - For long remote runs, prefer status JSON/log files and sparse polling instead of frequent chat updates.
+- Remote operations inventory now lives under `docs/ops/`:
+  - `docs/ops/machines.md`
+  - `docs/ops/current_remote_state.md`
+  - `docs/ops/ssh_config.template`
+  - helper scripts in `scripts/ops/`
 
 Jiulongjiang 2026-05 remote run status:
 

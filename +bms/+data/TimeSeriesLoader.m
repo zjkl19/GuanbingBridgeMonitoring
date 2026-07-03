@@ -401,6 +401,14 @@ classdef TimeSeriesLoader
 
             for ei = 1:numel(encs)
                 enc = encs{ei};
+                [times, vals, ok] = bms.data.TimeSeriesLoader.readCsvSeriesWithTextscan(path, headerLines, enc);
+                if ok
+                    return;
+                end
+            end
+
+            for ei = 1:numel(encs)
+                enc = encs{ei};
                 for fi = 1:numel(fmts)
                     fmt = fmts{fi};
                     try
@@ -447,6 +455,62 @@ classdef TimeSeriesLoader
             end
         end
 
+        function [times, vals, ok] = readCsvSeriesWithTextscan(path, headerLines, enc)
+            times = [];
+            vals = [];
+            ok = false;
+            if nargin < 2 || isempty(headerLines), headerLines = 0; end
+            if nargin < 3 || isempty(enc), enc = 'auto'; end
+
+            try
+                if strcmpi(char(enc), 'auto')
+                    fid = fopen(path, 'rt');
+                else
+                    fid = fopen(path, 'rt', 'n', char(enc));
+                end
+                if fid == -1
+                    return;
+                end
+                cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+                for k = 1:headerLines
+                    if feof(fid), break; end
+                    fgetl(fid);
+                end
+                C = textscan(fid, '%s%f', ...
+                    'Delimiter', ',', ...
+                    'CollectOutput', false, ...
+                    'ReturnOnError', false);
+                if isempty(C) || numel(C) < 2 || isempty(C{1}) || isempty(C{2})
+                    return;
+                end
+                rawTimes = string(C{1});
+                rawTimes = erase(rawTimes, char(65279));
+                rawTimes = strtrim(rawTimes);
+                vals = C{2};
+                if numel(rawTimes) ~= numel(vals)
+                    times = [];
+                    vals = [];
+                    return;
+                end
+                formats = {'yyyy-MM-dd HH:mm:ss.SSS', 'yyyy-MM-dd HH:mm:ss'};
+                for fi = 1:numel(formats)
+                    try
+                        times = datetime(rawTimes, 'InputFormat', formats{fi});
+                        if numel(times) == numel(vals)
+                            ok = true;
+                            return;
+                        end
+                    catch
+                    end
+                end
+                times = [];
+                vals = [];
+            catch
+                times = [];
+                vals = [];
+            end
+        end
+
         function encs = preferredEncodings(path)
             encs = {'auto','UTF-8','UTF-16LE'};
             if nargin < 1 || isempty(path) || ~isfile(path)
@@ -459,9 +523,9 @@ classdef TimeSeriesLoader
             cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
             bytes = fread(fid, 3, 'uint8=>uint8').';
             if numel(bytes) >= 2 && isequal(bytes(1:2), uint8([255 254]))
-                encs = {'UTF-16LE','auto','UTF-8'};
+                encs = {'UTF-16LE'};
             elseif numel(bytes) >= 3 && isequal(bytes(1:3), uint8([239 187 191]))
-                encs = {'UTF-8','auto','UTF-16LE'};
+                encs = {'UTF-8','auto'};
             end
         end
 

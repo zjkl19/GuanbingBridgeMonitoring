@@ -69,6 +69,21 @@ classdef test_time_series_loader < matlab.unittest.TestCase
             tc.verifyEqual(meta.header_lines, 1);
         end
 
+        function readCsvSeriesParsesUtf16LeBomWithoutHeader(tc)
+            path = fullfile(tc.TempDir, 'series_utf16le_no_header.csv');
+            write_utf16le_bom(path, sprintf(['2026-03-01 00:00:00.000,7.00\n' ...
+                '2026-03-01 00:00:01.000,8.00\n']));
+
+            lastwarn('');
+            [t, v, ok] = bms.data.TimeSeriesLoader.readCsvSeriesWithFallback(path, 0);
+            [warnMsg, ~] = lastwarn();
+
+            tc.verifyTrue(ok);
+            tc.verifyEmpty(warnMsg);
+            tc.verifyEqual(numel(t), 2);
+            tc.verifyEqual(v(:), [7.00; 8.00]);
+        end
+
         function preferredEncodingsDetectUtf16LeBom(tc)
             path = fullfile(tc.TempDir, 'series_utf16le_order.csv');
             write_utf16le_bom(path, '2026-03-01 00:00:00.000,1.00\n');
@@ -76,6 +91,7 @@ classdef test_time_series_loader < matlab.unittest.TestCase
             encs = bms.data.TimeSeriesLoader.preferredEncodings(path);
 
             tc.verifyEqual(encs{1}, 'UTF-16LE');
+            tc.verifyEqual(encs, {'UTF-16LE'});
         end
 
         function findCsvForPointUsesPointPatternBeforeDefault(tc)

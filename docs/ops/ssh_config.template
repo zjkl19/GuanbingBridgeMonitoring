@@ -1,0 +1,43 @@
+# Copy selected blocks into %USERPROFILE%\.ssh\config.
+# This file is safe to commit because it contains no private keys or passwords.
+
+# BEGIN Guanbing managed hosts
+Host gb-133
+    HostName 192.168.100.133
+    Port 2222
+    User dell
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+    ServerAliveInterval 30
+    ServerAliveCountMax 4
+
+# 126 is currently managed through WinRM/SMB. Enable this block only after SSH
+# from this workstation is verified.
+# Host gb-126
+#     HostName 192.168.100.126
+#     Port 22
+#     User Administrator
+#     IdentityFile ~/.ssh/id_ed25519
+#     IdentitiesOnly yes
+#     ServerAliveInterval 30
+#     ServerAliveCountMax 4
+
+Host gb-office
+    HostName 192.168.254.34
+    Port 2222
+    User Administrator
+    ProxyJump gb-133
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+    StrictHostKeyChecking accept-new
+    ServerAliveInterval 30
+    ServerAliveCountMax 4
+
+# Add future machines here after the access path is confirmed.
+# Host gb-vps
+#     HostName <vps-ip-or-dns>
+#     Port 22
+#     User <user>
+#     IdentityFile ~/.ssh/id_ed25519
+#     IdentitiesOnly yes
+# END Guanbing managed hosts

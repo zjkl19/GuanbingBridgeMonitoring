@@ -109,6 +109,27 @@ classdef test_run_request < matlab.unittest.TestCase
             tc.verifyTrue(isfile(state.request_path));
         end
 
+        function asyncLauncherScriptsUseUtf8BomForChinesePaths(tc)
+            dataRoot = fullfile(tc.TempDir, '管柄数据', '2026年6月');
+            logDir = fullfile(dataRoot, 'run_logs');
+            requestPath = fullfile(logDir, 'run_request.json');
+            stdoutLog = fullfile(logDir, 'async_stdout.log');
+            stderrLog = fullfile(logDir, 'async_stderr.log');
+
+            runnerScript = fullfile(logDir, 'async_runner.ps1');
+            bms.app.AsyncRunService.writeRunnerLauncherScript(runnerScript, ...
+                fullfile(tc.TempDir, 'bin', runnerExecutableName()), ...
+                requestPath, stdoutLog, stderrLog);
+            tc.verifyLauncherIsUtf8BomWithChinesePath(runnerScript);
+
+            matlabScript = fullfile(logDir, 'async_matlab.ps1');
+            batchCode = bms.app.AsyncRunService.batchCode(fullfile(tc.TempDir, '项目'), requestPath);
+            bms.app.AsyncRunService.writeLauncherScript(matlabScript, ...
+                fullfile(tc.TempDir, 'MATLAB', 'bin', 'matlab.exe'), ...
+                batchCode, stdoutLog, stderrLog);
+            tc.verifyLauncherIsUtf8BomWithChinesePath(matlabScript);
+        end
+
         function asyncRunServiceAutoDetectsRunnerUnderProjectBin(tc)
             projectRoot = fullfile(tc.TempDir, 'project');
             dataRoot = fullfile(tc.TempDir, 'data');
@@ -150,6 +171,17 @@ classdef test_run_request < matlab.unittest.TestCase
                 'BMS:AsyncRunService:ExecutorMissing');
         end
     end
+
+    methods
+        function verifyLauncherIsUtf8BomWithChinesePath(tc, path)
+            bytes = readBinary(path);
+            tc.verifyGreaterThanOrEqual(numel(bytes), 3);
+            tc.verifyEqual(bytes(1:3), uint8([239 187 191]));
+            text = native2unicode(bytes(4:end), 'UTF-8');
+            tc.verifyTrue(contains(text, '管柄数据'));
+            tc.verifyTrue(contains(text, '2026年6月'));
+        end
+    end
 end
 
 function opts = emptyOpts()
@@ -178,4 +210,13 @@ function exe = runnerExecutableName()
     else
         exe = 'BridgeAnalysisRunner';
     end
+end
+
+function bytes = readBinary(path)
+    fid = fopen(path, 'rb');
+    if fid < 0
+        error('test_run_request:ReadFailed', 'Unable to read %s', path);
+    end
+    cleanup = onCleanup(@() fclose(fid)); %#ok<NASGU>
+    bytes = fread(fid, Inf, '*uint8')';
 end

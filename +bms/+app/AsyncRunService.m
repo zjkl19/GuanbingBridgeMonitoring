@@ -167,18 +167,7 @@ classdef AsyncRunService
                 '$p = Start-Process -FilePath $matlabExe -ArgumentList $argList -WindowStyle Hidden -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog -PassThru'
                 '[pscustomobject]@{ pid = $p.Id } | ConvertTo-Json -Compress'
                 };
-            folder = fileparts(path);
-            if ~isempty(folder) && ~exist(folder, 'dir')
-                mkdir(folder);
-            end
-            fid = fopen(path, 'wt', 'n', 'UTF-8');
-            if fid < 0
-                error('BMS:AsyncRunService:WriteLauncherFailed', 'Unable to write launcher script: %s', path);
-            end
-            cleanup = onCleanup(@() fclose(fid)); %#ok<NASGU>
-            for i = 1:numel(lines)
-                fprintf(fid, '%s\n', lines{i});
-            end
+            bms.app.AsyncRunService.writePowerShellScript(path, lines);
         end
 
         function writeRunnerLauncherScript(path, runnerExe, requestPath, stdoutLog, stderrLog)
@@ -192,17 +181,25 @@ classdef AsyncRunService
                 '$p = Start-Process -FilePath $runnerExe -ArgumentList $argList -WindowStyle Hidden -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog -PassThru'
                 '[pscustomobject]@{ pid = $p.Id } | ConvertTo-Json -Compress'
                 };
+            bms.app.AsyncRunService.writePowerShellScript(path, lines);
+        end
+
+        function writePowerShellScript(path, lines)
             folder = fileparts(path);
             if ~isempty(folder) && ~exist(folder, 'dir')
                 mkdir(folder);
             end
-            fid = fopen(path, 'wt', 'n', 'UTF-8');
+            fid = fopen(path, 'wb');
             if fid < 0
                 error('BMS:AsyncRunService:WriteLauncherFailed', 'Unable to write launcher script: %s', path);
             end
             cleanup = onCleanup(@() fclose(fid)); %#ok<NASGU>
+            % Windows PowerShell 5.1 treats UTF-8 without BOM as ANSI, which
+            % corrupts Chinese paths in generated launcher scripts.
+            fwrite(fid, uint8([239 187 191]), 'uint8');
             for i = 1:numel(lines)
-                fprintf(fid, '%s\n', lines{i});
+                text = [char(lines{i}) sprintf('\r\n')];
+                fwrite(fid, unicode2native(text, 'UTF-8'), 'uint8');
             end
         end
     end
