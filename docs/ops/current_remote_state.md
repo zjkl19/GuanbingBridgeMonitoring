@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-03 17:50 CST
+Last updated: 2026-07-03 19:52 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -110,19 +110,23 @@ state and keep algorithm/report decisions in the normal project docs.
 
 ## Disk Snapshot
 
-Last observed on 133 at 2026-07-03 17:47 CST:
+Last observed on 133 at 2026-07-03 19:49 CST:
 
 - `E:` free space about `898 GB`.
 - `F:` free space about `854 GB`.
-- Only the user GUI MATLAB process was still present (`PID 28576`); do not kill
-  it during code sync or task cleanup.
+- No MATLAB process was running. The previous user GUI MATLAB process
+  (`PID 28576`) had been stopped by the user.
 
 ## Recent Code Sync Notes
 
-133 `F:\Guanbing` may contain uncommitted copies of fixes that were already
-merged into local `main`. Before taking over remote code, verify remote-only
-diffs against local commits, then make 133 fast-forward or reset to
-`origin/main`.
+133 `F:\Guanbing` is synced with local `main` as of 2026-07-03 19:52 CST.
+
+- Remote HEAD: `c253115 Improve GUI testability and machine path profiles`
+- Remote tag at HEAD: `v1.7.13`
+- Remote `git status --short`: clean
+- Remote smoke test passed:
+  `matlab -batch "addpath(pwd); run_tests({'tests/test_path_profile_resolver.m','tests/test_main_gui_smoke.m'});"`
+  Result: `5 Passed, 0 Failed, 0 Incomplete`.
 
 Known accepted fixes from the July 2026 remote runs:
 
