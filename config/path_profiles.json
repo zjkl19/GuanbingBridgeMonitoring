@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "description": "Machine-specific path overrides. Bridge business defaults stay in bridge_profiles.json.",
+  "profiles": [
+    {
+      "profile_id": "dev_desktop_674s83o",
+      "hostnames": [
+        "DESKTOP-674S83O"
+      ],
+      "data_roots": {
+        "shuixianhua": "E:/水仙花大桥数据/2026年3月",
+        "zhishan": "D:/芝山大桥数据/2026年3月",
+        "chongyangxi": "D:/崇阳溪数据"
+      }
+    },
+    {
+      "profile_id": "prod_133",
+      "hostnames": [
+        "DESKTOP-21RTG63",
+        "192.168.100.133"
+      ],
+      "path_replacements": [
+        {
+          "from": "D:/芝山大桥数据",
+          "to": "F:/芝山大桥数据"
+        },
+        {
+          "from": "E:/水仙花大桥数据",
+          "to": "F:/水仙花大桥数据"
+        },
+        {
+          "from": "E:/九龙江数据",
+          "to": "F:/九龙江数据"
+        },
+        {
+          "from": "F:/管柄大桥数据",
+          "to": "F:/管柄数据"
+        }
+      ]
+    },
+    {
+      "profile_id": "storage_126",
+      "hostnames": [
+        "WIN-N8VI134TL7C",
+        "192.168.100.126"
+      ],
+      "path_replacements": [
+        {
+          "from": "D:/芝山大桥数据",
+          "to": "H:/Guanbingwork/芝山大桥"
+        },
+        {
+          "from": "E:/洪塘大桥数据",
+          "to": "H:/Guanbingwork/洪塘大桥"
+        },
+        {
+          "from": "E:/水仙花大桥数据",
+          "to": "H:/Guanbingwork/水仙花大桥"
+        },
+        {
+          "from": "E:/九龙江数据",
+          "to": "H:/Guanbingwork/九龙江大桥"
+        }
+      ]
+    },
+    {
+      "profile_id": "office_pc",
+      "hostnames": [
+        "DESKTOP-500FVB6"
+      ],
+      "data_roots": {}
+    }
+  ]
+}

@@ -1,12 +1,67 @@
 ﻿# Current Task State
 
-Last updated: 2026-06-30
+Last updated: 2026-07-03
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
-## 2026-06-30 Latest Operational Snapshot
+## 2026-07-03 Latest Engineering Snapshot
+
+This section is the current recovery point. Older sections below remain useful
+for release and bridge-processing history.
+
+Current repository:
+
+- Root: `D:\MatlabProjects\Guanbing`
+- Branch: `main`
+- Latest baseline before this snapshot: `24486ed Stabilize remote operations and CSV/spectrum handling`
+- MATLAB GUI version in `ui/run_gui.m`: `v1.7.13`
+- Report GUI version in `reporting/report_gui.py`: unchanged from the previous report-generator release.
+
+Current accepted local changes:
+
+- Added machine path profiles:
+  - `config/path_profiles.json`
+  - optional untracked override: `config/path_profiles.local.json`
+  - implementation: `+bms/+profile/PathProfileResolver.m`
+- Bridge profile default data roots now pass through the active path profile.
+  This is the preferred fix for local/remote path drift such as local
+  `E:\水仙花大桥数据` versus 133 `F:\水仙花大桥数据`.
+- Main MATLAB GUI now supports hidden smoke testing:
+  `fig = run_gui('Visible','off')`.
+- Main MATLAB GUI exposes stable handles in `fig.UserData.controls`.
+- Main-window shortcuts:
+  - `Ctrl+R`: run
+  - `Ctrl+.`: stop
+  - `Ctrl+K`: clear log
+  - `Ctrl+S`: save preset
+  - `Ctrl+L`: load preset
+  - `Ctrl+G`: check config
+  - `Ctrl+B`: open report builder
+- `GuiStatusPanel.clearLog()` now uses a MATLAB-UI-valid empty value.
+
+Latest verified command:
+
+```powershell
+matlab -batch "addpath(pwd); run_tests('default');"
+```
+
+Result observed: `166 Passed, 0 Failed, 0 Incomplete`.
+
+Remote operations documentation:
+
+- Machine inventory: `docs/ops/machines.md`
+- Current remote state: `docs/ops/current_remote_state.md`
+- SSH config template: `docs/ops/ssh_config.template`
+- Helper scripts: `scripts/ops/`
+
+When starting a new conversation for a remote machine task, read
+`docs/ops/current_remote_state.md` first, then `docs/ops/machines.md`.
+When starting a new conversation for Guanbing code work, read this file,
+then `git status`, `git diff`, and recent commits.
+
+## 2026-06-30 Operational Snapshot
 
 This section is the current recovery point. Older sections below remain useful for Zhishan March processing history, but some of their "Current Goal" / version notes are historical.
 

@@ -20,7 +20,7 @@ classdef GuiStatusPanel < handle
         end
 
         function clearLog(obj)
-            obj.LogArea.Value = {};
+            obj.LogArea.Value = cell(0, 1);
         end
 
         function addLog(obj, msg)

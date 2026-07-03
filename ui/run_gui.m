@@ -1,12 +1,15 @@
-function run_gui()
+function varargout = run_gui(varargin)
 % run_gui  GUI 入口，便于配置并运行 run_all；含阈值配置页。
 % 用法：addpath(fullfile(pwd,'ui')); run_gui
+%       fig = run_gui('Visible','off');  % GUI smoke test
 
     import matlab.ui.control.*
     import matlab.ui.container.*
     if ~exist('uilabel','file')
         error('uilabel 不可用，请检查 uicomponents 路径是否已加入 (matlabroot/toolbox/matlab/uicomponents/uicomponents)');
     end
+
+    uiOptions = parse_gui_options(varargin{:});
 
     % 项目根目录
     projRoot = fileparts(fileparts(mfilename('fullpath')));
@@ -34,7 +37,10 @@ function run_gui()
     showWarningsDefault = bms.gui.GuiConfigBinder.showWarningsDefault(cfgCache);
     cfgPath = defaultCfgPath;
 
-    f = uifigure('Name','福建建科院健康监测大数据分析','Position',bms.gui.GuiLayout.mainWindowPosition(),'Color',[0.97 0.98 1]);
+    f = uifigure('Name','福建建科院健康监测大数据分析', ...
+        'Position',bms.gui.GuiLayout.mainWindowPosition(), ...
+        'Color',[0.97 0.98 1], ...
+        'Visible',uiOptions.Visible);
     mainGrid = uigridlayout(f,[1 1]); mainGrid.RowHeight = {'1x'}; mainGrid.ColumnWidth = {'1x'}; mainGrid.Padding = [0 0 0 0];
     tg = uitabgroup(mainGrid); tg.Layout.Row = 1; tg.Layout.Column = 1;
     tabRun = uitab(tg,'Title','运行');
@@ -54,7 +60,7 @@ function run_gui()
     logoPath = fullfile(projRoot,'建科院标志PNG-01.png');
     uiimg = uiimage(hgl); uiimg.Layout.Row = [1 2]; uiimg.Layout.Column = 1; uiimg.ScaleMethod = 'fit';
     if exist(logoPath,'file'), uiimg.ImageSource = logoPath; end
-    versionStr = 'v1.7.12';
+    versionStr = 'v1.7.13';
     titleLbl = uilabel(hgl,'Text',['福建建科院健康监测大数据分析 ' versionStr],'FontSize',30,'FontWeight','bold','FontColor',primaryBlue,'HorizontalAlignment','center');
     titleLbl.Layout.Row = 1; titleLbl.Layout.Column = [2 6];
     profileLbl = uilabel(hgl, 'Text', '桥梁项目:', 'HorizontalAlignment', 'right', 'FontWeight', 'bold');
@@ -118,13 +124,16 @@ function run_gui()
     apply_profile_defaults(activeProfile, false);
     tg.SelectedTab = tabRun;
 
-    presetSaveBtn = uibutton(gl,'Text','保存预设','ButtonPushedFcn',@(btn,~) onSavePreset()); presetSaveBtn.Layout.Row=13; presetSaveBtn.Layout.Column=1;
-    presetLoadBtn = uibutton(gl,'Text','加载预设','ButtonPushedFcn',@(btn,~) onLoadPreset()); presetLoadBtn.Layout.Row=13; presetLoadBtn.Layout.Column=2;
-    runBtn   = uibutton(gl,'Text','运行','FontWeight','bold','BackgroundColor',primaryBlue,'FontColor',[1 1 1],'ButtonPushedFcn',@(btn,~) onRun());
+    presetSaveBtn = uibutton(gl,'Text','保存预设','Tooltip','Ctrl+S','ButtonPushedFcn',@(btn,~) onSavePreset()); presetSaveBtn.Layout.Row=13; presetSaveBtn.Layout.Column=1;
+    presetLoadBtn = uibutton(gl,'Text','加载预设','Tooltip','Ctrl+L','ButtonPushedFcn',@(btn,~) onLoadPreset()); presetLoadBtn.Layout.Row=13; presetLoadBtn.Layout.Column=2;
+    runBtn   = uibutton(gl,'Text','运行 (Ctrl+R)','FontWeight','bold','BackgroundColor',primaryBlue,'FontColor',[1 1 1], ...
+        'Tooltip','启动异步运行','ButtonPushedFcn',@(btn,~) onRun());
     runBtn.Layout.Row=13; runBtn.Layout.Column=3;
-    stopBtn  = uibutton(gl,'Text','停止','BackgroundColor',[0.8 0.2 0.2],'FontColor',[1 1 1],'ButtonPushedFcn',@(btn,~) onStop());
+    stopBtn  = uibutton(gl,'Text','停止 (Ctrl+.)','BackgroundColor',[0.8 0.2 0.2],'FontColor',[1 1 1], ...
+        'Tooltip','请求停止当前异步运行','ButtonPushedFcn',@(btn,~) onStop());
     stopBtn.Layout.Row=13; stopBtn.Layout.Column=4;
-    clearBtn = uibutton(gl,'Text','清空日志');
+    stopBtn.Enable = 'off';
+    clearBtn = uibutton(gl,'Text','清空日志 (Ctrl+K)','Tooltip','清空运行日志');
     clearBtn.Layout.Row=14; clearBtn.Layout.Column=4;
     cbWarn = uicheckbox(gl,'Text','显示警告','Value',showWarningsDefault);
     cbWarn.Layout.Row=14; cbWarn.Layout.Column=3;
@@ -142,6 +151,7 @@ function run_gui()
     asyncRunTimer = [];
     asyncLastStatus = '';
     f.CloseRequestFcn = @(~,~) onClose();
+    f.KeyPressFcn = @(~,evt) onKeyPress(evt);
     clearBtn.ButtonPushedFcn = @(btn,~) statusPanel.clearLog();
 
     autoPreset = bms.gui.GuiPresetStore.defaultPath(projRoot);
@@ -167,8 +177,57 @@ function run_gui()
     gc = build_group_config_tab(tabGroupCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
     pp = build_plot_settings_tab(tabPlotCfg, f, cfgCache, cfgPath, cfgEdit, @addLog, primaryBlue);
     tg.SelectionChangedFcn = @(src,evt) onTabChanged(evt);
+    update_user_data();
+    if nargout > 0
+        varargout{1} = f;
+    end
 
     %% 运行页回调
+    function opts = parse_gui_options(varargin)
+        opts = struct('Visible', 'on');
+        if mod(numel(varargin), 2) ~= 0
+            error('run_gui:InvalidArguments', 'GUI options must be name/value pairs.');
+        end
+        for ia = 1:2:numel(varargin)
+            name = lower(char(string(varargin{ia})));
+            value = varargin{ia + 1};
+            switch name
+                case 'visible'
+                    value = lower(char(string(value)));
+                    if ~any(strcmp(value, {'on', 'off'}))
+                        error('run_gui:InvalidVisible', 'Visible must be ''on'' or ''off''.');
+                    end
+                    opts.Visible = value;
+                otherwise
+                    error('run_gui:UnknownOption', 'Unknown GUI option: %s', name);
+            end
+        end
+    end
+
+    function update_user_data()
+        f.UserData = struct( ...
+            'app', 'guanbing_main_gui', ...
+            'version', versionStr, ...
+            'project_root', projRoot, ...
+            'active_profile_id', activeProfile.BridgeId, ...
+            'profile_ids', {profileIds}, ...
+            'controls', struct( ...
+                'profileDrop', profileDrop, ...
+                'rootEdit', rootEdit, ...
+                'startPicker', startPicker, ...
+                'endPicker', endPicker, ...
+                'cfgEdit', cfgEdit, ...
+                'logEdit', logEdit, ...
+                'runBtn', runBtn, ...
+                'stopBtn', stopBtn, ...
+                'clearBtn', clearBtn, ...
+                'refreshBtn', refreshBtn, ...
+                'configCheckBtn', configCheckBtn, ...
+                'statusLbl', statusLbl, ...
+                'summaryTable', summaryTable, ...
+                'logArea', logArea));
+    end
+
     function controls = build_module_control_map()
         controls = struct();
         controls.precheck_zip_count = cbPrecheck;
@@ -223,6 +282,7 @@ function run_gui()
         end
         activeProfile = profile;
         apply_profile_defaults(profile, true);
+        update_user_data();
         refresh_result_summary(false);
     end
 
@@ -463,6 +523,42 @@ function run_gui()
             return;
         end
         global RUN_STOP_FLAG; RUN_STOP_FLAG=true; addLog('收到停止请求，将跳过后续步骤');
+    end
+
+    function onKeyPress(evt)
+        try
+            mods = lower(string(evt.Modifier));
+            if ~any(mods == "control")
+                return;
+            end
+            key = lower(char(string(evt.Key)));
+            switch key
+                case {'r', 'return'}
+                    if strcmpi(runBtn.Enable, 'on')
+                        onRun();
+                    end
+                case 'period'
+                    onStop();
+                case 'k'
+                    statusPanel.clearLog();
+                case 's'
+                    onSavePreset();
+                case 'l'
+                    onLoadPreset();
+                case 'g'
+                    check_current_config();
+                case 'b'
+                    open_report_builder();
+                otherwise
+                    return;
+            end
+            update_user_data();
+        catch MEkey
+            try
+                addLog(['快捷键处理失败: ' MEkey.message]);
+            catch
+            end
+        end
     end
 
     function start_async_timer()

@@ -21,3 +21,9 @@ Sensitive values do not belong here:
 
 Local helper scripts live in `scripts/ops/`.
 
+Machine-specific Guanbing paths are handled in source-controlled
+`config/path_profiles.json` plus optional untracked
+`config/path_profiles.local.json`. Prefer this mechanism over editing
+`config/bridge_profiles.json` when the same bridge data root differs between
+the developer PC, 133 compute machine, and 126 storage server. Set
+`GUANBING_PATH_PROFILE=<profile_id>` to force a profile during tests.

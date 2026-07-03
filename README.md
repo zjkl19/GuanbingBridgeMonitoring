@@ -277,6 +277,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.13`: adds machine-specific path profiles for local/remote data roots, exposes a hidden main-GUI smoke-test entry with stable handles, and adds main-window shortcuts for faster remote GUI validation.
+- `v1.7.13`：新增本机/远程数据根目录路径 profile，主 GUI 支持隐藏窗口烟测入口并暴露稳定控件句柄，同时补充主窗口快捷键，便于远程环境快速验证 GUI。
 - `v1.7.12`: keeps the MATLAB GUI version aligned with the report-generator release that commits the ShuiXianHua monthly period-label filename fix used by CLI and packaged exe self-tests.
 - `v1.7.12`：同步主 GUI 版本号，配合报告生成器提交水仙花月报 CLI/打包 exe 自测使用的监测期标签与输出文件名修正。
 - `v1.7.11`: fixes the report-builder packaging workflow so packaged exe folders include the bridge profile config files required by hidden self-tests and production default report modes.
