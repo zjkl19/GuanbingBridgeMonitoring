@@ -36,8 +36,9 @@ for i = 1:numel(sel)
     for sub = {'波形', '特征值'}
         dir_path = fullfile(root_dir, sel{i}, sub{1});
         if exist(dir_path, 'dir')
+            nestedSummary = bms.data.DonghuaExportNormalizer.normalizeFolder(dir_path, 'DryRun', true);
             files = dir(fullfile(dir_path, '*.csv'));
-            total_files = total_files + numel(files);
+            total_files = total_files + numel(files) + nestedSummary.would_copy;
         end
     end
 end
@@ -70,15 +71,15 @@ for i = 1:numel(sel)
             continue;
         end
         fprintf('处理 %s / %s 文件夹\n', day, sub{1});
+        nestedSummary = bms.data.DonghuaExportNormalizer.normalizeFolder(sub_dir);
+        if nestedSummary.copied > 0 || nestedSummary.collisions > 0
+            fprintf('东华嵌套导出兼容: copy=%d, skip=%d, collision=%d\n', ...
+                nestedSummary.copied, nestedSummary.skipped_existing, nestedSummary.collisions);
+        end
         files = dir(fullfile(sub_dir, '*.csv'));
         for k = 1:numel(files)
             old_name = files(k).name;
-            base = old_name(1:end-4);
-            % 删除 "_原始数据" 到末尾
-            newbase = regexprep(base, '_原始数据.*', '');
-            % 连续 5 位数字改为3-2
-            newbase = regexprep(newbase, '(?<!\d)(\d{3})(\d{2})(?!\d)', '$1-$2');
-            new_name = [newbase '.csv'];
+            new_name = bms.data.DonghuaExportNormalizer.canonicalFileName(old_name);
             if strcmp(old_name, new_name)
                 log{end+1} = sprintf('%s (%s) -> 跳过: 文件名已正确', old_name, sub{1});
                 continue;

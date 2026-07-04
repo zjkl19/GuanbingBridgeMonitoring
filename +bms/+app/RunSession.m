@@ -91,11 +91,9 @@ classdef RunSession < handle
         function setupPaths(~)
             here = fileparts(mfilename('fullpath'));
             projectRoot = fileparts(fileparts(here));
-            addpath(projectRoot);
-            addpath(fullfile(projectRoot,'pipeline'));
-            addpath(fullfile(projectRoot,'config'));
-            addpath(fullfile(projectRoot,'analysis'));
-            addpath(fullfile(projectRoot,'scripts'));
+            addpath(projectRoot, fullfile(projectRoot,'pipeline'), ...
+                fullfile(projectRoot,'config'), fullfile(projectRoot,'analysis'), ...
+                fullfile(projectRoot,'scripts'), '-begin');
         end
 
         function loadConfigIfNeeded(obj)

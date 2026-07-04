@@ -39,6 +39,11 @@ for i = 1:numel(sel)
     for sub = {'波形','特征值'}
         dir_path = fullfile(root_dir, day, sub{1});
         if ~exist(dir_path, 'dir'), continue; end
+        nestedSummary = bms.data.DonghuaExportNormalizer.normalizeFolder(dir_path);
+        if nestedSummary.copied > 0 || nestedSummary.collisions > 0
+            fprintf('东华嵌套导出兼容: %s/%s copy=%d, skip=%d, collision=%d\n', ...
+                day, sub{1}, nestedSummary.copied, nestedSummary.skipped_existing, nestedSummary.collisions);
+        end
         files = dir(fullfile(dir_path, '*.csv'));
         for k = 1:numel(files)
             c = c + 1;

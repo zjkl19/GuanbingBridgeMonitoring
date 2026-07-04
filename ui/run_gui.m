@@ -52,7 +52,7 @@ function varargout = run_gui(varargin)
     tabPlotCfg = uitab(tg,'Title','绘图参数');
 
     %% 运行页
-    gl = uigridlayout(tabRun,[17 4]);
+    gl = uigridlayout(tabRun,[19 4]);
     bms.gui.GuiLayout.applyRunGridDefaults(gl);
 
     header = uipanel(gl,'BorderType','none'); header.Layout.Row = 1; header.Layout.Column = [1 4];
@@ -121,35 +121,53 @@ function varargout = run_gui(varargin)
     lblCfg = uilabel(gl,'Text','配置文件(JSON):','HorizontalAlignment','right'); lblCfg.Layout.Row=12; lblCfg.Layout.Column=1;
     cfgEdit = uieditfield(gl,'text','Value',defaultCfgPath); cfgEdit.Layout.Row=12; cfgEdit.Layout.Column=[2 3];
     cfgBtn  = uibutton(gl,'Text','选择','ButtonPushedFcn',@(btn,~) onBrowseFile(cfgEdit,'*.json')); cfgBtn.Layout.Row=12; cfgBtn.Layout.Column=4;
+    rootEdit.ValueChangedFcn = @(~,~) update_path_profile_note();
+    logEdit.ValueChangedFcn = @(~,~) update_path_profile_note();
+    cfgEdit.ValueChangedFcn = @(~,~) update_path_profile_note();
+    pathProfileNote = uilabel(gl, 'Text', 'Path profile: 未刷新', 'FontColor', [0.35 0.40 0.50]);
+    pathProfileNote.Layout.Row = 13; pathProfileNote.Layout.Column = [1 4];
     apply_profile_defaults(activeProfile, false);
     tg.SelectedTab = tabRun;
 
-    presetSaveBtn = uibutton(gl,'Text','保存预设','Tooltip','Ctrl+S','ButtonPushedFcn',@(btn,~) onSavePreset()); presetSaveBtn.Layout.Row=13; presetSaveBtn.Layout.Column=1;
-    presetLoadBtn = uibutton(gl,'Text','加载预设','Tooltip','Ctrl+L','ButtonPushedFcn',@(btn,~) onLoadPreset()); presetLoadBtn.Layout.Row=13; presetLoadBtn.Layout.Column=2;
+    presetSaveBtn = uibutton(gl,'Text','保存预设','Tooltip','Ctrl+S','ButtonPushedFcn',@(btn,~) onSavePreset()); presetSaveBtn.Layout.Row=14; presetSaveBtn.Layout.Column=1;
+    presetLoadBtn = uibutton(gl,'Text','加载预设','Tooltip','Ctrl+L','ButtonPushedFcn',@(btn,~) onLoadPreset()); presetLoadBtn.Layout.Row=14; presetLoadBtn.Layout.Column=2;
     runBtn   = uibutton(gl,'Text','运行 (Ctrl+R)','FontWeight','bold','BackgroundColor',primaryBlue,'FontColor',[1 1 1], ...
         'Tooltip','启动异步运行','ButtonPushedFcn',@(btn,~) onRun());
-    runBtn.Layout.Row=13; runBtn.Layout.Column=3;
+    runBtn.Layout.Row=14; runBtn.Layout.Column=3;
     stopBtn  = uibutton(gl,'Text','停止 (Ctrl+.)','BackgroundColor',[0.8 0.2 0.2],'FontColor',[1 1 1], ...
         'Tooltip','请求停止当前异步运行','ButtonPushedFcn',@(btn,~) onStop());
-    stopBtn.Layout.Row=13; stopBtn.Layout.Column=4;
+    stopBtn.Layout.Row=14; stopBtn.Layout.Column=4;
     stopBtn.Enable = 'off';
     clearBtn = uibutton(gl,'Text','清空日志 (Ctrl+K)','Tooltip','清空运行日志');
-    clearBtn.Layout.Row=14; clearBtn.Layout.Column=4;
+    clearBtn.Layout.Row=15; clearBtn.Layout.Column=4;
     cbWarn = uicheckbox(gl,'Text','显示警告','Value',showWarningsDefault);
-    cbWarn.Layout.Row=14; cbWarn.Layout.Column=3;
+    cbWarn.Layout.Row=15; cbWarn.Layout.Column=3;
     refreshBtn = uibutton(gl,'Text','刷新状态','ButtonPushedFcn',@(btn,~) refresh_result_summary(true));
-    refreshBtn.Layout.Row=14; refreshBtn.Layout.Column=1;
+    refreshBtn.Layout.Row=15; refreshBtn.Layout.Column=1;
     cleanPreviewBtn = uibutton(gl,'Text','清理预览','ButtonPushedFcn',@(btn,~) preview_cleanup_generated());
-    cleanPreviewBtn.Layout.Row=14; cleanPreviewBtn.Layout.Column=2;
+    cleanPreviewBtn.Layout.Row=15; cleanPreviewBtn.Layout.Column=2;
 
-    statusLbl = uilabel(gl,'Text','就绪','FontColor',primaryBlue); statusLbl.Layout.Row=15; statusLbl.Layout.Column=[1 4];
+    progressGrid = uigridlayout(gl, [1 2]);
+    progressGrid.Layout.Row = 16; progressGrid.Layout.Column = [1 4];
+    progressGrid.ColumnWidth = {130, '1x'};
+    progressGrid.RowHeight = {'1x'};
+    progressGrid.Padding = [0 0 0 0];
+    progressGrid.ColumnSpacing = 8;
+    progressLabel = uilabel(progressGrid, 'Text', '运行进度: 就绪', 'FontColor', primaryBlue);
+    progressLabel.Layout.Row = 1; progressLabel.Layout.Column = 1;
+    progressTrack = uipanel(progressGrid, 'BorderType', 'line', 'BackgroundColor', [0.92 0.92 0.92]);
+    progressTrack.Layout.Row = 1; progressTrack.Layout.Column = 2;
+    progressFill = uipanel(progressTrack, 'BorderType', 'none', 'BackgroundColor', [0.18 0.65 0.25], 'Position', [1 1 1 18]);
+
+    statusLbl = uilabel(gl,'Text','就绪','FontColor',primaryBlue); statusLbl.Layout.Row=17; statusLbl.Layout.Column=[1 4];
     summaryTable = uitable(gl,'Data',cell(0,7),'ColumnName',{'模块','状态','耗时(s)','统计','图片','错误类型','消息'},'RowName',{});
-    summaryTable.Layout.Row=16; summaryTable.Layout.Column=[1 4];
-    logArea   = uitextarea(gl,'Editable','off','Value',{'准备就绪...'}); logArea.Layout.Row=17; logArea.Layout.Column=[1 4];
+    summaryTable.Layout.Row=18; summaryTable.Layout.Column=[1 4];
+    logArea   = uitextarea(gl,'Editable','off','Value',{'准备就绪...'}); logArea.Layout.Row=19; logArea.Layout.Column=[1 4];
     statusPanel = bms.gui.GuiStatusPanel(statusLbl, summaryTable, logArea, primaryBlue);
     asyncRunState = [];
     asyncRunTimer = [];
     asyncLastStatus = '';
+    asyncProgressValue = 0;
     f.CloseRequestFcn = @(~,~) onClose();
     f.KeyPressFcn = @(~,evt) onKeyPress(evt);
     clearBtn.ButtonPushedFcn = @(btn,~) statusPanel.clearLog();
@@ -223,6 +241,10 @@ function varargout = run_gui(varargin)
                 'clearBtn', clearBtn, ...
                 'refreshBtn', refreshBtn, ...
                 'configCheckBtn', configCheckBtn, ...
+                'pathProfileNote', pathProfileNote, ...
+                'progressLabel', progressLabel, ...
+                'progressTrack', progressTrack, ...
+                'progressFill', progressFill, ...
                 'statusLbl', statusLbl, ...
                 'summaryTable', summaryTable, ...
                 'logArea', logArea));
@@ -307,6 +329,7 @@ function varargout = run_gui(varargin)
         end
         set_profile_module_defaults(profile);
         profileNote.Text = bms.gui.GuiRunController.profileSummary(profile);
+        update_path_profile_note();
         if logChange
             addLog(['已切换桥梁项目: ' profile.displayName()]);
         end
@@ -356,6 +379,7 @@ function varargout = run_gui(varargin)
             logEdit.Value = fullfile(rootEdit.Value, 'run_logs');
             refresh_result_summary(false);
             sync_profile_selector_from_current();
+            update_path_profile_note();
         end
 
         % 强制把主界面拉回前台
@@ -368,6 +392,7 @@ function varargout = run_gui(varargin)
         edit.Value = fullfile(fpath,fname);
         if isequal(edit, cfgEdit)
             sync_profile_selector_from_current();
+            update_path_profile_note();
         end
 
         % 强制把主界面拉回前台
@@ -433,6 +458,7 @@ function varargout = run_gui(varargin)
         stop_async_timer();
         asyncRunState = [];
         asyncLastStatus = '';
+        set_run_progress(0.02, '运行进度: 启动中', 'running');
         statusPanel.setRunning('启动异步运行...'); addLog('开始异步运行'); drawnow;
         try
             [cfg, loadedCfgPath] = bms.gui.GuiConfigBinder.loadConfig(cfgEdit.Value, defaultCfgPath);
@@ -449,6 +475,9 @@ function varargout = run_gui(varargin)
             statusPanel.setPendingModules(state.toOptions());
             root = state.Root; start_date = state.StartDate; end_date = state.EndDate;
             logEdit.Value = state.LogDir;
+            if exist(root, 'dir') ~= 7
+                error('BMS:Gui:DataRootMissing', '数据根目录不存在: %s', root);
+            end
             if exist(logEdit.Value,'dir')==0, mkdir(logEdit.Value); end
             [runRequest, preflight, preflightLines] = bms.gui.GuiRunController.prepareRun(state, cfg);
             if isfield(cfg,'plot_common') && isstruct(cfg.plot_common)
@@ -472,6 +501,7 @@ function varargout = run_gui(varargin)
             addLog(sprintf('root=%s, %s -> %s', root, start_date, end_date));
             asyncRunState = bms.app.AsyncRunService.start(runRequest);
             asyncLastStatus = 'launched';
+            set_run_progress(0.08, '运行进度: 子进程已启动', 'running');
             addLog(sprintf('异步执行器: %s', executor_label(asyncRunState)));
             addLog(sprintf('异步子进程已启动：pid=%s', format_pid(asyncRunState)));
             runnerPath = executor_path(asyncRunState);
@@ -484,6 +514,7 @@ function varargout = run_gui(varargin)
             start_async_timer();
         catch ME
             addLog(['运行失败: ' ME.message]); statusPanel.setFailed('失败');
+            set_run_progress(1.0, '运行进度: 失败', 'failed');
             show_wim_error_help(ME);
             runBtn.Enable='on'; stopBtn.Enable='off';
         end
@@ -520,9 +551,11 @@ function varargout = run_gui(varargin)
             bms.app.AsyncRunService.requestStop(asyncRunState, false);
             addLog(['已写入异步停止请求: ' asyncRunState.stop_file]);
             statusPanel.setRunning('停止请求已发送，等待当前步骤结束...');
+            set_run_progress(asyncProgressValue, '运行进度: 正在停止', 'warning');
             return;
         end
         global RUN_STOP_FLAG; RUN_STOP_FLAG=true; addLog('收到停止请求，将跳过后续步骤');
+        set_run_progress(asyncProgressValue, '运行进度: 正在停止', 'warning');
     end
 
     function onKeyPress(evt)
@@ -600,6 +633,7 @@ function varargout = run_gui(varargin)
                 log_result_summary(rootEdit.Value);
                 addLog('异步运行完成');
                 statusPanel.setReady('异步运行完成');
+                set_run_progress(1.0, '运行进度: 完成', 'running');
             else
                 log_result_summary(rootEdit.Value);
                 msg = '异步运行失败';
@@ -608,12 +642,42 @@ function varargout = run_gui(varargin)
                 end
                 addLog(msg);
                 statusPanel.setFailed('异步运行失败');
+                set_run_progress(1.0, '运行进度: 失败', 'failed');
             end
             runBtn.Enable='on';
             stopBtn.Enable='off';
             return;
         end
+        asyncProgressValue = min(0.95, max(0.10, asyncProgressValue + 0.015));
+        set_run_progress(asyncProgressValue, ['运行进度: ' statusText], 'running');
         statusPanel.setRunning(['运行中（异步）：' statusText]);
+    end
+
+    function set_run_progress(value, labelText, mode)
+        if nargin < 3 || isempty(mode), mode = 'running'; end
+        asyncProgressValue = max(0, min(1, double(value)));
+        if nargin >= 2 && ~isempty(labelText)
+            progressLabel.Text = char(string(labelText));
+        end
+        switch lower(char(string(mode)))
+            case 'failed'
+                progressFill.BackgroundColor = [0.75 0.18 0.18];
+            case 'warning'
+                progressFill.BackgroundColor = [0.86 0.55 0.14];
+            otherwise
+                progressFill.BackgroundColor = [0.18 0.65 0.25];
+        end
+        update_progress_bar();
+    end
+
+    function update_progress_bar()
+        try
+            pos = progressTrack.Position;
+            width = max(1, (double(pos(3)) - 2) * asyncProgressValue);
+            height = max(1, double(pos(4)) - 2);
+            progressFill.Position = [1 1 width height];
+        catch
+        end
     end
 
     function on_async_timer_error(evt)
@@ -681,6 +745,7 @@ function varargout = run_gui(varargin)
         state = bms.gui.GuiPresetStore.load(presetPath);
         apply_preset(state);
         addLog(['预设已加载: ' presetPath]);
+        update_path_profile_note();
         refresh_result_summary(false);
     end
     function onSelectAll(cb)
@@ -730,6 +795,7 @@ function varargout = run_gui(varargin)
             apply_module_values_from_preset(m);
         end
         sync_profile_selector_from_current();
+        update_path_profile_note();
     end
 
     function sync_profile_selector_from_current()
@@ -741,6 +807,32 @@ function varargout = run_gui(varargin)
                 profileNote.Text = bms.gui.GuiRunController.profileSummary(inferred);
             end
         catch
+        end
+    end
+    function update_path_profile_note()
+        try
+            host = char(string(getenv('COMPUTERNAME')));
+            if isempty(host), host = 'unknown'; end
+            pathProfile = bms.profile.PathProfileResolver.active(projRoot);
+            if isstruct(pathProfile) && isfield(pathProfile, 'profile_id') && ~isempty(pathProfile.profile_id)
+                matchText = '';
+                if isfield(pathProfile, 'match_type') && ~isempty(pathProfile.match_type)
+                    matchText = char(string(pathProfile.match_type));
+                end
+                if isfield(pathProfile, 'match_reason') && ~isempty(pathProfile.match_reason)
+                    matchText = strtrim([matchText ' ' char(string(pathProfile.match_reason))]);
+                end
+                pathProfileNote.Text = sprintf('Path profile: host %s -> %s (%s); data=%s; log=%s', ...
+                    host, char(string(pathProfile.profile_id)), matchText, rootEdit.Value, logEdit.Value);
+            else
+                pathProfileNote.Text = sprintf('Path profile: host %s has no active path profile; using bridge default/preset/manual path; data=%s', ...
+                    host, rootEdit.Value);
+            end
+            if isprop(pathProfileNote, 'Tooltip')
+                pathProfileNote.Tooltip = pathProfileNote.Text;
+            end
+        catch MEpath
+            pathProfileNote.Text = ['Path profile: 刷新失败 - ' MEpath.message];
         end
     end
     function apply_module_values_from_preset(m)

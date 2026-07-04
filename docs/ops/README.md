@@ -10,6 +10,8 @@ long-running scheduled tasks are involved:
 - `machines.md`: machine inventory and connection policy.
 - `current_remote_state.md`: current recoverable remote task state.
 - `ssh_config.template`: non-sensitive SSH config template.
+- `..\known_issues.md`: known defects, fixed compatibility issues, and
+  follow-up items that affect remote runs or GUI testing.
 
 Sensitive values do not belong here:
 

@@ -1,10 +1,93 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-07-04 Latest Engineering Snapshot
+
+This is the current recovery point for the Donghua export compatibility,
+GUI/path-profile visibility, and remote production-state cleanup work.
+
+Current repository:
+
+- Root: `D:\MatlabProjects\Guanbing`
+- Branch: `main`
+- Latest baseline before this snapshot: `ede75d6 Document 133 code sync status`
+- MATLAB GUI version in `ui/run_gui.m`: `v1.7.13`
+- Report GUI version in `reporting/report_gui.py`: unchanged from the previous report-generator release.
+
+Accepted local changes in this snapshot:
+
+- Added `+bms/+data/DonghuaExportNormalizer.m`.
+  - Supports Donghua's older direct `日期\波形\*.csv` layout and the newer
+    nested `日期\波形\GUID\*.csv` / `日期\特征值\GUID\*.csv` layout.
+  - Copies missing nested CSV files up to the legacy direct folder before the
+    existing preprocessing scripts run.
+  - Canonicalizes `_原始数据...` and known mojibake variants while preserving
+    the original nested files.
+- Wired the normalizer into:
+  - `scripts/batch_rename_csv.m`
+  - `scripts/batch_remove_header.m`
+  - `scripts/batch_resample_data_parallel.m`
+- Improved MATLAB GUI operability:
+  - visible path-profile note showing how local/remote data-root paths were
+    selected;
+  - green progress bar / status text for asynchronous runs;
+  - `Ctrl+R` preflight now fails before launching a batch run when the data
+    root is missing.
+- Improved machine path-profile resolution:
+  - explicit `GUANBING_PATH_PROFILE` still has priority;
+  - hostname matching is still preferred;
+  - if hostnames drift after production-machine rename, existing-path fallback
+    can still pick the right profile.
+- Test coverage added/extended:
+  - `tests/test_donghua_export_normalizer.m`
+  - `tests/test_main_gui_smoke.m`
+  - `tests/test_gui_state_services.m`
+  - `tests/test_path_profile_resolver.m`
+
+Latest local test evidence before committing this snapshot:
+
+- `git diff --check`: passed, only line-ending warnings.
+- Full MATLAB default suite was previously green at `166 Passed, 0 Failed, 0 Incomplete`.
+- Focused local/remote GUI and normalizer smoke tests should be rerun after any
+  follow-up edit touching these files.
+
+Remote Guanbing 2026-06 verification on `192.168.100.133`:
+
+- Root cause of the earlier "only 2026-05-27 was processed" symptom was
+  Donghua's newer nested GUID export layout, not missing raw data.
+- After normalization, direct CSVs exist for all three available days:
+  `2026-05-26`, `2026-05-27`, and `2026-05-28`.
+- New report generated on 133:
+  `F:\管柄数据\2026年6月\自动报告\G104线管柄大桥监测月报_2026年06月_自动生成_20260704_035056.docx`
+- The report text was checked locally and covers `2026年05月26日~2026年05月28日`.
+- Known caveat: because this site had already-extracted CSV data and no ZIP
+  package for the period, the run manifest can still show ZIP precheck/unzip as
+  failed even though the downstream analysis and report are valid. Track this in
+  `docs/known_issues.md`.
+
+New conversation bootstrap for Guanbing code work:
+
+```text
+阅读 D:\MatlabProjects\Guanbing\docs\current_task_state.md、
+D:\MatlabProjects\Guanbing\docs\ops\current_remote_state.md、
+D:\MatlabProjects\Guanbing\docs\ops\machines.md 和
+D:\MatlabProjects\Guanbing\docs\known_issues.md，然后读取 git status/diff、
+最近提交，再继续当前任务。
+```
+
+New conversation bootstrap for remote machine work:
+
+```text
+阅读 D:\MatlabProjects\Guanbing\docs\ops\current_remote_state.md、
+D:\MatlabProjects\Guanbing\docs\ops\machines.md 和
+D:\MatlabProjects\Guanbing\docs\known_issues.md，然后先只读检查目标机器状态，
+不要直接执行破坏性操作。
+```
 
 ## 2026-07-03 Latest Engineering Snapshot
 

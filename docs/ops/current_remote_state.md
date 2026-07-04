@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-03 19:52 CST
+Last updated: 2026-07-04 12:00 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -82,6 +82,30 @@ state and keep algorithm/report decisions in the normal project docs.
 - 2026-04 and 2026-05 were processed under the stricter filter rule before the
   pause. 2026-06 should be rerun only after manual review of April/May results.
 
+### Guanbing Bridge 2026-06 Refixed Verification
+
+- Status: completed after Donghua nested-export compatibility fix.
+- Latest verified run directory:
+  `F:\Guanbing\run_logs\remote_tasks\guanbing_202606_refixed_20260704`
+- Generated report after the fix:
+  `F:\管柄数据\2026年6月\自动报告\G104线管柄大桥监测月报_2026年06月_自动生成_20260704_035056.docx`
+- Report manifest:
+  `F:\管柄数据\2026年6月\自动报告\G104线管柄大桥监测月报_manifest_20260704_035056.json`
+- Field note: Guanbing site equipment failure means the available data only
+  covers 2026-05-26 to 2026-05-28; the low ZIP/data count is expected.
+- Root cause of the earlier "only one day processed" symptom: Donghua's newer
+  export package used nested `波形\GUID\*.csv` and `特征值\GUID\*.csv`
+  folders. The legacy preprocessing chain only scanned direct CSV files. The
+  normalizer now stages nested CSVs into the legacy direct folders while leaving
+  the original nested files intact.
+- Verified day coverage after the fix:
+  - `2026-05-26`: 波形/特征值 direct CSVs present.
+  - `2026-05-27`: 波形/特征值 direct CSVs present.
+  - `2026-05-28`: 波形/特征值 direct CSVs present.
+- Known caveat: this already-extracted-CSV run still reports ZIP precheck/unzip
+  failures in the manifest because no ZIP packages were present. Downstream
+  analysis and report generation completed. See `docs/known_issues.md`.
+
 ### Guanbing Bridge 2026-06 CLI Run
 
 - Status: completed.
@@ -140,3 +164,6 @@ Known accepted fixes from the July 2026 remote runs:
 - `reporting/build_shuixianhua_monthly_report.py`: monitoring period and output
   filename should be generated from the selected period; local `main` already
   contains this.
+- `+bms/+data/DonghuaExportNormalizer.m`: staged on local and 133 during
+  Guanbing 2026-06 repair; commit/push this snapshot before treating it as a
+  release baseline.

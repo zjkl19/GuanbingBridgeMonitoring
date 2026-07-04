@@ -2,6 +2,7 @@ classdef test_path_profile_resolver < matlab.unittest.TestCase
     properties
         TempRoot
         OldEnv
+        OldComputerName
     end
 
     methods (TestMethodSetup)
@@ -9,6 +10,7 @@ classdef test_path_profile_resolver < matlab.unittest.TestCase
             tc.TempRoot = tempname;
             mkdir(fullfile(tc.TempRoot, 'config'));
             tc.OldEnv = getenv('GUANBING_PATH_PROFILE');
+            tc.OldComputerName = getenv('COMPUTERNAME');
             proj = fileparts(fileparts(mfilename('fullpath')));
             addpath(proj, fullfile(proj, 'config'), fullfile(proj, 'pipeline'), ...
                 fullfile(proj, 'analysis'));
@@ -18,6 +20,7 @@ classdef test_path_profile_resolver < matlab.unittest.TestCase
     methods (TestMethodTeardown)
         function cleanup(tc)
             setenv('GUANBING_PATH_PROFILE', tc.OldEnv);
+            setenv('COMPUTERNAME', tc.OldComputerName);
             if exist(tc.TempRoot, 'dir')
                 rmdir(tc.TempRoot, 's');
             end
@@ -69,6 +72,31 @@ classdef test_path_profile_resolver < matlab.unittest.TestCase
             profile = bms.profile.BridgeProfile.fromStruct(raw, tc.TempRoot);
 
             tc.verifyEqual(profile.DefaultDataRoot, fullfile('X:', 'Zhishan', '202604'));
+        end
+
+        function existingPathFallbackSurvivesChangedHostname(tc)
+            prodRoot = fullfile(tc.TempRoot, 'prod_data');
+            mkdir(prodRoot);
+            profiles(1) = struct( ...
+                'profile_id', 'wrong_host_missing_path', ...
+                'hostnames', {{'NO-SUCH-HOST'}}, ...
+                'data_roots', struct(), ...
+                'path_replacements', struct('from', 'D:/Source', 'to', 'Z:/MissingRoot'));
+            profiles(2) = struct( ...
+                'profile_id', 'prod_fallback', ...
+                'hostnames', {{'RENAMED-PROD-HOST'}}, ...
+                'data_roots', struct(), ...
+                'path_replacements', struct('from', 'D:/Source', 'to', prodRoot));
+            tc.writeProfiles(profiles);
+            setenv('GUANBING_PATH_PROFILE', '');
+            setenv('COMPUTERNAME', 'UNKNOWN-HOST');
+
+            profile = bms.profile.PathProfileResolver.active(tc.TempRoot);
+            root = bms.profile.PathProfileResolver.resolveDataRoot('zhishan', 'D:/Source/202604', tc.TempRoot);
+
+            tc.verifyEqual(char(profile.profile_id), 'prod_fallback');
+            tc.verifyEqual(char(profile.match_type), 'path_exists');
+            tc.verifyEqual(root, fullfile(prodRoot, '202604'));
         end
     end
 

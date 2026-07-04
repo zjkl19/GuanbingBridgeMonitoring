@@ -3,6 +3,8 @@ function start_gui()
 % Usage: in MATLAB (project root):  start_gui
 
 here = fileparts(mfilename('fullpath'));
-addpath(fullfile(here,'ui'));
+addpath(here, fullfile(here,'ui'), fullfile(here,'config'), ...
+    fullfile(here,'pipeline'), fullfile(here,'analysis'), ...
+    fullfile(here,'scripts'), '-begin');
 run_gui();
 end

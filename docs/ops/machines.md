@@ -1,6 +1,6 @@
 # Remote Machine Inventory
 
-Last updated: 2026-07-01
+Last updated: 2026-07-04
 
 ## Principles
 
@@ -20,6 +20,24 @@ Last updated: 2026-07-01
 | `gb-office` | `192.168.254.34` via `gb-133` | User office workstation, light-duty remote control only | SSH `Administrator@192.168.254.34:2222` with `ProxyJump gb-133` | Active | Device name `DESKTOP-500FVB6`; CPU Hygon C86-3G, RAM 16 GB, GPU Glenfly Arise1020 2 GB. Direct SSH from this workstation is not routable; use 133 as the jump host. Windows `sshd` service is running on TCP 2222 and starts automatically. The earlier fallback task `Guanbing-OpenSSH-2222-OfficePC-Fallback` is left as a manual recovery path only and is not running. Do not schedule heavy MATLAB/report workloads here unless explicitly requested. |
 | `site-ipc-*` | TBD | Site industrial PCs | Reverse tunnel or VPN preferred | Planned | If ISP NAT prevents inbound ports, use VPN/overlay or VPS reverse tunnel. |
 | `vps-*` | TBD | Optional jump host / reverse tunnel relay | SSH with key-only auth | Planned | Restrict inbound ports and avoid storing bridge data on VPS unless explicitly approved. |
+
+## Guanbing Path Profiles
+
+Machine-specific project paths should be handled by source-controlled
+`config/path_profiles.json` plus optional untracked
+`config/path_profiles.local.json`, not by editing bridge profiles separately on
+each machine.
+
+Current expected behavior:
+
+- local development PC can keep data under `D:\` or `E:\` as needed;
+- `gb-133` should resolve production data roots such as `F:\管柄数据`,
+  `F:\芝山大桥数据`, and `F:\水仙花大桥数据`;
+- if a production host is renamed, the resolver can fall back to an existing
+  path match when hostname matching fails;
+- the MATLAB GUI shows the active path-profile decision on the run page so the
+  user can see whether a path came from profile resolution, a preset, or manual
+  input.
 
 ## Known Commands
 

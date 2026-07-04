@@ -142,8 +142,8 @@ classdef test_gui_state_services < matlab.unittest.TestCase
             tc.verifyEqual(pos(4), 860);
 
             heights = bms.gui.GuiLayout.runPageRowHeights();
-            tc.verifyEqual(numel(heights), 17);
-            tc.verifyEqual(heights{17}, '1x');
+            tc.verifyEqual(numel(heights), 19);
+            tc.verifyEqual(heights{19}, '1x');
         end
 
         function statusPanelBuildsPendingRows(tc)
