@@ -33,6 +33,12 @@ Accepted local changes in this snapshot:
 - Set shared plotting default `plot_common.gap_mode` to `connect`; explicit
   `break` remains supported when a config requests it.
 - Hongtang profile now defaults the low-frequency sync module on.
+- Hongtang lowfreq sync was hardened after live testing:
+  - fixed Jikang parameter selection to prefer physical `paraType=1` over
+    frequency/electrical channels;
+  - fixed request-error sanitization so credential query values are masked;
+  - pinned Hongtang Jikang device IDs in config to avoid an extra project-device
+    list call.
 - Added `+bms/+data/DonghuaExportNormalizer.m`.
   - Supports Donghua's older direct `日期\波形\*.csv` layout and the newer
     nested `日期\波形\GUID\*.csv` / `日期\特征值\GUID\*.csv` layout.
@@ -98,6 +104,15 @@ Remote Hongtang Q2 layout normalization on `192.168.100.133`:
 - Verification: moved `89` date folders; CSV total stayed `9675` before/after;
   wrapper `波形` folder no longer exists. Source data is still incomplete for
   `2026-04-02`, `2026-06-19`, and late June has reduced CSV counts.
+- Lowfreq workbook generated on 133:
+  `E:\洪塘大桥数据\2026年4-6月\lowfreq\data.xlsx`
+  - Manifest:
+    `E:\洪塘大桥数据\2026年4-6月\run_logs\hongtang_lowfreq_sync_20260704_183004.json`
+  - Q2 rows: `2184`; columns: `79`; mapped lowfreq columns: `78`.
+  - Filled Q2 value cells: `90033`; missing Q2 value cells: `80319`.
+  - Jikang samples fetched: `140214`; duplicate samples dropped: `11039`.
+  - Workbook time range after template+append: `2022-07-28 12:00:00` to
+    `2026-06-30 23:00:00`.
 
 New conversation bootstrap for Guanbing code work:
 

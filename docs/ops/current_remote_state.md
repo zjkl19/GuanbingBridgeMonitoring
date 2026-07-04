@@ -134,9 +134,13 @@ state and keep algorithm/report decisions in the normal project docs.
 - Scheduled tasks:
   - `Guanbing_Hongtang_Q2_20260701`
   - `Guanbing_Hongtang_Q2_Backup_Retry5_20260702` (disabled)
-- Known caveat: `lowfreq\data.xlsx` may be missing. If missing, continue
-  high-frequency and WIM validation, then wait for the low-frequency table before
-  supplementing that module.
+- Lowfreq workbook now exists:
+  `E:\洪塘大桥数据\2026年4-6月\lowfreq\data.xlsx`
+  - Generated through the MATLAB Jikang lowfreq sync module on 2026-07-04.
+  - Manifest:
+    `E:\洪塘大桥数据\2026年4-6月\run_logs\hongtang_lowfreq_sync_20260704_183004.json`
+  - Q2 workbook check: `2184` Q2 rows, `79` columns, `90033` non-missing Q2
+    value cells, `80319` missing Q2 value cells.
 - 2026-07-04 layout cleanup completed on 133 for:
   `E:\洪塘大桥数据\2026年4-6月`
   - Previous wrapper layout: `波形\<YYYY-MM-DD>\波形`
@@ -148,7 +152,7 @@ state and keep algorithm/report decisions in the normal project docs.
   - Missing/reduced source data remains a data-source issue, not a move issue:
     missing dates include `2026-04-02` and `2026-06-19`; `2026-06-28` to
     `2026-06-30` have only `43` CSV files each.
-- Lowfreq is Jikang workbook data and should be filled through the new MATLAB
+- Lowfreq is Jikang workbook data and should be filled through the MATLAB
   lowfreq sync module. WIM/称重 remains on the SQL pipeline.
 
 ## Disk Snapshot
@@ -162,16 +166,16 @@ Last observed on 133 at 2026-07-03 19:49 CST:
 
 ## Recent Code Sync Notes
 
-133 `F:\Guanbing` was last documented as synced with local `main` as of
-2026-07-03 19:52 CST. Recheck before new production runs because Hongtang Q2
-lowfreq-sync code was added locally on 2026-07-04.
+133 `F:\Guanbing` is synced with local `main` as of 2026-07-04 18:30 CST.
 
-- Remote HEAD: `c253115 Improve GUI testability and machine path profiles`
-- Remote tag at HEAD: `v1.7.13`
+- Remote HEAD: `36ba9f0 Harden Jikang lowfreq sync`
 - Remote `git status --short`: clean
-- Remote smoke test passed:
-  `matlab -batch "addpath(pwd); run_tests({'tests/test_path_profile_resolver.m','tests/test_main_gui_smoke.m'});"`
-  Result: `5 Passed, 0 Failed, 0 Incomplete`.
+- Remote focused tests passed:
+  - `tests/test_hongtang_lowfreq_sync_service.m`: `3 Passed`
+  - Earlier focused GUI/config tests on the same sync line:
+    `tests/test_hongtang_lowfreq_sync_service.m`, `tests/test_step_factory_split.m`,
+    `tests/test_main_gui_smoke.m`, `tests/test_config_migrator.m`, plus
+    `tests/test_prepare_plot_series_gap_mode.m`.
 
 Known accepted fixes from the July 2026 remote runs:
 
