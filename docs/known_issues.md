@@ -15,9 +15,11 @@ Donghua export packages can appear in two compatible layouts:
 - newer nested layout: `日期\波形\GUID\*.csv` and
   `日期\特征值\GUID\*.csv`.
 
-The pipeline now normalizes the newer layout by copying missing nested CSV files
-to the direct parent folder before legacy preprocessing. The original nested
-files are preserved. This is handled by
+The pipeline now normalizes the newer layout by moving missing nested CSV files
+to the direct parent folder before legacy preprocessing, so only one raw CSV
+copy is kept. If a canonical direct CSV already exists, identical nested
+duplicates are deleted; different-content conflicts are left untouched for
+manual review. This is handled by
 `+bms/+data/DonghuaExportNormalizer.m` and called from the rename/header/remap
 preprocessing scripts.
 

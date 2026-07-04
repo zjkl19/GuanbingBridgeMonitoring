@@ -44,9 +44,10 @@ for d = sel
         dir_in = fullfile(root_dir,day,sub{1});
         if ~exist(dir_in,'dir'), continue; end
         nestedSummary = bms.data.DonghuaExportNormalizer.normalizeFolder(dir_in);
-        if nestedSummary.copied > 0 || nestedSummary.collisions > 0
-            fprintf('东华嵌套导出兼容: %s/%s copy=%d, skip=%d, collision=%d\n', ...
-                day, sub{1}, nestedSummary.copied, nestedSummary.skipped_existing, nestedSummary.collisions);
+        if nestedSummary.moved > 0 || nestedSummary.deleted_duplicates > 0 || nestedSummary.collisions > 0
+            fprintf('东华嵌套导出兼容: %s/%s move=%d, delete_duplicate=%d, skip=%d, collision=%d\n', ...
+                day, sub{1}, nestedSummary.moved, nestedSummary.deleted_duplicates, ...
+                nestedSummary.skipped_existing, nestedSummary.collisions);
         end
         files = dir(fullfile(dir_in,'*.csv'));
         for k=1:numel(files)

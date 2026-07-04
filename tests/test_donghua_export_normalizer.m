@@ -22,7 +22,7 @@ classdef test_donghua_export_normalizer < matlab.unittest.TestCase
     end
 
     methods (Test)
-        function nestedDonghuaCsvIsCopiedToDirectFolder(tc)
+        function nestedDonghuaCsvIsMovedToDirectFolder(tc)
             folder = fullfile(tc.TempRoot, '2026-05-26', '波形');
             nested = fullfile(folder, '8482acee-ad71-49b6-81bc-b357f011a146');
             mkdir(nested);
@@ -32,17 +32,18 @@ classdef test_donghua_export_normalizer < matlab.unittest.TestCase
 
             dry = bms.data.DonghuaExportNormalizer.normalizeFolder(folder, 'DryRun', true);
             tc.verifyEqual(dry.source_count, 1);
-            tc.verifyEqual(dry.would_copy, 1);
+            tc.verifyEqual(dry.would_move, 1);
 
             summary = bms.data.DonghuaExportNormalizer.normalizeFolder(folder);
 
-            tc.verifyEqual(summary.copied, 1);
+            tc.verifyEqual(summary.moved, 1);
             tc.verifyTrue(isfile(fullfile(folder, canonicalName)));
             tc.verifyFalse(isfile(fullfile(folder, name)));
-            tc.verifyTrue(isfile(fullfile(nested, name)));
+            tc.verifyFalse(isfile(fullfile(nested, name)));
+            tc.verifyFalse(isfolder(nested));
         end
 
-        function canonicalExistingFilePreventsRepeatedCopy(tc)
+        function canonicalExistingFileDeletesRepeatedNestedDuplicate(tc)
             folder = fullfile(tc.TempRoot, '2026-05-27', '特征值');
             nested = fullfile(folder, '62fcbff5-4992-4044-ac62-9f0684c55fb1');
             mkdir(nested);
@@ -52,9 +53,29 @@ classdef test_donghua_export_normalizer < matlab.unittest.TestCase
 
             summary = bms.data.DonghuaExportNormalizer.normalizeFolder(folder);
 
-            tc.verifyEqual(summary.copied, 0);
+            tc.verifyEqual(summary.moved, 0);
+            tc.verifyEqual(summary.deleted_duplicates, 1);
             tc.verifyEqual(summary.skipped_existing, 1);
             tc.verifyFalse(isfile(fullfile(folder, rawName)));
+            tc.verifyFalse(isfile(fullfile(nested, rawName)));
+        end
+
+        function conflictingExistingFileIsLeftForReview(tc)
+            folder = fullfile(tc.TempRoot, '2026-05-27', '特征值');
+            nested = fullfile(folder, '62fcbff5-4992-4044-ac62-9f0684c55fb1');
+            mkdir(nested);
+            rawName = 'G05基准点1X_原始数据_20260527.csv';
+            canonicalName = 'G05基准点1X.csv';
+            tc.writeFile(fullfile(nested, rawName), "time,value\n2026-05-27 00:00:00.000,1\n");
+            tc.writeFile(fullfile(folder, canonicalName), "time,value\n2026-05-27 00:00:00.000,2\n");
+
+            summary = bms.data.DonghuaExportNormalizer.normalizeFolder(folder);
+
+            tc.verifyEqual(summary.moved, 0);
+            tc.verifyEqual(summary.deleted_duplicates, 0);
+            tc.verifyEqual(summary.collisions, 1);
+            tc.verifyTrue(isfile(fullfile(folder, canonicalName)));
+            tc.verifyTrue(isfile(fullfile(nested, rawName)));
         end
 
         function directRawDonghuaNameIsCanonicalized(tc)
@@ -90,16 +111,20 @@ classdef test_donghua_export_normalizer < matlab.unittest.TestCase
             batch_rename_csv(tc.TempRoot, '2026-05-28', '2026-05-28', true);
 
             tc.verifyTrue(isfile(fullfile(folder, 'G05基准点1X.csv')));
-            tc.verifyTrue(isfile(fullfile(nested, 'G05基准点1X_原始数据_20260528.csv')));
+            tc.verifyFalse(isfile(fullfile(nested, 'G05基准点1X_原始数据_20260528.csv')));
         end
     end
 
     methods (Access = private)
-        function writeFile(~, path)
+        function writeFile(~, path, content)
+            if nargin < 3
+                content = "time,value\n2026-05-26 00:00:00.000,1\n";
+            end
             fid = fopen(path, 'w');
             assert(fid > 0);
             cleaner = onCleanup(@() fclose(fid));
-            fprintf(fid, 'time,value\n2026-05-26 00:00:00.000,1\n');
+            text = strrep(char(content), '\n', newline);
+            fprintf(fid, '%s', text);
             delete(cleaner);
         end
     end

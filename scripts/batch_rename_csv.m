@@ -38,7 +38,7 @@ for i = 1:numel(sel)
         if exist(dir_path, 'dir')
             nestedSummary = bms.data.DonghuaExportNormalizer.normalizeFolder(dir_path, 'DryRun', true);
             files = dir(fullfile(dir_path, '*.csv'));
-            total_files = total_files + numel(files) + nestedSummary.would_copy;
+            total_files = total_files + numel(files) + nestedSummary.would_move;
         end
     end
 end
@@ -72,9 +72,9 @@ for i = 1:numel(sel)
         end
         fprintf('处理 %s / %s 文件夹\n', day, sub{1});
         nestedSummary = bms.data.DonghuaExportNormalizer.normalizeFolder(sub_dir);
-        if nestedSummary.copied > 0 || nestedSummary.collisions > 0
-            fprintf('东华嵌套导出兼容: copy=%d, skip=%d, collision=%d\n', ...
-                nestedSummary.copied, nestedSummary.skipped_existing, nestedSummary.collisions);
+        if nestedSummary.moved > 0 || nestedSummary.deleted_duplicates > 0 || nestedSummary.collisions > 0
+            fprintf('东华嵌套导出兼容: move=%d, delete_duplicate=%d, skip=%d, collision=%d\n', ...
+                nestedSummary.moved, nestedSummary.deleted_duplicates, nestedSummary.skipped_existing, nestedSummary.collisions);
         end
         files = dir(fullfile(sub_dir, '*.csv'));
         for k = 1:numel(files)

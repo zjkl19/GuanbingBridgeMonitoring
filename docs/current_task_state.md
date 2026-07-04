@@ -24,10 +24,10 @@ Accepted local changes in this snapshot:
 - Added `+bms/+data/DonghuaExportNormalizer.m`.
   - Supports Donghua's older direct `日期\波形\*.csv` layout and the newer
     nested `日期\波形\GUID\*.csv` / `日期\特征值\GUID\*.csv` layout.
-  - Copies missing nested CSV files up to the legacy direct folder before the
-    existing preprocessing scripts run.
-  - Canonicalizes `_原始数据...` and known mojibake variants while preserving
-    the original nested files.
+  - Moves missing nested CSV files up to the legacy direct folder before the
+    existing preprocessing scripts run, so only one raw CSV copy is kept.
+  - Canonicalizes `_原始数据...` and known mojibake variants; identical nested
+    duplicates are deleted and different-content conflicts are left for review.
 - Wired the normalizer into:
   - `scripts/batch_rename_csv.m`
   - `scripts/batch_remove_header.m`

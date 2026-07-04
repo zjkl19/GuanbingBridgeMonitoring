@@ -96,8 +96,8 @@ state and keep algorithm/report decisions in the normal project docs.
 - Root cause of the earlier "only one day processed" symptom: Donghua's newer
   export package used nested `波形\GUID\*.csv` and `特征值\GUID\*.csv`
   folders. The legacy preprocessing chain only scanned direct CSV files. The
-  normalizer now stages nested CSVs into the legacy direct folders while leaving
-  the original nested files intact.
+  normalizer now moves nested CSVs into the legacy direct folders and deletes
+  identical nested duplicates, so only one raw CSV copy is kept.
 - Verified day coverage after the fix:
   - `2026-05-26`: 波形/特征值 direct CSVs present.
   - `2026-05-27`: 波形/特征值 direct CSVs present.
