@@ -102,6 +102,13 @@ state and keep algorithm/report decisions in the normal project docs.
   - `2026-05-26`: 波形/特征值 direct CSVs present.
   - `2026-05-27`: 波形/特征值 direct CSVs present.
   - `2026-05-28`: 波形/特征值 direct CSVs present.
+- Duplicate nested CSV cleanup completed on 2026-07-04 for
+  `F:\管柄数据\2026年6月(已算)`.
+  - Cleanup run directory:
+    `F:\Guanbing\run_logs\remote_tasks\donghua_dedupe_20260704`
+  - Deleted nested CSVs: `352`, manifest bytes: `32,595,017,703`.
+  - Post-cleanup counts for `2026-05-26` to `2026-05-28`:
+    `波形` and `特征值` each have `direct=88`, `nested=0`.
 - Known caveat: this already-extracted-CSV run still reports ZIP precheck/unzip
   failures in the manifest because no ZIP packages were present. Downstream
   analysis and report generation completed. See `docs/known_issues.md`.
