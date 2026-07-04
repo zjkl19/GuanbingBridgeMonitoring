@@ -14,7 +14,8 @@ classdef test_hongtang_lowfreq_sync_service < matlab.unittest.TestCase
                 localSensor('dev-a', 'Z11-1', 'pz', 1), ...
                 localSensor('dev-a', 'Q1', 'pqz', 1), ...
                 localSensor('dev-a', 'Q1', 'pqh', 2), ...
-                localSensor('dev-b', 'SB-1', 'psb', 1)];
+                localSensorWithType('dev-b', 'SB-1', 'freq', 1, 0), ...
+                localSensorWithType('dev-b', 'SB-1', 'psb', 1, 1)];
 
             map = bms.data.HongtangLowFreqSyncService.buildColumnMap(headers, sensors, opts);
 
@@ -43,8 +44,12 @@ classdef test_hongtang_lowfreq_sync_service < matlab.unittest.TestCase
 end
 
 function s = localSensor(deviceId, baseName, paraId, paramNum)
+s = localSensorWithType(deviceId, baseName, paraId, paramNum, 1);
+end
+
+function s = localSensorWithType(deviceId, baseName, paraId, paramNum, paraType)
 s = struct('device_id', deviceId, 'base_name', baseName, 'para_id', paraId, ...
-    'param_num', paramNum, 'para_type', 1, 'unit', '', 'unit_name', '');
+    'param_num', paramNum, 'para_type', paraType, 'unit', '', 'unit_name', '');
 end
 
 function s = localSample(paraId, collectTime, systemTime, value)

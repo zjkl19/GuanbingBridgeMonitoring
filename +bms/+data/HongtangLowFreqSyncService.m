@@ -327,7 +327,7 @@ classdef HongtangLowFreqSyncService
 
         function rule = columnRule(header, options)
             h = char(string(header));
-            rule = struct('base_name', h, 'param_num', options.primary_param_num, ...
+            rule = struct('base_name', h, 'para_type', 1, 'param_num', options.primary_param_num, ...
                 'kind', 'strain', 'round_digits', options.round_digits.strain);
             if strcmpi(strtrim(h), options.time_column)
                 rule.base_name = '';
@@ -368,8 +368,14 @@ classdef HongtangLowFreqSyncService
                 return;
             end
             exact = candidates;
+            if isfield(rule, 'para_type') && ~isnan(rule.para_type)
+                byType = candidates([candidates.para_type] == rule.para_type);
+                if ~isempty(byType)
+                    exact = byType;
+                end
+            end
             if ~isnan(rule.param_num)
-                byParam = candidates([candidates.param_num] == rule.param_num);
+                byParam = exact([exact.param_num] == rule.param_num);
                 if ~isempty(byParam)
                     exact = byParam;
                 end
