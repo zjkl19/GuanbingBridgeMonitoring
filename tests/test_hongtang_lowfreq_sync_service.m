@@ -40,6 +40,19 @@ classdef test_hongtang_lowfreq_sync_service < matlab.unittest.TestCase
             tc.verifyEqual(numel(records), 2);
             tc.verifyEqual(records(idx).value, 2.2);
         end
+
+        function jikangErrorsMaskCredentialQueryValues(tc)
+            msg = 'request failed: http://host/api?username=user1&password=secret&token=abc&projectId=1218';
+
+            masked = bms.data.JikangClient.sanitizeMessage(msg);
+
+            tc.verifyFalse(contains(masked, 'user1'));
+            tc.verifyFalse(contains(masked, 'secret'));
+            tc.verifyFalse(contains(masked, 'abc'));
+            tc.verifyTrue(contains(masked, 'username=***'));
+            tc.verifyTrue(contains(masked, 'password=***'));
+            tc.verifyTrue(contains(masked, 'token=***'));
+        end
     end
 end
 

@@ -156,7 +156,8 @@ classdef JikangClient
             try
                 payload = webread(url, args{:}, opts);
             catch ME
-                error('JikangClient:RequestFailed', 'Jikang request failed: %s', ME.message);
+                error('JikangClient:RequestFailed', 'Jikang request failed: %s', ...
+                    bms.data.JikangClient.sanitizeMessage(ME.message));
             end
             if ~isstruct(payload)
                 error('JikangClient:InvalidResponse', 'Jikang response is not a JSON object.');
@@ -235,6 +236,11 @@ classdef JikangClient
                 catch
                 end
             end
+        end
+
+        function text = sanitizeMessage(text)
+            text = char(string(text));
+            text = regexprep(text, '([?&](?:username|password|token)=)[^&\s。"''<>]+', '$1***', 'ignorecase');
         end
     end
 end

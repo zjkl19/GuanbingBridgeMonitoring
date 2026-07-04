@@ -40,7 +40,10 @@
     "template_file": "../2026年1-3月/lowfreq/data.xlsx",
     "credentials_file": "config/jikang_credentials.local.json",
     "project_id": "1218",
-    "device_ids": [],
+    "device_ids": [
+      "000000025f9a",
+      "0000000261ae"
+    ],
     "fetch_chunk_days": 1,
     "request_timeout_sec": 60,
     "max_pages": 10000,
