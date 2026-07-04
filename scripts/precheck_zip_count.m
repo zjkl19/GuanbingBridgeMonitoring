@@ -37,7 +37,7 @@ for i = 1:numel(dateDirs)
 
     for sub = {'波形','特征值'}
         subDirName = sub{1};
-        zfiles = dir(fullfile(root_dir, day, subDirName, '*.zip'));
+        zfiles = dir(fullfile(root_dir, day, subDirName, '**', '*.zip'));
         cnt    = numel(zfiles);
 
         if cnt ~= 1        % 0 个或 >1 个都视为异常
