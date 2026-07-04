@@ -9,7 +9,8 @@ This file is the handoff point for long Codex sessions. New conversations should
 ## 2026-07-04 Latest Engineering Snapshot
 
 This is the current recovery point for the Donghua export compatibility,
-GUI/path-profile visibility, and remote production-state cleanup work.
+Hongtang Q2 recovery, GUI/path-profile visibility, and remote production-state
+cleanup work.
 
 Current repository:
 
@@ -21,6 +22,17 @@ Current repository:
 
 Accepted local changes in this snapshot:
 
+- Added Hongtang Q2 low-frequency sync support:
+  - `+bms/+data/JikangClient.m`
+  - `+bms/+data/HongtangLowFreqSyncService.m`
+  - module key `lowfreq_sync`, GUI option `doLowfreqSync`, preset field
+    `lowfreq_sync`
+  - output remains the single workbook `lowfreq\data.xlsx`; credentials must
+    come from environment variables or ignored `config/jikang_credentials.local.json`.
+  - WIM/称重 remains on the existing SQL pipeline; do not SQL-ify lowfreq.
+- Set shared plotting default `plot_common.gap_mode` to `connect`; explicit
+  `break` remains supported when a config requests it.
+- Hongtang profile now defaults the low-frequency sync module on.
 - Added `+bms/+data/DonghuaExportNormalizer.m`.
   - Supports Donghua's older direct `日期\波形\*.csv` layout and the newer
     nested `日期\波形\GUID\*.csv` / `日期\特征值\GUID\*.csv` layout.
@@ -47,11 +59,17 @@ Accepted local changes in this snapshot:
   - `tests/test_donghua_export_normalizer.m`
   - `tests/test_main_gui_smoke.m`
   - `tests/test_gui_state_services.m`
-  - `tests/test_path_profile_resolver.m`
+- `tests/test_path_profile_resolver.m`
+- `tests/test_hongtang_lowfreq_sync_service.m`
 
 Latest local test evidence before committing this snapshot:
 
 - `git diff --check`: passed, only line-ending warnings.
+- Focused Hongtang/GUI/config tests passed on 2026-07-04:
+  `tests/test_hongtang_lowfreq_sync_service.m`,
+  `tests/test_step_factory_split.m`, `tests/test_main_gui_smoke.m`,
+  `tests/test_config_migrator.m` plus script
+  `tests/test_prepare_plot_series_gap_mode.m`.
 - Full MATLAB default suite was previously green at `166 Passed, 0 Failed, 0 Incomplete`.
 - Focused local/remote GUI and normalizer smoke tests should be rerun after any
   follow-up edit touching these files.
@@ -69,6 +87,17 @@ Remote Guanbing 2026-06 verification on `192.168.100.133`:
   package for the period, the run manifest can still show ZIP precheck/unzip as
   failed even though the downstream analysis and report are valid. Track this in
   `docs/known_issues.md`.
+
+Remote Hongtang Q2 layout normalization on `192.168.100.133`:
+
+- Data root: `E:\洪塘大桥数据\2026年4-6月`
+- Moved misleading wrapper layout `波形\<YYYY-MM-DD>\波形` up to standard
+  `<YYYY-MM-DD>\波形` in place, without duplicating raw CSV data.
+- Move run directory:
+  `E:\洪塘大桥数据\2026年4-6月\run_logs\layout_move_20260704_175616`
+- Verification: moved `89` date folders; CSV total stayed `9675` before/after;
+  wrapper `波形` folder no longer exists. Source data is still incomplete for
+  `2026-04-02`, `2026-06-19`, and late June has reduced CSV counts.
 
 New conversation bootstrap for Guanbing code work:
 

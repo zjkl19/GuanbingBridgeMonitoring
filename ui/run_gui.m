@@ -89,6 +89,7 @@ function varargout = run_gui(varargin)
     cbRename   = uicheckbox(gl,'Text','批量重命名CSV','Value',false); cbRename.Layout.Row  =4; cbRename.Layout.Column  =3;
     cbRmHeader = uicheckbox(gl,'Text','去除表头','Value',false);      cbRmHeader.Layout.Row=4; cbRmHeader.Layout.Column=4;
     cbResample = uicheckbox(gl,'Text','重采样','Value',false);        cbResample.Layout.Row=5; cbResample.Layout.Column=1;
+    cbLowfreqSync = uicheckbox(gl,'Text','基康低频同步','Value',false); cbLowfreqSync.Layout.Row=5; cbLowfreqSync.Layout.Column=2;
 
     cbSelectAll = uicheckbox(gl,'Text','全选/全不选','Value',false,'FontWeight','bold','ValueChangedFcn',@(cb,~) onSelectAll(cb));
     cbSelectAll.Layout.Row=5; cbSelectAll.Layout.Column=4;
@@ -241,6 +242,7 @@ function varargout = run_gui(varargin)
                 'clearBtn', clearBtn, ...
                 'refreshBtn', refreshBtn, ...
                 'configCheckBtn', configCheckBtn, ...
+                'lowfreqSync', cbLowfreqSync, ...
                 'pathProfileNote', pathProfileNote, ...
                 'progressLabel', progressLabel, ...
                 'progressTrack', progressTrack, ...
@@ -257,6 +259,7 @@ function varargout = run_gui(varargin)
         controls.doRenameCsv = cbRename;
         controls.doRemoveHeader = cbRmHeader;
         controls.doResample = cbResample;
+        controls.doLowfreqSync = cbLowfreqSync;
         controls.doTemp = cbTemp;
         controls.doHumidity = cbHum;
         controls.doRainfall = cbRainfall;

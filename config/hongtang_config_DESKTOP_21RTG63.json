@@ -33,6 +33,25 @@
       ]
     }
   },
+  "lowfreq_sync": {
+    "enabled": true,
+    "output_file": "lowfreq/data.xlsx",
+    "template_file": "../2026年1-3月/lowfreq/data.xlsx",
+    "credentials_file": "config/jikang_credentials.local.json",
+    "project_id": "1218",
+    "device_ids": [],
+    "fetch_chunk_days": 1,
+    "request_timeout_sec": 60,
+    "max_pages": 10000,
+    "time_column": "SamplingTime",
+    "missing_token": "--",
+    "manifest_dir": "run_logs",
+    "round_digits": {
+      "tilt": 3,
+      "strain": 3,
+      "displacement": 4
+    }
+  },
   "defaults": {
     "header_marker": "[绝对时间]",
     "deflection": {

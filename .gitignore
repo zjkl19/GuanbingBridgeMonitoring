@@ -71,6 +71,7 @@ config/*_backup_*.json
 config/default_config_production0310.json
 config/default_config_g.json
 config/path_profiles.local.json
+config/jikang_credentials.local.json
 scripts/build_online_plan_xlsx.py
 
 # Report source policy: track only current official templates.

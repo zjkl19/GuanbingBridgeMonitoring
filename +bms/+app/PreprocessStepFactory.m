@@ -2,7 +2,8 @@ classdef PreprocessStepFactory
     %PREPROCESSSTEPFACTORY Builds preprocessing steps for the legacy plan.
 
     methods (Static)
-        function plan = append(plan, root, startDate, endDate, opts)
+        function plan = append(plan, root, startDate, endDate, opts, cfg)
+            if nargin < 6, cfg = struct(); end
             L = @(key) bms.module.ModuleRegistry.fromKey(key).isEnabled(opts);
             D = @bms.app.StepDefinition.fromKey;
 
@@ -21,6 +22,10 @@ classdef PreprocessStepFactory
             if L('resample')
                 plan = plan.addRun(D('resample'), @() batch_resample_data_parallel( ...
                     root, startDate, endDate, 100, true, 'batch_resample_data_parallel_config.csv'));
+            end
+            if L('lowfreq_sync')
+                plan = plan.addRun(D('lowfreq_sync'), ...
+                    @() bms.data.HongtangLowFreqSyncService.run(root, startDate, endDate, cfg));
             end
         end
     end

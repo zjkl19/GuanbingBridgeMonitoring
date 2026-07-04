@@ -127,8 +127,7 @@ state and keep algorithm/report decisions in the normal project docs.
 
 ### Hongtang Bridge 2026 Q2 Pipeline
 
-- Status: not current focus; previous Q2 main task ended with non-zero result
-  and large backup retry was disabled to avoid office-network pressure.
+- Status: recovery in progress.
 - Run directory:
   `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_20260701`
 - Status file: `hongtang_q2_status.json`
@@ -138,6 +137,19 @@ state and keep algorithm/report decisions in the normal project docs.
 - Known caveat: `lowfreq\data.xlsx` may be missing. If missing, continue
   high-frequency and WIM validation, then wait for the low-frequency table before
   supplementing that module.
+- 2026-07-04 layout cleanup completed on 133 for:
+  `E:\洪塘大桥数据\2026年4-6月`
+  - Previous wrapper layout: `波形\<YYYY-MM-DD>\波形`
+  - Current layout: `<YYYY-MM-DD>\波形`
+  - Move manifest:
+    `E:\洪塘大桥数据\2026年4-6月\run_logs\layout_move_20260704_175616\move_result.json`
+  - Moved `89` date folders; CSV total remained `9675`; wrapper `波形` folder
+    was removed after it became empty.
+  - Missing/reduced source data remains a data-source issue, not a move issue:
+    missing dates include `2026-04-02` and `2026-06-19`; `2026-06-28` to
+    `2026-06-30` have only `43` CSV files each.
+- Lowfreq is Jikang workbook data and should be filled through the new MATLAB
+  lowfreq sync module. WIM/称重 remains on the SQL pipeline.
 
 ## Disk Snapshot
 
@@ -150,7 +162,9 @@ Last observed on 133 at 2026-07-03 19:49 CST:
 
 ## Recent Code Sync Notes
 
-133 `F:\Guanbing` is synced with local `main` as of 2026-07-03 19:52 CST.
+133 `F:\Guanbing` was last documented as synced with local `main` as of
+2026-07-03 19:52 CST. Recheck before new production runs because Hongtang Q2
+lowfreq-sync code was added locally on 2026-07-04.
 
 - Remote HEAD: `c253115 Improve GUI testability and machine path profiles`
 - Remote tag at HEAD: `v1.7.13`

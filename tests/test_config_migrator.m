@@ -14,6 +14,7 @@ classdef test_config_migrator < matlab.unittest.TestCase
             tc.verifyTrue(isstruct(cfg.defaults));
             tc.verifyTrue(isstruct(cfg.per_point));
             tc.verifyFalse(cfg.plot_common.append_timestamp);
+            tc.verifyEqual(cfg.plot_common.gap_mode, 'connect');
             tc.verifyEqual(cfg.plot_common.gap_break_factor, 5);
             tc.verifyFalse(cfg.gui.show_warnings);
         end

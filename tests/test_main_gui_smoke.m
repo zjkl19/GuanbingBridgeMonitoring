@@ -34,6 +34,7 @@ classdef test_main_gui_smoke < matlab.unittest.TestCase
             tc.verifyTrue(contains(ud.controls.runBtn.Text, 'Ctrl+R'));
             tc.verifyTrue(contains(ud.controls.clearBtn.Text, 'Ctrl+K'));
             tc.verifyEqual(char(ud.controls.stopBtn.Enable), 'off');
+            tc.verifyTrue(isfield(ud.controls, 'lowfreqSync'));
             tc.verifyTrue(isfield(ud.controls, 'pathProfileNote'));
             tc.verifyTrue(contains(ud.controls.pathProfileNote.Text, 'Path profile'));
             tc.verifyTrue(isfield(ud.controls, 'progressLabel'));

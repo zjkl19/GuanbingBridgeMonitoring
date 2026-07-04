@@ -5,6 +5,8 @@ repoRoot = fileparts(fileparts(mfilename('fullpath')));
 addpath(fullfile(repoRoot, 'pipeline'));
 
 plot_runtime_settings('reset');
+s0 = plot_runtime_settings('get');
+assert(strcmp(s0.gap_mode, 'connect'), 'default gap mode should connect points');
 
 x = datetime(2026, 1, 1, 0, [0 1 10 11], 0).';
 y = [1; 2; 3; 4];

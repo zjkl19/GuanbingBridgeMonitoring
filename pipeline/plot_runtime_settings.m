@@ -38,7 +38,7 @@ function settings = default_settings()
         'lightweight_fig', true, ...
         'fig_max_points', 50000, ...
         'append_timestamp', false, ...
-        'gap_mode', 'break', ...
+        'gap_mode', 'connect', ...
         'gap_break_factor', 5);
 end
 
@@ -71,11 +71,11 @@ function merged = merge_settings(base, values)
         merged.append_timestamp = logical(merged.append_timestamp);
     end
     if ~isfield(merged, 'gap_mode') || isempty(merged.gap_mode)
-        merged.gap_mode = 'break';
+        merged.gap_mode = 'connect';
     else
         merged.gap_mode = lower(char(string(merged.gap_mode)));
         if ~ismember(merged.gap_mode, {'break','connect'})
-            merged.gap_mode = 'break';
+            merged.gap_mode = 'connect';
         end
     end
     if ~isfield(merged, 'gap_break_factor') || isempty(merged.gap_break_factor) || ...
