@@ -137,7 +137,8 @@ classdef RunPreflight
                         result = bms.app.RunPreflight.addModuleConfigWarning(result, ...
                             sprintf('%s missing subfolders.%s', spec.Key, spec.SubfolderKey));
                     elseif ~isempty(subfolder)
-                        folders = dataSource.candidateDirs(subfolder, startDate, endDate);
+                        sensorType = bms.data.DataIndex.sensorTypeForPoint(spec.Key, '');
+                        folders = bms.data.DataIndex.candidateDirs(dataSource, subfolder, startDate, endDate, cfg, sensorType);
                         if isempty(folders) && ~strcmp(spec.SubfolderKey, 'strain')
                             result = bms.app.RunPreflight.addModuleConfigWarning(result, ...
                                 sprintf('%s no input directory found for subfolder "%s"', spec.Key, subfolder));
