@@ -33,7 +33,7 @@ Accepted design for large high-frequency datasets:
   dated folders under period roots.
 - Durable operating note: `docs/mat_only_timeseries_source.md`.
 
-Latest local validation before remote sync:
+Latest local and remote validation:
 
 - `git diff --check`: passed with only line-ending warnings.
 - MATLAB:
@@ -46,6 +46,14 @@ Latest local validation before remote sync:
   `E:\洪塘大桥数据\2026年1-3月\2026-01-01\波形\cache\CS1_148.mat`
   was read through `load_timeseries_range`, and
   `bms.analyzer.DynamicSeriesService.collectRecord` produced valid RMS output.
+- 133 validation ran after fast-forwarding to code commit `c77ba32` and fetching
+  tag `v1.7.15`.
+- 133 focused MATLAB test passed:
+  `tests/test_time_series_loader.m`.
+- 133 real Hongtang Q1 MAT-only smoke passed for:
+  `E:\洪塘大桥数据\2026年1-3月\2026-01-01\波形\cache\CS1_148.mat`.
+- 133 real Hongtang Q2 CSV + cache smoke passed for:
+  `E:\洪塘大桥数据\2026年4-6月\2026-04-01\波形\CS1_148.csv`.
 
 ## 2026-07-05 Latest Engineering Snapshot
 

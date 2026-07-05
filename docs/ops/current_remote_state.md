@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-05 11:30 CST
+Last updated: 2026-07-05 15:30 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -185,13 +185,14 @@ Last observed on 133 at 2026-07-03 19:49 CST:
 
 ## Recent Code Sync Notes
 
-133 `F:\Guanbing` is synced with `origin/main` at the `v1.7.14` release line as
-of 2026-07-05 11:50 CST.
+133 `F:\Guanbing` is synced with `origin/main` at the `v1.7.15` release line as
+of 2026-07-05 15:30 CST.
 
-- Release commit: `292d38a Release v1.7.14 Hongtang Q2 hardening`
-- Release tag: `v1.7.14`
-- Remote `main` has been cleanly fast-forwarded through the docs-only sync
-  commits after the release commit.
+- Release commit: `c77ba32 Add MAT-only time series source support`
+- Release tag: `v1.7.15`
+- The release tag points at the code change. Later `main` commits may contain
+  state-document updates only.
+- Remote `main` has been cleanly fast-forwarded to this release line.
 - Remote `git status --short --branch`: clean, `main...origin/main`
 - Before the fast-forward pull, the duplicate dirty worktree was backed up as
   `stash@{0}: pre-v1.7.14 duplicate Hongtang Q2 worktree backup`.
@@ -203,6 +204,14 @@ of 2026-07-05 11:50 CST.
   - real Word COM smoke test on a copied DOCX returned `WORD_UPDATE_WARNINGS=[]`.
   - earlier focused MATLAB tests for lowfreq, GUI/config, gap mode and dynamic
     services passed on this recovery line.
+  - `matlab -batch` focused MATLAB test passed:
+    `tests/test_time_series_loader.m`.
+  - Hongtang Q1 MAT-only smoke passed on 133:
+    `E:\洪塘大桥数据\2026年1-3月\2026-01-01\波形\cache\CS1_148.mat`
+    was read through `load_timeseries_range` and dynamic RMS collection.
+  - Hongtang Q2 CSV + cache smoke passed on 133:
+    `E:\洪塘大桥数据\2026年4-6月\2026-04-01\波形\CS1_148.csv`
+    was read through the default `auto` source mode.
 
 Known accepted fixes from the July 2026 remote runs:
 
