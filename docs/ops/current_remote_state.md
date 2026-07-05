@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-06 00:45 CST
+Last updated: 2026-07-06 02:05 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -21,16 +21,29 @@ state and keep algorithm/report decisions in the normal project docs.
 
 ### Hongtang Bridge Scheduled Export Recovery
 
-- Status: completed on 2026-07-06 00:37 CST.
-- Scope recovered: original PHM export tasks for 2026-06-28 to 2026-07-03,
+- Status: completed on 2026-07-06 02:01 CST.
+- Scope recovered: scheduled Donghua exports for 2026-06-28 to 2026-07-05,
   both `Wave_Export_Task_*` and `Eigen_Export_Task_*`.
+  - 2026-06-28 to 2026-07-03 had original PHM task rows and DataCenter
+    records.
+  - 2026-07-04 and 2026-07-05 had DataCenter timing records and incomplete
+    direct CSV folders but no matching PHM `et_system_task` rows; they were
+    recovered by updating the original DataCenter records.
 - Formal output root:
   `H:\DHtest\定时导出\<date>\波形` and
   `H:\DHtest\定时导出\<date>\特征值`.
 - Final validation:
   - Each recovered date has one wave zip, one eigen zip, and one
     `condition.param` in each output folder.
-  - All 12 original PHM task records have `ExecuteStatus=1`,
+  - All 12 original PHM task records from 2026-06-28 to 2026-07-03 have
+    `ExecuteStatus=1`, `ExecuteProgress=1`, and paths that exist on disk.
+  - All 16 matching DataCenter export records from 2026-06-28 to 2026-07-05
+    have `ExportStatus=1`, `ExportingProgress=1`, and paths that exist on disk.
+  - All recovered zips have `139` entries and include the previously missing
+    key patterns: `CX3`, wind speed/direction, tower wind speed/direction, and
+    sanitized point names for point IDs 83 and 84.
+- Initial 2026-06-28 to 2026-07-03 validation:
+  - All 12 original PHM task records had `ExecuteStatus=1`,
     `ExecuteProgress=1`, and paths that exist on disk.
   - All 12 matching DataCenter export records have `ExportStatus=1`,
     `ExportingProgress=1`, and paths that exist on disk.
@@ -51,14 +64,20 @@ state and keep algorithm/report decisions in the normal project docs.
 - Recovery log and script on 126:
   - `H:\DHtest\codex_recovery_logs\recover_failed_exports_20260705_220106.log`
   - `H:\DHtest\codex_recovery_logs\recover_failed_exports_20260705_215338_bom.ps1`
+  - `H:\DHtest\codex_recovery_logs\recover_0704_0705_exports_20260706_005603.log`
+  - `H:\DHtest\codex_recovery_logs\recover_0704_0705_exports_20260706.ps1`
 - Failed pre-recovery output folders were moved to:
   `H:\DHtest\定时导出_codex_backup\20260705_220106`.
+- Incomplete 2026-07-04 and 2026-07-05 folders were moved to:
+  `H:\DHtest\定时导出_codex_backup\0704_0705_20260706_005603`.
 - Cleanup already done: removed the one-shot Windows scheduled task
-  `Codex_DHRecover_20260705_2158` and removed temporary Codex PHM UI task rows.
-  Recovery logs and backup folders were retained.
-- As of 2026-07-06 00:45 CST, PHM had no export task records for
-  2026-07-04, 2026-07-05, or 2026-07-06. The latest original export tasks in
-  PHM are the recovered 2026-07-03 wave/eigen tasks.
+  `Codex_DHRecover_20260705_2158`, removed one-shot task
+  `Codex_DHRecover_0704_0705_20260706`, and removed temporary Codex PHM UI
+  task rows. Recovery logs and backup folders were retained.
+- As of 2026-07-06 02:05 CST, the next scheduled automatic run after the point
+  rename had not occurred yet. Check the 2026-07-06 09:00 run before escalating
+  to Donghua; if it produces 139-entry wave/eigen outputs, vendor support is not
+  needed for this incident.
 
 ## Office PC DESKTOP-500FVB6
 
