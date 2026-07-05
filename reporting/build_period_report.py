@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
+import subprocess
+import tempfile
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -314,6 +318,74 @@ def _full_period_text(start_date: date, end_date: date) -> str:
     return _format_dt_range(datetime.combine(start_date, datetime.min.time()), datetime.combine(end_date, datetime.max.time()))
 
 
+def period_report_title(start_date: date, end_date: date) -> str:
+    if start_date.year == end_date.year:
+        quarter_by_month = {
+            (1, 3): "第一季度报告",
+            (4, 6): "第二季度报告",
+            (7, 9): "第三季度报告",
+            (10, 12): "第四季度报告",
+        }
+        title = quarter_by_month.get((start_date.month, end_date.month))
+        if title and start_date.day == 1:
+            return title
+    return "周期报告"
+
+
+def safe_filename_text(text: str) -> str:
+    text = re.sub(r'[<>:"/\\|?*\r\n\t]+', "_", str(text)).strip(" ._")
+    return text or "周期"
+
+
+def period_report_filename(period_label: str, timestamp: str) -> str:
+    label = safe_filename_text(period_label)
+    return f"洪塘大桥健康监测{label}周期报_{timestamp}.docx"
+
+
+def apply_period_cover_title(doc: Document, start_date: date, end_date: date) -> None:
+    title = period_report_title(start_date, end_date)
+    pattern = re.compile(r"^第[一二三四]季度报告$")
+    for para in doc.paragraphs:
+        if pattern.match(para.text.strip()):
+            replace_paragraph_text(para, title)
+
+
+def apply_period_toc_months(doc: Document, start_date: date, end_date: date) -> None:
+    labels = []
+    for item in months_between(start_date, end_date):
+        year = int(item[:4])
+        month = int(item[4:])
+        labels.append(f"{year}年{month}月交通状况监测")
+    if not labels:
+        return
+
+    toc_pattern = re.compile(r"^(4\.1\.\d+\s+)\d{4}年\d{1,2}月交通状况监测(.*)$")
+    label_idx = 0
+    for para in doc.paragraphs:
+        match = toc_pattern.match(para.text.strip())
+        if not match:
+            continue
+        if label_idx >= len(labels):
+            break
+        replace_paragraph_text(para, f"{match.group(1)}{labels[label_idx]}{match.group(2)}")
+        label_idx += 1
+
+
+def apply_period_maintenance_text(doc: Document) -> None:
+    stale_fragments = (
+        "2026年2月4日对断电恢复后的称重系统进行调试",
+        "2026年3月9日，对监测传感器、设备进行检查与维护",
+    )
+    replacement = (
+        "本周期硬件维护情况以现场运维记录为准；本报告自动生成结果主要反映监测数据完整性和统计分析结果。"
+        "对健康监测系统运行状况中列出的缺失或异常测点，建议结合现场巡检和设备台账复核。"
+    )
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if any(fragment in text for fragment in stale_fragments):
+            replace_paragraph_text(para, replacement)
+
+
 def _summarize_lowfreq_module(module: str, module_events: list[dict], start_date: date, end_date: date) -> str:
     full_period = _full_period_text(start_date, end_date)
     reason_priority = {"原始记录缺失": 0, "lowfreq/data.xlsx 缺失": 1, "lowfreq 数据期内无原始记录": 2}
@@ -475,9 +547,18 @@ def _build_highfreq_health_rows(module_events: list[dict]) -> list[dict[str, str
     return rows
 
 
-def build_health_status_rows(cfg: dict, result_root: Path, start_date: date, end_date: date) -> list[dict[str, str]]:
-    lowfreq_events = collect_lowfreq_missing_events(cfg, result_root, start_date, end_date)
-    highfreq_events = collect_highfreq_missing_events(cfg, result_root, start_date, end_date)
+def build_health_status_rows(
+    cfg: dict,
+    result_root: Path,
+    start_date: date,
+    end_date: date,
+    lowfreq_events: list[dict] | None = None,
+    highfreq_events: list[dict] | None = None,
+) -> list[dict[str, str]]:
+    if lowfreq_events is None:
+        lowfreq_events = collect_lowfreq_missing_events(cfg, result_root, start_date, end_date)
+    if highfreq_events is None:
+        highfreq_events = collect_highfreq_missing_events(cfg, result_root, start_date, end_date)
 
     rows: list[dict[str, str]] = []
     for module in LOWFREQ_MODULES.values():
@@ -734,9 +815,18 @@ def collect_highfreq_missing_events(cfg: dict, result_root: Path, start_date: da
     return events
 
 
-def build_health_status_summary(cfg: dict, result_root: Path, start_date: date, end_date: date) -> str:
-    lowfreq_events = collect_lowfreq_missing_events(cfg, result_root, start_date, end_date)
-    highfreq_events = collect_highfreq_missing_events(cfg, result_root, start_date, end_date)
+def build_health_status_summary(
+    cfg: dict,
+    result_root: Path,
+    start_date: date,
+    end_date: date,
+    lowfreq_events: list[dict] | None = None,
+    highfreq_events: list[dict] | None = None,
+) -> str:
+    if lowfreq_events is None:
+        lowfreq_events = collect_lowfreq_missing_events(cfg, result_root, start_date, end_date)
+    if highfreq_events is None:
+        highfreq_events = collect_highfreq_missing_events(cfg, result_root, start_date, end_date)
     if not lowfreq_events and not highfreq_events:
         return "监测周期内未发现原始数据缺失、无文件或无记录情况。"
 
@@ -760,6 +850,7 @@ def build_health_status_summary(cfg: dict, result_root: Path, start_date: date, 
 
 def apply_health_status_to_doc(doc: Document, summary_text: str, rows: list[dict[str, str]]) -> None:
     paragraph = _next_nonempty_paragraph_after(doc, "健康监测系统运行状况")
+    replace_paragraph_text(paragraph, summary_text)
     if not rows:
         return
     table = insert_table_after(paragraph, rows=len(rows) + 1, cols=4)
@@ -773,6 +864,132 @@ def apply_health_status_to_doc(doc: Document, summary_text: str, rows: list[dict
     style_table(table, left=True)
     set_header_bold(table)
     set_table_column_widths(table, [28, 66, 42, 24])
+
+
+def _run_python_word_field_update(docx_path: Path) -> tuple[bool, str]:
+    script = f"""
+import pythoncom
+import win32com.client
+p = r'''{str(docx_path)}'''
+pythoncom.CoInitialize()
+word = None
+doc = None
+try:
+    word = win32com.client.DispatchEx("Word.Application")
+    word.Visible = False
+    word.DisplayAlerts = 0
+    doc = word.Documents.Open(p)
+    for story in doc.StoryRanges:
+        try:
+            story.Fields.Update()
+        except Exception:
+            pass
+    try:
+        doc.TablesOfContents(1).Update()
+    except Exception:
+        pass
+    doc.Fields.Update()
+    doc.Save()
+finally:
+    if doc is not None:
+        doc.Close(SaveChanges=True)
+    if word is not None:
+        word.Quit()
+    pythoncom.CoUninitialize()
+"""
+    candidates = [Path(__file__).resolve().parent / ".venv" / "Scripts" / "python.exe"]
+    if os.environ.get("PYTHON"):
+        candidates.append(Path(os.environ["PYTHON"]))
+    candidates.append(Path("python"))
+    errors: list[str] = []
+    for py in candidates:
+        if py != Path("python") and not py.exists():
+            continue
+        try:
+            result = subprocess.run([str(py), "-c", script], check=False, timeout=180, capture_output=True, text=True)
+            if result.returncode == 0:
+                return True, ""
+            detail = (result.stderr or result.stdout or f"exit={result.returncode}").strip()
+            errors.append(f"{py}: {detail[:300]}")
+        except (OSError, subprocess.SubprocessError) as exc:
+            errors.append(f"{py}: {exc}")
+    return False, "; ".join(errors[-3:])
+
+
+def _run_powershell_word_field_update(docx_path: Path) -> tuple[bool, str]:
+    ps_script = r"""
+$ErrorActionPreference = 'Stop'
+$p = $env:BMS_DOCX_PATH
+$word = $null
+$doc = $null
+$saved = $false
+try {
+    $word = New-Object -ComObject Word.Application
+    $word.Visible = $false
+    $word.DisplayAlerts = 0
+    $doc = $word.Documents.Open($p)
+    foreach ($storyStart in @($doc.StoryRanges)) {
+        $story = $storyStart
+        while ($null -ne $story) {
+            try { $story.Fields.Update() | Out-Null } catch {}
+            $story = $story.NextStoryRange
+        }
+    }
+    try { $doc.TablesOfContents.Item(1).Update() | Out-Null } catch {}
+    try { $doc.Fields.Update() | Out-Null } catch {}
+    $doc.Save()
+    $saved = $true
+} finally {
+    if ($null -ne $doc) { try { $doc.Close($true) | Out-Null } catch {} }
+    if ($null -ne $word) { try { $word.Quit() | Out-Null } catch {} }
+}
+if (-not $saved) { exit 1 }
+"""
+    env = os.environ.copy()
+    env["BMS_DOCX_PATH"] = str(docx_path)
+    errors: list[str] = []
+    script_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".ps1", delete=False) as tmp:
+            tmp.write(ps_script)
+            script_path = Path(tmp.name)
+        for exe in ("powershell.exe", "powershell"):
+            try:
+                result = subprocess.run(
+                    [exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
+                    check=False,
+                    timeout=180,
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                )
+                if result.returncode == 0:
+                    return True, ""
+                detail = (result.stderr or result.stdout or f"exit={result.returncode}").strip()
+                errors.append(f"{exe}: {detail[:300]}")
+            except (OSError, subprocess.SubprocessError) as exc:
+                errors.append(f"{exe}: {exc}")
+    finally:
+        if script_path is not None:
+            try:
+                script_path.unlink()
+            except OSError:
+                pass
+    return False, "; ".join(errors[-2:])
+
+
+def update_fields_with_word(docx_path: Path) -> list[str]:
+    if os.environ.get("BMS_NO_WORD") == "1":
+        return ["word_field_update_skipped:BMS_NO_WORD=1"]
+
+    ok, python_error = _run_python_word_field_update(docx_path)
+    if ok:
+        return []
+    ok, powershell_error = _run_powershell_word_field_update(docx_path)
+    if ok:
+        return []
+    detail = "; ".join(part for part in (python_error, powershell_error) if part)
+    return [f"word_field_update_failed:{detail[:1000]}"]
 
 
 def find_last_paragraph_contains(doc: Document, fragment: str):
@@ -893,8 +1110,24 @@ def build_period_report(
             "summary": "",
             "month_summaries": [],
         }
-    raw_health_summary = build_health_status_summary(cfg, result_root, start_dt, end_dt)
-    raw_health_rows = build_health_status_rows(cfg, result_root, start_dt, end_dt)
+    lowfreq_missing_events = collect_lowfreq_missing_events(cfg, result_root, start_dt, end_dt)
+    highfreq_missing_events = collect_highfreq_missing_events(cfg, result_root, start_dt, end_dt)
+    raw_health_summary = build_health_status_summary(
+        cfg,
+        result_root,
+        start_dt,
+        end_dt,
+        lowfreq_events=lowfreq_missing_events,
+        highfreq_events=highfreq_missing_events,
+    )
+    raw_health_rows = build_health_status_rows(
+        cfg,
+        result_root,
+        start_dt,
+        end_dt,
+        lowfreq_events=lowfreq_missing_events,
+        highfreq_events=highfreq_missing_events,
+    )
     missing_rows = build_report_missing_rows(manifest, manifest["wim"])
     manifest["health_status_summary"] = merge_health_status_summary(raw_health_summary, missing_rows)
     manifest["health_status_rows"] = raw_health_rows + missing_rows
@@ -906,15 +1139,19 @@ def build_period_report(
 
     doc = Document(str(template))
     apply_manifest_to_doc(doc, manifest)
+    apply_period_cover_title(doc, start_dt, end_dt)
+    apply_period_maintenance_text(doc)
     apply_health_status_to_doc(doc, manifest["health_status_summary"], manifest["health_status_rows"])
     apply_wim_period_to_doc(doc, manifest["wim"])
+    apply_period_toc_months(doc, start_dt, end_dt)
 
-    output_docx = ctx.output_dir / f"{template.stem}_周期报_{timestamp}.docx"
+    output_docx = ctx.output_dir / period_report_filename(period_label, timestamp)
     doc.save(str(output_docx))
+    field_update_warnings = update_fields_with_word(output_docx)
 
     missing = summarize_missing_images(manifest) + summarize_missing_wim_images(manifest["wim"])
     missing.extend(missing_module_summary_items(manifest.get("analysis_run_manifest")))
-    warnings = manifest["wim"].get("warnings", [])
+    warnings = list(manifest["wim"].get("warnings", [])) + field_update_warnings
     qc_paths: dict[str, str] = {}
     try:
         qc_result = check_report("hongtang_period", output_docx)

@@ -277,6 +277,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.14`: hardens Hongtang Q2 production processing: dated-folder loading for the Q2 layout, connected gap-mode propagation, day-reduced high-frequency/RMS handling for acceleration and cable acceleration, wind day aggregation, report-field update fallback through PowerShell Word COM, and Hongtang Q2 recovery documentation.
+- `v1.7.14`：加固洪塘 Q2 生产处理链路：适配 Q2 日期目录读取，贯通 `gap_mode=connect`，加速度/索力加速度改为分日降采样与 RMS 聚合，风速风向改为分日聚合，报告字段更新增加 PowerShell Word COM 兜底，并沉淀洪塘 Q2 复跑说明。
 - `v1.7.13`: adds machine-specific path profiles for local/remote data roots, exposes a hidden main-GUI smoke-test entry with stable handles, and adds main-window shortcuts for faster remote GUI validation.
 - `v1.7.13`：新增本机/远程数据根目录路径 profile，主 GUI 支持隐藏窗口烟测入口并暴露稳定控件句柄，同时补充主窗口快捷键，便于远程环境快速验证 GUI。
 - `v1.7.12`: keeps the MATLAB GUI version aligned with the report-generator release that commits the ShuiXianHua monthly period-label filename fix used by CLI and packaged exe self-tests.

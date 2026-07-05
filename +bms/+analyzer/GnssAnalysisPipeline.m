@@ -93,8 +93,9 @@ classdef GnssAnalysisPipeline
             fig = figure('Position', [100 100 1000 469]);
             hold on;
             hLines = gobjects(numel(series), 1);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
             for j = 1:numel(series)
-                [timesPlot, valsPlot] = prepare_plot_series(series(j).times, series(j).vals);
+                [timesPlot, valsPlot] = prepare_plot_series(series(j).times, series(j).vals, plotOpts);
                 colorIdx = min(j, size(colors, 1));
                 hLines(j) = plot(timesPlot, valsPlot, 'LineWidth', 1.0, 'Color', colors(colorIdx, :));
             end

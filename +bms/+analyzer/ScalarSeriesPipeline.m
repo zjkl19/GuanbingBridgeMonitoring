@@ -120,7 +120,8 @@ classdef ScalarSeriesPipeline
         function plotBasicSeries(times, values, validValues, pointId, range, outDir, timestamp, style, cfg, spec)
             fig = figure('Position', [100 100 1000 469]);
             hold on;
-            [timesPlot, valuesPlot] = prepare_plot_series(times, values);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            [timesPlot, valuesPlot] = prepare_plot_series(times, values, plotOpts);
             plot(timesPlot, valuesPlot, 'LineWidth', 1, ...
                 'Color', bms.analyzer.ScalarSeriesService.color(style, 1));
 
@@ -173,7 +174,8 @@ classdef ScalarSeriesPipeline
         function plotRainfallSeries(times, values, meanValue, pointId, range, outDir, timestamp, style, cfg)
             fig = figure('Position', [100 100 1000 469]);
             hold on;
-            [timesPlot, valuesPlot] = prepare_plot_series(times, values);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            [timesPlot, valuesPlot] = prepare_plot_series(times, values, plotOpts);
             plot(timesPlot, valuesPlot, 'LineWidth', 1, ...
                 'Color', bms.analyzer.ScalarSeriesService.color(style, 1));
             avgVal = round(meanValue, 2);

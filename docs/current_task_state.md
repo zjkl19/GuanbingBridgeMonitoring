@@ -1,12 +1,88 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-04
+Last updated: 2026-07-05
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
-## 2026-07-04 Latest Engineering Snapshot
+## 2026-07-05 Latest Engineering Snapshot
+
+This is the current release point for the Hongtang Q2 recovery and report
+generation hardening work.
+
+Current repository:
+
+- Root: `D:\MatlabProjects\Guanbing`
+- Branch: `main`
+- Latest baseline before this snapshot: `308dea7 Document Hongtang Q2 recovery`
+- MATLAB GUI version in `ui/run_gui.m`: `v1.7.14`
+- Report GUI version in `reporting/report_gui.py`: `v1.7.14`
+
+Accepted local changes in this snapshot:
+
+- Fixed Hongtang Q2 dated-folder high-frequency loading so period roots such as
+  `E:\洪塘大桥数据\2026年4-6月\<YYYY-MM-DD>\波形` are preferred over stale or
+  misleading wrapper folders.
+- Tightened time-series cache matching and removed the bad CS8 offset rule in
+  `config/hongtang_config.json`.
+- Propagated `plot_common.gap_mode=connect` through the common plot services and
+  module plotters. Explicit `break` remains supported; `connect` only connects
+  existing finite points and does not synthesize missing raw dates.
+- Reduced high-frequency memory pressure by collecting acceleration,
+  cable-acceleration, earthquake and wind records by day, downsampling plot
+  series, and aggregating RMS/10-minute wind curves by time bin.
+- Added `scripts/refresh_dynamic_rms_only.m` for targeted RMS refreshes after
+  loader/RMS fixes without rerunning the whole production pipeline.
+- Hardened Hongtang period-report generation:
+  - `reporting/build_period_report.py` now falls back from missing Python COM
+    (`pythoncom/win32com`) to PowerShell Word COM for field/TOC/cross-reference
+    updates.
+  - field-update failures are returned as manifest warnings instead of being
+    silently ignored.
+  - final acceptance should include a rendered/exported report check, not only
+    raw DOCX QC.
+- Added focused tests for dated-folder loading, gap-mode propagation, dynamic
+  RMS aggregation, analysis-manifest warnings, and report-field update fallback.
+- Added `docs/hongtang_q2_2026_recovery.md` as the durable runbook for this
+  recovery.
+
+Remote Hongtang Q2 verification on `192.168.100.133`:
+
+- Data root: `E:\洪塘大桥数据\2026年4-6月`
+- Full run directory:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_full_20260705_022000`
+- RMS refresh run directory:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_rms_refresh_20260705_102937`
+- RMS refresh result: `acceleration 12/12`, `cable_accel 24/24`, no skipped
+  points.
+- Report generator runtime for the final Q2 build was about `80` seconds.
+- Final checked report copied back to 133:
+  - `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260705_105401_checked.docx`
+  - `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260705_105401_checked.pdf`
+- Local render QA produced `110` PNG pages and found no
+  `错误` / `引用源未找到` / stale Q1 date / old `共 63 页` text in the rendered
+  report.
+
+Latest validation before release:
+
+- Python:
+  `C:\Users\eamdf\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m unittest tests_py.test_build_period_report_word_update tests_py.test_report_qc tests_py.test_analysis_manifest`
+  -> `10` tests passed.
+- MATLAB:
+  `matlab -batch "cd('D:\MatlabProjects\Guanbing'); addpath(genpath(pwd)); issues = checkcode('scripts/refresh_dynamic_rms_only.m'); disp(numel(issues)); results = runtests({'tests/test_dynamic_series_service.m','tests/test_bms_services.m'}); assertSuccess(results);"`
+  -> `checkcode=0`, focused tests passed.
+- 133:
+  `D:\Python310\python.exe -m unittest tests_py.test_build_period_report_word_update`
+  -> passed, and a real Word COM smoke test returned `WORD_UPDATE_WARNINGS=[]`.
+
+Known residual data caveat:
+
+- Some late-June and individual high-frequency source gaps remain real raw-data
+  availability issues. The plotting fixes prevent false gaps and stale-cache
+  mistakes, but they do not invent absent source files.
+
+## 2026-07-04 Engineering Snapshot
 
 This is the current recovery point for the Donghua export compatibility,
 Hongtang Q2 recovery, GUI/path-profile visibility, and remote production-state

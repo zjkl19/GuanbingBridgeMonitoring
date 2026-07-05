@@ -15,7 +15,7 @@ classdef WindPlotService
             bms.analyzer.WindPlotService.plotDirectionTimeseries( ...
                 series.tDir, series.vDir, series.pid, style, outRoot, startDate, endDate, cfg);
             bms.analyzer.WindPlotService.plotSpeed10min( ...
-                series.tSpeed, series.v10, series.pid, series.params, style, outRoot, startDate, endDate, cfg);
+                series.t10, series.v10, series.pid, series.params, style, outRoot, startDate, endDate, cfg);
 
             if ~isempty(series.vDir)
                 [roseSpeed, roseDir] = bms.analyzer.WindRoseService.alignForRose( ...
@@ -33,7 +33,8 @@ classdef WindPlotService
                 return;
             end
             fig = figure('Position', [100 100 1100 500]);
-            [timesPlot, valsPlot] = prepare_plot_series(times, vals);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            [timesPlot, valsPlot] = prepare_plot_series(times, vals, plotOpts);
             plot(timesPlot, valsPlot, 'LineWidth', 1.1, 'Color', style.speed.color);
             xlabel('时间');
             ylabel(style.speed.ylabel);
@@ -58,7 +59,8 @@ classdef WindPlotService
                 return;
             end
             fig = figure('Position', [100 100 1100 500]);
-            [timesPlot, valsPlot] = prepare_plot_series(times, vals);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            [timesPlot, valsPlot] = prepare_plot_series(times, vals, plotOpts);
             plot(timesPlot, valsPlot, 'LineWidth', 1.0, 'Color', style.direction.color);
             xlabel('时间');
             ylabel(style.direction.ylabel);
@@ -77,11 +79,12 @@ classdef WindPlotService
             if nargin < 9
                 cfg = struct();
             end
-            if isempty(v10)
+            if isempty(times) || isempty(v10) || numel(times) ~= numel(v10)
                 return;
             end
             fig = figure('Position', [100 100 1100 500]);
-            [timesPlot, v10Plot] = prepare_plot_series(times, v10);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            [timesPlot, v10Plot] = prepare_plot_series(times, v10, plotOpts);
             plot(timesPlot, v10Plot, 'LineWidth', 1.2, 'Color', style.speed10.color);
             xlabel('时间');
             ylabel(style.speed10.ylabel);

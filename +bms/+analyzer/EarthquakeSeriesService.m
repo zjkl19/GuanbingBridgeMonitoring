@@ -20,7 +20,8 @@ classdef EarthquakeSeriesService
 
         function rec = initRecord()
             rec = struct('pid', '', 'sensor_type', '', 'comp', '', ...
-                'times', [], 'vals', [], 'params', struct(), 'has_data', false);
+                'times', [], 'vals', [], 'params', struct(), 'peak', NaN, ...
+                'peak_time', NaT, 'has_data', false);
         end
 
         function rec = collectRecord(rootDir, subfolder, pointId, startDate, endDate, cfg, params)
@@ -32,13 +33,51 @@ classdef EarthquakeSeriesService
             rec.pid = pointId;
             [rec.sensor_type, rec.comp] = bms.analyzer.EarthquakeSeriesService.componentFromPoint(pointId);
             rec.params = params;
-            [times, vals] = load_timeseries_range(rootDir, subfolder, pointId, startDate, endDate, cfg, rec.sensor_type);
-            if isempty(vals)
+
+            dateList = bms.data.TimeSeriesRangeLoader.buildDateList(startDate, endDate);
+            maxPoints = bms.analyzer.DynamicSeriesService.plotMaxPoints(cfg, 50000);
+            perDayMax = max(100, ceil(maxPoints / max(1, numel(dateList))));
+            keptTimes = {};
+            keptVals = {};
+            bestPeak = NaN;
+            bestTime = NaT;
+
+            for i = 1:numel(dateList)
+                day = dateList{i};
+                if i == 1 || i == numel(dateList) || mod(i, 10) == 0
+                    fprintf('Earthquake %s loading %s (%d/%d)\n', ...
+                        char(string(pointId)), day, i, numel(dateList));
+                end
+                [times, vals] = load_timeseries_range(rootDir, subfolder, pointId, day, day, cfg, rec.sensor_type);
+                if isempty(vals)
+                    continue;
+                end
+                vals = bms.analyzer.EarthquakeSeriesService.applyValueRules(vals, params);
+                [dayPeak, idx] = max(abs(vals), [], 'omitnan');
+                if ~isempty(idx) && isfinite(dayPeak) && idx >= 1 && idx <= numel(times) ...
+                        && (~isfinite(bestPeak) || dayPeak > bestPeak)
+                    bestPeak = dayPeak;
+                    bestTime = times(idx);
+                end
+                [td, vd] = bms.analyzer.DynamicSeriesService.limitSeriesPoints(times, vals, perDayMax);
+                if ~isempty(vd)
+                    keptTimes{end+1, 1} = td; %#ok<AGROW>
+                    keptVals{end+1, 1} = vd; %#ok<AGROW>
+                end
+            end
+
+            if isempty(keptVals)
                 return;
             end
-            rec.times = times;
-            rec.vals = bms.analyzer.EarthquakeSeriesService.applyValueRules(vals, params);
+            rec.times = vertcat(keptTimes{:});
+            rec.vals = vertcat(keptVals{:});
+            [rec.times, order] = sort(rec.times);
+            rec.vals = rec.vals(order);
+            rec.peak = bestPeak;
+            rec.peak_time = bestTime;
             rec.has_data = true;
+            fprintf('Earthquake %s collected %d plot samples; peak=%.6g\n', ...
+                char(string(pointId)), numel(rec.vals), bestPeak);
         end
 
         function vals = applyValueRules(vals, params)

@@ -40,12 +40,14 @@ classdef StructuralTimeSeriesPlotService
 
             n = numel(dataList);
             colors = bms.analyzer.StructuralTimeSeriesPlotService.resolveColors(opts, n);
+            plotOpts = bms.plot.PlotService.mergeOptions( ...
+                bms.plot.PlotService.runtimeOptionsFromConfig(cfg), opts);
             h = gobjects(n, 1);
             for i = 1:n
                 if isempty(dataList(i).vals)
                     continue;
                 end
-                [timesPlot, valuesPlot] = prepare_plot_series(dataList(i).times, dataList(i).vals);
+                [timesPlot, valuesPlot] = prepare_plot_series(dataList(i).times, dataList(i).vals, plotOpts);
                 if isempty(timesPlot) || isempty(valuesPlot)
                     continue;
                 end
@@ -114,9 +116,15 @@ classdef StructuralTimeSeriesPlotService
         function applyDateAxis(dt0, dt1)
             ticks = dt0 + (dt1 - dt0) * (0:4) / 4;
             ax = gca;
-            ax.XLim = [dt0 dt1];
-            ax.XTick = ticks;
-            xtickformat('yyyy-MM-dd');
+            try
+                ax.XLim = [dt0 dt1];
+                ax.XTick = ticks;
+                xtickformat('yyyy-MM-dd');
+            catch
+                ax.XLim = datenum([dt0 dt1]);
+                ax.XTick = datenum(ticks);
+                datetick(ax, 'x', 'yyyy-mm-dd', 'keeplimits', 'keepticks');
+            end
         end
 
         function colors = resolveColors(opts, nSeries)
@@ -172,7 +180,7 @@ classdef StructuralTimeSeriesPlotService
 
         function applyYLim(ylimRange)
             if bms.analyzer.StructuralPlotConfigService.isValidYLim(ylimRange)
-                ylim(ylimRange);
+                ylim(bms.plot.PlotService.normalizeYLim(ylimRange));
             else
                 ylim auto;
             end

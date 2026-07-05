@@ -1342,20 +1342,28 @@ def build_eq_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | No
     items: list[ImageItem] = []
     peak_map: dict[str, float] = {}
     per_point_eq = cfg.get("per_point", {}).get("eq", {})
+    eq_rows: list[dict] = []
+    try:
+        eq_rows = load_sheet_rows(resolve_existing_file(stats_root, fallback_stats_root, "eq_stats.xlsx"))
+    except FileNotFoundError:
+        eq_rows = []
+    for row in eq_rows:
+        peak = parse_float(row.get("Peak"))
+        if peak is None:
+            continue
+        point_id = str(row.get("PointID") or "").strip()
+        component = str(row.get("Component") or "").strip().upper()
+        key = point_id if point_id else f"EQ-{component}" if component else ""
+        if not key:
+            continue
+        peak = abs(peak)
+        peak_map[key] = max(peak_map.get(key, 0.0), peak)
+
     for pid in order:
         comp = pid.split("-")[-1] if "-" in pid else pid[-1]
         img_path, lookup = find_latest_image(image_root, eq_dir, f"{prefix}_{comp}_")
         items.append(ImageItem(pid, img_path, lookup))
-        point_cfg = per_point_eq.get(pid, {})
-        file_id = point_cfg.get("file_id")
-        peak = 0.0
-        if file_id:
-            matches = sorted(image_root.rglob(f"{file_id}.csv"))
-            for csv_path in matches:
-                values = read_numeric_series_csv(csv_path)
-                if values:
-                    peak = max(peak, max(abs(v) for v in values))
-        peak_map[pid] = peak
+        peak_map.setdefault(pid, 0.0)
 
     horizontal_peak = max(peak_map.get("EQ-X", 0.0), peak_map.get("EQ-Y", 0.0))
     vertical_peak = peak_map.get("EQ-Z", 0.0)

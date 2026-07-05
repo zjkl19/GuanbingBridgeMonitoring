@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
-import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REPORTING_ROOT = REPO_ROOT / "reporting"
@@ -15,6 +15,7 @@ for candidate in (REPO_ROOT, REPORTING_ROOT):
 from reporting.analysis_manifest import (
     analysis_manifest_context,
     find_latest_analysis_manifest,
+    load_analysis_manifest,
     manifest_missing_modules,
     manifest_precheck_warnings,
     missing_module_summary_items,
@@ -32,13 +33,13 @@ class AnalysisManifestTests(unittest.TestCase):
                 json.dumps(
                     {
                         "module_preflight": [
-                            {"key": "strain", "label": "应变分析", "status": "missing", "message": "missing stats"}
+                            {"key": "strain", "label": "strain analysis", "status": "missing", "message": "missing stats"}
                         ],
                         "module_logs": [
-                            {"key": "wind", "label": "风速风向分析", "status": "fail", "message": "read failed"}
+                            {"key": "wind", "label": "wind analysis", "status": "fail", "message": "read failed"}
                         ],
                         "module_results": [
-                            {"key": "eq", "label": "地震动分析", "status": "skip", "message": "no data"}
+                            {"key": "eq", "label": "eq analysis", "status": "skip", "message": "no data"}
                         ],
                         "run_request": {"data_root": "E:/data"},
                         "run_preflight": {"status": "warning"},
@@ -55,8 +56,33 @@ class AnalysisManifestTests(unittest.TestCase):
             self.assertEqual(context["run_request"]["data_root"], "E:/data")
             self.assertEqual(context["run_preflight"]["status"], "warning")
             summary = missing_module_summary_items(context)
-            self.assertTrue(any("应变分析" in item for item in summary))
-            self.assertTrue(any("地震动分析" in item for item in summary))
+            self.assertTrue(any("strain analysis" in item for item in summary))
+            self.assertTrue(any("eq analysis" in item for item in summary))
+
+    def test_successful_result_suppresses_stale_preflight_missing(self) -> None:
+        manifest = {
+            "module_preflight": [
+                {
+                    "key": "strain",
+                    "label": "strain analysis",
+                    "status": "missing",
+                    "exists": False,
+                    "message": "old missing state",
+                }
+            ],
+            "module_results": [
+                {"key": "strain", "label": "strain analysis", "status": "ok", "message": "rerun succeeded"}
+            ],
+        }
+
+        self.assertEqual(manifest_missing_modules(manifest), [])
+
+    def test_load_manifest_accepts_utf8_bom(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "analysis_manifest_20260101_010101.json"
+            manifest_path.write_text('{"status": "completed"}', encoding="utf-8-sig")
+
+            self.assertEqual(load_analysis_manifest(manifest_path)["status"], "completed")
 
     def test_manifest_precheck_warnings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -70,7 +96,7 @@ class AnalysisManifestTests(unittest.TestCase):
                         "missing_expected_stats": ["E:/data/stats/strain_stats.xlsx"],
                         "run_preflight": {"warnings": ["WIM input missing for 202601"]},
                         "module_results": [
-                            {"key": "strain", "label": "应变分析", "status": "fail", "message": "read failed"}
+                            {"key": "strain", "label": "strain analysis", "status": "fail", "message": "read failed"}
                         ],
                     },
                     ensure_ascii=False,
@@ -81,7 +107,7 @@ class AnalysisManifestTests(unittest.TestCase):
             warnings = manifest_precheck_warnings(root)
             joined = "\n".join(warnings)
             self.assertIn("analysis manifest status is failed", joined)
-            self.assertIn("应变分析", joined)
+            self.assertIn("strain analysis", joined)
             self.assertIn("strain_stats.xlsx", joined)
             self.assertIn("WIM input missing", joined)
 

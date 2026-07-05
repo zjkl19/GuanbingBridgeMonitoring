@@ -1,9 +1,44 @@
 # Known Issues And Follow-Up Items
 
-Last updated: 2026-07-04
+Last updated: 2026-07-05
 
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
+
+## Hongtang Q2 Raw High-Frequency Gaps
+
+Status: source-data caveat after the accepted 2026 Q2 rerun.
+
+The `v1.7.14` fixes removed several false missing-data causes in the Hongtang
+Q2 run, including stale cache reuse, dated-folder lookup problems, gap-mode
+propagation gaps, and the bad CS8 offset rule. Remaining late-June gaps should
+be treated as raw source availability gaps unless new source files are found.
+
+Important distinction:
+
+- `plot_common.gap_mode=connect` connects finite plotted points.
+- It does not synthesize missing raw dates or values.
+- If the time series ends before 2026-06-30, first check the raw dated folders
+  before changing plot code.
+
+Reference: `docs/hongtang_q2_2026_recovery.md`.
+
+## Rendered Report QA
+
+Status: improved in `v1.7.14`; keep as an acceptance rule.
+
+Raw DOCX QC is not enough when reports contain Word fields, table-of-contents
+entries, cross-references or page-count headers. On 133, Python COM may be
+missing even though Word COM is available. The period-report builder now falls
+back to PowerShell Word COM, but final acceptance should still include
+render/export QA when a production report is generated.
+
+Recommended check:
+
+- export or render the DOCX to PDF/pages;
+- search rendered text for `错误`, `引用源未找到`, stale quarter/month text, and
+  old total-page headers;
+- spot-check representative plotted pages before sending the report out.
 
 ## Donghua Export Layout
 

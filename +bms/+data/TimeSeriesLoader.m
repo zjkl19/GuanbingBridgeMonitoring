@@ -599,11 +599,6 @@ classdef TimeSeriesLoader
                 ok = true;
                 return;
             end
-            if isfile(sourcePath)
-                cacheInfo = dir(cacheFile);
-                sourceInfo = dir(sourcePath);
-                ok = cacheInfo.datenum > sourceInfo.datenum;
-            end
         end
 
         function value = optionValue(opts, field, defaultValue)

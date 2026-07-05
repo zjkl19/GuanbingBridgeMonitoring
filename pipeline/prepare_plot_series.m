@@ -11,6 +11,7 @@ function [x_plot, y_plot] = prepare_plot_series(x, y, opts)
     runtime = plot_runtime_settings('get');
     gap_mode = get_opt(opts, 'gap_mode', runtime.gap_mode);
     gap_break_factor = get_opt(opts, 'gap_break_factor', runtime.gap_break_factor);
+    max_points = get_opt(opts, 'fig_max_points', Inf);
 
     gap_mode = lower(char(string(gap_mode)));
     if ~ismember(gap_mode, {'break','connect'})
@@ -35,6 +36,7 @@ function [x_plot, y_plot] = prepare_plot_series(x, y, opts)
         y_plot = y_valid;
         return;
     end
+    [x_valid, y_valid] = limit_plot_points(x_valid, y_valid, max_points);
 
     if strcmp(gap_mode, 'connect') || numel(x_valid) <= 1
         x_plot = x_valid;
@@ -94,6 +96,26 @@ function gx = gap_x_value(x, n)
     else
         gx = NaN(n, 1);
     end
+end
+
+function [x_out, y_out] = limit_plot_points(x, y, max_points)
+    x_out = x;
+    y_out = y;
+    if isempty(x) || isempty(y) || isempty(max_points)
+        return;
+    end
+    max_points = double(max_points);
+    if ~isscalar(max_points) || ~isfinite(max_points) || max_points <= 0
+        return;
+    end
+    max_points = max(2, round(max_points));
+    n = numel(x);
+    if n <= max_points
+        return;
+    end
+    idx = unique(round(linspace(1, n, max_points)), 'stable');
+    x_out = x(idx);
+    y_out = y(idx);
 end
 
 function val = get_opt(opts, field_name, default_val)

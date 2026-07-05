@@ -4,7 +4,8 @@ classdef DynamicAccelerationPlotService
     methods (Static)
         function plotAccelCurve(rootDir, pointId, times, values, minVal, maxVal, style, cfg, spec)
             fig = figure('Position', [100 100 1000 469]);
-            [timesPlot, valuesPlot] = prepare_plot_series(times, values);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            [timesPlot, valuesPlot] = prepare_plot_series(times, values, plotOpts);
             plot(timesPlot, valuesPlot, 'LineWidth', 1, 'Color', style.color_main);
             xlabel('时间');
             ylabel(style.ylabel);
@@ -29,7 +30,7 @@ classdef DynamicAccelerationPlotService
             bms.plot.PlotService.saveModuleBundle(fig, outDir, [fname '_' timestamp], cfg);
         end
 
-        function plotRmsCurve(rootDir, pointId, times, values, fs, style, cfg, spec)
+        function plotRmsCurve(rootDir, pointId, times, values, fs, style, cfg, spec, rmsTimes, rmsSeries)
             if isempty(values) || numel(times) ~= numel(values)
                 return;
             end
@@ -38,11 +39,24 @@ classdef DynamicAccelerationPlotService
                 return;
             end
 
-            [rmsSeries, rmsMax, tMax] = bms.analyzer.DynamicSeriesService.rmsSeries(times, values, fs, 10, 0.7);
+            if nargin < 9 || isempty(rmsTimes) || isempty(rmsSeries)
+                [rmsTimes, rmsSeries, rmsMax, tMax] = bms.analyzer.DynamicSeriesService.rmsByTimeBins(times, values, 10, 0.7, fs);
+            else
+                rmsTimes = rmsTimes(:);
+                rmsSeries = rmsSeries(:);
+                [rmsMax, idxMax] = max(rmsSeries, [], 'omitnan');
+                if isempty(idxMax) || ~isfinite(rmsMax)
+                    rmsMax = NaN;
+                    tMax = NaT;
+                else
+                    tMax = rmsTimes(idxMax);
+                end
+            end
             fig = figure('Position', [100 100 1000 469]);
-            [timesPlot, rmsPlot] = prepare_plot_series(times, rmsSeries);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            [timesPlot, rmsPlot] = prepare_plot_series(rmsTimes, rmsSeries, plotOpts);
             if isempty(timesPlot)
-                timesPlot = times(validTimeMask);
+                timesPlot = rmsTimes;
                 rmsPlot = NaN(size(timesPlot));
             end
             plot(timesPlot, rmsPlot, 'LineWidth', 1.2, 'Color', style.color_rms);
@@ -215,11 +229,17 @@ classdef DynamicAccelerationPlotService
                 if isempty(rec.vals) || numel(rec.times) ~= numel(rec.vals)
                     continue;
                 end
-                rmsSeries = bms.analyzer.DynamicSeriesService.rmsSeries(rec.times, rec.vals, rec.fs, 10, 0.7);
+                if isfield(rec, 'rms_times') && isfield(rec, 'rms_vals') ...
+                        && ~isempty(rec.rms_times) && ~isempty(rec.rms_vals)
+                    rmsTimes = rec.rms_times;
+                    rmsSeries = rec.rms_vals;
+                else
+                    [rmsTimes, rmsSeries] = bms.analyzer.DynamicSeriesService.rmsByTimeBins(rec.times, rec.vals, 10, 0.7, rec.fs);
+                end
                 if isempty(rmsSeries)
                     continue;
                 end
-                timesList{end+1, 1} = rec.times; %#ok<AGROW>
+                timesList{end+1, 1} = rmsTimes; %#ok<AGROW>
                 valuesList{end+1, 1} = rmsSeries; %#ok<AGROW>
                 labels{end+1, 1} = rec.pid; %#ok<AGROW>
             end

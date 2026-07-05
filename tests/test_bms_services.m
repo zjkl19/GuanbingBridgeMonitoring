@@ -224,12 +224,39 @@ classdef test_bms_services < matlab.unittest.TestCase
             tc.verifyWarningFree(@() bms.plot.PlotService.setTimeAxis(NaT(3,1)));
         end
 
+        function preparePlotSeriesLimitsLargeSeries(tc)
+            t = (datetime(2026,1,1,0,0,0) + seconds(0:99)).';
+            y = (1:100).';
+
+            [tp, yp] = prepare_plot_series(t, y, struct('gap_mode', 'connect', 'fig_max_points', 10));
+
+            tc.verifyLessThanOrEqual(numel(tp), 10);
+            tc.verifyEqual(tp(1), t(1));
+            tc.verifyEqual(tp(end), t(end));
+            tc.verifyEqual(yp(1), y(1));
+            tc.verifyEqual(yp(end), y(end));
+        end
+
+        function structuralDateAxisHandlesNumericDateAxes(tc)
+            fig = figure('Visible', 'off');
+            cleaner = onCleanup(@() close(fig)); %#ok<NASGU>
+            dt0 = datetime(2026,4,1);
+            dt1 = datetime(2026,6,30);
+            plot(datenum(dt0 + days(0:2)), [1 2 3]);
+
+            tc.verifyWarningFree(@() bms.analyzer.StructuralTimeSeriesPlotService.applyDateAxis(dt0, dt1));
+            ax = gca;
+            tc.verifyEqual(ax.XLim, datenum([dt0 dt1]), 'AbsTol', 1e-9);
+        end
+
         function plotServiceNormalizesStyleValues(tc)
             ylims.PT_1 = [-1 1];
             ylims.items = struct('name', 'P-2', 'ylim', [0 2]);
             tc.verifyEqual(bms.plot.PlotService.resolveNamedYLim(ylims, 'PT-1', []), [-1 1]);
             tc.verifyEqual(bms.plot.PlotService.resolveNamedYLim(ylims.items, 'P-2', []), [0 2]);
             tc.verifyTrue(bms.plot.PlotService.isValidYLim([0 Inf]));
+            tc.verifyTrue(bms.plot.PlotService.isValidYLim([-400; 400]));
+            tc.verifyEqual(bms.plot.PlotService.normalizeYLim([-400; 400]), [-400 400]);
             tc.verifyFalse(bms.plot.PlotService.isValidYLim([1 0]));
 
             c = bms.plot.PlotService.normalizeColors([1 0 0; 0 1 0], {});

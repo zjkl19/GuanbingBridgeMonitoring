@@ -8,9 +8,13 @@ classdef DynamicAccelerationSeriesService
                 fprintf('%s分析检测到并行配置，但为避免整段波形累积导致内存不足，改为逐测点顺序处理。\n', spec.displayName);
             end
 
+            records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), numel(points), 1);
             for i = 1:numel(points)
+                fprintf('Collecting %s point %s (%d/%d) ...\n', ...
+                    char(string(spec.moduleKey)), char(string(points{i})), i, numel(points));
                 rec = bms.analyzer.DynamicAccelerationSeriesService.collectRecord( ...
                     rootDir, subfolder, points{i}, startDate, endDate, cfg, autoDetectFs, spec, true);
+                records(i) = rec;
                 fprintf('处理测点 %s ...\n', rec.pid);
                 if ~rec.has_data
                     warning('测点 %s 无数据，跳过', rec.pid);
@@ -21,13 +25,13 @@ classdef DynamicAccelerationSeriesService
                 bms.analyzer.DynamicAccelerationPlotService.plotAccelCurve( ...
                     rootDir, rec.pid, rec.times, rec.vals, rec.mn, rec.mx, style, cfg, spec);
                 bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve( ...
-                    rootDir, rec.pid, rec.times, rec.vals, rec.fs, style, cfg, spec);
+                    rootDir, rec.pid, rec.times, rec.vals, rec.fs, style, cfg, spec, rec.rms_times, rec.rms_vals);
                 bms.analyzer.DynamicAccelerationPlotService.plotEnvelopeCurve( ...
                     rootDir, rec.pid, rec.times, rec.vals, style, cfg, spec);
             end
 
             bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroups( ...
-                rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, style, spec);
+                rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, style, spec, records);
         end
 
         function stats = runWithOptionalParallel(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, points, style, stats, spec)
@@ -49,8 +53,10 @@ classdef DynamicAccelerationSeriesService
                 end
             else
                 for i = 1:numel(points)
+                    fprintf('Collecting %s point %s (%d/%d) ...\n', ...
+                        char(string(spec.moduleKey)), char(string(points{i})), i, numel(points));
                     records(i) = bms.analyzer.DynamicAccelerationSeriesService.collectRecord( ...
-                        rootDir, subfolder, points{i}, startDate, endDate, cfg, autoDetectFs, spec, false);
+                        rootDir, subfolder, points{i}, startDate, endDate, cfg, autoDetectFs, spec, true);
                 end
             end
 
@@ -61,7 +67,11 @@ classdef DynamicAccelerationSeriesService
                     warning('测点 %s 无数据，跳过', rec.pid);
                     continue;
                 end
-                [times, values] = load_timeseries_range(rootDir, subfolder, rec.pid, startDate, endDate, cfg, spec.sensorType);
+                times = rec.times;
+                values = rec.vals;
+                if isempty(values)
+                    [times, values] = load_timeseries_range(rootDir, subfolder, rec.pid, startDate, endDate, cfg, spec.sensorType);
+                end
                 if isempty(values)
                     warning('测点 %s 在绘图阶段无数据，跳过', rec.pid);
                     continue;
@@ -72,12 +82,13 @@ classdef DynamicAccelerationSeriesService
                 end
                 stats(i, :) = {rec.pid, rec.mn, rec.mx, rec.av, rec.rms_max, rec.rms_time};
                 bms.analyzer.DynamicAccelerationPlotService.plotAccelCurve(rootDir, rec.pid, times, values, rec.mn, rec.mx, style, cfg, spec);
-                bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve(rootDir, rec.pid, times, values, rec.fs, style, cfg, spec);
+                bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve( ...
+                    rootDir, rec.pid, times, values, rec.fs, style, cfg, spec, rec.rms_times, rec.rms_vals);
                 bms.analyzer.DynamicAccelerationPlotService.plotEnvelopeCurve(rootDir, rec.pid, times, values, style, cfg, spec);
             end
 
             bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroups( ...
-                rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, style, spec);
+                rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, style, spec, records);
         end
 
         function rec = collectRecord(rootDir, subfolder, pointId, startDate, endDate, cfg, autoDetectFs, spec, keepSeries)
@@ -116,7 +127,10 @@ classdef DynamicAccelerationSeriesService
             style = bms.config.ConfigReader.getPlotStyle(cfg, spec.styleKey, spec.defaultStyle);
         end
 
-        function plotConfiguredGroups(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, style, spec)
+        function plotConfiguredGroups(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, style, spec, cachedRecords)
+            if nargin < 9
+                cachedRecords = [];
+            end
             groupsCfg = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, spec.groupKey, []);
             if ~bms.analyzer.StructuralPlotConfigService.hasGroups(groupsCfg) && strcmp(spec.moduleKey, 'cable_accel')
                 groupsCfg = bms.analyzer.DynamicAccelerationSeriesService.cableForceGroups(cfg);
@@ -130,8 +144,11 @@ classdef DynamicAccelerationSeriesService
             for i = 1:numel(names)
                 groupName = names{i};
                 pointIds = groups.(groupName);
-                records = bms.analyzer.DynamicAccelerationSeriesService.collectGroupRecords( ...
-                    rootDir, subfolder, pointIds, startDate, endDate, cfg, autoDetectFs, spec);
+                records = bms.analyzer.DynamicAccelerationSeriesService.cachedGroupRecords(cachedRecords, pointIds);
+                if isempty(records)
+                    records = bms.analyzer.DynamicAccelerationSeriesService.collectGroupRecords( ...
+                        rootDir, subfolder, pointIds, startDate, endDate, cfg, autoDetectFs, spec);
+                end
                 if isempty(records)
                     warning('%s组 %s 无有效数据，跳过组图', spec.displayName, groupName);
                     continue;
@@ -140,6 +157,31 @@ classdef DynamicAccelerationSeriesService
                     rootDir, groupName, records, startDate, endDate, style, cfg, spec);
                 bms.analyzer.DynamicAccelerationPlotService.plotRmsGroup( ...
                     rootDir, groupName, records, startDate, endDate, style, cfg, spec);
+            end
+        end
+
+        function records = cachedGroupRecords(cachedRecords, pointIds)
+            records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), 0, 1);
+            if isempty(cachedRecords)
+                return;
+            end
+            pointIds = bms.data.PointResolver.normalize(pointIds);
+            for i = 1:numel(pointIds)
+                pid = char(string(pointIds{i}));
+                match = [];
+                for j = 1:numel(cachedRecords)
+                    rec = cachedRecords(j);
+                    if isfield(rec, 'pid') && strcmp(char(string(rec.pid)), pid)
+                        match = rec;
+                        break;
+                    end
+                end
+                if isempty(match) || ~isfield(match, 'has_data') || ~match.has_data ...
+                        || ~isfield(match, 'vals') || isempty(match.vals)
+                    records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), 0, 1);
+                    return;
+                end
+                records(end+1, 1) = match; %#ok<AGROW>
             end
         end
 

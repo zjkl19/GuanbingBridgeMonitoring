@@ -27,23 +27,81 @@ classdef WindSeriesService
         end
 
         function [row, series] = analyzePoint(rootDir, subfolder, pid, startDate, endDate, cfg)
-            [tSpeed, vSpeed] = load_timeseries_range(rootDir, subfolder, pid, startDate, endDate, cfg, 'wind_speed');
-            [tDir, vDir] = load_timeseries_range(rootDir, subfolder, pid, startDate, endDate, cfg, 'wind_direction');
-
             params = bms.analyzer.WindSeriesService.params(cfg, pid);
-            series = bms.analyzer.WindSeriesService.seriesStruct(pid, tSpeed, vSpeed, tDir, vDir, params);
+            series = bms.analyzer.WindSeriesService.seriesStruct(pid, [], [], [], [], params);
             row = cell(1, 6);
-            if isempty(vSpeed)
-                warning('测点 %s 风速无数据，跳过', pid);
+
+            dateList = bms.data.TimeSeriesRangeLoader.buildDateList(startDate, endDate);
+            maxPoints = bms.analyzer.DynamicSeriesService.plotMaxPoints(cfg, 50000);
+            perDayMax = max(100, ceil(maxPoints / max(1, numel(dateList))));
+
+            speedTimes = {};
+            speedVals = {};
+            dirTimes = {};
+            dirVals = {};
+            t10Parts = {};
+            v10Parts = {};
+            speedCount = 0;
+            speedSum = 0;
+            speedMin = Inf;
+            speedMax = -Inf;
+            v10Max = NaN;
+            t10Max = NaT;
+
+            for i = 1:numel(dateList)
+                day = dateList{i};
+                [tSpeedDay, vSpeedDay] = load_timeseries_range(rootDir, subfolder, pid, day, day, cfg, 'wind_speed');
+                [tDirDay, vDirDay] = load_timeseries_range(rootDir, subfolder, pid, day, day, cfg, 'wind_direction');
+
+                finiteSpeed = isfinite(vSpeedDay);
+                if any(finiteSpeed)
+                    vals = vSpeedDay(finiteSpeed);
+                    speedCount = speedCount + numel(vals);
+                    speedSum = speedSum + sum(vals);
+                    speedMin = min(speedMin, min(vals));
+                    speedMax = max(speedMax, max(vals));
+                end
+
+                if ~isempty(vSpeedDay)
+                    fs = bms.analyzer.DynamicSeriesService.sampleRate(tSpeedDay, true, 1);
+                    [t10Day, v10Day, dayMax, dayTMax] = bms.analyzer.DynamicSeriesService.movingMeanByTimeBins( ...
+                        tSpeedDay, vSpeedDay, params.window_minutes, 0.7, fs);
+                    if ~isempty(v10Day)
+                        t10Parts{end+1, 1} = t10Day; %#ok<AGROW>
+                        v10Parts{end+1, 1} = v10Day; %#ok<AGROW>
+                    end
+                    if isfinite(dayMax) && (~isfinite(v10Max) || dayMax > v10Max)
+                        v10Max = dayMax;
+                        t10Max = dayTMax;
+                    end
+
+                    [td, vd] = bms.analyzer.DynamicSeriesService.limitSeriesPoints(tSpeedDay, vSpeedDay, perDayMax);
+                    if ~isempty(vd)
+                        speedTimes{end+1, 1} = td; %#ok<AGROW>
+                        speedVals{end+1, 1} = vd; %#ok<AGROW>
+                    end
+                end
+
+                if ~isempty(vDirDay)
+                    [td, vd] = bms.analyzer.DynamicSeriesService.limitSeriesPoints(tDirDay, vDirDay, perDayMax);
+                    if ~isempty(vd)
+                        dirTimes{end+1, 1} = td; %#ok<AGROW>
+                        dirVals{end+1, 1} = vd; %#ok<AGROW>
+                    end
+                end
+            end
+
+            if speedCount <= 0
+                warning('Wind point %s has no speed data; skipped.', pid);
                 return;
             end
 
-            fs = bms.analyzer.DynamicSeriesService.sampleRate(tSpeed, true, 1);
-            [series.v10, v10Max, t10Max] = bms.analyzer.DynamicSeriesService.movingMeanSeries( ...
-                tSpeed, vSpeed, fs, params.window_minutes, 0.7);
+            [series.tSpeed, series.vSpeed] = bms.analyzer.WindSeriesService.concatSeries(speedTimes, speedVals);
+            [series.tDir, series.vDir] = bms.analyzer.WindSeriesService.concatSeries(dirTimes, dirVals);
+            [series.t10, series.v10] = bms.analyzer.WindSeriesService.concatSeries(t10Parts, v10Parts);
 
-            speedStats = bms.analyzer.StructuralSeriesService.statsTriple(vSpeed, params.decimals);
-            row = {pid, speedStats(1), speedStats(2), speedStats(3), v10Max, t10Max};
+            row = {pid, round(speedMin, params.decimals), round(speedMax, params.decimals), ...
+                round(speedSum / speedCount, params.decimals), v10Max, t10Max};
         end
 
         function series = seriesStruct(pid, tSpeed, vSpeed, tDir, vDir, params)
@@ -53,6 +111,7 @@ classdef WindSeriesService
                 'vSpeed', vSpeed, ...
                 'tDir', tDir, ...
                 'vDir', vDir, ...
+                't10', [], ...
                 'v10', [], ...
                 'params', params);
         end
@@ -97,6 +156,21 @@ classdef WindSeriesService
             if isfield(override, 'sector_deg') && ~isempty(override.sector_deg)
                 params.sector_deg = double(override.sector_deg);
             end
+        end
+
+        function [times, vals] = concatSeries(timeParts, valueParts)
+            times = [];
+            vals = [];
+            if isempty(valueParts)
+                return;
+            end
+            times = vertcat(timeParts{:});
+            vals = vertcat(valueParts{:});
+            if isempty(vals)
+                return;
+            end
+            [times, order] = sort(times);
+            vals = vals(order);
         end
     end
 end

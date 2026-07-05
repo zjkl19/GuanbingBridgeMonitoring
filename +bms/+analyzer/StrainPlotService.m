@@ -8,7 +8,8 @@ classdef StrainPlotService
             end
             fig = figure('Position', [100 100 1000 469]);
             hold on;
-            [timesPlot, valsPlot] = prepare_plot_series(times, vals);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            [timesPlot, valsPlot] = prepare_plot_series(times, vals, plotOpts);
             plot(timesPlot, valsPlot, 'LineWidth', 1.0, 'Color', [0 0.447 0.741]);
 
             [dt0, dt1] = bms.analyzer.StructuralTimeSeriesPlotService.dateRange(startDate, endDate);

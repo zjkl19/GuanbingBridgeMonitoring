@@ -220,6 +220,13 @@ classdef PlotService
                 isfinite(v(1)) && (isfinite(v(2)) || isinf(v(2))) && v(2) > v(1);
         end
 
+        function yl = normalizeYLim(v)
+            yl = [];
+            if bms.plot.PlotService.isValidYLim(v)
+                yl = reshape(double(v), 1, 2);
+            end
+        end
+
         function applyYLim(style, pointId, defaultAuto)
             if nargin < 3
                 defaultAuto = true;
@@ -232,9 +239,9 @@ classdef PlotService
             ylims = bms.config.ConfigReader.getField(style, 'ylims', []);
             yl = bms.plot.PlotService.resolveNamedYLim(ylims, pointId, defaultYLim);
             if bms.plot.PlotService.isValidYLim(yl)
-                ylim(yl);
+                ylim(bms.plot.PlotService.normalizeYLim(yl));
             elseif bms.plot.PlotService.isValidYLim(defaultYLim)
-                ylim(defaultYLim);
+                ylim(bms.plot.PlotService.normalizeYLim(defaultYLim));
             else
                 ylim auto;
             end

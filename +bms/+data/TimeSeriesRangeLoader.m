@@ -75,6 +75,7 @@ classdef TimeSeriesRangeLoader
 
                 [t, v] = loader.read_file(fp, sensorType, pointId, day, dayMeta);
                 if isempty(v), continue; end
+                meta = bms.data.TimeSeriesRangeLoader.mergeDayMeta(meta, dayMeta);
                 meta.files{end+1} = fp; %#ok<AGROW>
                 allT = [allT; t]; %#ok<AGROW>
                 allV = [allV; v]; %#ok<AGROW>
@@ -95,6 +96,22 @@ classdef TimeSeriesRangeLoader
         function [times, vals] = sortSeries(allT, allV)
             [times, order] = sort(allT);
             vals = allV(order);
+        end
+
+        function meta = mergeDayMeta(meta, dayMeta)
+            if nargin < 1 || isempty(meta)
+                meta = struct();
+            end
+            if nargin < 2 || isempty(dayMeta) || ~isstruct(dayMeta)
+                return;
+            end
+            copyFields = {'data_source', 'candidate_dirs'};
+            for i = 1:numel(copyFields)
+                field = copyFields{i};
+                if ~isfield(meta, field) && isfield(dayMeta, field)
+                    meta.(field) = dayMeta.(field);
+                end
+            end
         end
 
         function [vals, meta] = applyCleaning(vals, times, rules, sensorType, pointId, meta)
@@ -143,6 +160,8 @@ classdef TimeSeriesRangeLoader
 
         function loader = hongtangLoader(cfg)
             loader = bms.data.TimeSeriesRangeLoader.donghuaLoader(cfg);
+            loader.get_day_dir = @(rootDir, day, subfolder, sensorType, meta) ...
+                bms.data.TimeSeriesRangeLoader.hongtangDayDir(rootDir, day, subfolder, sensorType, meta, cfg);
             loader.read_range = @(rootDir, subfolder, pointId, sensorType, range) ...
                 bms.data.HongtangLowFreqDataSource.readRange(rootDir, pointId, sensorType, range, cfg);
         end
@@ -186,6 +205,33 @@ classdef TimeSeriesRangeLoader
                     dirp = '';
                 end
             end
+        end
+
+        function [dirp, meta] = hongtangDayDir(rootDir, day, subfolder, sensorType, meta, cfg)
+            %#ok<INUSD> sensorType is reserved for future Hongtang layout routing.
+            dirp = '';
+            if nargin < 5 || isempty(meta)
+                meta = struct();
+            end
+            if nargin < 6
+                cfg = struct();
+            end
+            if isempty(rootDir) || ~exist(rootDir, 'dir')
+                return;
+            end
+
+            if bms.data.DatedFolderAdapter.hasDateFolders(rootDir)
+                dirs = bms.data.DatedFolderAdapter.candidateDirs(rootDir, subfolder, day, day);
+                meta.data_source = 'bms.data.DatedFolderAdapter';
+                meta.candidate_dirs = dirs;
+                if ~isempty(dirs)
+                    dirp = dirs{1};
+                    return;
+                end
+            end
+
+            [dirp, meta] = bms.data.TimeSeriesRangeLoader.dataSourceDayDir( ...
+                rootDir, day, subfolder, cfg, meta);
         end
 
         function [t, v, used, files] = chongyangxiReadRange(rootDir, subfolder, pointId, sensorType, range, cfg)

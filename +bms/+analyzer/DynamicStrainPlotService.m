@@ -41,13 +41,14 @@ classdef DynamicStrainPlotService
             plotLabels = {};
             n = numel(tsList);
             labels = labels(:);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
             for i = 1:n
                 times = tsList(i).times;
                 values = tsList(i).vals;
                 if isempty(times) || isempty(values)
                     continue;
                 end
-                [timesPlot, valuesPlot] = prepare_plot_series(times, values);
+                [timesPlot, valuesPlot] = prepare_plot_series(times, values, plotOpts);
                 if isempty(timesPlot) || isempty(valuesPlot) || ~any(isfinite(valuesPlot))
                     continue;
                 end
@@ -112,7 +113,8 @@ classdef DynamicStrainPlotService
                 return;
             end
 
-            [timesPlot, valuesPlot] = prepare_plot_series(ts.times, ts.vals);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            [timesPlot, valuesPlot] = prepare_plot_series(ts.times, ts.vals, plotOpts);
             if isempty(timesPlot) || isempty(valuesPlot) || ~any(isfinite(valuesPlot))
                 return;
             end

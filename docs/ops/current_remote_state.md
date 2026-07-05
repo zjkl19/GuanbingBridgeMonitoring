@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-04 12:00 CST
+Last updated: 2026-07-05 11:30 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -127,8 +127,23 @@ state and keep algorithm/report decisions in the normal project docs.
 
 ### Hongtang Bridge 2026 Q2 Pipeline
 
-- Status: recovery in progress.
-- Run directory:
+- Status: completed and manually spot-checked by the user on 2026-07-05.
+- Final full run directory:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_full_20260705_022000`
+- Final RMS refresh directory:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_rms_refresh_20260705_102937`
+- RMS refresh result: acceleration `12/12`, cable acceleration `24/24`, no
+  skipped points.
+- Final checked report copied back to 133:
+  - `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260705_105401_checked.docx`
+  - `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260705_105401_checked.pdf`
+- Local render QA after copying from 133 produced `110` PNG pages and found no
+  `错误` / `引用源未找到` / stale Q1 date / old `共 63 页` text.
+- Report generator runtime for the checked Q2 build was about `80` seconds.
+- Report-field update note: 133 has Word COM but no Python `pythoncom`; the
+  report builder now falls back to PowerShell Word COM, verified on 133 with
+  `WORD_UPDATE_WARNINGS=[]`.
+- Historical first run directory:
   `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_20260701`
 - Status file: `hongtang_q2_status.json`
 - Scheduled tasks:
@@ -166,16 +181,20 @@ Last observed on 133 at 2026-07-03 19:49 CST:
 
 ## Recent Code Sync Notes
 
-133 `F:\Guanbing` is synced with local `main` as of 2026-07-04 18:30 CST.
+133 `F:\Guanbing` has the Hongtang Q2 source changes used for the accepted
+report, but the worktree is not clean until the local `v1.7.14` release commit
+is pulled or reset in through git.
 
-- Remote HEAD: `36ba9f0 Harden Jikang lowfreq sync`
-- Remote `git status --short`: clean
+- Remote HEAD before the `v1.7.14` release commit: `308dea7 Document Hongtang Q2 recovery`
+- Remote `git status --short` at the last check showed the same Hongtang Q2
+  modified files and new RMS/report-field-update test files as local.
+- Report generator file `reporting/build_period_report.py` was synchronized to
+  133 before the accepted Q2 report and then re-smoke-tested there.
 - Remote focused tests passed:
-  - `tests/test_hongtang_lowfreq_sync_service.m`: `3 Passed`
-  - Earlier focused GUI/config tests on the same sync line:
-    `tests/test_hongtang_lowfreq_sync_service.m`, `tests/test_step_factory_split.m`,
-    `tests/test_main_gui_smoke.m`, `tests/test_config_migrator.m`, plus
-    `tests/test_prepare_plot_series_gap_mode.m`.
+  - `D:\Python310\python.exe -m unittest tests_py.test_build_period_report_word_update`
+  - real Word COM smoke test on a copied DOCX returned `WORD_UPDATE_WARNINGS=[]`.
+  - earlier focused MATLAB tests for lowfreq, GUI/config, gap mode and dynamic
+    services passed on this recovery line.
 
 Known accepted fixes from the July 2026 remote runs:
 

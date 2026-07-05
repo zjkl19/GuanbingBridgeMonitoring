@@ -5,12 +5,18 @@ classdef DynamicSeriesService
         function rec = initRecord()
             rec = struct('pid', '', 'times', [], 'vals', [], 'fs', NaN, ...
                 'mn', NaN, 'mx', NaN, 'av', NaN, 'rms_max', NaN, ...
-                'rms_time', NaT, 'has_data', false);
+                'rms_time', NaT, 'rms_times', [], 'rms_vals', [], 'has_data', false);
         end
 
         function rec = collectRecord(rootDir, subfolder, pointId, startDate, endDate, cfg, sensorType, autoDetectFs, keepSeries)
             if nargin < 8 || isempty(autoDetectFs), autoDetectFs = false; end
             if nargin < 9 || isempty(keepSeries), keepSeries = false; end
+
+            if bms.analyzer.DynamicSeriesService.shouldReduceByDay(sensorType)
+                rec = bms.analyzer.DynamicSeriesService.collectRecordByDay( ...
+                    rootDir, subfolder, pointId, startDate, endDate, cfg, sensorType, autoDetectFs, keepSeries);
+                return;
+            end
 
             rec = bms.analyzer.DynamicSeriesService.initRecord();
             rec.pid = pointId;
@@ -25,12 +31,116 @@ classdef DynamicSeriesService
             rec.mx = stats(2);
             rec.av = stats(3);
             [rec.rms_max, rec.rms_time] = bms.analyzer.DynamicSeriesService.rmsPeakForStats(times, vals, rec.fs, 10, 3);
+            [rec.rms_times, rec.rms_vals] = bms.analyzer.DynamicSeriesService.rmsByTimeBins(times, vals, 10, 0.7, rec.fs);
             rec.has_data = true;
 
             if keepSeries
                 rec.times = times;
                 rec.vals = vals;
             end
+        end
+
+        function tf = shouldReduceByDay(sensorType)
+            sensorType = lower(char(string(sensorType)));
+            tf = any(strcmp(sensorType, {'acceleration', 'cable_accel'}));
+        end
+
+        function rec = collectRecordByDay(rootDir, subfolder, pointId, startDate, endDate, cfg, sensorType, autoDetectFs, keepSeries)
+            rec = bms.analyzer.DynamicSeriesService.initRecord();
+            rec.pid = pointId;
+
+            dateList = bms.data.TimeSeriesRangeLoader.buildDateList(startDate, endDate);
+            maxPoints = bms.analyzer.DynamicSeriesService.plotMaxPoints(cfg, 50000);
+            perDayMax = max(100, ceil(maxPoints / max(1, numel(dateList))));
+
+            totalCount = 0;
+            totalSum = 0;
+            mn = Inf;
+            mx = -Inf;
+            bestRms = NaN;
+            bestTime = NaT;
+            fsValues = [];
+            keptTimes = {};
+            keptVals = {};
+            keptRmsTimes = {};
+            keptRmsVals = {};
+
+            for i = 1:numel(dateList)
+                day = dateList{i};
+                if i == 1 || i == numel(dateList) || mod(i, 10) == 0
+                    fprintf('Dynamic %s %s loading %s (%d/%d)\n', ...
+                        char(string(sensorType)), char(string(pointId)), day, i, numel(dateList));
+                end
+                [times, vals] = load_timeseries_range(rootDir, subfolder, pointId, day, day, cfg, sensorType);
+                if isempty(vals)
+                    continue;
+                end
+
+                fsDay = bms.analyzer.DynamicSeriesService.sampleRate(times, autoDetectFs, 100);
+                if isfinite(fsDay) && fsDay > 0
+                    fsValues(end+1, 1) = fsDay; %#ok<AGROW>
+                end
+
+                finite = isfinite(vals);
+                if any(finite)
+                    dayVals = vals(finite);
+                    totalCount = totalCount + numel(dayVals);
+                    totalSum = totalSum + sum(dayVals);
+                    mn = min(mn, min(dayVals));
+                    mx = max(mx, max(dayVals));
+                end
+
+                [rmsTimesDay, rmsSeriesDay, rmsDay, tDay] = bms.analyzer.DynamicSeriesService.rmsByTimeBins(times, vals, 10, 0.7, fsDay);
+                if isfinite(rmsDay) && (~isfinite(bestRms) || rmsDay > bestRms)
+                    bestRms = rmsDay;
+                    bestTime = tDay;
+                end
+                if ~isempty(rmsSeriesDay)
+                    keptRmsTimes{end+1, 1} = rmsTimesDay; %#ok<AGROW>
+                    keptRmsVals{end+1, 1} = rmsSeriesDay; %#ok<AGROW>
+                end
+
+                if keepSeries
+                    [td, vd] = bms.analyzer.DynamicSeriesService.limitSeriesPoints(times, vals, perDayMax);
+                    if ~isempty(vd)
+                        keptTimes{end+1, 1} = td; %#ok<AGROW>
+                        keptVals{end+1, 1} = vd; %#ok<AGROW>
+                    end
+                end
+            end
+
+            if totalCount <= 0
+                return;
+            end
+
+            rec.fs = median(fsValues, 'omitnan');
+            if isempty(fsValues) || ~isfinite(rec.fs)
+                rec.fs = 100;
+            end
+            rec.mn = round(mn, 3);
+            rec.mx = round(mx, 3);
+            rec.av = round(totalSum / totalCount, 3);
+            if isfinite(bestRms)
+                rec.rms_max = round(bestRms, 3);
+                rec.rms_time = bestTime;
+            end
+            rec.has_data = true;
+
+            if ~isempty(keptRmsVals)
+                rec.rms_times = vertcat(keptRmsTimes{:});
+                rec.rms_vals = vertcat(keptRmsVals{:});
+                [rec.rms_times, order] = sort(rec.rms_times);
+                rec.rms_vals = rec.rms_vals(order);
+            end
+
+            if keepSeries && ~isempty(keptVals)
+                rec.times = vertcat(keptTimes{:});
+                rec.vals = vertcat(keptVals{:});
+                [rec.times, order] = sort(rec.times);
+                rec.vals = rec.vals(order);
+            end
+            fprintf('Dynamic %s %s collected %d plot samples; rms=%.6g\n', ...
+                char(string(sensorType)), char(string(pointId)), numel(rec.vals), rec.rms_max);
         end
 
         function fs = sampleRate(times, autoDetectFs, defaultFs)
@@ -53,6 +163,38 @@ classdef DynamicSeriesService
             end
         end
 
+        function maxPoints = plotMaxPoints(cfg, defaultValue)
+            if nargin < 2 || isempty(defaultValue), defaultValue = 50000; end
+            maxPoints = defaultValue;
+            if isstruct(cfg) && isfield(cfg, 'plot_common') && isstruct(cfg.plot_common) ...
+                    && isfield(cfg.plot_common, 'fig_max_points') && ~isempty(cfg.plot_common.fig_max_points)
+                maxPoints = double(cfg.plot_common.fig_max_points);
+            end
+            if ~isfinite(maxPoints) || maxPoints <= 0
+                maxPoints = defaultValue;
+            end
+            maxPoints = max(1000, round(maxPoints));
+        end
+
+        function [timesOut, valsOut] = limitSeriesPoints(times, vals, maxPoints)
+            timesOut = [];
+            valsOut = [];
+            if isempty(vals) || numel(times) ~= numel(vals)
+                return;
+            end
+            times = times(:);
+            vals = vals(:);
+            n = numel(vals);
+            if nargin < 3 || isempty(maxPoints) || ~isfinite(maxPoints) || maxPoints <= 0 || n <= maxPoints
+                timesOut = times;
+                valsOut = vals;
+                return;
+            end
+            idx = unique(round(linspace(1, n, maxPoints)));
+            timesOut = times(idx);
+            valsOut = vals(idx);
+        end
+
         function winLen = rmsWindowLength(fs, windowMinutes)
             if nargin < 2 || isempty(windowMinutes), windowMinutes = 10; end
             if isempty(fs) || ~isfinite(fs) || fs <= 0
@@ -67,24 +209,18 @@ classdef DynamicSeriesService
 
             rmsMax = NaN;
             tMax = NaT;
-            winLen = bms.analyzer.DynamicSeriesService.rmsWindowLength(fs, windowMinutes);
-            if numel(vals) < winLen
+            if isempty(vals) || numel(times) ~= numel(vals)
                 return;
             end
 
-            validCnt = movsum(isfinite(vals), winLen, 'Endpoints', 'shrink');
-            rmsVals = sqrt(movmean(vals.^2, winLen, 'omitnan', 'Endpoints', 'shrink'));
-            minNeed = max(1, round(0.7 * winLen));
-            rmsVals(validCnt < minNeed) = NaN;
-            [rawMax, idx] = max(rmsVals, [], 'omitnan');
-            if isempty(idx) || ~isfinite(rawMax)
+            [~, ~, rawMax, rawT] = bms.analyzer.DynamicSeriesService.rmsByTimeBins( ...
+                times, vals, windowMinutes, 0.7, fs);
+            if ~isfinite(rawMax)
                 return;
             end
 
             rmsMax = round(rawMax, decimals);
-            if numel(times) >= idx
-                tMax = times(idx);
-            end
+            tMax = rawT;
         end
 
         function [rmsSeries, rmsMax, tMax] = rmsSeries(times, vals, fs, windowMinutes, minCoverage)
@@ -135,6 +271,112 @@ classdef DynamicSeriesService
                 return;
             end
             tMax = times(idxMax);
+        end
+
+        function [binTimes, rmsSeries, rmsMax, tMax] = rmsByTimeBins(times, vals, windowMinutes, minCoverage, fs)
+            if nargin < 3 || isempty(windowMinutes), windowMinutes = 10; end
+            if nargin < 4 || isempty(minCoverage), minCoverage = 0.7; end
+            if nargin < 5, fs = []; end
+
+            [binTimes, rmsSeries, rmsMax, tMax] = ...
+                bms.analyzer.DynamicSeriesService.aggregateByTimeBins( ...
+                    times, vals, windowMinutes, minCoverage, 'rms', fs);
+        end
+
+        function [binTimes, meanSeries, meanMax, tMax] = movingMeanByTimeBins(times, vals, windowMinutes, minCoverage, fs)
+            if nargin < 3 || isempty(windowMinutes), windowMinutes = 10; end
+            if nargin < 4 || isempty(minCoverage), minCoverage = 0.7; end
+            if nargin < 5, fs = []; end
+
+            [binTimes, meanSeries, meanMax, tMax] = ...
+                bms.analyzer.DynamicSeriesService.aggregateByTimeBins( ...
+                    times, vals, windowMinutes, minCoverage, 'mean', fs);
+        end
+
+        function [binTimes, aggSeries, aggMax, tMax] = aggregateByTimeBins(times, vals, windowMinutes, minCoverage, mode, fs)
+            if nargin < 3 || isempty(windowMinutes), windowMinutes = 10; end
+            if nargin < 4 || isempty(minCoverage), minCoverage = 0.7; end
+            if nargin < 5 || isempty(mode), mode = 'mean'; end
+            if nargin < 6, fs = []; end
+
+            binTimes = datetime.empty(0, 1);
+            aggSeries = [];
+            aggMax = NaN;
+            tMax = NaT;
+            if isempty(vals) || numel(times) ~= numel(vals) || ~isdatetime(times)
+                return;
+            end
+
+            times = times(:);
+            vals = vals(:);
+            validTime = ~isnat(times);
+            if ~any(validTime)
+                return;
+            end
+
+            windowMinutes = double(windowMinutes);
+            if ~isfinite(windowMinutes) || windowMinutes <= 0
+                windowMinutes = 10;
+            end
+            minCoverage = double(minCoverage);
+            if ~isfinite(minCoverage) || minCoverage <= 0 || minCoverage > 1
+                minCoverage = 0.7;
+            end
+
+            validTimes = times(validTime);
+            t0 = dateshift(min(validTimes), 'start', 'day');
+            t1 = dateshift(max(validTimes), 'start', 'day') + days(1);
+            if t0 >= t1
+                t1 = t0 + days(1);
+            end
+
+            edges = (t0:minutes(windowMinutes):t1)';
+            if numel(edges) < 2
+                return;
+            end
+            binTimes = edges(1:end-1) + minutes(windowMinutes / 2);
+            nBins = numel(binTimes);
+            aggSeries = NaN(nBins, 1);
+
+            idxAll = discretize(times(validTime), edges);
+            valsAll = vals(validTime);
+            finite = ~isnan(idxAll) & isfinite(valsAll);
+            if ~any(finite)
+                return;
+            end
+
+            idx = idxAll(finite);
+            binVals = valsAll(finite);
+            count = accumarray(idx, 1, [nBins 1], @sum, 0);
+            sumVals = accumarray(idx, binVals, [nBins 1], @sum, 0);
+            sumSq = accumarray(idx, binVals .^ 2, [nBins 1], @sum, 0);
+
+            mode = lower(char(string(mode)));
+            switch mode
+                case 'rms'
+                    positiveCount = count > 0;
+                    aggSeries(positiveCount) = sqrt(sumSq(positiveCount) ./ count(positiveCount));
+                case 'mean'
+                    positiveCount = count > 0;
+                    aggSeries(positiveCount) = sumVals(positiveCount) ./ count(positiveCount);
+                otherwise
+                    error('DynamicSeriesService:UnsupportedAggregateMode', ...
+                        'Unsupported aggregate mode: %s', mode);
+            end
+
+            if isempty(fs) || ~isfinite(fs) || fs <= 0
+                fs = bms.analyzer.DynamicSeriesService.sampleRate(validTimes, true, 1);
+            end
+            expectedPerBin = max(1, round(windowMinutes * 60 * fs));
+            minNeed = max(1, round(minCoverage * expectedPerBin));
+            aggSeries(count < minNeed) = NaN;
+
+            [aggMax, idxMax] = max(aggSeries, [], 'omitnan');
+            if isempty(idxMax) || ~isfinite(aggMax)
+                aggMax = NaN;
+                return;
+            end
+            tMax = binTimes(idxMax);
         end
 
         function T = dynamicStatsTable(rows)

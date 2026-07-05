@@ -63,6 +63,29 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(tMax, times(6));
         end
 
+        function timeBinAggregatesRespectCoverageThreshold(tc)
+            base = datetime(2026, 1, 1, 0, 0, 0);
+            times = base + seconds(0:1199)';
+            vals = [2 * ones(600, 1); 4 * ones(600, 1)];
+            vals(100:500) = NaN;
+
+            [binTimes, rmsVals, rmsMax, tMax] = bms.analyzer.DynamicSeriesService.rmsByTimeBins( ...
+                times, vals, 10, 0.7, 1);
+            [meanTimes, meanVals, meanMax, meanTMax] = bms.analyzer.DynamicSeriesService.movingMeanByTimeBins( ...
+                times, vals, 10, 0.7, 1);
+
+            tc.verifyGreaterThanOrEqual(numel(rmsVals), 2);
+            tc.verifyTrue(isnan(rmsVals(1)));
+            tc.verifyEqual(rmsVals(2), 4);
+            tc.verifyEqual(rmsMax, 4);
+            tc.verifyEqual(tMax, base + minutes(15));
+            tc.verifyEqual(meanTimes, binTimes);
+            tc.verifyTrue(isnan(meanVals(1)));
+            tc.verifyEqual(meanVals(2), 4);
+            tc.verifyEqual(meanMax, 4);
+            tc.verifyEqual(meanTMax, base + minutes(15));
+        end
+
         function collectRecordLoadsStatsAndRmsPeak(tc)
             values = 2 * ones(601, 1);
             write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'A1.csv'), values);

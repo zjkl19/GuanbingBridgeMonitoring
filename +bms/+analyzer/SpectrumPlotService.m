@@ -12,8 +12,9 @@ classdef SpectrumPlotService
             colors = bms.analyzer.SpectrumPlotService.normalizeColors(style.colors);
             h = gobjects(numel(targetFreqs), 1);
             hasLine = false(numel(targetFreqs), 1);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
             for k = 1:numel(targetFreqs)
-                [datesPlot, freqPlot] = prepare_plot_series(datesAll, freqDay(:, k));
+                [datesPlot, freqPlot] = prepare_plot_series(datesAll, freqDay(:, k), plotOpts);
                 if isempty(datesPlot) || isempty(freqPlot) || ~any(isfinite(freqPlot))
                     continue;
                 end
@@ -106,6 +107,7 @@ classdef SpectrumPlotService
             hold on;
             colors = bms.analyzer.SpectrumPlotService.normalizeColors(style.colors);
             h = gobjects(numel(forceList), 1);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
             for i = 1:numel(forceList)
                 if ~valid(i)
                     continue;
@@ -118,7 +120,7 @@ classdef SpectrumPlotService
                     cmap = lines(numel(forceList));
                     c = cmap(i, :);
                 end
-                [timesPlot, forcePlot] = prepare_plot_series(timesList{i}, forceList{i});
+                [timesPlot, forcePlot] = prepare_plot_series(timesList{i}, forceList{i}, plotOpts);
                 if isempty(timesPlot) || isempty(forcePlot) || ~any(isfinite(forcePlot))
                     continue;
                 end
@@ -224,11 +226,12 @@ classdef SpectrumPlotService
             hold on;
             colors = bms.analyzer.StructuralPlotConfigService.distinctColors(max(1, numel(freqList)));
             h = gobjects(numel(freqList), 1);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
             for i = 1:numel(freqList)
                 if ~valid(i)
                     continue;
                 end
-                [timesPlot, freqPlot] = prepare_plot_series(timesList{i}, freqList{i});
+                [timesPlot, freqPlot] = prepare_plot_series(timesList{i}, freqList{i}, plotOpts);
                 if isempty(timesPlot) || isempty(freqPlot) || ~any(isfinite(freqPlot))
                     continue;
                 end

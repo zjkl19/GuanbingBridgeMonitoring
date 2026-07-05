@@ -124,8 +124,12 @@ classdef EarthquakeAnalysisPipeline
                 end
             else
                 for i = 1:numel(points)
+                    fprintf('Collecting earthquake point %s (%d/%d) ...\n', ...
+                        char(string(points{i})), i, numel(points));
                     records(i) = bms.analyzer.EarthquakeAnalysisPipeline.collectRecord( ...
                         rootDir, subfolder, points{i}, startDate, endDate, cfg);
+                    fprintf('Collected earthquake point %s (%d/%d).\n', ...
+                        char(string(points{i})), i, numel(points));
                 end
             end
         end
@@ -168,18 +172,28 @@ classdef EarthquakeAnalysisPipeline
                 if ~isstruct(rec) || ~isfield(rec, 'has_data') || ~rec.has_data
                     continue;
                 end
-                vals = rec.vals(:);
-                if isempty(vals)
-                    continue;
-                end
-                [peak, idx] = max(abs(vals), [], 'omitnan');
-                if isempty(idx) || ~isfinite(peak) || idx < 1 || idx > numel(rec.times)
-                    continue;
+                peak = NaN;
+                peakTime = NaT;
+                if isfield(rec, 'peak') && isfinite(rec.peak)
+                    peak = rec.peak;
+                    if isfield(rec, 'peak_time')
+                        peakTime = rec.peak_time;
+                    end
+                else
+                    vals = rec.vals(:);
+                    if isempty(vals)
+                        continue;
+                    end
+                    [peak, idx] = max(abs(vals), [], 'omitnan');
+                    if isempty(idx) || ~isfinite(peak) || idx < 1 || idx > numel(rec.times)
+                        continue;
+                    end
+                    peakTime = rec.times(idx);
                 end
                 pointIds{end+1, 1} = bms.analyzer.EarthquakeAnalysisPipeline.basePointId(rec.pid); %#ok<AGROW>
                 components{end+1, 1} = char(string(rec.comp)); %#ok<AGROW>
                 peaks(end+1, 1) = peak; %#ok<AGROW>
-                peakTimes{end+1, 1} = bms.analyzer.EarthquakeAnalysisPipeline.formatTime(rec.times(idx)); %#ok<AGROW>
+                peakTimes{end+1, 1} = bms.analyzer.EarthquakeAnalysisPipeline.formatTime(peakTime); %#ok<AGROW>
             end
             T = table(string(pointIds(:)), string(components(:)), peaks(:), string(peakTimes(:)), ...
                 'VariableNames', {'PointID', 'Component', 'Peak', 'PeakTime'});
@@ -206,7 +220,8 @@ classdef EarthquakeAnalysisPipeline
             end
 
             fig = figure('Position', [100 100 1100 500]);
-            [timesPlot, valsPlot] = bms.plot.PlotService.prepareSeries(times, vals);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            [timesPlot, valsPlot] = bms.plot.PlotService.prepareSeries(times, vals, plotOpts);
             plot(timesPlot, valsPlot, 'LineWidth', 1.1, 'Color', style.main_color);
             xlabel('时间');
             ylabel(style.ylabel);

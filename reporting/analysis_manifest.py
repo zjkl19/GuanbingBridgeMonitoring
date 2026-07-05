@@ -27,7 +27,21 @@ def load_analysis_manifest(path: Path | str | None) -> dict[str, Any] | None:
     p = Path(path)
     if not p.exists():
         return None
-    return json.loads(p.read_text(encoding="utf-8"))
+    return json.loads(p.read_text(encoding="utf-8-sig"))
+
+
+def _successful_module_keys(manifest: dict[str, Any]) -> set[str]:
+    keys: set[str] = set()
+    for field in ("module_results", "module_logs"):
+        for item in manifest.get(field, []) or []:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("status") or "").lower() != "ok":
+                continue
+            key = str(item.get("key") or item.get("module") or "")
+            if key:
+                keys.add(key)
+    return keys
 
 
 def load_latest_analysis_manifest(result_root: Path | str | None) -> tuple[Path | None, dict[str, Any] | None]:
@@ -46,6 +60,7 @@ def manifest_missing_modules(manifest: dict[str, Any] | None) -> list[dict[str, 
 
     missing: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
+    successful_keys = _successful_module_keys(manifest)
 
     for item in manifest.get("module_preflight", []) or []:
         if not isinstance(item, dict):
@@ -54,6 +69,8 @@ def manifest_missing_modules(manifest: dict[str, Any] | None) -> list[dict[str, 
         exists = item.get("exists")
         if status == "missing" or exists is False:
             key = str(item.get("key") or _module_label(item))
+            if key in successful_keys:
+                continue
             rec = {
                 "key": key,
                 "label": _module_label(item),
