@@ -143,6 +143,10 @@ state and keep algorithm/report decisions in the normal project docs.
 - Report-field update note: 133 has Word COM but no Python `pythoncom`; the
   report builder now falls back to PowerShell Word COM, verified on 133 with
   `WORD_UPDATE_WARNINGS=[]`.
+- Python environment update on 2026-07-05: `D:\Python310` already had
+  `python-docx`, `openpyxl`, `Pillow`, `pandas`, `numpy`, `matplotlib` and
+  `lxml`; installed missing `pywin32 312` and `PySide6 6.11.1` so
+  `pythoncom`, `win32com` and direct report GUI imports are available.
 - Historical first run directory:
   `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_20260701`
 - Status file: `hongtang_q2_status.json`
