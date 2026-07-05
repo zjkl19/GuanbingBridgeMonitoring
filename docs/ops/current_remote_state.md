@@ -181,15 +181,17 @@ Last observed on 133 at 2026-07-03 19:49 CST:
 
 ## Recent Code Sync Notes
 
-133 `F:\Guanbing` has the Hongtang Q2 source changes used for the accepted
-report, but the worktree is not clean until the local `v1.7.14` release commit
-is pulled or reset in through git.
+133 `F:\Guanbing` is synced with `origin/main` at the `v1.7.14` release line as
+of 2026-07-05 11:50 CST.
 
-- Remote HEAD before the `v1.7.14` release commit: `308dea7 Document Hongtang Q2 recovery`
-- Remote `git status --short` at the last check showed the same Hongtang Q2
-  modified files and new RMS/report-field-update test files as local.
+- Remote HEAD: `292d38a Release v1.7.14 Hongtang Q2 hardening`
+- Tag at remote HEAD: `v1.7.14`
+- Remote `git status --short --branch`: clean, `main...origin/main`
+- Before the fast-forward pull, the duplicate dirty worktree was backed up as
+  `stash@{0}: pre-v1.7.14 duplicate Hongtang Q2 worktree backup`.
 - Report generator file `reporting/build_period_report.py` was synchronized to
-  133 before the accepted Q2 report and then re-smoke-tested there.
+  133 before the accepted Q2 report, re-smoke-tested there, and is now tracked
+  through git at `v1.7.14`.
 - Remote focused tests passed:
   - `D:\Python310\python.exe -m unittest tests_py.test_build_period_report_word_update`
   - real Word COM smoke test on a copied DOCX returned `WORD_UPDATE_WARNINGS=[]`.
