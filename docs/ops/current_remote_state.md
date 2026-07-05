@@ -184,8 +184,10 @@ Last observed on 133 at 2026-07-03 19:49 CST:
 133 `F:\Guanbing` is synced with `origin/main` at the `v1.7.14` release line as
 of 2026-07-05 11:50 CST.
 
-- Remote HEAD: `292d38a Release v1.7.14 Hongtang Q2 hardening`
-- Tag at remote HEAD: `v1.7.14`
+- Release commit: `292d38a Release v1.7.14 Hongtang Q2 hardening`
+- Release tag: `v1.7.14`
+- Remote `main` has been cleanly fast-forwarded through the docs-only sync
+  commits after the release commit.
 - Remote `git status --short --branch`: clean, `main...origin/main`
 - Before the fast-forward pull, the duplicate dirty worktree was backed up as
   `stash@{0}: pre-v1.7.14 duplicate Hongtang Q2 worktree backup`.
