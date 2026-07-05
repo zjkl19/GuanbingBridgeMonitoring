@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-05 15:30 CST
+Last updated: 2026-07-05 14:08 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -128,6 +128,23 @@ state and keep algorithm/report decisions in the normal project docs.
 ### Hongtang Bridge 2026 Q2 Pipeline
 
 - Status: completed and manually spot-checked by the user on 2026-07-05.
+- Active high-frequency source state: MAT-only for dated `波形` data.
+  On 2026-07-05, after validating MAT-only loading, the direct raw CSV files
+  under `E:\洪塘大桥数据\2026年4-6月\20??-??-??\波形\*.csv` were deleted to
+  save disk space. Do not expect those active folders to contain raw CSV files.
+- MAT-only deletion run:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_mat_only_delete_20260705_133553`
+  - Pre-delete direct wave CSV inventory: `9,675` files,
+    `853,816,533,340` bytes.
+  - Configured non-empty CSV-backed sources checked in MAT-only mode:
+    `3,662`; MAT ok: `3,662`; missing MAT: `0`; bad MAT: `0`.
+  - Empty configured source CSVs: `36` files, all `2` bytes, treated as empty
+    raw-source placeholders rather than cacheable data.
+  - Deleted direct wave CSVs: `9,675`; remaining direct wave CSVs: `0`.
+  - Remaining MAT caches under dated `波形\cache`: `3,662` files,
+    `37,899,893,177` bytes.
+  - Post-delete MAT-only smoke passed for `CS1`, `A1`, and `W1` on
+    `2026-04-01`, all reading `cache\*.mat`.
 - Final full run directory:
   `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_full_20260705_022000`
 - Final RMS refresh directory:

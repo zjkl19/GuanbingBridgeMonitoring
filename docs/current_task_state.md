@@ -54,6 +54,19 @@ Latest local and remote validation:
   `E:\洪塘大桥数据\2026年1-3月\2026-01-01\波形\cache\CS1_148.mat`.
 - 133 real Hongtang Q2 CSV + cache smoke passed for:
   `E:\洪塘大桥数据\2026年4-6月\2026-04-01\波形\CS1_148.csv`.
+- After a stricter MAT-only validation on 133, Hongtang Q2 active dated
+  waveform folders were converted to MAT-only operation:
+  - run directory:
+    `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_mat_only_delete_20260705_133553`
+  - direct raw CSV files deleted:
+    `E:\洪塘大桥数据\2026年4-6月\20??-??-??\波形\*.csv`
+    -> `9,675` files / `853,816,533,340` bytes.
+  - final direct wave CSV count: `0`.
+  - remaining dated wave MAT caches: `3,662` files / `37,899,893,177` bytes.
+  - validation before deletion: configured non-empty CSV-backed sources
+    `3,662`, MAT ok `3,662`, missing MAT `0`, bad MAT `0`; `36` configured
+    source CSVs were 2-byte empty placeholders.
+  - post-delete MAT-only smoke passed for `CS1`, `A1`, and `W1`.
 
 ## 2026-07-05 Latest Engineering Snapshot
 
