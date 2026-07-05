@@ -12,6 +12,13 @@
     "mode": "beep"
   },
   "data_adapter": {
+    "time_series": {
+      "source_mode": "auto",
+      "source_mode_note": "auto=CSV exists -> CSV cache validation; CSV missing -> use valid MAT cache. mat_only=only valid MAT cache.",
+      "cache_version": "csv_timeseries_v2",
+      "require_metadata": false,
+      "require_metadata_note": "false keeps legacy Hongtang Q1 MAT caches usable when .meta.json was not generated; new caches still write metadata."
+    },
     "hongtang_lowfreq": {
       "enabled": true,
       "file": "lowfreq/data.xlsx",

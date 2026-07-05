@@ -95,6 +95,12 @@ New helper packages are intentionally small and side-effect-light: `bms.config.S
 `bms.data.TimeSeriesLoader` now provides reusable CSV series loading, numeric-column detection, closed-range clipping, and basic series summaries. New analysis code should prefer this helper instead of re-implementing time/value column detection.
 `bms.data.TimeSeriesLoader` 现在提供可复用的 CSV 时程序列读取、数值列识别、闭区间裁剪和基础序列摘要。新增分析代码应优先使用该工具，避免重复实现时间列/数值列识别。
 
+For large high-frequency periods, the time-series loader can automatically use
+existing MAT caches after source CSV files have been archived. See
+`docs/mat_only_timeseries_source.md` before deleting active CSV copies.
+对于高频大数据周期，时程加载器可在原始 CSV 归档后自动使用已有 MAT 缓存。删除活动目录中的 CSV 前，先阅读
+`docs/mat_only_timeseries_source.md`。
+
 `bms.data.DataIndex` can build `data_index_*.json` and `data_index_summary_*.xlsx` under `<data-root>/run_logs` when `opts.buildDataIndex=true` or `config.data_index.enabled=true`. It maps enabled modules and configured points to actual source files, file counts, source metadata, and missing points. Use `scripts/build_data_index.m` when only a source-data inventory is needed. It is intentionally optional because indexing very large raw-data roots can add startup time.
 `bms.data.DataIndex` 可在 `opts.buildDataIndex=true` 或 `config.data_index.enabled=true` 时，在 `<数据根目录>/run_logs` 生成 `data_index_*.json` 和 `data_index_summary_*.xlsx`。它把启用模块和配置测点映射到实际原始文件、文件数量、源文件元信息和缺失测点。只需要排查原始数据清单时，可单独调用 `scripts/build_data_index.m`。该功能默认保持可选，因为超大原始数据目录索引会增加启动耗时。
 
@@ -277,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.15`: adds automatic MAT-only time-series source support for large high-frequency datasets, including Hongtang legacy MAT-cache compatibility, safer point-name matching, data-index awareness, and regression tests for archived-CSV operation.
+- `v1.7.15`：新增大数据时程 MAT-only 数据源自动识别，兼容洪塘旧 MAT 缓存，收紧测点文件名匹配，数据索引可识别 MAT 源，并补充 CSV 归档后的回归测试。
 - `v1.7.14`: hardens Hongtang Q2 production processing: dated-folder loading for the Q2 layout, connected gap-mode propagation, day-reduced high-frequency/RMS handling for acceleration and cable acceleration, wind day aggregation, report-field update fallback through PowerShell Word COM, and Hongtang Q2 recovery documentation.
 - `v1.7.14`：加固洪塘 Q2 生产处理链路：适配 Q2 日期目录读取，贯通 `gap_mode=connect`，加速度/索力加速度改为分日降采样与 RMS 聚合，风速风向改为分日聚合，报告字段更新增加 PowerShell Word COM 兜底，并沉淀洪塘 Q2 复跑说明。
 - `v1.7.13`: adds machine-specific path profiles for local/remote data roots, exposes a hidden main-GUI smoke-test entry with stable handles, and adds main-window shortcuts for faster remote GUI validation.

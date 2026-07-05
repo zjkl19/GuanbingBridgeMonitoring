@@ -6,6 +6,47 @@ Last updated: 2026-07-05
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-05 MAT-only Time-series Source Snapshot
+
+Current working release target after the Hongtang Q2 recovery line:
+
+- MATLAB GUI version in `ui/run_gui.m`: `v1.7.15`
+- Report GUI version in `reporting/report_gui.py`: unchanged at `v1.7.14`
+
+Accepted design for large high-frequency datasets:
+
+- `bms.data.TimeSeriesLoader` now supports automatic time-series source
+  selection:
+  - `auto`: use CSV plus validated MAT cache when CSV exists; if the CSV has
+    been archived, fall back to a matching `cache\*.mat`.
+  - `csv_cache`: legacy CSV-only discovery.
+  - `prefer_mat`: MAT first, CSV fallback.
+  - `mat_only`: MAT-only discovery.
+- `config/hongtang_config.json` sets
+  `data_adapter.time_series.source_mode=auto`.
+- Hongtang Q1 has older MAT caches without `*.meta.json`, so Hongtang currently
+  sets `data_adapter.time_series.require_metadata=false`. New caches still
+  write metadata and should keep the metadata files.
+- File fallback matching now uses point-name boundaries, avoiding mistakes such
+  as matching `A1` to `A10` or `CS1` to `CS10`.
+- `bms.data.DataIndex` can discover MAT cache sources, including Hongtang
+  dated folders under period roots.
+- Durable operating note: `docs/mat_only_timeseries_source.md`.
+
+Latest local validation before remote sync:
+
+- `git diff --check`: passed with only line-ending warnings.
+- MATLAB:
+  `matlab -batch "cd('D:\MatlabProjects\Guanbing'); addpath(genpath(pwd)); results = runtests({'tests/test_time_series_loader.m','tests/test_load_timeseries_range.m','tests/test_run_preflight.m'}); assertSuccess(results);"`
+  -> passed.
+- MATLAB:
+  `matlab -batch "cd('D:\MatlabProjects\Guanbing'); addpath(genpath(pwd)); results = runtests({'tests/test_dynamic_series_service.m','tests/test_bms_services.m'}); assertSuccess(results);"`
+  -> passed.
+- Real Hongtang Q1 smoke on local data:
+  `E:\洪塘大桥数据\2026年1-3月\2026-01-01\波形\cache\CS1_148.mat`
+  was read through `load_timeseries_range`, and
+  `bms.analyzer.DynamicSeriesService.collectRecord` produced valid RMS output.
+
 ## 2026-07-05 Latest Engineering Snapshot
 
 This is the current release point for the Hongtang Q2 recovery and report

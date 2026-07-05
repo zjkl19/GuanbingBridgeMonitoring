@@ -66,7 +66,8 @@ classdef DataIndex
             for i = 1:numel(points)
                 pointId = char(string(points{i}));
                 pointPatterns = bms.data.DataIndex.expandPatterns(patterns, pointId, cfg, spec.Key);
-                files = dataSource.findPointFiles(pointId, subfolder, startDate, endDate, pointPatterns);
+                files = bms.data.DataIndex.findPointFiles(dataSource, pointId, subfolder, ...
+                    startDate, endDate, pointPatterns, cfg, spec.Key);
                 pointRec = struct();
                 pointRec.point_id = pointId;
                 pointRec.safe_id = bms.data.PointResolver.safeId(pointId);
@@ -145,6 +146,52 @@ classdef DataIndex
             out{end+1} = [pointId '.csv']; %#ok<AGROW>
             out = unique(out(~cellfun(@isempty, out)), 'stable');
             patterns = reshape(out, 1, []);
+        end
+
+        function files = findPointFiles(dataSource, pointId, subfolder, startDate, endDate, patterns, cfg, moduleKey)
+            if nargin < 7 || isempty(cfg), cfg = struct(); end
+            if nargin < 8 || isempty(moduleKey), moduleKey = ''; end
+            mode = bms.data.TimeSeriesLoader.seriesSourceMode(cfg);
+            if strcmp(mode, 'csv_cache')
+                files = dataSource.findPointFiles(pointId, subfolder, startDate, endDate, patterns);
+                return;
+            end
+
+            sensorType = bms.data.DataIndex.sensorTypeForPoint(moduleKey, pointId);
+            dirs = bms.data.DataIndex.candidateDirs(dataSource, subfolder, startDate, endDate, cfg, sensorType);
+            files = {};
+            for i = 1:numel(dirs)
+                fp = bms.data.TimeSeriesLoader.findSeriesFileForPoint(dirs{i}, pointId, cfg, sensorType);
+                if ~isempty(fp)
+                    files{end+1} = fp; %#ok<AGROW>
+                end
+            end
+            if isempty(files)
+                files = dataSource.findPointFiles(pointId, subfolder, startDate, endDate, patterns);
+            end
+            files = bms.data.BaseDataSource.uniqueExistingFiles(files);
+        end
+
+        function dirs = candidateDirs(dataSource, subfolder, startDate, endDate, cfg, sensorType)
+            dirs = {};
+            if nargin < 6 || isempty(sensorType), sensorType = 'generic'; end
+            isHongtang = isstruct(cfg) && isfield(cfg, 'vendor') ...
+                && strcmpi(char(string(cfg.vendor)), 'hongtang') ...
+                && isprop(dataSource, 'Root') ...
+                && bms.data.DatedFolderAdapter.hasDateFolders(dataSource.Root);
+            if isHongtang
+                days = bms.data.TimeSeriesRangeLoader.buildDateList(startDate, endDate);
+                for i = 1:numel(days)
+                    [dirp, ~] = bms.data.TimeSeriesRangeLoader.hongtangDayDir( ...
+                        dataSource.Root, days{i}, subfolder, sensorType, struct(), cfg);
+                    if ~isempty(dirp)
+                        dirs{end+1} = dirp; %#ok<AGROW>
+                    end
+                end
+                dirs = bms.data.BaseDataSource.uniqueExistingFolders(dirs);
+                return;
+            end
+            dirs = dataSource.candidateDirs(subfolder, startDate, endDate);
         end
 
         function sensorType = sensorTypeForPoint(moduleKey, pointId)

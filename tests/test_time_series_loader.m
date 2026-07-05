@@ -160,6 +160,90 @@ classdef test_time_series_loader < matlab.unittest.TestCase
             tc.verifyTrue(contains(meta.files{1}, fullfile('2026-01-01', 'wave', 'SPEED.csv')));
         end
 
+        function autoSourceReadsMatCacheWhenCsvIsArchived(tc)
+            mkdir(fullfile(tc.TempDir, 'lowfreq'));
+            waveDir = fullfile(tc.TempDir, '2026-01-01', 'wave');
+            mkdir(waveDir);
+            csvPath = fullfile(waveDir, 'SPEED.csv');
+            write_text(csvPath, sprintf(['ignored header\n' ...
+                '2026-01-01 00:00:00.000,11.00\n' ...
+                '2026-01-01 00:00:01.000,12.00\n']));
+
+            cfg = local_hongtang_wind_cfg('auto');
+
+            [~, v1] = load_timeseries_range( ...
+                tc.TempDir, 'wave', 'W1', '2026-01-01', '2026-01-01', cfg, 'wind_speed');
+            tc.verifyEqual(v1(:), [11; 12]);
+            tc.verifyTrue(isfile(fullfile(waveDir, 'cache', 'SPEED.mat')));
+
+            delete(csvPath);
+            [t2, v2, meta2] = load_timeseries_range( ...
+                tc.TempDir, 'wave', 'W1', '2026-01-01', '2026-01-01', cfg, 'wind_speed');
+
+            tc.verifyEqual(numel(t2), 2);
+            tc.verifyEqual(v2(:), [11; 12]);
+            tc.verifyTrue(endsWith(meta2.files{1}, fullfile('cache', 'SPEED.mat')));
+        end
+
+        function matOnlyDoesNotFallbackToCsv(tc)
+            mkdir(fullfile(tc.TempDir, 'lowfreq'));
+            waveDir = fullfile(tc.TempDir, '2026-01-01', 'wave');
+            mkdir(waveDir);
+            write_text(fullfile(waveDir, 'SPEED.csv'), sprintf(['ignored header\n' ...
+                '2026-01-01 00:00:00.000,21.00\n']));
+
+            cfg = local_hongtang_wind_cfg('mat_only');
+
+            [t, v] = load_timeseries_range( ...
+                tc.TempDir, 'wave', 'W1', '2026-01-01', '2026-01-01', cfg, 'wind_speed');
+
+            tc.verifyEmpty(t);
+            tc.verifyEmpty(v);
+        end
+
+        function matOnlyRequiresCacheMetadata(tc)
+            mkdir(fullfile(tc.TempDir, 'lowfreq'));
+            cacheDir = fullfile(tc.TempDir, '2026-01-01', 'wave', 'cache');
+            mkdir(cacheDir);
+            times = datetime(2026, 1, 1, 0, 0, 0);
+            vals = 31;
+            save(fullfile(cacheDir, 'SPEED.mat'), 'times', 'vals');
+
+            cfg = local_hongtang_wind_cfg('mat_only');
+
+            [t, v] = load_timeseries_range( ...
+                tc.TempDir, 'wave', 'W1', '2026-01-01', '2026-01-01', cfg, 'wind_speed');
+
+            tc.verifyEmpty(t);
+            tc.verifyEmpty(v);
+        end
+
+        function pointNameMatchingUsesBoundaries(tc)
+            tc.verifyTrue(bms.data.TimeSeriesLoader.nameMatchesId('A1_174.mat', 'A1'));
+            tc.verifyTrue(bms.data.TimeSeriesLoader.nameMatchesId('CS1_148.mat', 'CS1'));
+            tc.verifyFalse(bms.data.TimeSeriesLoader.nameMatchesId('A10-X_156.mat', 'A1'));
+            tc.verifyFalse(bms.data.TimeSeriesLoader.nameMatchesId('CS10_166.mat', 'CS1'));
+        end
+
+        function dataIndexFindsMatCacheWhenCsvIsArchived(tc)
+            mkdir(fullfile(tc.TempDir, 'lowfreq'));
+            waveDir = fullfile(tc.TempDir, '2026-01-01', 'wave');
+            mkdir(waveDir);
+            csvPath = fullfile(waveDir, 'SPEED.csv');
+            write_text(csvPath, sprintf(['ignored header\n' ...
+                '2026-01-01 00:00:00.000,41.00\n']));
+            cfg = local_hongtang_wind_cfg('auto');
+            bms.data.TimeSeriesLoader.readCachedCsvSeries(csvPath, '[missing marker]');
+            delete(csvPath);
+
+            src = bms.data.DataSourceFactory.create(tc.TempDir, cfg);
+            files = bms.data.DataIndex.findPointFiles(src, 'W1', 'wave', ...
+                '2026-01-01', '2026-01-01', {'{file_id}.csv'}, cfg, 'wind');
+
+            tc.verifyEqual(numel(files), 1);
+            tc.verifyTrue(endsWith(files{1}, fullfile('cache', 'SPEED.mat')));
+        end
+
         function cachedCsvSeriesIgnoresCacheWithoutMetadata(tc)
             path = fullfile(tc.TempDir, 'series_stale.csv');
             write_text(path, sprintf(['ignored header\n' ...
@@ -192,4 +276,15 @@ function write_utf16le_bom(path, text)
     cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
     bytes = [uint8([255 254]), unicode2native(text, 'UTF-16LE')];
     fwrite(fid, bytes, 'uint8');
+end
+
+function cfg = local_hongtang_wind_cfg(sourceMode)
+cfg = struct();
+cfg.vendor = 'hongtang';
+cfg.defaults = struct('header_marker', '[missing marker]');
+cfg.data_adapter.time_series = struct( ...
+    'source_mode', sourceMode, ...
+    'cache_version', 'csv_timeseries_v2');
+cfg.file_patterns.wind_speed.default = '{file_id}.csv';
+cfg.per_point.wind.W1 = struct('speed_point_id', 'SPEED');
 end

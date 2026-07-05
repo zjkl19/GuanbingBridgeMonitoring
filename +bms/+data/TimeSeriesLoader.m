@@ -160,6 +160,85 @@ classdef TimeSeriesLoader
             end
         end
 
+        function [times, vals, meta] = readSeriesFile(path, headerMarker, opts)
+            %READSERIESFILE Load a CSV-backed or MAT-only two-column series.
+            if nargin < 2 || isempty(headerMarker)
+                headerMarker = '[绝对时间]';
+            end
+            if nargin < 3 || isempty(opts), opts = struct(); end
+
+            [~,~,ext] = fileparts(char(string(path)));
+            if strcmpi(ext, '.mat')
+                [times, vals, meta] = bms.data.TimeSeriesLoader.readMatSeries(path, opts);
+            else
+                [times, vals, meta] = bms.data.TimeSeriesLoader.readCachedCsvSeries(path, headerMarker, opts);
+            end
+        end
+
+        function [times, vals, meta] = readMatSeries(path, opts)
+            %READMATSERIES Load a promoted time-series MAT cache without the CSV.
+            if nargin < 2 || isempty(opts), opts = struct(); end
+            times = [];
+            vals = [];
+            meta = struct('path', char(string(path)), 'cache_path', char(string(path)), ...
+                'header_lines', 0, 'cache_hit', true, 'read_ok', false, ...
+                'source_mode', 'mat_only', 'metadata_ok', false);
+            if nargin < 1 || isempty(path) || ~isfile(path)
+                return;
+            end
+
+            cacheVersion = char(string(bms.data.TimeSeriesLoader.optionValue(opts, ...
+                'cache_version', 'csv_timeseries_v2')));
+            requireMetadata = logical(bms.data.TimeSeriesLoader.optionValue(opts, ...
+                'require_metadata', true));
+            if requireMetadata
+                meta.metadata_ok = bms.data.CacheManager.metadataMatches(path, struct(), cacheVersion);
+                if ~meta.metadata_ok
+                    return;
+                end
+            else
+                meta.metadata_ok = isfile(bms.data.CacheManager.metadataPath(path));
+            end
+
+            try
+                tmp = load(path, 'times', 'vals');
+                if isfield(tmp, 'times') && isfield(tmp, 'vals') && numel(tmp.times) == numel(tmp.vals)
+                    times = tmp.times;
+                    vals = tmp.vals;
+                    if ~isdatetime(times)
+                        times = bms.data.TimeSeriesLoader.toDatetime(times);
+                    end
+                    vals = vals(:);
+                    times = times(:);
+                    meta.read_ok = true;
+                end
+            catch
+                times = [];
+                vals = [];
+            end
+        end
+
+        function fp = findSeriesFileForPoint(dirp, pointId, cfg, sensorType)
+            %FINDSERIESFILEFORPOINT Resolve CSV-cache or MAT-only source automatically.
+            mode = bms.data.TimeSeriesLoader.seriesSourceMode(cfg);
+            switch mode
+                case 'mat_only'
+                    fp = bms.data.TimeSeriesLoader.findMatCacheForPoint(dirp, pointId, cfg, sensorType);
+                case 'prefer_mat'
+                    fp = bms.data.TimeSeriesLoader.findMatCacheForPoint(dirp, pointId, cfg, sensorType);
+                    if isempty(fp)
+                        fp = bms.data.TimeSeriesLoader.findCsvForPoint(dirp, pointId, cfg, sensorType);
+                    end
+                case 'csv_cache'
+                    fp = bms.data.TimeSeriesLoader.findCsvForPoint(dirp, pointId, cfg, sensorType);
+                otherwise
+                    fp = bms.data.TimeSeriesLoader.findCsvForPoint(dirp, pointId, cfg, sensorType);
+                    if isempty(fp)
+                        fp = bms.data.TimeSeriesLoader.findMatCacheForPoint(dirp, pointId, cfg, sensorType);
+                    end
+            end
+        end
+
         function fp = findCsvForPoint(dirp, pointId, cfg, sensorType)
             %FINDCSVFORPOINT Resolve a configured point ID to a CSV file path.
             fp = '';
@@ -176,30 +255,7 @@ classdef TimeSeriesLoader
             sensorType = char(string(sensorType));
             pointId = char(string(pointId));
             fileId = bms.data.TimeSeriesLoader.resolveFileId(cfg, sensorType, pointId);
-            patterns = {};
-            regexes = {};
-            if isstruct(cfg) && isfield(cfg, 'file_patterns') && isstruct(cfg.file_patterns) ...
-                    && isfield(cfg.file_patterns, sensorType)
-                ft = cfg.file_patterns.(sensorType);
-                if isstruct(ft) && isfield(ft, 'default')
-                    patterns = [patterns; bms.data.TimeSeriesLoader.normalizePatterns(ft.default)]; %#ok<AGROW>
-                end
-                if isstruct(ft) && isfield(ft, 'regex')
-                    regexes = [regexes; bms.data.TimeSeriesLoader.normalizePatterns(ft.regex)]; %#ok<AGROW>
-                end
-                if isstruct(ft) && isfield(ft, 'per_point') && isstruct(ft.per_point)
-                    [ok, pointPatterns] = bms.data.PointResolver.getPointConfig(ft.per_point, pointId, cfg);
-                    if ok
-                        patterns = [bms.data.TimeSeriesLoader.normalizePatterns(pointPatterns); patterns]; %#ok<AGROW>
-                    end
-                end
-                if isstruct(ft) && isfield(ft, 'per_point_regex') && isstruct(ft.per_point_regex)
-                    [ok, pointRegexes] = bms.data.PointResolver.getPointConfig(ft.per_point_regex, pointId, cfg);
-                    if ok
-                        regexes = [bms.data.TimeSeriesLoader.normalizePatterns(pointRegexes); regexes]; %#ok<AGROW>
-                    end
-                end
-            end
+            [patterns, regexes] = bms.data.TimeSeriesLoader.patternsForPoint(cfg, sensorType, pointId);
 
             for k = 1:numel(patterns)
                 pat = patterns{k};
@@ -229,9 +285,9 @@ classdef TimeSeriesLoader
             end
 
             files = dir(fullfile(dirp, '*.csv'));
-            idx = find(arrayfun(@(f) contains(f.name, fileId), files), 1);
+            idx = find(arrayfun(@(f) bms.data.TimeSeriesLoader.nameMatchesId(f.name, fileId), files), 1);
             if isempty(idx)
-                idx = find(arrayfun(@(f) contains(f.name, pointId), files), 1);
+                idx = find(arrayfun(@(f) bms.data.TimeSeriesLoader.nameMatchesId(f.name, pointId), files), 1);
             end
             if ~isempty(idx)
                 fp = fullfile(files(idx).folder, files(idx).name);
@@ -239,12 +295,87 @@ classdef TimeSeriesLoader
             end
 
             files = bms.data.TimeSeriesLoader.findRecursiveMatches(dirp, '*.csv');
-            idx = find(arrayfun(@(f) contains(f.name, fileId), files), 1);
+            idx = find(arrayfun(@(f) bms.data.TimeSeriesLoader.nameMatchesId(f.name, fileId), files), 1);
             if isempty(idx)
-                idx = find(arrayfun(@(f) contains(f.name, pointId), files), 1);
+                idx = find(arrayfun(@(f) bms.data.TimeSeriesLoader.nameMatchesId(f.name, pointId), files), 1);
             end
             if ~isempty(idx)
                 fp = fullfile(files(idx).folder, files(idx).name);
+            end
+        end
+
+        function fp = findMatCacheForPoint(dirp, pointId, cfg, sensorType)
+            %FINDMATCACHEFORPOINT Resolve a point ID to a standalone MAT series cache.
+            fp = '';
+            if nargin < 4 || isempty(sensorType)
+                sensorType = 'generic';
+            end
+            if isempty(dirp) || ~exist(dirp, 'dir')
+                return;
+            end
+            if nargin < 3 || isempty(cfg)
+                cfg = struct();
+            end
+
+            sensorType = char(string(sensorType));
+            pointId = char(string(pointId));
+            fileId = bms.data.TimeSeriesLoader.resolveFileId(cfg, sensorType, pointId);
+            [patterns, regexes] = bms.data.TimeSeriesLoader.patternsForPoint(cfg, sensorType, pointId);
+            patterns = bms.data.TimeSeriesLoader.matCachePatterns(patterns);
+            regexes = bms.data.TimeSeriesLoader.matCacheRegexes(regexes);
+            cacheDirs = bms.data.TimeSeriesLoader.cacheDirsFor(dirp);
+
+            for k = 1:numel(patterns)
+                pat = patterns{k};
+                pat = strrep(pat, '{point}', pointId);
+                pat = strrep(pat, '{file_id}', fileId);
+                for di = 1:numel(cacheDirs)
+                    matches = dir(fullfile(cacheDirs{di}, pat));
+                    if ~isempty(matches)
+                        fp = fullfile(matches(1).folder, matches(1).name);
+                        return;
+                    end
+                    matches = bms.data.TimeSeriesLoader.findRecursiveMatches(cacheDirs{di}, pat);
+                    if ~isempty(matches)
+                        fp = fullfile(matches(1).folder, matches(1).name);
+                        return;
+                    end
+                end
+            end
+
+            for k = 1:numel(regexes)
+                expr = regexes{k};
+                expr = strrep(expr, '{point}', regexptranslate('escape', pointId));
+                expr = strrep(expr, '{file_id}', regexptranslate('escape', fileId));
+                for di = 1:numel(cacheDirs)
+                    matches = bms.data.TimeSeriesLoader.findRecursiveRegexMatchesWithPattern(cacheDirs{di}, expr, '*.mat');
+                    if ~isempty(matches)
+                        fp = fullfile(matches(1).folder, matches(1).name);
+                        return;
+                    end
+                end
+            end
+
+            for di = 1:numel(cacheDirs)
+                files = dir(fullfile(cacheDirs{di}, '*.mat'));
+                idx = find(arrayfun(@(f) bms.data.TimeSeriesLoader.nameMatchesId(f.name, fileId), files), 1);
+                if isempty(idx)
+                    idx = find(arrayfun(@(f) bms.data.TimeSeriesLoader.nameMatchesId(f.name, pointId), files), 1);
+                end
+                if ~isempty(idx)
+                    fp = fullfile(files(idx).folder, files(idx).name);
+                    return;
+                end
+
+                files = bms.data.TimeSeriesLoader.findRecursiveMatches(cacheDirs{di}, '*.mat');
+                idx = find(arrayfun(@(f) bms.data.TimeSeriesLoader.nameMatchesId(f.name, fileId), files), 1);
+                if isempty(idx)
+                    idx = find(arrayfun(@(f) bms.data.TimeSeriesLoader.nameMatchesId(f.name, pointId), files), 1);
+                end
+                if ~isempty(idx)
+                    fp = fullfile(files(idx).folder, files(idx).name);
+                    return;
+                end
             end
         end
 
@@ -303,6 +434,175 @@ classdef TimeSeriesLoader
             end
         end
 
+        function [patterns, regexes] = patternsForPoint(cfg, sensorType, pointId)
+            patterns = {};
+            regexes = {};
+            if ~isstruct(cfg) || ~isfield(cfg, 'file_patterns') || ~isstruct(cfg.file_patterns) ...
+                    || ~isfield(cfg.file_patterns, sensorType)
+                return;
+            end
+
+            ft = cfg.file_patterns.(sensorType);
+            if isstruct(ft) && isfield(ft, 'default')
+                patterns = [patterns; bms.data.TimeSeriesLoader.normalizePatterns(ft.default)]; %#ok<AGROW>
+            end
+            if isstruct(ft) && isfield(ft, 'regex')
+                regexes = [regexes; bms.data.TimeSeriesLoader.normalizePatterns(ft.regex)]; %#ok<AGROW>
+            end
+            if isstruct(ft) && isfield(ft, 'per_point') && isstruct(ft.per_point)
+                [ok, pointPatterns] = bms.data.PointResolver.getPointConfig(ft.per_point, pointId, cfg);
+                if ok
+                    patterns = [bms.data.TimeSeriesLoader.normalizePatterns(pointPatterns); patterns]; %#ok<AGROW>
+                end
+            end
+            if isstruct(ft) && isfield(ft, 'per_point_regex') && isstruct(ft.per_point_regex)
+                [ok, pointRegexes] = bms.data.PointResolver.getPointConfig(ft.per_point_regex, pointId, cfg);
+                if ok
+                    regexes = [bms.data.TimeSeriesLoader.normalizePatterns(pointRegexes); regexes]; %#ok<AGROW>
+                end
+            end
+        end
+
+        function patterns = matCachePatterns(patterns)
+            if ischar(patterns) || isstring(patterns)
+                patterns = cellstr(string(patterns));
+            end
+            out = {};
+            for i = 1:numel(patterns)
+                p = char(string(patterns{i}));
+                if isempty(p), continue; end
+                [folderPart, namePart, extPart] = fileparts(p);
+                if strcmpi(extPart, '.csv')
+                    p = fullfile(folderPart, [namePart '.mat']);
+                elseif ~strcmpi(extPart, '.mat')
+                    p = [p '.mat'];
+                end
+                out{end+1} = p; %#ok<AGROW>
+            end
+            patterns = unique(out(~cellfun(@isempty, out)), 'stable');
+        end
+
+        function regexes = matCacheRegexes(regexes)
+            if ischar(regexes) || isstring(regexes)
+                regexes = cellstr(string(regexes));
+            end
+            out = {};
+            for i = 1:numel(regexes)
+                expr = char(string(regexes{i}));
+                if isempty(expr), continue; end
+                expr = regexprep(expr, '\\\.csv\$$', '\\.mat$');
+                expr = regexprep(expr, '\.csv\$$', '\.mat$');
+                expr = regexprep(expr, '\\\.csv', '\\.mat');
+                expr = regexprep(expr, '\.csv', '\.mat');
+                out{end+1} = expr; %#ok<AGROW>
+            end
+            regexes = unique(out(~cellfun(@isempty, out)), 'stable');
+        end
+
+        function dirs = cacheDirsFor(dirp)
+            dirs = {};
+            if nargin < 1 || isempty(dirp) || ~isfolder(dirp)
+                return;
+            end
+            dirs{end+1} = bms.data.CacheManager.cacheDir(dirp); %#ok<AGROW>
+            nested = dir(fullfile(char(dirp), '**', 'cache'));
+            nested = nested([nested.isdir]);
+            for i = 1:numel(nested)
+                dirs{end+1} = fullfile(nested(i).folder, nested(i).name); %#ok<AGROW>
+            end
+            dirs = bms.data.BaseDataSource.uniqueExistingFolders(dirs);
+        end
+
+        function mode = seriesSourceMode(cfg)
+            mode = 'auto';
+            if nargin < 1 || ~isstruct(cfg)
+                return;
+            end
+            candidates = {};
+            if isfield(cfg, 'time_series') && isstruct(cfg.time_series) ...
+                    && isfield(cfg.time_series, 'source_mode')
+                candidates{end+1} = cfg.time_series.source_mode; %#ok<AGROW>
+            end
+            if isfield(cfg, 'series_source') && isstruct(cfg.series_source) ...
+                    && isfield(cfg.series_source, 'mode')
+                candidates{end+1} = cfg.series_source.mode; %#ok<AGROW>
+            end
+            if isfield(cfg, 'data_adapter') && isstruct(cfg.data_adapter) ...
+                    && isfield(cfg.data_adapter, 'time_series') && isstruct(cfg.data_adapter.time_series) ...
+                    && isfield(cfg.data_adapter.time_series, 'source_mode')
+                candidates{end+1} = cfg.data_adapter.time_series.source_mode; %#ok<AGROW>
+            end
+            if isempty(candidates)
+                return;
+            end
+            mode = bms.data.TimeSeriesLoader.normalizeSeriesSourceMode(candidates{end});
+        end
+
+        function mode = normalizeSeriesSourceMode(raw)
+            mode = lower(strtrim(char(string(raw))));
+            mode = strrep(mode, '-', '_');
+            switch mode
+                case {'', 'auto', 'automatic'}
+                    mode = 'auto';
+                case {'csv', 'csv_cache', 'csv_cached', 'cache'}
+                    mode = 'csv_cache';
+                case {'mat', 'mat_only', 'matcache', 'mat_cache'}
+                    mode = 'mat_only';
+                case {'prefer_mat', 'mat_preferred', 'mat_first'}
+                    mode = 'prefer_mat';
+                otherwise
+                    mode = 'auto';
+            end
+        end
+
+        function tf = nameMatchesId(fileName, id)
+            tf = false;
+            if isempty(fileName) || isempty(id)
+                return;
+            end
+            [~, base, ~] = fileparts(char(string(fileName)));
+            id = char(string(id));
+            escaped = regexptranslate('escape', id);
+            expr = ['(^|[^A-Za-z0-9])' escaped '($|[^A-Za-z0-9])'];
+            tf = ~isempty(regexp(base, expr, 'once'));
+        end
+
+        function version = seriesCacheVersion(cfg)
+            version = 'csv_timeseries_v2';
+            if nargin < 1 || ~isstruct(cfg)
+                return;
+            end
+            if isfield(cfg, 'time_series') && isstruct(cfg.time_series) ...
+                    && isfield(cfg.time_series, 'cache_version') && ~isempty(cfg.time_series.cache_version)
+                version = char(string(cfg.time_series.cache_version));
+                return;
+            end
+            if isfield(cfg, 'data_adapter') && isstruct(cfg.data_adapter) ...
+                    && isfield(cfg.data_adapter, 'time_series') && isstruct(cfg.data_adapter.time_series) ...
+                    && isfield(cfg.data_adapter.time_series, 'cache_version') ...
+                    && ~isempty(cfg.data_adapter.time_series.cache_version)
+                version = char(string(cfg.data_adapter.time_series.cache_version));
+            end
+        end
+
+        function tf = seriesCacheRequireMetadata(cfg)
+            tf = true;
+            if nargin < 1 || ~isstruct(cfg)
+                return;
+            end
+            if isfield(cfg, 'time_series') && isstruct(cfg.time_series) ...
+                    && isfield(cfg.time_series, 'require_metadata') && ~isempty(cfg.time_series.require_metadata)
+                tf = logical(cfg.time_series.require_metadata);
+                return;
+            end
+            if isfield(cfg, 'data_adapter') && isstruct(cfg.data_adapter) ...
+                    && isfield(cfg.data_adapter, 'time_series') && isstruct(cfg.data_adapter.time_series) ...
+                    && isfield(cfg.data_adapter.time_series, 'require_metadata') ...
+                    && ~isempty(cfg.data_adapter.time_series.require_metadata)
+                tf = logical(cfg.data_adapter.time_series.require_metadata);
+            end
+        end
+
         function value = resolveAlias(pointCfg, fieldName, fallback)
             value = fallback;
             if isempty(fieldName) || ~isstruct(pointCfg) || ~isfield(pointCfg, fieldName) || isempty(pointCfg.(fieldName))
@@ -332,6 +632,21 @@ classdef TimeSeriesLoader
                 return;
             end
             files = dir(fullfile(dirp, '**', '*.csv'));
+            if isempty(files)
+                return;
+            end
+            files = files(~[files.isdir]);
+            keep = arrayfun(@(f) ~isempty(regexp(f.name, char(string(expr)), 'once')), files);
+            matches = files(keep);
+        end
+
+        function matches = findRecursiveRegexMatchesWithPattern(dirp, expr, filePattern)
+            matches = [];
+            if isempty(dirp) || ~exist(dirp, 'dir') || isempty(expr)
+                return;
+            end
+            if nargin < 3 || isempty(filePattern), filePattern = '*.csv'; end
+            files = dir(fullfile(dirp, '**', char(string(filePattern))));
             if isempty(files)
                 return;
             end
