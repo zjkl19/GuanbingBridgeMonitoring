@@ -92,6 +92,7 @@ classdef CrackAnalysisPipeline
             rows = cell(numel(points), 7);
             row = 0;
             for i = 1:numel(points)
+                bms.app.StopController.throwIfRequested('Stop requested before next crack point');
                 pid = points{i};
                 S = bms.analyzer.CrackAnalysisPipeline.fetchPointSeries( ...
                     cache, rootDir, subfolder, startDate, endDate, cfg, pid, opt.temp_enabled);
@@ -166,6 +167,7 @@ classdef CrackAnalysisPipeline
 
         function plotPerPoint(cache, rootDir, subfolder, startDate, endDate, cfg, points, opt, style, ps)
             for i = 1:numel(points)
+                bms.app.StopController.throwIfRequested('Stop requested before next crack plot');
                 pid = points{i};
                 S = bms.analyzer.CrackAnalysisPipeline.fetchPointSeries( ...
                     cache, rootDir, subfolder, startDate, endDate, cfg, pid, opt.temp_enabled);
@@ -186,6 +188,7 @@ classdef CrackAnalysisPipeline
         function plotGroups(cache, rootDir, subfolder, startDate, endDate, cfg, groups, opt, style, ps)
             names = fieldnames(groups);
             for gi = 1:numel(names)
+                bms.app.StopController.throwIfRequested('Stop requested before next crack group');
                 groupName = names{gi};
                 pointList = bms.analyzer.StructuralPlotConfigService.normalizePoints(groups.(groupName));
                 if isempty(pointList)
@@ -200,6 +203,7 @@ classdef CrackAnalysisPipeline
                 tempLabels = {};
 
                 for i = 1:numel(pointList)
+                    bms.app.StopController.throwIfRequested('Stop requested before next crack group point');
                     pid = pointList{i};
                     S = bms.analyzer.CrackAnalysisPipeline.fetchPointSeries( ...
                         cache, rootDir, subfolder, startDate, endDate, cfg, pid, opt.temp_enabled);

@@ -27,6 +27,7 @@ classdef GnssAnalysisPipeline
             stats = cell(0, 10);
 
             for i = 1:numel(pointIds)
+                bms.app.StopController.throwIfRequested('Stop requested before next GNSS point');
                 pid = pointIds{i};
                 fprintf('GNSS point %s ...\n', pid);
                 [series, rows] = bms.analyzer.GnssAnalysisPipeline.collectPoint( ...

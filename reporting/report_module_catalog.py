@@ -26,7 +26,7 @@ MODULE_DIRS = {
     "rainfall": ["时程曲线_雨量"],
     "wind": ["风速风向结果"],
     "earthquake": ["地震动结果"],
-    "deflection": ["时程曲线_挠度", "时程曲线_挠度_组图"],
+    "deflection": ["时程曲线_挠度_原始", "时程曲线_挠度_滤波", "时程曲线_挠度_组图_原始", "时程曲线_挠度_组图_滤波"],
     "bearing_displacement": ["时程曲线_支座位移"],
     "gnss": ["时程曲线_GNSS"],
     "acceleration": ["时程曲线_加速度", "时程曲线_加速度_RMS10min"],

@@ -80,6 +80,11 @@ classdef StepResult
             obj = bms.app.StepResult(step, 'skip', message, startedAt, endedAt, 'skipped');
         end
 
+        function obj = stopped(step, message, startedAt, endedAt)
+            if nargin < 2 || isempty(message), message = 'User requested stop'; end
+            obj = bms.app.StepResult(step, 'stopped', message, startedAt, endedAt, 'user_stopped');
+        end
+
         function obj = fail(step, ME, startedAt, endedAt)
             obj = bms.app.StepResult(step, 'fail', ME.message, startedAt, endedAt, bms.app.ErrorClassifier.classifyException(ME));
         end

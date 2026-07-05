@@ -132,6 +132,7 @@ classdef StructuralFilteredSeriesPipeline
             points = bms.analyzer.StructuralPlotConfigService.getPointsOrFlattenFallback(cfg, spec.pointKey, groups);
             if isempty(groups)
                 for i = 1:numel(points)
+                    bms.app.StopController.throwIfRequested('Stop requested before next deflection point');
                     pid = points{i};
                     fprintf('Per-point deflection: %s ...\n', pid);
                     rec = bms.analyzer.StructuralFilteredSeriesService.loadFilteredPoint( ...
@@ -148,6 +149,7 @@ classdef StructuralFilteredSeriesPipeline
             end
 
             for g = 1:numel(groups)
+                bms.app.StopController.throwIfRequested('Stop requested before next deflection group');
                 groupName = groupNames{g};
                 pidList = bms.data.PointResolver.normalize(groups{g});
                 if isempty(pidList)
@@ -158,17 +160,20 @@ classdef StructuralFilteredSeriesPipeline
                     rootDir, subfolder, pidList, startDate, endDate, cfg, spec);
                 rows = [rows; groupRows]; %#ok<AGROW>
                 for i = 1:numel(records)
+                    bms.app.StopController.throwIfRequested('Stop requested before next deflection point plot');
                     plottedPointIds = bms.analyzer.StructuralFilteredSeriesPipeline.plotDeflectionRecordOnce( ...
                         records(i), plottedPointIds, rootDir, startDate, endDate, style, spec, cfg);
                 end
                 warnLines = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupWarnLines(records, style, cfg, spec);
                 groupStyle = style;
-                groupStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(style, spec);
+                groupStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(style, spec, 'raw');
                 bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, groupName, groupStyle, 'Orig', spec, cfg, warnLines);
+                groupStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(style, spec, 'filtered');
                 bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, groupName, groupStyle, 'Filt', spec, cfg, warnLines);
             end
 
             for i = 1:numel(points)
+                bms.app.StopController.throwIfRequested('Stop requested before next deflection point');
                 pid = points{i};
                 if bms.analyzer.StructuralFilteredSeriesPipeline.containsPoint(plottedPointIds, pid)
                     continue;
@@ -195,6 +200,7 @@ classdef StructuralFilteredSeriesPipeline
 
             rows = cell(0, 7);
             for i = 1:numel(points)
+                bms.app.StopController.throwIfRequested('Stop requested before next bearing displacement point');
                 pid = points{i};
                 rec = bms.analyzer.StructuralFilteredSeriesService.loadFilteredPoint( ...
                     rootDir, subfolder, pid, startDate, endDate, cfg, spec);
@@ -209,6 +215,7 @@ classdef StructuralFilteredSeriesPipeline
             end
 
             for g = 1:numel(groups)
+                bms.app.StopController.throwIfRequested('Stop requested before next bearing displacement group');
                 pidList = bms.data.PointResolver.normalize(groups{g});
                 if isempty(pidList)
                     continue;
@@ -234,27 +241,75 @@ classdef StructuralFilteredSeriesPipeline
             end
 
             pointStyle = style;
-            pointStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(style, spec);
+            pointStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(style, spec, 'raw');
             warnLines = bms.analyzer.StructuralFilteredPlotService.defaultWarnLines(style, cfg, spec, rec.pid);
             bms.analyzer.StructuralFilteredPlotService.plotRecord( ...
                 rec, rootDir, startDate, endDate, rec.pid, pointStyle, 'Orig', spec, cfg, warnLines);
+            pointStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(style, spec, 'filtered');
             bms.analyzer.StructuralFilteredPlotService.plotRecord( ...
                 rec, rootDir, startDate, endDate, rec.pid, pointStyle, 'Filt', spec, cfg, warnLines);
             plottedPointIds{end+1, 1} = char(string(rec.pid));
         end
 
-        function outDir = deflectionSingleOutputDir(style, spec)
-            outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'single_output_dir', '');
+        function outDir = deflectionSingleOutputDir(style, spec, variant)
+            if nargin < 3 || isempty(variant), variant = 'raw'; end
+            outDir = '';
+            switch lower(char(string(variant)))
+                case {'raw','orig','original'}
+                    outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'raw_output_dir', '');
+                    if isempty(outDir)
+                        outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'single_raw_output_dir', '');
+                    end
+                    suffix = '_原始';
+                case {'filtered','filt'}
+                    outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'filtered_output_dir', '');
+                    if isempty(outDir)
+                        outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'single_filtered_output_dir', '');
+                    end
+                    suffix = '_滤波';
+                otherwise
+                    error('StructuralFilteredSeriesPipeline:InvalidDeflectionVariant', ...
+                        'Unknown deflection output variant: %s', char(string(variant)));
+            end
+            baseDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'single_output_dir', '');
+            if isempty(baseDir)
+                baseDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'output_dir', spec.defaultOutputDir);
+            end
             if isempty(outDir)
-                outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'output_dir', spec.defaultOutputDir);
+                outDir = [char(string(baseDir)) suffix];
             end
         end
 
-        function outDir = deflectionGroupOutputDir(style, spec)
-            outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'group_output_dir', '');
+        function outDir = deflectionGroupOutputDir(style, spec, variant)
+            if nargin < 3 || isempty(variant), variant = 'raw'; end
+            outDir = '';
+            switch lower(char(string(variant)))
+                case {'raw','orig','original'}
+                    outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'raw_group_output_dir', '');
+                    if isempty(outDir)
+                        outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'group_raw_output_dir', '');
+                    end
+                    suffix = '_原始';
+                case {'filtered','filt'}
+                    outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'filtered_group_output_dir', '');
+                    if isempty(outDir)
+                        outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'group_filtered_output_dir', '');
+                    end
+                    suffix = '_滤波';
+                otherwise
+                    error('StructuralFilteredSeriesPipeline:InvalidDeflectionVariant', ...
+                        'Unknown deflection output variant: %s', char(string(variant)));
+            end
+            baseDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'group_output_dir', '');
+            if isempty(baseDir)
+                singleBase = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'single_output_dir', '');
+                if isempty(singleBase)
+                    singleBase = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'output_dir', spec.defaultOutputDir);
+                end
+                baseDir = [char(string(singleBase)) '_组图'];
+            end
             if isempty(outDir)
-                singleDir = bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(style, spec);
-                outDir = [char(string(singleDir)) '_组图'];
+                outDir = [char(string(baseDir)) suffix];
             end
         end
 

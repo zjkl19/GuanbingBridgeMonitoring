@@ -24,6 +24,7 @@ classdef WindAnalysisPipeline
             bms.core.PathResolver.ensureDir(outRoot);
 
             for i = 1:numel(points)
+                bms.app.StopController.throwIfRequested('Stop requested before next wind point');
                 pid = points{i};
                 fprintf('处理测点 %s ...\n', pid);
                 [row, series] = bms.analyzer.WindSeriesService.analyzePoint( ...

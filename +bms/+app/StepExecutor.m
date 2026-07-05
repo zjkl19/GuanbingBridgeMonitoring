@@ -12,7 +12,7 @@ classdef StepExecutor
             started = datetime('now');
             try
                 if shouldStopFcn()
-                    result = bms.app.StepResult.skip(step, 'User requested stop', started, datetime('now'));
+                    result = bms.app.StepResult.stopped(step, 'User requested stop', started, datetime('now'));
                     return;
                 end
                 out = bms.app.StepExecutor.invoke(fcn);
@@ -23,8 +23,12 @@ classdef StepExecutor
                     result = bms.app.StepResult.ok(step, started, ended);
                 end
             catch ME
-                result = bms.app.StepResult.fail(step, ME, started, datetime('now'));
-                warning('%s failed: %s', step.Label, ME.message);
+                if strcmp(ME.identifier, 'BMS:RunStopped')
+                    result = bms.app.StepResult.stopped(step, ME.message, started, datetime('now'));
+                else
+                    result = bms.app.StepResult.fail(step, ME, started, datetime('now'));
+                    warning('%s failed: %s', step.Label, ME.message);
+                end
             end
         end
 

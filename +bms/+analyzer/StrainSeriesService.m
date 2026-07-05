@@ -4,6 +4,7 @@ classdef StrainSeriesService
     methods (Static)
         function rows = runPoints(rootDir, subfolder, startDate, endDate, cfg, ctx, rows)
             for i = 1:numel(ctx.points)
+                bms.app.StopController.throwIfRequested('Stop requested before next strain point');
                 pid = ctx.points{i};
                 fprintf('Per-point strain: %s ...\n', pid);
                 data = bms.analyzer.StructuralSeriesService.loadPoint( ...
@@ -27,6 +28,7 @@ classdef StrainSeriesService
             groupsMap = bms.analyzer.StrainConfigService.normalizeGroupMap(ctx.ts_groups);
             names = fieldnames(groupsMap);
             for i = 1:numel(names)
+                bms.app.StopController.throwIfRequested('Stop requested before next strain timeseries group');
                 groupName = names{i};
                 [dataList, groupRows] = bms.analyzer.StrainSeriesService.collectGroupData( ...
                     rootDir, subfolder, groupsMap.(groupName), startDate, endDate, cfg);
@@ -48,6 +50,7 @@ classdef StrainSeriesService
             groupsMap = bms.analyzer.StrainConfigService.normalizeGroupMap(ctx.groups);
             names = fieldnames(groupsMap);
             for i = 1:numel(names)
+                bms.app.StopController.throwIfRequested('Stop requested before next strain boxplot group');
                 groupName = names{i};
                 [dataList, groupRows] = bms.analyzer.StrainSeriesService.collectGroupData( ...
                     rootDir, subfolder, groupsMap.(groupName), startDate, endDate, cfg);

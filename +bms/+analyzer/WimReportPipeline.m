@@ -18,6 +18,7 @@ classdef WimReportPipeline
 
             [monthStartDates, monthEndDates] = bms.analyzer.WimConfigService.splitMonthRanges(startDate, endDate);
             for i = 1:numel(monthStartDates)
+                bms.app.StopController.throwIfRequested('Stop requested before next WIM month');
                 monthStart = datestr(monthStartDates(i), 'yyyy-mm-dd');
                 monthEnd = datestr(monthEndDates(i), 'yyyy-mm-dd');
                 fprintf('[WIM] Processing %s to %s\n', monthStart, monthEnd);
@@ -82,7 +83,12 @@ classdef WimReportPipeline
             end
             cleanup = onCleanup(@() fclose(fid)); %#ok<NASGU>
 
+            rowCounter = 0;
             while true
+                rowCounter = rowCounter + 1;
+                if rowCounter == 1 || mod(rowCounter, 1000) == 0
+                    bms.app.StopController.throwIfRequested('Stop requested before next WIM BCP row batch');
+                end
                 [rowBytes, ok] = bms.analyzer.WimZhichenBcpSource.readRowBytes(fid, fmt);
                 if ~ok, break; end
 
@@ -104,10 +110,14 @@ classdef WimReportPipeline
 
         function acc = processJiulongjiangExcel(files, acc)
             for fi = 1:numel(files)
+                bms.app.StopController.throwIfRequested('Stop requested before next WIM Excel file');
                 [rows, tbl] = bms.analyzer.WimJiulongjiangExcelSource.readRecords(files{fi});
                 if isempty(tbl), continue; end
 
                 for i = 1:numel(rows.time_datenum)
+                    if i == 1 || mod(i, 1000) == 0
+                        bms.app.StopController.throwIfRequested('Stop requested before next WIM Excel row batch');
+                    end
                     timeDatenum = rows.time_datenum(i);
                     if ~bms.analyzer.WimTrafficAggregationService.isInRange(acc, timeDatenum), continue; end
 

@@ -35,6 +35,23 @@ def test_stable_image_name_is_accepted_by_report_finders():
         assert str(stable) in lookup["matched_files"]
 
 
+def test_guanbing_deflection_split_dirs_are_looked_up_directly():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        raw_dir = root / "时程曲线_挠度_组图_原始"
+        filt_dir = root / "时程曲线_挠度_组图_滤波"
+        raw_dir.mkdir()
+        filt_dir.mkdir()
+        raw = raw_dir / "Defl_G1_Orig_20260401_20260430.jpg"
+        filt = filt_dir / "Defl_G1_Filt_20260401_20260430.jpg"
+        raw.write_bytes(b"raw")
+        filt.write_bytes(b"filt")
+
+        assert find_guanbing_image(root, "时程曲线_挠度_组图_原始", "Defl_G1_Orig") == raw
+        assert find_guanbing_image(root, "时程曲线_挠度_组图_滤波", "Defl_G1_Filt") == filt
+
+
 if __name__ == "__main__":
     test_stable_image_name_is_accepted_by_report_finders()
+    test_guanbing_deflection_split_dirs_are_looked_up_directly()
     print("report image lookup smoke ok")

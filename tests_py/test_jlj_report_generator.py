@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 from build_jlj_monthly_report import (  # noqa: E402
     clean_jlj_report_xml_text,
     collect_jlj_data_acquisition_rows,
+    find_latest_two_deflection_images,
     normalize_cover_monitoring_time,
     read_stats_rows,
     update_jlj_warning_threshold_table,
@@ -84,6 +85,18 @@ class TestJljReportGenerator(unittest.TestCase):
     def test_missing_optional_stats_returns_empty_rows(self):
         rows = read_stats_rows(self.tmp / "stats", "strain_stats.xlsx", self.tmp)
         self.assertEqual(rows, [])
+
+    def test_deflection_images_use_split_raw_filtered_dirs(self):
+        raw_dir = self.tmp / "时程曲线_挠度_原始"
+        filt_dir = self.tmp / "时程曲线_挠度_滤波"
+        raw_dir.mkdir()
+        filt_dir.mkdir()
+        raw = raw_dir / "Defl_NDY-01_Orig_20260301_20260331.jpg"
+        filt = filt_dir / "Defl_NDY-01_Filt_20260301_20260331.jpg"
+        raw.write_bytes(b"raw")
+        filt.write_bytes(b"filt")
+
+        self.assertEqual(find_latest_two_deflection_images(self.tmp, "NDY-01"), (raw.resolve(), filt.resolve()))
 
 
 if __name__ == "__main__":

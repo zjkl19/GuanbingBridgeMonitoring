@@ -25,9 +25,9 @@ classdef test_reporting_contract < matlab.unittest.TestCase
             contract = bms.reporting.AnalysisReportingContract.build(cfg, opts);
 
             rec = contract.modules{1};
-            tc.verifyEqual(rec.output_dirs, {'deflection', 'deflection_group'});
-            tc.verifyEqual({rec.output_dir_records.role}, {'single_plot', 'group_plot'});
-            tc.verifyEqual({rec.output_dir_records.field}, {'output_dir', 'group_output_dir'});
+            tc.verifyEqual(rec.output_dirs, {'deflection_原始', 'deflection_滤波', 'deflection_group_原始', 'deflection_group_滤波'});
+            tc.verifyEqual({rec.output_dir_records.role}, {'raw_plot', 'filtered_plot', 'raw_group_plot', 'filtered_group_plot'});
+            tc.verifyEqual({rec.output_dir_records.field}, {'raw_output_dir', 'filtered_output_dir', 'raw_group_output_dir', 'filtered_group_output_dir'});
         end
 
         function preflightAttachesReportingContract(tc)

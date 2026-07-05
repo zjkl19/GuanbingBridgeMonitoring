@@ -66,6 +66,7 @@ classdef DynamicSeriesService
             keptRmsVals = {};
 
             for i = 1:numel(dateList)
+                bms.app.StopController.throwIfRequested('Stop requested before next dynamic data day');
                 day = dateList{i};
                 if i == 1 || i == numel(dateList) || mod(i, 10) == 0
                     fprintf('Dynamic %s %s loading %s (%d/%d)\n', ...

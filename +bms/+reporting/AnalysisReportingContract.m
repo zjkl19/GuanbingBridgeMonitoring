@@ -62,7 +62,11 @@ classdef AnalysisReportingContract
             rec.point_count = numel(points);
             rec.groups = bms.reporting.AnalysisReportingContract.groupRecords(groups);
             rec.group_count = numel(rec.groups);
-            rec.output_dir_records = bms.reporting.AnalysisReportingContract.collectOutputDirRecords(style);
+            if strcmp(moduleSpec.Key, 'deflection')
+                rec.output_dir_records = bms.reporting.AnalysisReportingContract.deflectionOutputDirRecords(style);
+            else
+                rec.output_dir_records = bms.reporting.AnalysisReportingContract.collectOutputDirRecords(style);
+            end
             rec.output_dirs = bms.reporting.AnalysisReportingContract.outputDirsFromRecords(rec.output_dir_records);
             rec.warn_fields = cfgSpec.warn_fields(:)';
             rec.is_spectrum = logical(cfgSpec.is_spectrum);
@@ -167,7 +171,15 @@ classdef AnalysisReportingContract
 
         function role = outputDirRole(fieldPath)
             text = lower(char(string(fieldPath)));
-            if contains(text, 'group')
+            if contains(text, 'raw') && contains(text, 'group')
+                role = 'raw_group_plot';
+            elseif (contains(text, 'filtered') || contains(text, 'filt')) && contains(text, 'group')
+                role = 'filtered_group_plot';
+            elseif contains(text, 'raw')
+                role = 'raw_plot';
+            elseif contains(text, 'filtered') || contains(text, 'filt')
+                role = 'filtered_plot';
+            elseif contains(text, 'group')
                 role = 'group_plot';
             elseif contains(text, 'stats') || contains(text, 'table')
                 role = 'stats';
@@ -180,6 +192,24 @@ classdef AnalysisReportingContract
             else
                 role = 'single_plot';
             end
+        end
+
+        function records = deflectionOutputDirRecords(style)
+            spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('deflection');
+            records = [
+                struct('field', 'raw_output_dir', ...
+                    'dir', bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(style, spec, 'raw'), ...
+                    'role', 'raw_plot')
+                struct('field', 'filtered_output_dir', ...
+                    'dir', bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(style, spec, 'filtered'), ...
+                    'role', 'filtered_plot')
+                struct('field', 'raw_group_output_dir', ...
+                    'dir', bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(style, spec, 'raw'), ...
+                    'role', 'raw_group_plot')
+                struct('field', 'filtered_group_output_dir', ...
+                    'dir', bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(style, spec, 'filtered'), ...
+                    'role', 'filtered_group_plot')
+                ];
         end
     end
 end

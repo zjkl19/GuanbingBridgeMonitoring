@@ -128,7 +128,12 @@ classdef ArtifactCollector
                 case 'gnss'
                     names = {'时程曲线_GNSS'};
                 case 'deflection'
-                    names = {'时程曲线_挠度','时程曲线_挠度_组图'};
+                    spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('deflection');
+                    names = { ...
+                        bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(struct(), spec, 'raw'), ...
+                        bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(struct(), spec, 'filtered'), ...
+                        bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(struct(), spec, 'raw'), ...
+                        bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(struct(), spec, 'filtered')};
                 case 'bearing_displacement'
                     names = {'时程曲线_支座位移','时程曲线_支座位移_组图'};
                 case 'tilt'
@@ -173,8 +178,18 @@ classdef ArtifactCollector
                 return;
             end
             style = cfg.plot_styles.(styleKey);
+            if strcmp(char(key), 'deflection')
+                spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('deflection');
+                names = { ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(style, spec, 'raw'), ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.deflectionSingleOutputDir(style, spec, 'filtered'), ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(style, spec, 'raw'), ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(style, spec, 'filtered')};
+                return;
+            end
             fields = {'output_dir','single_output_dir','group_output_dir','rms_group_output_dir','boxplot_output_dir', ...
-                'output_dir_ts','group_output_dir_ts','output_dir_crack','output_dir_temp'};
+                'output_dir_ts','group_output_dir_ts','output_dir_crack','output_dir_temp', ...
+                'raw_output_dir','filtered_output_dir','raw_group_output_dir','filtered_group_output_dir'};
             for i = 1:numel(fields)
                 if isfield(style, fields{i}) && ~isempty(style.(fields{i}))
                     names{end+1} = style.(fields{i}); %#ok<AGROW>

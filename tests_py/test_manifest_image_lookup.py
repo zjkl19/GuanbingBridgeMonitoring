@@ -8,7 +8,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "reporting"))
 
-from analysis_manifest import manifest_key_for_dir, manifest_latest_artifact  # noqa: E402
+from analysis_manifest import manifest_key_for_dir, manifest_latest_artifact, manifest_role_for_lookup  # noqa: E402
 
 
 class TestManifestImageLookup(unittest.TestCase):
@@ -84,6 +84,12 @@ class TestManifestImageLookup(unittest.TestCase):
     def test_unknown_dir_returns_none(self):
         self.assertIsNone(manifest_key_for_dir("unknown"))
         self.assertIsNone(manifest_latest_artifact({}, None, token="A1"))
+
+    def test_deflection_raw_filtered_roles_are_explicit(self):
+        self.assertEqual(manifest_key_for_dir("时程曲线_挠度_原始"), "deflection")
+        self.assertEqual(manifest_key_for_dir("时程曲线_挠度_滤波"), "deflection")
+        self.assertEqual(manifest_role_for_lookup("时程曲线_挠度_原始", "Defl_D1_Orig"), "raw")
+        self.assertEqual(manifest_role_for_lookup("时程曲线_挠度_滤波", "Defl_D1_Filt"), "filtered")
 
 
 if __name__ == "__main__":

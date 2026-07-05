@@ -8,6 +8,7 @@ classdef DynamicStrainSeriesService
             labels = pointIds(:).';
             tsList = struct('pid', cell(n, 1), 'times', [], 'vals', []);
             for i = 1:n
+                bms.app.StopController.throwIfRequested('Stop requested before next dynamic strain point');
                 pid = pointIds{i};
                 fprintf('  -> 读取 %s ...\n', pid);
                 [values, times] = bms.analyzer.DynamicStrainBoxplotService.processPoint( ...

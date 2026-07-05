@@ -72,10 +72,14 @@ classdef test_structural_time_series_plot_service < matlab.unittest.TestCase
             analyze_deflection_points(tc.Root, '2026-01-01', '2026-01-01', excelPath, 'features', cfg);
 
             tc.verifyTrue(exist(excelPath, 'file') == 2);
-            singleFigs = dir(fullfile(tc.Root, '时程曲线_挠度', '*.fig'));
-            groupFigs = dir(fullfile(tc.Root, '时程曲线_挠度_组图', '*.fig'));
-            tc.verifyGreaterThanOrEqual(numel(groupFigs), 2);
-            tc.verifyGreaterThanOrEqual(numel(singleFigs), 4);
+            rawSingleFigs = dir(fullfile(tc.Root, '时程曲线_挠度_原始', '*.fig'));
+            filtSingleFigs = dir(fullfile(tc.Root, '时程曲线_挠度_滤波', '*.fig'));
+            rawGroupFigs = dir(fullfile(tc.Root, '时程曲线_挠度_组图_原始', '*.fig'));
+            filtGroupFigs = dir(fullfile(tc.Root, '时程曲线_挠度_组图_滤波', '*.fig'));
+            tc.verifyGreaterThanOrEqual(numel(rawSingleFigs), 2);
+            tc.verifyGreaterThanOrEqual(numel(filtSingleFigs), 2);
+            tc.verifyGreaterThanOrEqual(numel(rawGroupFigs), 1);
+            tc.verifyGreaterThanOrEqual(numel(filtGroupFigs), 1);
 
             spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('deflection');
             warnLines = bms.analyzer.StructuralFilteredPlotService.defaultWarnLines( ...

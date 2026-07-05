@@ -10,6 +10,7 @@ classdef DynamicAccelerationSeriesService
 
             records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), numel(points), 1);
             for i = 1:numel(points)
+                bms.app.StopController.throwIfRequested('Stop requested before next dynamic point');
                 fprintf('Collecting %s point %s (%d/%d) ...\n', ...
                     char(string(spec.moduleKey)), char(string(points{i})), i, numel(points));
                 rec = bms.analyzer.DynamicAccelerationSeriesService.collectRecord( ...
@@ -53,6 +54,7 @@ classdef DynamicAccelerationSeriesService
                 end
             else
                 for i = 1:numel(points)
+                    bms.app.StopController.throwIfRequested('Stop requested before next dynamic point');
                     fprintf('Collecting %s point %s (%d/%d) ...\n', ...
                         char(string(spec.moduleKey)), char(string(points{i})), i, numel(points));
                     records(i) = bms.analyzer.DynamicAccelerationSeriesService.collectRecord( ...
@@ -61,6 +63,7 @@ classdef DynamicAccelerationSeriesService
             end
 
             for i = 1:numel(points)
+                bms.app.StopController.throwIfRequested('Stop requested before next dynamic plot point');
                 rec = records(i);
                 fprintf('处理测点 %s ...\n', rec.pid);
                 if ~rec.has_data
@@ -142,6 +145,7 @@ classdef DynamicAccelerationSeriesService
             groups = bms.analyzer.StructuralPlotConfigService.normalizeGroupMap(groupsCfg);
             names = fieldnames(groups);
             for i = 1:numel(names)
+                bms.app.StopController.throwIfRequested('Stop requested before next dynamic group');
                 groupName = names{i};
                 pointIds = groups.(groupName);
                 records = bms.analyzer.DynamicAccelerationSeriesService.cachedGroupRecords(cachedRecords, pointIds);
@@ -189,6 +193,7 @@ classdef DynamicAccelerationSeriesService
             records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), 0, 1);
             pointIds = bms.data.PointResolver.normalize(pointIds);
             for i = 1:numel(pointIds)
+                bms.app.StopController.throwIfRequested('Stop requested before next dynamic group point');
                 pid = pointIds{i};
                 rec = bms.analyzer.DynamicAccelerationSeriesService.collectRecord( ...
                     rootDir, subfolder, pid, startDate, endDate, cfg, autoDetectFs, spec, true);

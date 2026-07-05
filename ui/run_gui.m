@@ -630,18 +630,23 @@ function varargout = run_gui(varargin)
             addLog(['异步运行状态: ' statusText]);
             asyncLastStatus = statusText;
         end
-        if isfield(st, 'is_terminal') && st.is_terminal
-            stop_async_timer();
-            if strcmpi(statusText, 'completed')
-                log_result_summary(rootEdit.Value);
-                addLog('异步运行完成');
-                statusPanel.setReady('异步运行完成');
-                set_run_progress(1.0, '运行进度: 完成', 'running');
-            else
-                log_result_summary(rootEdit.Value);
-                msg = '异步运行失败';
-                if isfield(st, 'message') && ~isempty(st.message)
-                    msg = [msg ': ' char(string(st.message))];
+            if isfield(st, 'is_terminal') && st.is_terminal
+                stop_async_timer();
+                if strcmpi(statusText, 'completed')
+                    log_result_summary(rootEdit.Value);
+                    addLog('异步运行完成');
+                    statusPanel.setReady('异步运行完成');
+                    set_run_progress(1.0, '运行进度: 完成', 'running');
+                elseif strcmpi(statusText, 'stopped')
+                    log_result_summary(rootEdit.Value);
+                    addLog('异步运行已停止');
+                    statusPanel.setReady('异步运行已停止');
+                    set_run_progress(async_progress_value(st, 1.0), async_progress_label(st, '已停止'), 'warning');
+                else
+                    log_result_summary(rootEdit.Value);
+                    msg = '异步运行失败';
+                    if isfield(st, 'message') && ~isempty(st.message)
+                        msg = [msg ': ' char(string(st.message))];
                 end
                 addLog(msg);
                 statusPanel.setFailed('异步运行失败');
@@ -651,9 +656,13 @@ function varargout = run_gui(varargin)
             stopBtn.Enable='off';
             return;
         end
-        asyncProgressValue = min(0.95, max(0.10, asyncProgressValue + 0.015));
-        set_run_progress(asyncProgressValue, ['运行进度: ' statusText], 'running');
-        statusPanel.setRunning(['运行中（异步）：' statusText]);
+        asyncProgressValue = async_progress_value(st, min(0.95, max(0.10, asyncProgressValue + 0.005)));
+        progressMode = 'running';
+        if strcmpi(statusText, 'stopping')
+            progressMode = 'warning';
+        end
+        set_run_progress(asyncProgressValue, async_progress_label(st, statusText), progressMode);
+        statusPanel.setRunning(['运行中（异步）：' async_module_text(st, statusText)]);
     end
 
     function set_run_progress(value, labelText, mode)
@@ -698,6 +707,84 @@ function varargout = run_gui(varargin)
         txt = '';
         if isstruct(st) && isfield(st, 'status') && ~isempty(st.status)
             txt = char(string(st.status));
+        end
+    end
+
+    function value = async_progress_value(st, fallback)
+        value = fallback;
+        try
+            if isstruct(st) && isfield(st, 'progress_fraction') && ~isempty(st.progress_fraction)
+                value = max(0, min(1, double(st.progress_fraction)));
+            elseif isstruct(st) && isfield(st, 'completed_modules') && isfield(st, 'module_total') && ...
+                    double(st.module_total) > 0
+                value = max(0, min(1, double(st.completed_modules) / double(st.module_total)));
+            end
+        catch
+            value = fallback;
+        end
+    end
+
+    function txt = async_progress_label(st, statusText)
+        txt = ['运行进度: ' async_module_text(st, statusText)];
+        try
+            etaText = async_eta_text(st);
+            if ~isempty(etaText)
+                txt = [txt '，' etaText];
+            end
+        catch
+        end
+    end
+
+    function txt = async_module_text(st, statusText)
+        txt = char(string(statusText));
+        try
+            if isstruct(st) && isfield(st, 'module_index') && isfield(st, 'module_total') && ...
+                    ~isempty(st.module_index) && ~isempty(st.module_total)
+                label = '';
+                if isfield(st, 'current_module_label') && ~isempty(st.current_module_label)
+                    label = char(string(st.current_module_label));
+                elseif isfield(st, 'current_module_key') && ~isempty(st.current_module_key)
+                    label = char(string(st.current_module_key));
+                end
+                if isempty(label)
+                    label = char(string(statusText));
+                end
+                txt = sprintf('%d/%d %s', round(double(st.module_index)), round(double(st.module_total)), label);
+                if isfield(st, 'current_module_status') && ~isempty(st.current_module_status)
+                    stepStatus = char(string(st.current_module_status));
+                    if ~strcmpi(stepStatus, 'running')
+                        txt = [txt ' (' stepStatus ')'];
+                    end
+                end
+            end
+        catch
+            txt = char(string(statusText));
+        end
+    end
+
+    function txt = async_eta_text(st)
+        txt = '';
+        try
+            if isstruct(st) && isfield(st, 'estimated_remaining_sec') && ~isempty(st.estimated_remaining_sec)
+                sec = double(st.estimated_remaining_sec);
+                if isfinite(sec) && sec >= 0
+                    txt = ['预计剩余 ' format_duration(sec)];
+                end
+            end
+        catch
+            txt = '';
+        end
+    end
+
+    function txt = format_duration(sec)
+        sec = max(0, round(double(sec)));
+        hh = floor(sec / 3600);
+        mm = floor(mod(sec, 3600) / 60);
+        ss = mod(sec, 60);
+        if hh > 0
+            txt = sprintf('%d:%02d:%02d', hh, mm, ss);
+        else
+            txt = sprintf('%02d:%02d', mm, ss);
         end
     end
 

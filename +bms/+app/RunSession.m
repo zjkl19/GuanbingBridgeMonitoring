@@ -65,11 +65,13 @@ classdef RunSession < handle
                 end
                 offset_correction_registry('reset');
                 RUN_STOP_FLAG = false;
+                bms.app.StopController.configure(obj.Request.StopFile);
+                stopCleanup = onCleanup(@() bms.app.StopController.clear()); %#ok<NASGU>
                 obj.collectConfigWarnings();
 
                 sub = bms.app.LegacyStepFunctions.buildSubfolders(obj.Config);
                 plan = bms.app.StepFactory.buildLegacyPlan(obj.Root, obj.StartDate, obj.EndDate, obj.Options, obj.Config, obj.StatsDir, sub);
-                obj.Results = plan.execute(@() obj.shouldStop());
+                obj.Results = plan.execute(@() obj.shouldStop(), @(payload) obj.reportProgress(payload));
 
                 warning(ws);
                 obj.ElapsedSec = toc(t0);
@@ -223,7 +225,10 @@ classdef RunSession < handle
         end
 
         function tf = shouldStop(obj)
-            tf = false;
+            tf = bms.app.StopController.isStopRequested();
+            if tf
+                return;
+            end
             try
                 global RUN_STOP_FLAG;
                 tf = ~isempty(RUN_STOP_FLAG) && RUN_STOP_FLAG;
@@ -240,6 +245,25 @@ classdef RunSession < handle
                 end
             catch
             end
+        end
+
+        function reportProgress(obj, payload)
+            if isempty(obj.Request) || ~isa(obj.Request, 'bms.app.RunRequest') || isempty(obj.Request.AsyncStatusFile)
+                return;
+            end
+            if ~isstruct(payload)
+                return;
+            end
+            details = payload;
+            details.async_run_id = obj.Request.AsyncRunId;
+            details.data_root = obj.Root;
+            details.start_date = obj.StartDate;
+            details.end_date = obj.EndDate;
+            statusText = 'running';
+            if isfield(payload, 'status') && ~isempty(payload.status)
+                statusText = char(string(payload.status));
+            end
+            bms.app.AsyncRunService.writeStatus(obj.Request.AsyncStatusFile, statusText, details);
         end
 
         function tf = shouldNotify(obj, key, defaultValue)

@@ -15,6 +15,7 @@ classdef StructuralSeriesService
             dataList = struct('pid', {}, 'times', {}, 'vals', {});
             statsRows = cell(0, 4);
             for i = 1:numel(pointIds)
+                bms.app.StopController.throwIfRequested('Stop requested before next structural point');
                 pid = pointIds{i};
                 fprintf('Extracting %s ...\n', pid);
                 data = bms.analyzer.StructuralSeriesService.loadPoint( ...

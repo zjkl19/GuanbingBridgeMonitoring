@@ -40,6 +40,7 @@ classdef DynamicStrainBoxplotPipeline
 
             plottedPointIds = {};
             for gi = 1:numel(groups)
+                bms.app.StopController.throwIfRequested('Stop requested before next dynamic strain group');
                 groupName = groupNames{gi};
                 fprintf('\n== 处理分组 %s ==\n', groupName);
                 [dataMat, labels, tsList] = bms.analyzer.DynamicStrainBoxplotPipeline.collectGroupData( ...

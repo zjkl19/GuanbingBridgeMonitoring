@@ -35,6 +35,7 @@ classdef ScalarSeriesPipeline
             bms.core.PathResolver.ensureDir(outDir);
 
             for i = 1:numel(args.point_ids)
+                bms.app.StopController.throwIfRequested('Stop requested before next scalar point');
                 pid = args.point_ids{i};
                 fprintf('%s %s...\n', spec.progressPrefix, pid);
                 [times, values] = load_timeseries_range( ...
@@ -76,6 +77,7 @@ classdef ScalarSeriesPipeline
             bms.core.PathResolver.ensureDir(outDir);
 
             for i = 1:numel(args.point_ids)
+                bms.app.StopController.throwIfRequested('Stop requested before next rainfall point');
                 pid = args.point_ids{i};
                 fprintf('Processing rainfall %s...\n', pid);
                 [times, values] = load_timeseries_range( ...

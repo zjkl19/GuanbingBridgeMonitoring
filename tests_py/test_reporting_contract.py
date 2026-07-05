@@ -32,8 +32,10 @@ class TestReportingContract(unittest.TestCase):
                             {
                                 "key": "deflection",
                                 "output_dir_records": [
-                                    {"field": "output_dir", "dir": "deflection", "role": "single_plot"},
-                                    {"field": "group_output_dir", "dir": "deflection_group", "role": "group_plot"},
+                                    {"field": "raw_output_dir", "dir": "deflection_raw", "role": "raw_plot"},
+                                    {"field": "filtered_output_dir", "dir": "deflection_filtered", "role": "filtered_plot"},
+                                    {"field": "raw_group_output_dir", "dir": "deflection_group_raw", "role": "raw_group_plot"},
+                                    {"field": "filtered_group_output_dir", "dir": "deflection_group_filtered", "role": "filtered_group_plot"},
                                 ],
                             }
                         ],
@@ -48,8 +50,11 @@ class TestReportingContract(unittest.TestCase):
             self.assertTrue(context["available"])
             self.assertEqual(context["source"], "contract_file")
             self.assertEqual(context["summary"]["module_count"], 1)
-            self.assertEqual(output_dirs_by_module(context, "deflection"), ["deflection", "deflection_group"])
-            self.assertEqual(output_dirs_by_module(context, "deflection", role="group_plot"), ["deflection_group"])
+            self.assertEqual(
+                output_dirs_by_module(context, "deflection"),
+                ["deflection_raw", "deflection_filtered", "deflection_group_raw", "deflection_group_filtered"],
+            )
+            self.assertEqual(output_dirs_by_module(context, "deflection", role="raw_group_plot"), ["deflection_group_raw"])
             self.assertEqual(contract_precheck_warnings(context), [])
 
     def test_missing_contract_is_nonfatal_warning(self):

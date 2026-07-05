@@ -99,7 +99,7 @@ classdef AsyncRunService
                 status.status = char(string(state.status));
             end
             status.is_terminal = any(strcmpi(bms.app.AsyncRunService.fieldText(status, 'status'), ...
-                {'completed', 'failed', 'launch_failed'}));
+                {'completed', 'failed', 'launch_failed', 'stopped'}));
         end
 
         function requestStop(state, force)

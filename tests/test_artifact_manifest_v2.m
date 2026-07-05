@@ -10,9 +10,9 @@ classdef test_artifact_manifest_v2 < matlab.unittest.TestCase
         function collectorFindsRecentModuleFiles(tc)
             root = tempname;
             mkdir(root);
-            out = fullfile(root, '时程曲线_挠度');
+            out = fullfile(root, '时程曲线_挠度_原始');
             mkdir(out);
-            figPath = fullfile(out, 'Defl_A.jpg');
+            figPath = fullfile(out, 'Defl_A_Orig.jpg');
             fid = fopen(figPath, 'w'); fwrite(fid, 'x'); fclose(fid);
             statsPath = fullfile(root, 'stats', 'deflection_stats.xlsx');
             mkdir(fileparts(statsPath));
@@ -23,7 +23,7 @@ classdef test_artifact_manifest_v2 < matlab.unittest.TestCase
             tc.verifyTrue(any(paths == string(statsPath)));
             tc.verifyTrue(any(paths == string(figPath)));
             figIdx = find(paths == string(figPath), 1);
-            tc.verifyEqual(artifacts{figIdx}.role, 'time_history');
+            tc.verifyEqual(artifacts{figIdx}.role, 'raw');
             statsIdx = find(paths == string(statsPath), 1);
             tc.verifyEqual(artifacts{statsIdx}.role, 'stats');
         end

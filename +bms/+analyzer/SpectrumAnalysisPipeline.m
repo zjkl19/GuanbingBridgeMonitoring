@@ -52,6 +52,7 @@ classdef SpectrumAnalysisPipeline
             forceValidAll = false(nPts, 1);
 
             for i = 1:nPts
+                bms.app.StopController.throwIfRequested('Stop requested before next spectrum point');
                 pid = pointIds{i};
                 fprintf('\n---- 测点 %s ----\n', pid);
 
@@ -92,12 +93,14 @@ classdef SpectrumAnalysisPipeline
 
             if isfield(spec, 'freqGroupKey') && ~isempty(spec.freqGroupKey) ...
                     && isfield(dirs, 'freqGroupRoot') && ~isempty(dirs.freqGroupRoot)
+                bms.app.StopController.throwIfRequested('Stop requested before spectrum frequency groups');
                 bms.analyzer.SpectrumAnalysisPipeline.plotFrequencyGroups( ...
                     cfg, pointIds, datesAll, freqSeriesAll, freqValidAll, dirs.freqGroupRoot, style, ...
                     spec.freqGroupKey, targetFreqsAll, peakLabelsAll, theorFreqsAll, theorLabelsAll);
             end
 
             if spec.includeForce
+                bms.app.StopController.throwIfRequested('Stop requested before spectrum force groups');
                 bms.analyzer.SpectrumAnalysisPipeline.plotCableForceGroups( ...
                     cfg, pointIds, datesAll, forceSeriesAll, forceValidAll, dirs.forceGroupRoot, style);
             end

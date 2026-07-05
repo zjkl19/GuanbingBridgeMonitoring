@@ -46,5 +46,40 @@ classdef test_app_step_layer < matlab.unittest.TestCase
             tc.verifyEqual(mod.Spec.Key, 'crack');
             tc.verifyEqual(mod.Status, 'ok');
         end
+
+        function stepPlanReportsProgressAndStops(tc)
+            global RUN_STOP_FLAG;
+            RUN_STOP_FLAG = false;
+            bms.app.StopController.clear();
+            cleanup = onCleanup(@() reset_stop()); %#ok<NASGU>
+
+            plan = bms.app.StepPlan();
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('temperature'), @() request_stop_now());
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('humidity'), @() error('unit:shouldNotRun', 'should not run'));
+            payloads = {};
+
+            results = plan.execute(@() bms.app.StopController.isStopRequested(), @(payload) collect_payload(payload));
+
+            tc.verifyEqual(results{1}.Status, 'stopped');
+            tc.verifyEqual(results{2}.Status, 'skip');
+            tc.verifyGreaterThanOrEqual(numel(payloads), 2);
+            tc.verifyTrue(any(cellfun(@(p) isfield(p, 'progress_fraction'), payloads)));
+            tc.verifyTrue(any(cellfun(@(p) isfield(p, 'current_module_label'), payloads)));
+
+            function collect_payload(payload)
+                payloads{end+1} = payload; %#ok<AGROW>
+            end
+        end
     end
+end
+
+function request_stop_now()
+    bms.app.StopController.requestStop();
+    bms.app.StopController.throwIfRequested('unit stop');
+end
+
+function reset_stop()
+    global RUN_STOP_FLAG;
+    RUN_STOP_FLAG = false;
+    bms.app.StopController.clear();
 end

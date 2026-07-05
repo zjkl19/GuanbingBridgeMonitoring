@@ -1674,11 +1674,8 @@ def images_for_point(image_root: Path, directory: str, point_id: str, patterns: 
 
 
 def find_latest_two_deflection_images(image_root: Path, point_id: str) -> tuple[Path | None, Path | None]:
-    matched = images_for_point(image_root, "时程曲线_挠度", point_id, [f"Defl_{point_id}_*.jpg"])
-    if not matched:
-        return None, None
-    filt = matched[0]
-    orig = matched[1] if len(matched) > 1 else None
+    orig = image_for_point(image_root, "时程曲线_挠度_原始", point_id, [f"Defl_{point_id}_Orig_*.jpg"])
+    filt = image_for_point(image_root, "时程曲线_挠度_滤波", point_id, [f"Defl_{point_id}_Filt_*.jpg"])
     return orig, filt
 
 

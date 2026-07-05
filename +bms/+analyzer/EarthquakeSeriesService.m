@@ -43,6 +43,7 @@ classdef EarthquakeSeriesService
             bestTime = NaT;
 
             for i = 1:numel(dateList)
+                bms.app.StopController.throwIfRequested('Stop requested before next earthquake data day');
                 day = dateList{i};
                 if i == 1 || i == numel(dateList) || mod(i, 10) == 0
                     fprintf('Earthquake %s loading %s (%d/%d)\n', ...

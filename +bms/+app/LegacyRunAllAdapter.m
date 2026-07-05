@@ -16,6 +16,8 @@ classdef LegacyRunAllAdapter
             summary.status = 'ok';
             if bms.app.LegacyRunAllAdapter.hasFailures(logs)
                 summary.status = 'failed';
+            elseif bms.app.LegacyRunAllAdapter.hasStopped(logs)
+                summary.status = 'stopped';
             end
             summary.log_dir = char(logDir);
             summary.log_file = char(logfile);
@@ -106,6 +108,19 @@ classdef LegacyRunAllAdapter
                 item = bms.app.LegacyRunAllAdapter.normalizeLog(logs{i}, '');
                 if isempty(item) || ~isstruct(item), continue; end
                 if isfield(item, 'status') && strcmpi(item.status, 'fail')
+                    tf = true;
+                    return;
+                end
+            end
+        end
+
+        function tf = hasStopped(logs)
+            tf = false;
+            if isempty(logs), return; end
+            for i = 1:numel(logs)
+                item = bms.app.LegacyRunAllAdapter.normalizeLog(logs{i}, '');
+                if isempty(item) || ~isstruct(item), continue; end
+                if isfield(item, 'status') && strcmpi(item.status, 'stopped')
                     tf = true;
                     return;
                 end

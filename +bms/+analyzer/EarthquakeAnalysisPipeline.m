@@ -124,6 +124,7 @@ classdef EarthquakeAnalysisPipeline
                 end
             else
                 for i = 1:numel(points)
+                    bms.app.StopController.throwIfRequested('Stop requested before next earthquake point');
                     fprintf('Collecting earthquake point %s (%d/%d) ...\n', ...
                         char(string(points{i})), i, numel(points));
                     records(i) = bms.analyzer.EarthquakeAnalysisPipeline.collectRecord( ...
@@ -142,6 +143,7 @@ classdef EarthquakeAnalysisPipeline
 
         function plotRecords(records, style, outRoot, startDate, endDate, cfg, parallelPlan)
             for i = 1:numel(records)
+                bms.app.StopController.throwIfRequested('Stop requested before next earthquake plot');
                 rec = records(i);
                 fprintf('处理测点 %s ...\n', rec.pid);
                 if ~rec.has_data
