@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-05 14:08 CST
+Last updated: 2026-07-06 00:45 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -16,6 +16,49 @@ state and keep algorithm/report decisions in the normal project docs.
   `Administrator@192.168.254.34:2222` through `ProxyJump gb-133`; direct SSH
   from this workstation is not routable.
 - 126 storage target: `\\192.168.100.126\H$\Guanbingwork`
+
+## Donghua PHM Exports On 126
+
+### Hongtang Bridge Scheduled Export Recovery
+
+- Status: completed on 2026-07-06 00:37 CST.
+- Scope recovered: original PHM export tasks for 2026-06-28 to 2026-07-03,
+  both `Wave_Export_Task_*` and `Eigen_Export_Task_*`.
+- Formal output root:
+  `H:\DHtest\定时导出\<date>\波形` and
+  `H:\DHtest\定时导出\<date>\特征值`.
+- Final validation:
+  - Each recovered date has one wave zip, one eigen zip, and one
+    `condition.param` in each output folder.
+  - All 12 original PHM task records have `ExecuteStatus=1`,
+    `ExecuteProgress=1`, and paths that exist on disk.
+  - All 12 matching DataCenter export records have `ExportStatus=1`,
+    `ExportingProgress=1`, and paths that exist on disk.
+  - Each recovered zip has `139` entries and includes the previously missing
+    key patterns: `CX3`, wind speed/direction, tower wind speed/direction, and
+    sanitized point names for point IDs 83 and 84.
+- Root cause: point IDs 83 and 84 had PHM point names containing `/`, which
+  DataCenter used as part of CSV file names during scheduled export. Windows
+  treated the slash as a path separator, so the exporter failed around point 83
+  and later points such as cable-force, wind, and CX were not exported.
+- Permanent point-name fix applied through PHM API:
+  - Point 83: `C1802190786_GD1-2`
+  - Point 84: `S25020650541_GL3-4`
+- Important scripting note: when calling DataCenter export APIs from Windows
+  PowerShell 5.1, send JSON as UTF-8 bytes with
+  `application/json; charset=utf-8`. Passing a PowerShell string body can
+  corrupt Chinese file names and create invalid-path false failures.
+- Recovery log and script on 126:
+  - `H:\DHtest\codex_recovery_logs\recover_failed_exports_20260705_220106.log`
+  - `H:\DHtest\codex_recovery_logs\recover_failed_exports_20260705_215338_bom.ps1`
+- Failed pre-recovery output folders were moved to:
+  `H:\DHtest\定时导出_codex_backup\20260705_220106`.
+- Cleanup already done: removed the one-shot Windows scheduled task
+  `Codex_DHRecover_20260705_2158` and removed temporary Codex PHM UI task rows.
+  Recovery logs and backup folders were retained.
+- As of 2026-07-06 00:45 CST, PHM had no export task records for
+  2026-07-04, 2026-07-05, or 2026-07-06. The latest original export tasks in
+  PHM are the recovered 2026-07-03 wave/eigen tasks.
 
 ## Office PC DESKTOP-500FVB6
 
