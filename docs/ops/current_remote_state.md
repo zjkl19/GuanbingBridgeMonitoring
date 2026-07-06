@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-06 11:08 CST
+Last updated: 2026-07-06 13:10 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -101,6 +101,47 @@ state and keep algorithm/report decisions in the normal project docs.
   avoid heavy MATLAB/report jobs unless explicitly requested.
 
 ## Active Remote Tasks On 133
+
+### Hongtang Bridge Q2 v1.7.18 Report Correction
+
+- Status: completed on 2026-07-06 13:05 CST.
+- Code state: `F:\Guanbing` is clean at `82fa278` / `v1.7.18` and tracks
+  `origin/main`.
+- Remote focused validation:
+  - `D:\Python310\python.exe -m unittest tests_py.test_wim_auto_captions tests_py.test_build_period_report_word_update`
+    passed.
+  - MATLAB focused tests for structural plotting, offset correction, and GUI
+    version smoke passed.
+- Affected-module rerun:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1718_strain_bearing_20260706_123551`
+  - Scope: `strain` and `bearing_displacement` only.
+  - Exit code: `0`.
+  - MATLAB runtime: about `171.49` seconds.
+  - Updated stats:
+    `E:\洪塘大桥数据\2026年4-6月\stats\strain_stats.xlsx` and
+    `E:\洪塘大桥数据\2026年4-6月\stats\bearing_displacement_stats.xlsx`.
+  - Offset report:
+    `E:\洪塘大桥数据\2026年4-6月\run_logs\offset_correction_applied_20260706_123706.xlsx`
+    confirmed `Z11-2 = 250` on `2184` rows and `SG-6 = -1220` on `6552`
+    rows.
+  - Bearing displacement outputs:
+    `E:\洪塘大桥数据\2026年4-6月\时程曲线_支座位移_原始` and
+    `E:\洪塘大桥数据\2026年4-6月\时程曲线_支座位移_滤波`, each with `10` JPG
+    and `10` EMF files. Hongtang has no bearing-displacement groups configured.
+- Final report generation:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1718_report_20260706_1242`
+  - Runtime: `104.32` seconds.
+  - Output DOCX:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260706_124340.docx`
+  - Manifest:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260706_124340.json`
+    with `status=ok`, `missing_count=0`, `warnings=[]`, and report QC `ok`.
+  - Locally checked Word-exported PDF was copied back to:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_124340_word_checked.pdf`.
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_tasks\hongtang_q2_v1718_report_20260706_1242\bundle_from_133`.
+  Word rendered an 82-page PDF, and text/visual checks found no reference
+  errors, stale Q1 date text, or missing placeholders.
 
 ### Zhishan Bridge 2026-04/05 Sync To 126
 

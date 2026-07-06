@@ -56,12 +56,47 @@ Local validation before 133 sync:
   `tmp\report_smoke_wim_autocaption\洪塘大桥健康监测2026年1-3月周期报_20260706_121351.docx`
   contains WIM `SEQ 表/图` fields and a clean table 4-1 overload-count header.
 
-Pending production step:
+Accepted 133 production state:
 
-- Pull `v1.7.18` on 133 `F:\Guanbing`, rerun Hongtang Q2 affected modules
-  (`lowfreq_sync` if needed, `strain`, `bearing_displacement`, then report
-  generation), copy the generated DOCX/PDF back locally, render, and visually
-  QA before final acceptance.
+- 133 `F:\Guanbing` was fast-forwarded to `82fa278` / `v1.7.18`, clean against
+  `origin/main`.
+- Remote focused tests passed with 133 runtimes:
+  - `D:\Python310\python.exe -m unittest tests_py.test_wim_auto_captions tests_py.test_build_period_report_word_update`
+  - MATLAB focused tests for structural plotting, offset correction, and GUI
+    version smoke.
+- Affected Hongtang Q2 low-frequency modules were rerun on 133:
+  `strain` and `bearing_displacement`.
+  - Run directory:
+    `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1718_strain_bearing_20260706_123551`
+  - MATLAB exit code: `0`
+  - Runtime: about `171.49` seconds inside MATLAB.
+  - Updated stats:
+    `E:\洪塘大桥数据\2026年4-6月\stats\strain_stats.xlsx` and
+    `E:\洪塘大桥数据\2026年4-6月\stats\bearing_displacement_stats.xlsx`.
+  - Offset report:
+    `E:\洪塘大桥数据\2026年4-6月\run_logs\offset_correction_applied_20260706_123706.xlsx`
+    confirmed `Z11-2 = 250` on `2184` rows and `SG-6 = -1220` on `6552`
+    rows.
+  - New single-point bearing-displacement output folders each contain `10`
+    JPG and `10` EMF files:
+    `时程曲线_支座位移_原始` and `时程曲线_支座位移_滤波`.
+    Hongtang has no bearing-displacement groups configured, so group folders
+    are not generated for this bridge.
+- Final 133 Q2 report:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260706_124340.docx`
+- Report manifest:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260706_124340.json`
+  with `status=ok`, `missing_count=0`, `warnings=[]`, and report QC `ok`.
+- Report build runtime: `104.32` seconds, below the 10-minute failure threshold.
+- Local QA copied the report bundle to
+  `D:\MatlabProjects\Guanbing\run_logs\remote_tasks\hongtang_q2_v1718_report_20260706_1242\bundle_from_133`.
+  Word COM rendered an 82-page PDF:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_tasks\hongtang_q2_v1718_report_20260706_1242\word_render_timeout\hongtang_q2_report_20260706_124340_word_full.pdf`.
+  Text and visual checks found no `错误`, `引用源未找到`, stale Q1 date text, or
+  missing placeholders. Table 4-1, bearing displacement raw plots, wind, wind
+  rose, and earthquake pages were visually spot-checked.
+- The checked PDF was copied back to 133:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_124340_word_checked.pdf`.
 
 ## 2026-07-06 Hongtang Q2 Late-June Patch Snapshot
 
