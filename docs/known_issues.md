@@ -18,6 +18,12 @@ after deleting the direct wave CSV copies. Any remaining gaps should be checked
 against the specific dated raw folders instead of treated as a known general
 late-June gap.
 
+Resolved follow-up: the 09:08 corrected report still used wind and earthquake
+figures generated before canonical MAT aliases existed for the recovered
+timestamp-named Donghua CSVs. Hongtang now has per-point timestamp fallback
+patterns for wind speed/direction and EQ-X/Y/Z, and the corrected 10:51 report
+was rendered and checked with wind/earthquake x-axes reaching 2026-06-30.
+
 Important distinction:
 
 - `plot_common.gap_mode=connect` connects finite plotted points.

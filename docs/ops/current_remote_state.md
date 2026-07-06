@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-06 09:36 CST
+Last updated: 2026-07-06 10:58 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -214,6 +214,21 @@ state and keep algorithm/report decisions in the normal project docs.
   - deleted only `2026-06-28` to `2026-06-30` direct `波形\*.csv` files:
     `417` files / `37,572,244,652` bytes;
   - feature CSV files were retained.
+- 2026-07-06 wind/earthquake report correction:
+  - Root cause: the first corrected wind/earthquake plots were generated before
+    canonical MAT aliases existed for timestamp-named Donghua CSVs such as
+    `风速_*.csv`, `塔顶风速_*.csv`, and `X_*.csv`.
+  - Refresh run:
+    `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_wind_eq_refresh_20260706_0945`.
+  - Corrected report run:
+    `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_report_wind_eq_fix_20260706_1050`.
+  - Corrected checked report:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_105133_wind_eq_checked.docx`
+  - Corrected checked PDF:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_105133_wind_eq_checked.pdf`
+  - Figure-axis check: W1/W2 wind speed/direction reached
+    `2026-06-30 09:00:02`, W1/W2 10-minute wind reached
+    `2026-06-30 23:55`, and EQ-X/Y/Z reached `2026-06-30 09:00:05`.
 - Active high-frequency source state: MAT-only for dated `波形` data.
   On 2026-07-05, after validating MAT-only loading, the direct raw CSV files
   under `E:\洪塘大桥数据\2026年4-6月\20??-??-??\波形\*.csv` were deleted to

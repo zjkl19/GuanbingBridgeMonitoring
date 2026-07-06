@@ -58,6 +58,29 @@ document on 133 and accepted it as basically OK.
   patched dates. Deletion scope was only those direct wave CSVs:
   `417` files / `37,572,244,652` bytes. Feature CSV files were retained.
 
+### Wind/Earthquake Figure Correction
+
+After user review, the wind and earthquake figures in the 09:08 report were
+found to stop near 2026-06-27. The recovered 2026-06-28 to 2026-06-30 waveform
+files existed, but their Donghua names were timestamp based
+(`风速_*.csv`, `塔顶风速_*.csv`, `X_*.csv`, `Y_*.csv`, `Z_*.csv`) and did not
+include the configured numeric IDs (`风速_162`, `X_144`, etc.). The first plot
+refresh happened before the canonical MAT aliases were generated.
+
+Corrective actions:
+
+- Added Hongtang per-point timestamp fallback patterns for W1/W2 wind
+  speed/direction and EQ-X/Y/Z while keeping exact `{file_id}.csv` first.
+- Reran wind and earthquake on 133 after the canonical MAT aliases existed:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_wind_eq_refresh_20260706_0945`.
+- Regenerated the report:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_105133_wind_eq_checked.docx`
+  and PDF:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_105133_wind_eq_checked.pdf`.
+- Figure-axis checks confirmed W1/W2 wind speed/direction ended at
+  `2026-06-30 09:00:02`, W1/W2 10-minute wind figures ended at
+  `2026-06-30 23:55`, and EQ-X/Y/Z ended at `2026-06-30 09:00:05`.
+
 ## Root Causes Found
 
 1. Cable-acceleration cable-force gaps were not only raw-data gaps.

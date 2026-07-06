@@ -10,8 +10,8 @@ This file is the handoff point for long Codex sessions. New conversations should
 
 Current repository release target:
 
-- MATLAB GUI version in `ui/run_gui.m`: `v1.7.16`
-- Report GUI version in `reporting/report_gui.py`: `v1.7.16`
+- MATLAB GUI version in `ui/run_gui.m`: `v1.7.17`
+- Report GUI version in `reporting/report_gui.py`: `v1.7.17`
 - This release follows `v1.7.15` and keeps the MAT-only time-series source
   behavior from that release.
 
@@ -67,6 +67,37 @@ MAT-only follow-up for the supplemented dates:
   including `CX3` plus wind speed/direction entries.
 - MATLAB GUI smoke passed after the version bump:
   `matlab -batch "cd('D:\MatlabProjects\Guanbing'); addpath(genpath(pwd)); results = runtests({'tests/test_main_gui_smoke.m'}); assertSuccess(results);"`
+
+Follow-up correction on 2026-07-06:
+
+- User review found that the report's wind and earthquake figures still ended
+  around 2026-06-27 even though the recovered late-June source data existed.
+- Root cause: the recovered Donghua waveform CSVs for wind and earthquake used
+  timestamp names such as `风速_20260705224253038.csv`,
+  `塔顶风速_20260705224400015.csv`, and `X_20260705224156737.csv`. Hongtang
+  config only matched exact IDs such as `风速_162.csv` and `X_144.csv`, so the
+  06:42-06:44 wind/earthquake plots were generated before the canonical MAT
+  aliases existed.
+- `config/hongtang_config.json` now keeps exact `{file_id}.csv` matching first
+  and adds per-point timestamp fallback patterns for W1/W2 wind speed/direction
+  and EQ-X/Y/Z.
+- `tests/test_time_series_loader.m` covers the timestamp fallback for tower wind
+  speed and EQ-X.
+- 133 wind/earthquake refresh:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_wind_eq_refresh_20260706_0945`
+  refreshed wind in `151.37` seconds and earthquake in `68.04` seconds.
+- New figure-axis check showed W1/W2 speed/direction end at
+  `2026-06-30 09:00:02`, W1/W2 10-minute wind figures end at
+  `2026-06-30 23:55`, and EQ-X/Y/Z end at `2026-06-30 09:00:05`.
+- Corrected checked report:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_105133_wind_eq_checked.docx`
+- Corrected checked PDF:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_105133_wind_eq_checked.pdf`
+- Local render QA bundle:
+  `D:\MatlabProjects\Guanbing\tmp\docs\hongtang_q2_report_wind_eq_fix_20260706_1050`.
+  DOCX QC passed; PDF text check found no `错误`, `引用源未找到`, old `共 63 页`,
+  or stale Q1 date text. Visual check of rendered pages 76-80 confirmed wind
+  and earthquake plots now reach 2026-06-30.
 
 ## 2026-07-05 MAT-only Time-series Source Snapshot
 

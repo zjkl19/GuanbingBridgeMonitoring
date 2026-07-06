@@ -2152,12 +2152,32 @@
     "wind_speed": {
       "default": [
         "{file_id}.csv"
-      ]
+      ],
+      "per_point": {
+        "W1": [
+          "{file_id}.csv",
+          "风速_*.csv"
+        ],
+        "W2": [
+          "{file_id}.csv",
+          "塔顶风速_*.csv"
+        ]
+      }
     },
     "wind_direction": {
       "default": [
         "{file_id}.csv"
-      ]
+      ],
+      "per_point": {
+        "W1": [
+          "{file_id}.csv",
+          "风向_*.csv"
+        ],
+        "W2": [
+          "{file_id}.csv",
+          "塔顶风向_*.csv"
+        ]
+      }
     },
     "acceleration": {
       "default": [
@@ -2262,17 +2282,35 @@
     "eq_x": {
       "default": [
         "{file_id}.csv"
-      ]
+      ],
+      "per_point": {
+        "EQ-X": [
+          "{file_id}.csv",
+          "X_*.csv"
+        ]
+      }
     },
     "eq_y": {
       "default": [
         "{file_id}.csv"
-      ]
+      ],
+      "per_point": {
+        "EQ-Y": [
+          "{file_id}.csv",
+          "Y_*.csv"
+        ]
+      }
     },
     "eq_z": {
       "default": [
         "{file_id}.csv"
-      ]
+      ],
+      "per_point": {
+        "EQ-Z": [
+          "{file_id}.csv",
+          "Z_*.csv"
+        ]
+      }
     }
   },
   "points": {

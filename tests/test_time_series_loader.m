@@ -120,6 +120,32 @@ classdef test_time_series_loader < matlab.unittest.TestCase
             tc.verifyEqual(fp, fullfile(tc.TempDir, 'DIR-ALIAS.csv'));
         end
 
+        function findCsvForPointUsesHongtangWindTimestampFallback(tc)
+            write_text(fullfile(tc.TempDir, '塔顶风速_20260705224400015.csv'), 'x');
+
+            cfg = struct();
+            cfg.per_point.wind.W2 = struct('speed_point_id', '塔顶风速_178');
+            cfg.file_patterns.wind_speed.default = {'{file_id}.csv'};
+            cfg.file_patterns.wind_speed.per_point.W2 = {'{file_id}.csv', '塔顶风速_*.csv'};
+
+            fp = bms.data.TimeSeriesLoader.findCsvForPoint(tc.TempDir, 'W2', cfg, 'wind_speed');
+
+            tc.verifyEqual(fp, fullfile(tc.TempDir, '塔顶风速_20260705224400015.csv'));
+        end
+
+        function findCsvForPointUsesHongtangEqTimestampFallback(tc)
+            write_text(fullfile(tc.TempDir, 'X_20260705224156737.csv'), 'x');
+
+            cfg = struct();
+            cfg.per_point.eq.EQ_X = struct('file_id', 'X_144');
+            cfg.file_patterns.eq_x.default = {'{file_id}.csv'};
+            cfg.file_patterns.eq_x.per_point.EQ_X = {'{file_id}.csv', 'X_*.csv'};
+
+            fp = bms.data.TimeSeriesLoader.findCsvForPoint(tc.TempDir, 'EQ-X', cfg, 'eq_x');
+
+            tc.verifyEqual(fp, fullfile(tc.TempDir, 'X_20260705224156737.csv'));
+        end
+
         function findCsvForPointUsesConfiguredRegex(tc)
             nested = fullfile(tc.TempDir, 'uuid-001');
             mkdir(nested);
