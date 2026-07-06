@@ -1355,7 +1355,7 @@ def build_eq_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | No
             continue
         point_id = str(row.get("PointID") or "").strip()
         component = str(row.get("Component") or "").strip().upper()
-        key = point_id if point_id else f"EQ-{component}" if component else ""
+        key = normalize_eq_peak_key(point_id, component)
         if not key:
             continue
         peak = abs(peak)
@@ -1392,6 +1392,20 @@ def build_eq_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | No
         "horizontal_text": h_text,
         "vertical_text": v_text,
     }
+
+
+def normalize_eq_peak_key(point_id: str, component: str) -> str:
+    point_id = str(point_id or "").strip()
+    component = str(component or "").strip().upper()
+    normalized = point_id.replace("_", "-").upper()
+    if component:
+        if not normalized:
+            return f"EQ-{component}"
+        if re.search(rf"(?:-|_){re.escape(component)}$", point_id, re.IGNORECASE):
+            return normalized
+        if normalized == "EQ":
+            return f"EQ-{component}"
+    return normalized
 
 
 def build_manifest(cfg: dict, stats_root: Path, fallback_stats_root: Path | None, image_root: Path, template: Path, assets_dir: Path, period_label: str, monitoring_range: str, report_date: str) -> dict:

@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.20`: fixes Hongtang Q2 period reports so table 1-2 is regenerated from the Q2 maintenance log, earthquake peak summaries map `EQ` + component stats rows to `EQ-X/Y/Z`, and bearing-displacement cleaning removes values outside each point's level-2 alarm bounds before rerun/reporting.
+- `v1.7.20`：修复洪塘 Q2 周期报：表 1-2 改为按 Q2 维护日志生成，地震动统计表中 `EQ` + 方向分量正确映射到 `EQ-X/Y/Z`，支座位移重算前按各测点二级预警范围清洗超限值。
 - `v1.7.19`: restores Hongtang Q2 SG-6/SL-8 strain thresholds after the recovered points showed usable data, makes the Hongtang low-frequency raw absolute-value guard sensor-specific so offset-corrected strain is not pre-filtered, switches Hongtang low-frequency cache to raw-only `__raw_v3.mat` files, keeps inverted thresholds available only as the legacy all-data suppression workaround, and converts static period-report figure/table captions to Word auto-number fields while preserving cross-reference bookmarks.
 - `v1.7.19`：恢复洪塘 Q2 `SG-6`、`SL-8` 应变阈值，洪塘低频原始绝对值过滤改为按传感器类型生效，避免零点修正前误删应变数据；洪塘低频缓存改为只保存原始解析数据的 `__raw_v3.mat`；保留反向阈值作为历史坏点全量屏蔽兼容方式，并将周期报静态图表题注统一转为 Word 自动编号域且保留交叉引用书签。
 - `v1.7.18`: adds the Hongtang Q2 report corrections for SG-6/Z11-2 offset correction, splits bearing-displacement raw/filtered output folders across the shared structural pipeline, and updates period-report WIM captions to Word auto-number fields with clearer overload-count wording.

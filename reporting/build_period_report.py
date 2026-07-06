@@ -13,7 +13,9 @@ from pathlib import Path
 from typing import Iterable
 
 from docx import Document
+from docx.oxml.ns import qn
 from docx.shared import Mm
+from docx.table import Table
 from openpyxl import load_workbook
 
 from build_monthly_report import (
@@ -421,6 +423,93 @@ def apply_period_maintenance_text(doc: Document) -> None:
         text = para.text.strip()
         if any(fragment in text for fragment in stale_fragments):
             replace_paragraph_text(para, replacement)
+
+
+HONGTANG_PERIOD_MAINTENANCE_LOG = [
+    ("2026-04-06", "软件系统日常检查"),
+    ("2026-04-09", "基康采集设备（南侧）离线，现场维护，重启后设备恢复"),
+    ("2026-04-13", "软件系统日常检查"),
+    ("2026-04-20", "软件系统日常检查"),
+    ("2026-04-27", "软件系统日常检查及定期维护"),
+    ("2026-05-04", "软件系统日常检查"),
+    ("2026-05-07", "部分测点离线，现场维护，线头老化已维保"),
+    ("2026-05-11", "软件系统日常检查"),
+    ("2026-05-18", "软件系统日常检查"),
+    ("2026-05-25", "软件系统日常检查及定期维护"),
+    ("2026-06-01", "软件系统日常检查"),
+    ("2026-06-08", "软件系统日常检查"),
+    ("2026-06-15", "软件系统日常检查，现场对基康采集仪设备进行维保（已修复）"),
+    ("2026-06-22", "软件系统日常检查"),
+    ("2026-06-29", "软件系统日常检查及定期维护"),
+]
+
+
+def period_maintenance_log_rows(start_date: date, end_date: date) -> list[tuple[str, str]]:
+    rows: list[tuple[str, str]] = []
+    for date_text, maintenance_type in HONGTANG_PERIOD_MAINTENANCE_LOG:
+        current = parse_date_str(date_text)
+        if start_date <= current <= end_date:
+            rows.append((date_text, maintenance_type))
+    return rows
+
+
+def _next_table_after_paragraph(paragraph) -> Table | None:
+    current = paragraph._p.getnext()
+    while current is not None:
+        if current.tag == qn("w:tbl"):
+            return Table(current, paragraph._parent)
+        current = current.getnext()
+    return None
+
+
+def _set_cell_text_preserve_style(cell, text: object) -> None:
+    paragraphs = list(cell.paragraphs)
+    if not paragraphs:
+        cell.text = str(text)
+        return
+    first = paragraphs[0]
+    for extra in paragraphs[1:]:
+        extra._element.getparent().remove(extra._element)
+    if first.runs:
+        first.runs[0].text = str(text)
+        for run in first.runs[1:]:
+            run.text = ""
+    else:
+        first.add_run(str(text))
+
+
+def _remove_table_row(row) -> None:
+    row._tr.getparent().remove(row._tr)
+
+
+def apply_period_maintenance_log(doc: Document, start_date: date, end_date: date) -> None:
+    rows = period_maintenance_log_rows(start_date, end_date)
+    if not rows:
+        return
+
+    target_table: Table | None = None
+    for para in doc.paragraphs:
+        if "健康监测系统维护日志表" in para.text:
+            target_table = _next_table_after_paragraph(para)
+            break
+    if target_table is None:
+        raise ValueError("Maintenance log table after 表 1-2 not found")
+    if len(target_table.columns) < 3:
+        raise ValueError("Maintenance log table must have at least three columns")
+
+    required_rows = len(rows) + 1
+    while len(target_table.rows) < required_rows:
+        target_table.add_row()
+    while len(target_table.rows) > required_rows:
+        _remove_table_row(target_table.rows[-1])
+
+    headers = ("序号", "维护日期", "维护类型")
+    for idx, value in enumerate(headers):
+        _set_cell_text_preserve_style(target_table.cell(0, idx), value)
+    for ridx, (date_text, maintenance_type) in enumerate(rows, start=1):
+        values = (str(ridx), date_text, maintenance_type)
+        for cidx, value in enumerate(values):
+            _set_cell_text_preserve_style(target_table.cell(ridx, cidx), value)
 
 
 def _summarize_lowfreq_module(module: str, module_events: list[dict], start_date: date, end_date: date) -> str:
@@ -1437,6 +1526,7 @@ def build_period_report(
     apply_manifest_to_doc(doc, manifest)
     apply_period_cover_title(doc, start_dt, end_dt)
     apply_period_maintenance_text(doc)
+    apply_period_maintenance_log(doc, start_dt, end_dt)
     apply_health_status_to_doc(doc, manifest["health_status_summary"], manifest["health_status_rows"])
     apply_wim_period_to_doc(doc, manifest["wim"])
     apply_period_toc_months(doc, start_dt, end_dt)
