@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-06 16:05 CST
+Last updated: 2026-07-06 16:45 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -101,6 +101,48 @@ state and keep algorithm/report decisions in the normal project docs.
   avoid heavy MATLAB/report jobs unless explicitly requested.
 
 ## Active Remote Tasks On 133
+
+### Hongtang Bridge Q2 Strain Cleaning Threshold Update
+
+- Status: completed on 2026-07-06 16:45 CST.
+- Code state during production rerun: `F:\Guanbing` clean at `43c2b99`
+  (`Tighten Hongtang Q2 strain cleaning thresholds`) and tracking
+  `origin/main`.
+- Remote validation:
+  - JSON parse and threshold assertions passed for `config/hongtang_config.json`.
+  - MATLAB tests passed:
+    `tests/test_hongtang_lowfreq_loader.m`,
+    `tests/test_cleaning_pipeline.m`, and
+    `tests/test_post_filter_thresholds.m`.
+- Config policy applied:
+  - main girder static-strain groups `B/C/D/E/F/G/H`: clean values outside
+    `[-200, 200]`;
+  - tower static-strain groups `K/L`: clean values outside `[-150, 150]`;
+  - offset corrections and alarm bounds unchanged.
+- Strain rerun:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_strain_thresholds_20260706_163317`
+  - Run status: `ok`.
+  - MATLAB elapsed inside run: `146.42` seconds.
+  - Updated stats:
+    `E:\洪塘大桥数据\2026年4-6月\stats\strain_stats.xlsx`.
+  - Analysis manifest:
+    `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260706_163554.json`.
+  - Stats check: 64 strain rows; no main-girder stats outside `[-200, 200]`
+    and no tower stats outside `[-150, 150]`.
+- Report regeneration:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_report_strain_thresholds_20260706_163656`
+  - Runtime: `88.98` seconds.
+  - Output DOCX:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260706_163731.docx`
+  - Manifest:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260706_163731.json`
+  - Checked PDF copied back to 133:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_163731_checked.pdf`.
+- Final local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_strain_thresholds_20260706_163731`.
+  Word COM exported an 82-page PDF; all pages rendered; text checks found no
+  reference errors or placeholders. The report summary now states main girder
+  strain `-60.3με~152.3με` and tower strain `-148.9με~127.2με`.
 
 ### Hongtang Bridge Q2 v1.7.19 Final Closure
 
