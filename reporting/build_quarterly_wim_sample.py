@@ -362,10 +362,25 @@ def append_complex_field(paragraph: Paragraph, instr: str, placeholder: str = "1
     paragraph._p.append(run_end)
 
 
-def clear_paragraph_content(paragraph: Paragraph) -> None:
+def clear_paragraph_content(paragraph: Paragraph) -> list:
+    bookmark_starts = []
+    bookmark_ends = []
     for child in list(paragraph._p):
-        if child.tag != qn("w:pPr"):
-            paragraph._p.remove(child)
+        if child.tag == qn("w:pPr"):
+            continue
+        if child.tag == qn("w:bookmarkStart"):
+            bookmark_starts.append(deepcopy(child))
+        elif child.tag == qn("w:bookmarkEnd"):
+            bookmark_ends.append(deepcopy(child))
+        paragraph._p.remove(child)
+    for bookmark_start in bookmark_starts:
+        paragraph._p.append(bookmark_start)
+    return bookmark_ends
+
+
+def append_bookmark_ends(paragraph: Paragraph, bookmark_ends: list) -> None:
+    for bookmark_end in bookmark_ends:
+        paragraph._p.append(bookmark_end)
 
 
 def strip_caption_number(text: str) -> str:
@@ -378,7 +393,7 @@ def strip_caption_number(text: str) -> str:
 def set_auto_caption_paragraph(paragraph: Paragraph, text: str, kind: str) -> Paragraph:
     kind = kind.lower()
     title = strip_caption_number(text)
-    clear_paragraph_content(paragraph)
+    bookmark_ends = clear_paragraph_content(paragraph)
     if kind == "figure":
         paragraph.add_run("图 ")
         append_complex_field(paragraph, "STYLEREF 1 \\s")
@@ -394,6 +409,7 @@ def set_auto_caption_paragraph(paragraph: Paragraph, text: str, kind: str) -> Pa
         append_complex_field(paragraph, "STYLEREF 1 \\s")
         paragraph.add_run("-")
         append_complex_field(paragraph, "SEQ 表 \\* ARABIC \\s 1")
+    append_bookmark_ends(paragraph, bookmark_ends)
     if title:
         paragraph.add_run(f" {title}")
     return paragraph

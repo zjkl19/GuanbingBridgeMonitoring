@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 
 from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REPORTING_DIR = REPO_ROOT / "reporting"
@@ -22,6 +24,16 @@ from build_period_report import _pattern_for_point, convert_static_captions_to_a
 
 def paragraph_fields(paragraph) -> str:
     return "|".join(node.text or "" for node in paragraph._p.iter() if node.tag.endswith("}instrText"))
+
+
+def add_bookmark(paragraph, bookmark_id: str, name: str) -> None:
+    start = OxmlElement("w:bookmarkStart")
+    start.set(qn("w:id"), bookmark_id)
+    start.set(qn("w:name"), name)
+    end = OxmlElement("w:bookmarkEnd")
+    end.set(qn("w:id"), bookmark_id)
+    paragraph._p.insert(0, start)
+    paragraph._p.append(end)
 
 
 class WimAutoCaptionTests(unittest.TestCase):
@@ -84,6 +96,21 @@ class WimAutoCaptionTests(unittest.TestCase):
         self.assertIn("SEQ 表 \\* ARABIC \\s 1", paragraph_fields(table_caption))
         self.assertIn("SEQ 表 \\c", paragraph_fields(continued_caption))
         self.assertEqual(paragraph_fields(body), "")
+
+
+    def test_static_caption_conversion_preserves_cross_reference_bookmarks(self) -> None:
+        doc = Document()
+        caption = doc.add_paragraph("\u56fe 4-6 tower strain time history")
+        add_bookmark(caption, "42", "_Ref4508")
+
+        count = convert_static_captions_to_auto_number(doc)
+
+        self.assertEqual(count, 1)
+        xml = caption._p.xml
+        self.assertIn("_Ref4508", xml)
+        self.assertLess(xml.find("bookmarkStart"), xml.find("SEQ"))
+        self.assertLess(xml.find("SEQ"), xml.find("bookmarkEnd"))
+        self.assertLess(xml.find("bookmarkEnd"), xml.find("tower strain"))
 
 
 if __name__ == "__main__":
