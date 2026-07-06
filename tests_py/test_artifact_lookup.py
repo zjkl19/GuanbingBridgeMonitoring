@@ -5,6 +5,8 @@ import time
 import unittest
 from pathlib import Path
 
+from openpyxl import Workbook
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 
 from artifact_lookup import (  # noqa: E402
@@ -13,6 +15,7 @@ from artifact_lookup import (  # noqa: E402
     latest_point_image_patterns,
     resolve_output_dirs,
 )
+from build_monthly_report import build_bearing_section  # noqa: E402
 
 
 class TestArtifactLookup(unittest.TestCase):
@@ -74,6 +77,35 @@ class TestArtifactLookup(unittest.TestCase):
             dirs = resolve_output_dirs(root, "plots")
             self.assertIn(good.resolve(), dirs)
             self.assertNotIn(bad.resolve(), dirs)
+
+    def test_bearing_section_accepts_raw_orig_filename_without_extra_suffix(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            stats = root / "stats"
+            image_dir = root / "bearing_raw"
+            assets = root / "assets"
+            stats.mkdir()
+            image_dir.mkdir()
+            assets.mkdir()
+
+            wb = Workbook()
+            ws = wb.active
+            ws.append(["PointID", "OrigMin_mm", "OrigMax_mm", "FiltMin_mm", "FiltMax_mm"])
+            ws.append(["Z11-1", -1.0, 1.0, -0.5, 0.5])
+            wb.save(stats / "bearing_displacement_stats.xlsx")
+
+            image = image_dir / "BearingDisp_Z11-1_20260401_20260630_Orig.jpg"
+            image.write_bytes(b"not-a-real-image")
+
+            cfg = {
+                "points": {"bearing_displacement": ["Z11-1"]},
+                "plot_styles": {"bearing_displacement": {"raw_output_dir": "bearing_raw"}},
+            }
+
+            section = build_bearing_section(cfg, stats, None, root, assets)
+
+            self.assertEqual(Path(section["images"][0]["path"]), image)
+            self.assertEqual(Path(section["image_lookup"][0]["selected_file"]), image)
 
 
 if __name__ == "__main__":

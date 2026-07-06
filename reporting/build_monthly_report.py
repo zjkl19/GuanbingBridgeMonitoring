@@ -1022,6 +1022,9 @@ def build_bearing_section(cfg: dict, stats_root: Path, fallback_stats_root: Path
             image_root,
             raw_output_dir,
             [
+                f"BearingDisp_{pid}_*_Orig.jpg",
+                f"BearingDisp_{pid}_*_Orig.png",
+                f"BearingDisp_{pid}_*_Orig.jpeg",
                 f"BearingDisp_{pid}_*_Orig_*.jpg",
                 f"BearingDisp_{pid}_*_Orig_*.png",
                 f"BearingDisp_{pid}_*_Orig_*.jpeg",
