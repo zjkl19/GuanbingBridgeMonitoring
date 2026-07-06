@@ -49,6 +49,36 @@ classdef test_writer_plot_manifest_services < matlab.unittest.TestCase
             tc.verifyFalse(isfile(fullfile(tmp, 'Unit_20260101_20260102.fig')));
         end
 
+        function lightweightFigRetainsCriticalExtrema(tc)
+            tmp = tempname;
+            mkdir(tmp);
+            cleanup = onCleanup(@() rmdir(tmp, 's')); %#ok<NASGU>
+
+            y = zeros(5000, 1);
+            y(1234) = -20;
+            y(4321) = 8;
+            fig = figure('Visible', 'off');
+            plot(1:numel(y), y);
+            cfg.plot_common = struct( ...
+                'save_fig', true, ...
+                'lightweight_fig', true, ...
+                'fig_max_points', 1000, ...
+                'append_timestamp', false);
+
+            bms.plot.PlotService.saveModuleBundle(fig, tmp, 'CriticalLine', cfg, ...
+                struct('save_jpg', false, 'save_emf', false));
+
+            figPath = fullfile(tmp, 'CriticalLine.fig');
+            tc.verifyTrue(isfile(figPath));
+            saved = openfig(figPath, 'invisible');
+            closeCleanup = onCleanup(@() close(saved)); %#ok<NASGU>
+            lines = findall(saved, 'Type', 'line');
+            ySaved = get(lines(1), 'YData');
+
+            tc.verifyTrue(any(abs(ySaved + 20) < 1e-12));
+            tc.verifyTrue(any(abs(ySaved - 8) < 1e-12));
+        end
+
         function errorClassifierReturnsStableTypes(tc)
             tc.verifyEqual(bms.app.ErrorClassifier.classifyText('unrecognized field ylim_auto'), 'config_invalid');
             tc.verifyEqual(bms.app.ErrorClassifier.classifyText('writetable failed for stats.xlsx'), 'stats_write_failed');

@@ -86,6 +86,20 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(meanTMax, base + minutes(15));
         end
 
+        function limitSeriesPointsKeepsCriticalExtrema(tc)
+            times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:99)';
+            vals = zeros(100, 1);
+            vals(37) = -20;
+            vals(73) = 8;
+
+            [keptTimes, keptVals] = bms.analyzer.DynamicSeriesService.limitSeriesPoints(times, vals, 10);
+
+            tc.verifyTrue(any(keptTimes == times(37)));
+            tc.verifyTrue(any(keptTimes == times(73)));
+            tc.verifyTrue(any(abs(keptVals + 20) < 1e-12));
+            tc.verifyTrue(any(abs(keptVals - 8) < 1e-12));
+        end
+
         function collectRecordLoadsStatsAndRmsPeak(tc)
             values = 2 * ones(601, 1);
             write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'A1.csv'), values);

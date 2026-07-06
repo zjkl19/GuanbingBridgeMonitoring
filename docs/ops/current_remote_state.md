@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-06 16:45 CST
+Last updated: 2026-07-06 21:45 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -101,6 +101,42 @@ state and keep algorithm/report decisions in the normal project docs.
   avoid heavy MATLAB/report jobs unless explicitly requested.
 
 ## Active Remote Tasks On 133
+
+### Hongtang Bridge Q2 v1.7.21 Plot Extrema Consistency
+
+- Status: completed on 2026-07-06 21:45 CST.
+- 133 code state: `F:\Guanbing` has the current `v1.7.21` working-tree patch
+  applied on top of `e2f32e6` / `v1.7.20` for production verification.
+- Task directory:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_extrema_20260706_210820`.
+- Remote earthquake rerun:
+  - RunSession elapsed `91.56` seconds; module run elapsed `86.08` seconds.
+  - Updated stats:
+    `E:\洪塘大桥数据\2026年4-6月\stats\eq_stats.xlsx`.
+  - Analysis manifest:
+    `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260706_211605.json`.
+  - New stats values: `EQ-X 0.005`, `EQ-Y 0.018`, `EQ-Z 0.019` m/s^2.
+- Remote `.fig` validation passed: `EQ-X`, `EQ-Y`, and `EQ-Z` each matched
+  the regenerated stats row against the plotted curve, red marker, and text
+  label within display precision.
+- Report generation:
+  - Runtime `87.27` seconds.
+  - DOCX:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260706_213107.docx`.
+  - Manifest:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260706_213107.json`.
+  - Checked PDF copied back to 133:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_period_v1721_20260706_213107_word_checked.pdf`.
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_v1721_20260706_213107`.
+  - Manifest `status=ok`, `missing_count=0`, `warnings=0`,
+    `report_qc_status=ok`.
+  - Independent report QC passed with `0` issues.
+  - Word COM exported an `81` page PDF; all `81` pages rendered to PNG.
+  - Rendered PDF text states earthquake horizontal peak `0.018m/s²` and
+    vertical peak `0.019m/s²`.
+- Next action: publish `v1.7.21`, then fast-forward 133 to the committed
+  `origin/main` state.
 
 ### Hongtang Bridge Q2 v1.7.20 Report Follow-up Correction
 

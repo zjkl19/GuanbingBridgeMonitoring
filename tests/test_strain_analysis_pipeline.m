@@ -98,6 +98,18 @@ classdef test_strain_analysis_pipeline < matlab.unittest.TestCase
             tc.verifyEqual(serviceMat, pipelineMat);
         end
 
+        function strainBoxplotSamplingKeepsCriticalExtrema(tc)
+            vals = zeros(1200, 1);
+            vals(413) = -250;
+            vals(997) = 180;
+            dataList = struct('pid', 'S1', 'times', datetime(2026, 1, 1), 'vals', vals);
+
+            mat = bms.analyzer.StrainPlotService.buildBoxplotMatrix(dataList, 1000);
+
+            tc.verifyTrue(any(abs(mat(:, 1) + 250) < 1e-12));
+            tc.verifyTrue(any(abs(mat(:, 1) - 180) < 1e-12));
+        end
+
         function strainGroupWarnLinesResolveWhenUniform(tc)
             cfg = strain_cfg();
             cfg.per_point = struct('strain', struct( ...

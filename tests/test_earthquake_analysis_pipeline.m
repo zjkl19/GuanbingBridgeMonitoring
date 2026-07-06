@@ -49,9 +49,27 @@ classdef test_earthquake_analysis_pipeline < matlab.unittest.TestCase
             tc.verifyTrue(isfile(statsPath));
             T = readtable(statsPath, 'TextType', 'string');
             tc.verifyEqual(height(T), 3);
-            tc.verifyTrue(all(ismember({'PointID', 'Component', 'Peak', 'PeakTime'}, T.Properties.VariableNames)));
+            tc.verifyTrue(all(ismember({'PointID', 'Component', 'Peak', 'PeakSigned', 'PeakTime'}, T.Properties.VariableNames)));
             tc.verifyEqual(sort(T.Component), ["X"; "Y"; "Z"]);
             tc.verifyEqual(max(T.Peak), 0.6, 'AbsTol', 1e-12);
+        end
+
+        function earthquakeStatsExposeSignedPeakValue(tc)
+            rec = bms.analyzer.EarthquakeSeriesService.initRecord();
+            rec.pid = 'EQ-UT-Y';
+            rec.comp = 'Y';
+            rec.has_data = true;
+            rec.times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:2)';
+            rec.vals = [0.2; -0.9; 0.8];
+            rec.peak = 0.9;
+            rec.peak_signed = -0.9;
+            rec.peak_time = rec.times(2);
+
+            T = bms.analyzer.EarthquakeAnalysisPipeline.statsTable(rec);
+
+            tc.verifyEqual(T.Peak, 0.9, 'AbsTol', 1e-12);
+            tc.verifyEqual(T.PeakSigned, -0.9, 'AbsTol', 1e-12);
+            tc.verifyEqual(T.PeakTime, "2026-01-01 00:00:01");
         end
 
         function bridgeConfigsResolveEarthquakePipelineInputs(tc)

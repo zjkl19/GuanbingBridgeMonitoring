@@ -6,6 +6,72 @@ Last updated: 2026-07-06
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-06 Hongtang Q2 v1.7.21 Plot Extrema Consistency
+
+Current accepted code/report state:
+
+- GUI/report version bumped to `v1.7.21`.
+- Release tag planned: `v1.7.21`.
+- Scope:
+  - preserve finite min, max, and absolute-peak samples when time-series plots
+    are downsampled for display;
+  - preserve the same extrema when lightweight `.fig` files simplify line data;
+  - keep static-strain boxplot sampling from dropping critical extrema;
+  - make earthquake stats carry both `Peak` and `PeakSigned`;
+  - place earthquake plot markers/text at the full-resolution absolute peak
+    sample instead of the largest positive plotted sample.
+- Coverage applies through shared plotting paths to deflection, bearing
+  displacement, tilt, crack, temperature, humidity, rainfall, GNSS, static
+  strain, dynamic strain, acceleration, cable acceleration, wind, earthquake,
+  frequency-time-history, and cable-force time-history outputs.
+- Audit note:
+  `docs/hongtang_q2_extrema_plot_audit.md`.
+- Local focused MATLAB tests passed:
+  `tests/test_prepare_plot_series_gap_mode.m`,
+  `tests/test_dynamic_series_service.m`,
+  `tests/test_earthquake_series_service.m`,
+  `tests/test_earthquake_analysis_pipeline.m`,
+  `tests/test_structural_time_series_plot_service.m`,
+  `tests/test_strain_analysis_pipeline.m`,
+  `tests/test_wind_analysis_pipeline.m`,
+  `tests/test_bms_services.m`,
+  `tests/test_writer_plot_manifest_services.m`,
+  `tests/test_dynamic_strain_boxplot_service.m`.
+
+Remote 133 production verification:
+
+- `F:\Guanbing` has the same working-tree patch applied on top of `e2f32e6`
+  / `v1.7.20` for production verification.
+- Hongtang Q2 earthquake module reran successfully in `91.56` seconds.
+- Regenerated stats:
+  `E:\洪塘大桥数据\2026年4-6月\stats\eq_stats.xlsx`.
+- Regenerated analysis manifest:
+  `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260706_211605.json`.
+- Remote `.fig` validation passed for `EQ-X`, `EQ-Y`, and `EQ-Z`: each
+  `eq_stats.xlsx` row matched the plotted curve point, red marker, and text
+  label within exported display precision (3 decimal places and whole seconds).
+- Hongtang Q2 period report regenerated on 133 in `87.27` seconds:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260706_213107.docx`.
+- Report manifest:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260706_213107.json`.
+- Checked PDF copied back to 133:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_period_v1721_20260706_213107_word_checked.pdf`.
+
+Final local QA copy:
+
+- `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_v1721_20260706_213107`.
+- Manifest: `status=ok`, `missing_count=0`, `warnings=0`,
+  `report_qc_status=ok`.
+- Independent report QC passed with `0` issues, `29` tables, and `181` images.
+- Word COM exported an `81` page PDF and all `81` pages rendered to PNG.
+- PDF/DOCX text checks found no `引用源未找到`, `错误!`, `错误！未定义书签`,
+  `Error!`, `${`, or `{{`.
+- Earthquake summary text in the rendered PDF states horizontal peak
+  `0.018m/s²` and vertical peak `0.019m/s²`; local `eq_stats_v1721.xlsx`
+  rows are `EQ-X 0.005`, `EQ-Y 0.018`, and `EQ-Z 0.019`.
+- Low-content rendered pages were page `2` and page `81`, consistent with the
+  report's blank/separator and final-signoff pages.
+
 ## 2026-07-06 Hongtang Q2 v1.7.20 Report Follow-up Correction
 
 Current accepted code/report state:

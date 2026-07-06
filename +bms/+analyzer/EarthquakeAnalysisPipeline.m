@@ -154,7 +154,8 @@ classdef EarthquakeAnalysisPipeline
                     record_parallel_offset_correction(cfg, rec.sensor_type, rec.pid, rec.times, rec.vals);
                 end
                 bms.analyzer.EarthquakeAnalysisPipeline.plotTimeseries( ...
-                    rec.times, rec.vals, rec.pid, rec.comp, rec.params, style, outRoot, startDate, endDate, cfg);
+                    rec.times, rec.vals, rec.pid, rec.comp, rec.params, style, outRoot, startDate, endDate, cfg, ...
+                    rec.peak, rec.peak_signed, rec.peak_time);
             end
         end
 
@@ -168,6 +169,7 @@ classdef EarthquakeAnalysisPipeline
             pointIds = {};
             components = {};
             peaks = [];
+            peakSigneds = [];
             peakTimes = {};
             for i = 1:numel(records)
                 rec = records(i);
@@ -175,9 +177,13 @@ classdef EarthquakeAnalysisPipeline
                     continue;
                 end
                 peak = NaN;
+                peakSigned = NaN;
                 peakTime = NaT;
                 if isfield(rec, 'peak') && isfinite(rec.peak)
                     peak = rec.peak;
+                    if isfield(rec, 'peak_signed') && isfinite(rec.peak_signed)
+                        peakSigned = rec.peak_signed;
+                    end
                     if isfield(rec, 'peak_time')
                         peakTime = rec.peak_time;
                     end
@@ -186,19 +192,22 @@ classdef EarthquakeAnalysisPipeline
                     if isempty(vals)
                         continue;
                     end
-                    [peak, idx] = max(abs(vals), [], 'omitnan');
+                    [peak, peakSigned, peakTime, idx] = bms.analyzer.EarthquakeSeriesService.absPeak(rec.times, vals);
                     if isempty(idx) || ~isfinite(peak) || idx < 1 || idx > numel(rec.times)
                         continue;
                     end
-                    peakTime = rec.times(idx);
+                end
+                if ~isfinite(peakSigned)
+                    peakSigned = peak;
                 end
                 pointIds{end+1, 1} = bms.analyzer.EarthquakeAnalysisPipeline.basePointId(rec.pid); %#ok<AGROW>
                 components{end+1, 1} = char(string(rec.comp)); %#ok<AGROW>
                 peaks(end+1, 1) = peak; %#ok<AGROW>
+                peakSigneds(end+1, 1) = peakSigned; %#ok<AGROW>
                 peakTimes{end+1, 1} = bms.analyzer.EarthquakeAnalysisPipeline.formatTime(peakTime); %#ok<AGROW>
             end
-            T = table(string(pointIds(:)), string(components(:)), peaks(:), string(peakTimes(:)), ...
-                'VariableNames', {'PointID', 'Component', 'Peak', 'PeakTime'});
+            T = table(string(pointIds(:)), string(components(:)), peaks(:), peakSigneds(:), string(peakTimes(:)), ...
+                'VariableNames', {'PointID', 'Component', 'Peak', 'PeakSigned', 'PeakTime'});
             T = bms.io.StatsSchema.normalizeTable(T, 'earthquake');
         end
 
@@ -216,9 +225,18 @@ classdef EarthquakeAnalysisPipeline
             end
         end
 
-        function plotTimeseries(times, vals, pointId, component, params, style, outRoot, startDate, endDate, cfg)
+        function plotTimeseries(times, vals, pointId, component, params, style, outRoot, startDate, endDate, cfg, peakAbs, peakSigned, peakTime)
             if nargin < 10
                 cfg = struct();
+            end
+            if nargin < 11
+                peakAbs = NaN;
+            end
+            if nargin < 12
+                peakSigned = NaN;
+            end
+            if nargin < 13
+                peakTime = NaT;
             end
 
             fig = figure('Position', [100 100 1100 500]);
@@ -235,7 +253,7 @@ classdef EarthquakeAnalysisPipeline
             bms.analyzer.EarthquakeAnalysisPipeline.applyYLim(style, pointId);
             bms.plot.PlotService.setTimeAxis(times);
             bms.analyzer.EarthquakeAnalysisPipeline.drawAlarmLines(params);
-            bms.analyzer.EarthquakeAnalysisPipeline.drawMaxMarker(times, vals);
+            bms.analyzer.EarthquakeAnalysisPipeline.drawMaxMarker(times, vals, peakAbs, peakSigned, peakTime);
 
             outDir = fullfile(outRoot, style.output.series_dir);
             bms.core.PathResolver.ensureDir(outDir);
@@ -269,6 +287,9 @@ classdef EarthquakeAnalysisPipeline
                 h = yline(lv, '--', sprintf('%s %.2f', labels{i}, lv), 'Color', colors(i, :));
                 h.LabelHorizontalAlignment = 'left';
                 h.LabelVerticalAlignment = 'bottom';
+                hn = yline(-lv, '--', sprintf('-%s %.2f', labels{i}, -lv), 'Color', colors(i, :));
+                hn.LabelHorizontalAlignment = 'left';
+                hn.LabelVerticalAlignment = 'top';
             end
         end
 
@@ -280,14 +301,16 @@ classdef EarthquakeAnalysisPipeline
             levels = sort(levels(~isnan(levels)));
         end
 
-        function drawMaxMarker(times, vals)
-            [vmax, idx] = max(vals, [], 'omitnan');
-            if isempty(idx) || ~isfinite(vmax) || idx < 1 || idx > numel(times)
+        function drawMaxMarker(times, vals, peakAbs, peakSigned, peakTime)
+            if nargin < 3 || ~isfinite(peakAbs) || nargin < 4 || ~isfinite(peakSigned) ...
+                    || nargin < 5 || ~isdatetime(peakTime) || isnat(peakTime)
+                [peakAbs, peakSigned, peakTime] = bms.analyzer.EarthquakeSeriesService.absPeak(times, vals);
+            end
+            if ~isfinite(peakAbs) || ~isfinite(peakSigned) || ~isdatetime(peakTime) || isnat(peakTime)
                 return;
             end
-            tmax = times(idx);
-            plot(tmax, vmax, 'ro', 'MarkerFaceColor', 'r', 'MarkerSize', 6);
-            text(tmax, vmax, sprintf('最大值 %.3f', vmax), ...
+            plot(peakTime, peakSigned, 'ro', 'MarkerFaceColor', 'r', 'MarkerSize', 6);
+            text(peakTime, peakSigned, sprintf('峰值 |a|=%.3f\n%s', peakAbs, datestr(peakTime, 'yyyy-mm-dd HH:MM:ss')), ...
                 'VerticalAlignment', 'bottom', ...
                 'HorizontalAlignment', 'left', ...
                 'Color', [0.6 0 0]);

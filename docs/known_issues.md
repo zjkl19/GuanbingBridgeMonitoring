@@ -80,6 +80,15 @@ Recommended check:
   old total-page headers;
 - spot-check representative plotted pages before sending the report out.
 
+Additional v1.7.21 lesson: when a report sentence or table cites a max/min/peak,
+the rendered figure must be checked against the same source sample. The
+Hongtang Q2 earthquake section exposed this because full-resolution earthquake
+stats were correct, but the old plot marker used the largest positive plotted
+sample and downsampling could drop the true absolute peak. The common plotting
+helpers now preserve extrema, but report QA should still compare stats rows,
+figure markers, and rendered text for representative modules. See
+`docs/hongtang_q2_extrema_plot_audit.md`.
+
 ## Donghua Export Layout
 
 Status: fixed in the current snapshot.

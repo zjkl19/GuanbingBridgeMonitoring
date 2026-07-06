@@ -43,6 +43,19 @@ classdef test_earthquake_series_service < matlab.unittest.TestCase
             tc.verifyEqual(rec.vals, [0.1; 0.2], 'AbsTol', 1e-12);
         end
 
+        function collectRecordKeepsSignedAbsolutePeak(tc)
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'EQ-Z.csv'), [0.2; -0.7; 0.5]);
+            cfg = eq_cfg();
+            params = struct('alarm_levels', [1 2]);
+
+            rec = bms.analyzer.EarthquakeSeriesService.collectRecord( ...
+                tc.Root, 'wave', 'EQ-Z', '2026-01-01', '2026-01-01', cfg, params);
+
+            tc.verifyEqual(rec.peak, 0.7, 'AbsTol', 1e-12);
+            tc.verifyEqual(rec.peak_signed, -0.7, 'AbsTol', 1e-12);
+            tc.verifyEqual(rec.peak_time, datetime(2026, 1, 1, 0, 0, 1));
+        end
+
         function valueRulesFilterBeforeUnitScale(tc)
             params = struct('raw_min_filter', -50, 'value_scale', 0.01);
 

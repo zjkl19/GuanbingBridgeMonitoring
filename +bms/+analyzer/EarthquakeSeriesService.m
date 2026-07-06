@@ -21,7 +21,7 @@ classdef EarthquakeSeriesService
         function rec = initRecord()
             rec = struct('pid', '', 'sensor_type', '', 'comp', '', ...
                 'times', [], 'vals', [], 'params', struct(), 'peak', NaN, ...
-                'peak_time', NaT, 'has_data', false);
+                'peak_signed', NaN, 'peak_time', NaT, 'has_data', false);
         end
 
         function rec = collectRecord(rootDir, subfolder, pointId, startDate, endDate, cfg, params)
@@ -40,6 +40,7 @@ classdef EarthquakeSeriesService
             keptTimes = {};
             keptVals = {};
             bestPeak = NaN;
+            bestSigned = NaN;
             bestTime = NaT;
 
             for i = 1:numel(dateList)
@@ -54,11 +55,12 @@ classdef EarthquakeSeriesService
                     continue;
                 end
                 vals = bms.analyzer.EarthquakeSeriesService.applyValueRules(vals, params);
-                [dayPeak, idx] = max(abs(vals), [], 'omitnan');
+                [dayPeak, daySigned, dayTime, idx] = bms.analyzer.EarthquakeSeriesService.absPeak(times, vals);
                 if ~isempty(idx) && isfinite(dayPeak) && idx >= 1 && idx <= numel(times) ...
                         && (~isfinite(bestPeak) || dayPeak > bestPeak)
                     bestPeak = dayPeak;
-                    bestTime = times(idx);
+                    bestSigned = daySigned;
+                    bestTime = dayTime;
                 end
                 [td, vd] = bms.analyzer.DynamicSeriesService.limitSeriesPoints(times, vals, perDayMax);
                 if ~isempty(vd)
@@ -75,10 +77,34 @@ classdef EarthquakeSeriesService
             [rec.times, order] = sort(rec.times);
             rec.vals = rec.vals(order);
             rec.peak = bestPeak;
+            rec.peak_signed = bestSigned;
             rec.peak_time = bestTime;
             rec.has_data = true;
             fprintf('Earthquake %s collected %d plot samples; peak=%.6g\n', ...
                 char(string(pointId)), numel(rec.vals), bestPeak);
+        end
+
+        function [peakAbs, peakSigned, peakTime, idx] = absPeak(times, vals)
+            peakAbs = NaN;
+            peakSigned = NaN;
+            peakTime = NaT;
+            idx = [];
+            if isempty(vals) || numel(times) ~= numel(vals)
+                return;
+            end
+            vals = vals(:);
+            finite = isfinite(vals);
+            if ~any(finite)
+                return;
+            end
+            finiteIdx = find(finite);
+            [peakAbs, relIdx] = max(abs(vals(finite)), [], 'omitnan');
+            if isempty(relIdx) || ~isfinite(peakAbs)
+                return;
+            end
+            idx = finiteIdx(relIdx);
+            peakSigned = vals(idx);
+            peakTime = times(idx);
         end
 
         function vals = applyValueRules(vals, params)

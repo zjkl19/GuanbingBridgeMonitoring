@@ -185,6 +185,8 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.7.21` keeps the report GUI aligned with the MATLAB analysis release that preserves plot extrema across downsampled outputs and fixes earthquake peak/stat/marker consistency. The Hongtang Q2 report should be regenerated after rerunning the earthquake module so the summary and figures use the same full-resolution peak.
+
 Version `v1.7.20` fixes Hongtang Q2 period reports so table 1-2 is regenerated from the Q2 maintenance log, earthquake peak summaries map `EQ` + component stats rows to `EQ-X/Y/Z`, and bearing-displacement cleaning removes values outside each point's level-2 alarm bounds before rerun/reporting.
 Version `v1.7.19` restores Hongtang Q2 SG-6/SL-8 strain thresholds after the points recovered, makes the Hongtang low-frequency raw absolute-value guard sensor-specific so offset-corrected strain is not pre-filtered, switches Hongtang low-frequency cache to raw-only `__raw_v3.mat` files, documents the legacy inverted-threshold suppression workaround, fixes bearing-displacement raw-image lookup for `*_Orig.jpg` filenames, and converts static period-report figure/table captions to Word auto-number fields while preserving cross-reference bookmarks in the final build pass.
 Version `v1.7.18` updates Hongtang period-report generation so WIM table/figure captions use Word auto-number fields, table 4-1 describes overload counts explicitly as 1.5/2.0-times thresholds, and bearing-displacement report images are read from the raw output folder after the analysis pipeline splits raw/filtered bearing-displacement figures.

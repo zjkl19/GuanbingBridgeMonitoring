@@ -29,7 +29,7 @@ classdef StatsSchema
                 case 'wind'
                     schema.columns = bms.io.StatsSchema.columns({'PointID','','id',NaN; 'Mean10minMax','m/s','max',2; 'MeanSpeed','m/s','mean',2; 'MaxSpeed','m/s','max',2});
                 case 'earthquake'
-                    schema.columns = bms.io.StatsSchema.columns({'PointID','','id',NaN; 'Component','','component',NaN; 'Peak','m/s^2','max',3; 'PeakTime','','time',NaN});
+                    schema.columns = bms.io.StatsSchema.columns({'PointID','','id',NaN; 'Component','','component',NaN; 'Peak','m/s^2','max',3; 'PeakSigned','m/s^2','value',3; 'PeakTime','','time',NaN});
             end
         end
 

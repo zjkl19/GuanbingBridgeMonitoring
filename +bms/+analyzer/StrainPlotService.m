@@ -147,7 +147,9 @@ classdef StrainPlotService
             for i = 1:numel(dataList)
                 v = dataList(i).vals(:);
                 if numel(v) > maxPointsPerSeries
-                    idx = unique(round(linspace(1, numel(v), maxPointsPerSeries)), 'stable');
+                    idx = unique([round(linspace(1, numel(v), maxPointsPerSeries)) ...
+                        bms.analyzer.DynamicSeriesService.keySampleIndices(v)], 'stable');
+                    idx = sort(idx);
                     v = v(idx);
                 end
                 dataMat(1:numel(v), i) = v;

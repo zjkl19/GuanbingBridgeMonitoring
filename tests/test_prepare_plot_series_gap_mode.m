@@ -22,6 +22,14 @@ assert(numel(xc) == numel(x), 'connect mode should not insert gap markers');
 assert(~any(isnat(xc)), 'connect mode should not include NaT gap markers');
 assert(~any(isnan(yc)), 'connect mode should not include NaN gap markers');
 
+[xs, ys] = prepare_plot_series( ...
+    (datetime(2026, 1, 1, 0, 0, 0) + seconds(0:99)).', ...
+    [zeros(36, 1); -20; zeros(35, 1); 8; zeros(27, 1)], ...
+    struct('gap_mode', 'connect', 'fig_max_points', 10));
+assert(any(ys == -20), 'limited plot series should retain the minimum point');
+assert(any(ys == 8), 'limited plot series should retain the maximum point');
+assert(numel(xs) == numel(ys), 'limited plot series should keep x/y aligned');
+
 plot_runtime_settings('reset');
 disp('prepare_plot_series gap mode test ok');
 end

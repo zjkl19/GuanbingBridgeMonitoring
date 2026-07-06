@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.21`: preserves critical extrema when plotting or saving downsampled time series across all measurement types, makes earthquake stats expose signed absolute peaks, and aligns earthquake plot markers/text with the same full-resolution peak used by reports.
+- `v1.7.21`：所有测点类型的时程绘图和轻量 `.fig` 抽稀都会保留最小值、最大值和绝对峰值；地震动统计新增带符号绝对峰值，图上红点/文字标注与报告使用同一个全分辨率峰值。
 - `v1.7.20`: fixes Hongtang Q2 period reports so table 1-2 is regenerated from the Q2 maintenance log, earthquake peak summaries map `EQ` + component stats rows to `EQ-X/Y/Z`, and bearing-displacement cleaning removes values outside each point's level-2 alarm bounds before rerun/reporting.
 - `v1.7.20`：修复洪塘 Q2 周期报：表 1-2 改为按 Q2 维护日志生成，地震动统计表中 `EQ` + 方向分量正确映射到 `EQ-X/Y/Z`，支座位移重算前按各测点二级预警范围清洗超限值。
 - `v1.7.19`: restores Hongtang Q2 SG-6/SL-8 strain thresholds after the recovered points showed usable data, makes the Hongtang low-frequency raw absolute-value guard sensor-specific so offset-corrected strain is not pre-filtered, switches Hongtang low-frequency cache to raw-only `__raw_v3.mat` files, keeps inverted thresholds available only as the legacy all-data suppression workaround, and converts static period-report figure/table captions to Word auto-number fields while preserving cross-reference bookmarks.

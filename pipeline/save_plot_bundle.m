@@ -129,15 +129,36 @@ function idx = pick_line_indices(y, max_points)
 
     idx = find(keep);
     if numel(idx) > max_points
+        protected = key_line_indices(y);
         sel = round(linspace(1, numel(idx), max_points));
         idx = unique(idx(sel), 'stable');
+        idx = unique([idx(:); protected(:)], 'stable')';
         if idx(1) ~= 1
             idx = [1 idx]; %#ok<AGROW>
         end
         if idx(end) ~= n
             idx = [idx n]; %#ok<AGROW>
         end
+        idx = sort(idx);
     end
+end
+
+function idx = key_line_indices(y)
+    idx = [];
+    if isempty(y)
+        return;
+    end
+    y = y(:);
+    finite = isfinite(y);
+    if ~any(finite)
+        return;
+    end
+    finiteIdx = find(finite);
+    finiteVals = y(finite);
+    [~, minRel] = min(finiteVals);
+    [~, maxRel] = max(finiteVals);
+    [~, absRel] = max(abs(finiteVals));
+    idx = unique([finiteIdx(minRel), finiteIdx(maxRel), finiteIdx(absRel)], 'stable');
 end
 
 function make_figure_visible_for_save(fig)

@@ -113,9 +113,27 @@ function [x_out, y_out] = limit_plot_points(x, y, max_points)
     if n <= max_points
         return;
     end
-    idx = unique(round(linspace(1, n, max_points)), 'stable');
+    idx = unique([round(linspace(1, n, max_points)) key_sample_indices(y)], 'stable');
+    idx = sort(idx);
     x_out = x(idx);
     y_out = y(idx);
+end
+
+function idx = key_sample_indices(y)
+    idx = [];
+    if isempty(y)
+        return;
+    end
+    finite = isfinite(y);
+    if ~any(finite)
+        return;
+    end
+    finiteIdx = find(finite);
+    finiteVals = y(finite);
+    [~, minRel] = min(finiteVals);
+    [~, maxRel] = max(finiteVals);
+    [~, absRel] = max(abs(finiteVals));
+    idx = unique([finiteIdx(minRel), finiteIdx(maxRel), finiteIdx(absRel)], 'stable');
 end
 
 function val = get_opt(opts, field_name, default_val)

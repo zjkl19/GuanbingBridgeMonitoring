@@ -191,9 +191,29 @@ classdef DynamicSeriesService
                 valsOut = vals;
                 return;
             end
-            idx = unique(round(linspace(1, n, maxPoints)));
+            idx = unique([round(linspace(1, n, maxPoints)) ...
+                bms.analyzer.DynamicSeriesService.keySampleIndices(vals)], 'stable');
+            idx = sort(idx);
             timesOut = times(idx);
             valsOut = vals(idx);
+        end
+
+        function idx = keySampleIndices(vals)
+            idx = [];
+            if isempty(vals)
+                return;
+            end
+            vals = vals(:);
+            finite = isfinite(vals);
+            if ~any(finite)
+                return;
+            end
+            finiteIdx = find(finite);
+            finiteVals = vals(finite);
+            [~, minRel] = min(finiteVals);
+            [~, maxRel] = max(finiteVals);
+            [~, absRel] = max(abs(finiteVals));
+            idx = unique([finiteIdx(minRel), finiteIdx(maxRel), finiteIdx(absRel)], 'stable');
         end
 
         function winLen = rmsWindowLength(fs, windowMinutes)
