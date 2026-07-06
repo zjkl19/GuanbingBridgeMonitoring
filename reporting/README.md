@@ -185,6 +185,7 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.7.16` fixes rendered period-report page totals when the template stores the total page count inside Word header/footer text boxes. Word COM field updates now repaginate, update header/footer shape fields, emit the computed page count, and patch stale hard-coded total-page text before final acceptance rendering.
 Version `v1.7.14` hardens Hongtang period-report generation for Q2 reruns: Word field updates now fall back from missing Python COM to PowerShell Word COM, field-update failures are surfaced as manifest warnings, and the generated report should be rendered or exported for visual QA before acceptance.
 Version `v1.7.12` commits the ShuiXianHua monthly builder period-label parsing and output filename generalization so CLI runs, smoke tests, and packaged exe builds use the same source revision.
 版本 `v1.7.12` 提交水仙花月报生成器的监测期标签解析与输出文件名通用化修正，使 CLI、烟测和打包 exe 构建使用同一份源码。

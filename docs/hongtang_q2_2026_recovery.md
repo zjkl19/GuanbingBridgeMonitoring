@@ -1,11 +1,15 @@
 # Hongtang Q2 2026 Recovery Notes
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 This note records the accepted Hongtang Bridge 2026 Q2 recovery run and the
 code changes that should be reused for later quarterly reruns.
 
 ## Accepted Outputs
+
+The 2026-07-05 outputs below are retained as the original accepted baseline.
+The latest accepted report after supplementing `2026-06-28` to `2026-06-30`
+is recorded in the 2026-07-06 addendum.
 
 - Production machine: `gb-133` / `192.168.100.133`
 - Code root on 133: `F:\Guanbing`
@@ -23,6 +27,36 @@ Local render QA copied the report back, exported/rendered it, and produced 110
 page PNGs. The rendered text check found no `错误`, `引用源未找到`, stale Q1
 date text, or old `共 63 页` header text. The user manually spot-checked the Word
 document on 133 and accepted it as basically OK.
+
+## 2026-07-06 Accepted Addendum
+
+- Supplemented date scope: only `2026-06-28` to `2026-06-30`.
+- Late-June source patch:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_donghua_patch_20260706_061724`
+- Final high-frequency refresh:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_patch_refresh_20260706_063728`
+- Final RMS refresh:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_patch_rms_refresh_20260706_083341`
+- Final checked report:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_090831_checked.docx`
+- Final checked Word-exported PDF:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_090831_checked.pdf`
+- Report generation runtime: `146.629` seconds; Word export produced `79`
+  pages.
+- Local render QA copied the report bundle back to
+  `D:\MatlabProjects\Guanbing\tmp\docs\hongtang_q2_patch_report_20260706_090700`,
+  rendered the Word PDF, and found no `错误`, `引用源未找到`, stale Q1 date
+  text, old `共 63 页` header text, or mojibake error/reference text.
+- The affected high-frequency modules were rerun: wind, earthquake,
+  acceleration, cable acceleration, acceleration spectrum, and cable
+  acceleration spectrum.
+- RMS refresh rebuilt acceleration and cable-acceleration RMS artifacts:
+  acceleration `12/12`, cable acceleration `24/24`, no skipped points.
+- Canonical MAT caches were generated for wind speed/direction and earthquake
+  channels for the patched days before deleting direct wave CSV.
+- MAT-only smoke passed before and after deleting direct `波形\*.csv` for the
+  patched dates. Deletion scope was only those direct wave CSVs:
+  `417` files / `37,572,244,652` bytes. Feature CSV files were retained.
 
 ## Root Causes Found
 

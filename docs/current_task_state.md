@@ -1,10 +1,72 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-07-06 Hongtang Q2 Late-June Patch Snapshot
+
+Current repository release target:
+
+- MATLAB GUI version in `ui/run_gui.m`: `v1.7.16`
+- Report GUI version in `reporting/report_gui.py`: `v1.7.16`
+- This release follows `v1.7.15` and keeps the MAT-only time-series source
+  behavior from that release.
+
+Accepted 133 production state:
+
+- Only Hongtang Q2 dates `2026-06-28` to `2026-06-30` were supplemented from
+  the recovered Donghua exports.
+- Source patch manifest:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_donghua_patch_20260706_061724\patch_manifest.json`
+- High-frequency refresh:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_patch_refresh_20260706_063728`
+  with main manifest
+  `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260706_082618.json`.
+- RMS refresh:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_patch_rms_refresh_20260706_083341`
+  with acceleration `12/12`, cable acceleration `24/24`, and no skipped
+  points.
+- Final checked report:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_090831_checked.docx`
+- Final checked Word-exported PDF:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_090831_checked.pdf`
+- Report build runtime: `146.629` seconds, below the 10-minute failure
+  threshold.
+- Local render QA copied the report bundle to
+  `D:\MatlabProjects\Guanbing\tmp\docs\hongtang_q2_patch_report_20260706_090700`,
+  rendered the Word-exported PDF to `79` PNG pages, and found no `错误`,
+  `引用源未找到`, stale Q1 date text, old `共 63 页` header text, or mojibake
+  error/reference text.
+
+Report generator fix in this release:
+
+- `reporting/build_period_report.py` now parses the page count emitted by Word
+  COM, updates header/footer shape fields, and patches hard-coded total-page
+  text in header/footer XML when the Word template stores the total page count
+  in a text box.
+- Remote 133 unit smoke passed with `D:\Python310\python.exe -m unittest
+  tests_py.test_build_period_report_word_update`.
+- Local Python smoke passed:
+  `C:\Users\eamdf\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m unittest tests_py.test_build_period_report_word_update tests_py.test_report_qc tests_py.test_analysis_manifest`.
+
+MAT-only follow-up for the supplemented dates:
+
+- Canonical MAT caches were added for wind speed/direction and earthquake
+  channels that were not produced by the original timestamp-cache path:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_patch_canonical_cache_20260706_092000`.
+- MAT-only smoke passed before and after deleting direct wave CSV files for
+  `W1`, `W2`, `EQ-X`, `EQ-Y`, `EQ-Z`, `A1`, `CS1`, and `CX3`.
+- Deleted only direct `波形\*.csv` files for `2026-06-28` to `2026-06-30`:
+  `417` files / `37,572,244,652` bytes. Feature CSV files were retained.
+- 126 automatic Donghua export check after the point-name fix:
+  `H:\DHtest\定时导出\2026-07-06` had one wave zip and one eigen zip at
+  2026-07-06 09:32 CST, both readable, both with `139` entries, and both
+  including `CX3` plus wind speed/direction entries.
+- MATLAB GUI smoke passed after the version bump:
+  `matlab -batch "cd('D:\MatlabProjects\Guanbing'); addpath(genpath(pwd)); results = runtests({'tests/test_main_gui_smoke.m'}); assertSuccess(results);"`
 
 ## 2026-07-05 MAT-only Time-series Source Snapshot
 

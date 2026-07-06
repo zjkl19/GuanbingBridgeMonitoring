@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-06 02:05 CST
+Last updated: 2026-07-06 09:32 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -74,10 +74,12 @@ state and keep algorithm/report decisions in the normal project docs.
   `Codex_DHRecover_20260705_2158`, removed one-shot task
   `Codex_DHRecover_0704_0705_20260706`, and removed temporary Codex PHM UI
   task rows. Recovery logs and backup folders were retained.
-- As of 2026-07-06 02:05 CST, the next scheduled automatic run after the point
-  rename had not occurred yet. Check the 2026-07-06 09:00 run before escalating
-  to Donghua; if it produces 139-entry wave/eigen outputs, vendor support is not
-  needed for this incident.
+- 2026-07-06 09:00 automatic run after the point rename succeeded. At
+  09:32 CST, `H:\DHtest\定时导出\2026-07-06` contained one wave zip and one
+  eigen zip, both readable and both with `139` entries. Temporary CSV files
+  were gone, and both zips included `CX3` plus wind speed/direction entries.
+  Vendor support is not needed for this incident unless a later scheduled
+  export fails again.
 
 ## Office PC DESKTOP-500FVB6
 
@@ -189,7 +191,29 @@ state and keep algorithm/report decisions in the normal project docs.
 
 ### Hongtang Bridge 2026 Q2 Pipeline
 
-- Status: completed and manually spot-checked by the user on 2026-07-05.
+- Status: completed after the 2026-07-06 late-June patch and report rerun.
+- 2026-07-06 patch scope: only `2026-06-28` to `2026-06-30` were supplemented
+  from recovered Donghua exports on 126.
+- Source patch run:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_donghua_patch_20260706_061724`
+- High-frequency refresh:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_patch_refresh_20260706_063728`
+- RMS refresh:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_patch_rms_refresh_20260706_083341`
+  - Result: acceleration `12/12`, cable acceleration `24/24`, no skipped
+    points.
+- Final checked 2026-07-06 report copied back to 133:
+  - `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_090831_checked.docx`
+  - `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_090831_checked.pdf`
+- Report generation runtime was `146.629` seconds; Word export produced `79`
+  pages. Local render QA found no `错误`, `引用源未找到`, stale Q1 date, old
+  `共 63 页` header text, or mojibake error/reference text.
+- MAT-only follow-up for patched dates:
+  - canonical MAT caches generated for wind speed/direction and earthquake;
+  - MAT-only smoke passed before and after deleting direct wave CSV;
+  - deleted only `2026-06-28` to `2026-06-30` direct `波形\*.csv` files:
+    `417` files / `37,572,244,652` bytes;
+  - feature CSV files were retained.
 - Active high-frequency source state: MAT-only for dated `波形` data.
   On 2026-07-05, after validating MAT-only loading, the direct raw CSV files
   under `E:\洪塘大桥数据\2026年4-6月\20??-??-??\波形\*.csv` were deleted to
@@ -264,15 +288,16 @@ Last observed on 133 at 2026-07-03 19:49 CST:
 
 ## Recent Code Sync Notes
 
-133 `F:\Guanbing` is synced with `origin/main` at the `v1.7.15` release line as
-of 2026-07-05 15:30 CST.
+Local `main` has a pending `v1.7.16` release commit for the 2026-07-06
+Hongtang Q2 late-June patch and report page-total fix.
 
-- Release commit: `c77ba32 Add MAT-only time series source support`
-- Release tag: `v1.7.15`
-- The release tag points at the code change. Later `main` commits may contain
-  state-document updates only.
-- Remote `main` has been cleanly fast-forwarded to this release line.
-- Remote `git status --short --branch`: clean, `main...origin/main`
+- Pending release commit: `Fix Hongtang report page totals`
+- Pending release tag: `v1.7.16`
+- 133 `F:\Guanbing` still needs to fast-forward to this release after the
+  commit and tag are pushed.
+- Previous remote release commit: `c77ba32 Add MAT-only time series source
+  support`
+- Previous remote release tag: `v1.7.15`
 - Before the fast-forward pull, the duplicate dirty worktree was backed up as
   `stash@{0}: pre-v1.7.14 duplicate Hongtang Q2 worktree backup`.
 - Report generator file `reporting/build_period_report.py` was synchronized to

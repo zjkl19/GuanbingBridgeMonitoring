@@ -1,18 +1,22 @@
 # Known Issues And Follow-Up Items
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
 
 ## Hongtang Q2 Raw High-Frequency Gaps
 
-Status: source-data caveat after the accepted 2026 Q2 rerun.
+Status: narrowed after the 2026-07-06 late-June recovery.
 
 The `v1.7.14` fixes removed several false missing-data causes in the Hongtang
 Q2 run, including stale cache reuse, dated-folder lookup problems, gap-mode
-propagation gaps, and the bad CS8 offset rule. Remaining late-June gaps should
-be treated as raw source availability gaps unless new source files are found.
+propagation gaps, and the bad CS8 offset rule. The later Donghua export
+recovery supplied 2026-06-28 to 2026-06-30, and those three days were copied
+to 133, reprocessed, cached as MAT, and then smoke-tested in MAT-only mode
+after deleting the direct wave CSV copies. Any remaining gaps should be checked
+against the specific dated raw folders instead of treated as a known general
+late-June gap.
 
 Important distinction:
 
@@ -25,12 +29,14 @@ Reference: `docs/hongtang_q2_2026_recovery.md`.
 
 ## Rendered Report QA
 
-Status: improved in `v1.7.14`; keep as an acceptance rule.
+Status: improved in `v1.7.16`; keep as an acceptance rule.
 
 Raw DOCX QC is not enough when reports contain Word fields, table-of-contents
 entries, cross-references or page-count headers. On 133, Python COM may be
 missing even though Word COM is available. The period-report builder now falls
-back to PowerShell Word COM, but final acceptance should still include
+back to PowerShell Word COM, repaginates the document, updates header/footer
+shape fields, and patches stale hard-coded total-page text in header/footer XML
+when Word reports the final page count. Final acceptance should still include
 render/export QA when a production report is generated.
 
 Recommended check:

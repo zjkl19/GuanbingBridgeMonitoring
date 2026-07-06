@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 import tempfile
+import zipfile
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -866,6 +867,66 @@ def apply_health_status_to_doc(doc: Document, summary_text: str, rows: list[dict
     set_table_column_widths(table, [28, 66, 42, 24])
 
 
+def _parse_word_page_count(output: str) -> int | None:
+    match = re.search(r"BMS_WORD_PAGE_COUNT=(\d+)", output or "")
+    if not match:
+        return None
+    try:
+        value = int(match.group(1))
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
+def _patch_hardcoded_total_pages_xml(xml_text: str, page_count: int) -> tuple[str, int]:
+    total_re = re.compile(
+        r"(<w:t(?:\s+[^>]*)?>\s*页\s*共\s*</w:t>.*?<w:t(?:\s+[^>]*)?>)"
+        r"(\d{1,4})"
+        r"(</w:t>.*?<w:t(?:\s+[^>]*)?>\s*页\s*</w:t>)",
+        re.S,
+    )
+    replacement = rf"\g<1>{page_count}\g<3>"
+    return total_re.subn(replacement, xml_text)
+
+
+def _patch_hardcoded_total_pages_in_docx(docx_path: Path, page_count: int | None) -> int:
+    if page_count is None or page_count <= 0:
+        return 0
+    if not docx_path.exists():
+        return 0
+
+    patched_count = 0
+    tmp_path = docx_path.with_suffix(docx_path.suffix + ".tmp")
+    try:
+        with zipfile.ZipFile(docx_path, "r") as zin, zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zout:
+            for info in zin.infolist():
+                data = zin.read(info.filename)
+                if (
+                    info.filename.startswith(("word/header", "word/footer"))
+                    and info.filename.endswith(".xml")
+                ):
+                    try:
+                        text = data.decode("utf-8")
+                    except UnicodeDecodeError:
+                        text = ""
+                    if text:
+                        text, count = _patch_hardcoded_total_pages_xml(text, page_count)
+                        if count:
+                            patched_count += count
+                            data = text.encode("utf-8")
+                zout.writestr(info, data)
+        tmp_path.replace(docx_path)
+    except zipfile.BadZipFile:
+        return 0
+    finally:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+    return patched_count
+
+
 def _run_python_word_field_update(docx_path: Path) -> tuple[bool, str]:
     script = f"""
 import pythoncom
@@ -879,16 +940,116 @@ try:
     word.Visible = False
     word.DisplayAlerts = 0
     doc = word.Documents.Open(p)
-    for story in doc.StoryRanges:
+    def update_all_fields():
+        def update_shape_fields(container):
+            try:
+                shapes = container.Shapes
+                count = shapes.Count
+            except Exception:
+                return
+            for idx in range(1, count + 1):
+                try:
+                    shape = shapes.Item(idx)
+                    if shape.TextFrame.HasText:
+                        shape.TextFrame.TextRange.Fields.Update()
+                except Exception:
+                    pass
+
         try:
-            story.Fields.Update()
+            doc.Repaginate()
         except Exception:
             pass
-    try:
-        doc.TablesOfContents(1).Update()
-    except Exception:
-        pass
-    doc.Fields.Update()
+        for section in doc.Sections:
+            for header in section.Headers:
+                try:
+                    if header.Exists:
+                        header.Range.Fields.Update()
+                except Exception:
+                    pass
+                update_shape_fields(header)
+            for footer in section.Footers:
+                try:
+                    if footer.Exists:
+                        footer.Range.Fields.Update()
+                except Exception:
+                    pass
+                update_shape_fields(footer)
+        for story_start in doc.StoryRanges:
+            story = story_start
+            while story is not None:
+                try:
+                    story.Fields.Update()
+                except Exception:
+                    pass
+                try:
+                    story = story.NextStoryRange
+                except Exception:
+                    story = None
+        try:
+            doc.TablesOfContents(1).Update()
+        except Exception:
+            pass
+        try:
+            doc.Fields.Update()
+        except Exception:
+            pass
+
+    def replace_total_pages_text():
+        try:
+            page_count = int(doc.ComputeStatistics(2))
+        except Exception:
+            return
+        print(f"BMS_WORD_PAGE_COUNT={{page_count}}")
+
+        pattern = chr(0x5171) + " [0-9]{1,} " + chr(0x9875)
+        replacement = chr(0x5171) + f" {{page_count}} " + chr(0x9875)
+
+        def replace_in_range(range_obj):
+            try:
+                find = range_obj.Find
+                find.ClearFormatting()
+                find.Replacement.ClearFormatting()
+                find.Text = pattern
+                find.MatchWildcards = True
+                find.Replacement.Text = replacement
+                find.Execute(Replace=2)
+            except Exception:
+                pass
+
+        for section in doc.Sections:
+            for header in section.Headers:
+                try:
+                    if header.Exists:
+                        replace_in_range(header.Range)
+                except Exception:
+                    pass
+                try:
+                    shapes = header.Shapes
+                    for idx in range(1, shapes.Count + 1):
+                        shape = shapes.Item(idx)
+                        if shape.TextFrame.HasText:
+                            replace_in_range(shape.TextFrame.TextRange)
+                except Exception:
+                    pass
+            for footer in section.Footers:
+                try:
+                    if footer.Exists:
+                        replace_in_range(footer.Range)
+                except Exception:
+                    pass
+                try:
+                    shapes = footer.Shapes
+                    for idx in range(1, shapes.Count + 1):
+                        shape = shapes.Item(idx)
+                        if shape.TextFrame.HasText:
+                            replace_in_range(shape.TextFrame.TextRange)
+                except Exception:
+                    pass
+
+    update_all_fields()
+    update_all_fields()
+    replace_total_pages_text()
+    update_all_fields()
     doc.Save()
 finally:
     if doc is not None:
@@ -908,6 +1069,8 @@ finally:
         try:
             result = subprocess.run([str(py), "-c", script], check=False, timeout=180, capture_output=True, text=True)
             if result.returncode == 0:
+                page_count = _parse_word_page_count(result.stdout)
+                _patch_hardcoded_total_pages_in_docx(docx_path, page_count)
                 return True, ""
             detail = (result.stderr or result.stdout or f"exit={result.returncode}").strip()
             errors.append(f"{py}: {detail[:300]}")
@@ -928,15 +1091,106 @@ try {
     $word.Visible = $false
     $word.DisplayAlerts = 0
     $doc = $word.Documents.Open($p)
-    foreach ($storyStart in @($doc.StoryRanges)) {
-        $story = $storyStart
-        while ($null -ne $story) {
-            try { $story.Fields.Update() | Out-Null } catch {}
-            $story = $story.NextStoryRange
+    function Update-ShapeFields($shapes) {
+        try { $count = $shapes.Count } catch { return }
+        for ($idx = 1; $idx -le $count; $idx++) {
+            try {
+                $shape = $shapes.Item($idx)
+                if ($shape.TextFrame.HasText) {
+                    $shape.TextFrame.TextRange.Fields.Update() | Out-Null
+                }
+            } catch {}
         }
     }
-    try { $doc.TablesOfContents.Item(1).Update() | Out-Null } catch {}
-    try { $doc.Fields.Update() | Out-Null } catch {}
+    function Replace-TotalPagesText($range, $pageCount) {
+        $pattern = ([string][char]0x5171) + ' [0-9]{1,} ' + ([string][char]0x9875)
+        $replacement = ([string][char]0x5171) + " $pageCount " + ([string][char]0x9875)
+        try {
+            $find = $range.Find
+            $find.ClearFormatting() | Out-Null
+            $find.Replacement.ClearFormatting() | Out-Null
+            $find.Text = $pattern
+            $find.MatchWildcards = $true
+            $find.Replacement.Text = $replacement
+            $find.Execute(
+                [ref]$pattern,
+                [ref]$false,
+                [ref]$true,
+                [ref]$true,
+                [ref]$false,
+                [ref]$false,
+                [ref]$true,
+                [ref]1,
+                [ref]$false,
+                [ref]$replacement,
+                [ref]2
+            ) | Out-Null
+        } catch {}
+    }
+    function Update-WordFields($doc) {
+        try { $doc.Repaginate() | Out-Null } catch {}
+        foreach ($section in @($doc.Sections)) {
+            foreach ($header in @($section.Headers)) {
+                try {
+                    if ($header.Exists) { $header.Range.Fields.Update() | Out-Null }
+                } catch {}
+                try { Update-ShapeFields $header.Shapes } catch {}
+            }
+            foreach ($footer in @($section.Footers)) {
+                try {
+                    if ($footer.Exists) { $footer.Range.Fields.Update() | Out-Null }
+                } catch {}
+                try { Update-ShapeFields $footer.Shapes } catch {}
+            }
+        }
+        foreach ($storyStart in @($doc.StoryRanges)) {
+            $story = $storyStart
+            while ($null -ne $story) {
+                try { $story.Fields.Update() | Out-Null } catch {}
+                $story = $story.NextStoryRange
+            }
+        }
+        try { $doc.TablesOfContents.Item(1).Update() | Out-Null } catch {}
+        try { $doc.Fields.Update() | Out-Null } catch {}
+    }
+    function Replace-HardcodedTotalPages($doc) {
+        try { $pageCount = [int]$doc.ComputeStatistics(2) } catch { return }
+        Write-Output "BMS_WORD_PAGE_COUNT=$pageCount"
+        foreach ($section in @($doc.Sections)) {
+            foreach ($header in @($section.Headers)) {
+                try {
+                    if ($header.Exists) { Replace-TotalPagesText $header.Range $pageCount }
+                } catch {}
+                try {
+                    $count = $header.Shapes.Count
+                    for ($idx = 1; $idx -le $count; $idx++) {
+                        $shape = $header.Shapes.Item($idx)
+                        if ($shape.TextFrame.HasText) {
+                            Replace-TotalPagesText $shape.TextFrame.TextRange $pageCount
+                        }
+                    }
+                } catch {}
+            }
+            foreach ($footer in @($section.Footers)) {
+                try {
+                    if ($footer.Exists) { Replace-TotalPagesText $footer.Range $pageCount }
+                } catch {}
+                try {
+                    $count = $footer.Shapes.Count
+                    for ($idx = 1; $idx -le $count; $idx++) {
+                        $shape = $footer.Shapes.Item($idx)
+                        if ($shape.TextFrame.HasText) {
+                            Replace-TotalPagesText $shape.TextFrame.TextRange $pageCount
+                        }
+                    }
+                } catch {}
+            }
+        }
+    }
+    Update-WordFields $doc
+    Update-WordFields $doc
+    Replace-HardcodedTotalPages $doc
+    Update-WordFields $doc
     $doc.Save()
     $saved = $true
 } finally {
@@ -964,6 +1218,8 @@ if (-not $saved) { exit 1 }
                     env=env,
                 )
                 if result.returncode == 0:
+                    page_count = _parse_word_page_count(result.stdout)
+                    _patch_hardcoded_total_pages_in_docx(docx_path, page_count)
                     return True, ""
                 detail = (result.stderr or result.stdout or f"exit={result.returncode}").strip()
                 errors.append(f"{exe}: {detail[:300]}")
