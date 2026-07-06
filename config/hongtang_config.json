@@ -1268,7 +1268,13 @@
             300
           ]
         },
-        "offset_correction": 84
+        "offset_correction": 84,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SB_2": {
         "alarm_bounds": {
@@ -1281,7 +1287,13 @@
             300
           ]
         },
-        "offset_correction": 76
+        "offset_correction": 76,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SB_3": {
         "alarm_bounds": {
@@ -1294,7 +1306,13 @@
             300
           ]
         },
-        "offset_correction": 89
+        "offset_correction": 89,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SB_4": {
         "alarm_bounds": {
@@ -1307,7 +1325,13 @@
             300
           ]
         },
-        "offset_correction": 82
+        "offset_correction": 82,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SB_5": {
         "alarm_bounds": {
@@ -1320,7 +1344,13 @@
             300
           ]
         },
-        "offset_correction": 94
+        "offset_correction": 94,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SB_6": {
         "alarm_bounds": {
@@ -1333,7 +1363,13 @@
             300
           ]
         },
-        "offset_correction": 52
+        "offset_correction": 52,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SC_1": {
         "alarm_bounds": {
@@ -1346,7 +1382,13 @@
             300
           ]
         },
-        "offset_correction": 45
+        "offset_correction": 45,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SC_2": {
         "alarm_bounds": {
@@ -1359,7 +1401,13 @@
             300
           ]
         },
-        "offset_correction": 60
+        "offset_correction": 60,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SC_3": {
         "alarm_bounds": {
@@ -1372,7 +1420,13 @@
             300
           ]
         },
-        "offset_correction": 67
+        "offset_correction": 67,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SC_4": {
         "alarm_bounds": {
@@ -1385,7 +1439,13 @@
             300
           ]
         },
-        "offset_correction": 72
+        "offset_correction": 72,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SC_5": {
         "alarm_bounds": {
@@ -1400,10 +1460,10 @@
         },
         "offset_correction": -71,
         "thresholds": {
-          "min": -88.41527459893044,
-          "max": 67.16571871657752,
-          "t_range_start": "2026-03-03 06:09:15",
-          "t_range_end": "2026-03-16 19:59:59"
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
         },
         "zero_to_nan": false,
         "outlier": []
@@ -1419,7 +1479,13 @@
             300
           ]
         },
-        "offset_correction": 58
+        "offset_correction": 58,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SD_1": {
         "alarm_bounds": {
@@ -1432,7 +1498,13 @@
             300
           ]
         },
-        "offset_correction": 78
+        "offset_correction": 78,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SD_2": {
         "alarm_bounds": {
@@ -1445,7 +1517,13 @@
             300
           ]
         },
-        "offset_correction": 54
+        "offset_correction": 54,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SD_3": {
         "alarm_bounds": {
@@ -1458,7 +1536,13 @@
             300
           ]
         },
-        "offset_correction": 70
+        "offset_correction": 70,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SD_4": {
         "alarm_bounds": {
@@ -1471,7 +1555,13 @@
             300
           ]
         },
-        "offset_correction": 82
+        "offset_correction": 82,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SD_5": {
         "alarm_bounds": {
@@ -1484,7 +1574,13 @@
             300
           ]
         },
-        "offset_correction": 63
+        "offset_correction": 63,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SD_6": {
         "alarm_bounds": {
@@ -1497,7 +1593,13 @@
             300
           ]
         },
-        "offset_correction": 81
+        "offset_correction": 81,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SE_1": {
         "alarm_bounds": {
@@ -1510,7 +1612,13 @@
             300
           ]
         },
-        "offset_correction": 60
+        "offset_correction": 60,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SE_2": {
         "alarm_bounds": {
@@ -1523,7 +1631,13 @@
             300
           ]
         },
-        "offset_correction": 56
+        "offset_correction": 56,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SE_3": {
         "alarm_bounds": {
@@ -1536,7 +1650,13 @@
             300
           ]
         },
-        "offset_correction": 63
+        "offset_correction": 63,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SE_4": {
         "alarm_bounds": {
@@ -1549,7 +1669,13 @@
             300
           ]
         },
-        "offset_correction": 61
+        "offset_correction": 61,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SE_5": {
         "alarm_bounds": {
@@ -1562,7 +1688,13 @@
             300
           ]
         },
-        "offset_correction": 49
+        "offset_correction": 49,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SE_6": {
         "alarm_bounds": {
@@ -1575,7 +1707,13 @@
             300
           ]
         },
-        "offset_correction": 68
+        "offset_correction": 68,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SF_1": {
         "alarm_bounds": {
@@ -1588,7 +1726,13 @@
             300
           ]
         },
-        "offset_correction": 81
+        "offset_correction": 81,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SF_2": {
         "alarm_bounds": {
@@ -1601,7 +1745,13 @@
             300
           ]
         },
-        "offset_correction": 53
+        "offset_correction": 53,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SF_3": {
         "alarm_bounds": {
@@ -1614,7 +1764,13 @@
             300
           ]
         },
-        "offset_correction": 45
+        "offset_correction": 45,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SF_4": {
         "alarm_bounds": {
@@ -1627,7 +1783,13 @@
             300
           ]
         },
-        "offset_correction": 58
+        "offset_correction": 58,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SF_5": {
         "alarm_bounds": {
@@ -1640,7 +1802,13 @@
             300
           ]
         },
-        "offset_correction": 63
+        "offset_correction": 63,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SF_6": {
         "alarm_bounds": {
@@ -1653,7 +1821,13 @@
             300
           ]
         },
-        "offset_correction": 68
+        "offset_correction": 68,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SG_1": {
         "alarm_bounds": {
@@ -1666,7 +1840,13 @@
             300
           ]
         },
-        "offset_correction": 44
+        "offset_correction": 44,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SG_2": {
         "alarm_bounds": {
@@ -1679,7 +1859,13 @@
             300
           ]
         },
-        "offset_correction": 60
+        "offset_correction": 60,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SG_3": {
         "alarm_bounds": {
@@ -1692,7 +1878,13 @@
             300
           ]
         },
-        "offset_correction": 68
+        "offset_correction": 68,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SG_4": {
         "alarm_bounds": {
@@ -1705,7 +1897,13 @@
             300
           ]
         },
-        "offset_correction": 93
+        "offset_correction": 93,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SG_5": {
         "alarm_bounds": {
@@ -1718,7 +1916,13 @@
             300
           ]
         },
-        "offset_correction": 58
+        "offset_correction": 58,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SG_6": {
         "alarm_bounds": {
@@ -1732,8 +1936,8 @@
           ]
         },
         "thresholds": {
-          "min": -1000,
-          "max": 1000,
+          "min": -200,
+          "max": 200,
           "t_range_start": "",
           "t_range_end": ""
         },
@@ -1752,7 +1956,13 @@
             300
           ]
         },
-        "offset_correction": 39
+        "offset_correction": 39,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SH_2": {
         "alarm_bounds": {
@@ -1765,7 +1975,13 @@
             300
           ]
         },
-        "offset_correction": 78
+        "offset_correction": 78,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SH_3": {
         "alarm_bounds": {
@@ -1778,7 +1994,13 @@
             300
           ]
         },
-        "offset_correction": 63
+        "offset_correction": 63,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SH_4": {
         "alarm_bounds": {
@@ -1791,7 +2013,13 @@
             300
           ]
         },
-        "offset_correction": 90
+        "offset_correction": 90,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SH_5": {
         "alarm_bounds": {
@@ -1804,7 +2032,13 @@
             300
           ]
         },
-        "offset_correction": 61
+        "offset_correction": 61,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SH_6": {
         "alarm_bounds": {
@@ -1817,7 +2051,13 @@
             300
           ]
         },
-        "offset_correction": 89
+        "offset_correction": 89,
+        "thresholds": {
+          "min": -200,
+          "max": 200,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SL-1": {
         "alarm_bounds": {
@@ -1832,10 +2072,10 @@
         },
         "offset_correction": 180,
         "thresholds": {
-          "min": -35.68906203208558,
-          "max": 121.0953732620321,
-          "t_range_start": "2026-03-04 10:10:08",
-          "t_range_end": "2026-03-10 23:00:00"
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
         },
         "zero_to_nan": false,
         "outlier": []
@@ -1851,7 +2091,13 @@
             200
           ]
         },
-        "offset_correction": 113
+        "offset_correction": 113,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SL_2": {
         "alarm_bounds": {
@@ -1864,7 +2110,13 @@
             200
           ]
         },
-        "offset_correction": 17
+        "offset_correction": 17,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SL_7": {
         "alarm_bounds": {
@@ -1877,7 +2129,13 @@
             200
           ]
         },
-        "offset_correction": 64
+        "offset_correction": 64,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SL_3": {
         "alarm_bounds": {
@@ -1890,7 +2148,13 @@
             200
           ]
         },
-        "offset_correction": 173
+        "offset_correction": 173,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SL_5": {
         "alarm_bounds": {
@@ -1903,7 +2167,13 @@
             200
           ]
         },
-        "offset_correction": 43
+        "offset_correction": 43,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SL_8": {
         "alarm_bounds": {
@@ -1918,8 +2188,8 @@
         },
         "offset_correction": 100,
         "thresholds": {
-          "min": -1000,
-          "max": 1000,
+          "min": -150,
+          "max": 150,
           "t_range_start": "",
           "t_range_end": ""
         },
@@ -1937,7 +2207,13 @@
             200
           ]
         },
-        "offset_correction": -4
+        "offset_correction": -4,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SL_4": {
         "alarm_bounds": {
@@ -1950,7 +2226,13 @@
             200
           ]
         },
-        "offset_correction": 34
+        "offset_correction": 34,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SL_9": {
         "alarm_bounds": {
@@ -1962,6 +2244,12 @@
             -200,
             200
           ]
+        },
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
         }
       },
       "SK_1": {
@@ -1975,7 +2263,13 @@
             200
           ]
         },
-        "offset_correction": 45
+        "offset_correction": 45,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SK_7": {
         "alarm_bounds": {
@@ -1990,10 +2284,10 @@
         },
         "offset_correction": 76,
         "thresholds": {
-          "min": -31.334224331550793,
-          "max": -14.01707767379677,
-          "t_range_start": "2026-01-18 10:12:41",
-          "t_range_end": "2026-02-20 13:34:58"
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
         },
         "zero_to_nan": false,
         "outlier": []
@@ -2009,7 +2303,13 @@
             200
           ]
         },
-        "offset_correction": 107
+        "offset_correction": 107,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SK_8": {
         "alarm_bounds": {
@@ -2022,7 +2322,13 @@
             200
           ]
         },
-        "offset_correction": 22
+        "offset_correction": 22,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SK_3": {
         "alarm_bounds": {
@@ -2035,7 +2341,13 @@
             200
           ]
         },
-        "offset_correction": 54
+        "offset_correction": 54,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SK_9": {
         "alarm_bounds": {
@@ -2048,7 +2360,13 @@
             200
           ]
         },
-        "offset_correction": 144
+        "offset_correction": 144,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SK_4": {
         "alarm_bounds": {
@@ -2061,7 +2379,13 @@
             200
           ]
         },
-        "offset_correction": 94
+        "offset_correction": 94,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SK_10": {
         "alarm_bounds": {
@@ -2074,7 +2398,13 @@
             200
           ]
         },
-        "offset_correction": 126
+        "offset_correction": 126,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SK_5": {
         "alarm_bounds": {
@@ -2087,7 +2417,13 @@
             200
           ]
         },
-        "offset_correction": 54
+        "offset_correction": 54,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SK_11": {
         "alarm_bounds": {
@@ -2100,7 +2436,13 @@
             200
           ]
         },
-        "offset_correction": 84
+        "offset_correction": 84,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       },
       "SK_6": {
         "alarm_bounds": {
@@ -2115,10 +2457,10 @@
         },
         "offset_correction": 47,
         "thresholds": {
-          "min": -7.8361117647058816,
-          "max": 24.098647058823538,
-          "t_range_start": "2026-02-05 19:48:42",
-          "t_range_end": "2026-02-25 04:47:17"
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
         },
         "zero_to_nan": false,
         "outlier": []
@@ -2134,7 +2476,13 @@
             200
           ]
         },
-        "offset_correction": 80
+        "offset_correction": 80,
+        "thresholds": {
+          "min": -150,
+          "max": 150,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
       }
     }
   },
