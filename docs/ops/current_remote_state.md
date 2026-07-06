@@ -102,6 +102,52 @@ state and keep algorithm/report decisions in the normal project docs.
 
 ## Active Remote Tasks On 133
 
+### Hongtang Bridge Q2 v1.7.20 Report Follow-up Correction
+
+- Status: completed on 2026-07-06 17:55 CST.
+- Code state during production rerun: `F:\Guanbing` fast-forwarded from
+  `349df53` to `6519192` (`Fix Hongtang Q2 report follow-ups`) and tracked
+  `origin/main`.
+- Release version: MATLAB GUI/report GUI `v1.7.20`.
+- Remote validation:
+  - Python report tests passed:
+    `D:\Python310\python.exe -m unittest tests_py.test_hongtang_period_followups tests_py.test_artifact_lookup tests_py.test_build_period_report_word_update`.
+  - JSON threshold assertion passed: all `10` Hongtang bearing-displacement
+    points have thresholds equal to level-2 alarm bounds `[-240, 240]`.
+  - MATLAB tests passed:
+    `tests/test_main_gui_smoke.m`,
+    `tests/test_hongtang_lowfreq_loader.m`,
+    `tests/test_cleaning_pipeline.m`,
+    `tests/test_structural_time_series_plot_service.m`,
+    `tests/test_post_filter_thresholds.m`.
+- Bearing-displacement rerun:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1720_bearing_20260706_174310`
+  - MATLAB elapsed: `135.18` seconds; task status elapsed `142.25` seconds.
+  - Updated stats:
+    `E:\洪塘大桥数据\2026年4-6月\stats\bearing_displacement_stats.xlsx`.
+  - Analysis manifest:
+    `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260706_174539.json`.
+  - Stats check: `10` rows; no original or filtered min/max values outside
+    `[-240, 240]`.
+- Report regeneration:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1720_report_20260706_174646`
+  - Runtime: `105.84` seconds, below the 10-minute report-generation failure
+    threshold.
+  - Output DOCX:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260706_174718.docx`.
+  - Manifest:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260706_174718.json`
+    with `missing=0` and `warnings=0`.
+  - Checked PDF copied back to:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_174718_word_checked.pdf`.
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_v1720_20260706_174718`.
+  Word COM exported an `81` page PDF and all `81` pages rendered to PNG.
+  Table 1-2 was visually checked as Q2-only `15` maintenance rows; support
+  displacement text now reads `-60.3mm~173.0mm`; earthquake text now reads
+  horizontal `0.018m/s²` and vertical `0.019m/s²`. No reference-error or
+  placeholder tokens were found.
+
 ### Hongtang Bridge Q2 Strain Cleaning Threshold Update
 
 - Status: completed on 2026-07-06 16:45 CST.

@@ -6,6 +6,80 @@ Last updated: 2026-07-06
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-06 Hongtang Q2 v1.7.20 Report Follow-up Correction
+
+Current accepted code/report state:
+
+- GUI/report version bumped to `v1.7.20`.
+- Implementation commit: `6519192` (`Fix Hongtang Q2 report follow-ups`).
+- Scope:
+  - update Hongtang Q2 table 1-2 maintenance log to the actual Q2 records only;
+  - fix period-report earthquake peak mapping from `eq_stats.xlsx` rows shaped as
+    `PointID=EQ, Component=X/Y/Z` so the summary uses `EQ-X/EQ-Y/EQ-Z`;
+  - clean all Hongtang bearing-displacement values outside each point's level-2
+    alarm bounds `[-240, 240]` before rerun/reporting.
+
+Code/config changes:
+
+- `reporting/build_period_report.py` now regenerates table 1-2 from the Q2
+  maintenance log when the report period intersects 2026-04-01 to 2026-06-30.
+- `reporting/build_monthly_report.py` normalizes earthquake stats keys so
+  `EQ + X/Y/Z` rows contribute to the horizontal/vertical peak summary.
+- `config/hongtang_config.json` now sets `per_point.bearing_displacement.*.thresholds`
+  equal to each point's level-2 bounds, while preserving `Z11_2` offset correction.
+- `ui/run_gui.m` and `reporting/report_gui.py` report `v1.7.20`.
+
+Validation:
+
+- Local Python tests passed:
+  `tests_py.test_hongtang_period_followups`,
+  `tests_py.test_artifact_lookup`,
+  `tests_py.test_build_period_report_word_update`.
+- Local MATLAB tests passed:
+  `tests/test_main_gui_smoke.m`,
+  `tests/test_hongtang_lowfreq_loader.m`,
+  `tests/test_cleaning_pipeline.m`,
+  `tests/test_structural_time_series_plot_service.m`,
+  `tests/test_post_filter_thresholds.m`.
+- 133 pulled `6519192`; the same focused Python tests passed, JSON threshold
+  assertion passed (`10` bearing points), and the same focused MATLAB tests passed.
+
+133 production rerun:
+
+- Bearing-displacement task:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1720_bearing_20260706_174310`
+  - MATLAB elapsed inside run: `135.18` seconds; task status elapsed `142.25`
+    seconds.
+  - Updated stats:
+    `E:\洪塘大桥数据\2026年4-6月\stats\bearing_displacement_stats.xlsx`.
+  - Analysis manifest:
+    `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260706_174539.json`.
+  - Stats check: `10` rows, `0` `OrigMin_mm`/`OrigMax_mm`/`FiltMin_mm`/
+    `FiltMax_mm` violations outside `[-240, 240]`.
+- Report generation task:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1720_report_20260706_174646`
+  - Runtime: `105.84` seconds.
+  - Output DOCX:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260706_174718.docx`.
+  - Manifest:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260706_174718.json`.
+  - Checked PDF copied back to 133:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_report_20260706_174718_word_checked.pdf`.
+
+Final local QA copy:
+
+- `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_v1720_20260706_174718`
+  - Manifest check: `missing=0`, `warnings=0`.
+  - Word COM exported an `81` page PDF and all `81` pages rendered to PNG.
+  - Low-content pages were `2`, `5`, and `81`, consistent with separator/blank
+    and final-signoff pages.
+  - DOCX/PDF checks found no `引用源未找到`, `错误!`, `错误！未定义书签`,
+    `Error!`, `${`, or `{{`.
+  - Table 1-2 renders as Q2-only `15` maintenance rows.
+  - Report text now states bearing displacement range `-60.3mm~173.0mm`.
+  - Earthquake summary now states horizontal peak `0.018m/s²` and vertical peak
+    `0.019m/s²`; rendered EQ-X/Y/Z figures reach 2026-06-30.
+
 ## 2026-07-06 Hongtang Q2 Strain Cleaning Threshold Update
 
 Current accepted code state:
