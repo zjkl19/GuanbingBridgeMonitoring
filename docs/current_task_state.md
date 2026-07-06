@@ -6,6 +6,46 @@ Last updated: 2026-07-06
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-06 Hongtang Q2 v1.7.19 Final Closure
+
+Current repository release target:
+
+- MATLAB GUI version in `ui/run_gui.m`: `v1.7.19`
+- Report GUI version in `reporting/report_gui.py`: `v1.7.19`
+- Latest accepted code state: `bf43de2` (`Preserve caption bookmarks during auto-number conversion`), clean on local `main` and 133 `F:\Guanbing`.
+
+Final fixes after the earlier v1.7.18 report correction:
+
+- `SG-6` and `SL-8` no longer use the legacy inverted-threshold all-data suppression workaround for Q2. They are restored to normal transitional cleaning bounds `[-1000, 1000]` because the points show usable Q2 data again.
+- Hongtang low-frequency `abs_max_valid` is sensor-specific, and strain skips that raw absolute-value guard. This prevents raw `SG-6` values around 1200 from being removed before `offset_correction = -1220` brings them back into range.
+- Hongtang low-frequency cache is raw-only:
+  - cache files use `__raw_v3.mat`;
+  - cache metadata hashes only raw parse settings, not filtering thresholds;
+  - cleaning/filtering is applied after reading cache so changing thresholds does not require regenerating raw cache.
+- The report generator now accepts bearing-displacement raw image names ending in both `*_Orig.jpg` and `*_Orig_*.jpg`, matching the Q2 production filenames.
+- Static period-report figure/table captions are converted to Word auto-number fields while preserving caption bookmarks. This prevents template cross-references such as the bridge-tower strain paragraph from becoming `错误！未定义书签` after Word field updates.
+
+133 final production state:
+
+- 133 code was fast-forwarded to `bf43de2`, and focused report tests passed:
+  `D:\Python310\python.exe -m unittest tests_py.test_wim_auto_captions tests_py.test_artifact_lookup tests_py.test_build_period_report_word_update`
+- Final report generation task:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1719_report_final_20260706_155715`
+  - Runtime: `89.31` seconds.
+  - Output DOCX:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260706_155749.docx`
+  - Manifest:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260706_155749.json`
+  - Manifest check: `missing_entries=0`, bearing-displacement missing paths `0`.
+  - DOCX check: `_Ref4508` and `_Ref4616` are present; `SEQ 图` count `37`, `SEQ 表` count `21`.
+- Final local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_v1719_final_20260706_155749`
+  - Word COM exported an 82-page PDF:
+    `hongtang_q2_report.pdf`.
+  - Rendered all 82 pages to PNG; only page 2 was low-content, consistent with the template blank/separator page.
+  - PDF text checks found no `引用源未找到`, `错误!`, `错误！未定义书签`, `Error!`, `${`, or `{{`.
+  - Page 37 bridge-tower strain text now reads correctly: `如图 4-6 所示，箱线图如图 4-7 所示。`
+
 ## 2026-07-06 Hongtang Q2 Report Correction Snapshot
 
 Current repository release target:

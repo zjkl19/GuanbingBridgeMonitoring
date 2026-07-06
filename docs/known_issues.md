@@ -64,6 +64,15 @@ shape fields, and patches stale hard-coded total-page text in header/footer XML
 when Word reports the final page count. Final acceptance should still include
 render/export QA when a production report is generated.
 
+Additional v1.7.19 lesson: converting static figure/table captions to Word
+auto-number fields must preserve any `bookmarkStart` / `bookmarkEnd` elements
+around the caption number. Otherwise existing template cross-references can
+update to `错误！未定义书签` even though raw DOCX XML looked clean before Word
+field refresh. The Hongtang Q2 bridge-tower strain paragraph exposed this with
+missing `_Ref4508` / `_Ref4616` bookmarks; the accepted fix keeps bookmark starts
+before the generated caption number and puts bookmark ends after the number but
+before the title text.
+
 Recommended check:
 
 - export or render the DOCX to PDF/pages;

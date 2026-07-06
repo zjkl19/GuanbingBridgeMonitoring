@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-06 13:10 CST
+Last updated: 2026-07-06 16:05 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -101,6 +101,33 @@ state and keep algorithm/report decisions in the normal project docs.
   avoid heavy MATLAB/report jobs unless explicitly requested.
 
 ## Active Remote Tasks On 133
+
+### Hongtang Bridge Q2 v1.7.19 Final Closure
+
+- Status: completed on 2026-07-06 16:05 CST.
+- Code state: `F:\Guanbing` is clean at `bf43de2` and tracks `origin/main`.
+- Remote focused validation passed:
+  `D:\Python310\python.exe -m unittest tests_py.test_wim_auto_captions tests_py.test_artifact_lookup tests_py.test_build_period_report_word_update`
+- Relevant accepted fixes on this line:
+  - restored Q2 `SG-6` and `SL-8` strain thresholds to normal transitional bounds `[-1000, 1000]`;
+  - made Hongtang low-frequency `abs_max_valid` sensor-specific so strain is not pre-filtered before offset correction;
+  - changed Hongtang low-frequency cache to raw-only `__raw_v3.mat` files;
+  - fixed bearing-displacement report image lookup for production filenames ending in `*_Orig.jpg`;
+  - preserved Word caption bookmarks when converting static figure/table captions to auto-number fields.
+- Final report generation:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1719_report_final_20260706_155715`
+  - Runtime: `89.31` seconds.
+  - Output DOCX:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260706_155749.docx`
+  - Manifest:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260706_155749.json`
+  - Manifest check: `missing_entries=0`, bearing-displacement missing paths `0`.
+  - DOCX XML check: `_Ref4508` and `_Ref4616` present; no raw reference-error tokens.
+- Final local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_v1719_final_20260706_155749`
+  - Word COM exported `hongtang_q2_report.pdf` with `82` pages.
+  - All pages rendered to PNG; text checks found no `引用源未找到`, `错误!`, `错误！未定义书签`, stale placeholders, or template tokens.
+  - Page 37 bridge-tower strain cross-references were verified as `图 4-6` and `图 4-7`.
 
 ### Hongtang Bridge Q2 v1.7.18 Report Correction
 
