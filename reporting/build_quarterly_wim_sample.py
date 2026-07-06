@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
@@ -332,6 +333,73 @@ def insert_table_before(paragraph: Paragraph, rows: int, cols: int) -> Table:
     return table
 
 
+def append_complex_field(paragraph: Paragraph, instr: str, placeholder: str = "1") -> None:
+    run_begin = OxmlElement("w:r")
+    fld_begin = OxmlElement("w:fldChar")
+    fld_begin.set(qn("w:fldCharType"), "begin")
+    run_begin.append(fld_begin)
+    paragraph._p.append(run_begin)
+
+    run_instr = OxmlElement("w:r")
+    instr_text = OxmlElement("w:instrText")
+    instr_text.set(qn("xml:space"), "preserve")
+    instr_text.text = f" {instr} "
+    run_instr.append(instr_text)
+    paragraph._p.append(run_instr)
+
+    run_sep = OxmlElement("w:r")
+    fld_sep = OxmlElement("w:fldChar")
+    fld_sep.set(qn("w:fldCharType"), "separate")
+    run_sep.append(fld_sep)
+    paragraph._p.append(run_sep)
+
+    paragraph.add_run(placeholder)
+
+    run_end = OxmlElement("w:r")
+    fld_end = OxmlElement("w:fldChar")
+    fld_end.set(qn("w:fldCharType"), "end")
+    run_end.append(fld_end)
+    paragraph._p.append(run_end)
+
+
+def strip_caption_number(text: str) -> str:
+    stripped = str(text or "").strip()
+    stripped = re.sub(r"^(?:图|表)\s*\d+(?:-\d+){1,2}\s*", "", stripped)
+    stripped = re.sub(r"^续表\s*\d+(?:-\d+){1,2}\s*", "", stripped)
+    return stripped.strip()
+
+
+def add_auto_caption_before(anchor: Paragraph, text: str, template: ParagraphTemplate, kind: str) -> Paragraph:
+    para = insert_paragraph_before(anchor)
+    kind = kind.lower()
+    title = strip_caption_number(text)
+    if kind == "figure":
+        para.add_run("图 ")
+        append_complex_field(para, "STYLEREF 1 \\s")
+        para.add_run("-")
+        append_complex_field(para, "SEQ 图 \\* ARABIC \\s 1")
+    elif kind == "table_continued":
+        para.add_run("续表 ")
+        append_complex_field(para, "STYLEREF 1 \\s")
+        para.add_run("-")
+        append_complex_field(para, "SEQ 表 \\c")
+    else:
+        para.add_run("表 ")
+        append_complex_field(para, "STYLEREF 1 \\s")
+        para.add_run("-")
+        append_complex_field(para, "SEQ 表 \\* ARABIC \\s 1")
+    if title:
+        para.add_run(f" {title}")
+    apply_paragraph_template(para, template)
+    return para
+
+
+def add_caption_paragraph_before(anchor: Paragraph, text: str, template: ParagraphTemplate, kind: str) -> Paragraph:
+    if kind in {"figure", "table", "table_continued"}:
+        return add_auto_caption_before(anchor, text, template, kind)
+    return add_text_paragraph_before(anchor, text, template)
+
+
 def insert_template_table_before(paragraph: Paragraph, template_tbl) -> Table:
     table_xml = deepcopy(template_tbl)
     paragraph._p.addprevious(table_xml)
@@ -522,15 +590,15 @@ def overload_counts_text(gross_1_5: int, gross_2_0: int, axle_1_5: int, axle_2_0
     def pair(first: int, second: int) -> str:
         if not first and not second:
             return ""
-        return f"{first if first else ''}/{second if second else ''}"
+        return f"{first}/{second}"
 
     parts = []
     gross_pair = pair(gross_1_5, gross_2_0)
     axle_pair = pair(axle_1_5, axle_2_0)
     if gross_pair:
-        parts.append(f"总重：{gross_pair}")
+        parts.append(f"总重1.5/2.0倍：{gross_pair}")
     if axle_pair:
-        parts.append(f"轴重：{axle_pair}")
+        parts.append(f"轴重1.5/2.0倍：{axle_pair}")
     return "\n".join(parts)
 
 
@@ -655,7 +723,7 @@ def add_quarter_overview(
     caption_tpl: ParagraphTemplate,
     table_templates: dict[str, list] | None = None,
 ) -> None:
-    add_text_paragraph_before(anchor, f"\u8868 4-1 {quarter_label_from_summaries(summaries)}\u4ea4\u901a\u72b6\u51b5\u5206\u6708\u7edf\u8ba1\u8868", caption_tpl)
+    add_caption_paragraph_before(anchor, f"\u8868 4-1 {quarter_label_from_summaries(summaries)}\u4ea4\u901a\u72b6\u51b5\u5206\u6708\u7edf\u8ba1\u8868", caption_tpl, "table")
     template_tbl = get_wim_table_template(table_templates, "overview")
     if template_tbl is not None:
         table = insert_template_table_before(anchor, template_tbl)
@@ -667,9 +735,9 @@ def add_quarter_overview(
         gross_level_2_text = format_ton_threshold(summaries[0].gross_level_2_t)
         axle_level_1_text = format_ton_threshold(summaries[0].axle_level_1_t)
         axle_level_2_text = format_ton_threshold(summaries[0].axle_level_2_t)
-        overload_header = f"\u603b\u91cd>{gross_level_1_text}/{gross_level_2_text}t;\n\u8f74\u91cd>{axle_level_1_text}/{axle_level_2_text}t\uff08\u8f66\u6b21\uff09"
+        overload_header = f"\u8d85\u8f7d\u8f66\u6b21\uff081.5/2.0\u500d\uff09\n\u603b\u91cd>{gross_level_1_text}/{gross_level_2_text}t\uff1b\u8f74\u91cd>{axle_level_1_text}/{axle_level_2_text}t"
     else:
-        overload_header = "\u603b\u91cd>\u4e00\u7ea7/\u4e8c\u7ea7;\n\u8f74\u91cd>\u4e00\u7ea7/\u4e8c\u7ea7\uff08\u8f66\u6b21\uff09"
+        overload_header = "\u8d85\u8f7d\u8f66\u6b21\uff081.5/2.0\u500d\uff09\n\u603b\u91cd>\u4e00\u7ea7/\u4e8c\u7ea7\uff1b\u8f74\u91cd>\u4e00\u7ea7/\u4e8c\u7ea7"
     headers = [
         "\u6708\u4efd",
         "\u603b\u8f66\u6d41\u91cf",
@@ -680,9 +748,8 @@ def add_quarter_overview(
         "\u6700\u5927\u8f74\u91cd(t)",
         overload_header,
     ]
-    if template_tbl is None:
-        for i, header in enumerate(headers):
-            set_table_cell(table, 0, i, header)
+    for i, header in enumerate(headers):
+        set_table_cell(table, 0, i, header, preserve=False)
     for r, item in enumerate(summaries, start=1):
         daily_avg = round(item.total_count / item.days_in_month) if item.days_in_month else 0
         values = [
@@ -696,7 +763,7 @@ def add_quarter_overview(
             overload_cell_text(item),
         ]
         for c, value in enumerate(values):
-            set_table_cell(table, r, c, value)
+            set_table_cell(table, r, c, value, preserve=False)
     totals = [
         "\u5408\u8ba1",
         str(sum(item.total_count for item in summaries)),
@@ -713,7 +780,7 @@ def add_quarter_overview(
         ),
     ]
     for c, value in enumerate(totals):
-        set_table_cell(table, len(summaries) + 1, c, value)
+        set_table_cell(table, len(summaries) + 1, c, value, preserve=False)
     if template_tbl is None:
         style_table(table)
         set_header_bold(table)
@@ -728,7 +795,7 @@ def add_daily_traffic_table(
     table_no: int,
     table_template=None,
 ) -> None:
-    add_text_paragraph_before(anchor, f"\u8868 4-{table_no} {month_label(item.yyyymm)}\u8f66\u6d41\u91cf\u7edf\u8ba1\u8868", caption_tpl)
+    add_caption_paragraph_before(anchor, f"\u8868 4-{table_no} {month_label(item.yyyymm)}\u8f66\u6d41\u91cf\u7edf\u8ba1\u8868", caption_tpl, "table")
     if table_template is not None:
         table = insert_template_table_before(anchor, table_template)
         ensure_table_rows(table, len(item.daily_rows) + 1)
@@ -751,7 +818,7 @@ def add_daily_traffic_table(
 
 
 def add_topn_main_table(anchor: Paragraph, title: str, rows: list[dict], caption_tpl: ParagraphTemplate, table_template=None) -> None:
-    add_text_paragraph_before(anchor, title, caption_tpl)
+    add_caption_paragraph_before(anchor, title, caption_tpl, "table")
     row_count = max(len(rows), 10) + 1
     if table_template is not None:
         table = insert_template_table_before(anchor, table_template)
@@ -781,7 +848,7 @@ def add_topn_main_table(anchor: Paragraph, title: str, rows: list[dict], caption
 
 
 def add_topn_cont_table(anchor: Paragraph, title: str, rows: list[dict], caption_tpl: ParagraphTemplate, table_template=None) -> None:
-    add_text_paragraph_before(anchor, title, caption_tpl)
+    add_caption_paragraph_before(anchor, title, caption_tpl, "table_continued")
     row_count = max(len(rows), 10) + 1
     if table_template is not None:
         table = insert_template_table_before(anchor, table_template)
@@ -817,7 +884,7 @@ def add_topn_cont_table(anchor: Paragraph, title: str, rows: list[dict], caption
 def add_plot_grid(anchor: Paragraph, item: MonthWimSummary, fig_tpl: ParagraphTemplate, subcap_tpl: ParagraphTemplate) -> None:
     if not item.plot_paths:
         return
-    add_text_paragraph_before(anchor, f"\u56fe 4-3-{int(item.yyyymm[4:])} {month_label(item.yyyymm)}\u6865\u6881\u4ea4\u901a\u6d41\u53c2\u6570\u5206\u6790", fig_tpl)
+    add_caption_paragraph_before(anchor, f"\u56fe 4-3-{int(item.yyyymm[4:])} {month_label(item.yyyymm)}\u6865\u6881\u4ea4\u901a\u6d41\u53c2\u6570\u5206\u6790", fig_tpl, "figure")
     table = insert_table_before(anchor, rows=(len(item.plot_paths) + 1) // 2, cols=2)
     remove_table_borders(table)
     for r in range(len(table.rows)):
@@ -897,7 +964,7 @@ def add_month_block(
         p_cap.add_run(label)
         apply_paragraph_template(p_cap, subcap_tpl)
         p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    add_text_paragraph_before(anchor, f"\u56fe 4-{figure_no} {month_label(item.yyyymm)}\u6865\u6881\u4ea4\u901a\u6d41\u53c2\u6570\u5206\u6790", fig_tpl)
+    add_caption_paragraph_before(anchor, f"\u56fe 4-{figure_no} {month_label(item.yyyymm)}\u6865\u6881\u4ea4\u901a\u6d41\u53c2\u6570\u5206\u6790", fig_tpl, "figure")
 
 
 def update_cover_and_metadata(doc: Document, period_label: str, report_date: str, months: list[str]) -> None:

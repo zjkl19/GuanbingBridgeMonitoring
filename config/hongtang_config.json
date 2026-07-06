@@ -168,7 +168,8 @@
             -300,
             300
           ]
-        }
+        },
+        "offset_correction": 250
       },
       "Z12_1": {
         "alarm_bounds": {
@@ -1734,7 +1735,8 @@
           "t_range_end": ""
         },
         "zero_to_nan": false,
-        "outlier": []
+        "outlier": [],
+        "offset_correction": -1220
       },
       "SH_1": {
         "alarm_bounds": {
@@ -2703,6 +2705,10 @@
       ],
       "ylim_auto": false,
       "output_dir": "时程曲线_支座位移",
+      "raw_output_dir": "时程曲线_支座位移_原始",
+      "filtered_output_dir": "时程曲线_支座位移_滤波",
+      "raw_group_output_dir": "时程曲线_支座位移_组图_原始",
+      "filtered_group_output_dir": "时程曲线_支座位移_组图_滤波",
       "ylim": [
         -400,
         400

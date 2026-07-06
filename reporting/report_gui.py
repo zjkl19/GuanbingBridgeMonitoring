@@ -47,7 +47,7 @@ JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
 GUANBING_MONTHLY_REPORT = "管柄月报"
 SHUIXIANHUA_MONTHLY_REPORT = "水仙花月报"
 ZHISHAN_MONTHLY_REPORT = "芝山月报"
-APP_VERSION = "v1.7.17"
+APP_VERSION = "v1.7.18"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_0508.docx"
@@ -794,7 +794,7 @@ class ReportGui(QMainWindow):
         missing_stats = self._missing_profile_stats(result_root, profile, extra=["bearing_displacement_stats.xlsx"])
         if missing_stats:
             warnings.append(f"\u7f3a\u5c11\u4e5d\u9f99\u6c5f\u6708\u62a5\u7edf\u8ba1\u8868\uff1a{', '.join(missing_stats)}\u3002")
-        missing_dirs = self._missing_profile_dirs(result_root, profile, extra=["时程曲线_支座位移"])
+        missing_dirs = self._missing_profile_dirs(result_root, profile)
         if missing_dirs:
             warnings.append(f"\u7f3a\u5c11\u4e5d\u9f99\u6c5f\u6708\u62a5\u5173\u952e\u56fe\u7247\u76ee\u5f55\uff1a{', '.join(missing_dirs)}\u3002")
         return warnings

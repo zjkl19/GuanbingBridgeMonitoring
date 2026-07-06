@@ -6,6 +6,63 @@ Last updated: 2026-07-06
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-06 Hongtang Q2 Report Correction Snapshot
+
+Current repository release target:
+
+- MATLAB GUI version in `ui/run_gui.m`: `v1.7.18`
+- Report GUI version in `reporting/report_gui.py`: `v1.7.18`
+- This release follows `v1.7.17` and keeps the wind/earthquake timestamp
+  fallback and MAT-only source behavior from the previous release line.
+
+Code/report changes in this release:
+
+- `config/hongtang_config.json` applies the user-specified Q2 zero-point
+  corrections:
+  - `SG-6` strain `offset_correction = -1220`
+  - `Z11-2` bearing displacement `offset_correction = 250`
+- Bearing-displacement output is now split by source variant in the shared
+  structural pipeline:
+  - single raw: `时程曲线_支座位移_原始`
+  - single filtered: `时程曲线_支座位移_滤波`
+  - group raw: `时程曲线_支座位移_组图_原始`
+  - group filtered: `时程曲线_支座位移_组图_滤波`
+- The Hongtang period-report bearing section now reads report figures from the
+  raw bearing-displacement output folder, matching the accepted first-quarter
+  report's raw time-history-with-warning-lines presentation.
+- WIM period-report table/figure captions are generated with Word field codes:
+  `STYLEREF 1` + `SEQ 表/图`; continuation table captions use `SEQ 表 \c`.
+- WIM table 4-1 now describes the last column as explicit overload counts for
+  `1.5/2.0` times thresholds, e.g. `总重1.5/2.0倍：34/0`.
+- `reporting/build_period_report.py` accepts per-point file-pattern lists when
+  collecting high-frequency missing-data evidence, fixing a report-generator
+  crash found during local smoke testing.
+
+Local validation before 133 sync:
+
+- JSON validation passed:
+  `python -m json.tool config/hongtang_config.json`
+- Python compile passed:
+  `C:\Users\eamdf\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall -q reporting tests_py`
+- Python unit smoke passed:
+  `C:\Users\eamdf\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m unittest tests_py.test_wim_auto_captions`
+- MATLAB focused tests passed:
+  `matlab -batch "addpath(genpath(pwd)); results = runtests({'tests/test_structural_time_series_plot_service.m','tests/test_jlj_adapter.m','tests/test_offset_correction.m'}); assertSuccess(results);"`
+- Q1 report-generator smoke passed with `BMS_NO_WORD=1` using
+  `E:\洪塘大桥数据\2026年1-3月`; it intentionally reported missing bearing
+  figures because the old Q1 result folder does not have the new `_原始`
+  bearing-displacement directories.
+- Latest Q1 smoke output checked:
+  `tmp\report_smoke_wim_autocaption\洪塘大桥健康监测2026年1-3月周期报_20260706_121351.docx`
+  contains WIM `SEQ 表/图` fields and a clean table 4-1 overload-count header.
+
+Pending production step:
+
+- Pull `v1.7.18` on 133 `F:\Guanbing`, rerun Hongtang Q2 affected modules
+  (`lowfreq_sync` if needed, `strain`, `bearing_displacement`, then report
+  generation), copy the generated DOCX/PDF back locally, render, and visually
+  QA before final acceptance.
+
 ## 2026-07-06 Hongtang Q2 Late-June Patch Snapshot
 
 Current repository release target:

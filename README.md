@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.18`: adds the Hongtang Q2 report corrections for SG-6/Z11-2 offset correction, splits bearing-displacement raw/filtered output folders across the shared structural pipeline, and updates period-report WIM captions to Word auto-number fields with clearer overload-count wording.
+- `v1.7.18`：补充洪塘 Q2 `SG-6`、`Z11-2` 零点修正，支座位移共用管线拆分原始/滤波输出目录，并将周期报 WIM 图表题改为 Word 自动编号域，同时优化超载车次表述。
 - `v1.7.15`: adds automatic MAT-only time-series source support for large high-frequency datasets, including Hongtang legacy MAT-cache compatibility, safer point-name matching, data-index awareness, and regression tests for archived-CSV operation.
 - `v1.7.15`：新增大数据时程 MAT-only 数据源自动识别，兼容洪塘旧 MAT 缓存，收紧测点文件名匹配，数据索引可识别 MAT 源，并补充 CSV 归档后的回归测试。
 - `v1.7.14`: hardens Hongtang Q2 production processing: dated-folder loading for the Q2 layout, connected gap-mode propagation, day-reduced high-frequency/RMS handling for acceleration and cable acceleration, wind day aggregation, report-field update fallback through PowerShell Word COM, and Hongtang Q2 recovery documentation.

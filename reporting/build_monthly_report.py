@@ -996,6 +996,14 @@ def build_tilt_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
     }
 
 
+def bearing_raw_output_dir(style: dict) -> str:
+    raw_dir = style.get("raw_output_dir") or style.get("single_raw_output_dir")
+    if raw_dir:
+        return str(raw_dir)
+    base_dir = style.get("single_output_dir") or style.get("output_dir") or "时程曲线_支座位移"
+    return f"{base_dir}_原始"
+
+
 def build_bearing_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | None, image_root: Path, assets_dir: Path) -> dict:
     rows = load_sheet_rows(resolve_existing_file(stats_root, fallback_stats_root, "bearing_displacement_stats.xlsx"))
     configured_points = get_report_order(cfg, "bearing_displacement", "order", cfg.get("points", {}).get("bearing_displacement", []))
@@ -1006,33 +1014,24 @@ def build_bearing_section(cfg: dict, stats_root: Path, fallback_stats_root: Path
 
     valid_rows = [r for r in rows if r.get("OrigMin_mm") is not None and r.get("OrigMax_mm") is not None]
     style = cfg["plot_styles"]["bearing_displacement"]
+    raw_output_dir = bearing_raw_output_dir(style)
     items = []
     for record in valid_rows:
         pid = str(record["PointID"])
         img_path, lookup = find_latest_image_patterns(
             image_root,
-            style["output_dir"],
+            raw_output_dir,
             [
                 f"BearingDisp_{pid}_*_Orig_*.jpg",
                 f"BearingDisp_{pid}_*_Orig_*.png",
                 f"BearingDisp_{pid}_*_Orig_*.jpeg",
             ],
         )
-        if img_path is None:
-            img_path, lookup = find_latest_image_patterns(
-                image_root,
-                style["output_dir"],
-                [
-                    f"BearingDisp_{pid}_*.jpg",
-                    f"BearingDisp_{pid}_*.png",
-                    f"BearingDisp_{pid}_*.jpeg",
-                ],
-            )
         items.append(ImageItem(pid, img_path, lookup))
     if not items:
         items = [ImageItem("支座位移", None, {
             "image_root": str(image_root),
-            "configured_dir": style["output_dir"],
+            "configured_dir": raw_output_dir,
             "resolved_dirs": [],
             "patterns": [],
             "matched_files": [],

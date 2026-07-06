@@ -64,6 +64,8 @@ classdef AnalysisReportingContract
             rec.group_count = numel(rec.groups);
             if strcmp(moduleSpec.Key, 'deflection')
                 rec.output_dir_records = bms.reporting.AnalysisReportingContract.deflectionOutputDirRecords(style);
+            elseif strcmp(moduleSpec.Key, 'bearing_displacement')
+                rec.output_dir_records = bms.reporting.AnalysisReportingContract.bearingOutputDirRecords(style);
             else
                 rec.output_dir_records = bms.reporting.AnalysisReportingContract.collectOutputDirRecords(style);
             end
@@ -208,6 +210,24 @@ classdef AnalysisReportingContract
                     'role', 'raw_group_plot')
                 struct('field', 'filtered_group_output_dir', ...
                     'dir', bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(style, spec, 'filtered'), ...
+                    'role', 'filtered_group_plot')
+                ];
+        end
+
+        function records = bearingOutputDirRecords(style)
+            spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('bearing_displacement');
+            records = [
+                struct('field', 'raw_output_dir', ...
+                    'dir', bms.analyzer.StructuralFilteredSeriesPipeline.bearingSingleOutputDir(style, spec, 'raw'), ...
+                    'role', 'raw_plot')
+                struct('field', 'filtered_output_dir', ...
+                    'dir', bms.analyzer.StructuralFilteredSeriesPipeline.bearingSingleOutputDir(style, spec, 'filtered'), ...
+                    'role', 'filtered_plot')
+                struct('field', 'raw_group_output_dir', ...
+                    'dir', bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(style, spec, 'raw'), ...
+                    'role', 'raw_group_plot')
+                struct('field', 'filtered_group_output_dir', ...
+                    'dir', bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(style, spec, 'filtered'), ...
                     'role', 'filtered_group_plot')
                 ];
         end

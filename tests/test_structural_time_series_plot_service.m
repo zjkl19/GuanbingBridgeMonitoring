@@ -150,15 +150,15 @@ classdef test_structural_time_series_plot_service < matlab.unittest.TestCase
 
             T = readtable(excelPath, 'VariableNamingRule', 'preserve');
             tc.verifyEqual(height(T), 2);
-            figs = dir(fullfile(tc.Root, 'bearing_plots', '*.fig'));
-            tc.verifyGreaterThanOrEqual(numel(figs), 4);
-            groupFigs = dir(fullfile(tc.Root, 'bearing_plots_组图', '*.fig'));
-            tc.verifyGreaterThanOrEqual(numel(groupFigs), 2);
-            origGroupFigs = groupFigs(contains({groupFigs.name}, 'Orig'));
-            filtGroupFigs = groupFigs(contains({groupFigs.name}, 'Filt'));
-            tc.verifyGreaterThanOrEqual(numel(origGroupFigs), 1);
+            rawFigs = dir(fullfile(tc.Root, 'bearing_plots_原始', '*.fig'));
+            filtFigs = dir(fullfile(tc.Root, 'bearing_plots_滤波', '*.fig'));
+            rawGroupFigs = dir(fullfile(tc.Root, 'bearing_plots_组图_原始', '*.fig'));
+            filtGroupFigs = dir(fullfile(tc.Root, 'bearing_plots_组图_滤波', '*.fig'));
+            tc.verifyGreaterThanOrEqual(numel(rawFigs), 2);
+            tc.verifyGreaterThanOrEqual(numel(filtFigs), 2);
+            tc.verifyGreaterThanOrEqual(numel(rawGroupFigs), 1);
             tc.verifyGreaterThanOrEqual(numel(filtGroupFigs), 1);
-            tc.verifyEqual(constant_line_values(fullfile(origGroupFigs(1).folder, origGroupFigs(1).name)).', [-100 -80 80 100]);
+            tc.verifyEqual(constant_line_values(fullfile(rawGroupFigs(1).folder, rawGroupFigs(1).name)).', [-100 -80 80 100]);
             tc.verifyEmpty(constant_line_values(fullfile(filtGroupFigs(1).folder, filtGroupFigs(1).name)));
 
             spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('bearing_displacement');

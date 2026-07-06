@@ -210,8 +210,11 @@ classdef StructuralFilteredSeriesPipeline
                 end
                 rows(end+1, :) = bms.analyzer.StructuralFilteredSeriesService.statsRow(rec, spec); %#ok<AGROW>
                 warnLines = bms.analyzer.StructuralTimeSeriesPlotService.resolveWarnLines(style, cfg, spec.moduleKey, pid);
-                bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Orig', spec, cfg, warnLines);
-                bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, style, 'Filt', spec, cfg, {});
+                pointStyle = style;
+                pointStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.bearingSingleOutputDir(style, spec, 'raw');
+                bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, pointStyle, 'Orig', spec, cfg, warnLines);
+                pointStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.bearingSingleOutputDir(style, spec, 'filtered');
+                bms.analyzer.StructuralFilteredPlotService.plotRecord(rec, rootDir, startDate, endDate, pid, pointStyle, 'Filt', spec, cfg, {});
             end
 
             for g = 1:numel(groups)
@@ -228,8 +231,9 @@ classdef StructuralFilteredSeriesPipeline
                 groupWarn = bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupWarnLines(records, style, cfg, spec);
                 nameTag = sprintf('G%d', g);
                 groupStyle = style;
-                groupStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(style, spec);
+                groupStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(style, spec, 'raw');
                 bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, groupStyle, 'Orig', spec, cfg, groupWarn);
+                groupStyle.output_dir = bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(style, spec, 'filtered');
                 bms.analyzer.StructuralFilteredPlotService.plotRecords(records, rootDir, startDate, endDate, nameTag, groupStyle, 'Filt', spec, cfg, {});
             end
         end
@@ -313,11 +317,65 @@ classdef StructuralFilteredSeriesPipeline
             end
         end
 
-        function outDir = bearingGroupOutputDir(style, spec)
-            outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'group_output_dir', '');
+        function outDir = bearingSingleOutputDir(style, spec, variant)
+            if nargin < 3 || isempty(variant), variant = 'raw'; end
+            outDir = '';
+            switch lower(char(string(variant)))
+                case {'raw','orig','original'}
+                    outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'raw_output_dir', '');
+                    if isempty(outDir)
+                        outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'single_raw_output_dir', '');
+                    end
+                    suffix = '_原始';
+                case {'filtered','filt'}
+                    outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'filtered_output_dir', '');
+                    if isempty(outDir)
+                        outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'single_filtered_output_dir', '');
+                    end
+                    suffix = '_滤波';
+                otherwise
+                    error('StructuralFilteredSeriesPipeline:InvalidBearingVariant', ...
+                        'Unknown bearing displacement output variant: %s', char(string(variant)));
+            end
+            baseDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'single_output_dir', '');
+            if isempty(baseDir)
+                baseDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'output_dir', spec.defaultOutputDir);
+            end
             if isempty(outDir)
-                singleDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'output_dir', spec.defaultOutputDir);
-                outDir = [char(string(singleDir)) '_组图'];
+                outDir = [char(string(baseDir)) suffix];
+            end
+        end
+
+        function outDir = bearingGroupOutputDir(style, spec, variant)
+            if nargin < 3 || isempty(variant), variant = 'raw'; end
+            outDir = '';
+            switch lower(char(string(variant)))
+                case {'raw','orig','original'}
+                    outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'raw_group_output_dir', '');
+                    if isempty(outDir)
+                        outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'group_raw_output_dir', '');
+                    end
+                    suffix = '_原始';
+                case {'filtered','filt'}
+                    outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'filtered_group_output_dir', '');
+                    if isempty(outDir)
+                        outDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'group_filtered_output_dir', '');
+                    end
+                    suffix = '_滤波';
+                otherwise
+                    error('StructuralFilteredSeriesPipeline:InvalidBearingVariant', ...
+                        'Unknown bearing displacement output variant: %s', char(string(variant)));
+            end
+            baseDir = bms.analyzer.StructuralPlotConfigService.getStyleField(style, 'group_output_dir', '');
+            if isempty(baseDir)
+                singleDir = bms.analyzer.StructuralFilteredSeriesPipeline.bearingSingleOutputDir(style, spec, 'raw');
+                if endsWith(singleDir, '_原始')
+                    singleDir = extractBefore(singleDir, strlength(singleDir) - strlength('_原始') + 1);
+                end
+                baseDir = [char(string(singleDir)) '_组图'];
+            end
+            if isempty(outDir)
+                outDir = [char(string(baseDir)) suffix];
             end
         end
 

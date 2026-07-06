@@ -233,8 +233,10 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             T = readtable(excelPath, 'VariableNamingRule', 'preserve');
             testCase.verifyEqual(height(T), 1);
             testCase.verifyEqual(string(T.PointID{1}), string(pid));
-            figs = dir(fullfile(root, 'bearing_out', '*.fig'));
-            testCase.verifyGreaterThanOrEqual(numel(figs), 2);
+            rawFigs = dir(fullfile(root, 'bearing_out_原始', '*.fig'));
+            filtFigs = dir(fullfile(root, 'bearing_out_滤波', '*.fig'));
+            testCase.verifyGreaterThanOrEqual(numel(rawFigs), 1);
+            testCase.verifyGreaterThanOrEqual(numel(filtFigs), 1);
         end
 
         function test_acceleration_spectrum_pipeline(testCase)

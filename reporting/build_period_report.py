@@ -629,6 +629,10 @@ def _pattern_for_point(cfg: dict, module: str, point_id: str, file_id: str | Non
         if not default_patterns:
             raise KeyError(f"No file pattern configured for module={module}, point={point_id}")
         pattern = default_patterns[0]
+    elif isinstance(pattern, list):
+        if not pattern:
+            raise KeyError(f"Empty file pattern configured for module={module}, point={point_id}")
+        pattern = pattern[0]
     return pattern.format(point=point_id, file_id=file_id or "")
 
 
