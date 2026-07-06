@@ -142,5 +142,26 @@ classdef test_hongtang_lowfreq_loader < matlab.unittest.TestCase
             tc.verifyEqual(numel(meta.files), 1);
             tc.verifyTrue(contains(meta.files{1}, 'data.xlsx'));
         end
+
+        function testSensorSpecificAbsMaxAllowsOffsetCorrectedStrain(tc)
+            cfg = tc.Cfg;
+            cfg.data_adapter.hongtang_lowfreq.abs_max_valid = struct('default', 500, 'strain', []);
+            cfg.data_adapter.hongtang_lowfreq.cache.validate = 'metadata';
+            cfg.per_point = struct();
+            cfg.per_point.strain = struct();
+            cfg.per_point.strain.SB_1 = struct( ...
+                'offset_correction', -550, ...
+                'thresholds', struct('min', -100, 'max', 100, ...
+                    't_range_start', '', 't_range_end', ''));
+
+            [~, v, meta] = load_timeseries_range(tc.WorkRoot, '', 'SB-1', ...
+                '2025-12-01', '2025-12-01', cfg, 'strain');
+
+            tc.verifyTrue(isnan(v(1)));
+            tc.verifyTrue(isnan(v(2)));
+            tc.verifyEqual(v(3), 50, 'AbsTol', 1e-10);
+            tc.verifyTrue(isnan(v(4)));
+            tc.verifyFalse(isfield(meta, 'cache_hit') && meta.cache_hit);
+        end
     end
 end

@@ -28,11 +28,14 @@
         "--",
         ""
       ],
-      "abs_max_valid": 500,
+      "abs_max_valid": {
+        "default": 500,
+        "strain": []
+      },
       "cache": {
         "enabled": true,
         "dir": "cache",
-        "validate": "mtime_size"
+        "validate": "metadata"
       },
       "sensor_types": [
         "bearing_displacement",

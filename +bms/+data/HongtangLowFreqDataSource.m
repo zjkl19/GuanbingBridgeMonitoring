@@ -39,7 +39,7 @@ classdef HongtangLowFreqDataSource < bms.data.BaseDataSource
 
             used = true;
             files = {xlsxPath};
-            [t, v] = bms.data.HongtangLowFreqDataSource.readSeries(xlsxPath, pointId, adapter);
+            [t, v] = bms.data.HongtangLowFreqDataSource.readSeries(xlsxPath, pointId, adapter, sensorType);
             if isempty(t) || isempty(v)
                 return;
             end
@@ -101,9 +101,12 @@ classdef HongtangLowFreqDataSource < bms.data.BaseDataSource
             end
         end
 
-        function [t, v] = readSeries(xlsxPath, pointId, adapter)
+        function [t, v] = readSeries(xlsxPath, pointId, adapter, sensorType)
             t = [];
             v = [];
+            if nargin < 4
+                sensorType = '';
+            end
 
             cachePath = bms.data.HongtangLowFreqDataSource.cacheFile(xlsxPath, pointId, adapter);
             if ~isempty(cachePath) && bms.data.HongtangLowFreqDataSource.canUseCache(cachePath, xlsxPath, adapter)
@@ -131,7 +134,7 @@ classdef HongtangLowFreqDataSource < bms.data.BaseDataSource
             t = t(validTime);
             v = v(validTime);
 
-            maxAbs = adapter.abs_max_valid;
+            maxAbs = bms.data.HongtangLowFreqDataSource.resolveAbsMaxValid(adapter, sensorType);
             if isnumeric(maxAbs) && isscalar(maxAbs) && isfinite(maxAbs) && maxAbs > 0
                 v(abs(v) > maxAbs) = NaN;
             end
@@ -323,6 +326,27 @@ classdef HongtangLowFreqDataSource < bms.data.BaseDataSource
             cachePath = fullfile(cacheDir, sprintf('%s__%s.mat', ...
                 bms.data.HongtangLowFreqDataSource.sanitizeCacheName(fn), ...
                 bms.data.HongtangLowFreqDataSource.sanitizeCacheName(pointId)));
+        end
+
+        function maxAbs = resolveAbsMaxValid(adapter, sensorType)
+            maxAbs = [];
+            if ~isstruct(adapter) || ~isfield(adapter, 'abs_max_valid')
+                return;
+            end
+            raw = adapter.abs_max_valid;
+            if isstruct(raw)
+                sensorKey = char(string(sensorType));
+                sensorField = matlab.lang.makeValidName(sensorKey);
+                if ~isempty(sensorField) && isfield(raw, sensorField)
+                    maxAbs = raw.(sensorField);
+                    return;
+                end
+                if isfield(raw, 'default')
+                    maxAbs = raw.default;
+                end
+                return;
+            end
+            maxAbs = raw;
         end
 
         function ok = canUseCache(cachePath, srcPath, adapter)

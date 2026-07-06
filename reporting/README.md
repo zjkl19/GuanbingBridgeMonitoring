@@ -185,7 +185,7 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
-Version `v1.7.19` restores Hongtang Q2 SG-6/SL-8 strain thresholds after the points recovered, documents the legacy inverted-threshold suppression workaround, and converts static period-report figure/table captions to Word auto-number fields in the final build pass.
+Version `v1.7.19` restores Hongtang Q2 SG-6/SL-8 strain thresholds after the points recovered, makes the Hongtang low-frequency raw absolute-value guard sensor-specific so offset-corrected strain is not pre-filtered, documents the legacy inverted-threshold suppression workaround, and converts static period-report figure/table captions to Word auto-number fields in the final build pass.
 Version `v1.7.18` updates Hongtang period-report generation so WIM table/figure captions use Word auto-number fields, table 4-1 describes overload counts explicitly as 1.5/2.0-times thresholds, and bearing-displacement report images are read from the raw output folder after the analysis pipeline splits raw/filtered bearing-displacement figures.
 Version `v1.7.17` aligns the GUI version with the Hongtang Q2 wind/earthquake timestamp-filename fallback fix. Report-builder behavior is unchanged from `v1.7.16`; the production report was regenerated after refreshing wind and earthquake figures through 2026-06-30.
 Version `v1.7.16` fixes rendered period-report page totals when the template stores the total page count inside Word header/footer text boxes. Word COM field updates now repaginate, update header/footer shape fields, emit the computed page count, and patch stale hard-coded total-page text before final acceptance rendering.

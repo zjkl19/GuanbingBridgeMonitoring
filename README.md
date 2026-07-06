@@ -283,8 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
-- `v1.7.19`: restores Hongtang Q2 SG-6/SL-8 strain thresholds after the recovered points showed usable data, keeps inverted thresholds available only as the legacy all-data suppression workaround, and converts static period-report figure/table captions to Word auto-number fields.
-- `v1.7.19`：恢复洪塘 Q2 `SG-6`、`SL-8` 应变阈值，保留反向阈值作为历史坏点全量屏蔽兼容方式，并将周期报静态图表题注统一转为 Word 自动编号域。
+- `v1.7.19`: restores Hongtang Q2 SG-6/SL-8 strain thresholds after the recovered points showed usable data, makes the Hongtang low-frequency raw absolute-value guard sensor-specific so offset-corrected strain is not pre-filtered, keeps inverted thresholds available only as the legacy all-data suppression workaround, and converts static period-report figure/table captions to Word auto-number fields.
+- `v1.7.19`：恢复洪塘 Q2 `SG-6`、`SL-8` 应变阈值，洪塘低频原始绝对值过滤改为按传感器类型生效，避免零点修正前误删应变数据；保留反向阈值作为历史坏点全量屏蔽兼容方式，并将周期报静态图表题注统一转为 Word 自动编号域。
 - `v1.7.18`: adds the Hongtang Q2 report corrections for SG-6/Z11-2 offset correction, splits bearing-displacement raw/filtered output folders across the shared structural pipeline, and updates period-report WIM captions to Word auto-number fields with clearer overload-count wording.
 - `v1.7.18`：补充洪塘 Q2 `SG-6`、`Z11-2` 零点修正，支座位移共用管线拆分原始/滤波输出目录，并将周期报 WIM 图表题改为 Word 自动编号域，同时优化超载车次表述。
 - `v1.7.15`: adds automatic MAT-only time-series source support for large high-frequency datasets, including Hongtang legacy MAT-cache compatibility, safer point-name matching, data-index awareness, and regression tests for archived-CSV operation.

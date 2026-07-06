@@ -42,7 +42,9 @@ Some old runs intentionally used an inverted threshold range such as
 That behavior is still supported for backward compatibility, but it is easy to
 forget when a point later recovers. Hongtang Q2 SG-6 and SL-8 were restored to
 normal transitional bounds `[-1000, 1000]` after the two points showed usable
-data again.
+data again. The same fix also made Hongtang low-frequency `abs_max_valid`
+sensor-specific; otherwise raw strain values could be removed before
+offset-correction had a chance to bring them back into range.
 
 Recommended fix:
 
