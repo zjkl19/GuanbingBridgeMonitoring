@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-06 10:58 CST
+Last updated: 2026-07-06 11:08 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -303,13 +303,17 @@ Last observed on 133 at 2026-07-03 19:49 CST:
 
 ## Recent Code Sync Notes
 
-133 `F:\Guanbing` was fast-forwarded to the 2026-07-06 release line at
-09:35 CST.
+133 `F:\Guanbing` was fast-forwarded to the 2026-07-06 `v1.7.17` release line
+at 11:07 CST.
 
-- Release commit: `4c87599 Fix Hongtang report page totals`
-- Release tag: `v1.7.16`
+- Release commit: `75e82fd Fix Hongtang wind earthquake source matching`
+- Release tag: `v1.7.17`
 - Remote `git status --short --branch`: clean, `main...origin/main`.
-- Remote focused test after the pull passed:
+- Remote focused test after the `v1.7.17` pull passed:
+  `matlab -batch "cd('F:\Guanbing'); addpath(genpath(pwd)); results = runtests({'tests/test_time_series_loader.m'}); assertSuccess(results);"`
+- Previous report-field release commit: `4c87599 Fix Hongtang report page totals`
+- Previous report-field release tag: `v1.7.16`
+- Remote focused report-field test after the `v1.7.16` pull passed:
   `D:\Python310\python.exe -m unittest tests_py.test_build_period_report_word_update`
 - Previous remote release commit: `c77ba32 Add MAT-only time series source
   support`
@@ -318,7 +322,7 @@ Last observed on 133 at 2026-07-03 19:49 CST:
   `stash@{0}: pre-v1.7.14 duplicate Hongtang Q2 worktree backup`.
 - Report generator file `reporting/build_period_report.py` was synchronized to
   133 before the accepted Q2 report, re-smoke-tested there, and is now tracked
-  through git at `v1.7.16`.
+  through git at `v1.7.17`.
 - Remote focused tests passed:
   - `D:\Python310\python.exe -m unittest tests_py.test_build_period_report_word_update`
   - real Word COM smoke test on a copied DOCX returned `WORD_UPDATE_WARNINGS=[]`.
