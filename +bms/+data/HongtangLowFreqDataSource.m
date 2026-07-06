@@ -114,6 +114,7 @@ classdef HongtangLowFreqDataSource < bms.data.BaseDataSource
                 if isfield(S, 'times') && isfield(S, 'vals')
                     t = S.times;
                     v = S.vals;
+                    v = bms.data.HongtangLowFreqDataSource.applyAbsMaxValid(v, adapter, sensorType);
                     return;
                 end
             end
@@ -134,22 +135,22 @@ classdef HongtangLowFreqDataSource < bms.data.BaseDataSource
             t = t(validTime);
             v = v(validTime);
 
-            maxAbs = bms.data.HongtangLowFreqDataSource.resolveAbsMaxValid(adapter, sensorType);
-            if isnumeric(maxAbs) && isscalar(maxAbs) && isfinite(maxAbs) && maxAbs > 0
-                v(abs(v) > maxAbs) = NaN;
-            end
-
             if ~isempty(cachePath)
                 times = t; %#ok<NASGU>
                 vals = v; %#ok<NASGU>
                 meta = struct('mtime', bms.data.HongtangLowFreqDataSource.fileMtime(xlsxPath), ...
-                    'size', bms.data.HongtangLowFreqDataSource.fileSize(xlsxPath)); %#ok<NASGU>
+                    'size', bms.data.HongtangLowFreqDataSource.fileSize(xlsxPath), ...
+                    'cache_version', bms.data.HongtangLowFreqDataSource.rawCacheVersion()); %#ok<NASGU>
                 save(cachePath, 'times', 'vals', 'meta');
                 try
-                    bms.data.CacheManager.writeMetadata(cachePath, {xlsxPath}, adapter, 'hongtang_lowfreq_v2');
+                    bms.data.CacheManager.writeMetadata(cachePath, {xlsxPath}, ...
+                        bms.data.HongtangLowFreqDataSource.rawCacheConfig(adapter), ...
+                        bms.data.HongtangLowFreqDataSource.rawCacheVersion());
                 catch
                 end
             end
+
+            v = bms.data.HongtangLowFreqDataSource.applyAbsMaxValid(v, adapter, sensorType);
         end
 
         function [T, timeCol] = readTableCached(xlsxPath, adapter)
@@ -323,9 +324,16 @@ classdef HongtangLowFreqDataSource < bms.data.BaseDataSource
                 mkdir(cacheDir);
             end
             [~, fn, ~] = fileparts(xlsxPath);
-            cachePath = fullfile(cacheDir, sprintf('%s__%s.mat', ...
+            cachePath = fullfile(cacheDir, sprintf('%s__%s__raw_v3.mat', ...
                 bms.data.HongtangLowFreqDataSource.sanitizeCacheName(fn), ...
                 bms.data.HongtangLowFreqDataSource.sanitizeCacheName(pointId)));
+        end
+
+        function v = applyAbsMaxValid(v, adapter, sensorType)
+            maxAbs = bms.data.HongtangLowFreqDataSource.resolveAbsMaxValid(adapter, sensorType);
+            if isnumeric(maxAbs) && isscalar(maxAbs) && isfinite(maxAbs) && maxAbs > 0
+                v(abs(v) > maxAbs) = NaN;
+            end
         end
 
         function maxAbs = resolveAbsMaxValid(adapter, sensorType)
@@ -349,6 +357,24 @@ classdef HongtangLowFreqDataSource < bms.data.BaseDataSource
             maxAbs = raw;
         end
 
+        function version = rawCacheVersion()
+            version = 'hongtang_lowfreq_raw_v3';
+        end
+
+        function cfg = rawCacheConfig(adapter)
+            cfg = struct();
+            if ~isstruct(adapter)
+                return;
+            end
+            fields = {'sheet', 'time_column', 'missing_tokens'};
+            for i = 1:numel(fields)
+                field = fields{i};
+                if isfield(adapter, field)
+                    cfg.(field) = adapter.(field);
+                end
+            end
+        end
+
         function ok = canUseCache(cachePath, srcPath, adapter)
             ok = false;
             if ~exist(cachePath, 'file')
@@ -366,7 +392,9 @@ classdef HongtangLowFreqDataSource < bms.data.BaseDataSource
                 return;
             end
             if strcmpi(validateMode, 'metadata')
-                ok = bms.data.CacheManager.metadataMatchesFull(cachePath, {srcPath}, adapter, 'hongtang_lowfreq_v2');
+                ok = bms.data.CacheManager.metadataMatchesFull(cachePath, {srcPath}, ...
+                    bms.data.HongtangLowFreqDataSource.rawCacheConfig(adapter), ...
+                    bms.data.HongtangLowFreqDataSource.rawCacheVersion());
                 return;
             end
 
@@ -382,7 +410,10 @@ classdef HongtangLowFreqDataSource < bms.data.BaseDataSource
                     S = load(cachePath, 'meta');
                     if isfield(S, 'meta') && isstruct(S.meta) && ...
                             isfield(S.meta, 'mtime') && isfield(S.meta, 'size')
-                        ok = (S.meta.mtime == srcMtime) && (S.meta.size == srcSize);
+                        ok = (S.meta.mtime == srcMtime) && (S.meta.size == srcSize) ...
+                            && isfield(S.meta, 'cache_version') ...
+                            && strcmp(char(string(S.meta.cache_version)), ...
+                                bms.data.HongtangLowFreqDataSource.rawCacheVersion());
                         return;
                     end
                 catch

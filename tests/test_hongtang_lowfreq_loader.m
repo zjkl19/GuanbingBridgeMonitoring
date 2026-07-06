@@ -163,5 +163,25 @@ classdef test_hongtang_lowfreq_loader < matlab.unittest.TestCase
             tc.verifyTrue(isnan(v(4)));
             tc.verifyFalse(isfield(meta, 'cache_hit') && meta.cache_hit);
         end
+
+        function testLowfreqCacheStoresParsedRawValues(tc)
+            cfg = tc.Cfg;
+            cfg.data_adapter.hongtang_lowfreq.cache.validate = 'metadata';
+
+            [~, v1] = load_timeseries_range(tc.WorkRoot, '', 'SB-1', ...
+                '2025-12-01', '2025-12-01', cfg, 'strain');
+            tc.verifyTrue(isnan(v1(3)));
+
+            adapter = bms.data.HongtangLowFreqDataSource.adapterFromConfig(cfg);
+            cachePath = bms.data.HongtangLowFreqDataSource.cacheFile(tc.XlsxPath, 'SB-1', adapter);
+            tc.verifyTrue(endsWith(cachePath, '__raw_v3.mat'));
+            S = load(cachePath, 'vals');
+            tc.verifyEqual(S.vals(3), 600, 'AbsTol', 1e-10);
+
+            cfg.data_adapter.hongtang_lowfreq.abs_max_valid = [];
+            [~, v2] = load_timeseries_range(tc.WorkRoot, '', 'SB-1', ...
+                '2025-12-01', '2025-12-01', cfg, 'strain');
+            tc.verifyEqual(v2(3), 600, 'AbsTol', 1e-10);
+        end
     end
 end
