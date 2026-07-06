@@ -362,34 +362,46 @@ def append_complex_field(paragraph: Paragraph, instr: str, placeholder: str = "1
     paragraph._p.append(run_end)
 
 
+def clear_paragraph_content(paragraph: Paragraph) -> None:
+    for child in list(paragraph._p):
+        if child.tag != qn("w:pPr"):
+            paragraph._p.remove(child)
+
+
 def strip_caption_number(text: str) -> str:
     stripped = str(text or "").strip()
-    stripped = re.sub(r"^(?:图|表)\s*\d+(?:-\d+){1,2}\s*", "", stripped)
-    stripped = re.sub(r"^续表\s*\d+(?:-\d+){1,2}\s*", "", stripped)
+    stripped = re.sub(r"^(?:图|表)\s*\d+(?:[-－]\d+){1,2}\s*", "", stripped)
+    stripped = re.sub(r"^续表\s*\d+(?:[-－]\d+){1,2}\s*", "", stripped)
     return stripped.strip()
+
+
+def set_auto_caption_paragraph(paragraph: Paragraph, text: str, kind: str) -> Paragraph:
+    kind = kind.lower()
+    title = strip_caption_number(text)
+    clear_paragraph_content(paragraph)
+    if kind == "figure":
+        paragraph.add_run("图 ")
+        append_complex_field(paragraph, "STYLEREF 1 \\s")
+        paragraph.add_run("-")
+        append_complex_field(paragraph, "SEQ 图 \\* ARABIC \\s 1")
+    elif kind == "table_continued":
+        paragraph.add_run("续表 ")
+        append_complex_field(paragraph, "STYLEREF 1 \\s")
+        paragraph.add_run("-")
+        append_complex_field(paragraph, "SEQ 表 \\c")
+    else:
+        paragraph.add_run("表 ")
+        append_complex_field(paragraph, "STYLEREF 1 \\s")
+        paragraph.add_run("-")
+        append_complex_field(paragraph, "SEQ 表 \\* ARABIC \\s 1")
+    if title:
+        paragraph.add_run(f" {title}")
+    return paragraph
 
 
 def add_auto_caption_before(anchor: Paragraph, text: str, template: ParagraphTemplate, kind: str) -> Paragraph:
     para = insert_paragraph_before(anchor)
-    kind = kind.lower()
-    title = strip_caption_number(text)
-    if kind == "figure":
-        para.add_run("图 ")
-        append_complex_field(para, "STYLEREF 1 \\s")
-        para.add_run("-")
-        append_complex_field(para, "SEQ 图 \\* ARABIC \\s 1")
-    elif kind == "table_continued":
-        para.add_run("续表 ")
-        append_complex_field(para, "STYLEREF 1 \\s")
-        para.add_run("-")
-        append_complex_field(para, "SEQ 表 \\c")
-    else:
-        para.add_run("表 ")
-        append_complex_field(para, "STYLEREF 1 \\s")
-        para.add_run("-")
-        append_complex_field(para, "SEQ 表 \\* ARABIC \\s 1")
-    if title:
-        para.add_run(f" {title}")
+    set_auto_caption_paragraph(para, text, kind)
     apply_paragraph_template(para, template)
     return para
 

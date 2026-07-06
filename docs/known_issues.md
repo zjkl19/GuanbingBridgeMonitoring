@@ -33,6 +33,23 @@ Important distinction:
 
 Reference: `docs/hongtang_q2_2026_recovery.md`.
 
+## Per-Point Suppression Hidden In Thresholds
+
+Status: workaround preserved; follow-up recommended.
+
+Some old runs intentionally used an inverted threshold range such as
+`min: 1000, max: -1000` to suppress all finite values for a damaged point.
+That behavior is still supported for backward compatibility, but it is easy to
+forget when a point later recovers. Hongtang Q2 SG-6 and SL-8 were restored to
+normal transitional bounds `[-1000, 1000]` after the two points showed usable
+data again.
+
+Recommended fix:
+
+- add an explicit point-suppression config with start/end dates and reason;
+- make reports and preflight logs list suppressed points by period;
+- stop using inverted thresholds as the long-term way to mark damaged points.
+
 ## Rendered Report QA
 
 Status: improved in `v1.7.16`; keep as an acceptance rule.

@@ -17,7 +17,7 @@ from build_quarterly_wim_sample import (  # noqa: E402
     capture_paragraph_template,
     overload_counts_text,
 )
-from build_period_report import _pattern_for_point  # noqa: E402
+from build_period_report import _pattern_for_point, convert_static_captions_to_auto_number  # noqa: E402
 
 
 def paragraph_fields(paragraph) -> str:
@@ -69,6 +69,21 @@ class WimAutoCaptionTests(unittest.TestCase):
         }
 
         self.assertEqual(_pattern_for_point(cfg, "wind_speed", "W1", file_id="20260630"), "*20260630*.csv")
+
+    def test_static_period_captions_are_converted_to_word_seq_fields(self) -> None:
+        doc = Document()
+        figure_caption = doc.add_paragraph("图 4-4 主梁各截面位置应变时程曲线图")
+        table_caption = doc.add_paragraph("表 4-1 2026年第二季度交通状况分月统计表")
+        continued_caption = doc.add_paragraph("续表 4-3（轴重单位：kg）")
+        body = doc.add_paragraph("监测结果如图 4-4 所示。")
+
+        count = convert_static_captions_to_auto_number(doc)
+
+        self.assertEqual(count, 3)
+        self.assertIn("SEQ 图 \\* ARABIC \\s 1", paragraph_fields(figure_caption))
+        self.assertIn("SEQ 表 \\* ARABIC \\s 1", paragraph_fields(table_caption))
+        self.assertIn("SEQ 表 \\c", paragraph_fields(continued_caption))
+        self.assertEqual(paragraph_fields(body), "")
 
 
 if __name__ == "__main__":

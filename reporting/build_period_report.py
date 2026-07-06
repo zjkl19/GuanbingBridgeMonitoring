@@ -40,6 +40,7 @@ from build_quarterly_wim_sample import (
     parse_month_summary,
     resolve_wim_thresholds,
     set_summary_table,
+    set_auto_caption_paragraph,
     set_header_bold,
     set_table_column_widths,
     style_table,
@@ -64,6 +65,41 @@ HIGHFREQ_MODULES = {
     "wind": "风向风速监测",
     "eq": "地震动监测",
 }
+
+STATIC_CAPTION_RE = re.compile(r"^(?P<prefix>图|表|续表)\s*\d+(?:[-－]\d+){1,2}\s*.+")
+
+
+def _paragraph_has_auto_caption_field(para) -> bool:
+    for node in para._p.iter():
+        if node.tag.endswith("}instrText") and node.text and "SEQ " in node.text:
+            return True
+    return False
+
+
+def _static_caption_kind(text: str) -> str | None:
+    stripped = re.sub(r"\s+", " ", str(text or "").strip())
+    match = STATIC_CAPTION_RE.match(stripped)
+    if not match:
+        return None
+    prefix = match.group("prefix")
+    if prefix == "图":
+        return "figure"
+    if prefix == "续表":
+        return "table_continued"
+    return "table"
+
+
+def convert_static_captions_to_auto_number(doc: Document) -> int:
+    converted = 0
+    for para in doc.paragraphs:
+        if _paragraph_has_auto_caption_field(para):
+            continue
+        kind = _static_caption_kind(para.text)
+        if kind is None:
+            continue
+        set_auto_caption_paragraph(para, para.text, kind)
+        converted += 1
+    return converted
 
 
 def default_period_template(repo_root: Path) -> Path:
@@ -1404,6 +1440,7 @@ def build_period_report(
     apply_health_status_to_doc(doc, manifest["health_status_summary"], manifest["health_status_rows"])
     apply_wim_period_to_doc(doc, manifest["wim"])
     apply_period_toc_months(doc, start_dt, end_dt)
+    convert_static_captions_to_auto_number(doc)
 
     output_docx = ctx.output_dir / period_report_filename(period_label, timestamp)
     doc.save(str(output_docx))
