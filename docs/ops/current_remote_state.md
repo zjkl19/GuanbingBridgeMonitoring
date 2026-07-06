@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-06 09:32 CST
+Last updated: 2026-07-06 09:36 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -288,13 +288,14 @@ Last observed on 133 at 2026-07-03 19:49 CST:
 
 ## Recent Code Sync Notes
 
-Local `main` has a pending `v1.7.16` release commit for the 2026-07-06
-Hongtang Q2 late-June patch and report page-total fix.
+133 `F:\Guanbing` was fast-forwarded to the 2026-07-06 release line at
+09:35 CST.
 
-- Pending release commit: `Fix Hongtang report page totals`
-- Pending release tag: `v1.7.16`
-- 133 `F:\Guanbing` still needs to fast-forward to this release after the
-  commit and tag are pushed.
+- Release commit: `4c87599 Fix Hongtang report page totals`
+- Release tag: `v1.7.16`
+- Remote `git status --short --branch`: clean, `main...origin/main`.
+- Remote focused test after the pull passed:
+  `D:\Python310\python.exe -m unittest tests_py.test_build_period_report_word_update`
 - Previous remote release commit: `c77ba32 Add MAT-only time series source
   support`
 - Previous remote release tag: `v1.7.15`
@@ -302,7 +303,7 @@ Hongtang Q2 late-June patch and report page-total fix.
   `stash@{0}: pre-v1.7.14 duplicate Hongtang Q2 worktree backup`.
 - Report generator file `reporting/build_period_report.py` was synchronized to
   133 before the accepted Q2 report, re-smoke-tested there, and is now tracked
-  through git at `v1.7.14`.
+  through git at `v1.7.16`.
 - Remote focused tests passed:
   - `D:\Python310\python.exe -m unittest tests_py.test_build_period_report_word_update`
   - real Word COM smoke test on a copied DOCX returned `WORD_UPDATE_WARNINGS=[]`.
