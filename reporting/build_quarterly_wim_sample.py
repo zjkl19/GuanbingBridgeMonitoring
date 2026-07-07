@@ -444,6 +444,32 @@ def ensure_table_rows(table: Table, target_rows: int) -> None:
         table._tbl.remove(table.rows[-1]._tr)
 
 
+def table_supports_cell(table: Table, row_idx: int, col_idx: int) -> bool:
+    try:
+        table.cell(row_idx, col_idx)
+        return True
+    except (IndexError, ValueError):
+        return False
+
+
+def insert_table_from_template_or_new(
+    paragraph: Paragraph,
+    table_template,
+    *,
+    rows: int,
+    cols: int,
+) -> tuple[Table, bool]:
+    if table_template is not None:
+        table = insert_template_table_before(paragraph, table_template)
+        ensure_table_rows(table, rows)
+        if rows <= 0 or cols <= 0 or table_supports_cell(table, rows - 1, cols - 1):
+            return table, True
+        parent = table._tbl.getparent()
+        if parent is not None:
+            parent.remove(table._tbl)
+    return insert_table_before(paragraph, rows=rows, cols=cols), False
+
+
 
 def clear_section_between(start_paragraph: Paragraph, end_paragraph: Paragraph) -> None:
     parent = start_paragraph._p.getparent()
@@ -753,11 +779,7 @@ def add_quarter_overview(
 ) -> None:
     add_caption_paragraph_before(anchor, f"\u8868 4-1 {quarter_label_from_summaries(summaries)}\u4ea4\u901a\u72b6\u51b5\u5206\u6708\u7edf\u8ba1\u8868", caption_tpl, "table")
     template_tbl = get_wim_table_template(table_templates, "overview")
-    if template_tbl is not None:
-        table = insert_template_table_before(anchor, template_tbl)
-        ensure_table_rows(table, len(summaries) + 2)
-    else:
-        table = insert_table_before(anchor, rows=len(summaries) + 2, cols=8)
+    table, used_template = insert_table_from_template_or_new(anchor, template_tbl, rows=len(summaries) + 2, cols=8)
     if summaries:
         gross_level_1_text = format_ton_threshold(summaries[0].gross_level_1_t)
         gross_level_2_text = format_ton_threshold(summaries[0].gross_level_2_t)
@@ -809,7 +831,7 @@ def add_quarter_overview(
     ]
     for c, value in enumerate(totals):
         set_table_cell(table, len(summaries) + 1, c, value, preserve=False)
-    if template_tbl is None:
+    if not used_template:
         style_table(table)
         set_header_bold(table)
         set_table_width(table, 166.5)
@@ -824,13 +846,9 @@ def add_daily_traffic_table(
     table_template=None,
 ) -> None:
     add_caption_paragraph_before(anchor, f"\u8868 4-{table_no} {month_label(item.yyyymm)}\u8f66\u6d41\u91cf\u7edf\u8ba1\u8868", caption_tpl, "table")
-    if table_template is not None:
-        table = insert_template_table_before(anchor, table_template)
-        ensure_table_rows(table, len(item.daily_rows) + 1)
-    else:
-        table = insert_table_before(anchor, rows=len(item.daily_rows) + 1, cols=4)
+    table, used_template = insert_table_from_template_or_new(anchor, table_template, rows=len(item.daily_rows) + 1, cols=4)
     headers = ["\u65e5\u671f", "\u4e0a\u884c\u8f66\u6570", "\u4e0b\u884c\u8f66\u6570", "\u603b\u8f66\u6570"]
-    if table_template is None:
+    if not used_template:
         for i, header in enumerate(headers):
             set_table_cell(table, 0, i, header)
     for r, row in enumerate(item.daily_rows, start=1):
@@ -839,7 +857,7 @@ def add_daily_traffic_table(
         values = [date_text, str(int(row.get("up_cnt") or 0)), str(int(row.get("down_cnt") or 0)), str(int(row.get("total") or 0))]
         for c, value in enumerate(values):
             set_table_cell(table, r, c, value)
-    if table_template is None:
+    if not used_template:
         style_table(table)
         set_header_bold(table)
         set_table_column_widths(table, [55, 30, 30, 30])
@@ -848,13 +866,9 @@ def add_daily_traffic_table(
 def add_topn_main_table(anchor: Paragraph, title: str, rows: list[dict], caption_tpl: ParagraphTemplate, table_template=None) -> None:
     add_caption_paragraph_before(anchor, title, caption_tpl, "table")
     row_count = max(len(rows), 10) + 1
-    if table_template is not None:
-        table = insert_template_table_before(anchor, table_template)
-        ensure_table_rows(table, row_count)
-    else:
-        table = insert_table_before(anchor, rows=row_count, cols=6)
+    table, used_template = insert_table_from_template_or_new(anchor, table_template, rows=row_count, cols=6)
     headers = ["\u5e8f\u53f7", "\u8f66\u9053", "\u65f6\u95f4", "\u8f74\u6570", "\u603b\u91cd\uff08kg\uff09", "\u901f\u5ea6\uff08km/h\uff09"]
-    if table_template is None:
+    if not used_template:
         for i, header in enumerate(headers):
             set_table_cell(table, 0, i, header)
     for r in range(1, row_count):
@@ -869,7 +883,7 @@ def add_topn_main_table(anchor: Paragraph, title: str, rows: list[dict], caption
         ]
         for c, value in enumerate(values):
             set_table_cell(table, r, c, value)
-    if table_template is None:
+    if not used_template:
         style_table(table)
         set_header_bold(table)
         set_table_column_widths(table, [15.63, 16.93, 47.45, 26.67, 26.67, 26.67])
@@ -878,16 +892,12 @@ def add_topn_main_table(anchor: Paragraph, title: str, rows: list[dict], caption
 def add_topn_cont_table(anchor: Paragraph, title: str, rows: list[dict], caption_tpl: ParagraphTemplate, table_template=None) -> None:
     add_caption_paragraph_before(anchor, title, caption_tpl, "table_continued")
     row_count = max(len(rows), 10) + 1
-    if table_template is not None:
-        table = insert_template_table_before(anchor, table_template)
-        ensure_table_rows(table, row_count)
-    else:
-        table = insert_table_before(anchor, rows=row_count, cols=12)
+    table, used_template = insert_table_from_template_or_new(anchor, table_template, rows=row_count, cols=12)
     headers = [
         "序号", "轴1重", "轴2重", "轴3重", "轴4重", "轴5重", "轴6重",
         "轴距1", "轴距2", "轴距3", "轴距4", "轴距5",
     ]
-    if table_template is None:
+    if not used_template:
         for i, header in enumerate(headers):
             set_table_cell(table, 0, i, header)
     for r in range(1, row_count):
@@ -903,7 +913,7 @@ def add_topn_cont_table(anchor: Paragraph, title: str, rows: list[dict], caption
             values = [""] * 12
         for c, value in enumerate(values):
             set_table_cell(table, r, c, value)
-    if table_template is None:
+    if not used_template:
         style_table(table)
         set_header_bold(table)
         set_table_column_widths(table, [10.00, 11.99, 11.99, 11.99, 11.99, 11.99, 11.99, 13.00, 13.00, 13.00, 13.00, 13.00])

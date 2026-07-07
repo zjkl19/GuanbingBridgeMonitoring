@@ -5,9 +5,12 @@ Generated reports, temporary drafts, old revisions, reference spreadsheets, and 
 
 ## Tracked Templates
 
+- `洪塘大桥健康监测周期报模板-自动报告.docx`
+  - Current Hongtang period/quarter auto-report template.
+  - Based on the manually checked 2026 Q2 report, with revisions accepted and generator-owned content refreshed in place.
 - `洪塘大桥健康监测2026年第一季季报-改4.docx`
-  - Current Hongtang period/quarter report template.
-  - Used by `reporting/build_period_report.py` and the report GUI period-report mode.
+  - Legacy Hongtang period/quarter report template retained for compatibility
+    and Q1 reference.
 - `洪塘大桥健康监测月报模板.docx`
   - Current Hongtang monthly report template.
 - `九龙江大桥健康监测2026年3月份月报_修订5.docx`

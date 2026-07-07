@@ -89,6 +89,21 @@ helpers now preserve extrema, but report QA should still compare stats rows,
 figure markers, and rendered text for representative modules. See
 `docs/hongtang_q2_extrema_plot_audit.md`.
 
+Additional v1.7.22 lesson: a manually checked report can be used as a template
+base only after generator-owned figure blocks are treated as replaceable
+content. The Hongtang Q2 auto template initially retained old picture blocks
+before target captions, so new figures were inserted in addition to the old
+ones; this inflated the rendered report from the expected `82` pages to `127`
+pages. The report builder now removes nearby stale picture/short-label blocks
+before inserting fresh figures, and report QA should compare media/drawing
+counts and rendered page counts against the accepted baseline.
+
+Additional v1.7.22 WIM lesson: copied template tables are not guaranteed to be
+addressable with the row/column layout required by generated continuation
+tables. The Hongtang Q2 manual template exposed this as a WIM continuation
+`IndexError`. The generator now validates table access and falls back to a
+standard table when the copied template table is incompatible.
+
 ## Donghua Export Layout
 
 Status: fixed in the current snapshot.

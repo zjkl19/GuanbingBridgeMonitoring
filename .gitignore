@@ -76,6 +76,7 @@ scripts/build_online_plan_xlsx.py
 
 # Report source policy: track only current official templates.
 reports/*.docx
+!reports/洪塘大桥健康监测周期报模板-自动报告.docx
 !reports/洪塘大桥健康监测2026年第一季季报-改4.docx
 !reports/洪塘大桥健康监测月报模板.docx
 !reports/九龙江大桥健康监测2026年3月份月报_修订5.docx

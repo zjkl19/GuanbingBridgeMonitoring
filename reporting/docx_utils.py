@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -55,6 +56,46 @@ def remove_nearby_picture_before(anchor: Paragraph, limit: int = 8) -> int:
         if text:
             break
     return removed
+
+
+def _is_short_picture_label(text: str) -> bool:
+    value = text.strip()
+    if not value or len(value) > 80:
+        return False
+    if re.match(r"^(图|表|续表|第[一二三四五六七八九十0-9]+[章节条]|[0-9]+(?:\.[0-9]+)+)", value):
+        return False
+    return True
+
+
+def remove_nearby_picture_block_before(anchor: Paragraph, limit: int = 120) -> int:
+    """Remove a generated picture block immediately before a caption anchor.
+
+    Existing report files are often reused as templates. In that case the old
+    report pictures sit directly before their captions; remove that contiguous
+    image/short-label block before inserting fresh images.
+    """
+    candidates = previous_body_paragraphs(anchor, limit=limit)
+    removed: list[Paragraph] = []
+    in_block = False
+    for idx, candidate in enumerate(candidates):
+        text = candidate.text.strip()
+        has_image = paragraph_has_image(candidate)
+        previous_is_image = idx + 1 < len(candidates) and paragraph_has_image(candidates[idx + 1])
+        if has_image:
+            removed.append(candidate)
+            in_block = True
+            continue
+        if not text and in_block:
+            removed.append(candidate)
+            continue
+        if _is_short_picture_label(text) and previous_is_image:
+            removed.append(candidate)
+            in_block = True
+            continue
+        break
+    for paragraph in removed:
+        remove_paragraph(paragraph)
+    return len(removed)
 
 
 def insert_picture_before(anchor: Paragraph, image_path: Path, width_mm: float = 145.0) -> None:

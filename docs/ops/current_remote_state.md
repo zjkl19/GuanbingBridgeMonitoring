@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-06 21:45 CST
+Last updated: 2026-07-07 15:10 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -101,6 +101,45 @@ state and keep algorithm/report decisions in the normal project docs.
   avoid heavy MATLAB/report jobs unless explicitly requested.
 
 ## Active Remote Tasks On 133
+
+### Hongtang Bridge Q2 v1.7.22 Period Template Hardening
+
+- Status: production report validation completed on 2026-07-07 15:01 CST;
+  publish/sync cleanup is the next step.
+- 133 code state during validation: `F:\Guanbing` had the `v1.7.22`
+  working-tree patch applied on top of `f1c9b21` / `v1.7.21`.
+- Remote focused tests passed with `D:\Python310\python.exe`:
+  `tests_py.test_docx_image_blocks`,
+  `tests_py.test_wim_auto_captions`,
+  `tests_py.test_build_period_report_word_update`,
+  `tests_py.test_hongtang_period_followups`,
+  `tests_py.test_bridge_profiles`.
+- Remote compile check passed for `reporting` and `tests_py`.
+- Report generation:
+  - Runtime `110.38` seconds, below the 10-minute failure threshold.
+  - DOCX:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260707_150151.docx`.
+  - Manifest:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260707_150151.json`.
+  - Manifest status: `ok`; `missing_count=0`; `warnings_count=0`;
+    `report_qc_status=ok`; report number `BG02FQJC2600002-J2`.
+  - Checked PDF copied back to 133:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_template_report_20260707_150151_word_checked.pdf`.
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_template_report_20260707_150151`.
+  - Word COM exported an `82` page PDF; all `82` pages rendered to PNG.
+  - PDF text checks found no missing-reference/bookmark/template-token errors.
+  - Visual spot checks covered the cover, alarm table, WIM/strain transition,
+    acceleration plots, wind rose/table, and earthquake pages.
+- Bugs fixed during validation:
+  - copied WIM continuation tables from a manual template can be structurally
+    incompatible with the generated 12-column continuation data; the generator
+    now validates row/column access and falls back to a standard table;
+  - using a filled report as a template can retain old picture blocks before
+    captions; the generator now removes stale picture/short-label blocks before
+    inserting fresh figures.
+- Next action: publish `v1.7.22`, then make `F:\Guanbing` fast-forward to the
+  committed `origin/main` state and leave the 133 worktree clean.
 
 ### Hongtang Bridge Q2 v1.7.21 Plot Extrema Consistency
 

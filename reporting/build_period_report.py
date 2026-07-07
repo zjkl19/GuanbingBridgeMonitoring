@@ -107,8 +107,8 @@ def convert_static_captions_to_auto_number(doc: Document) -> int:
 def default_period_template(repo_root: Path) -> Path:
     reports_dir = repo_root / "reports"
     candidates = [
-        reports_dir / "洪塘大桥健康监测2026年第一季季报-改4.docx",
         reports_dir / "洪塘大桥健康监测周期报模板-自动报告.docx",
+        reports_dir / "洪塘大桥健康监测2026年第一季季报-改4.docx",
         reports_dir / "洪塘大桥健康监测周期报模板0318.docx",
         reports_dir / "洪塘大桥健康监测周期报模板.docx",
     ]
@@ -131,6 +131,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--period-label", default="2026年1-3月")
     parser.add_argument("--monitoring-range", default="2026年01月01日~2026年03月31日")
+    parser.add_argument("--report-number", default=None, help="Report number, e.g. BG02FQJC2600002-J2. Defaults to the quarter suffix.")
     parser.add_argument("--report-date", default=datetime.now().strftime("%Y年%m月%d日"))
     parser.add_argument("--start-date", default="2026-01-01")
     parser.add_argument("--end-date", default="2026-03-31")
@@ -369,6 +370,11 @@ def period_report_title(start_date: date, end_date: date) -> str:
         if title and start_date.day == 1:
             return title
     return "周期报告"
+
+
+def period_report_number(start_date: date, end_date: date, prefix: str = "BG02FQJC2600002") -> str:
+    quarter = ((start_date.month - 1) // 3) + 1
+    return f"{prefix}-J{quarter}"
 
 
 def safe_filename_text(text: str) -> str:
@@ -1018,6 +1024,46 @@ def _patch_hardcoded_total_pages_xml(xml_text: str, page_count: int) -> tuple[st
     return total_re.subn(replacement, xml_text)
 
 
+def _patch_report_number_xml(xml_text: str, report_number: str) -> tuple[str, int]:
+    report_no_re = re.compile(r"BG02FQJC2600002-J\d+")
+    return report_no_re.subn(report_number, xml_text)
+
+
+def _patch_report_number_in_docx(docx_path: Path, report_number: str | None) -> int:
+    if not report_number:
+        return 0
+    if not docx_path.exists():
+        return 0
+
+    patched_count = 0
+    tmp_path = docx_path.with_suffix(docx_path.suffix + ".tmp")
+    try:
+        with zipfile.ZipFile(docx_path, "r") as zin, zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zout:
+            for info in zin.infolist():
+                data = zin.read(info.filename)
+                if info.filename.startswith("word/") and info.filename.endswith(".xml"):
+                    try:
+                        text = data.decode("utf-8")
+                    except UnicodeDecodeError:
+                        text = ""
+                    if text:
+                        text, count = _patch_report_number_xml(text, report_number)
+                        if count:
+                            patched_count += count
+                            data = text.encode("utf-8")
+                zout.writestr(info, data)
+        tmp_path.replace(docx_path)
+    except zipfile.BadZipFile:
+        return 0
+    finally:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+    return patched_count
+
+
 def _patch_hardcoded_total_pages_in_docx(docx_path: Path, page_count: int | None) -> int:
     if page_count is None or page_count <= 0:
         return 0
@@ -1384,6 +1430,14 @@ def find_last_paragraph_contains(doc: Document, fragment: str):
     return matches[-1]
 
 
+def find_last_paragraph_matching(doc: Document, pattern: str):
+    regex = re.compile(pattern)
+    matches = [para for para in doc.paragraphs if regex.search(para.text.strip())]
+    if not matches:
+        raise ValueError(f"Paragraph matching '{pattern}' not found")
+    return matches[-1]
+
+
 def apply_wim_period_to_doc(doc: Document, section: dict) -> None:
     if not section.get("enabled"):
         return
@@ -1396,10 +1450,10 @@ def apply_wim_period_to_doc(doc: Document, section: dict) -> None:
     wim_heading = find_last_paragraph(doc, T_WIM)
     next_heading = find_last_paragraph(doc, T_NEXT)
     table_templates = capture_wim_table_templates(wim_heading, next_heading)
-    heading_tpl = capture_paragraph_template(find_last_paragraph_contains(doc, "2026年3月交通状况监测"))
+    heading_tpl = capture_paragraph_template(find_last_paragraph_matching(doc, r"\d{4}年\d{1,2}月交通状况监测"))
     body_tpl = capture_paragraph_template(find_last_paragraph_contains(doc, "桥梁共通过车辆"))
     caption_tpl = capture_paragraph_template(find_last_paragraph_contains(doc, "季度交通状况分月统计表"))
-    subcap_tpl = capture_paragraph_template(find_last_paragraph_contains(doc, "续表 4-3"))
+    subcap_tpl = capture_paragraph_template(find_last_paragraph_matching(doc, r"续表\s*4-\d+"))
     fig_tpl = capture_paragraph_template(find_last_paragraph_contains(doc, "桥梁交通流参数分析"))
 
     clear_section_between(wim_heading, next_heading)
@@ -1450,6 +1504,7 @@ def build_period_report(
     output_dir: Path | None = None,
     period_label: str = "2026年1-3月",
     monitoring_range: str = "2026年01月01日~2026年03月31日",
+    report_number: str | None = None,
     report_date: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
@@ -1466,6 +1521,8 @@ def build_period_report(
         if extracted is None:
             raise ValueError("Unable to derive start/end dates. Provide --start-date and --end-date.")
         start_dt, end_dt = extracted
+    if report_number is None:
+        report_number = period_report_number(start_dt, end_dt)
 
     ctx = ReportBuildContext.from_inputs(
         template=template,
@@ -1480,6 +1537,7 @@ def build_period_report(
 
     cfg = load_json(config_path)
     manifest = build_manifest(cfg, ctx.stats_root, ctx.fallback_stats_root, ctx.image_root, template, ctx.assets_dir, period_label, monitoring_range, report_date)
+    manifest["report_number"] = report_number
     manifest["analysis_run_manifest"] = ctx.analysis_context()
     wim_months = months_between(start_dt, end_dt)
     try:
@@ -1534,6 +1592,7 @@ def build_period_report(
 
     output_docx = ctx.output_dir / period_report_filename(period_label, timestamp)
     doc.save(str(output_docx))
+    _patch_report_number_in_docx(output_docx, report_number)
     field_update_warnings = update_fields_with_word(output_docx)
 
     missing = summarize_missing_images(manifest) + summarize_missing_wim_images(manifest["wim"])
@@ -1560,7 +1619,7 @@ def build_period_report(
         legacy_manifest=manifest,
         missing=missing,
         warnings=warnings,
-        extra=qc_paths,
+        extra={"report_number": report_number, **qc_paths},
         filename_prefix="period_report_manifest",
     )
     write_missing_summary(
@@ -1601,6 +1660,7 @@ def main() -> None:
         output_dir=args.output_dir,
         period_label=args.period_label,
         monitoring_range=args.monitoring_range,
+        report_number=args.report_number,
         report_date=args.report_date,
         start_date=args.start_date,
         end_date=args.end_date,

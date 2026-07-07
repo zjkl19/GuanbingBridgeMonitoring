@@ -9,7 +9,7 @@ from openpyxl import Workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 
-from build_monthly_report import build_eq_section, normalize_eq_peak_key  # noqa: E402
+from build_monthly_report import build_eq_section, build_overview_items, build_wind_section, normalize_eq_peak_key  # noqa: E402
 from build_period_report import apply_period_maintenance_log  # noqa: E402
 
 
@@ -68,6 +68,57 @@ class TestHongtangPeriodFollowups(unittest.TestCase):
         self.assertIn("基康采集设备", table.cell(2, 2).text)
         self.assertEqual(table.cell(15, 1).text, "2026-06-29")
         self.assertNotIn("旧记录", "\n".join(cell.text for row in table.rows for cell in row.cells))
+
+    def test_overview_uses_accepted_q2_wording(self):
+        manifest = {
+            "sections": {
+                "wim": {"enabled": False},
+                "traffic": {},
+                "strain": {"enabled": False, "available": False},
+                "tilt": {"enabled": False, "available": False},
+                "bearing_displacement": {"enabled": False, "available": False},
+                "cable_force": {
+                    "enabled": True,
+                    "available": True,
+                    "accel_available": True,
+                    "force_available": True,
+                    "max_abs": 2.44,
+                    "max_rms": 0.37,
+                    "min_change": -7.42,
+                    "max_change": 1.77,
+                },
+                "wind": {"enabled": True, "available": True, "max_10min": 5.46},
+                "eq": {"enabled": False, "available": False},
+            }
+        }
+
+        items = build_overview_items(manifest)
+        cable_text = items["吊索索力监测"][0]
+        wind_text = items["风向风速监测"][0]
+
+        self.assertIn("监测结果表明，吊索加速度", cable_text)
+        self.assertIn("变化幅度均在10%以内", cable_text)
+        self.assertNotIn("监测结果表明吊索加速度", cable_text)
+        self.assertNotIn("与成桥索力相比变化范围在10%以内", cable_text)
+        self.assertIn("桥面 10min 平均风速", wind_text)
+
+    def test_wind_section_uses_accepted_spacing_and_caption(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            stats = root / "stats"
+            stats.mkdir()
+
+            wb = Workbook()
+            ws = wb.active
+            ws.append(["PointID", "Mean10minMax", "MeanSpeed", "MaxSpeed"])
+            ws.append(["W1", 5.46, 2.28, 9.25])
+            wb.save(stats / "wind_stats.xlsx")
+
+            cfg = {"points": {"wind": ["W1"]}}
+            section = build_wind_section(cfg, stats, None, root, root / "assets")
+
+            self.assertIn("桥面 10min 平均风速最大值为5.46m/s", section["summary"])
+            self.assertEqual(section["speed_caption"], "桥面 10min 平均风速时程图")
 
 
 if __name__ == "__main__":

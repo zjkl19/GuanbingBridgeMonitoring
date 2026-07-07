@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -187,6 +188,12 @@ def _add_missing_any_fragment(issues: list[TemplateIssue], texts: list[str], fra
         issues.append(TemplateIssue("missing-text", f"{note}: {' / '.join(fragments)}"))
 
 
+def _add_missing_pattern(issues: list[TemplateIssue], texts: list[str], pattern: str, note: str) -> None:
+    regex = re.compile(pattern)
+    if not any(regex.search(text) for text in texts):
+        issues.append(TemplateIssue("missing-text", f"{note}: /{pattern}/"))
+
+
 def _section_available(section: dict | None) -> bool:
     if not isinstance(section, dict):
         return False
@@ -205,14 +212,14 @@ def check_hongtang_period_template(template: Path, manifest: dict | None = None)
         ("健康监测系统运行状况", "1.4 health-status section anchor"),
         ("交通状况监测", "WIM section start anchor"),
         ("结构应变监测", "WIM section end / next-section anchor"),
-        ("2026年3月交通状况监测", "WIM monthly heading template"),
         ("桥梁共通过车辆", "WIM paragraph template"),
         ("季度交通状况分月统计表", "WIM quarterly table caption template"),
-        ("续表 4-3", "WIM continuation caption template"),
         ("桥梁交通流参数分析", "WIM figure caption template"),
     ]
     for fragment, note in required:
         _add_missing_fragment(issues, texts, fragment, note)
+    _add_missing_pattern(issues, texts, r"\d{4}年\d{1,2}月交通状况监测", "WIM monthly heading template")
+    _add_missing_pattern(issues, texts, r"续表\s*4-\d+", "WIM continuation caption template")
 
     if manifest:
         sections = manifest.get("sections", {})

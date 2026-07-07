@@ -16,6 +16,7 @@ if str(REPORTING_DIR) not in sys.path:
 
 from build_quarterly_wim_sample import (  # noqa: E402
     add_caption_paragraph_before,
+    add_topn_cont_table,
     capture_paragraph_template,
     overload_counts_text,
 )
@@ -81,6 +82,42 @@ class WimAutoCaptionTests(unittest.TestCase):
         }
 
         self.assertEqual(_pattern_for_point(cfg, "wind_speed", "W1", file_id="20260630"), "*20260630*.csv")
+
+    def test_wim_continued_table_falls_back_when_template_has_too_few_columns(self) -> None:
+        doc = Document()
+        template_para = doc.add_paragraph("template")
+        caption_template = capture_paragraph_template(template_para)
+        bad_template_table = doc.add_table(rows=2, cols=1)
+        anchor = doc.add_paragraph("anchor")
+
+        add_topn_cont_table(
+            anchor,
+            "\u7eed\u8868 4-2\uff08\u8f74\u91cd\u5355\u4f4d\uff1akg\uff0c\u8f74\u8ddd\u5355\u4f4d\uff1am\uff09",
+            [
+                {
+                    "rank": 1,
+                    "axle1": 1000,
+                    "axle2": 2000,
+                    "axle3": 3000,
+                    "axle4": 4000,
+                    "axle5": 5000,
+                    "axle6": 6000,
+                    "axledis1": 1200,
+                    "axledis2": 2300,
+                    "axledis3": 3400,
+                    "axledis4": 4500,
+                    "axledis5": 5600,
+                }
+            ],
+            caption_template,
+            table_template=bad_template_table._tbl,
+        )
+
+        generated = doc.tables[-1]
+        self.assertEqual(len(generated.columns), 12)
+        self.assertEqual(generated.cell(1, 0).text, "1")
+        self.assertEqual(generated.cell(1, 7).text, "1.200")
+        self.assertEqual(generated.cell(1, 11).text, "5.600")
 
     def test_static_period_captions_are_converted_to_word_seq_fields(self) -> None:
         doc = Document()

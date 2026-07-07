@@ -13,14 +13,74 @@ from build_period_report import (  # noqa: E402
     _parse_word_page_count,
     _patch_hardcoded_total_pages_in_docx,
     _patch_hardcoded_total_pages_xml,
+    _patch_report_number_in_docx,
+    period_report_number,
     update_fields_with_word,
 )
+from report_build_manifest import build_report_manifest  # noqa: E402
+from report_context import ReportBuildContext  # noqa: E402
 
 
 class TestBuildPeriodReportWordUpdate(unittest.TestCase):
     def test_parse_word_page_count(self):
         self.assertEqual(_parse_word_page_count("BMS_WORD_PAGE_COUNT=79\n"), 79)
         self.assertIsNone(_parse_word_page_count("no page count"))
+
+    def test_period_report_number_uses_quarter_suffix(self):
+        from datetime import date
+
+        self.assertEqual(period_report_number(date(2026, 1, 1), date(2026, 3, 31)), "BG02FQJC2600002-J1")
+        self.assertEqual(period_report_number(date(2026, 4, 1), date(2026, 6, 30)), "BG02FQJC2600002-J2")
+
+    def test_report_build_manifest_keeps_report_number_extra(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            docx = root / "report.docx"
+            with zipfile.ZipFile(docx, "w") as z:
+                z.writestr("word/document.xml", "<w:document />")
+            context = ReportBuildContext.from_inputs(
+                template=root / "template.docx",
+                result_root=root,
+                analysis_root=root,
+                output_dir=root / "out",
+            )
+
+            payload = build_report_manifest(
+                context=context,
+                report_type="hongtang_period",
+                output_docx=docx,
+                timestamp="20260707_000000",
+                extra={"report_number": "BG02FQJC2600002-J2"},
+            )
+
+            self.assertEqual(payload["report_number"], "BG02FQJC2600002-J2")
+
+    def test_patch_report_number_docx_headers_and_body(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            docx = Path(tmp) / "report.docx"
+            document_xml = (
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                "<w:t>报告编号：BG02FQJC2600002-J1</w:t>"
+                "</w:document>"
+            )
+            header_xml = (
+                '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                "<w:t>报告编号：BG02FQJC2600002-J1</w:t>"
+                "</w:hdr>"
+            )
+            with zipfile.ZipFile(docx, "w") as z:
+                z.writestr("word/document.xml", document_xml)
+                z.writestr("word/header1.xml", header_xml)
+
+            count = _patch_report_number_in_docx(docx, "BG02FQJC2600002-J2")
+
+            self.assertEqual(count, 2)
+            with zipfile.ZipFile(docx) as z:
+                patched_body = z.read("word/document.xml").decode("utf-8")
+                patched_header = z.read("word/header1.xml").decode("utf-8")
+            self.assertIn("BG02FQJC2600002-J2", patched_body)
+            self.assertIn("BG02FQJC2600002-J2", patched_header)
+            self.assertNotIn("BG02FQJC2600002-J1", patched_body + patched_header)
 
     def test_patch_hardcoded_total_pages_xml(self):
         xml = (

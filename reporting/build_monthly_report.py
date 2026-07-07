@@ -19,6 +19,7 @@ from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from analysis_manifest import missing_module_summary_items
+from docx_utils import remove_nearby_picture_block_before
 from docx_table_utils import center_cell, find_table_by_header
 from stats_lookup import resolve_from_analysis_manifest
 from excel_utils import load_sheet_rows as load_xlsx_rows
@@ -443,6 +444,7 @@ def ensure_note_before_caption(doc: Document, caption_fragment: str, note_text: 
 
 def insert_picture_before_caption(doc: Document, caption_text: str, image_path: Path, width_mm: float = 165.0) -> None:
     caption = find_last_paragraph(doc, caption_text)
+    remove_nearby_picture_block_before(caption)
     pic_para = insert_paragraph_before(caption)
     pic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = pic_para.add_run()
@@ -451,6 +453,7 @@ def insert_picture_before_caption(doc: Document, caption_text: str, image_path: 
 
 def insert_picture_before_caption_contains(doc: Document, caption_fragment: str, image_path: Path, width_mm: float = 165.0) -> None:
     caption = find_last_paragraph_contains(doc, caption_fragment)
+    remove_nearby_picture_block_before(caption)
     pic_para = insert_paragraph_before(caption)
     pic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = pic_para.add_run()
@@ -466,6 +469,7 @@ def insert_labeled_images_before_caption_contains(
     stop_text: str | None = None,
 ) -> None:
     caption = find_last_paragraph_contains_scoped(doc, caption_fragment, anchor_text=anchor_text, stop_text=stop_text)
+    remove_nearby_picture_block_before(caption)
     for item in items:
         if item.path is None or not item.path.exists():
             continue
@@ -834,7 +838,7 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
             max_rms = cable.get("max_rms")
             if max_abs is not None and max_rms is not None:
                 cable_parts.append(
-                    f"监测结果表明吊索加速度各测点绝对最大值为{max_abs:.2f}m/s²，"
+                    f"监测结果表明，吊索加速度各测点绝对最大值为{max_abs:.2f}m/s²，"
                     f"各测点10min加速度均方根值最大为{max_rms:.2f}m/s²，"
                     "未超过1000m/s²，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
                 )
@@ -846,14 +850,14 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
             if min_change is not None and max_change is not None:
                 cable_parts.append(
                     f"与成桥索力相比，索力变化范围在{min_change:.2f}%~{max_change:.2f}%之间，"
-                    "与成桥索力相比变化范围在10%以内，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
+                    "变化幅度均在10%以内，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
                 )
             else:
                 cable_parts.append("索力时程及统计结果见正文图表。")
         replacements["吊索索力监测"] = ["".join(cable_parts)]
     if section_is_available("wind", wind):
         replacements["风向风速监测"] = [
-            f"监测结果表明，桥面10min平均风速最大值为{wind.get('max_10min', 0):.2f}m/s，"
+            f"监测结果表明，桥面 10min 平均风速最大值为{wind.get('max_10min', 0):.2f}m/s，"
             "未超过25m/s，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
         ]
     if section_is_available("eq", eq):
@@ -1310,11 +1314,11 @@ def build_wind_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
 
     if max_10min is not None:
         summary = (
-            f"监测结果如表4-12所示。监测结果表明，桥面10min平均风速最大值为{max_10min:.2f}m/s，"
+            f"监测结果如表4-12所示。监测结果表明，桥面 10min 平均风速最大值为{max_10min:.2f}m/s，"
             f"未超过25m/s，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
         )
     else:
-        summary = "监测结果如表4-12所示。桥面10min平均风速与风玫瑰结果见下图。"
+        summary = "监测结果如表4-12所示。桥面 10min 平均风速与风玫瑰结果见下图。"
 
     return {
         "enabled": True,
@@ -1322,7 +1326,7 @@ def build_wind_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
         "max_10min": max_10min,
         "speed_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in speed_items],
         "rose_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in rose_items],
-        "speed_caption": "桥面10min平均风速时程图",
+        "speed_caption": "桥面 10min 平均风速时程图",
         "rose_caption": "风玫瑰图",
         "table_rows": table_rows,
         "image_lookup": {

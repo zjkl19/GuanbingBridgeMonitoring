@@ -1,10 +1,70 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-07-07 Hongtang Q2 v1.7.22 Period Template Hardening
+
+Current accepted code/report state:
+
+- GUI/report version bumped to `v1.7.22`.
+- Release tag planned: `v1.7.22`.
+- Scope:
+  - add the official Hongtang period-report auto template:
+    `reports/洪塘大桥健康监测周期报模板-自动报告.docx`;
+  - default Hongtang period-report profiles to the 2026 Q2 data root,
+    monitoring range, report date, and auto template;
+  - derive the quarterly report number automatically, with an explicit
+    `--report-number` override for CLI recovery runs;
+  - generalize WIM caption/table anchors so static captions are located by
+    content rather than one fixed table title;
+  - validate copied WIM continuation tables before reuse, and fall back to a
+    standard table if the template table is not addressable by the required
+    row/column layout;
+  - remove stale picture/short-label blocks before target captions when a
+    manually checked report is reused as the next generator template.
+
+133 production verification:
+
+- 133 source path during validation: `F:\Guanbing`, patched on top of
+  `f1c9b21` / `v1.7.21`.
+- Focused Python report tests passed on both local and 133:
+  `tests_py.test_docx_image_blocks`,
+  `tests_py.test_wim_auto_captions`,
+  `tests_py.test_build_period_report_word_update`,
+  `tests_py.test_hongtang_period_followups`,
+  `tests_py.test_bridge_profiles`.
+- Compile checks passed for `reporting` and `tests_py` on both local and 133.
+- Hongtang Q2 period report regenerated on 133 in `110.38` seconds:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260707_150151.docx`.
+- Report manifest:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260707_150151.json`.
+- Manifest result: `status=ok`, `missing_count=0`, `warnings_count=0`,
+  `report_qc_status=ok`, `report_number=BG02FQJC2600002-J2`.
+- The generated report contains `183` media files and `189` drawings. An
+  earlier validation build exposed duplicated template figures with `314`
+  drawings and a `127` page render; `remove_nearby_picture_block_before`
+  corrected this to the accepted page count.
+
+Final local QA copy:
+
+- `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_template_report_20260707_150151`.
+- Word COM exported an `82` page PDF and all `82` pages rendered to PNG.
+- Low-content rendered pages: only page `2`, consistent with the intentional
+  blank/separator page.
+- PDF text checks found no `引用源未找到`, `错误!`, `错误！未定义书签`,
+  `Error!`, `${`, or `{{`.
+- Cover shows report number `BG02FQJC2600002-J2` and date `2026年07月10日`.
+- Earthquake summary text and rendered figures are aligned: horizontal peak
+  `0.018m/s²`, vertical peak `0.019m/s²`, and `EQ-X/Y/Z` figure markers extend
+  through `2026-06-30`.
+- Wind section check: bridge-deck 10-minute average maximum is `5.46m/s`, and
+  wind/earthquake captions/tables render in the expected section.
+- Checked PDF copied back to 133:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\hongtang_q2_template_report_20260707_150151_word_checked.pdf`.
 
 ## 2026-07-06 Hongtang Q2 v1.7.21 Plot Extrema Consistency
 
