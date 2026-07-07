@@ -11,7 +11,8 @@ This file is the handoff point for long Codex sessions. New conversations should
 Current accepted code/report state:
 
 - GUI/report version bumped to `v1.7.22`.
-- Release tag planned: `v1.7.22`.
+- Release commit: `60e37ca` plus follow-up sync-status documentation commit.
+- Release tag: `v1.7.22`.
 - Scope:
   - add the official Hongtang period-report auto template:
     `reports/洪塘大桥健康监测周期报模板-自动报告.docx`;
@@ -31,6 +32,9 @@ Current accepted code/report state:
 
 - 133 source path during validation: `F:\Guanbing`, patched on top of
   `f1c9b21` / `v1.7.21`.
+- After publish, 133 `F:\Guanbing` was fast-forwarded to `origin/main` /
+  `v1.7.22` and left with a clean worktree. The pre-publish validation patch
+  was retained as `stash@{0}: pre_v1722_validation_backup`.
 - Focused Python report tests passed on both local and 133:
   `tests_py.test_docx_image_blocks`,
   `tests_py.test_wim_auto_captions`,

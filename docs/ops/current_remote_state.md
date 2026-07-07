@@ -104,10 +104,12 @@ state and keep algorithm/report decisions in the normal project docs.
 
 ### Hongtang Bridge Q2 v1.7.22 Period Template Hardening
 
-- Status: production report validation completed on 2026-07-07 15:01 CST;
-  publish/sync cleanup is the next step.
+- Status: completed on 2026-07-07 15:25 CST.
 - 133 code state during validation: `F:\Guanbing` had the `v1.7.22`
   working-tree patch applied on top of `f1c9b21` / `v1.7.21`.
+- Final 133 code state: clean `F:\Guanbing` at `origin/main` / `v1.7.22`.
+  The pre-publish validation patch is retained as
+  `stash@{0}: pre_v1722_validation_backup`.
 - Remote focused tests passed with `D:\Python310\python.exe`:
   `tests_py.test_docx_image_blocks`,
   `tests_py.test_wim_auto_captions`,
@@ -138,8 +140,9 @@ state and keep algorithm/report decisions in the normal project docs.
   - using a filled report as a template can retain old picture blocks before
     captions; the generator now removes stale picture/short-label blocks before
     inserting fresh figures.
-- Next action: publish `v1.7.22`, then make `F:\Guanbing` fast-forward to the
-  committed `origin/main` state and leave the 133 worktree clean.
+- Publish/sync note: direct GitHub `fetch/pull` on 133 hung during this run, so
+  the final fast-forward was completed through a local git bundle copied from
+  the development machine. The temporary bundle was deleted after sync.
 
 ### Hongtang Bridge Q2 v1.7.21 Plot Extrema Consistency
 
