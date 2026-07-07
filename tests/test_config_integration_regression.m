@@ -36,6 +36,14 @@ classdef test_config_integration_regression < matlab.unittest.TestCase
                 clear cleanup;
             end
         end
+
+        function hongtangQ2Sl8CleansNegativeValues(tc)
+            rootDir = project_root();
+            cfg = load_config(fullfile(rootDir, 'config', 'hongtang_config.json'));
+
+            tc.verifyEqual(cfg.per_point.strain.SL_8.thresholds.min, 0);
+            tc.verifyEqual(cfg.per_point.strain.SL_8.thresholds.max, 150);
+        end
     end
 end
 

@@ -2228,7 +2228,7 @@
         },
         "offset_correction": 100,
         "thresholds": {
-          "min": -150,
+          "min": 0,
           "max": 150,
           "t_range_start": "",
           "t_range_end": ""

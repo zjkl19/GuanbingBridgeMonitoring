@@ -6,6 +6,58 @@ Last updated: 2026-07-07
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-07 Hongtang Q2 SL-8 Negative Strain Cleaning
+
+Current accepted code/report state:
+
+- This is a post-`v1.7.22` Hongtang Q2 data-cleaning adjustment; GUI/report
+  version remains `v1.7.22`.
+- `config/hongtang_config.json` now applies a point-specific Q2 static-strain
+  threshold for `SL-8`: remove values `< 0` or `> 150`.
+- The existing `SL-8` `offset_correction = 100`, alarm bounds, and other
+  tower strain point thresholds were not changed.
+- Regression coverage: `tests/test_config_integration_regression.m` asserts
+  `SL_8.thresholds.min == 0` and `max == 150`.
+
+Validation and production run:
+
+- Local MATLAB tests passed:
+  `tests/test_config_integration_regression.m`,
+  `tests/test_hongtang_lowfreq_loader.m`,
+  `tests/test_cleaning_pipeline.m`,
+  `tests/test_post_filter_thresholds.m`.
+- 133 ran the same focused MATLAB tests successfully after applying the
+  validation patch.
+- 133 strain rerun:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_sl8_negative_clean_20260707_172058`
+  - MATLAB run status: `ok`.
+  - MATLAB elapsed inside run: `352.20` seconds.
+  - Analysis manifest:
+    `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260707_172811.json`.
+  - Updated stats:
+    `E:\洪塘大桥数据\2026年4-6月\stats\strain_stats.xlsx`.
+  - Stats check: `SL-8` row has `Min=0.378`, `Max=127.25`,
+    `Mean=75.545`.
+- 133 report regenerated:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260707_173019.docx`.
+- Report manifest:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260707_173019.json`.
+- Manifest result: `status=ok`, `missing_count=0`,
+  `report_qc_status=ok`, `report_number=BG02FQJC2600002-J2`.
+- Final local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_sl8_negative_clean_20260707_173019`.
+  - DOCX OOXML/text checks found no saved `引用源未找到`,
+    `错误！未定义书签`, `Error!`, `${`, or `{{` tokens.
+  - DOCX contains `187` media files and `185` drawing elements.
+  - LibreOffice rendered PDF is available for fallback inspection, but it is
+    not an acceptance render for this template because it mis-renders Word
+    cross-reference fields as `引用源未找到` and paginates to `110` pages while
+    the document fields still show `共 82 页`.
+  - Local Word COM automation failed even on a small smoke document in this
+    session; 133 Word COM direct PDF export also failed to open this document.
+    Treat Word/WPS manual render as the remaining layout check before external
+    release if strict Word-rendered PDF evidence is required.
+
 ## 2026-07-07 Hongtang Q2 v1.7.22 Period Template Hardening
 
 Current accepted code/report state:

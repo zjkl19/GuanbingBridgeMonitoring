@@ -102,6 +102,45 @@ state and keep algorithm/report decisions in the normal project docs.
 
 ## Active Remote Tasks On 133
 
+### Hongtang Bridge Q2 SL-8 Negative Strain Cleaning
+
+- Status: completed on 2026-07-07 17:31 CST.
+- 133 code state during validation: `F:\Guanbing` had a working-tree patch on
+  top of `109a7bd` / `v1.7.22`.
+- Final 133 code state: clean `F:\Guanbing` at the committed `origin/main`
+  state for this `SL-8` cleanup.
+- Config policy applied:
+  - `SL-8` static strain now cleans values `< 0` and `> 150`;
+  - other static-strain thresholds, alarm bounds, and offset corrections were
+    not changed.
+- Remote focused MATLAB tests passed:
+  `tests/test_config_integration_regression.m`,
+  `tests/test_hongtang_lowfreq_loader.m`,
+  `tests/test_cleaning_pipeline.m`,
+  `tests/test_post_filter_thresholds.m`.
+- Strain rerun:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_sl8_negative_clean_20260707_172058`
+  - Run status: `ok`.
+  - MATLAB elapsed inside run: `352.20` seconds.
+  - Updated stats:
+    `E:\洪塘大桥数据\2026年4-6月\stats\strain_stats.xlsx`.
+  - Analysis manifest:
+    `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260707_172811.json`.
+  - Stats check: `SL-8 Min=0.378`, `Max=127.25`, `Mean=75.545`.
+- Report regeneration:
+  - DOCX:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260707_173019.docx`.
+  - Manifest:
+    `E:\洪塘大桥数据\2026年4-6月\自动报告\period_report_manifest_20260707_173019.json`.
+  - Manifest status: `ok`; `missing_count=0`; `report_qc_status=ok`; report
+    number `BG02FQJC2600002-J2`.
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_sl8_negative_clean_20260707_173019`.
+- Render note: local Word COM automation was unavailable in this run, and
+  133 Word COM direct PDF export failed to open the regenerated DOCX. The
+  DOCX/manifest/QC/stat checks passed, but strict Word-rendered PDF evidence
+  was not produced in this run.
+
 ### Hongtang Bridge Q2 v1.7.22 Period Template Hardening
 
 - Status: completed on 2026-07-07 15:25 CST.
