@@ -2511,6 +2511,70 @@ Cable-acceleration threshold sweep and `[-100,100] m/s^2` candidate on 2026-05-2
   - Cable acceleration stats updated at `D:\芝山大桥数据\2026年1-3月\stats\cable_accel_stats.xlsx`.
 - Release action requested by user: commit, push, create tag, and include GUI version / README / state-document updates.
 
+## 2026-07-08 Zhishan April Cleanup And Report Regeneration
+
+- Target production machine/data root:
+  `133:F:\芝山大桥数据\2026年4月`.
+- Final generated report on 133:
+  `F:\芝山大桥数据\2026年4月\自动报告\芝山大桥健康监测2026年4月份月报_自动生成_20260708_133148.docx`.
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\zhishan_report_20260708_133148\zhishan_202604_report_20260708_133148.docx`.
+- Local render QA output:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\zhishan_report_20260708_133148\rendered`.
+- Source-data note: the April data root has no `2026-04-02` dated source
+  folder. Cable force spectrum sheets therefore show that date blank; this is
+  a source-data gap, not a cleaning/report bug.
+- April-specific cleaning policy now in `config/zhishan_config.json`:
+  - `bearing_displacement / DX-1~DX-4`: clean outside `[-80, 80]` mm for
+    `2026-04-01` to `2026-04-30`, preserving March `[-100, 100]`.
+  - `strain / SX-1~SX-10`: clean outside the confirmed level-2 groups:
+    `SX-1/2/9/10=[-283,414]`, `SX-3/4/7/8=[-218,298]`,
+    `SX-5/6=[-252,405]`.
+  - `dynamic_strain` and `dynamic_strain_lowpass`: added April
+    `post_filter_thresholds` with the same level-2 bounds so high/low-pass
+    derived report figures and stats are also cleaned.
+  - `cable_accel / CF-1~CF-8`: April fixed offsets
+    `CF-1=-2000`, `CF-2=-2000`, `CF-3=29000`, `CF-4=29000`, `CF-5=29000`,
+    `CF-6=-200`, `CF-7=-1500`, `CF-8=2000`, then clean outside
+    `[-3000, 3000]`.
+  - `cable_accel` plot style now uses auto y-limits for all CF points.
+- Code fixes made during this run:
+  - `+bms/+data/CleaningPipeline.m`: supports date-scoped fixed
+    `offset_correction` rules.
+  - `pipeline/resolve_post_filter_thresholds.m`: accepts JSON-loaded
+    cell-of-struct post-filter rules and normalizes missing `min/max` fields.
+  - `reporting/build_zhishan_monthly_report.py`: normalizes visible
+    `图/表 n-m` captions to plain text to remove stale Word REF fields that
+    render as `错误：引用源未找到`.
+- Remote rerun evidence:
+  - Main April cleanup run:
+    `F:\Guanbing\run_logs\remote_tasks\zhishan_202604_april_clean_20260708_121250`.
+  - Dynamic strain high/low-pass refresh:
+    `F:\Guanbing\run_logs\remote_tasks\zhishan_dynamic_20260708_131627`,
+    final status `complete/ok`.
+- Remote validation:
+  - `bearing_displacement_stats.xlsx`: all original/filter min/max within
+    `[-80,80]`.
+  - `strain_stats.xlsx`: all SX min/max within their level-2 groups.
+  - `dynamic_strain_highpass_stats.xlsx` and
+    `dynamic_strain_lowpass_stats.xlsx`: all sheets/groups within their
+    level-2 groups; low-pass `SX-5/SX-6` max now caps at `405.0/398.0`.
+  - `cable_accel_stats.xlsx`: all CF min/max within `[-3000,3000]`.
+  - CF offset report:
+    `F:\芝山大桥数据\2026年4月\run_logs\offset_correction_applied_20260708_121344.xlsx`.
+- Report QA:
+  - Report builder runtime about `14` seconds for the final build.
+  - Manifest `status=ok`, `missing_count=0`, `warnings=[]`.
+  - DOCX text QA found no `引用源未找到`, `错误`, `未定义书签`, `Error!`,
+    leftover template tokens, or common mojibake.
+  - Rendered `47` PNG pages locally; spot-checked DX, dynamic strain
+    high/low-pass, and CF pages. The earlier stale caption-field error was
+    fixed in the final render.
+- Local/remote tests passed:
+  - `matlab -batch "cd('D:\MatlabProjects\Guanbing'); addpath(genpath(pwd)); results = runtests({'tests/test_cleaning_pipeline.m','tests/test_post_filter_thresholds.m','tests/test_zhishan_config.m'}); assertSuccess(results);"`
+  - `python tests\test_zhishan_report_assets.py`
+  - Same focused MATLAB config/post-filter tests passed on 133.
+
 ## Context-Compression Recovery Rule
 
 If a Codex conversation stalls on automatic context compaction for more than 5 to 10 minutes, stop waiting. Terminate/restart Codex and open a new thread.

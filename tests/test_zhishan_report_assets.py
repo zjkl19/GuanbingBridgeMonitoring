@@ -1,11 +1,14 @@
 from pathlib import Path
 import sys
 
+from docx import Document
+from docx.oxml import OxmlElement
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "reporting"))
 
-from build_zhishan_monthly_report import zhishan_image_replacements  # noqa: E402
+from build_zhishan_monthly_report import normalize_caption_fields, zhishan_image_replacements  # noqa: E402
 
 
 def _touch(path: Path) -> Path:
@@ -45,9 +48,24 @@ def test_zhishan_report_uses_program_output_images(tmp_path):
     assert all(path.parent.parent.name == "PSD_备查_索力加速度" for path in replacements["图 2-22"])
 
 
+def test_normalize_caption_fields_removes_stale_ref_field():
+    doc = Document()
+    paragraph = doc.add_paragraph()
+    run = paragraph.add_run("\u56fe 2-1 Caption")
+    instr = OxmlElement("w:instrText")
+    instr.text = " REF _RefMissing "
+    run._r.append(instr)
+
+    assert paragraph._p.xpath(".//w:instrText")
+    assert normalize_caption_fields(doc) == 1
+    assert paragraph.text == "\u56fe 2-1 Caption"
+    assert not paragraph._p.xpath(".//w:instrText")
+
+
 if __name__ == "__main__":
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmp:
         test_zhishan_report_uses_program_output_images(Path(tmp))
+    test_normalize_caption_fields_removes_stale_ref_field()
     print("zhishan report asset smoke ok")

@@ -34,10 +34,22 @@ function thresholds = get_post_thresholds(block)
         return;
     end
     raw = block.post_filter_thresholds;
-    if isempty(raw) || ~isstruct(raw)
+    if isempty(raw)
         return;
     end
-    thresholds = raw(:);
+    if iscell(raw)
+        for i = 1:numel(raw)
+            item = raw{i};
+            if isstruct(item)
+                thresholds = merge_thresholds(thresholds, normalize_thresholds(item)); %#ok<AGROW>
+            end
+        end
+        return;
+    end
+    if ~isstruct(raw)
+        return;
+    end
+    thresholds = normalize_thresholds(raw);
 end
 
 function out = merge_thresholds(base, extra)
@@ -49,5 +61,28 @@ function out = merge_thresholds(base, extra)
         out = extra(:);
     else
         out = [out(:); extra(:)];
+    end
+end
+
+function out = normalize_thresholds(raw)
+    out = struct('min', {}, 'max', {}, 't_range_start', {}, 't_range_end', {});
+    if isempty(raw) || ~isstruct(raw)
+        return;
+    end
+    raw = raw(:);
+    out(numel(raw), 1) = struct('min', [], 'max', [], 't_range_start', '', 't_range_end', '');
+    for i = 1:numel(raw)
+        if isfield(raw(i), 'min')
+            out(i).min = raw(i).min;
+        end
+        if isfield(raw(i), 'max')
+            out(i).max = raw(i).max;
+        end
+        if isfield(raw(i), 't_range_start')
+            out(i).t_range_start = raw(i).t_range_start;
+        end
+        if isfield(raw(i), 't_range_end')
+            out(i).t_range_end = raw(i).t_range_end;
+        end
     end
 end

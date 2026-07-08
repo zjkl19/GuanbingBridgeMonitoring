@@ -127,6 +127,23 @@ classdef test_cleaning_pipeline < matlab.unittest.TestCase
             tc.verifyEqual(log.threshold_removed_count, 1);
         end
 
+        function appliesFixedOffsetWithinConfiguredRange(tc)
+            t = datetime(2026,3,31,0,0,0) + days(0:2)';
+            v = [10; 10; 10];
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.offset_correction = struct( ...
+                'mode', 'fixed', ...
+                'value', 5, ...
+                'start_date', '2026-04-01', ...
+                'end_date', '2026-04-30');
+
+            [out, log] = bms.data.CleaningPipeline.apply(v, t, rules);
+
+            tc.verifyEqual(out, [10; 15; 15], 'AbsTol', 1e-12);
+            tc.verifyTrue(log.offset_applied);
+            tc.verifyEqual(log.offset_correction, 5, 'AbsTol', 1e-12);
+        end
+
         function dailyMedianOffsetKeepsInputShape(tc)
             t = datetime(2026,3,3,0,0,0) + minutes(0:2);
             v = [100 102 104];

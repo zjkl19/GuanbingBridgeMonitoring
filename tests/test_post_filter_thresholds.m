@@ -29,6 +29,26 @@ classdef test_post_filter_thresholds < matlab.unittest.TestCase
             tc.verifyEqual(ths(2).max, 5);
         end
 
+        function mergeCellArrayRulesFromJsonLikeConfig(tc)
+            cfg = struct();
+            cfg.per_point = struct();
+            cfg.per_point.dynamic_strain_lowpass = struct();
+            cfg.per_point.dynamic_strain_lowpass.SX_3 = struct( ...
+                'post_filter_thresholds', {{ ...
+                    struct('max', 20, ...
+                        't_range_start', '2026-03-01 00:00:00', ...
+                        't_range_end', '2026-03-31 23:59:59'), ...
+                    struct('min', -218, 'max', 298, ...
+                        't_range_start', '2026-04-01 00:00:00', ...
+                        't_range_end', '2026-04-30 23:59:59')}});
+
+            ths = resolve_post_filter_thresholds(cfg, 'dynamic_strain_lowpass', 'SX-3');
+            tc.verifyEqual(numel(ths), 2);
+            tc.verifyEqual(ths(1).max, 20);
+            tc.verifyEqual(ths(2).min, -218);
+            tc.verifyEqual(ths(2).max, 298);
+        end
+
         function applyTimeWindowThresholdRules(tc)
             times = datetime(2025,1,1,0,0,0) + minutes(0:3);
             vals = [1; 20; 3; 40];

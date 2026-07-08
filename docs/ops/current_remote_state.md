@@ -625,3 +625,41 @@ Known accepted fixes from the July 2026 remote runs:
 - `+bms/+data/DonghuaExportNormalizer.m`: staged on local and 133 during
   Guanbing 2026-06 repair; commit/push this snapshot before treating it as a
   release baseline.
+
+## Zhishan April 2026 Production Run
+
+Last observed on 133 at 2026-07-08 CST.
+
+- Data root: `F:\芝山大桥数据\2026年4月`
+- Source-data gap: `2026-04-02` dated folder was absent. The regenerated cable
+  force spectrum workbook therefore keeps 2026-04-02 blank; this is a source
+  coverage issue rather than a processing failure.
+- Main run directory:
+  `F:\Guanbing\run_logs\remote_tasks\zhishan_202604_april_clean_20260708_121250`
+  - Final status: `complete`, `ok`.
+  - Runtime: about `28` minutes.
+  - Updated modules: bearing displacement, structural strain, cable
+    acceleration, cable acceleration spectrum, and offset report.
+- Dynamic strain refresh directory:
+  `F:\Guanbing\run_logs\remote_tasks\zhishan_dynamic_20260708_131627`
+  - Final status: `complete`, `ok`.
+  - Refreshed highpass and lowpass dynamic strain outputs after the report QA
+    found that derived dynamic strain figures still needed the same April
+    level-2 cleaning rules.
+- Final report:
+  `F:\芝山大桥数据\2026年4月\自动报告\芝山大桥健康监测2026年4月份月报_自动生成_20260708_133148.docx`
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\zhishan_report_20260708_133148\zhishan_202604_report_20260708_133148.docx`
+- Local rendered pages:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\zhishan_report_20260708_133148\rendered`
+- Validation summary:
+  - bearing displacement Orig/Filt min/max stayed within `[-80,80]`;
+  - structural strain stayed within the configured April level-2 thresholds;
+  - dynamic strain highpass/lowpass stayed within the configured April level-2
+    thresholds after the refresh;
+  - cable acceleration stayed within `[-3000,3000]`;
+  - CF-1..CF-8 fixed offsets were logged in
+    `offset_correction_applied_20260708_121344.xlsx`;
+  - report manifest was `ok`, with `missing_count=0`, `warnings=0`;
+  - local render produced `47` pages and no `引用源未找到`, `错误`, `未定义书签`,
+    replacement tokens, or common mojibake were found.

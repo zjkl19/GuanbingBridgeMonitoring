@@ -240,6 +240,11 @@ classdef CleaningPipeline
             if isempty(raw), return; end
             if isstruct(raw)
                 mode = bms.data.CleaningPipeline.offsetMode(raw);
+                if isempty(mode) && bms.data.CleaningPipeline.hasFixedOffsetValue(raw)
+                    raw.mode = 'fixed';
+                    offset = raw;
+                    return;
+                end
                 if bms.data.CleaningPipeline.isSupportedOffsetMode(mode)
                     offset = raw;
                     return;
@@ -290,6 +295,11 @@ classdef CleaningPipeline
             if ~bms.data.CleaningPipeline.isSupportedOffsetMode(mode)
                 return;
             end
+            if any(strcmp(mode, {'fixed', 'constant'})) && ...
+                    (isempty(times) || isempty(vals) || numel(times) ~= numel(vals))
+                offset = bms.data.CleaningPipeline.fixedOffsetValue(raw);
+                return;
+            end
             if isempty(times) || isempty(vals) || numel(times) ~= numel(vals)
                 return;
             end
@@ -311,6 +321,11 @@ classdef CleaningPipeline
                 return;
             end
             switch mode
+                case {'fixed', 'constant'}
+                    value = bms.data.CleaningPipeline.fixedOffsetValue(raw);
+                    if isempty(value), return; end
+                    offset = zeros(size(vals));
+                    offset(valid) = value;
                 case {'first_day_mean', 'earliest_day_mean'}
                     firstDay = dateshift(min(times(valid)), 'start', 'day');
                     dayMask = valid & times >= firstDay & times < firstDay + days(1);
@@ -344,6 +359,7 @@ classdef CleaningPipeline
 
         function tf = isSupportedOffsetMode(mode)
             tf = any(strcmp(lower(char(string(mode))), { ...
+                'fixed', 'constant', ...
                 'first_day_mean', 'earliest_day_mean', ...
                 'daily_mean', 'day_mean', 'daily_median', 'day_median'}));
         end
@@ -361,6 +377,10 @@ classdef CleaningPipeline
         end
 
         function out = compactOffsetLogValue(offset, raw)
+            if isstruct(raw) && bms.data.CleaningPipeline.hasFixedOffsetValue(raw)
+                out = bms.data.CleaningPipeline.fixedOffsetValue(raw);
+                return;
+            end
             if isnumeric(offset) && isscalar(offset)
                 out = offset;
                 return;
@@ -376,6 +396,32 @@ classdef CleaningPipeline
                 out.min = min(finite);
                 out.max = max(finite);
                 out.mean = mean(finite, 'omitnan');
+            end
+        end
+
+        function tf = hasFixedOffsetValue(raw)
+            tf = isstruct(raw) && (isfield(raw, 'value') || isfield(raw, 'offset') || isfield(raw, 'offset_value'));
+        end
+
+        function value = fixedOffsetValue(raw)
+            value = [];
+            if ~isstruct(raw), return; end
+            if isfield(raw, 'value')
+                value = raw.value;
+            elseif isfield(raw, 'offset')
+                value = raw.offset;
+            elseif isfield(raw, 'offset_value')
+                value = raw.offset_value;
+            else
+                return;
+            end
+            if ischar(value) || isstring(value)
+                value = str2double(char(string(value)));
+            end
+            if ~(isnumeric(value) && isscalar(value) && isfinite(value))
+                value = [];
+            else
+                value = double(value);
             end
         end
 

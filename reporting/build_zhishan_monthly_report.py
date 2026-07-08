@@ -13,6 +13,7 @@ from typing import Iterable
 from docx import Document
 from docx.document import Document as DocxDocument
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
 from docx.shared import Mm, Pt
 from openpyxl import load_workbook
 
@@ -454,6 +455,32 @@ def replace_text_in_paragraph(paragraph, text: str) -> None:
             run.text = ""
     else:
         paragraph.add_run(text)
+
+
+def replace_paragraph_plain_text(paragraph, text: str) -> None:
+    """Replace paragraph content and remove stale Word field nodes."""
+    for child in list(paragraph._p):
+        if child.tag != qn("w:pPr"):
+            paragraph._p.remove(child)
+    paragraph.add_run(text)
+
+
+def normalize_caption_fields(doc: DocxDocument) -> int:
+    """Convert visible figure/table captions to plain text.
+
+    Some legacy Zhishan templates keep hidden REF fields inside caption runs.
+    Those fields can render as "引用源未找到" even when python-docx sees a
+    normal caption such as "图 2-5 ...".  The generated monthly report uses
+    fixed chapter captions, so removing those stale field nodes is safer than
+    refreshing them.
+    """
+    count = 0
+    for paragraph in doc.paragraphs:
+        text = paragraph.text.strip()
+        if re.match(r"^(图|表)\s+\d+-\d+\b", text):
+            replace_paragraph_plain_text(paragraph, text)
+            count += 1
+    return count
 
 
 def replace_first_by_prefix(doc: DocxDocument, prefix: str, text: str) -> bool:
@@ -1138,6 +1165,7 @@ def update_document(
     update_narrative(doc, context)
     update_summary_table(doc, context)
     warnings.extend(update_images(doc, result_root))
+    normalize_caption_fields(doc)
     return warnings
 
 

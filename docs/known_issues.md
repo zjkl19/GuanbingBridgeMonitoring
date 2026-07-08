@@ -194,3 +194,60 @@ Recommended tests:
 - `tests/test_main_gui_smoke.m`
 - `tests/test_gui_state_services.m`
 - `tests/test_path_profile_resolver.m`
+
+## Dynamic Filter Performance On Large Periods
+
+Status: known follow-up.
+
+Large dynamic-strain highpass/lowpass runs can spend most of their wall time in
+filtering and figure export. The April 2026 Zhishan refresh confirmed that the
+final report can be correct, but the current full-period filtering path is
+heavier than necessary for long periods.
+
+Recommended direction:
+
+- highpass results can likely be computed in daily or multi-day chunks with a
+  time overlap, then stitched after dropping the overlap edges;
+- lowpass results, especially with long cutoffs such as 12 hours, should not be
+  split into naive independent daily filters because boundary effects can be
+  visible. Prefer either downsample-before-lowpass or multi-day windows with
+  enough overlap;
+- add a validation harness that compares full-period filtering against the
+  proposed chunked/downsampled path on representative points and checks max
+  error, extrema, trend shape, and report-table consistency before making this
+  the default GUI path.
+
+## Report Caption Field Refresh
+
+Status: fixed for the current Zhishan monthly report builder; keep in QA.
+
+The Zhishan April report initially rendered captions such as
+`表 错误：引用源未找到-11` even though `python-docx` saw normal visible text. The
+cause was stale Word `REF` fields hidden inside caption paragraphs. The
+Zhishan builder now normalizes generated captions to plain text before Word
+field refresh.
+
+Recommended check:
+
+- every regenerated DOCX that uses an edited/manual template should still be
+  rendered locally or on the remote machine;
+- search rendered text for `引用源未找到`, `未定义书签`, `错误`, replacement tokens,
+  and common mojibake before accepting the report.
+
+## Remote MATLAB Launch With Chinese Paths
+
+Status: known operational issue.
+
+On 133, launching MATLAB through PowerShell `Start-Process` can fail or silently
+drop work when `-batch` arguments contain Chinese paths and nested quoting. The
+Zhishan dynamic refresh succeeded by using an ASCII task script that rebuilt the
+Chinese data path inside MATLAB with `native2unicode(uint8(...), 'UTF-8')` and
+tracking progress through a status JSON file.
+
+Recommended behavior:
+
+- prefer ASCII launcher scripts plus status JSON for unattended remote runs;
+- avoid treating a lingering MATLAB process as failure when status JSON and
+  output artifacts already show completion;
+- only stop batch MATLAB PIDs after confirming they belong to the current task,
+  and never stop a user GUI MATLAB process by name alone.
