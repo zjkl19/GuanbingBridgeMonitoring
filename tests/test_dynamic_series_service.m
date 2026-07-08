@@ -98,6 +98,14 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyTrue(any(keptTimes == times(73)));
             tc.verifyTrue(any(abs(keptVals + 20) < 1e-12));
             tc.verifyTrue(any(abs(keptVals - 8) < 1e-12));
+
+            spikeIdx = (5:10:95).';
+            vals = zeros(100, 1);
+            vals(spikeIdx) = (1:numel(spikeIdx)).';
+            [~, keptVals] = bms.analyzer.DynamicSeriesService.limitSeriesPoints(times, vals, 40);
+
+            tc.verifyLessThanOrEqual(numel(keptVals), 40);
+            tc.verifyTrue(all(ismember((1:numel(spikeIdx)).', keptVals)));
         end
 
         function collectRecordLoadsStatsAndRmsPeak(tc)

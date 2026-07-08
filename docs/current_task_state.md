@@ -6,6 +6,76 @@ Last updated: 2026-07-08
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-08 Zhishan Q2 Tight Cleaning And Plot Sampling
+
+Current accepted code/report state:
+
+- Scope: `gb-133` production data roots
+  `F:\芝山大桥数据\2026年4月`, `F:\芝山大桥数据\2026年5月`, and
+  `F:\芝山大桥数据\2026年6月`.
+- Cleaning/profile changes:
+  - bearing displacement `DX-1` to `DX-4` Q2 cleaning is now `[-35, 35]`
+    mm for both raw and filtered statistics/plots;
+  - static strain `SX-1` to `SX-10` Q2 cleaning is now `[-100, 100]`
+    microstrain;
+  - dynamic-strain highpass and lowpass post-filter cleaning also uses
+    `[-100, 100]` microstrain for Q2, while the March lowpass special
+    `max=20` rule is preserved;
+  - structural acceleration Q2 default cleaning is now `[-0.3, 0.3]`
+    m/s^2; raw acceleration time-history plot styles explicitly keep
+    `warn_lines=[]` and `group_warn_lines=[]`, while RMS warning lines are
+    retained;
+  - cable acceleration cleaning/offset rules remain the accepted April-June
+    rules from the previous Zhishan refinement.
+- Plotting change:
+  - `pipeline/prepare_plot_series.m` and
+    `bms.analyzer.DynamicSeriesService.limitSeriesPoints` now use
+    bucketed extrema-preserving sampling instead of uniform point sampling.
+    Each time bucket keeps its local min/max/absolute-extreme and endpoints,
+    so dense high-frequency time histories keep a continuous-looking envelope
+    when the plotted series is capped by `fig_max_points`.
+
+Validation and production run:
+
+- Local MATLAB validation passed with a clean explicit path:
+  `tests/test_prepare_plot_series_gap_mode.m`,
+  `tests/test_dynamic_series_service.m`, `tests/test_zhishan_config.m`,
+  `tests/test_cleaning_pipeline.m`, `tests/test_load_timeseries_range.m`,
+  `tests/test_bms_services.m`, and `tests/test_post_filter_thresholds.m`.
+- 133 focused validation passed:
+  `tests/test_prepare_plot_series_gap_mode.m`,
+  `tests/test_dynamic_series_service.m`, and `tests/test_zhishan_config.m`.
+- 133 production task directory:
+  `F:\Guanbing\run_logs\remote_tasks\zhishan_q2_tight_clean_20260708_224403`.
+- 133 reran the affected modules for April, May, and June:
+  `bearing_displacement`, `strain`, `dynamic_strain_highpass`,
+  `dynamic_strain_lowpass`, `acceleration`, `accel_spectrum`, and
+  `cable_accel`.
+- Stats QA passed on 133:
+  - bearing displacement raw/filtered min/max within `[-35, 35]`;
+  - static strain and dynamic-strain high/lowpass min/max within
+    `[-100, 100]`;
+  - structural acceleration min/max within `[-0.3, 0.3]`.
+- Source-data notes:
+  `F:\芝山大桥数据\2026年4月` has no `2026-04-02` source folder in the
+  current listing, and the earlier accepted June note still applies:
+  `F:\芝山大桥数据\2026年6月` has no `2026-06-19` source folder.
+- Reports regenerated on 133:
+  - `F:\芝山大桥数据\2026年4月\自动报告\芝山大桥健康监测2026年4月份月报_自动生成_20260709_005850.docx`
+  - `F:\芝山大桥数据\2026年5月\自动报告\芝山大桥健康监测2026年5月份月报_自动生成_20260709_005903.docx`
+  - `F:\芝山大桥数据\2026年6月\自动报告\芝山大桥健康监测2026年6月份月报_自动生成_20260709_005916.docx`
+- Report generation elapsed times were about `13` seconds each, well below
+  the 10 minute anomaly threshold.
+- Report manifests for all three reports returned `warnings=[]` and
+  `output_docx_image_count=58`.
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\zhishan_q2_tight_clean_20260709`.
+  The three reports rendered to `47` PNG pages each. Contact-sheet review and
+  key-image review found no large blank areas, missing-image pages, obvious
+  layout breaks, stale sparse high-frequency sampling, or raw acceleration
+  `±1` warning lines. Key image contact sheet:
+  `...\rendered\key_image_contact_sheet.jpg`.
+
 ## 2026-07-08 Zhishan May/June Monthly Report Refinement
 
 Current accepted code/report state:

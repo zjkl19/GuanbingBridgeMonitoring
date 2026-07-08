@@ -191,11 +191,77 @@ classdef DynamicSeriesService
                 valsOut = vals;
                 return;
             end
-            idx = unique([round(linspace(1, n, maxPoints)) ...
-                bms.analyzer.DynamicSeriesService.keySampleIndices(vals)], 'stable');
-            idx = sort(idx);
+            idx = bms.analyzer.DynamicSeriesService.pickPlotIndices(vals, maxPoints);
             timesOut = times(idx);
             valsOut = vals(idx);
+        end
+
+        function idx = pickPlotIndices(vals, maxPoints)
+            vals = vals(:);
+            n = numel(vals);
+            if n <= maxPoints
+                idx = 1:n;
+                return;
+            end
+
+            bucketCount = max(1, floor(maxPoints / 4));
+            edges = unique(round(linspace(1, n + 1, bucketCount + 1)), 'stable');
+            if edges(1) ~= 1
+                edges = [1 edges(:).']; %#ok<AGROW>
+            end
+            if edges(end) ~= n + 1
+                edges(end + 1) = n + 1; %#ok<AGROW>
+            end
+
+            keep = false(n, 1);
+            keep(1) = true;
+            keep(n) = true;
+            for k = 1:(numel(edges) - 1)
+                s = max(1, min(n, edges(k)));
+                e = max(1, min(n, edges(k + 1) - 1));
+                if s > e
+                    continue;
+                end
+                bucketIdx = (s:e).';
+                keep(s) = true;
+                keep(e) = true;
+
+                finiteIdx = bucketIdx(isfinite(vals(bucketIdx)));
+                if isempty(finiteIdx)
+                    continue;
+                end
+                finiteVals = vals(finiteIdx);
+                [~, minRel] = min(finiteVals);
+                [~, maxRel] = max(finiteVals);
+                [~, absRel] = max(abs(finiteVals));
+                keep(finiteIdx([minRel maxRel absRel])) = true;
+            end
+
+            idx = find(keep);
+            if numel(idx) > maxPoints
+                idx = bms.analyzer.DynamicSeriesService.trimPlotIndices( ...
+                    idx, bms.analyzer.DynamicSeriesService.keySampleIndices(vals), n, maxPoints);
+            end
+            idx = sort(idx(:)).';
+        end
+
+        function idx = trimPlotIndices(idx, protected, n, maxPoints)
+            idx = unique(idx(:), 'stable');
+            protected = unique([1; n; protected(:)], 'stable');
+            if numel(protected) >= maxPoints
+                sel = round(linspace(1, numel(protected), maxPoints));
+                idx = protected(sel);
+                return;
+            end
+
+            rest = setdiff(idx, protected, 'stable');
+            room = maxPoints - numel(protected);
+            if isempty(rest) || room <= 0
+                idx = protected;
+                return;
+            end
+            sel = unique(round(linspace(1, numel(rest), min(room, numel(rest)))), 'stable');
+            idx = [protected; rest(sel)];
         end
 
         function idx = keySampleIndices(vals)

@@ -185,6 +185,8 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.7.23` keeps the report GUI aligned with the Zhishan Q2 tight-clean rerun and rendered QA workflow. Report-builder behavior is unchanged from `v1.7.22`; the accepted reports were regenerated after rerunning the affected analysis modules and checking high-frequency key images.
+
 Version `v1.7.22` adds the official Hongtang period-report auto template, derives quarterly report numbers, generalizes WIM anchors, validates copied WIM template tables before reuse, and removes stale picture blocks around target captions before inserting fresh figures. This lets a manually checked Hongtang Q2 report serve as the template base without duplicate figures or WIM continuation-table failures.
 
 Version `v1.7.21` keeps the report GUI aligned with the MATLAB analysis release that preserves plot extrema across downsampled outputs and fixes earthquake peak/stat/marker consistency. The Hongtang Q2 report should be regenerated after rerunning the earthquake module so the summary and figures use the same full-resolution peak.

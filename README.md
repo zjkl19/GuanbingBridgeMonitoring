@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.23`: tightens Zhishan April-June cleaning for bearing displacement, strain, dynamic strain, and structural acceleration, and switches high-frequency plot reduction to bucketed local-extrema sampling so capped monthly time-history plots keep a continuous envelope.
+- `v1.7.23`：收紧芝山 4~6 月梁端位移、应变、动应变和结构加速度清洗规则，并将高频时程抽稀改为按时间桶保留局部极值，避免月度时程图因均匀抽点看起来像缺数据。
 - `v1.7.22`: keeps the MATLAB GUI aligned with the Hongtang Q2 period-report template hardening release; analysis behavior is unchanged from `v1.7.21`.
 - `v1.7.22`：同步洪塘 Q2 周期报模板与报告生成器加固版本；数据分析行为沿用 `v1.7.21`。
 - `v1.7.21`: preserves critical extrema when plotting or saving downsampled time series across all measurement types, makes earthquake stats expose signed absolute peaks, and aligns earthquake plot markers/text with the same full-resolution peak used by reports.
@@ -343,6 +345,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.23`: keeps the report GUI aligned with the Zhishan Q2 tight-clean rerun; report generation behavior is unchanged from `v1.7.22`, and the regenerated reports should be rendered and checked with high-frequency key-image contact sheets.
+- `v1.7.23`：同步芝山 Q2 收紧清洗与重算版本；报告生成逻辑沿用 `v1.7.22`，重生成后应渲染报告并用高频关键图联系表复核图片是否已替换且视觉连续。
 - `v1.7.22`: adds the official Hongtang period-report auto template, derives quarterly report numbers, generalizes WIM anchors, falls back from incompatible WIM template tables, and removes stale template images before inserting fresh figures so checked reports can be reused as templates without duplicated figures.
 - `v1.7.22`：新增正式洪塘周期报自动报告模板，自动推导季度报告编号，泛化 WIM 锚点，WIM 模板表格结构不兼容时自动回退为标准表格，并在插入新图前清理模板中的旧图，避免以已校核报告作模板时重复插图。
 - `v1.7.12`: commits the ShuiXianHua monthly builder period-label parsing and output filename generalization so source, CLI, smoke tests, and packaged exe builds stay consistent.

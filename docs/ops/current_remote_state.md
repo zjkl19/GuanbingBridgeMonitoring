@@ -17,6 +17,43 @@ state and keep algorithm/report decisions in the normal project docs.
   from this workstation is not routable.
 - 126 storage target: `\\192.168.100.126\H$\Guanbingwork`
 
+## gb-133 Zhishan Q2 Tight Cleaning Rerun
+
+- Status: completed after applying the local patch to `F:\Guanbing` for
+  production validation.
+- Production data roots:
+  - `F:\芝山大桥数据\2026年4月`
+  - `F:\芝山大桥数据\2026年5月`
+  - `F:\芝山大桥数据\2026年6月`
+- Remote task directory:
+  `F:\Guanbing\run_logs\remote_tasks\zhishan_q2_tight_clean_20260708_224403`.
+- Remote focused MATLAB validation passed with clean explicit paths:
+  `tests/test_prepare_plot_series_gap_mode.m`,
+  `tests/test_dynamic_series_service.m`, and `tests/test_zhishan_config.m`.
+- Reran affected modules for April-June:
+  `bearing_displacement`, `strain`, `dynamic_strain_highpass`,
+  `dynamic_strain_lowpass`, `acceleration`, `accel_spectrum`, and
+  `cable_accel`.
+- Stats boundary QA passed:
+  - bearing raw/filtered min/max within `[-35, 35]`;
+  - static strain and dynamic-strain high/lowpass min/max within
+    `[-100, 100]`;
+  - structural acceleration min/max within `[-0.3, 0.3]`.
+- Report outputs:
+  - `F:\芝山大桥数据\2026年4月\自动报告\芝山大桥健康监测2026年4月份月报_自动生成_20260709_005850.docx`
+  - `F:\芝山大桥数据\2026年5月\自动报告\芝山大桥健康监测2026年5月份月报_自动生成_20260709_005903.docx`
+  - `F:\芝山大桥数据\2026年6月\自动报告\芝山大桥健康监测2026年6月份月报_自动生成_20260709_005916.docx`
+- Report generation elapsed about `13` seconds per report. All three report
+  manifests had `warnings=[]` and `output_docx_image_count=58`.
+- Local QA bundle:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\zhishan_q2_tight_clean_20260709`.
+  Each DOCX rendered to `47` PNG pages; contact-sheet and key-image review
+  confirmed updated dense high-frequency time-history plots and no obvious
+  missing-image/layout failures.
+- Source-data notes observed during this rerun:
+  `2026年4月` has no `2026-04-02` source folder; `2026年6月` still has no
+  `2026-06-19` source folder.
+
 ## gb-133 Zhishan April 2026 Refinement
 
 - Status: completed on 2026-07-08.

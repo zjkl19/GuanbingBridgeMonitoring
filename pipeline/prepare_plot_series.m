@@ -113,10 +113,77 @@ function [x_out, y_out] = limit_plot_points(x, y, max_points)
     if n <= max_points
         return;
     end
-    idx = unique([round(linspace(1, n, max_points)) key_sample_indices(y)], 'stable');
-    idx = sort(idx);
+    idx = pick_plot_indices(y, max_points);
     x_out = x(idx);
     y_out = y(idx);
+end
+
+function idx = pick_plot_indices(y, max_points)
+    y = y(:);
+    n = numel(y);
+    if n <= max_points
+        idx = 1:n;
+        return;
+    end
+
+    bucket_count = max(1, floor(max_points / 4));
+    edges = unique(round(linspace(1, n + 1, bucket_count + 1)), 'stable');
+    if edges(1) ~= 1
+        edges = [1 edges(:).']; %#ok<AGROW>
+    end
+    if edges(end) ~= n + 1
+        edges(end + 1) = n + 1; %#ok<AGROW>
+    end
+
+    keep = false(n, 1);
+    keep(1) = true;
+    keep(n) = true;
+    for k = 1:(numel(edges) - 1)
+        s = max(1, min(n, edges(k)));
+        e = max(1, min(n, edges(k + 1) - 1));
+        if s > e
+            continue;
+        end
+
+        bucket_idx = (s:e).';
+        keep(s) = true;
+        keep(e) = true;
+
+        finite_idx = bucket_idx(isfinite(y(bucket_idx)));
+        if isempty(finite_idx)
+            continue;
+        end
+        finite_vals = y(finite_idx);
+        [~, min_rel] = min(finite_vals);
+        [~, max_rel] = max(finite_vals);
+        [~, abs_rel] = max(abs(finite_vals));
+        keep(finite_idx([min_rel max_rel abs_rel])) = true;
+    end
+
+    idx = find(keep);
+    if numel(idx) > max_points
+        idx = trim_indices(idx, key_sample_indices(y), n, max_points);
+    end
+    idx = sort(idx(:)).';
+end
+
+function idx = trim_indices(idx, protected, n, max_points)
+    idx = unique(idx(:), 'stable');
+    protected = unique([1; n; protected(:)], 'stable');
+    if numel(protected) >= max_points
+        sel = round(linspace(1, numel(protected), max_points));
+        idx = protected(sel);
+        return;
+    end
+
+    rest = setdiff(idx, protected, 'stable');
+    room = max_points - numel(protected);
+    if isempty(rest) || room <= 0
+        idx = protected;
+        return;
+    end
+    sel = unique(round(linspace(1, numel(rest), min(room, numel(rest)))), 'stable');
+    idx = [protected; rest(sel)];
 end
 
 function idx = key_sample_indices(y)

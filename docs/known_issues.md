@@ -89,6 +89,15 @@ helpers now preserve extrema, but report QA should still compare stats rows,
 figure markers, and rendered text for representative modules. See
 `docs/hongtang_q2_extrema_plot_audit.md`.
 
+Additional Zhishan Q2 lesson: dense high-frequency monthly time histories can
+look visually broken when reduced by uniform index sampling, even if `gap_mode`
+is `connect` and the underlying data are present. For acceleration-like data,
+sampling must preserve local extrema at both stages that may reduce point
+counts: the plot helper and the dynamic-series day-reduction helper. Report QA
+should include at least one rendered high-frequency raw/group time-history
+spot check after changing `fig_max_points`, cleaning rules, or dynamic-series
+performance code.
+
 Additional v1.7.22 lesson: a manually checked report can be used as a template
 base only after generator-owned figure blocks are treated as replaceable
 content. The Hongtang Q2 auto template initially retained old picture blocks

@@ -30,6 +30,17 @@ assert(any(ys == -20), 'limited plot series should retain the minimum point');
 assert(any(ys == 8), 'limited plot series should retain the maximum point');
 assert(numel(xs) == numel(ys), 'limited plot series should keep x/y aligned');
 
+spike_idx = (5:10:95).';
+dense = zeros(100, 1);
+dense(spike_idx) = (1:numel(spike_idx)).';
+[xe, ye] = prepare_plot_series( ...
+    (datetime(2026, 1, 1, 0, 0, 0) + seconds(0:99)).', ...
+    dense, ...
+    struct('gap_mode', 'connect', 'fig_max_points', 40));
+assert(numel(xe) <= 40, 'bucketed plot series should respect the point budget');
+assert(all(ismember((1:numel(spike_idx)).', ye)), ...
+    'bucketed plot series should retain local extrema across the dense span');
+
 plot_runtime_settings('reset');
 disp('prepare_plot_series gap mode test ok');
 end
