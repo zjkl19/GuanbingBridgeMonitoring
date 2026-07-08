@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-09 02:58 CST
+Last updated: 2026-07-09 07:25 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -16,6 +16,37 @@ state and keep algorithm/report decisions in the normal project docs.
   `Administrator@192.168.254.34:2222` through `ProxyJump gb-133`; direct SSH
   from this workstation is not routable.
 - 126 storage target: `\\192.168.100.126\H$\Guanbingwork`
+
+## gb-133 Hongtang/Zhishan High-Density Plot Rerun
+
+- Status: completed on 2026-07-09 using `F:\Guanbing` on `main` at
+  `caffd0e Improve high-frequency report plot sampling`.
+- Remote task root:
+  `F:\Guanbing\run_logs\remote_tasks\highfreq_plot_sampling_20260709`.
+- Production run completed at `2026-07-09 07:13:53`.
+- Reprocessed roots and modules:
+  - `E:\洪塘大桥数据\2026年4-6月`: `wind`, `earthquake`, `acceleration`,
+    `cable_accel`;
+  - `F:\芝山大桥数据\2026年4月`: `acceleration`, `cable_accel`;
+  - `F:\芝山大桥数据\2026年5月`: `acceleration`, `cable_accel`;
+  - `F:\芝山大桥数据\2026年6月`: `acceleration`, `cable_accel`.
+- Completed analysis manifests:
+  - `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260709_065456.json`
+  - `F:\芝山大桥数据\2026年4月\run_logs\analysis_manifest_20260709_070041.json`
+  - `F:\芝山大桥数据\2026年5月\run_logs\analysis_manifest_20260709_070659.json`
+  - `F:\芝山大桥数据\2026年6月\run_logs\analysis_manifest_20260709_071257.json`
+- Regenerated reports on 133:
+  - `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260709_071654.docx`
+  - `F:\芝山大桥数据\2026年4月\自动报告\芝山大桥健康监测2026年4月份月报_自动生成_20260709_071824.docx`
+  - `F:\芝山大桥数据\2026年5月\自动报告\芝山大桥健康监测2026年5月份月报_自动生成_20260709_071837.docx`
+  - `F:\芝山大桥数据\2026年6月\自动报告\芝山大桥健康监测2026年6月份月报_自动生成_20260709_071849.docx`
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\highfreq_plot_sampling_20260709_reports`.
+  Programmatic report checks found all four manifests `ok` with
+  `missing_count=0` and `warnings=0`; DOCX visible text/XML had no reference
+  errors or placeholder hits. LibreOffice rendered pages for visual contact
+  sheets, with the known caveat that LibreOffice can falsely re-evaluate Word
+  caption/page fields.
 
 ## gb-133 Hongtang Q2 High-Frequency Plot Refresh
 

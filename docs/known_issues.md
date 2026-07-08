@@ -5,6 +5,38 @@ Last updated: 2026-07-09
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
 
+## High-Frequency Report Plot Sampling
+
+Status: improved in `caffd0e`; keep as a report QA rule.
+
+The previous extrema-preserving cap fixed dropped extrema, but some monthly or
+quarterly raw high-frequency time-history figures still looked visually sparse
+when they used the ordinary common cap. Hongtang Q2 and Zhishan April to June
+now use dedicated report-facing raw dynamic plot limits:
+
+- `plot_common.dynamic_raw_fig_max_points=900000`
+- `plot_common.dynamic_raw_min_points_per_day=10000`
+
+This path still preserves finite min/max/absolute-peak samples. It should make
+valid high-frequency data look close to the original full-resolution waveform
+while keeping report rendering practical.
+
+Important distinction:
+
+- high-density sampling improves visual continuity where finite source data
+  exists;
+- `gap_mode=connect` connects finite plotted points;
+- neither setting creates missing raw dates or values.
+
+Recommended checks:
+
+- for any report refresh that changes high-frequency figures, inspect at least
+  one raw acceleration page and one raw cable-acceleration page at rendered
+  page scale;
+- compare report stats extrema against the plotted extrema labels;
+- if a figure still has daily blank bands, check the raw dated folders and MAT
+  cache coverage before changing plot code.
+
 ## Hongtang Q2 Raw High-Frequency Gaps
 
 Status: narrowed after the 2026-07-06 late-June recovery.

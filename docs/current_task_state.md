@@ -6,6 +6,56 @@ Last updated: 2026-07-09
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-09 Hongtang/Zhishan High-Density Raw Plot Rerun
+
+Current accepted run state:
+
+- Scope: `gb-133` production rerun for:
+  - Hongtang Q2: `E:\洪塘大桥数据\2026年4-6月`
+  - Zhishan April/May/June: `F:\芝山大桥数据\2026年4月`,
+    `F:\芝山大桥数据\2026年5月`, `F:\芝山大桥数据\2026年6月`
+- Code state: local and `gb-133:F:\Guanbing` are on `main` at
+  `caffd0e Improve high-frequency report plot sampling`.
+- Main change from the earlier v1.7.23 pass: report-facing raw dynamic plots
+  now use dedicated high-density extrema-preserving sampling via
+  `plot_common.dynamic_raw_fig_max_points=900000` and
+  `plot_common.dynamic_raw_min_points_per_day=10000` for Hongtang and Zhishan.
+  Ordinary/common plot limits remain separate.
+- Production task root on 133:
+  `F:\Guanbing\run_logs\remote_tasks\highfreq_plot_sampling_20260709`.
+- Completed analysis manifests:
+  - `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260709_065456.json`
+  - `F:\芝山大桥数据\2026年4月\run_logs\analysis_manifest_20260709_070041.json`
+  - `F:\芝山大桥数据\2026年5月\run_logs\analysis_manifest_20260709_070659.json`
+  - `F:\芝山大桥数据\2026年6月\run_logs\analysis_manifest_20260709_071257.json`
+- Regenerated reports on 133:
+  - `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260709_071654.docx`
+  - `F:\芝山大桥数据\2026年4月\自动报告\芝山大桥健康监测2026年4月份月报_自动生成_20260709_071824.docx`
+  - `F:\芝山大桥数据\2026年5月\自动报告\芝山大桥健康监测2026年5月份月报_自动生成_20260709_071837.docx`
+  - `F:\芝山大桥数据\2026年6月\自动报告\芝山大桥健康监测2026年6月份月报_自动生成_20260709_071849.docx`
+- Report generation runtimes were normal: Hongtang about `121` seconds;
+  Zhishan monthly reports about `12` to `14` seconds each.
+- Local QA bundle:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\highfreq_plot_sampling_20260709_reports`.
+  It contains copied DOCX reports, manifests, report images, PDFs, rendered
+  PNG pages, and contact sheets.
+- QA result:
+  - all four report manifests were `status=ok`, `missing_count=0`,
+    `warnings=0`;
+  - DOCX internal text/XML scan found no `引用源未找到`, `错误`, `未定义书签`,
+    `Error!`, placeholder tokens, or common mojibake;
+  - LibreOffice/Poppler rendered Hongtang to `110` page PNGs and each
+    Zhishan month to `47` page PNGs for visual contact-sheet review;
+  - Word COM PDF export on the local workstation hung on the large Hongtang
+    DOCX and was stopped. LibreOffice can falsely re-evaluate Word fields
+    such as `STYLEREF/SEQ`; use DOCX XML visible field results as the final
+    cross-reference check when LibreOffice shows `引用源未找到`.
+- Visual judgment: Hongtang and Zhishan high-frequency time-history figures now
+  use dense extrema-preserving raw samples and no longer show the stale sparse
+  uniform-sampling look. Remaining blank/low-coverage intervals should be
+  treated as source-data coverage gaps unless raw dated folders prove
+  otherwise.
+
 ## 2026-07-09 Hongtang Q2 High-Frequency Plot Refresh
 
 Current accepted run state:
