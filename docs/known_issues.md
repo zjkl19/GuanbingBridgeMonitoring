@@ -1,6 +1,6 @@
 # Known Issues And Follow-Up Items
 
-Last updated: 2026-07-08
+Last updated: 2026-07-09
 
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
@@ -32,6 +32,26 @@ Important distinction:
   before changing plot code.
 
 Reference: `docs/hongtang_q2_2026_recovery.md`.
+
+## MAT-Only Dynamic RMS Refresh
+
+Status: operational hazard; avoid as an acceptance path until fixed.
+
+During the 2026-07-09 Hongtang Q2 high-frequency plot refresh, the direct-wave
+CSV copies had already been removed and the run depended on the formal MAT
+data-source mode. A manual `refresh_dynamic_rms_only` pass refreshed `0`
+points and overwrote `accel_stats.xlsx` / `cable_accel_stats.xlsx` with
+header-only files. The accepted state was restored by rerunning the main
+`acceleration` and `cable_accel` analyzers, which correctly read the MAT data
+and rebuilt both plots and stats.
+
+Recommended fix:
+
+- make `refresh_dynamic_rms_only` use the same MAT alias/source-discovery
+  logic as the main dynamic analyzers;
+- refuse to write stats when the refreshed point count is `0` unless an
+  explicit empty-output override is supplied;
+- add a regression test that simulates a MAT-only Hongtang direct-wave source.
 
 ## Per-Point Suppression Hidden In Thresholds
 
@@ -97,6 +117,13 @@ counts: the plot helper and the dynamic-series day-reduction helper. Report QA
 should include at least one rendered high-frequency raw/group time-history
 spot check after changing `fig_max_points`, cleaning rules, or dynamic-series
 performance code.
+
+Additional Hongtang Q2 v1.7.23 lesson: the same high-frequency visual issue can
+appear in seasonal Hongtang acceleration and cable-acceleration plots. After
+rerunning figures, stale old-dated files such as `20260627` can still coexist
+in output folders; acceptance should check the report manifest, not only the
+folder listing. The 2026-07-09 accepted Hongtang report had no image references
+to the old `20260627` files and used the new `20260630` figures.
 
 Additional v1.7.22 lesson: a manually checked report can be used as a template
 base only after generator-owned figure blocks are treated as replaceable

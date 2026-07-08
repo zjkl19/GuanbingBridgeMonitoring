@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-08 20:05 CST
+Last updated: 2026-07-09 02:58 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -16,6 +16,41 @@ state and keep algorithm/report decisions in the normal project docs.
   `Administrator@192.168.254.34:2222` through `ProxyJump gb-133`; direct SSH
   from this workstation is not routable.
 - 126 storage target: `\\192.168.100.126\H$\Guanbingwork`
+
+## gb-133 Hongtang Q2 High-Frequency Plot Refresh
+
+- Status: completed on 2026-07-09 using the already-synced `bf6956a` /
+  `v1.7.23` code on `F:\Guanbing`.
+- Production data root:
+  `E:\洪塘大桥数据\2026年4-6月`.
+- Remote task directories:
+  - `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1723_resample_20260709_012334`
+  - `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1723_dynamic_restore_20260709_020817`
+  - `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1723_report_20260709_0240`
+- Reran `wind`, `earthquake`, `acceleration`, and `cable_accel` so Hongtang
+  Q2 also uses the v1.7.23 extrema-preserving plot sampling for dense
+  high-frequency time histories.
+- Accepted manifest:
+  `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260709_023826.json`.
+- Final report on 133:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260709_024212.docx`.
+- Report generation took about `123` seconds, below the 10 minute anomaly
+  threshold. Report QC returned `status=ok`, `missing_count=0`,
+  `issue_count=0`, and `output_docx_image_count=179`.
+- Accepted stats rows after the dynamic restore:
+  `accel_stats.xlsx=12`, `cable_accel_stats.xlsx=24`,
+  `wind_stats.xlsx=2`, `eq_stats.xlsx=3`.
+- Local QA bundle:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_v1723_resample_20260709_024212`.
+  It contains the copied DOCX, report manifest/QC, stats files, key images,
+  and rendered page/contact-sheet checks. A copy of the final DOCX was also
+  placed at
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260709_024212.docx`
+  on the local workstation.
+- Operational caution: do not use `refresh_dynamic_rms_only` as the acceptance
+  path for Hongtang MAT-only direct-wave data until it validates MAT aliases
+  and refuses to write empty stats. This run restored the accepted dynamic
+  stats by rerunning the main `acceleration` and `cable_accel` analyzers.
 
 ## gb-133 Zhishan Q2 Tight Cleaning Rerun
 

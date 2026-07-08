@@ -1,10 +1,61 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-08
+Last updated: 2026-07-09
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-07-09 Hongtang Q2 High-Frequency Plot Refresh
+
+Current accepted run state:
+
+- Scope: `gb-133` production data root
+  `E:\洪塘大桥数据\2026年4-6月`.
+- Code state: no source-code change was needed for this pass. The remote and
+  local worktrees were already on `main` at `bf6956a` / `v1.7.23`, where
+  `pipeline/prepare_plot_series.m` and
+  `bms.analyzer.DynamicSeriesService.limitSeriesPoints` already use
+  bucketed extrema-preserving sampling. This same generic plotting fix now
+  covers Hongtang Q2 high-frequency time histories as well as Zhishan.
+- Production task directories on 133:
+  - `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1723_resample_20260709_012334`
+  - `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1723_dynamic_restore_20260709_020817`
+  - `F:\Guanbing\run_logs\remote_tasks\hongtang_q2_v1723_report_20260709_0240`
+- Reprocessed modules:
+  `wind`, `earthquake`, `acceleration`, and `cable_accel`. The first pass
+  produced new `20260401_20260630` figures. A later RMS-only refresh was
+  rejected for acceptance because, in the Hongtang MAT-only direct-wave state,
+  it refreshed `0` points and overwrote dynamic stats with header-only files.
+  The accepted state was restored by rerunning the main `acceleration` and
+  `cable_accel` analyzers.
+- Accepted analysis manifest:
+  `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260709_023826.json`.
+- Final report generated on 133:
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260709_024212.docx`.
+  It was copied locally to
+  `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260709_024212.docx`.
+- Report manifest/QC:
+  `period_report_manifest_20260709_024212.json`,
+  `report_qc_hongtang_period_20260709_024212.json`, and
+  `report_qc_hongtang_period_20260709_024212.txt` under the remote
+  `自动报告` directory. QC status was `ok`, `missing_count=0`,
+  `issue_count=0`, and `output_docx_image_count=179`.
+- Stats QA after the restore:
+  - `accel_stats.xlsx`: `12` data rows;
+  - `cable_accel_stats.xlsx`: `24` data rows;
+  - `wind_stats.xlsx`: `2` data rows;
+  - `eq_stats.xlsx`: `3` data rows.
+- Local QA bundle:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\hongtang_q2_v1723_resample_20260709_024212`.
+  The DOCX rendered through LibreOffice/Poppler to `110` page PNGs for visual
+  review. Contact-sheet review of the high-frequency page ranges and the
+  copied key images found no obvious blank pages, missing figures, or stale
+  sparse uniform-sampling appearance. DOCX internal text scan found no
+  reference-error/place-holder hits.
+- Important output-folder note: old `20260627` image files can still coexist
+  in the result directories, but the accepted report manifest had `0` image
+  references to `20260627` and thousands of `20260630` image references.
 
 ## 2026-07-08 Zhishan Q2 Tight Cleaning And Plot Sampling
 
