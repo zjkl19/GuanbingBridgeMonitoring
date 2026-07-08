@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-08 16:45 CST
+Last updated: 2026-07-08 20:05 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -54,6 +54,49 @@ state and keep algorithm/report decisions in the normal project docs.
   `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\zhishan_202604_refine_20260708`.
   Rendered page count: `47`; text QA found no reference errors, placeholders,
   or stale `2026年3月`.
+
+## gb-133 Zhishan May/June 2026 Refinement
+
+- Status: completed on 2026-07-08.
+- Production data roots:
+  - `F:\芝山大桥数据\2026年5月`
+  - `F:\芝山大桥数据\2026年6月`
+- Code/config was temporarily copied to `F:\Guanbing` for production
+  validation before commit. After the local commit and push, fast-forward
+  `F:\Guanbing` from git so the remote worktree returns to a clean same-HEAD
+  state.
+- Focused remote validation task:
+  `F:\Guanbing\run_logs\remote_tasks\zhishan_202605_202606_prepare_20260708_182139`.
+  It confirmed MATLAB resolved
+  `F:\Guanbing\pipeline\resolve_post_filter_thresholds.m` and passed:
+  `tests/test_zhishan_config.m`, `tests/test_post_filter_thresholds.m`,
+  and `tests/test_time_series_loader.m`.
+- Full/refinement task directory:
+  `F:\Guanbing\run_logs\remote_tasks\zhishan_202605_202606_run_20260708_182426`.
+  - May analysis: `...\202605`; completed successfully.
+  - June analysis: `...\202606`; completed successfully.
+- Operational note:
+  background `Start-Process matlab` did not keep the batch run alive under SSH
+  in this session and produced no status file; foreground
+  `matlab -sd <taskDir> -batch run_task` completed normally. Prefer the
+  foreground pattern or a scheduled-task wrapper for long unattended runs.
+- Source-data note:
+  `F:\芝山大桥数据\2026年6月` is missing the `2026-06-19` dated source folder.
+- Stats QA:
+  `0` threshold violations across bearing displacement, static strain,
+  dynamic-strain high/lowpass, and cable acceleration. Cable spectrum sheets
+  contain `31` rows for May and `30` rows for June.
+- Report outputs:
+  - `F:\芝山大桥数据\2026年5月\自动报告\芝山大桥健康监测2026年5月份月报_自动生成_20260708_195300.docx`
+  - `F:\芝山大桥数据\2026年6月\自动报告\芝山大桥健康监测2026年6月份月报_自动生成_20260708_195312.docx`
+- Report manifests:
+  - `F:\芝山大桥数据\2026年5月\自动报告\zhishan_report_build_manifest_20260708_195300.json`
+  - `F:\芝山大桥数据\2026年6月\自动报告\zhishan_report_build_manifest_20260708_195312.json`
+  Both returned `status=ok`, `warnings=[]`, `missing_count=0`, and
+  `output_docx_image_count=58`.
+- Local QA bundle:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\zhishan_202605_202606_20260708_195312`.
+  Both reports rendered to `47` PNG pages and passed text/visual spot checks.
 
 ## Donghua PHM Exports On 126
 

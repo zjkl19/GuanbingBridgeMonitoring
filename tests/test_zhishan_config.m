@@ -39,10 +39,12 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             tc.verifyEqual([cfg.per_point.strain.SX_1.thresholds.min], -283);
             tc.verifyEqual([cfg.per_point.strain.SX_1.thresholds.max], 414);
             tc.verifyEqual(cfg.per_point.strain.SX_1.thresholds.t_range_start, '2026-04-01 00:00:00');
+            tc.verifyEqual(cfg.per_point.strain.SX_1.thresholds.t_range_end, '2026-06-30 23:59:59');
             tc.verifyEqual([cfg.per_point.strain.SX_3.thresholds.min], -218);
             tc.verifyEqual([cfg.per_point.strain.SX_3.thresholds.max], 298);
             tc.verifyEqual([cfg.per_point.strain.SX_5.thresholds.min], -252);
             tc.verifyEqual([cfg.per_point.strain.SX_5.thresholds.max], 200);
+            tc.verifyEqual(cfg.per_point.strain.SX_5.thresholds.t_range_end, '2026-06-30 23:59:59');
             tc.verifyEqual([cfg.per_point.strain.SX_6.thresholds.max], 200);
             tc.verifyEqual([cfg.per_point.strain.SX_7.thresholds.max], 298);
             tc.verifyEqual([cfg.per_point.strain.SX_8.thresholds.max], 200);
@@ -69,6 +71,7 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             lowSx3 = resolve_post_filter_thresholds(cfg, 'dynamic_strain_lowpass', 'SX-3');
             tc.verifyEqual([lowSx3.max], [20, 298]);
             tc.verifyEqual({lowSx3.t_range_start}, {'2026-03-01 00:00:00', '2026-04-01 00:00:00'});
+            tc.verifyEqual({lowSx3.t_range_end}, {'2026-03-31 23:59:59', '2026-06-30 23:59:59'});
             lowSx4 = resolve_post_filter_thresholds(cfg, 'dynamic_strain_lowpass', 'SX-4');
             tc.verifyEqual([lowSx4.max], [20, 298]);
             lowSx5 = resolve_post_filter_thresholds(cfg, 'dynamic_strain_lowpass', 'SX-5');
@@ -98,10 +101,12 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             tc.verifyEqual([cfg.per_point.bearing_displacement.DX_1.thresholds.min], [-100, -80]);
             tc.verifyEqual([cfg.per_point.bearing_displacement.DX_1.thresholds.max], [100, 80]);
             tc.verifyEqual({cfg.per_point.bearing_displacement.DX_1.thresholds.t_range_start}, {'2026-03-01 00:00:00', '2026-04-01 00:00:00'});
+            tc.verifyEqual({cfg.per_point.bearing_displacement.DX_1.thresholds.t_range_end}, {'2026-03-31 23:59:59', '2026-06-30 23:59:59'});
             tc.verifyEqual([cfg.per_point.bearing_displacement.DX_2.thresholds.min], [-100, -80]);
             tc.verifyEqual([cfg.per_point.bearing_displacement.DX_2.thresholds.max], [100, 80]);
             tc.verifyEqual(cfg.per_point.cable_accel.CF_1.offset_correction.mode, 'fixed');
             tc.verifyEqual(cfg.per_point.cable_accel.CF_1.offset_correction.value, -2000);
+            tc.verifyEqual(cfg.per_point.cable_accel.CF_1.offset_correction.end_date, '2026-06-30');
             tc.verifyEqual(cfg.per_point.cable_accel.CF_2.offset_correction.value, -2000);
             tc.verifyEqual(cfg.per_point.cable_accel.CF_3.offset_correction.value, 29600);
             tc.verifyEqual(cfg.per_point.cable_accel.CF_4.offset_correction.value, 29600);
@@ -109,6 +114,7 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             tc.verifyEqual(cfg.per_point.cable_accel.CF_6.offset_correction.value, -200);
             tc.verifyEqual(cfg.per_point.cable_accel.CF_7.offset_correction.value, -1500);
             tc.verifyEqual(cfg.per_point.cable_accel.CF_8.offset_correction.value, 2000);
+            tc.verifyEqual(cfg.per_point.cable_accel.CF_8.offset_correction.end_date, '2026-06-30');
             tc.verifyEqual([cfg.per_point.cable_accel.CF_1.thresholds.min], [-500, -500]);
             tc.verifyEqual([cfg.per_point.cable_accel.CF_1.thresholds.max], [500, 500]);
             tc.verifyEqual([cfg.per_point.cable_accel.CF_5.thresholds.min], [-100, -500]);
@@ -118,6 +124,7 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             tc.verifyEqual([cfg.per_point.cable_accel.CF_8.thresholds.min], [-500, -500]);
             tc.verifyEqual([cfg.per_point.cable_accel.CF_8.thresholds.max], [500, 500]);
             tc.verifyEqual({cfg.per_point.cable_accel.CF_8.thresholds.t_range_start}, {'2026-03-01 00:00:00', '2026-04-01 00:00:00'});
+            tc.verifyEqual({cfg.per_point.cable_accel.CF_8.thresholds.t_range_end}, {'2026-03-31 23:59:59', '2026-06-30 23:59:59'});
             tc.verifyTrue(cfg.plot_styles.cable_accel.ylim_auto);
             tc.verifyEmpty(cfg.plot_styles.cable_accel.ylim);
             tc.verifyEmpty(cfg.plot_styles.cable_accel.ylims);

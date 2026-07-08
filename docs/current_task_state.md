@@ -6,6 +6,79 @@ Last updated: 2026-07-08
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-08 Zhishan May/June Monthly Report Refinement
+
+Current accepted code/report state:
+
+- Scope: `gb-133` production data roots
+  `F:\芝山大桥数据\2026年5月` and `F:\芝山大桥数据\2026年6月`.
+- Cleaning/profile change:
+  - the April validated Zhishan cleaning windows in
+    `config/zhishan_config.json` now run from `2026-04-01` through
+    `2026-06-30`, covering May and June with the same engineering rules;
+  - bearing displacement `DX-1` to `DX-4` keeps level-2 cleaning bounds
+    `[-80, 80]` mm;
+  - static strain and dynamic-strain post-filtering keep the grouped level-2
+    bounds, with `SX-5`, `SX-6`, and `SX-8` capped at `200` microstrain;
+  - cable acceleration thresholds are
+    `CF-1/2/3/4/5/7/8 = [-500, 500]`, `CF-6 = [-3000, 3000]`;
+  - cable fixed-offset corrections now cover `2026-04-01` to `2026-06-30`:
+    `CF-1=-2000`, `CF-2=-2000`, `CF-3=29600`, `CF-4=29600`,
+    `CF-5=29800`, `CF-6=-200`, `CF-7=-1500`, `CF-8=2000`.
+- Test hardening:
+  - `tests/test_zhishan_config.m` now asserts the May/June window endpoints
+    for strain, lowpass dynamic-strain, bearing displacement, and cable
+    acceleration offsets/thresholds.
+  - Avoid `addpath(genpath(projectRoot))` for validation or production runs
+    because old release archives under the workspace can shadow current
+    `pipeline` functions. Use explicit project paths with `-begin`.
+
+Validation and production run:
+
+- Local focused validation passed with clean MATLAB path:
+  `tests/test_zhishan_config.m`, `tests/test_post_filter_thresholds.m`,
+  `tests/test_dynamic_strain_boxplot_service.m`,
+  `tests/test_time_series_loader.m`, plus Python report-manifest tests
+  `tests_py.test_manifest_image_lookup` and
+  `tests_py.test_report_manifest_artifacts`.
+- 133 focused validation passed with clean MATLAB path:
+  `tests/test_zhishan_config.m`, `tests/test_post_filter_thresholds.m`,
+  and `tests/test_time_series_loader.m`.
+- 133 full/refinement task directory:
+  `F:\Guanbing\run_logs\remote_tasks\zhishan_202605_202606_run_20260708_182426`.
+  - May run directory: `...\202605`; completed successfully.
+  - June run directory: `...\202606`; completed successfully.
+- Source-data note:
+  `F:\芝山大桥数据\2026年6月` does not contain a `2026-06-19` dated
+  source folder. Treat this as a source-data coverage gap, not a processing
+  failure.
+- Stats QA passed on 133 with `0` threshold violations:
+  - bearing `DX-1` to `DX-4` original and filtered ranges within `[-80, 80]`;
+  - static strain and dynamic-strain high/lowpass ranges within the configured
+    group bounds;
+  - cable acceleration ranges within the configured CF thresholds;
+  - cable spectrum sheets contain `31` daily rows for May and `30` daily rows
+    for June.
+- Important observed data condition:
+  June `SX-5` dynamic-strain valid sample count is much lower than the other
+  strain points after cleaning (`117226` highpass and `118445` lowpass rows).
+  This should be considered when interpreting the June report.
+- Reports regenerated on 133:
+  - `F:\芝山大桥数据\2026年5月\自动报告\芝山大桥健康监测2026年5月份月报_自动生成_20260708_195300.docx`
+  - `F:\芝山大桥数据\2026年6月\自动报告\芝山大桥健康监测2026年6月份月报_自动生成_20260708_195312.docx`
+- Report manifests:
+  - `F:\芝山大桥数据\2026年5月\自动报告\zhishan_report_build_manifest_20260708_195300.json`
+  - `F:\芝山大桥数据\2026年6月\自动报告\zhishan_report_build_manifest_20260708_195312.json`
+  Both manifests returned `status=ok`, `warnings=[]`, `missing_count=0`,
+  and `output_docx_image_count=58`.
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\zhishan_202605_202606_20260708_195312`.
+  Both DOCX files rendered to `47` PNG pages; text QA found no `错误`,
+  `引用源未找到`, `未定义书签`, `Error! Reference source not found`, `${`,
+  `{{`, `TODO`, or stale `2026年3月` / `2026年4月`. Visual spot checks
+  confirmed updated bearing displacement, strain/dynamic-strain, cable
+  acceleration, and cable-spectrum pages.
+
 ## 2026-07-08 Zhishan April Report Refinement
 
 Current accepted code/report state:
