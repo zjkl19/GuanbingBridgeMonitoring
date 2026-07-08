@@ -4,7 +4,7 @@ classdef DynamicAccelerationPlotService
     methods (Static)
         function plotAccelCurve(rootDir, pointId, times, values, minVal, maxVal, style, cfg, spec)
             fig = figure('Position', [100 100 1000 469]);
-            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
             [timesPlot, valuesPlot] = prepare_plot_series(times, values, plotOpts);
             plot(timesPlot, valuesPlot, 'LineWidth', 1, 'Color', style.color_main);
             xlabel('时间');
@@ -211,6 +211,7 @@ classdef DynamicAccelerationPlotService
             warnField = bms.analyzer.DynamicAccelerationPlotService.specField(spec, 'groupWarnField', 'group_warn_lines');
             opts.warnLines = bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
                 style, warnField, groupName, cfg, spec, records);
+            opts.fig_max_points = bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000);
 
             bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
                 rootDir, timesList, valuesList, labels, startDate, endDate, opts, cfg);

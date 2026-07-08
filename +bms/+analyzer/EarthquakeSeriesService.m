@@ -35,8 +35,7 @@ classdef EarthquakeSeriesService
             rec.params = params;
 
             dateList = bms.data.TimeSeriesRangeLoader.buildDateList(startDate, endDate);
-            maxPoints = bms.analyzer.DynamicSeriesService.plotMaxPoints(cfg, 50000);
-            perDayMax = max(100, ceil(maxPoints / max(1, numel(dateList))));
+            perDayMax = bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, numel(dateList), 50000);
             keptTimes = {};
             keptVals = {};
             bestPeak = NaN;

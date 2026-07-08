@@ -108,6 +108,22 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyTrue(all(ismember((1:numel(spikeIdx)).', keptVals)));
         end
 
+        function rawPlotPerDayMaxCanExceedCommonLimit(tc)
+            cfg.plot_common = struct( ...
+                'fig_max_points', 50000, ...
+                'dynamic_raw_fig_max_points', 900000, ...
+                'dynamic_raw_min_points_per_day', 10000);
+
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000), 900000);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), 10000);
+
+            opts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
+            tc.verifyEqual(opts.fig_max_points, 900000);
+
+            cfg.plot_common = struct('fig_max_points', 50000);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), 556);
+        end
+
         function collectRecordLoadsStatsAndRmsPeak(tc)
             values = 2 * ones(601, 1);
             write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'A1.csv'), values);

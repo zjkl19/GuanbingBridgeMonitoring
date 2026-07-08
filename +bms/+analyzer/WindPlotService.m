@@ -33,7 +33,7 @@ classdef WindPlotService
                 return;
             end
             fig = figure('Position', [100 100 1100 500]);
-            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
             [timesPlot, valsPlot] = prepare_plot_series(times, vals, plotOpts);
             plot(timesPlot, valsPlot, 'LineWidth', 1.1, 'Color', style.speed.color);
             xlabel('时间');
@@ -59,7 +59,7 @@ classdef WindPlotService
                 return;
             end
             fig = figure('Position', [100 100 1100 500]);
-            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
             [timesPlot, valsPlot] = prepare_plot_series(times, vals, plotOpts);
             plot(timesPlot, valsPlot, 'LineWidth', 1.0, 'Color', style.direction.color);
             xlabel('时间');

@@ -50,8 +50,7 @@ classdef DynamicSeriesService
             rec.pid = pointId;
 
             dateList = bms.data.TimeSeriesRangeLoader.buildDateList(startDate, endDate);
-            maxPoints = bms.analyzer.DynamicSeriesService.plotMaxPoints(cfg, 50000);
-            perDayMax = max(100, ceil(maxPoints / max(1, numel(dateList))));
+            perDayMax = bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, numel(dateList), 50000);
 
             totalCount = 0;
             totalSum = 0;
@@ -175,6 +174,38 @@ classdef DynamicSeriesService
                 maxPoints = defaultValue;
             end
             maxPoints = max(1000, round(maxPoints));
+        end
+
+        function maxPoints = rawPlotMaxPoints(cfg, defaultValue)
+            if nargin < 2 || isempty(defaultValue), defaultValue = 50000; end
+            baseMax = bms.analyzer.DynamicSeriesService.plotMaxPoints(cfg, defaultValue);
+            maxPoints = baseMax;
+            rawMax = bms.config.ConfigReader.getNumeric(cfg, ...
+                'plot_common.dynamic_raw_fig_max_points', baseMax);
+            if isscalar(rawMax) && isfinite(rawMax) && rawMax > 0
+                maxPoints = max(baseMax, round(rawMax));
+            end
+            maxPoints = max(1000, round(maxPoints));
+        end
+
+        function perDayMax = rawPlotPerDayMax(cfg, dayCount, defaultValue)
+            if nargin < 3 || isempty(defaultValue), defaultValue = 50000; end
+            dayCount = max(1, double(dayCount));
+            totalMax = bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, defaultValue);
+            perDayMax = max(100, ceil(totalMax / dayCount));
+
+            minPerDay = bms.config.ConfigReader.getNumeric(cfg, ...
+                'plot_common.dynamic_raw_min_points_per_day', []);
+            if isscalar(minPerDay) && isfinite(minPerDay) && minPerDay > 0
+                perDayMax = max(perDayMax, round(minPerDay));
+            end
+            perDayMax = max(100, round(perDayMax));
+        end
+
+        function opts = rawPlotOptions(cfg, defaultValue)
+            if nargin < 2 || isempty(defaultValue), defaultValue = 50000; end
+            opts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            opts.fig_max_points = bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, defaultValue);
         end
 
         function [timesOut, valsOut] = limitSeriesPoints(times, vals, maxPoints)
