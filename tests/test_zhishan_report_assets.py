@@ -25,6 +25,8 @@ def test_zhishan_report_uses_program_output_images(tmp_path):
     for idx in range(1, 9):
         _touch(root / "时程曲线_索力加速度" / f"CF-{idx}_20260302_20260330.jpg")
         _touch(root / "时程曲线_索力加速度_严格最终推荐展示" / f"Strict_CF-{idx}_20260301_20260331.jpg")
+    _touch(root / "时程曲线_梁端纵向位移_组图_原始" / "BearingDisp_G1_Orig_20260401-20260430.jpg")
+    _touch(root / "时程曲线_梁端纵向位移_组图_滤波" / "BearingDisp_G1_Filt_20260401-20260430.jpg")
     for point in ["CF-1", "CF-2", "CF-6", "CF-7", "CF-8"]:
         _touch(root / "索力时程图" / f"CableForce_{point}_20260301_20260331.jpg")
         _touch(root / "PSD_备查_索力加速度" / point / f"PSD_{point}_2026-03-10.jpg")
@@ -37,6 +39,11 @@ def test_zhishan_report_uses_program_output_images(tmp_path):
 
     assert len(replacements["图 2-8"]) == 5
     assert all(path.parent.parent.name == "PSD_备查" for path in replacements["图 2-8"])
+
+    assert len(replacements["图 2-5"]) == 1
+    assert replacements["图 2-5"][0].parent.name == "时程曲线_梁端纵向位移_组图_原始"
+    assert len(replacements["图 2-6"]) == 1
+    assert replacements["图 2-6"][0].parent.name == "时程曲线_梁端纵向位移_组图_滤波"
 
     assert len(replacements["图 2-20"]) == 8
     assert all(path.parent.name == "时程曲线_索力加速度" for path in replacements["图 2-20"])

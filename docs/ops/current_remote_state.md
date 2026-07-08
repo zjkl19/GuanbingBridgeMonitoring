@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-07 15:10 CST
+Last updated: 2026-07-08 16:45 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -16,6 +16,44 @@ state and keep algorithm/report decisions in the normal project docs.
   `Administrator@192.168.254.34:2222` through `ProxyJump gb-133`; direct SSH
   from this workstation is not routable.
 - 126 storage target: `\\192.168.100.126\H$\Guanbingwork`
+
+## gb-133 Zhishan April 2026 Refinement
+
+- Status: completed on 2026-07-08.
+- Production data root:
+  `F:\芝山大桥数据\2026年4月`.
+- Code was copied to `F:\Guanbing` for the production run; after local commit
+  and push, sync 133 with git so the remote worktree returns to a clean same-HEAD
+  state.
+- Full/refinement task directories:
+  - `F:\Guanbing\run_logs\remote_tasks\zhishan_202604_refine_20260708_1500`
+  - `F:\Guanbing\run_logs\remote_tasks\zhishan_202604_cable_resume_20260708_1615`
+- Important operational note:
+  - the first full run stalled at cable acceleration `CF-5` after logging
+    `2026-04-30`; CPU was idle and the batch PIDs were stopped;
+  - cause was a valid raw MAT cache whose metadata source path was stored as
+    mojibake, so the loader falsely missed the cache and fell back to rereading
+    the 131 MB CSV;
+  - after syncing the cache fingerprint fix, `CF-5` cache validation returned
+    `cache_ok=true` in `0.30` seconds.
+- Cable resume result:
+  - `status.json`: `stage=complete`, `status=ok`;
+  - offset rows: `8`;
+  - offset log:
+    `F:\芝山大桥数据\2026年4月\run_logs\offset_correction_applied_20260708_162311.xlsx`;
+  - updated stats:
+    `F:\芝山大桥数据\2026年4月\stats\cable_accel_stats.xlsx`,
+    `F:\芝山大桥数据\2026年4月\stats\cable_accel_spec_stats.xlsx`.
+- Report generated on 133:
+  `F:\芝山大桥数据\2026年4月\自动报告\芝山大桥健康监测2026年4月份月报_自动生成_20260708_162640.docx`.
+- Report manifest:
+  `F:\芝山大桥数据\2026年4月\自动报告\zhishan_report_build_manifest_20260708_162640.json`.
+  Result: `status=ok`, `warnings=[]`, `missing_count=0`,
+  `output_docx_image_count=58`.
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\zhishan_202604_refine_20260708`.
+  Rendered page count: `47`; text QA found no reference errors, placeholders,
+  or stale `2026年3月`.
 
 ## Donghua PHM Exports On 126
 

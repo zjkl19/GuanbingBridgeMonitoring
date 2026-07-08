@@ -1,6 +1,6 @@
 # Known Issues And Follow-Up Items
 
-Last updated: 2026-07-06
+Last updated: 2026-07-08
 
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
@@ -197,25 +197,56 @@ Recommended tests:
 
 ## Dynamic Filter Performance On Large Periods
 
-Status: known follow-up.
+Status: partially fixed for Zhishan dynamic strain; keep monitoring on other
+bridges.
 
 Large dynamic-strain highpass/lowpass runs can spend most of their wall time in
-filtering and figure export. The April 2026 Zhishan refresh confirmed that the
-final report can be correct, but the current full-period filtering path is
-heavier than necessary for long periods.
+filtering and figure export. The 2026-07-08 Zhishan April refresh enabled:
 
-Recommended direction:
+- chunked highpass with overlap, so long-period runs do not need one
+  full-period highpass vector;
+- downsample-before-lowpass for long cutoff trends, enabled for Zhishan with
+  60 second bins.
 
-- highpass results can likely be computed in daily or multi-day chunks with a
-  time overlap, then stitched after dropping the overlap edges;
-- lowpass results, especially with long cutoffs such as 12 hours, should not be
-  split into naive independent daily filters because boundary effects can be
-  visible. Prefer either downsample-before-lowpass or multi-day windows with
-  enough overlap;
-- add a validation harness that compares full-period filtering against the
-  proposed chunked/downsampled path on representative points and checks max
-  error, extrema, trend shape, and report-table consistency before making this
-  the default GUI path.
+Remaining caveat:
+
+- raw full-resolution loading can still dominate wall time for about
+  48 million samples per point;
+- this optimization is suitable for engineering monthly-report trend plots, but
+  future bridges should still compare representative full-resolution outputs
+  against the optimized path before changing defaults bridge-wide.
+
+Recommended checks:
+
+- validate extrema, trend shape, and report-table consistency after enabling
+  the optimized path for a new bridge;
+- keep enough highpass overlap for boundary stability;
+- avoid naive independent daily lowpass filtering for 12 hour cutoffs.
+
+## Time-Series Cache Metadata With Mojibake Paths
+
+Status: fixed for raw CSV MAT caches; keep as a regression risk.
+
+Some older Windows runs wrote `cache\*.mat.meta.json` source paths with Chinese
+characters already decoded as mojibake. The MAT cache itself can still be valid,
+but exact source-path matching caused false cache misses and forced the loader
+to reread very large CSV files. On Zhishan April, `CF-5` 2026-04-30 had a valid
+MAT cache but a mojibake source path in metadata; the fallback 131 MB CSV read
+left the batch MATLAB process effectively stuck.
+
+Current fix:
+
+- exact source-record matching still wins;
+- if paths differ, raw cache reuse is allowed when filename, bytes, and source
+  mtime fingerprints match;
+- regression coverage: `tests/test_time_series_loader.m` includes a mojibake
+  source-path cache-hit case.
+
+Recommended check:
+
+- when a run stalls after logging a large CSV day, check whether the MAT cache
+  exists and whether its metadata path is mojibake before blaming the analysis
+  algorithm.
 
 ## Report Caption Field Refresh
 

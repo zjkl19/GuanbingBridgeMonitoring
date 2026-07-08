@@ -23,6 +23,11 @@ classdef DynamicStrainConfigService
             addParameter(p, 'LowerBound', [], @(x)(isnumeric(x)&&isscalar(x))||isempty(x));
             addParameter(p, 'UpperBound', [], @(x)(isnumeric(x)&&isscalar(x))||isempty(x));
             addParameter(p, 'EdgeTrimSec', [], @(x)(isnumeric(x)&&isscalar(x))||isempty(x));
+            addParameter(p, 'ChunkDays', [], @(x)(isnumeric(x)&&isscalar(x))||isempty(x));
+            addParameter(p, 'ChunkOverlapSec', [], @(x)(isnumeric(x)&&isscalar(x))||isempty(x));
+            addParameter(p, 'DownsampleBeforeFilter', [], @(x)islogical(x)||isnumeric(x)||isempty(x));
+            addParameter(p, 'DownsampleSec', [], @(x)(isnumeric(x)&&isscalar(x))||isempty(x));
+            addParameter(p, 'DownsampleMinSamples', [], @(x)(isnumeric(x)&&isscalar(x))||isempty(x));
             parse(p, rootDir, startDate, endDate, varargin{:});
             opt = p.Results;
         end
@@ -58,7 +63,8 @@ classdef DynamicStrainConfigService
                     spec.statsHeader = '动应变箱线图统计（高通滤波后） 日期范围: %s ~ %s\n';
                     spec.defaults = struct('Fs', [], 'Fc', 0.1, 'Whisker', 300, 'ShowOutliers', false, ...
                         'YLimManual', true, 'YLimRange', [-30 30], ...
-                        'LowerBound', -150, 'UpperBound', 150, 'EdgeTrimSec', 5);
+                        'LowerBound', -150, 'UpperBound', 150, 'EdgeTrimSec', 5, ...
+                        'ChunkDays', [], 'ChunkOverlapSec', [], 'MaxGapSec', []);
                 case {'lowpass', 'low'}
                     spec.mode = 'lowpass';
                     spec.defaultKey = 'dynamic_strain_lowpass';
@@ -81,7 +87,8 @@ classdef DynamicStrainConfigService
                         'Whisker', 300, 'ShowOutliers', false, ...
                         'YLimManual', false, 'YLimRange', [-150 150], ...
                         'LowerBound', -150, 'UpperBound', 150, 'EdgeTrimSec', 5, ...
-                        'MaxGapSec', []);
+                        'MaxGapSec', [], 'DownsampleBeforeFilter', false, ...
+                        'DownsampleSec', [], 'DownsampleMinSamples', 200000);
                 otherwise
                     error('DynamicStrainBoxplotPipeline:UnsupportedMode', 'Unsupported dynamic strain mode: %s', mode);
             end

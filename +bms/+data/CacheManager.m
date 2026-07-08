@@ -97,8 +97,9 @@ classdef CacheManager
             end
             expected = bms.data.CacheManager.buildSourceRecords(sourceFiles);
             if isfield(meta, 'source_records')
-                tf = isequal(bms.data.CacheManager.normalizeSourceRecords(meta.source_records), ...
-                    bms.data.CacheManager.normalizeSourceRecords(expected));
+                actual = bms.data.CacheManager.normalizeSourceRecords(meta.source_records);
+                expected = bms.data.CacheManager.normalizeSourceRecords(expected);
+                tf = isequal(actual, expected) || bms.data.CacheManager.sourceFingerprintsMatch(actual, expected);
             elseif isfield(meta, 'source_files') && isfield(meta, 'source_mtimes')
                 tf = isequal(cellstr(string({expected.path})), cellstr(string(meta.source_files))) ...
                     && isequal(cellstr(string({expected.modified_at})), cellstr(string(meta.source_mtimes)));
@@ -175,6 +176,45 @@ classdef CacheManager
                 records(i).exists = logical(records(i).exists);
                 records(i).bytes = double(records(i).bytes);
                 records(i).modified_at = char(string(records(i).modified_at));
+            end
+        end
+
+        function tf = sourceFingerprintsMatch(actual, expected)
+            % Some older Windows cache metadata stored Chinese path text with a
+            % wrong code page. Keep raw cache reusable when source fingerprints
+            % still prove that the same CSV produced the MAT cache.
+            tf = false;
+            if numel(actual) ~= numel(expected)
+                return;
+            end
+            if isempty(actual)
+                tf = true;
+                return;
+            end
+            actualKeys = bms.data.CacheManager.sourceFingerprintKeys(actual);
+            expectedKeys = bms.data.CacheManager.sourceFingerprintKeys(expected);
+            if isempty(actualKeys) || isempty(expectedKeys)
+                return;
+            end
+            tf = isequal(sort(actualKeys), sort(expectedKeys));
+        end
+
+        function keys = sourceFingerprintKeys(records)
+            keys = strings(0, 1);
+            for i = 1:numel(records)
+                rec = records(i);
+                if ~isfield(rec, 'exists') || ~logical(rec.exists) ...
+                        || ~isfield(rec, 'bytes') || ~isfield(rec, 'modified_at') ...
+                        || ~isfield(rec, 'path')
+                    keys = strings(0, 1);
+                    return;
+                end
+                [~, base, ext] = fileparts(char(string(rec.path)));
+                if isempty(base) || isempty(ext) || isempty(rec.modified_at)
+                    keys = strings(0, 1);
+                    return;
+                end
+                keys(end+1, 1) = sprintf('%s%s|%.0f|%s', base, ext, double(rec.bytes), char(string(rec.modified_at))); %#ok<AGROW>
             end
         end
 

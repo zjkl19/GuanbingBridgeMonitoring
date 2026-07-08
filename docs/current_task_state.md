@@ -1,10 +1,75 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-07
+Last updated: 2026-07-08
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-07-08 Zhishan April Report Refinement
+
+Current accepted code/report state:
+
+- Scope: `gb-133` production data root `F:\芝山大桥数据\2026年4月`.
+- Cleaning/profile changes:
+  - bearing displacement `DX-1` to `DX-4` keeps the April level-2 cleaning
+    bounds `[-80, 80]` mm;
+  - static strain `SX-5`, `SX-6`, and `SX-8` now remove values `> 200`;
+  - dynamic strain highpass/lowpass post-filtering also caps `SX-5`,
+    `SX-6`, and `SX-8` at `200`;
+  - cable acceleration April rules are:
+    `CF-1/2/3/4/5/7/8 = [-500, 500]`, `CF-6 = [-3000, 3000]`;
+  - cable fixed offsets are:
+    `CF-1=-2000`, `CF-2=-2000`, `CF-3=29600`, `CF-4=29600`,
+    `CF-5=29800`, `CF-6=-200`, `CF-7=-1500`, `CF-8=2000`.
+- Dynamic strain performance changes:
+  - highpass filtering supports chunked processing with overlap;
+  - lowpass filtering supports downsample-before-lowpass for long-period
+    trends and is enabled for Zhishan April with 60 second bins.
+- Raw CSV cache hardening:
+  - `CacheManager.sourcesMatch` now accepts a raw cache when the exact source
+    path was stored with mojibake but the source filename, bytes, and mtime
+    fingerprint still match. This fixed the CF-5 `2026-04-30` cache miss that
+    caused MATLAB to hang while falling back to a 131 MB CSV read.
+- Report generator:
+  - `reporting/build_zhishan_monthly_report.py` now reads the bearing
+    displacement figures from split raw/filter group directories for
+    `图 2-5` and `图 2-6`, so stale combined-directory images are not reused.
+
+Validation and production run:
+
+- Local tests passed:
+  `tests/test_time_series_loader.m`, `tests/test_zhishan_config.m`,
+  `tests/test_post_filter_thresholds.m`,
+  `tests/test_dynamic_strain_boxplot_service.m`,
+  and `tests/test_zhishan_report_assets.py`.
+- 133 focused tests passed:
+  `tests/test_time_series_loader.m`, `tests/test_zhishan_config.m`,
+  and `tests/test_zhishan_report_assets.py`.
+- 133 full/refinement runs:
+  - full module run directory:
+    `F:\Guanbing\run_logs\remote_tasks\zhishan_202604_refine_20260708_1500`;
+  - cable resume run directory:
+    `F:\Guanbing\run_logs\remote_tasks\zhishan_202604_cable_resume_20260708_1615`;
+  - cable resume completed with `status=ok`, offset rows `8`, and wrote:
+    `F:\芝山大桥数据\2026年4月\stats\cable_accel_stats.xlsx`,
+    `F:\芝山大桥数据\2026年4月\stats\cable_accel_spec_stats.xlsx`.
+- Stats QA passed on 133:
+  - bearing `DX-1` to `DX-4` within `[-80, 80]`;
+  - `SX-5`, `SX-6`, `SX-8` static and dynamic strain caps satisfied;
+  - CF cable acceleration ranges satisfy the configured April thresholds.
+- Report regenerated on 133:
+  `F:\芝山大桥数据\2026年4月\自动报告\芝山大桥健康监测2026年4月份月报_自动生成_20260708_162640.docx`.
+- Report manifest:
+  `F:\芝山大桥数据\2026年4月\自动报告\zhishan_report_build_manifest_20260708_162640.json`.
+  Manifest result: `status=ok`, `warnings=[]`, `missing_count=0`,
+  `output_docx_image_count=58`.
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\zhishan_202604_refine_20260708`.
+  Rendered to 47 PNG pages; text QA found no `错误`, `引用源未找到`,
+  `未定义书签`, `Error! Reference source not found`, `${`, `{{`, `TODO`,
+  or stale `2026年3月`. Visual spot-checks confirmed the updated bearing
+  displacement and cable acceleration pages are using the new images.
 
 ## 2026-07-07 Hongtang Q2 SL-8 Negative Strain Cleaning
 

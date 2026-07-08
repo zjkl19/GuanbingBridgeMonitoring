@@ -92,7 +92,7 @@ classdef DynamicStrainBoxplotService
             switch mode
                 case {'highpass', 'high'}
                     fc = bms.analyzer.DynamicStrainBoxplotService.getFieldDefault(dsCfg, 'Fc', []);
-                    values = bms.analyzer.DynamicStrainBoxplotService.highpass(values, fs, fc);
+                    values = bms.analyzer.DynamicStrainBoxplotService.highpassBySegments(times, values, fs, fc, dsCfg);
                     thresholdKey = 'dynamic_strain';
                 case {'lowpass', 'low'}
                     [fc, cutoffMinutes] = bms.analyzer.DynamicStrainBoxplotService.resolveLowpassCutoff(dsCfg, fs);
@@ -135,6 +135,24 @@ classdef DynamicStrainBoxplotService
             values(maskInvalid) = 0;
             values = filtfilt(b, a, values);
             values(maskInvalid) = NaN;
+        end
+
+        function valuesOut = highpassBySegments(times, values, fs, fc, dsCfg)
+            if isempty(fc) || ~isfinite(fc) || fc <= 0
+                valuesOut = values;
+                return;
+            end
+            nyq = fs / 2;
+            if ~(isfinite(nyq) && nyq > 0 && fc < nyq)
+                bms.analyzer.DynamicStrainBoxplotService.warningOnce('dynamic_strain_highpass:fc', ...
+                    sprintf('Highpass cutoff %.6g Hz is not below Nyquist %.6g Hz; skipping filter.', fc, nyq));
+                valuesOut = values;
+                return;
+            end
+
+            [b, a] = butter(1, fc / nyq, 'high');
+            valuesOut = bms.analyzer.DynamicStrainBoxplotService.filterBySegmentsAndChunks( ...
+                times, values, fs, b, a, dsCfg, 'highpass');
         end
 
         function [values, times] = trimEdges(values, times, fs, edgeTrimSec)
@@ -255,6 +273,8 @@ classdef DynamicStrainBoxplotService
 
             [b, a] = butter(order, fc / (fs / 2), 'low');
             minLen = 3 * max(numel(a), numel(b));
+            useDownsample = bms.analyzer.DynamicStrainBoxplotService.getLogicalFieldDefault( ...
+                dsCfg, 'DownsampleBeforeFilter', false);
             gapBreaks = diff(idx) > 1 | bms.analyzer.DynamicStrainBoxplotService.diffSeconds(times(idx)) > maxGap;
             starts = [1; find(gapBreaks) + 1];
             stops = [find(gapBreaks); numel(idx)];
@@ -262,9 +282,195 @@ classdef DynamicStrainBoxplotService
                 seg = idx(starts(si):stops(si));
                 if numel(seg) <= minLen
                     valuesOut(seg) = values(seg);
+                elseif useDownsample
+                    valuesOut(seg) = bms.analyzer.DynamicStrainBoxplotService.lowpassDownsampledSegment( ...
+                        times(seg), values(seg), fs, fc, order, dsCfg);
                 else
                     valuesOut(seg) = filtfilt(b, a, double(values(seg)));
                 end
+            end
+        end
+
+        function valuesOut = filterBySegmentsAndChunks(times, values, fs, b, a, dsCfg, mode)
+            valuesOut = NaN(size(values));
+            values = values(:);
+            times = times(:);
+            n = min(numel(values), numel(times));
+            if n == 0
+                return;
+            end
+            values = values(1:n);
+            times = times(1:n);
+
+            valid = isfinite(values) & bms.analyzer.DynamicStrainBoxplotService.isValidTime(times);
+            idx = find(valid);
+            if isempty(idx)
+                return;
+            end
+
+            maxGap = bms.analyzer.DynamicStrainBoxplotService.segmentMaxGapSec(times(idx), fs, dsCfg);
+            minLen = 3 * max(numel(a), numel(b));
+            gapBreaks = diff(idx) > 1 | bms.analyzer.DynamicStrainBoxplotService.diffSeconds(times(idx)) > maxGap;
+            starts = [1; find(gapBreaks) + 1];
+            stops = [find(gapBreaks); numel(idx)];
+
+            chunkDays = bms.analyzer.DynamicStrainBoxplotService.getNumericFieldDefault(dsCfg, 'ChunkDays', 0);
+            chunkSec = chunkDays * 86400;
+            overlapSec = bms.analyzer.DynamicStrainBoxplotService.getNumericFieldDefault(dsCfg, 'ChunkOverlapSec', NaN);
+            if ~isfinite(overlapSec) || overlapSec < 0
+                overlapSec = max(300, 20 / max(eps, bms.analyzer.DynamicStrainBoxplotService.inferCutoffFromFilter(b, a, fs, mode)));
+            end
+
+            for si = 1:numel(starts)
+                seg = idx(starts(si):stops(si));
+                if numel(seg) <= minLen
+                    valuesOut(seg) = values(seg);
+                elseif isfinite(chunkSec) && chunkSec > 0
+                    valuesOut(seg) = bms.analyzer.DynamicStrainBoxplotService.filterSegmentInChunks( ...
+                        times(seg), values(seg), b, a, minLen, chunkSec, overlapSec);
+                else
+                    valuesOut(seg) = filtfilt(b, a, double(values(seg)));
+                end
+            end
+        end
+
+        function valuesOut = filterSegmentInChunks(times, values, b, a, minLen, chunkSec, overlapSec)
+            values = values(:);
+            tsec = bms.analyzer.DynamicStrainBoxplotService.relativeSeconds(times);
+            valuesOut = NaN(size(values));
+            if numel(values) <= minLen || isempty(tsec) || ~all(isfinite(tsec)) || tsec(end) <= tsec(1)
+                if numel(values) > minLen
+                    valuesOut = filtfilt(b, a, double(values));
+                else
+                    valuesOut = values;
+                end
+                return;
+            end
+
+            t0 = tsec(1);
+            tEnd = tsec(end);
+            coreStart = t0;
+            while coreStart <= tEnd
+                coreEnd = min(coreStart + chunkSec, tEnd + eps);
+                if coreEnd <= coreStart
+                    break;
+                end
+                if coreEnd >= tEnd
+                    coreMask = tsec >= coreStart & tsec <= tEnd;
+                else
+                    coreMask = tsec >= coreStart & tsec < coreEnd;
+                end
+                coreLocal = find(coreMask);
+                if isempty(coreLocal)
+                    coreStart = coreEnd;
+                    continue;
+                end
+
+                extMask = tsec >= (coreStart - overlapSec) & tsec <= (coreEnd + overlapSec);
+                extLocal = find(extMask);
+                if numel(extLocal) <= minLen
+                    valuesOut(coreLocal) = values(coreLocal);
+                else
+                    filteredExt = filtfilt(b, a, double(values(extLocal)));
+                    [~, loc] = ismember(coreLocal, extLocal);
+                    validLoc = loc > 0;
+                    valuesOut(coreLocal(validLoc)) = filteredExt(loc(validLoc));
+                end
+                coreStart = coreEnd;
+            end
+        end
+
+        function valuesOut = lowpassDownsampledSegment(times, values, fs, fc, order, dsCfg)
+            values = values(:);
+            valuesOut = NaN(size(values));
+            n = numel(values);
+            minSamples = bms.analyzer.DynamicStrainBoxplotService.getNumericFieldDefault( ...
+                dsCfg, 'DownsampleMinSamples', 200000);
+            downsampleSec = bms.analyzer.DynamicStrainBoxplotService.getNumericFieldDefault(dsCfg, 'DownsampleSec', 0);
+            if n < minSamples || ~(isfinite(downsampleSec) && downsampleSec > 0)
+                [b, a] = butter(order, fc / (fs / 2), 'low');
+                valuesOut = filtfilt(b, a, double(values));
+                return;
+            end
+
+            maxStep = 0.25 / fc;
+            if isfinite(maxStep) && maxStep > 0
+                downsampleSec = min(downsampleSec, maxStep);
+            end
+
+            tsec = bms.analyzer.DynamicStrainBoxplotService.relativeSeconds(times);
+            if isempty(tsec) || numel(tsec) ~= n || ~all(isfinite(tsec)) || tsec(end) <= tsec(1)
+                [b, a] = butter(order, fc / (fs / 2), 'low');
+                valuesOut = filtfilt(b, a, double(values));
+                return;
+            end
+
+            bins = floor((tsec - tsec(1)) / downsampleSec) + 1;
+            nBins = max(bins);
+            if nBins < 1
+                valuesOut = values;
+                return;
+            end
+            vBin = accumarray(bins(:), double(values), [nBins 1], @median, NaN);
+            tBin = accumarray(bins(:), double(tsec), [nBins 1], @mean, NaN);
+            keep = isfinite(vBin) & isfinite(tBin);
+            vBin = vBin(keep);
+            tBin = tBin(keep);
+            if numel(vBin) <= 3 * (order + 1)
+                valuesOut = values;
+                return;
+            end
+
+            dtBin = diff(tBin);
+            dtBin = dtBin(isfinite(dtBin) & dtBin > 0);
+            if isempty(dtBin)
+                valuesOut = values;
+                return;
+            end
+            fsBin = 1 / median(dtBin);
+            nyqBin = fsBin / 2;
+            if ~(isfinite(nyqBin) && nyqBin > 0 && fc < nyqBin)
+                [b, a] = butter(order, fc / (fs / 2), 'low');
+                valuesOut = filtfilt(b, a, double(values));
+                return;
+            end
+
+            [bBin, aBin] = butter(order, fc / nyqBin, 'low');
+            vFilt = filtfilt(bBin, aBin, vBin);
+            valuesOut = interp1(tBin, vFilt, tsec, 'linear', 'extrap');
+        end
+
+        function maxGap = segmentMaxGapSec(times, fs, dsCfg)
+            dtAll = bms.analyzer.DynamicStrainBoxplotService.diffSeconds(times);
+            dtAll = dtAll(isfinite(dtAll) & dtAll > 0);
+            if isempty(dtAll)
+                maxGap = 5 / fs;
+            else
+                maxGap = 5 * median(dtAll);
+            end
+            maxGapCfg = bms.analyzer.DynamicStrainBoxplotService.getFieldDefault(dsCfg, 'MaxGapSec', []);
+            if ~isempty(maxGapCfg) && isfinite(maxGapCfg) && maxGapCfg > 0
+                maxGap = min(maxGap, double(maxGapCfg));
+            end
+        end
+
+        function tsec = relativeSeconds(times)
+            times = times(:);
+            if isempty(times)
+                tsec = [];
+            elseif isdatetime(times) || isduration(times)
+                tsec = seconds(times - times(1));
+            else
+                tsec = double(times) - double(times(1));
+            end
+            tsec = tsec(:);
+        end
+
+        function fc = inferCutoffFromFilter(~, ~, fs, mode)
+            if strcmpi(char(string(mode)), 'highpass')
+                fc = max(eps, fs / 100);
+            else
+                fc = max(eps, fs / 100);
             end
         end
 
@@ -297,6 +503,18 @@ classdef DynamicStrainBoxplotService
             if isstruct(s) && isfield(s, name) && ~isempty(s.(name)) && ...
                     isnumeric(s.(name)) && isscalar(s.(name)) && isfinite(s.(name))
                 value = double(s.(name));
+            end
+        end
+
+        function value = getLogicalFieldDefault(s, name, defaultValue)
+            value = defaultValue;
+            if isstruct(s) && isfield(s, name) && ~isempty(s.(name))
+                raw = s.(name);
+                if islogical(raw)
+                    value = logical(raw);
+                elseif isnumeric(raw) && isscalar(raw)
+                    value = raw ~= 0;
+                end
             end
         end
 

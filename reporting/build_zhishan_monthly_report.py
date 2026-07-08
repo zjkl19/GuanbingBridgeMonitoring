@@ -1043,8 +1043,8 @@ def zhishan_image_replacements(result_root: Path) -> list[tuple[str, list[Path |
     ]
 
     return [
-        ("图 2-5", first_images(result_root, "时程曲线_梁端纵向位移_组图", ["*Orig*.jpg"]), 145.0),
-        ("图 2-6", first_images(result_root, "时程曲线_梁端纵向位移_组图", ["*Filt*.jpg"]), 145.0),
+        ("图 2-5", first_images(result_root, "时程曲线_梁端纵向位移_组图_原始", ["*Orig*.jpg"]), 145.0),
+        ("图 2-6", first_images(result_root, "时程曲线_梁端纵向位移_组图_滤波", ["*Filt*.jpg"]), 145.0),
         (
             "图 2-7",
             [

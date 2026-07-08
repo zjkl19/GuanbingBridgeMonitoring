@@ -102,6 +102,40 @@ classdef test_dynamic_strain_boxplot_service < matlab.unittest.TestCase
             tc.verifyTrue(all(isfinite(filtered([1:7 11:20]))));
         end
 
+        function highpassChunkedApproximatesFullFilterAwayFromEdges(tc)
+            fs = 1;
+            fc = 0.01;
+            t = (0:899)';
+            times = datetime(2026, 1, 1, 0, 0, 0) + seconds(t);
+            values = sin(2*pi*0.001*t) + 0.2*sin(2*pi*0.08*t);
+            cfg = struct('ChunkDays', 1/288, 'ChunkOverlapSec', 120, 'MaxGapSec', 2);
+
+            fullFiltered = bms.analyzer.DynamicStrainBoxplotService.highpass(values, fs, fc);
+            chunked = bms.analyzer.DynamicStrainBoxplotService.highpassBySegments(times, values, fs, fc, cfg);
+
+            keep = 181:720;
+            tc.verifyLessThan(max(abs(fullFiltered(keep) - chunked(keep))), 0.12);
+        end
+
+        function lowpassDownsampledPathKeepsSmoothTrend(tc)
+            fs = 1;
+            fc = 1 / 600;
+            t = (0:1800)';
+            times = datetime(2026, 1, 1, 0, 0, 0) + seconds(t);
+            values = sin(2*pi*t/3600) + 0.15*sin(2*pi*t/20);
+            cfg = struct( ...
+                'MaxGapSec', 2, ...
+                'DownsampleBeforeFilter', true, ...
+                'DownsampleSec', 10, ...
+                'DownsampleMinSamples', 100);
+
+            filtered = bms.analyzer.DynamicStrainBoxplotService.lowpassBySegments(times, values, fs, fc, 2, cfg);
+
+            tc.verifyEqual(size(filtered), size(values));
+            tc.verifyTrue(all(isfinite(filtered)));
+            tc.verifyLessThan(std(diff(filtered(301:end-300))), std(diff(values(301:end-300))));
+        end
+
         function trimEdgesDropsExpectedSamples(tc)
             times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:9);
             values = (1:10)';

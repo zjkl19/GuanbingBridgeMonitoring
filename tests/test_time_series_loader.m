@@ -270,6 +270,24 @@ classdef test_time_series_loader < matlab.unittest.TestCase
             tc.verifyTrue(endsWith(files{1}, fullfile('cache', 'SPEED.mat')));
         end
 
+        function cachedCsvSeriesAllowsMojibakeSourcePathWhenFingerprintMatches(tc)
+            path = fullfile(tc.TempDir, 'series_mojibake.csv');
+            write_text(path, sprintf(['ignored header\n' ...
+                '2026-03-01 00:00:00.000,13.00\n' ...
+                '2026-03-01 00:00:01.000,14.00\n']));
+
+            [~, ~, meta1] = bms.data.TimeSeriesLoader.readCachedCsvSeries(path, '[missing marker]');
+            metaPath = bms.data.CacheManager.metadataPath(meta1.cache_path);
+            rawMeta = jsondecode(fileread(metaPath));
+            rawMeta.source_records.path = fullfile('F:\mojibake-root', 'series_mojibake.csv');
+            bms.core.Logger.writeJson(metaPath, rawMeta);
+
+            [~, v2, meta2] = bms.data.TimeSeriesLoader.readCachedCsvSeries(path, '[missing marker]');
+
+            tc.verifyTrue(meta2.cache_hit);
+            tc.verifyEqual(v2(:), [13; 14]);
+        end
+
         function cachedCsvSeriesIgnoresCacheWithoutMetadata(tc)
             path = fullfile(tc.TempDir, 'series_stale.csv');
             write_text(path, sprintf(['ignored header\n' ...
