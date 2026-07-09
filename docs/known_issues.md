@@ -7,15 +7,16 @@ chat history but not always urgent enough to fix immediately.
 
 ## High-Frequency Report Plot Sampling
 
-Status: improved in `caffd0e`; keep as a report QA rule.
+Status: improved in `6750158`; keep as a report QA rule.
 
 The previous extrema-preserving cap fixed dropped extrema, but some monthly or
 quarterly raw high-frequency time-history figures still looked visually sparse
 when they used the ordinary common cap. Hongtang Q2 and Zhishan April to June
 now use dedicated report-facing raw dynamic plot limits:
 
-- `plot_common.dynamic_raw_fig_max_points=900000`
-- `plot_common.dynamic_raw_min_points_per_day=10000`
+- `plot_common.dynamic_raw_fig_max_points=5000000`
+- `plot_common.dynamic_raw_min_points_per_day=50000`
+- `plot_common.dynamic_raw_line_width=1.2`
 
 This path still preserves finite min/max/absolute-peak samples. It should make
 valid high-frequency data look close to the original full-resolution waveform

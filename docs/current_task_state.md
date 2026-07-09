@@ -6,9 +6,62 @@ Last updated: 2026-07-09
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
-## 2026-07-09 Hongtang/Zhishan High-Density Raw Plot Rerun
+## 2026-07-09 Hongtang/Zhishan Dense Raw Plot Final Refresh
 
 Current accepted run state:
+
+- Scope: `gb-133` production rerun for:
+  - Hongtang Q2: `E:\洪塘大桥数据\2026年4-6月`
+  - Zhishan April/May/June: `F:\芝山大桥数据\2026年4月`,
+    `F:\芝山大桥数据\2026年5月`, `F:\芝山大桥数据\2026年6月`
+- Code state: local, `origin/main`, and `gb-133:F:\Guanbing` are on `main` at
+  `6750158 Improve dense dynamic report plots`.
+- Main change from the earlier high-density pass: report-facing raw dynamic
+  plots now use a denser extrema-preserving visual policy:
+  `plot_common.dynamic_raw_fig_max_points=5000000`,
+  `plot_common.dynamic_raw_min_points_per_day=50000`, and
+  `plot_common.dynamic_raw_line_width=1.2` for Hongtang and Zhishan. Ordinary
+  plot limits remain separate.
+- Production task root on 133:
+  `F:\Guanbing\run_logs\remote_tasks\dense_plot_refresh_20260709`.
+- Completed analysis manifests:
+  - `E:\洪塘大桥数据\2026年4-6月\run_logs\analysis_manifest_20260709_093118.json`
+  - `F:\芝山大桥数据\2026年4月\run_logs\analysis_manifest_20260709_094925.json`
+  - `F:\芝山大桥数据\2026年5月\run_logs\analysis_manifest_20260709_100331.json`
+  - `F:\芝山大桥数据\2026年6月\run_logs\analysis_manifest_20260709_101503.json`
+- Regenerated reports on 133:
+  - `E:\洪塘大桥数据\2026年4-6月\自动报告\洪塘大桥健康监测2026年4-6月周期报_20260709_101751.docx`
+  - `F:\芝山大桥数据\2026年4月\自动报告\芝山大桥健康监测2026年4月份月报_自动生成_20260709_101921.docx`
+  - `F:\芝山大桥数据\2026年5月\自动报告\芝山大桥健康监测2026年5月份月报_自动生成_20260709_101933.docx`
+  - `F:\芝山大桥数据\2026年6月\自动报告\芝山大桥健康监测2026年6月份月报_自动生成_20260709_101946.docx`
+- Report generation runtimes were normal: Hongtang about `117` seconds;
+  Zhishan monthly reports about `11` to `13` seconds each.
+- Local QA bundle:
+  `D:\MatlabProjects\Guanbing\run_logs\remote_artifacts\dense_plot_refresh_20260709`.
+  It contains copied DOCX reports, manifests, logs, PDFs, selected rendered PNG
+  pages, and contact sheets.
+- QA result:
+  - all four report manifests were generated and the dynamic-image audit found
+    `missing=0` and `older_than_threshold=0`;
+  - DOCX internal XML/text scan found no `引用源未找到`, `错误`, `TODO`,
+    `PLACEHOLDER`, `Error!`, or `Cannot find`;
+  - LibreOffice/Poppler rendered Hongtang to PDF and selected pages, and each
+    Zhishan month to PDF and selected high-frequency pages for visual review;
+  - reviewed Hongtang acceleration/cable-acceleration pages and Zhishan
+    cable-acceleration pages show thicker, more continuous raw time-history
+    curves. Remaining blank bands are data/cleaning coverage gaps rather than
+    downsampling gaps.
+- Operational note: the all-stage MATLAB wrapper completed each stage but did
+  not return cleanly to launch the next one, so this production refresh was
+  controlled as separate per-stage/month MATLAB processes after confirming each
+  manifest/log/image set. This is a control-script follow-up, not a report
+  data failure.
+- This supersedes the `highfreq_plot_sampling_20260709` `900000`-point run
+  below.
+
+## 2026-07-09 Hongtang/Zhishan High-Density Raw Plot Rerun
+
+Superseded by the dense raw plot final refresh above; kept as run history:
 
 - Scope: `gb-133` production rerun for:
   - Hongtang Q2: `E:\洪塘大桥数据\2026年4-6月`
