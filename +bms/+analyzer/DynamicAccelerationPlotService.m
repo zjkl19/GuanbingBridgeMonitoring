@@ -6,7 +6,8 @@ classdef DynamicAccelerationPlotService
             fig = figure('Position', [100 100 1000 469]);
             plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
             [timesPlot, valuesPlot] = prepare_plot_series(times, values, plotOpts);
-            plot(timesPlot, valuesPlot, 'LineWidth', 1, 'Color', style.color_main);
+            lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.0);
+            plot(timesPlot, valuesPlot, 'LineWidth', lineWidth, 'Color', style.color_main);
             xlabel('时间');
             ylabel(style.ylabel);
             bms.analyzer.DynamicAccelerationPlotService.applyMainYLim(style, pointId);
@@ -212,6 +213,7 @@ classdef DynamicAccelerationPlotService
             opts.warnLines = bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
                 style, warnField, groupName, cfg, spec, records);
             opts.fig_max_points = bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000);
+            opts.lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.0);
 
             bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
                 rootDir, timesList, valuesList, labels, startDate, endDate, opts, cfg);

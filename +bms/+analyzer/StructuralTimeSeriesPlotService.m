@@ -40,6 +40,7 @@ classdef StructuralTimeSeriesPlotService
 
             n = numel(dataList);
             colors = bms.analyzer.StructuralTimeSeriesPlotService.resolveColors(opts, n);
+            lineWidth = bms.analyzer.StructuralTimeSeriesPlotService.opt(opts, 'lineWidth', 1.0);
             plotOpts = bms.plot.PlotService.mergeOptions( ...
                 bms.plot.PlotService.runtimeOptionsFromConfig(cfg), opts);
             h = gobjects(n, 1);
@@ -53,9 +54,9 @@ classdef StructuralTimeSeriesPlotService
                 end
                 color = bms.analyzer.StructuralTimeSeriesPlotService.colorAt(colors, i);
                 if isempty(color)
-                    h(i) = plot(timesPlot, valuesPlot, 'LineWidth', 1.0);
+                    h(i) = plot(timesPlot, valuesPlot, 'LineWidth', lineWidth);
                 else
-                    h(i) = plot(timesPlot, valuesPlot, 'LineWidth', 1.0, 'Color', color);
+                    h(i) = plot(timesPlot, valuesPlot, 'LineWidth', lineWidth, 'Color', color);
                 end
             end
 

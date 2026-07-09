@@ -35,7 +35,8 @@ classdef WindPlotService
             fig = figure('Position', [100 100 1100 500]);
             plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
             [timesPlot, valsPlot] = prepare_plot_series(times, vals, plotOpts);
-            plot(timesPlot, valsPlot, 'LineWidth', 1.1, 'Color', style.speed.color);
+            lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.1);
+            plot(timesPlot, valsPlot, 'LineWidth', lineWidth, 'Color', style.speed.color);
             xlabel('时间');
             ylabel(style.speed.ylabel);
             title(sprintf('%s %s [%s-%s]', style.speed.title_prefix, pid, startDate, endDate));
@@ -61,7 +62,8 @@ classdef WindPlotService
             fig = figure('Position', [100 100 1100 500]);
             plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
             [timesPlot, valsPlot] = prepare_plot_series(times, vals, plotOpts);
-            plot(timesPlot, valsPlot, 'LineWidth', 1.0, 'Color', style.direction.color);
+            lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.0);
+            plot(timesPlot, valsPlot, 'LineWidth', lineWidth, 'Color', style.direction.color);
             xlabel('时间');
             ylabel(style.direction.ylabel);
             title(sprintf('%s %s [%s-%s]', style.direction.title_prefix, pid, startDate, endDate));

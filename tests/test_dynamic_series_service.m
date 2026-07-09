@@ -111,14 +111,16 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
         function rawPlotPerDayMaxCanExceedCommonLimit(tc)
             cfg.plot_common = struct( ...
                 'fig_max_points', 50000, ...
-                'dynamic_raw_fig_max_points', 900000, ...
-                'dynamic_raw_min_points_per_day', 10000);
+                'dynamic_raw_fig_max_points', 5000000, ...
+                'dynamic_raw_min_points_per_day', 50000, ...
+                'dynamic_raw_line_width', 1.2);
 
-            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000), 900000);
-            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), 10000);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000), 5000000);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), 55556);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.0), 1.2);
 
             opts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
-            tc.verifyEqual(opts.fig_max_points, 900000);
+            tc.verifyEqual(opts.fig_max_points, 5000000);
 
             cfg.plot_common = struct('fig_max_points', 50000);
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), 556);

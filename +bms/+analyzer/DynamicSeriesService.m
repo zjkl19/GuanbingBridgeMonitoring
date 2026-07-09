@@ -208,6 +208,16 @@ classdef DynamicSeriesService
             opts.fig_max_points = bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, defaultValue);
         end
 
+        function lineWidth = rawPlotLineWidth(cfg, defaultValue)
+            if nargin < 2 || isempty(defaultValue), defaultValue = 1.0; end
+            lineWidth = bms.config.ConfigReader.getNumeric(cfg, ...
+                'plot_common.dynamic_raw_line_width', defaultValue);
+            if ~isscalar(lineWidth) || ~isfinite(lineWidth) || lineWidth <= 0
+                lineWidth = defaultValue;
+            end
+            lineWidth = min(3.0, max(0.5, double(lineWidth)));
+        end
+
         function [timesOut, valsOut] = limitSeriesPoints(times, vals, maxPoints)
             timesOut = [];
             valsOut = [];
