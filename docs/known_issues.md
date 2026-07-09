@@ -7,20 +7,25 @@ chat history but not always urgent enough to fix immediately.
 
 ## High-Frequency Report Plot Sampling
 
-Status: improved in `6750158`; keep as a report QA rule.
+Status: accepted in `8e95106`; keep as a report QA rule.
 
 The previous extrema-preserving cap fixed dropped extrema, but some monthly or
 quarterly raw high-frequency time-history figures still looked visually sparse
-when they used the ordinary common cap. Hongtang Q2 and Zhishan April to June
-now use dedicated report-facing raw dynamic plot limits:
+when they used the ordinary common cap or when dense-band rendering was used
+too aggressively. Hongtang Q2 and Zhishan April to June now use a dedicated
+report-facing high-sample ordinary line policy:
 
-- `plot_common.dynamic_raw_fig_max_points=5000000`
-- `plot_common.dynamic_raw_min_points_per_day=50000`
+- `plot_common.dynamic_raw_render_mode=line`
+- `plot_common.dynamic_raw_fig_max_points=1200000`
+- `plot_common.dynamic_raw_min_points_per_day=12000`
 - `plot_common.dynamic_raw_line_width=1.2`
 
-This path still preserves finite min/max/absolute-peak samples. It should make
-valid high-frequency data look close to the original full-resolution waveform
-while keeping report rendering practical.
+The accepted path deliberately avoids both sparse low-cap line plots and
+filled-envelope `dense_band` output. During the 2026-07-09 report refresh, the
+dense-band variants were rejected because vertical min/max bars looked striped
+and filled patches introduced geometric blocks across long source gaps. The
+high-sample line mode is slower than low-cap plotting but closer to the
+original full-resolution waveform while keeping report rendering practical.
 
 Important distinction:
 
