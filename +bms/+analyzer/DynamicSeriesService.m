@@ -274,21 +274,32 @@ classdef DynamicSeriesService
             end
 
             if strcmp(mode, 'dense_band') || strcmp(mode, 'band')
-                [xBand, yBand] = bms.analyzer.DynamicSeriesService.denseBandSeries( ...
+                [xBand, yLow, yHigh] = bms.analyzer.DynamicSeriesService.denseBandEnvelope( ...
                     times, vals, bms.analyzer.DynamicSeriesService.opt(opts, 'raw_band_bins', 24000));
-                if ~isempty(yBand)
+                if ~isempty(yLow)
+                    wasHold = ishold(ax);
+                    hold(ax, 'on');
+                    cleaner = onCleanup(@() bms.analyzer.DynamicSeriesService.restoreHold(ax, wasHold)); %#ok<NASGU>
                     bandWidth = bms.analyzer.DynamicSeriesService.opt(opts, 'raw_band_line_width', 0.55);
-                    if isempty(color)
-                        h = plot(ax, xBand, yBand, 'LineWidth', bandWidth);
+                    bandColor = color;
+                    if isempty(bandColor)
+                        bandColor = [0 0.4470 0.7410];
+                    end
+                    fill(ax, [xBand; flipud(xBand)], [yLow; flipud(yHigh)], bandColor, ...
+                        'FaceAlpha', 0.72, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+                    plot(ax, xBand, yLow, 'LineWidth', max(0.1, bandWidth * 0.35), ...
+                        'Color', bandColor, 'HandleVisibility', 'off');
+                    plot(ax, xBand, yHigh, 'LineWidth', max(0.1, bandWidth * 0.35), ...
+                        'Color', bandColor, 'HandleVisibility', 'off');
+
+                    if isdatetime(xBand)
+                        h = plot(ax, NaT, NaN, 'LineWidth', max(0.5, lineWidth), 'Color', bandColor);
                     else
-                        h = plot(ax, xBand, yBand, 'LineWidth', bandWidth, 'Color', color);
+                        h = plot(ax, NaN, NaN, 'LineWidth', max(0.5, lineWidth), 'Color', bandColor);
                     end
 
                     tracePoints = bms.analyzer.DynamicSeriesService.opt(opts, 'raw_trace_points', 120000);
                     if tracePoints > 0
-                        wasHold = ishold(ax);
-                        hold(ax, 'on');
-                        cleaner = onCleanup(@() bms.analyzer.DynamicSeriesService.restoreHold(ax, wasHold)); %#ok<NASGU>
                         traceOpts = opts;
                         traceOpts.fig_max_points = tracePoints;
                         [xTrace, yTrace] = prepare_plot_series(times, vals, traceOpts);
@@ -317,6 +328,19 @@ classdef DynamicSeriesService
         function [xBand, yBand] = denseBandSeries(times, vals, maxBins)
             xBand = [];
             yBand = [];
+            [xEnv, lo, hi] = bms.analyzer.DynamicSeriesService.denseBandEnvelope(times, vals, maxBins);
+            if isempty(lo)
+                return;
+            end
+
+            xBand = repelem(xEnv, 2);
+            yBand = reshape([lo.'; hi.'], [], 1);
+        end
+
+        function [xEnv, lo, hi] = denseBandEnvelope(times, vals, maxBins)
+            xEnv = [];
+            lo = [];
+            hi = [];
             if isempty(vals) || numel(times) ~= numel(vals)
                 return;
             end
@@ -372,8 +396,7 @@ classdef DynamicSeriesService
                 return;
             end
 
-            xBand = repelem(times(centers), 2);
-            yBand = reshape([lo.'; hi.'], [], 1);
+            xEnv = times(centers);
         end
 
         function [timesOut, valsOut] = limitSeriesPoints(times, vals, maxPoints)
