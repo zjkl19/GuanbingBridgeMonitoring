@@ -165,7 +165,7 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
                 'raw_band_line_width', 0.45, ...
                 'raw_trace_points', 0);
 
-            h = bms.analyzer.DynamicSeriesService.plotRawSeries(ax, times, vals, [0 0.4470 0.7410], opts, 1.0);
+            h = bms.analyzer.DynamicSeriesService.plotRawSeries(ax, times, vals, [0; 0.4470; 0.7410], opts, 1.0);
 
             tc.verifyTrue(isgraphics(h));
             tc.verifyGreaterThanOrEqual(numel(findall(ax, 'Type', 'patch')), 1);

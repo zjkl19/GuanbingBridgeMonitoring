@@ -267,6 +267,12 @@ classdef DynamicSeriesService
             if nargin < 4, color = []; end
             if nargin < 5 || isempty(opts), opts = struct(); end
             if nargin < 6 || isempty(lineWidth), lineWidth = 1.0; end
+            if isnumeric(color) && ~isempty(color)
+                color = double(color(:).');
+                if numel(color) ~= 3
+                    color = [];
+                end
+            end
 
             mode = 'line';
             if isstruct(opts) && isfield(opts, 'raw_render_mode') && ~isempty(opts.raw_render_mode)
