@@ -372,16 +372,8 @@ classdef DynamicSeriesService
                 return;
             end
 
-            if isdatetime(times)
-                xBand = NaT(3 * numel(lo), 1);
-            else
-                xBand = NaN(3 * numel(lo), 1);
-            end
-            yBand = NaN(3 * numel(lo), 1);
-            xBand(1:3:end) = times(centers);
-            xBand(2:3:end) = times(centers);
-            yBand(1:3:end) = lo;
-            yBand(2:3:end) = hi;
+            xBand = repelem(times(centers), 2);
+            yBand = reshape([lo.'; hi.'], [], 1);
         end
 
         function [timesOut, valsOut] = limitSeriesPoints(times, vals, maxPoints)

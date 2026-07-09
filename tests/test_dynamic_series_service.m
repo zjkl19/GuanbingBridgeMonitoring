@@ -147,11 +147,11 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             [xBand, yBand] = bms.analyzer.DynamicSeriesService.denseBandSeries(times, vals, 25);
 
             tc.verifyEqual(numel(xBand), numel(yBand));
-            tc.verifyLessThanOrEqual(numel(yBand), 75);
+            tc.verifyLessThanOrEqual(numel(yBand), 50);
             tc.verifyTrue(any(abs(yBand + 20) < 1e-12));
             tc.verifyTrue(any(abs(yBand - 18) < 1e-12));
-            tc.verifyTrue(any(isnat(xBand)));
-            tc.verifyTrue(any(isnan(yBand)));
+            tc.verifyFalse(any(isnat(xBand)));
+            tc.verifyFalse(any(isnan(yBand)));
         end
 
         function collectRecordLoadsStatsAndRmsPeak(tc)
