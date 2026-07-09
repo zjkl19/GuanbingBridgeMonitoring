@@ -113,17 +113,45 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
                 'fig_max_points', 50000, ...
                 'dynamic_raw_fig_max_points', 5000000, ...
                 'dynamic_raw_min_points_per_day', 50000, ...
-                'dynamic_raw_line_width', 1.2);
+                'dynamic_raw_line_width', 1.2, ...
+                'dynamic_raw_render_mode', 'dense_band', ...
+                'dynamic_raw_band_bins', 24000, ...
+                'dynamic_raw_band_line_width', 0.55, ...
+                'dynamic_raw_trace_points', 120000);
 
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000), 5000000);
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), 55556);
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.0), 1.2);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotRenderMode(cfg, 'line'), 'dense_band');
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotBandBins(cfg, 1000), 24000);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotBandLineWidth(cfg, 0.4), 0.55);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotTracePoints(cfg, 0), 120000);
 
             opts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
             tc.verifyEqual(opts.fig_max_points, 5000000);
+            tc.verifyEqual(opts.raw_render_mode, 'dense_band');
+            tc.verifyEqual(opts.raw_band_bins, 24000);
+            tc.verifyEqual(opts.raw_band_line_width, 0.55);
+            tc.verifyEqual(opts.raw_trace_points, 120000);
 
             cfg.plot_common = struct('fig_max_points', 50000);
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), 556);
+        end
+
+        function denseBandSeriesKeepsEnvelopeExtrema(tc)
+            times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:999)';
+            vals = sin((1:1000)' / 5);
+            vals(123) = -20;
+            vals(876) = 18;
+
+            [xBand, yBand] = bms.analyzer.DynamicSeriesService.denseBandSeries(times, vals, 25);
+
+            tc.verifyEqual(numel(xBand), numel(yBand));
+            tc.verifyLessThanOrEqual(numel(yBand), 75);
+            tc.verifyTrue(any(abs(yBand + 20) < 1e-12));
+            tc.verifyTrue(any(abs(yBand - 18) < 1e-12));
+            tc.verifyTrue(any(isnat(xBand)));
+            tc.verifyTrue(any(isnan(yBand)));
         end
 
         function collectRecordLoadsStatsAndRmsPeak(tc)

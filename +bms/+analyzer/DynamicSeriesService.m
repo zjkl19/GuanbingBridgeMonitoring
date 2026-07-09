@@ -206,6 +206,10 @@ classdef DynamicSeriesService
             if nargin < 2 || isempty(defaultValue), defaultValue = 50000; end
             opts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
             opts.fig_max_points = bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, defaultValue);
+            opts.raw_render_mode = bms.analyzer.DynamicSeriesService.rawPlotRenderMode(cfg, 'line');
+            opts.raw_band_bins = bms.analyzer.DynamicSeriesService.rawPlotBandBins(cfg, 24000);
+            opts.raw_band_line_width = bms.analyzer.DynamicSeriesService.rawPlotBandLineWidth(cfg, 0.55);
+            opts.raw_trace_points = bms.analyzer.DynamicSeriesService.rawPlotTracePoints(cfg, 120000);
         end
 
         function lineWidth = rawPlotLineWidth(cfg, defaultValue)
@@ -216,6 +220,168 @@ classdef DynamicSeriesService
                 lineWidth = defaultValue;
             end
             lineWidth = min(3.0, max(0.5, double(lineWidth)));
+        end
+
+        function mode = rawPlotRenderMode(cfg, defaultValue)
+            if nargin < 2 || isempty(defaultValue), defaultValue = 'line'; end
+            mode = bms.config.ConfigReader.get(cfg, ...
+                'plot_common.dynamic_raw_render_mode', defaultValue);
+            mode = lower(strtrim(char(string(mode))));
+            if isempty(mode)
+                mode = defaultValue;
+            end
+        end
+
+        function nBins = rawPlotBandBins(cfg, defaultValue)
+            if nargin < 2 || isempty(defaultValue), defaultValue = 24000; end
+            nBins = bms.config.ConfigReader.getNumeric(cfg, ...
+                'plot_common.dynamic_raw_band_bins', defaultValue);
+            if ~isscalar(nBins) || ~isfinite(nBins) || nBins <= 0
+                nBins = defaultValue;
+            end
+            nBins = min(100000, max(1000, round(double(nBins))));
+        end
+
+        function lineWidth = rawPlotBandLineWidth(cfg, defaultValue)
+            if nargin < 2 || isempty(defaultValue), defaultValue = 0.55; end
+            lineWidth = bms.config.ConfigReader.getNumeric(cfg, ...
+                'plot_common.dynamic_raw_band_line_width', defaultValue);
+            if ~isscalar(lineWidth) || ~isfinite(lineWidth) || lineWidth <= 0
+                lineWidth = defaultValue;
+            end
+            lineWidth = min(2.0, max(0.1, double(lineWidth)));
+        end
+
+        function maxPoints = rawPlotTracePoints(cfg, defaultValue)
+            if nargin < 2 || isempty(defaultValue), defaultValue = 120000; end
+            maxPoints = bms.config.ConfigReader.getNumeric(cfg, ...
+                'plot_common.dynamic_raw_trace_points', defaultValue);
+            if ~isscalar(maxPoints) || ~isfinite(maxPoints) || maxPoints < 0
+                maxPoints = defaultValue;
+            end
+            maxPoints = min(1000000, max(0, round(double(maxPoints))));
+        end
+
+        function h = plotRawSeries(ax, times, vals, color, opts, lineWidth)
+            if nargin < 1 || isempty(ax), ax = gca; end
+            if nargin < 4, color = []; end
+            if nargin < 5 || isempty(opts), opts = struct(); end
+            if nargin < 6 || isempty(lineWidth), lineWidth = 1.0; end
+
+            mode = 'line';
+            if isstruct(opts) && isfield(opts, 'raw_render_mode') && ~isempty(opts.raw_render_mode)
+                mode = lower(strtrim(char(string(opts.raw_render_mode))));
+            end
+
+            if strcmp(mode, 'dense_band') || strcmp(mode, 'band')
+                [xBand, yBand] = bms.analyzer.DynamicSeriesService.denseBandSeries( ...
+                    times, vals, bms.analyzer.DynamicSeriesService.opt(opts, 'raw_band_bins', 24000));
+                if ~isempty(yBand)
+                    bandWidth = bms.analyzer.DynamicSeriesService.opt(opts, 'raw_band_line_width', 0.55);
+                    if isempty(color)
+                        h = plot(ax, xBand, yBand, 'LineWidth', bandWidth);
+                    else
+                        h = plot(ax, xBand, yBand, 'LineWidth', bandWidth, 'Color', color);
+                    end
+
+                    tracePoints = bms.analyzer.DynamicSeriesService.opt(opts, 'raw_trace_points', 120000);
+                    if tracePoints > 0
+                        wasHold = ishold(ax);
+                        hold(ax, 'on');
+                        cleaner = onCleanup(@() bms.analyzer.DynamicSeriesService.restoreHold(ax, wasHold)); %#ok<NASGU>
+                        traceOpts = opts;
+                        traceOpts.fig_max_points = tracePoints;
+                        [xTrace, yTrace] = prepare_plot_series(times, vals, traceOpts);
+                        if ~isempty(yTrace)
+                            traceWidth = max(0.15, min(lineWidth, lineWidth * 0.45));
+                            if isempty(color)
+                                plot(ax, xTrace, yTrace, 'LineWidth', traceWidth, 'HandleVisibility', 'off');
+                            else
+                                plot(ax, xTrace, yTrace, 'LineWidth', traceWidth, ...
+                                    'Color', color, 'HandleVisibility', 'off');
+                            end
+                        end
+                    end
+                    return;
+                end
+            end
+
+            [xPlot, yPlot] = prepare_plot_series(times, vals, opts);
+            if isempty(color)
+                h = plot(ax, xPlot, yPlot, 'LineWidth', lineWidth);
+            else
+                h = plot(ax, xPlot, yPlot, 'LineWidth', lineWidth, 'Color', color);
+            end
+        end
+
+        function [xBand, yBand] = denseBandSeries(times, vals, maxBins)
+            xBand = [];
+            yBand = [];
+            if isempty(vals) || numel(times) ~= numel(vals)
+                return;
+            end
+            if nargin < 3 || isempty(maxBins) || ~isfinite(maxBins) || maxBins <= 0
+                maxBins = 24000;
+            end
+
+            times = times(:);
+            vals = vals(:);
+            if isdatetime(times)
+                validTime = ~isnat(times);
+            else
+                validTime = isfinite(times);
+            end
+            finite = validTime & isfinite(vals);
+            if ~any(finite)
+                return;
+            end
+
+            keepIdx = find(finite);
+            n = numel(keepIdx);
+            maxBins = max(1, min(round(maxBins), n));
+            edges = unique(round(linspace(1, n + 1, maxBins + 1)), 'stable');
+            if numel(edges) < 2
+                return;
+            end
+            if edges(1) ~= 1
+                edges = [1 edges(:).']; %#ok<AGROW>
+            end
+            if edges(end) ~= n + 1
+                edges(end + 1) = n + 1; %#ok<AGROW>
+            end
+
+            centers = keepIdx(max(1, min(n, round((edges(1:end-1) + edges(2:end) - 1) / 2))));
+            lo = NaN(numel(centers), 1);
+            hi = NaN(numel(centers), 1);
+            for k = 1:numel(centers)
+                s = max(1, min(n, edges(k)));
+                e = max(1, min(n, edges(k + 1) - 1));
+                if s > e
+                    continue;
+                end
+                v = vals(keepIdx(s:e));
+                lo(k) = min(v, [], 'omitnan');
+                hi(k) = max(v, [], 'omitnan');
+            end
+
+            ok = isfinite(lo) & isfinite(hi);
+            centers = centers(ok);
+            lo = lo(ok);
+            hi = hi(ok);
+            if isempty(lo)
+                return;
+            end
+
+            if isdatetime(times)
+                xBand = NaT(3 * numel(lo), 1);
+            else
+                xBand = NaN(3 * numel(lo), 1);
+            end
+            yBand = NaN(3 * numel(lo), 1);
+            xBand(1:3:end) = times(centers);
+            xBand(2:3:end) = times(centers);
+            yBand(1:3:end) = lo;
+            yBand(2:3:end) = hi;
         end
 
         function [timesOut, valsOut] = limitSeriesPoints(times, vals, maxPoints)
@@ -515,6 +681,19 @@ classdef DynamicSeriesService
         function T = windStatsTable(rows)
             T = cell2table(rows, 'VariableNames', ...
                 {'PointID', 'MinSpeed', 'MaxSpeed', 'MeanSpeed', 'Mean10minMax', 'Mean10minTime'});
+        end
+
+        function value = opt(opts, fieldName, defaultValue)
+            value = defaultValue;
+            if isstruct(opts) && isfield(opts, fieldName) && ~isempty(opts.(fieldName))
+                value = opts.(fieldName);
+            end
+        end
+
+        function restoreHold(ax, wasHold)
+            if isvalid(ax) && ~wasHold
+                hold(ax, 'off');
+            end
         end
     end
 end

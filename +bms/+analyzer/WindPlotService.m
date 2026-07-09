@@ -34,9 +34,9 @@ classdef WindPlotService
             end
             fig = figure('Position', [100 100 1100 500]);
             plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
-            [timesPlot, valsPlot] = prepare_plot_series(times, vals, plotOpts);
             lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.1);
-            plot(timesPlot, valsPlot, 'LineWidth', lineWidth, 'Color', style.speed.color);
+            bms.analyzer.DynamicSeriesService.plotRawSeries( ...
+                gca, times, vals, style.speed.color, plotOpts, lineWidth);
             xlabel('时间');
             ylabel(style.speed.ylabel);
             title(sprintf('%s %s [%s-%s]', style.speed.title_prefix, pid, startDate, endDate));
@@ -61,9 +61,9 @@ classdef WindPlotService
             end
             fig = figure('Position', [100 100 1100 500]);
             plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
-            [timesPlot, valsPlot] = prepare_plot_series(times, vals, plotOpts);
             lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.0);
-            plot(timesPlot, valsPlot, 'LineWidth', lineWidth, 'Color', style.direction.color);
+            bms.analyzer.DynamicSeriesService.plotRawSeries( ...
+                gca, times, vals, style.direction.color, plotOpts, lineWidth);
             xlabel('时间');
             ylabel(style.direction.ylabel);
             title(sprintf('%s %s [%s-%s]', style.direction.title_prefix, pid, startDate, endDate));

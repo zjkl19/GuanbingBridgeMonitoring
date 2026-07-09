@@ -241,9 +241,9 @@ classdef EarthquakeAnalysisPipeline
 
             fig = figure('Position', [100 100 1100 500]);
             plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
-            [timesPlot, valsPlot] = bms.plot.PlotService.prepareSeries(times, vals, plotOpts);
             lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.1);
-            plot(timesPlot, valsPlot, 'LineWidth', lineWidth, 'Color', style.main_color);
+            bms.analyzer.DynamicSeriesService.plotRawSeries( ...
+                gca, times, vals, style.main_color, plotOpts, lineWidth);
             xlabel('时间');
             ylabel(style.ylabel);
             title(sprintf('%s %s [%s-%s]', style.title_prefix, pointId, startDate, endDate));

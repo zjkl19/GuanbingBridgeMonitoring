@@ -5,9 +5,9 @@ classdef DynamicAccelerationPlotService
         function plotAccelCurve(rootDir, pointId, times, values, minVal, maxVal, style, cfg, spec)
             fig = figure('Position', [100 100 1000 469]);
             plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
-            [timesPlot, valuesPlot] = prepare_plot_series(times, values, plotOpts);
             lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.0);
-            plot(timesPlot, valuesPlot, 'LineWidth', lineWidth, 'Color', style.color_main);
+            bms.analyzer.DynamicSeriesService.plotRawSeries( ...
+                gca, times, values, style.color_main, plotOpts, lineWidth);
             xlabel('时间');
             ylabel(style.ylabel);
             bms.analyzer.DynamicAccelerationPlotService.applyMainYLim(style, pointId);
@@ -214,6 +214,11 @@ classdef DynamicAccelerationPlotService
                 style, warnField, groupName, cfg, spec, records);
             opts.fig_max_points = bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000);
             opts.lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.0);
+            rawOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
+            opts.raw_render_mode = rawOpts.raw_render_mode;
+            opts.raw_band_bins = rawOpts.raw_band_bins;
+            opts.raw_band_line_width = rawOpts.raw_band_line_width;
+            opts.raw_trace_points = rawOpts.raw_trace_points;
 
             bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
                 rootDir, timesList, valuesList, labels, startDate, endDate, opts, cfg);

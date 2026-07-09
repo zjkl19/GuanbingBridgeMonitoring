@@ -48,15 +48,29 @@ classdef StructuralTimeSeriesPlotService
                 if isempty(dataList(i).vals)
                     continue;
                 end
-                [timesPlot, valuesPlot] = prepare_plot_series(dataList(i).times, dataList(i).vals, plotOpts);
-                if isempty(timesPlot) || isempty(valuesPlot)
+                color = bms.analyzer.StructuralTimeSeriesPlotService.colorAt(colors, i);
+                if bms.analyzer.StructuralTimeSeriesPlotService.useRawRender(plotOpts)
+                    h(i) = bms.analyzer.DynamicSeriesService.plotRawSeries( ...
+                        gca, dataList(i).times, dataList(i).vals, color, plotOpts, lineWidth);
+                else
+                    [timesPlot, valuesPlot] = prepare_plot_series(dataList(i).times, dataList(i).vals, plotOpts);
+                    if isempty(timesPlot) || isempty(valuesPlot)
+                        continue;
+                    end
+                    if isempty(color)
+                        h(i) = plot(timesPlot, valuesPlot, 'LineWidth', lineWidth);
+                    else
+                        h(i) = plot(timesPlot, valuesPlot, 'LineWidth', lineWidth, 'Color', color);
+                    end
+                end
+                if ~isgraphics(h(i))
                     continue;
                 end
-                color = bms.analyzer.StructuralTimeSeriesPlotService.colorAt(colors, i);
                 if isempty(color)
-                    h(i) = plot(timesPlot, valuesPlot, 'LineWidth', lineWidth);
+                    % Keep MATLAB default color assignment for non-configured lines.
+                    continue;
                 else
-                    h(i) = plot(timesPlot, valuesPlot, 'LineWidth', lineWidth, 'Color', color);
+                    h(i).Color = color;
                 end
             end
 
@@ -221,6 +235,12 @@ classdef StructuralTimeSeriesPlotService
             if isstruct(opts) && isfield(opts, field) && ~isempty(opts.(field))
                 value = opts.(field);
             end
+        end
+
+        function tf = useRawRender(opts)
+            tf = isstruct(opts) && isfield(opts, 'raw_render_mode') && ...
+                ~isempty(opts.raw_render_mode) && ...
+                any(strcmpi(char(string(opts.raw_render_mode)), {'dense_band', 'band'}));
         end
     end
 end
