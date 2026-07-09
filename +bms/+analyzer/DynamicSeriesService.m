@@ -396,7 +396,9 @@ classdef DynamicSeriesService
                 return;
             end
 
-            xEnv = times(centers);
+            xEnv = times(centers(:));
+            lo = lo(:);
+            hi = hi(:);
         end
 
         function [timesOut, valsOut] = limitSeriesPoints(times, vals, maxPoints)

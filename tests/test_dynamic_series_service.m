@@ -154,6 +154,23 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyFalse(any(isnan(yBand)));
         end
 
+        function rawDenseBandPlotAcceptsDatetimeAxes(tc)
+            fig = figure('Visible', 'off');
+            cleaner = onCleanup(@() close(fig)); %#ok<NASGU>
+            ax = axes(fig);
+            times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:999)';
+            vals = sin((1:1000)' / 5);
+            opts = struct('raw_render_mode', 'dense_band', ...
+                'raw_band_bins', 25, ...
+                'raw_band_line_width', 0.45, ...
+                'raw_trace_points', 0);
+
+            h = bms.analyzer.DynamicSeriesService.plotRawSeries(ax, times, vals, [0 0.4470 0.7410], opts, 1.0);
+
+            tc.verifyTrue(isgraphics(h));
+            tc.verifyGreaterThanOrEqual(numel(findall(ax, 'Type', 'patch')), 1);
+        end
+
         function collectRecordLoadsStatsAndRmsPeak(tc)
             values = 2 * ones(601, 1);
             write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'A1.csv'), values);
