@@ -115,24 +115,24 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
                 'dynamic_raw_min_points_per_day', 12000, ...
                 'dynamic_raw_line_width', 1.2, ...
                 'dynamic_raw_render_mode', 'dense_band', ...
-                'dynamic_raw_band_bins', 24000, ...
-                'dynamic_raw_band_line_width', 0.55, ...
-                'dynamic_raw_trace_points', 120000);
+                'dynamic_raw_band_bins', 48000, ...
+                'dynamic_raw_band_line_width', 0.45, ...
+                'dynamic_raw_trace_points', 0);
 
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000), 1200000);
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), 13334);
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.0), 1.2);
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotRenderMode(cfg, 'line'), 'dense_band');
-            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotBandBins(cfg, 1000), 24000);
-            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotBandLineWidth(cfg, 0.4), 0.55);
-            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotTracePoints(cfg, 0), 120000);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotBandBins(cfg, 1000), 48000);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotBandLineWidth(cfg, 0.4), 0.45);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotTracePoints(cfg, 120000), 0);
 
             opts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
             tc.verifyEqual(opts.fig_max_points, 1200000);
             tc.verifyEqual(opts.raw_render_mode, 'dense_band');
-            tc.verifyEqual(opts.raw_band_bins, 24000);
-            tc.verifyEqual(opts.raw_band_line_width, 0.55);
-            tc.verifyEqual(opts.raw_trace_points, 120000);
+            tc.verifyEqual(opts.raw_band_bins, 48000);
+            tc.verifyEqual(opts.raw_band_line_width, 0.45);
+            tc.verifyEqual(opts.raw_trace_points, 0);
 
             cfg.plot_common = struct('fig_max_points', 50000);
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), 556);

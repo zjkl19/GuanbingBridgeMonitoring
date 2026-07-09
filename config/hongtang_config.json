@@ -3909,9 +3909,9 @@
     "dynamic_raw_min_points_per_day": 12000,
     "dynamic_raw_line_width": 1.2,
     "dynamic_raw_render_mode": "dense_band",
-    "dynamic_raw_band_bins": 24000,
-    "dynamic_raw_band_line_width": 0.55,
-    "dynamic_raw_trace_points": 120000,
+    "dynamic_raw_band_bins": 48000,
+    "dynamic_raw_band_line_width": 0.45,
+    "dynamic_raw_trace_points": 0,
     "append_timestamp": false,
     "gap_mode": "connect",
     "gap_break_factor": 5
