@@ -69,6 +69,7 @@ class ExplicitMediaBinding:
     expected_height_px: int | None = None
     dimension_policy: str = IMAGE_DIMENSION_POLICY_EXACT
     max_aspect_ratio_error: float = DEFAULT_MAX_ASPECT_RATIO_ERROR
+    require_source_provenance: bool = False
 
 
 def _normalize_format(value: str) -> str:
@@ -102,6 +103,14 @@ def _normalize_aspect_ratio_error(value: Any) -> float:
             f"max_aspect_ratio_error must be between 0 and 0.01; got {tolerance}."
         )
     return tolerance
+
+
+def _normalize_source_provenance_flag(value: Any) -> bool:
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        raise MediaPlanError("require_source_provenance must be boolean.")
+    return value
 
 
 def _coerce_binding(value: ExplicitMediaBinding | Mapping[str, Any]) -> ExplicitMediaBinding:
@@ -138,6 +147,9 @@ def _coerce_binding(value: ExplicitMediaBinding | Mapping[str, Any]) -> Explicit
         max_aspect_ratio_error=_normalize_aspect_ratio_error(
             value.get("max_aspect_ratio_error")
         ),
+        require_source_provenance=_normalize_source_provenance_flag(
+            value.get("require_source_provenance")
+        ),
     )
 
 
@@ -164,6 +176,9 @@ def _resolve_binding_paths(
                 dimension_policy=_normalize_dimension_policy(binding.dimension_policy),
                 max_aspect_ratio_error=_normalize_aspect_ratio_error(
                     binding.max_aspect_ratio_error
+                ),
+                require_source_provenance=_normalize_source_provenance_flag(
+                    binding.require_source_provenance
                 ),
             )
         )
@@ -291,12 +306,15 @@ def compile_media_plan(
         provenance_sha256 = ""
         provenance_series_count = 0
         manifest_artifact_record = ""
-        if manifest_payload is not None:
+        if manifest_payload is not None or binding.require_source_provenance:
             provenance_path = expected_plot_provenance_path(candidate_path)
             provenance_series_count = validate_full_plot_provenance(
-                provenance_path, candidate_path
+                provenance_path,
+                candidate_path,
+                require_source_provenance=binding.require_source_provenance,
             )
             provenance_sha256 = sha256_file(provenance_path)
+        if manifest_payload is not None:
             manifest_artifact_record = manifest_artifact_record_for_paths(
                 manifest_payload,
                 candidate_path,
@@ -322,6 +340,7 @@ def compile_media_plan(
                 provenance_sha256=provenance_sha256,
                 provenance_series_count=provenance_series_count,
                 manifest_artifact_record=manifest_artifact_record,
+                require_source_provenance=binding.require_source_provenance,
             )
         )
 
@@ -373,6 +392,7 @@ def media_plan_to_dict(plan: LockedMediaPlan) -> dict[str, Any]:
                 "provenance_sha256": replacement.provenance_sha256,
                 "provenance_series_count": replacement.provenance_series_count,
                 "manifest_artifact_record": replacement.manifest_artifact_record,
+                "require_source_provenance": replacement.require_source_provenance,
             }
             for replacement in plan.replacements
         ],
@@ -480,6 +500,9 @@ def load_media_plan(path: Path | str) -> LockedMediaPlan:
                 provenance_sha256=str(record.get("provenance_sha256") or "").strip(),
                 provenance_series_count=int(record.get("provenance_series_count") or 0),
                 manifest_artifact_record=str(record.get("manifest_artifact_record") or "").strip(),
+                require_source_provenance=_normalize_source_provenance_flag(
+                    record.get("require_source_provenance")
+                ),
             )
         except (IndexError, TypeError, ValueError) as exc:
             raise MediaPlanError(f"Serialized replacement has invalid dimensions/extents: {record}") from exc

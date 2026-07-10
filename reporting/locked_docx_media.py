@@ -122,6 +122,7 @@ class MediaReplacement:
     provenance_sha256: str = ""
     provenance_series_count: int = 0
     manifest_artifact_record: str = ""
+    require_source_provenance: bool = False
 
 
 @dataclass(frozen=True)
@@ -277,9 +278,21 @@ def expected_plot_provenance_path(candidate_path: Path | str) -> Path:
     return Path(candidate_path).expanduser().resolve(strict=False).with_suffix(".plot.json")
 
 
+def _finite_nonnegative_number(value: Any) -> bool:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        numeric = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return False
+    return math.isfinite(numeric) and numeric >= 0
+
+
 def validate_full_plot_provenance(
     provenance_path: Path | str,
     candidate_path: Path | str,
+    *,
+    require_source_provenance: bool = False,
 ) -> int:
     candidate = Path(candidate_path).expanduser().resolve(strict=False)
     provenance = Path(provenance_path).expanduser().resolve(strict=False)
@@ -326,14 +339,8 @@ def validate_full_plot_provenance(
         finite_count = item.get("finite_count")
         plotted_finite_count = item.get("plotted_finite_count")
         valid_numbers = (
-            isinstance(finite_count, (int, float))
-            and not isinstance(finite_count, bool)
-            and isinstance(plotted_finite_count, (int, float))
-            and not isinstance(plotted_finite_count, bool)
-            and math.isfinite(float(finite_count))
-            and math.isfinite(float(plotted_finite_count))
-            and float(finite_count) >= 0
-            and float(plotted_finite_count) >= 0
+            _finite_nonnegative_number(finite_count)
+            and _finite_nonnegative_number(plotted_finite_count)
         )
         if not valid_numbers:
             raise MediaCandidateError(
@@ -344,7 +351,125 @@ def validate_full_plot_provenance(
                 f"Plot provenance series {index} point counts differ: "
                 f"finite_count={finite_count}, plotted_finite_count={plotted_finite_count}"
             )
+        if require_source_provenance:
+            source = item.get("source")
+            if not isinstance(source, dict):
+                raise MediaCandidateError(
+                    f"Plot provenance series {index} requires a source object."
+                )
+
+            input_count = item.get("input_count")
+            source_sample_count = source.get("source_sample_count")
+            finite_source_sample_count = source.get("finite_source_sample_count")
+            source_counts_valid = (
+                _finite_nonnegative_number(input_count)
+                and _finite_nonnegative_number(source_sample_count)
+                and _finite_nonnegative_number(finite_source_sample_count)
+                and float(finite_source_sample_count) <= float(source_sample_count)
+            )
+            if not source_counts_valid:
+                raise MediaCandidateError(
+                    f"Plot provenance series {index} has invalid source sample counts."
+                )
+            if float(source_sample_count) != float(input_count):
+                raise MediaCandidateError(
+                    f"Plot provenance series {index} source/input counts differ: "
+                    f"source_sample_count={source_sample_count}, input_count={input_count}."
+                )
+            if float(finite_source_sample_count) != float(finite_count):
+                raise MediaCandidateError(
+                    f"Plot provenance series {index} finite source/plot-input counts differ: "
+                    f"finite_source_sample_count={finite_source_sample_count}, "
+                    f"finite_count={finite_count}."
+                )
+
+            completeness_scope = str(source.get("completeness_scope") or "").strip()
+            if completeness_scope != "required_export_contribution":
+                raise MediaCandidateError(
+                    f"Plot provenance series {index} has unsupported source completeness_scope: "
+                    f"{completeness_scope or '<missing>'}."
+                )
+            if not isinstance(source.get("internal_gap_coverage_assessed"), bool):
+                raise MediaCandidateError(
+                    f"Plot provenance series {index} requires boolean "
+                    "source internal_gap_coverage_assessed."
+                )
+
+            day_count_fields = (
+                "calendar_day_count_requested",
+                "complete_day_count",
+                "incomplete_day_count",
+            )
+            day_counts: dict[str, int] = {}
+            for field_name in day_count_fields:
+                raw_count = source.get(field_name)
+                valid_count = (
+                    _finite_nonnegative_number(raw_count)
+                    and float(raw_count).is_integer()
+                )
+                if not valid_count:
+                    raise MediaCandidateError(
+                        f"Plot provenance series {index} has invalid source {field_name}."
+                    )
+                day_counts[field_name] = int(raw_count)
+            if day_counts["calendar_day_count_requested"] != (
+                day_counts["complete_day_count"] + day_counts["incomplete_day_count"]
+            ):
+                raise MediaCandidateError(
+                    f"Plot provenance series {index} has inconsistent source day counts: "
+                    f"requested={day_counts['calendar_day_count_requested']}, "
+                    f"complete={day_counts['complete_day_count']}, "
+                    f"incomplete={day_counts['incomplete_day_count']}."
+                )
+
+            incomplete_days = source.get("incomplete_days")
+            if not (
+                isinstance(incomplete_days, list)
+                and all(isinstance(value, str) and value.strip() for value in incomplete_days)
+                and len(incomplete_days) == day_counts["incomplete_day_count"]
+            ):
+                raise MediaCandidateError(
+                    f"Plot provenance series {index} has invalid source incomplete_days."
+                )
+            missing_required_sources = source.get("missing_required_sources")
+            if not (
+                isinstance(missing_required_sources, list)
+                and all(
+                    isinstance(value, str) and value.strip()
+                    for value in missing_required_sources
+                )
+            ):
+                raise MediaCandidateError(
+                    f"Plot provenance series {index} has invalid source missing_required_sources."
+                )
     return len(series)
+
+
+def _validate_pinned_plot_provenance(replacement: MediaReplacement) -> Path:
+    if replacement.provenance_path is None or not replacement.provenance_sha256:
+        raise MediaCandidateError(
+            f"Replacement lacks required plot provenance: {replacement.slot_id}"
+        )
+    provenance_path = replacement.provenance_path.expanduser().resolve()
+    if not provenance_path.exists() or not provenance_path.is_file():
+        raise MediaCandidateError(f"Required plot provenance does not exist: {provenance_path}")
+    provenance_sha256 = sha256_file(provenance_path)
+    if provenance_sha256.lower() != replacement.provenance_sha256.lower():
+        raise MediaCandidateError(
+            f"Plot provenance SHA-256 mismatch for {provenance_path}: "
+            f"expected {replacement.provenance_sha256}, got {provenance_sha256}"
+        )
+    series_count = validate_full_plot_provenance(
+        provenance_path,
+        replacement.candidate_path,
+        require_source_provenance=replacement.require_source_provenance,
+    )
+    if series_count != replacement.provenance_series_count:
+        raise MediaCandidateError(
+            f"Plot provenance series count changed for {provenance_path}: "
+            f"expected {replacement.provenance_series_count}, got {series_count}"
+        )
+    return provenance_path
 
 
 def manifest_artifact_record_for_paths(
@@ -649,27 +774,7 @@ def validate_media_plan(plan: LockedMediaPlan) -> ValidationReport:
                 f"got {manifest_status}"
             )
         for replacement in plan.replacements:
-            if replacement.provenance_path is None or not replacement.provenance_sha256:
-                raise MediaCandidateError(
-                    f"Manifest-bound replacement lacks plot provenance: {replacement.slot_id}"
-                )
-            provenance_path = replacement.provenance_path.expanduser().resolve()
-            if not provenance_path.exists() or not provenance_path.is_file():
-                raise MediaCandidateError(f"Required plot provenance does not exist: {provenance_path}")
-            provenance_sha256 = sha256_file(provenance_path)
-            if provenance_sha256.lower() != replacement.provenance_sha256.lower():
-                raise MediaCandidateError(
-                    f"Plot provenance SHA-256 mismatch for {provenance_path}: "
-                    f"expected {replacement.provenance_sha256}, got {provenance_sha256}"
-                )
-            series_count = validate_full_plot_provenance(
-                provenance_path, replacement.candidate_path
-            )
-            if series_count != replacement.provenance_series_count:
-                raise MediaCandidateError(
-                    f"Plot provenance series count changed for {provenance_path}: "
-                    f"expected {replacement.provenance_series_count}, got {series_count}"
-                )
+            provenance_path = _validate_pinned_plot_provenance(replacement)
             record_id = manifest_artifact_record_for_paths(
                 manifest_payload,
                 replacement.candidate_path,
@@ -682,6 +787,10 @@ def validate_media_plan(plan: LockedMediaPlan) -> ValidationReport:
                     f"Manifest artifact record changed for {replacement.slot_id}: "
                     f"expected {replacement.manifest_artifact_record}, got {record_id}"
                 )
+    else:
+        for replacement in plan.replacements:
+            if replacement.require_source_provenance:
+                _validate_pinned_plot_provenance(replacement)
 
     return ValidationReport(
         ok=True,

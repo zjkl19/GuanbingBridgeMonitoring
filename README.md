@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.26`: fixes rolling-export calendar-day reconstruction for dynamic acceleration, including cross-month/quarter lookahead, explicit source completeness provenance, full baseline-style plotting, and safer high-frequency group behavior.
+- `v1.7.26`：修复动态加速度滚动导出的自然日重建，支持跨月/跨季度读取下一导出目录，明确记录源完整性 provenance，恢复基线 full 绘图样式，并收紧高频组图行为。
 - `v1.7.25`: keeps the MATLAB and report GUIs aligned with the hardened locked-media report release; analysis behavior remains the full-resolution `v1.7.24` implementation.
 - `v1.7.25`：同步主分析 GUI 与报告生成器的媒体锁定安全加固版本；数据分析行为继续沿用 `v1.7.24` 的全量绘图实现。
 - `v1.7.24`: adds an explicit `capped/full` raw dynamic sampling mode. Full mode plots every cleaned finite sample, forces sequential high-frequency processing with per-point release, supports full formal group plots, disables unsafe full-waveform EMF export, writes per-plot point-count provenance, and fixes the final-day boundary of structural group plots.
@@ -349,6 +351,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.26`: adds an opt-in locked-media source-provenance gate so report bindings can reject legacy “full after truncation” plots while still accepting explicitly disclosed source gaps.
+- `v1.7.26`：媒体锁定报告新增可选源 provenance 门禁，可拒绝历史“截断后 full”图，同时允许使用已明确披露真实源缺口的新图。
 - `v1.7.25`: adds an opt-in `same_aspect_or_larger` policy for manifest-bound higher-resolution report figures while preserving exact dimensions by default, pins candidate dimensions in plan schema v2, rechecks candidate bytes against their SHA-256 immediately before writing, and keeps v1 plans readable as exact-only.
 - `v1.7.25`：为清单绑定的高分辨率报告图片新增显式 `same_aspect_or_larger` 策略，默认仍要求像素尺寸完全一致；计划 schema 升至 v2 并固定候选图尺寸，写入前再次校验候选字节 SHA-256，同时将 v1 计划按 exact-only 兼容读取。
 - `v1.7.24`: adds a strict locked-media DOCX workflow that replaces only explicitly approved `word/media/*` members, validates hashes and image dimensions, rejects shared slots, and proves that all non-media OOXML parts remain unchanged.

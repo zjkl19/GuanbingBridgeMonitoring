@@ -666,9 +666,9 @@ classdef TimeSeriesLoader
 
             encs = bms.data.TimeSeriesLoader.preferredEncodings(path);
             if strcmp(encs{1}, 'auto')
-                fid = fopen(path, 'rt');
+                fid = fopen(path, 'r');
             else
-                fid = fopen(path, 'rt', 'n', encs{1});
+                fid = fopen(path, 'r', 'n', encs{1});
             end
             if fid < 0
                 return;
@@ -779,9 +779,9 @@ classdef TimeSeriesLoader
 
             try
                 if strcmpi(char(enc), 'auto')
-                    fid = fopen(path, 'rt');
+                    fid = fopen(path, 'r');
                 else
-                    fid = fopen(path, 'rt', 'n', char(enc));
+                    fid = fopen(path, 'r', 'n', char(enc));
                 end
                 if fid == -1
                     return;

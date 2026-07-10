@@ -39,6 +39,88 @@ classdef TimeSeriesRangeLoader
             [vals, meta] = bms.data.TimeSeriesRangeLoader.applyCleaning(vals, times, rules, sensorType, pointId, meta);
         end
 
+        function [times, vals, meta] = loadCalendarDay(rootDir, subfolder, pointId, day, cfg, sensorType)
+            %LOADCALENDARDAY Reconstruct a day from dated rolling exports.
+            % Donghua/Hongtang waveform folders are commonly named for the
+            % export end date while their samples span roughly previous-day
+            % 09:00 through folder-day 09:00.  A calendar day therefore needs
+            % the same-named folder plus the following export folder.  Merge
+            % raw inputs first, clip to [day, day+1), then clean exactly once.
+            if nargin < 6 || isempty(sensorType)
+                sensorType = 'generic';
+            end
+            if nargin < 5 || isempty(cfg)
+                cfg = load_config();
+            end
+
+            meta = struct( ...
+                'files', {{}}, ...
+                'duplicate_timestamp_count', 0, ...
+                'conflicting_timestamp_count', 0);
+            dayStart = dateshift(bms.data.TimeRangeResolver.parseDate(day), 'start', 'day');
+            dayEnd = dayStart + days(1);
+            range = struct('start', dayStart, 'end', dayEnd);
+            loader = bms.data.TimeSeriesRangeLoader.vendorLoader(cfg);
+            rollingExport = isfield(loader, 'rolling_export') ...
+                && bms.config.ConfigReader.boolValue(loader.rolling_export, false);
+            useLookahead = rollingExport ...
+                && bms.data.DatedFolderAdapter.hasDateFolders(rootDir) ...
+                && ~bms.data.DataLayoutResolver.isAbsolutePath(subfolder);
+            dateList = {bms.data.TimeRangeResolver.toDateString(dayStart)};
+            if useLookahead
+                dateList{end+1, 1} = bms.data.TimeRangeResolver.toDateString(dayEnd); %#ok<AGROW>
+            end
+
+            rules = bms.data.CleaningPipeline.resolveRules(cfg, sensorType, pointId);
+            meta.applied_rules = rules;
+            forceDailyCalendar = useLookahead ...
+                && isfield(loader, 'calendar_day_use_daily_files') ...
+                && bms.config.ConfigReader.boolValue(loader.calendar_day_use_daily_files, false);
+            allT = [];
+            allV = [];
+            usedRangeLoader = false;
+            if ~forceDailyCalendar
+                [allT, allV, meta, usedRangeLoader] = bms.data.TimeSeriesRangeLoader.tryReadRange( ...
+                    loader, rootDir, subfolder, pointId, sensorType, range, meta);
+            end
+            if ~usedRangeLoader
+                [allT, allV, meta] = bms.data.TimeSeriesRangeLoader.readByDay( ...
+                    loader, rootDir, subfolder, pointId, sensorType, range, dateList, meta, useLookahead, true);
+            end
+
+            meta.calendar_day = dateList{1};
+            meta.calendar_day_requested_export_dates = dateList;
+            meta.calendar_day_lookahead_requested = useLookahead;
+            meta.calendar_day_loader_mode = 'daily_files';
+            if usedRangeLoader
+                meta.calendar_day_loader_mode = 'range_loader';
+            end
+            if isempty(allT)
+                times = [];
+                vals = [];
+                meta = bms.data.TimeSeriesRangeLoader.finishCalendarDayMeta( ...
+                    meta, times, vals, usedRangeLoader);
+                return;
+            end
+
+            if usedRangeLoader
+                keep = allT >= dayStart & allT < dayEnd;
+                allT = allT(keep);
+                allV = allV(keep);
+            end
+            [times, vals, duplicateCount, conflictCount] = ...
+                bms.data.TimeSeriesRangeLoader.sortUniqueSeries(allT, allV);
+            keep = times >= dayStart & times < dayEnd;
+            times = times(keep);
+            vals = vals(keep);
+            meta.duplicate_timestamp_count = duplicateCount;
+            meta.conflicting_timestamp_count = conflictCount;
+            [vals, meta] = bms.data.TimeSeriesRangeLoader.applyCleaning( ...
+                vals, times, rules, sensorType, pointId, meta);
+            meta = bms.data.TimeSeriesRangeLoader.finishCalendarDayMeta( ...
+                meta, times, vals, usedRangeLoader);
+        end
+
         function [allT, allV, meta, used] = tryReadRange(loader, rootDir, subfolder, pointId, sensorType, range, meta)
             allT = [];
             allV = [];
@@ -60,21 +142,94 @@ classdef TimeSeriesRangeLoader
             end
         end
 
-        function [allT, allV, meta] = readByDay(loader, rootDir, subfolder, pointId, sensorType, range, dateList, meta)
+        function [allT, allV, meta] = readByDay(loader, rootDir, subfolder, pointId, sensorType, range, dateList, meta, strictRollingDates, halfOpenEnd)
+            if nargin < 9 || isempty(strictRollingDates)
+                strictRollingDates = false;
+            end
+            if nargin < 10 || isempty(halfOpenEnd)
+                halfOpenEnd = false;
+            end
             allT = [];
             allV = [];
+            seenFiles = containers.Map('KeyType', 'char', 'ValueType', 'logical');
+            meta.requested_export_dates = dateList;
+            meta.found_export_dates = {};
+            meta.missing_export_dates = {};
+            meta.empty_export_dates = {};
+            meta.noncontributing_export_dates = {};
+            meta.contributing_export_dates = {};
+            meta.ambiguous_export_dates = {};
+            meta.resolved_source_roots = {};
+            meta.duplicate_file_count = 0;
             for i = 1:numel(dateList)
                 day = dateList{i};
                 dayMeta = struct('day', day, 'range', range);
-                [dirp, dayMeta] = bms.data.TimeSeriesRangeLoader.resolveDayDir( ...
-                    loader, rootDir, day, subfolder, sensorType, dayMeta);
-                if isempty(dirp), continue; end
+                if strictRollingDates
+                    [dirp, dayMeta] = bms.data.TimeSeriesRangeLoader.resolveStrictDatedDayDir( ...
+                        rootDir, day, subfolder, dayMeta);
+                    if isempty(dirp)
+                        [dirp, dayMeta] = bms.data.TimeSeriesRangeLoader.resolveAdjacentPartitionDayDir( ...
+                            rootDir, day, subfolder, dayMeta);
+                    end
+                else
+                    [dirp, dayMeta] = bms.data.TimeSeriesRangeLoader.resolveDayDir( ...
+                        loader, rootDir, day, subfolder, sensorType, dayMeta);
+                end
+                if isempty(dirp)
+                    meta.missing_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
+                        meta.missing_export_dates, day);
+                    if isfield(dayMeta, 'adjacent_source_status') ...
+                            && strcmp(dayMeta.adjacent_source_status, 'ambiguous')
+                        meta.ambiguous_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
+                            meta.ambiguous_export_dates, day);
+                    end
+                    continue;
+                end
 
                 fp = loader.find_file(dirp, pointId, sensorType, day, dayMeta);
-                if isempty(fp), continue; end
+                if isempty(fp)
+                    meta.missing_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
+                        meta.missing_export_dates, day);
+                    continue;
+                end
+
+                fileKey = bms.data.TimeSeriesRangeLoader.canonicalFileKey(fp);
+                if isKey(seenFiles, fileKey)
+                    meta.duplicate_file_count = meta.duplicate_file_count + 1;
+                    continue;
+                end
+                seenFiles(fileKey) = true;
 
                 [t, v] = loader.read_file(fp, sensorType, pointId, day, dayMeta);
-                if isempty(v), continue; end
+                if isempty(v)
+                    meta.empty_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
+                        meta.empty_export_dates, day);
+                    continue;
+                end
+                meta.found_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
+                    meta.found_export_dates, day);
+                if isfield(dayMeta, 'resolved_source_root')
+                    meta.resolved_source_roots = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
+                        meta.resolved_source_roots, dayMeta.resolved_source_root);
+                end
+                if isdatetime(t) && numel(t) == numel(v)
+                    if halfOpenEnd
+                        keep = t >= range.start & t < range.end;
+                    else
+                        keep = t >= range.start & t <= range.end;
+                    end
+                    t = t(keep);
+                    v = v(keep);
+                end
+                if isempty(v)
+                    meta.noncontributing_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
+                        meta.noncontributing_export_dates, day);
+                    meta = bms.data.TimeSeriesRangeLoader.mergeDayMeta(meta, dayMeta);
+                    meta.files{end+1} = fp; %#ok<AGROW>
+                    continue;
+                end
+                meta.contributing_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
+                    meta.contributing_export_dates, day);
                 meta = bms.data.TimeSeriesRangeLoader.mergeDayMeta(meta, dayMeta);
                 meta.files{end+1} = fp; %#ok<AGROW>
                 allT = [allT; t]; %#ok<AGROW>
@@ -93,9 +248,63 @@ classdef TimeSeriesRangeLoader
             end
         end
 
+        function [dirp, dayMeta] = resolveStrictDatedDayDir(rootDir, day, subfolder, dayMeta)
+            dirp = '';
+            dateCandidates = bms.data.DatedFolderAdapter.dateFolderCandidates(rootDir, day);
+            for i = 1:numel(dateCandidates)
+                if ~isfolder(dateCandidates{i})
+                    continue;
+                end
+                nested = fullfile(dateCandidates{i}, char(string(subfolder)));
+                if isfolder(nested)
+                    dirp = nested;
+                else
+                    dirp = dateCandidates{i};
+                end
+                dayMeta.data_source = 'bms.data.DatedFolderAdapter.strict';
+                dayMeta.resolved_source_root = char(string(rootDir));
+                dayMeta.candidate_dirs = {dirp};
+                return;
+            end
+        end
+
+        function [dirp, dayMeta] = resolveAdjacentPartitionDayDir(rootDir, day, subfolder, dayMeta)
+            dirp = '';
+            [dirs, roots, status] = bms.data.DatedFolderAdapter.adjacentPartitionCandidateDirs( ...
+                rootDir, subfolder, day);
+            dayMeta.adjacent_source_status = status;
+            dayMeta.adjacent_source_roots = roots;
+            if strcmp(status, 'resolved') && numel(dirs) == 1
+                dirp = dirs{1};
+                dayMeta.data_source = 'bms.data.DatedFolderAdapter.adjacent_partition';
+                dayMeta.resolved_source_root = roots{1};
+                dayMeta.candidate_dirs = dirs;
+            end
+        end
+
         function [times, vals] = sortSeries(allT, allV)
             [times, order] = sort(allT);
             vals = allV(order);
+        end
+
+        function [times, vals, duplicateCount, conflictCount] = sortUniqueSeries(allT, allV)
+            [times, vals] = bms.data.TimeSeriesRangeLoader.sortSeries(allT, allV);
+            duplicateCount = 0;
+            conflictCount = 0;
+            if numel(times) < 2
+                return;
+            end
+            sameNext = [diff(times) == seconds(0); false];
+            duplicateCount = nnz(sameNext);
+            if duplicateCount > 0
+                left = vals(1:end-1);
+                right = vals(2:end);
+                equalValue = (left == right) | (isnan(left) & isnan(right));
+                conflictCount = nnz(sameNext(1:end-1) & ~equalValue);
+                keep = ~sameNext;
+                times = times(keep);
+                vals = vals(keep);
+            end
         end
 
         function meta = mergeDayMeta(meta, dayMeta)
@@ -144,6 +353,7 @@ classdef TimeSeriesRangeLoader
         end
 
         function loader = donghuaLoader(cfg)
+            loader.rolling_export = true;
             loader.get_day_dir = @(rootDir, day, subfolder, sensorType, meta) ...
                 bms.data.TimeSeriesRangeLoader.dataSourceDayDir(rootDir, day, subfolder, cfg, meta);
             loader.find_file = @(dirp, pointId, sensorType, varargin) ...
@@ -157,6 +367,7 @@ classdef TimeSeriesRangeLoader
 
         function loader = chongyangxiLoader(cfg)
             loader = bms.data.TimeSeriesRangeLoader.donghuaLoader(cfg);
+            loader.calendar_day_use_daily_files = true;
             loader.read_range = @(rootDir, subfolder, pointId, sensorType, range) ...
                 bms.data.TimeSeriesRangeLoader.chongyangxiReadRange(rootDir, subfolder, pointId, sensorType, range, cfg);
         end
@@ -268,7 +479,13 @@ classdef TimeSeriesRangeLoader
             %#ok<INUSD> cfg kept for future layout-specific options.
             rootDir = char(string(rootDir));
             subfolder = char(string(subfolder));
-            daysList = bms.data.TimeRangeResolver.daysBetween(startDate, endDate);
+            effectiveStart = bms.data.TimeRangeResolver.parseDate(startDate);
+            effectiveEnd = bms.data.TimeRangeResolver.parseDate(endDate);
+            if effectiveEnd > effectiveStart ...
+                    && effectiveEnd == dateshift(effectiveEnd, 'start', 'day')
+                effectiveEnd = effectiveEnd - milliseconds(1);
+            end
+            daysList = bms.data.TimeRangeResolver.daysBetween(effectiveStart, effectiveEnd);
             candidates = {};
             for i = 1:numel(daysList)
                 exportDays = [daysList(i), daysList(i) + days(1)];
@@ -289,6 +506,83 @@ classdef TimeSeriesRangeLoader
             list = cell(numel(daysList), 1);
             for i = 1:numel(daysList)
                 list{i} = datestr(daysList(i), 'yyyy-mm-dd');
+            end
+        end
+
+        function meta = finishCalendarDayMeta(meta, times, vals, usedRangeLoader)
+            if nargin < 4
+                usedRangeLoader = false;
+            end
+            meta.calendar_day_input_count = numel(vals);
+            meta.calendar_day_finite_count = nnz(isfinite(vals));
+            meta.calendar_day_coverage_start = '';
+            meta.calendar_day_coverage_end = '';
+            if ~isempty(times) && isdatetime(times)
+                validTimes = times(~isnat(times));
+                if ~isempty(validTimes)
+                    firstTime = min(validTimes);
+                    lastTime = max(validTimes);
+                    firstTime.Format = 'yyyy-MM-dd HH:mm:ss.SSS';
+                    lastTime.Format = 'yyyy-MM-dd HH:mm:ss.SSS';
+                    meta.calendar_day_coverage_start = char(firstTime);
+                    meta.calendar_day_coverage_end = char(lastTime);
+                end
+            end
+
+            if usedRangeLoader
+                meta.calendar_day_source_complete = ~isempty(meta.files) && ~isempty(times);
+                meta.calendar_day_required_sources_complete = meta.calendar_day_source_complete;
+                meta.calendar_day_internal_gap_coverage_assessed = false;
+                meta.calendar_day_completeness_scope = 'range_loader_nonempty_unverified';
+                meta.calendar_day_missing_required_sources = {};
+                meta.calendar_day_ambiguous_sources = {};
+                return;
+            end
+
+            requested = bms.data.TimeSeriesRangeLoader.metaTextList(meta, 'requested_export_dates');
+            contributing = bms.data.TimeSeriesRangeLoader.metaTextList(meta, 'contributing_export_dates');
+            missingContribution = setdiff(requested, contributing, 'stable');
+            missing = bms.data.TimeSeriesRangeLoader.metaTextList(meta, 'missing_export_dates');
+            empty = bms.data.TimeSeriesRangeLoader.metaTextList(meta, 'empty_export_dates');
+            noncontributing = bms.data.TimeSeriesRangeLoader.metaTextList(meta, 'noncontributing_export_dates');
+            ambiguous = bms.data.TimeSeriesRangeLoader.metaTextList(meta, 'ambiguous_export_dates');
+            meta.calendar_day_missing_required_sources = unique( ...
+                [missingContribution(:); missing(:); empty(:); noncontributing(:)], 'stable');
+            meta.calendar_day_ambiguous_sources = ambiguous;
+            meta.calendar_day_source_complete = isempty(meta.calendar_day_missing_required_sources) ...
+                && isempty(ambiguous);
+            meta.calendar_day_required_sources_complete = meta.calendar_day_source_complete;
+            meta.calendar_day_internal_gap_coverage_assessed = false;
+            meta.calendar_day_completeness_scope = 'required_export_contribution';
+        end
+
+        function values = metaTextList(meta, fieldName)
+            values = {};
+            if isstruct(meta) && isfield(meta, fieldName) && ~isempty(meta.(fieldName))
+                values = cellstr(string(meta.(fieldName)));
+            end
+        end
+
+        function items = appendUniqueText(items, value)
+            if isempty(items)
+                items = {};
+            end
+            textValue = char(string(value));
+            if isempty(textValue) || any(strcmp(items, textValue))
+                return;
+            end
+            items{end+1, 1} = textValue;
+        end
+
+        function key = canonicalFileKey(path)
+            path = char(string(path));
+            try
+                key = char(java.io.File(path).getCanonicalPath());
+            catch
+                key = path;
+            end
+            if ispc
+                key = lower(key);
             end
         end
     end

@@ -2883,6 +2883,7 @@
   },
   "groups": {
     "bearing_displacement": [],
+    "cable_accel": {},
     "cable_force": {
       "C4": [
         "CS4",
@@ -3905,9 +3906,10 @@
     "save_fig": true,
     "lightweight_fig": true,
     "fig_max_points": 50000,
+    "dynamic_raw_sampling_mode": "full",
     "dynamic_raw_fig_max_points": 1200000,
     "dynamic_raw_min_points_per_day": 12000,
-    "dynamic_raw_line_width": 1.2,
+    "dynamic_raw_line_width": 1.0,
     "dynamic_raw_render_mode": "line",
     "dynamic_raw_band_bins": 48000,
     "dynamic_raw_band_line_width": 0.45,

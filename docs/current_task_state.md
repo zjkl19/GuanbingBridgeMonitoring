@@ -45,6 +45,78 @@ Current completed run state:
   lookup/pre-extracted-CSV warnings, but the template images were preserved and
   the G05 high-pass image was explicitly replaced.
 
+## 2026-07-10 Zhishan/Hongtang Rolling-Export Full-Plot Recovery (v1.7.26)
+
+Current verified implementation state; supersedes the July 9 plot-sampling
+acceptance notes below:
+
+- User acceptance baselines are the local Zhishan March CF-1 and Hongtang Q1
+  CS1 raw time-history figures. Both are ordinary blue lines on a `1000x469`
+  MATLAB figure, exported as `1563x733`, with `LineWidth=1.0` and connected gaps.
+- Root cause: export folder `D` spans approximately `D-1 09:00` through
+  `D 09:00`. Commit `292d38a` introduced day-by-day loading but read only folder
+  `D` before clipping to calendar day `D`, retaining roughly `00:00-09:00` and
+  silently discarding the `09:00-24:00` samples stored under `D+1`.
+- The `full` mode added later plotted every sample only after this truncation;
+  old full provenance therefore did not prove complete source ingestion.
+- v1.7.26 reconstructs each rolling-export natural day from D and D+1, clips to
+  `[D,D+1)`, deduplicates files and exact timestamps, then applies cleaning once.
+  Month/quarter boundaries can resolve a strict exact-date folder under a
+  same-family sibling partition. Missing or ambiguous required sources remain
+  explicit instead of being guessed.
+- Source provenance now includes required/found contribution, actual source
+  roots/files, sample counts, duplicate/conflict counts, coverage endpoints,
+  incomplete calendar days, and the scope
+  `required_export_contribution`; it also states that internal gap coverage is
+  not automatically assessed. Individual and raw group plot sidecars carry the
+  point identity and source provenance.
+- Formal Zhishan/Hongtang settings are `dynamic_raw_sampling_mode=full`,
+  `gap_mode=connect`, and `dynamic_raw_line_width=1.0`. Explicit empty
+  `groups.cable_accel` settings prevent raw cable-acceleration group fallback
+  from reloading very large full-month/quarter waveforms; cable-force spectrum
+  group calculations remain enabled.
+- UTF-16LE/CRLF physical header counting is fixed for new parses. Existing v2
+  caches are not globally invalidated because Hongtang Q2 has MAT-only dates.
+  Historical affected Zhishan caches omit three leading rows per CSV (about
+  `0.00017%` of April CF-1), which is unrelated to the daily-gap regression.
+- Real local Zhishan April CF-1 validation:
+  - corrected calendar input `49,895,490`; finite after cleaning `49,891,939`;
+  - old production finite count `18,746,161`; algorithm had discarded
+    `31,145,778` finite samples (`62.43%`);
+  - April 30 correctly reads `D:\芝山大桥数据\2026年4月\2026-04-30`
+    plus `D:\芝山大桥数据\2026年5月\2026-05-01`, producing `1,727,997`
+    points through `23:59:59.959`;
+  - export folder `2026-04-02` is genuinely missing, so April 1/2 are marked
+    incomplete and the approximately 24-hour source gap is not fabricated.
+- Corrected local sample:
+  `run_logs/diagnostics/source_vs_algorithm_20260710/samples/zhishan/CF-1_20260401_20260430.jpg`.
+  It was generated from all `49,895,490` cleaned-series entries in about 39 s,
+  is `1563x733`, visually matches the accepted dense baseline, and passes the
+  locked-media `require_source_provenance` gate.
+- Remote 133 pre-publish state was clean at `3f1c435`, no MATLAB process was
+  running, and both old full-rerun tasks are now disabled. The Zhishan April
+  task had still been enabled/Ready and was explicitly disabled on July 10.
+- Remote source boundary check: Hongtang Q2 and Zhishan June do not currently
+  contain or have a recognized sibling containing `2026-07-01`; their June 30
+  final approximately 15 hours must remain incomplete unless raw data is later
+  recovered.
+- Validation completed before release publication:
+  - full MATLAB suite: `493` total, `492` passed, `0` failed, and one expected
+    assumption-filtered SQL Server integration test because `MSSQLSERVER` was
+    stopped;
+  - focused rolling-export/config tests: `83/83` passed;
+  - MATLAB main-GUI/plot-settings smoke: `8/8` passed with GUI `v1.7.26`;
+  - Python locked-media tests: `32/32` passed;
+  - report GUI Zhishan source self-test returned `ok=true`, `version=v1.7.26`;
+  - Python compileall and `git diff --check` passed.
+- Next production order: publish/pull v1.7.26; generate and visually inspect one
+  Hongtang Q2 full sample on 133; only after both bridge samples pass, run the
+  full Zhishan April and Hongtang Q2 analyses. Generate reports last using
+  strict locked-media replacement with `require_source_provenance=true`, then
+  render and inspect every page. No corrected report has been generated yet.
+
+Detailed evidence: `docs/dynamic_plot_source_vs_algorithm_20260710.md`.
+
 ## 2026-07-09 Hongtang/Zhishan High-Sample Raw Line Plot Final Refresh
 
 Current accepted run state:

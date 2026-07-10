@@ -43,6 +43,11 @@ classdef test_config_integration_regression < matlab.unittest.TestCase
 
             tc.verifyEqual(cfg.per_point.strain.SL_8.thresholds.min, 0);
             tc.verifyEqual(cfg.per_point.strain.SL_8.thresholds.max, 150);
+            tc.verifyEqual(cfg.plot_common.dynamic_raw_sampling_mode, 'full');
+            tc.verifyEqual(cfg.plot_common.dynamic_raw_line_width, 1.0);
+            tc.verifyEqual(cfg.plot_common.gap_mode, 'connect');
+            tc.verifyTrue(isfield(cfg.groups, 'cable_accel'));
+            tc.verifyFalse(bms.analyzer.StructuralPlotConfigService.hasGroups(cfg.groups.cable_accel));
         end
     end
 end

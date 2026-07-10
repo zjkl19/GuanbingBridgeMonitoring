@@ -36,6 +36,22 @@ from report_media_plan import (  # noqa: E402
 MEMBER = "word/media/image1.png"
 
 
+def valid_source_provenance(**overrides: object) -> dict[str, object]:
+    source: dict[str, object] = {
+        "source_sample_count": 10,
+        "finite_source_sample_count": 10,
+        "completeness_scope": "required_export_contribution",
+        "internal_gap_coverage_assessed": False,
+        "calendar_day_count_requested": 2,
+        "complete_day_count": 1,
+        "incomplete_day_count": 1,
+        "incomplete_days": ["2026-04-02"],
+        "missing_required_sources": ["2026-04-03"],
+    }
+    source.update(overrides)
+    return source
+
+
 class ReportMediaPlanTests(unittest.TestCase):
     def test_explicit_binding_does_not_select_newer_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -139,6 +155,7 @@ class ReportMediaPlanTests(unittest.TestCase):
                     "candidate_height_px",
                     "dimension_policy",
                     "max_aspect_ratio_error",
+                    "require_source_provenance",
                 ):
                     record.pop(key)
             legacy_path = root / "legacy-v1-plan.json"
@@ -147,6 +164,7 @@ class ReportMediaPlanTests(unittest.TestCase):
             loaded = load_media_plan(legacy_path)
             replacement = loaded.replacements[0]
             self.assertEqual(replacement.dimension_policy, "exact")
+            self.assertFalse(replacement.require_source_provenance)
             self.assertEqual(
                 (replacement.candidate_width_px, replacement.candidate_height_px),
                 (replacement.width_px, replacement.height_px),
@@ -425,6 +443,183 @@ class ReportMediaPlanTests(unittest.TestCase):
             with self.assertRaises(MediaCandidateError):
                 apply_media_plan(plan, output)
             self.assertFalse(output.exists())
+
+    def test_source_provenance_gate_rejects_legacy_sidecar(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = create_minimal_docx(root / "baseline.docx")
+            candidate = write_png(root / "candidate.png", "blue")
+            provenance = write_plot_provenance(candidate)
+            manifest = write_analysis_manifest(
+                root / "analysis_manifest.json",
+                [[candidate, provenance]],
+            )
+
+            with self.assertRaisesRegex(MediaCandidateError, "requires a source object"):
+                compile_media_plan(
+                    baseline,
+                    [
+                        ExplicitMediaBinding(
+                            "demo.figure",
+                            MEMBER,
+                            candidate,
+                            require_source_provenance=True,
+                        )
+                    ],
+                    analysis_manifest_path=manifest,
+                )
+
+    def test_source_provenance_gate_accepts_explicit_incomplete_days_and_round_trips(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = create_minimal_docx(root / "baseline.docx")
+            candidate = write_png(root / "candidate.png", "blue")
+            provenance = write_plot_provenance(
+                candidate,
+                source=valid_source_provenance(),
+            )
+            manifest = write_analysis_manifest(
+                root / "analysis_manifest.json",
+                [[candidate, provenance]],
+            )
+            plan = compile_media_plan(
+                baseline,
+                [
+                    ExplicitMediaBinding(
+                        "demo.figure",
+                        MEMBER,
+                        candidate,
+                        require_source_provenance=True,
+                    )
+                ],
+                analysis_manifest_path=manifest,
+            )
+
+            loaded = load_media_plan(write_media_plan(plan, root / "plan.json"))
+            self.assertTrue(loaded.replacements[0].require_source_provenance)
+            self.assertEqual(media_plan_to_dict(loaded), media_plan_to_dict(plan))
+            apply_media_plan(loaded, root / "output.docx")
+
+    def test_source_provenance_gate_validates_counts_and_list_fields(self) -> None:
+        cases = [
+            ("non_numeric_samples", {"source_sample_count": "10"}),
+            ("negative_finite_samples", {"finite_source_sample_count": -1}),
+            ("finite_exceeds_total", {"finite_source_sample_count": 11}),
+            ("missing_completeness_scope", {"completeness_scope": ""}),
+            ("unassessed_flag_not_bool", {"internal_gap_coverage_assessed": "false"}),
+            ("inconsistent_day_counts", {"calendar_day_count_requested": 3}),
+            ("non_integer_day_count", {"complete_day_count": 0.5}),
+            ("incomplete_days_not_list", {"incomplete_days": "2026-04-02"}),
+            ("incomplete_days_count_mismatch", {"incomplete_days": []}),
+            ("missing_sources_not_list", {"missing_required_sources": "2026-04-03"}),
+            ("missing_sources_non_string", {"missing_required_sources": [3]}),
+        ]
+        for label, overrides in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                baseline = create_minimal_docx(root / "baseline.docx")
+                candidate = write_png(root / "candidate.png", "blue")
+                write_plot_provenance(
+                    candidate,
+                    source=valid_source_provenance(**overrides),
+                )
+
+                with self.assertRaises(MediaCandidateError):
+                    compile_media_plan(
+                        baseline,
+                        [
+                            ExplicitMediaBinding(
+                                "demo.figure",
+                                MEMBER,
+                                candidate,
+                                require_source_provenance=True,
+                            )
+                        ],
+                    )
+
+    def test_source_provenance_gate_rejects_source_to_plot_count_mismatches(self) -> None:
+        cases = [
+            ("source_input_mismatch", {"source_sample_count": 11}),
+            ("finite_source_input_mismatch", {"finite_source_sample_count": 9}),
+        ]
+        for label, source_overrides in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                baseline = create_minimal_docx(root / "baseline.docx")
+                candidate = write_png(root / "candidate.png", "blue")
+                write_plot_provenance(
+                    candidate,
+                    source=valid_source_provenance(**source_overrides),
+                )
+
+                with self.assertRaisesRegex(MediaCandidateError, "counts differ"):
+                    compile_media_plan(
+                        baseline,
+                        [
+                            ExplicitMediaBinding(
+                                "demo.figure",
+                                MEMBER,
+                                candidate,
+                                require_source_provenance=True,
+                            )
+                        ],
+                    )
+
+    def test_apply_uses_pinned_source_provenance_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = create_minimal_docx(root / "baseline.docx")
+            candidate = write_png(root / "candidate.png", "blue")
+            provenance = write_plot_provenance(
+                candidate,
+                source=valid_source_provenance(),
+            )
+            plan_path = write_media_plan(
+                compile_media_plan(
+                    baseline,
+                    [
+                        ExplicitMediaBinding(
+                            "demo.figure",
+                            MEMBER,
+                            candidate,
+                            require_source_provenance=True,
+                        )
+                    ],
+                ),
+                root / "plan.json",
+            )
+
+            write_plot_provenance(candidate)
+            payload = json.loads(plan_path.read_text(encoding="utf-8"))
+            payload["replacements"][0]["provenance_sha256"] = sha256_file(provenance)
+            plan_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(MediaCandidateError, "requires a source object"):
+                apply_media_plan(load_media_plan(plan_path), root / "output.docx")
+
+    def test_require_source_provenance_binding_flag_must_be_boolean(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            candidate = write_png(root / "candidate.png", "blue")
+            bindings_path = root / "bindings.json"
+            bindings_path.write_text(
+                json.dumps(
+                    {
+                        "bindings": [
+                            {
+                                "slot_id": "demo.figure",
+                                "member": MEMBER,
+                                "candidate_path": str(candidate),
+                                "require_source_provenance": "true",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(MediaPlanError):
+                load_explicit_bindings(bindings_path)
 
 
 if __name__ == "__main__":

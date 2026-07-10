@@ -24,18 +24,23 @@ def write_plot_provenance(
     *,
     sampling_mode: str = "full",
     reduction_applied: bool = False,
+    input_count: int = 10,
     finite_count: int = 10,
     plotted_finite_count: int = 10,
     series: object | None = None,
     file_stub: str | None = None,
+    source: object | None = None,
 ) -> Path:
     if series is None:
         series = {
             "sampling_mode": sampling_mode,
             "reduction_applied": reduction_applied,
+            "input_count": input_count,
             "finite_count": finite_count,
             "plotted_finite_count": plotted_finite_count,
         }
+        if source is not None:
+            series["source"] = source
     provenance_path = candidate_path.with_suffix(".plot.json")
     provenance_path.write_text(
         json.dumps(

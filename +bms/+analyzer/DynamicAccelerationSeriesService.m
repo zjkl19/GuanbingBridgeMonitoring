@@ -25,7 +25,7 @@ classdef DynamicAccelerationSeriesService
                 bms.analyzer.DynamicAccelerationSeriesService.printSampleRate(rec.fs, autoDetectFs, false);
                 stats(i, :) = {rec.pid, rec.mn, rec.mx, rec.av, rec.rms_max, rec.rms_time};
                 bms.analyzer.DynamicAccelerationPlotService.plotAccelCurve( ...
-                    rootDir, rec.pid, rec.times, rec.vals, rec.mn, rec.mx, style, cfg, spec);
+                    rootDir, rec.pid, rec.times, rec.vals, rec.mn, rec.mx, style, cfg, spec, rec.source_provenance);
                 bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve( ...
                     rootDir, rec.pid, rec.times, rec.vals, rec.fs, style, cfg, spec, rec.rms_times, rec.rms_vals);
                 bms.analyzer.DynamicAccelerationPlotService.plotEnvelopeCurve( ...
@@ -87,7 +87,11 @@ classdef DynamicAccelerationSeriesService
                 times = rec.times;
                 values = rec.vals;
                 if isempty(values)
-                    [times, values] = load_timeseries_range(rootDir, subfolder, rec.pid, startDate, endDate, cfg, spec.sensorType);
+                    plotRecord = bms.analyzer.DynamicAccelerationSeriesService.collectRecord( ...
+                        rootDir, subfolder, rec.pid, startDate, endDate, cfg, autoDetectFs, spec, true);
+                    times = plotRecord.times;
+                    values = plotRecord.vals;
+                    rec.source_provenance = plotRecord.source_provenance;
                 end
                 if isempty(values)
                     warning('测点 %s 在绘图阶段无数据，跳过', rec.pid);
@@ -98,7 +102,8 @@ classdef DynamicAccelerationSeriesService
                     record_parallel_offset_correction(cfg, spec.sensorType, rec.pid, times, values);
                 end
                 stats(i, :) = {rec.pid, rec.mn, rec.mx, rec.av, rec.rms_max, rec.rms_time};
-                bms.analyzer.DynamicAccelerationPlotService.plotAccelCurve(rootDir, rec.pid, times, values, rec.mn, rec.mx, style, cfg, spec);
+                bms.analyzer.DynamicAccelerationPlotService.plotAccelCurve( ...
+                    rootDir, rec.pid, times, values, rec.mn, rec.mx, style, cfg, spec, rec.source_provenance);
                 bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve( ...
                     rootDir, rec.pid, times, values, rec.fs, style, cfg, spec, rec.rms_times, rec.rms_vals);
                 bms.analyzer.DynamicAccelerationPlotService.plotEnvelopeCurve(rootDir, rec.pid, times, values, style, cfg, spec);
@@ -156,7 +161,10 @@ classdef DynamicAccelerationSeriesService
             end
             groupCfg = bms.analyzer.DynamicAccelerationSeriesService.configForSamplingMode(cfg, groupMode);
             groupsCfg = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, spec.groupKey, []);
-            if ~bms.analyzer.StructuralPlotConfigService.hasGroups(groupsCfg) && strcmp(spec.moduleKey, 'cable_accel')
+            hasExplicitGroups = isstruct(cfg) && isfield(cfg, 'groups') ...
+                && isstruct(cfg.groups) && isfield(cfg.groups, spec.groupKey);
+            if ~bms.analyzer.StructuralPlotConfigService.hasGroups(groupsCfg) ...
+                    && strcmp(spec.moduleKey, 'cable_accel') && ~hasExplicitGroups
                 groupsCfg = bms.analyzer.DynamicAccelerationSeriesService.cableForceGroups(cfg);
             end
             if ~bms.analyzer.StructuralPlotConfigService.hasGroups(groupsCfg)

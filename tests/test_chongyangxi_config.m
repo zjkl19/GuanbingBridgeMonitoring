@@ -169,6 +169,37 @@ classdef test_chongyangxi_config < matlab.unittest.TestCase
             tc.verifyTrue(contains(meta.files{1}, 'uuid-001'));
         end
 
+        function calendarDayLoaderReadsOnlyRequiredRollingExportFolders(tc)
+            cfg = struct();
+            cfg.vendor = 'chongyangxi';
+            cfg.defaults = struct('header_marker', '[绝对时间]');
+            cfg.file_patterns = struct('acceleration', struct('default', '{file_id}_*.csv'));
+            cfg.per_point = struct('acceleration', struct('A1', struct('file_id', 'A1')));
+            for day = 20:22
+                mkdir(fullfile(tc.TempDir, sprintf('2025-05-%02d', day), '波形', 'nested'));
+            end
+            local_write_donghua_csv( ...
+                fullfile(tc.TempDir, '2025-05-20', '波形', 'nested', 'A1_first.csv'), ...
+                {'2025-05-20 00:00:00.000', '2025-05-20 08:59:59.000'}, [1, 2]);
+            local_write_donghua_csv( ...
+                fullfile(tc.TempDir, '2025-05-21', '波形', 'nested', 'A1_next.csv'), ...
+                {'2025-05-20 09:00:00.000', '2025-05-20 23:59:59.000'}, [3, 4]);
+            local_write_donghua_csv( ...
+                fullfile(tc.TempDir, '2025-05-22', '波形', 'nested', 'A1_extra.csv'), ...
+                {'2025-05-21 09:00:00.000'}, 999);
+
+            [times, vals, meta] = bms.data.TimeSeriesRangeLoader.loadCalendarDay( ...
+                tc.TempDir, '波形', 'A1', '2025-05-20', cfg, 'acceleration');
+
+            tc.verifyEqual(numel(times), 4);
+            tc.verifyEqual(vals(:).', [1, 2, 3, 4]);
+            tc.verifyEqual(numel(meta.files), 2);
+            tc.verifyFalse(any(contains(meta.files, '2025-05-22')));
+            tc.verifyTrue(meta.calendar_day_source_complete);
+            tc.verifyEqual(meta.calendar_day_completeness_scope, ...
+                'required_export_contribution');
+        end
+
         function deflectionLoaderUsesFeatureFolderAndFileId(tc)
             cfg = struct();
             cfg.vendor = 'chongyangxi';

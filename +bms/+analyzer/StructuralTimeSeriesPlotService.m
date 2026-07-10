@@ -50,8 +50,15 @@ classdef StructuralTimeSeriesPlotService
                 end
                 color = bms.analyzer.StructuralTimeSeriesPlotService.colorAt(colors, i);
                 if bms.analyzer.StructuralTimeSeriesPlotService.useRawRender(plotOpts)
+                    seriesPlotOpts = plotOpts;
+                    seriesPlotOpts.series_id = dataList(i).pid;
+                    sourceList = bms.analyzer.StructuralTimeSeriesPlotService.opt( ...
+                        opts, 'series_provenance', {});
+                    if iscell(sourceList) && i <= numel(sourceList) && isstruct(sourceList{i})
+                        seriesPlotOpts.source_provenance = sourceList{i};
+                    end
                     h(i) = bms.analyzer.DynamicSeriesService.plotRawSeries( ...
-                        gca, dataList(i).times, dataList(i).vals, color, plotOpts, lineWidth);
+                        gca, dataList(i).times, dataList(i).vals, color, seriesPlotOpts, lineWidth);
                 else
                     [timesPlot, valuesPlot] = prepare_plot_series(dataList(i).times, dataList(i).vals, plotOpts);
                     if isempty(timesPlot) || isempty(valuesPlot)

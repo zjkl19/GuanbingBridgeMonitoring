@@ -136,6 +136,8 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             tc.verifyEqual(sort([cfg.plot_styles.cable_accel.group_warn_lines.y]).', [-500; 500]);
             tc.verifyEmpty(cfg.plot_styles.acceleration.warn_lines);
             tc.verifyEmpty(cfg.plot_styles.acceleration.group_warn_lines);
+            tc.verifyEqual(cfg.plot_common.dynamic_raw_sampling_mode, 'full');
+            tc.verifyEqual(cfg.plot_common.dynamic_raw_line_width, 1.0);
             tc.verifyEqual(cfg.plot_common.gap_mode, 'connect');
             tc.verifyEqual(cfg.defaults.dynamic_strain.LowerBound, -60);
             tc.verifyEqual(cfg.defaults.dynamic_strain.UpperBound, 40);

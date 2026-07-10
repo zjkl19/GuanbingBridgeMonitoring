@@ -2,9 +2,13 @@ classdef DynamicAccelerationPlotService
     %DYNAMICACCELERATIONPLOTSERVICE Plot helpers for acceleration modules.
 
     methods (Static)
-        function plotAccelCurve(rootDir, pointId, times, values, minVal, maxVal, style, cfg, spec)
+        function plotAccelCurve(rootDir, pointId, times, values, minVal, maxVal, style, cfg, spec, sourceProvenance)
             fig = figure('Position', [100 100 1000 469]);
             plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
+            plotOpts.series_id = char(string(pointId));
+            if nargin >= 10 && isstruct(sourceProvenance)
+                plotOpts.source_provenance = sourceProvenance;
+            end
             lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.0);
             bms.analyzer.DynamicSeriesService.plotRawSeries( ...
                 gca, times, values, style.color_main, plotOpts, lineWidth);
@@ -220,6 +224,8 @@ classdef DynamicAccelerationPlotService
             opts.raw_band_line_width = rawOpts.raw_band_line_width;
             opts.raw_trace_points = rawOpts.raw_trace_points;
             opts.raw_sampling_mode = rawOpts.raw_sampling_mode;
+            opts.series_provenance = arrayfun( ...
+                @(record) record.source_provenance, records, 'UniformOutput', false);
 
             bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
                 rootDir, timesList, valuesList, labels, startDate, endDate, opts, cfg);

@@ -5,7 +5,8 @@ classdef DynamicSeriesService
         function rec = initRecord()
             rec = struct('pid', '', 'times', [], 'vals', [], 'fs', NaN, ...
                 'mn', NaN, 'mx', NaN, 'av', NaN, 'rms_max', NaN, ...
-                'rms_time', NaT, 'rms_times', [], 'rms_vals', [], 'has_data', false);
+                'rms_time', NaT, 'rms_times', [], 'rms_vals', [], 'has_data', false, ...
+                'source_provenance', bms.analyzer.DynamicSeriesService.initSourceProvenance(0));
         end
 
         function rec = collectRecord(rootDir, subfolder, pointId, startDate, endDate, cfg, sensorType, autoDetectFs, keepSeries)
@@ -63,6 +64,7 @@ classdef DynamicSeriesService
             keptVals = {};
             keptRmsTimes = {};
             keptRmsVals = {};
+            sourceProvenance = bms.analyzer.DynamicSeriesService.initSourceProvenance(numel(dateList));
 
             for i = 1:numel(dateList)
                 bms.app.StopController.throwIfRequested('Stop requested before next dynamic data day');
@@ -71,7 +73,10 @@ classdef DynamicSeriesService
                     fprintf('Dynamic %s %s loading %s (%d/%d)\n', ...
                         char(string(sensorType)), char(string(pointId)), day, i, numel(dateList));
                 end
-                [times, vals] = load_timeseries_range(rootDir, subfolder, pointId, day, day, cfg, sensorType);
+                [times, vals, dayMeta] = bms.data.TimeSeriesRangeLoader.loadCalendarDay( ...
+                    rootDir, subfolder, pointId, day, cfg, sensorType);
+                sourceProvenance = bms.analyzer.DynamicSeriesService.accumulateSourceProvenance( ...
+                    sourceProvenance, day, dayMeta, times, vals);
                 if isempty(vals)
                     continue;
                 end
@@ -107,6 +112,16 @@ classdef DynamicSeriesService
                         keptVals{end+1, 1} = vd; %#ok<AGROW>
                     end
                 end
+            end
+
+            rec.source_provenance = bms.analyzer.DynamicSeriesService.finalizeSourceProvenance(sourceProvenance);
+            if rec.source_provenance.incomplete_day_count > 0
+                warning('DynamicSeriesService:IncompleteSourceCoverage', ...
+                    '%s %s has incomplete rolling-export source coverage on %d/%d calendar days: %s', ...
+                    char(string(sensorType)), char(string(pointId)), ...
+                    rec.source_provenance.incomplete_day_count, ...
+                    rec.source_provenance.calendar_day_count_requested, ...
+                    strjoin(rec.source_provenance.incomplete_days, ', '));
             end
 
             if totalCount <= 0
@@ -396,6 +411,13 @@ classdef DynamicSeriesService
                 'finite_count', double(finiteCount), ...
                 'plotted_finite_count', double(plottedFiniteCount), ...
                 'reduction_applied', plottedFiniteCount < finiteCount);
+            if isstruct(opts) && isfield(opts, 'source_provenance') ...
+                    && isstruct(opts.source_provenance)
+                provenance.source = opts.source_provenance;
+            end
+            if isstruct(opts) && isfield(opts, 'series_id') && ~isempty(opts.series_id)
+                provenance.point_id = char(string(opts.series_id));
+            end
             userData = get(h, 'UserData');
             if ~isstruct(userData)
                 userData = struct();
@@ -783,6 +805,140 @@ classdef DynamicSeriesService
             value = defaultValue;
             if isstruct(opts) && isfield(opts, fieldName) && ~isempty(opts.(fieldName))
                 value = opts.(fieldName);
+            end
+        end
+
+        function provenance = initSourceProvenance(dayCount)
+            if nargin < 1 || isempty(dayCount)
+                dayCount = 0;
+            end
+            provenance = struct( ...
+                'schema_version', 1, ...
+                'calendar_day_count_requested', double(dayCount), ...
+                'calendar_day_count_with_data', 0, ...
+                'complete_day_count', 0, ...
+                'incomplete_day_count', 0, ...
+                'incomplete_days', {{}}, ...
+                'missing_required_sources', {{}}, ...
+                'ambiguous_sources', {{}}, ...
+                'source_files', {{}}, ...
+                'source_file_count', 0, ...
+                'source_sample_count', 0, ...
+                'finite_source_sample_count', 0, ...
+                'duplicate_timestamp_count', 0, ...
+                'conflicting_timestamp_count', 0, ...
+                'completeness_scope', '', ...
+                'internal_gap_coverage_assessed', false, ...
+                'coverage_start', '', ...
+                'coverage_end', '');
+        end
+
+        function provenance = accumulateSourceProvenance(provenance, day, meta, ~, vals)
+            if ~isempty(vals)
+                provenance.calendar_day_count_with_data = provenance.calendar_day_count_with_data + 1;
+            end
+            provenance.source_sample_count = provenance.source_sample_count + numel(vals);
+            provenance.finite_source_sample_count = provenance.finite_source_sample_count + nnz(isfinite(vals));
+            provenance.duplicate_timestamp_count = provenance.duplicate_timestamp_count + ...
+                bms.analyzer.DynamicSeriesService.metaNumeric(meta, 'duplicate_timestamp_count', 0);
+            provenance.conflicting_timestamp_count = provenance.conflicting_timestamp_count + ...
+                bms.analyzer.DynamicSeriesService.metaNumeric(meta, 'conflicting_timestamp_count', 0);
+
+            complete = isstruct(meta) && isfield(meta, 'calendar_day_source_complete') ...
+                && bms.config.ConfigReader.boolValue(meta.calendar_day_source_complete, false);
+            if complete
+                provenance.complete_day_count = provenance.complete_day_count + 1;
+            else
+                provenance.incomplete_day_count = provenance.incomplete_day_count + 1;
+                provenance.incomplete_days = bms.analyzer.DynamicSeriesService.appendUniqueText( ...
+                    provenance.incomplete_days, day);
+            end
+
+            provenance.missing_required_sources = bms.analyzer.DynamicSeriesService.appendTextList( ...
+                provenance.missing_required_sources, meta, 'calendar_day_missing_required_sources');
+            provenance.ambiguous_sources = bms.analyzer.DynamicSeriesService.appendTextList( ...
+                provenance.ambiguous_sources, meta, 'calendar_day_ambiguous_sources');
+            provenance.source_files = bms.analyzer.DynamicSeriesService.appendTextList( ...
+                provenance.source_files, meta, 'files');
+            dayScope = bms.analyzer.DynamicSeriesService.metaText( ...
+                meta, 'calendar_day_completeness_scope');
+            if isempty(provenance.completeness_scope)
+                provenance.completeness_scope = dayScope;
+            elseif ~isempty(dayScope) && ~strcmp(provenance.completeness_scope, dayScope)
+                provenance.completeness_scope = 'mixed';
+            end
+            provenance.coverage_start = bms.analyzer.DynamicSeriesService.earlierText( ...
+                provenance.coverage_start, bms.analyzer.DynamicSeriesService.metaText(meta, 'calendar_day_coverage_start'));
+            provenance.coverage_end = bms.analyzer.DynamicSeriesService.laterText( ...
+                provenance.coverage_end, bms.analyzer.DynamicSeriesService.metaText(meta, 'calendar_day_coverage_end'));
+        end
+
+        function provenance = finalizeSourceProvenance(provenance)
+            provenance.incomplete_days = unique(provenance.incomplete_days, 'stable');
+            provenance.missing_required_sources = unique(provenance.missing_required_sources, 'stable');
+            provenance.ambiguous_sources = unique(provenance.ambiguous_sources, 'stable');
+            provenance.source_files = unique(provenance.source_files, 'stable');
+            provenance.source_file_count = numel(provenance.source_files);
+            if isempty(provenance.completeness_scope)
+                provenance.completeness_scope = 'unknown';
+            end
+            provenance.incomplete_day_count = numel(provenance.incomplete_days);
+            provenance.complete_day_count = max(0, ...
+                provenance.calendar_day_count_requested - provenance.incomplete_day_count);
+        end
+
+        function value = metaNumeric(meta, fieldName, defaultValue)
+            value = defaultValue;
+            if isstruct(meta) && isfield(meta, fieldName) && ~isempty(meta.(fieldName)) ...
+                    && isnumeric(meta.(fieldName)) && isscalar(meta.(fieldName))
+                value = double(meta.(fieldName));
+            end
+        end
+
+        function value = metaText(meta, fieldName)
+            value = '';
+            if isstruct(meta) && isfield(meta, fieldName) && ~isempty(meta.(fieldName))
+                value = char(string(meta.(fieldName)));
+            end
+        end
+
+        function items = appendTextList(items, meta, fieldName)
+            if ~isstruct(meta) || ~isfield(meta, fieldName) || isempty(meta.(fieldName))
+                return;
+            end
+            values = cellstr(string(meta.(fieldName)));
+            for i = 1:numel(values)
+                items = bms.analyzer.DynamicSeriesService.appendUniqueText(items, values{i});
+            end
+        end
+
+        function items = appendUniqueText(items, value)
+            textValue = char(string(value));
+            if isempty(textValue) || any(strcmp(items, textValue))
+                return;
+            end
+            items{end+1, 1} = textValue;
+        end
+
+        function value = earlierText(current, candidate)
+            value = current;
+            if isempty(candidate)
+                return;
+            end
+            ordered = sort({current, candidate});
+            if isempty(current) || strcmp(ordered{1}, candidate)
+                value = candidate;
+            end
+        end
+
+        function value = laterText(current, candidate)
+            value = current;
+            if isempty(candidate)
+                return;
+            end
+            ordered = sort({current, candidate});
+            if isempty(current) || strcmp(ordered{2}, candidate)
+                value = candidate;
             end
         end
 

@@ -169,6 +169,10 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
                 'gap_mode', 'connect');
 
             opts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 10);
+            opts.source_provenance = struct( ...
+                'source_sample_count', 2000, ...
+                'incomplete_day_count', 0, ...
+                'completeness_scope', 'required_export_contribution');
             h = bms.analyzer.DynamicSeriesService.plotRawSeries( ...
                 ax, times, vals, [0 0.4470 0.7410], opts, 1.0);
 
@@ -177,6 +181,9 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(h.UserData.plot_provenance.finite_count, nnz(isfinite(vals)));
             tc.verifyEqual(h.UserData.plot_provenance.plotted_finite_count, nnz(isfinite(vals)));
             tc.verifyFalse(h.UserData.plot_provenance.reduction_applied);
+            tc.verifyEqual(h.UserData.plot_provenance.source.source_sample_count, 2000);
+            tc.verifyEqual(h.UserData.plot_provenance.source.completeness_scope, ...
+                'required_export_contribution');
             tc.verifyEmpty(findall(ax, 'Type', 'patch'));
         end
 
@@ -193,6 +200,189 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyTrue(rec.has_data);
             tc.verifyEqual(numel(rec.vals), numel(values));
             tc.verifyEqual(nnz(isfinite(rec.vals)), numel(values));
+        end
+
+        function rollingExportDayIncludesFollowingFolderSamples(tc)
+            mkdir(fullfile(tc.Root, '2026-01-02', 'wave'));
+            firstTimes = [ ...
+                datetime(2025, 12, 31, 9, 0, 0); ...
+                datetime(2026, 1, 1, 0, 0, 0); ...
+                datetime(2026, 1, 1, 8, 59, 59)];
+            nextTimes = [ ...
+                datetime(2026, 1, 1, 9, 0, 0); ...
+                datetime(2026, 1, 1, 12, 0, 0); ...
+                datetime(2026, 1, 1, 23, 59, 59); ...
+                datetime(2026, 1, 2, 9, 0, 0)];
+            write_series_csv_times( ...
+                fullfile(tc.Root, '2026-01-01', 'wave', 'ROLL.csv'), ...
+                firstTimes, [1; 2; 3]);
+            write_series_csv_times( ...
+                fullfile(tc.Root, '2026-01-02', 'wave', 'ROLL.csv'), ...
+                nextTimes, [4; 5; 6; 7]);
+            cfg = dynamic_cfg();
+            cfg.plot_common = struct('dynamic_raw_sampling_mode', 'full');
+
+            rec = bms.analyzer.DynamicSeriesService.collectRecord( ...
+                tc.Root, 'wave', 'ROLL', '2026-01-01', '2026-01-01', ...
+                cfg, 'acceleration', false, true);
+
+            tc.verifyTrue(rec.has_data);
+            tc.verifyEqual(rec.times, [firstTimes(2:3); nextTimes(1:3)]);
+            tc.verifyEqual(rec.vals, [2; 3; 4; 5; 6]);
+            tc.verifyEqual(rec.mn, 2);
+            tc.verifyEqual(rec.mx, 6);
+            tc.verifyEqual(rec.av, 4);
+            tc.verifyTrue(all(rec.times >= datetime(2026, 1, 1)));
+            tc.verifyTrue(all(rec.times < datetime(2026, 1, 2)));
+            tc.verifyTrue(rec.source_provenance.complete_day_count == 1);
+            tc.verifyEqual(rec.source_provenance.source_file_count, 2);
+        end
+
+        function rollingExportResolvesNextFolderAcrossMonthlyPartition(tc)
+            partitions = fullfile(tc.Root, 'partitions');
+            aprilRoot = fullfile(partitions, '2026年4月');
+            mayRoot = fullfile(partitions, '2026年5月');
+            excludedRoot = fullfile(partitions, '2026年5月纯地震分析');
+            mkdir(fullfile(aprilRoot, '2026-04-30', 'wave'));
+            mkdir(fullfile(mayRoot, '2026-05-01', 'wave'));
+            mkdir(fullfile(excludedRoot, '2026-05-01', 'wave'));
+            write_series_csv_times(fullfile(aprilRoot, '2026-04-30', 'wave', 'CROSS.csv'), ...
+                [datetime(2026, 4, 30, 0, 0, 0); datetime(2026, 4, 30, 8, 59, 59)], [1; 2]);
+            write_series_csv_times(fullfile(mayRoot, '2026-05-01', 'wave', 'CROSS.csv'), ...
+                [datetime(2026, 4, 30, 9, 0, 0); datetime(2026, 4, 30, 23, 59, 59)], [3; 4]);
+            write_series_csv_times(fullfile(excludedRoot, '2026-05-01', 'wave', 'CROSS.csv'), ...
+                datetime(2026, 4, 30, 12, 0, 0), 999);
+
+            [times, vals, meta] = bms.data.TimeSeriesRangeLoader.loadCalendarDay( ...
+                [aprilRoot filesep], 'wave', 'CROSS', '2026-04-30', dynamic_cfg(), 'acceleration');
+
+            tc.verifyEqual(times, [ ...
+                datetime(2026, 4, 30, 0, 0, 0); datetime(2026, 4, 30, 8, 59, 59); ...
+                datetime(2026, 4, 30, 9, 0, 0); datetime(2026, 4, 30, 23, 59, 59)]);
+            tc.verifyEqual(vals, [1; 2; 3; 4]);
+            tc.verifyTrue(meta.calendar_day_source_complete);
+            tc.verifyEqual(numel(meta.files), 2);
+            tc.verifyTrue(any(strcmp(meta.resolved_source_roots, mayRoot)));
+            tc.verifyFalse(any(contains(meta.files, '纯地震分析')));
+        end
+
+        function rollingExportResolvesNextFolderAcrossQuarterPartition(tc)
+            partitions = fullfile(tc.Root, 'quarter_partitions');
+            q1Root = fullfile(partitions, '2026年1-3月');
+            q2Root = fullfile(partitions, '2026年4-6月');
+            mkdir(fullfile(q1Root, '2026-03-31', 'wave'));
+            mkdir(fullfile(q2Root, '2026-04-01', 'wave'));
+            write_series_csv_times(fullfile(q1Root, '2026-03-31', 'wave', 'Q.csv'), ...
+                datetime(2026, 3, 31, 8, 0, 0), 1);
+            write_series_csv_times(fullfile(q2Root, '2026-04-01', 'wave', 'Q.csv'), ...
+                datetime(2026, 3, 31, 12, 0, 0), 2);
+
+            [~, vals, meta] = bms.data.TimeSeriesRangeLoader.loadCalendarDay( ...
+                q1Root, 'wave', 'Q', '2026-03-31', dynamic_cfg(), 'acceleration');
+
+            tc.verifyEqual(vals, [1; 2]);
+            tc.verifyTrue(meta.calendar_day_source_complete);
+            tc.verifyTrue(any(strcmp(meta.resolved_source_roots, q2Root)));
+        end
+
+        function rollingExportMissingLookaheadIsExplicitlyIncomplete(tc)
+            write_series_csv_times(fullfile(tc.Root, '2026-01-01', 'wave', 'PARTIAL.csv'), ...
+                [datetime(2026, 1, 1, 0, 0, 0); datetime(2026, 1, 1, 8, 59, 59)], [1; 2]);
+
+            [times, vals, meta] = bms.data.TimeSeriesRangeLoader.loadCalendarDay( ...
+                tc.Root, 'wave', 'PARTIAL', '2026-01-01', dynamic_cfg(), 'acceleration');
+
+            tc.verifyEqual(numel(times), 2);
+            tc.verifyEqual(vals, [1; 2]);
+            tc.verifyFalse(meta.calendar_day_source_complete);
+            tc.verifyEqual(meta.calendar_day_missing_required_sources, {'2026-01-02'});
+            tc.verifyEqual(meta.calendar_day_coverage_end, '2026-01-01 08:59:59.000');
+        end
+
+        function noncontributingRollingFilesCannotClaimCompleteSource(tc)
+            mkdir(fullfile(tc.Root, '2026-01-02', 'wave'));
+            write_series_csv_times(fullfile(tc.Root, '2026-01-01', 'wave', 'OUTSIDE.csv'), ...
+                datetime(2025, 12, 31, 12, 0, 0), 1);
+            write_series_csv_times(fullfile(tc.Root, '2026-01-02', 'wave', 'OUTSIDE.csv'), ...
+                datetime(2026, 1, 2, 0, 0, 0), 2);
+
+            [times, vals, meta] = bms.data.TimeSeriesRangeLoader.loadCalendarDay( ...
+                tc.Root, 'wave', 'OUTSIDE', '2026-01-01', dynamic_cfg(), 'acceleration');
+
+            tc.verifyEmpty(times);
+            tc.verifyEmpty(vals);
+            tc.verifyFalse(meta.calendar_day_source_complete);
+            tc.verifyEqual(meta.calendar_day_missing_required_sources, ...
+                {'2026-01-01'; '2026-01-02'});
+            tc.verifyEqual(meta.noncontributing_export_dates, ...
+                {'2026-01-01'; '2026-01-02'});
+            tc.verifyEqual(meta.duplicate_timestamp_count, 0);
+        end
+
+        function rollingExportDeduplicatesConflictingBoundaryTimestamp(tc)
+            mkdir(fullfile(tc.Root, '2026-01-02', 'wave'));
+            boundary = datetime(2026, 1, 1, 9, 0, 0);
+            write_series_csv_times(fullfile(tc.Root, '2026-01-01', 'wave', 'DUP.csv'), ...
+                [datetime(2026, 1, 1, 8, 0, 0); boundary], [1; 2]);
+            write_series_csv_times(fullfile(tc.Root, '2026-01-02', 'wave', 'DUP.csv'), ...
+                [boundary; datetime(2026, 1, 1, 10, 0, 0)], [3; 4]);
+
+            [times, vals, meta] = bms.data.TimeSeriesRangeLoader.loadCalendarDay( ...
+                tc.Root, 'wave', 'DUP', '2026-01-01', dynamic_cfg(), 'acceleration');
+
+            tc.verifyEqual(times, [datetime(2026, 1, 1, 8, 0, 0); boundary; datetime(2026, 1, 1, 10, 0, 0)]);
+            tc.verifyEqual(vals, [1; 3; 4]);
+            tc.verifyEqual(meta.duplicate_timestamp_count, 1);
+            tc.verifyEqual(meta.conflicting_timestamp_count, 1);
+        end
+
+        function rollingExportAppliesDailyMedianAfterBothHalvesMerge(tc)
+            mkdir(fullfile(tc.Root, '2026-01-02', 'wave'));
+            write_series_csv_times(fullfile(tc.Root, '2026-01-01', 'wave', 'MEDIAN.csv'), ...
+                [datetime(2026, 1, 1, 0, 0, 0); datetime(2026, 1, 1, 8, 0, 0)], [1; 3]);
+            write_series_csv_times(fullfile(tc.Root, '2026-01-02', 'wave', 'MEDIAN.csv'), ...
+                [datetime(2026, 1, 1, 9, 0, 0); datetime(2026, 1, 1, 23, 0, 0)], [7; 9]);
+            cfg = dynamic_cfg();
+            cfg.defaults.acceleration = struct( ...
+                'offset_correction', struct('mode', 'daily_median'));
+
+            [~, vals] = bms.data.TimeSeriesRangeLoader.loadCalendarDay( ...
+                tc.Root, 'wave', 'MEDIAN', '2026-01-01', cfg, 'acceleration');
+
+            tc.verifyEqual(vals, [-4; -2; 2; 4]);
+        end
+
+        function periodRootDoesNotRequestRollingLookahead(tc)
+            periodRoot = fullfile(tc.Root, 'period_root');
+            mkdir(fullfile(periodRoot, 'lowfreq'));
+            mkdir(fullfile(periodRoot, 'wave'));
+            write_series_csv_times(fullfile(periodRoot, 'wave', 'PERIOD.csv'), ...
+                [datetime(2026, 1, 1, 0, 0, 0); datetime(2026, 1, 1, 12, 0, 0)], [5; 6]);
+            cfg = dynamic_cfg();
+            cfg.vendor = 'hongtang';
+
+            [~, vals, meta] = bms.data.TimeSeriesRangeLoader.loadCalendarDay( ...
+                periodRoot, 'wave', 'PERIOD', '2026-01-01', cfg, 'acceleration');
+
+            tc.verifyEqual(vals, [5; 6]);
+            tc.verifyFalse(meta.calendar_day_lookahead_requested);
+            tc.verifyEqual(numel(meta.files), 1);
+        end
+
+        function absoluteAggregateFileIsReadOnlyOnceAcrossDates(tc)
+            aggregateDir = fullfile(tc.Root, 'aggregate_wave');
+            mkdir(aggregateDir);
+            write_series_csv_times(fullfile(aggregateDir, 'AGG.csv'), ...
+                [datetime(2026, 1, 1, 0, 0, 0); datetime(2026, 1, 2, 0, 0, 0)], [1; 2]);
+
+            [times, vals, meta] = load_timeseries_range( ...
+                tc.Root, aggregateDir, 'AGG', '2026-01-01', '2026-01-02', ...
+                dynamic_cfg(), 'acceleration');
+
+            tc.verifyEqual(numel(times), 2);
+            tc.verifyEqual(vals, [1; 2]);
+            tc.verifyEqual(numel(meta.files), 1);
+            tc.verifyEqual(meta.duplicate_file_count, 1);
         end
 
         function fullSamplingUsesExplicitGroupPolicy(tc)
@@ -372,6 +562,11 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
 
             tc.verifyGreaterThanOrEqual(numel(dir(fullfile(tc.Root, 'accel_group', '*.jpg'))), 1);
             tc.verifyGreaterThanOrEqual(numel(dir(fullfile(tc.Root, 'accel_rms_group', '*.jpg'))), 1);
+            provenanceFiles = dir(fullfile(tc.Root, 'accel_group', '*.plot.json'));
+            tc.verifyGreaterThanOrEqual(numel(provenanceFiles), 1);
+            payload = jsondecode(fileread(fullfile(provenanceFiles(1).folder, provenanceFiles(1).name)));
+            tc.verifyEqual(sort(string({payload.series.point_id})), ["A1" "A2"]);
+            tc.verifyTrue(all(arrayfun(@(entry) isstruct(entry.source), payload.series)));
         end
 
         function accelerationRmsPointDrawsConfiguredWarnLines(tc)
@@ -478,7 +673,7 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'C2.csv'), values * 0.5);
             cfg = dynamic_cfg();
             cfg.points = struct('cable_accel', {{'C1', 'C2'}});
-            cfg.groups = struct('cable_accel', struct(), 'cable_force', struct('G1', {{'C1', 'C2'}}));
+            cfg.groups = struct('cable_force', struct('G1', {{'C1', 'C2'}}));
             cfg.per_point.cable_accel.C1.thresholds = struct('min', -500, 'max', 500);
             cfg.per_point.cable_accel.C2.thresholds = struct('min', -500, 'max', 500);
             cfg.plot_common = struct('save_fig', true, 'append_timestamp', false, 'lightweight_fig', false);
@@ -500,6 +695,28 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyGreaterThanOrEqual(numel(groupFigs), 1);
             values = constant_line_values(fullfile(groupFigs(1).folder, groupFigs(1).name));
             tc.verifyEqual(values(:), [-500; 500]);
+        end
+
+        function explicitEmptyCableAccelerationGroupsDisableFallback(tc)
+            values = sin((0:1200)' / 10);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'C1.csv'), values);
+            cfg = dynamic_cfg();
+            cfg.points = struct('cable_accel', {{'C1'}});
+            cfg.groups = struct( ...
+                'cable_accel', struct(), ...
+                'cable_force', struct('G1', {{'C1'}}));
+            cfg.plot_common = struct('save_fig', true, 'append_timestamp', false);
+            cfg.plot_styles = struct('cable_accel', struct( ...
+                'group_output_dir', 'cable_accel_group', ...
+                'rms_group_output_dir', 'cable_accel_rms_group'));
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('cable_accel');
+            style = bms.analyzer.DynamicAccelerationPipeline.plotStyle(cfg, spec);
+
+            bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroups( ...
+                tc.Root, 'wave', '2026-01-01', '2026-01-01', cfg, true, style, spec);
+
+            tc.verifyFalse(isfolder(fullfile(tc.Root, 'cable_accel_group')));
+            tc.verifyFalse(isfolder(fullfile(tc.Root, 'cable_accel_rms_group')));
         end
 
         function accelerationPointsFallBackToGroups(tc)
@@ -529,6 +746,17 @@ function write_series_csv(path, values)
     base = datetime(2026, 1, 1, 0, 0, 0);
     for i = 1:numel(values)
         fprintf(fid, '%s,%.6f\n', datestr(base + seconds(i - 1), 'yyyy-mm-dd HH:MM:SS.FFF'), values(i));
+    end
+end
+
+function write_series_csv_times(path, times, values)
+    assert(numel(times) == numel(values), 'Times and values must have equal length.');
+    fid = fopen(path, 'w', 'n', 'UTF-8');
+    assert(fid > 0, 'Failed to create test csv.');
+    cleaner = onCleanup(@() fclose(fid)); %#ok<NASGU>
+    fprintf(fid, 'Time,Value\n');
+    for i = 1:numel(values)
+        fprintf(fid, '%s,%.6f\n', datestr(times(i), 'yyyy-mm-dd HH:MM:SS.FFF'), values(i));
     end
 end
 

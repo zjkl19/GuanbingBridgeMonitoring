@@ -1,31 +1,34 @@
 # Known Issues And Follow-Up Items
 
-Last updated: 2026-07-09
+Last updated: 2026-07-10
 
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
 
 ## High-Frequency Report Plot Sampling
 
-Status: accepted in `8e95106`; keep as a report QA rule.
+Status: superseded by the v1.7.26 rolling-export fix; keep only as history and a report QA rule.
 
 The previous extrema-preserving cap fixed dropped extrema, but some monthly or
 quarterly raw high-frequency time-history figures still looked visually sparse
 when they used the ordinary common cap or when dense-band rendering was used
-too aggressively. Hongtang Q2 and Zhishan April to June now use a dedicated
-report-facing high-sample ordinary line policy:
+too aggressively. The later source-vs-algorithm audit proved that the dominant
+daily blank bands were not a plot-density problem: the v1.7.14 per-day loader
+kept only about 38% of each calendar day. Hongtang Q2 and Zhishan now use:
 
 - `plot_common.dynamic_raw_render_mode=line`
-- `plot_common.dynamic_raw_fig_max_points=1200000`
-- `plot_common.dynamic_raw_min_points_per_day=12000`
-- `plot_common.dynamic_raw_line_width=1.2`
+- `plot_common.dynamic_raw_sampling_mode=full`
+- `plot_common.dynamic_raw_line_width=1.0`
+- `plot_common.gap_mode=connect`
 
-The accepted path deliberately avoids both sparse low-cap line plots and
+The corrected path deliberately avoids both sparse low-cap line plots and
 filled-envelope `dense_band` output. During the 2026-07-09 report refresh, the
 dense-band variants were rejected because vertical min/max bars looked striped
 and filled patches introduced geometric blocks across long source gaps. The
 high-sample line mode is slower than low-cap plotting but closer to the
-original full-resolution waveform while keeping report rendering practical.
+original full-resolution waveform. The 2026-07-10 fix reconstructs each natural
+day from export folders D and D+1 before cleaning and plotting; see
+`docs/dynamic_plot_source_vs_algorithm_20260710.md`.
 
 Important distinction:
 
@@ -70,6 +73,28 @@ Important distinction:
   before changing plot code.
 
 Reference: `docs/hongtang_q2_2026_recovery.md`.
+
+## Rolling-Export Boundary Sources And Legacy UTF-16 Caches
+
+Status: explicitly disclosed residuals after v1.7.26; do not hide them with plot changes.
+
+- Zhishan April lacks export folder `2026-04-02`. It creates one real source
+  gap of roughly 24 hours and marks calendar days April 1 and April 2 incomplete.
+- Hongtang Q2 and Zhishan June currently have no `2026-07-01` export folder in
+  their current or recognized adjacent partition roots. June 30 after about
+  09:00 therefore remains unavailable until a later raw archive is recovered.
+- The UTF-16LE/CRLF parser now counts physical header lines correctly. Existing
+  `csv_timeseries_v2` MAT caches are deliberately not invalidated, so historical
+  Zhishan caches still omit the first three data rows of each affected CSV. The
+  measured impact on April CF-1 is about `0.00017%` and does not explain visual
+  gaps or change extrema. Rebuild only from available raw CSV if literal
+  point-for-point completeness is required; do not invalidate Hongtang MAT-only
+  caches whose source CSV was already archived or removed.
+
+New dynamic `.plot.json` files record required export contribution, incomplete
+calendar days, missing export dates, sample counts, and the fact that internal
+gap coverage is not automatically assessed. Locked report bindings should set
+`require_source_provenance: true` for these high-frequency images.
 
 ## MAT-Only Dynamic RMS Refresh
 
