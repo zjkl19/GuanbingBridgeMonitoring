@@ -1055,10 +1055,22 @@
       "CF-5": {
         "file_id": "C200303011",
         "offset_correction": {
-          "mode": "fixed",
-          "value": 29800,
-          "start_date": "2026-04-01",
-          "end_date": "2026-06-30"
+          "mode": "segmented",
+          "segments": [
+            {
+              "mode": "fixed",
+              "value": 29800,
+              "start_date": "2026-04-01",
+              "end_date": "2026-04-30"
+            },
+            {
+              "mode": "hourly_median",
+              "value": null,
+              "start_date": "2026-05-01",
+              "end_date": "2026-06-30"
+            }
+          ],
+          "note": "Keep the validated April fixed baseline; use hourly median baseline removal for May-June because the CF-5 raw baseline drifts within rolling exports."
         },
         "thresholds": [
           {

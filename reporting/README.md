@@ -185,7 +185,7 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
-Version `v1.7.27` makes manifest-backed point-image lookup enforce exact point-token boundaries. This prevents prefix collisions such as `CS1` selecting the newer `CS12` figure (and `CX1` selecting `CX12`) in Hongtang period reports.
+Version `v1.7.28` keeps the report GUI/package version aligned with the Zhishan CF-5 processing correction; report-generation behavior remains the strict v1.7.27 implementation. Version `v1.7.27` makes manifest-backed point-image lookup enforce exact point-token boundaries. This prevents prefix collisions such as `CS1` selecting the newer `CS12` figure (and `CX1` selecting `CX12`) in Hongtang period reports.
 
 Version `v1.7.26` adds optional `require_source_provenance: true` bindings. When enabled, locked-media planning and application require each full plot series to carry pinned source sample/day counts and an explicit completeness scope, rejecting legacy plots that were labelled full only after upstream truncation. Explicitly disclosed incomplete source days remain admissible.
 

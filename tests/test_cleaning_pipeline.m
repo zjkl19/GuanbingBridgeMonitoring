@@ -156,6 +156,57 @@ classdef test_cleaning_pipeline < matlab.unittest.TestCase
             tc.verifyEqual(out, [-2 0 2], 'AbsTol', 1e-12);
         end
 
+        function appliesHourlyMedianOffset(tc)
+            t = [datetime(2026,5,1,0,0,0) + minutes([0; 10]); ...
+                datetime(2026,5,1,1,0,0) + minutes([0; 10])];
+            v = [100; 102; 200; 204];
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.offset_correction = struct('mode', 'hourly_median');
+
+            [out, log] = bms.data.CleaningPipeline.apply(v, t, rules);
+
+            tc.verifyEqual(out, [-1; 1; -2; 2], 'AbsTol', 1e-12);
+            tc.verifyTrue(log.offset_applied);
+            tc.verifyEqual(log.offset_correction.mode, 'hourly_median');
+        end
+
+        function appliesNonOverlappingOffsetSegments(tc)
+            t = [datetime(2026,4,30,23,0,0); ...
+                datetime(2026,5,1,0,0,0); datetime(2026,5,1,0,10,0)];
+            v = [10; 100; 102];
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.offset_correction = struct( ...
+                'mode', 'segmented', ...
+                'segments', [ ...
+                    struct('mode', 'fixed', 'value', 5, ...
+                        'start_date', '2026-04-01', 'end_date', '2026-04-30'), ...
+                    struct('mode', 'hourly_median', 'value', [], ...
+                        'start_date', '2026-05-01', 'end_date', '2026-06-30')]);
+
+            [out, log] = bms.data.CleaningPipeline.apply(v, t, rules);
+
+            tc.verifyEqual(out, [15; -1; 1], 'AbsTol', 1e-12);
+            tc.verifyTrue(log.offset_applied);
+            tc.verifyEqual(log.offset_correction.mode, 'segmented');
+            tc.verifyEqual(log.offset_correction.segment_count, 2);
+        end
+
+        function rejectsOverlappingOffsetSegments(tc)
+            t = datetime(2026,5,20,0,0,0) + minutes(0:2)';
+            v = [1; 2; 3];
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.offset_correction = struct( ...
+                'mode', 'segmented', ...
+                'segments', [ ...
+                    struct('mode', 'fixed', 'value', 1, ...
+                        'start_date', '2026-05-01', 'end_date', '2026-05-31'), ...
+                    struct('mode', 'fixed', 'value', 2, ...
+                        'start_date', '2026-05-15', 'end_date', '2026-06-30')]);
+
+            tc.verifyError(@() bms.data.CleaningPipeline.apply(v, t, rules), ...
+                'CleaningPipeline:OverlappingOffsetSegments');
+        end
+
         function minGreaterThanMaxCanFilterAllFiniteValues(tc)
             t = datetime(2026,1,1) + seconds(0:2)';
             v = [1; 2; 3];

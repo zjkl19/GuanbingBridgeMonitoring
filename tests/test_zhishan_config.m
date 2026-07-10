@@ -112,7 +112,15 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             tc.verifyEqual(cfg.per_point.cable_accel.CF_2.offset_correction.value, -2000);
             tc.verifyEqual(cfg.per_point.cable_accel.CF_3.offset_correction.value, 29600);
             tc.verifyEqual(cfg.per_point.cable_accel.CF_4.offset_correction.value, 29600);
-            tc.verifyEqual(cfg.per_point.cable_accel.CF_5.offset_correction.value, 29800);
+            cf5Offset = cfg.per_point.cable_accel.CF_5.offset_correction;
+            tc.verifyEqual(cf5Offset.mode, 'segmented');
+            tc.verifyEqual(numel(cf5Offset.segments), 2);
+            tc.verifyEqual(cf5Offset.segments(1).mode, 'fixed');
+            tc.verifyEqual(cf5Offset.segments(1).value, 29800);
+            tc.verifyEqual(cf5Offset.segments(1).end_date, '2026-04-30');
+            tc.verifyEqual(cf5Offset.segments(2).mode, 'hourly_median');
+            tc.verifyEqual(cf5Offset.segments(2).start_date, '2026-05-01');
+            tc.verifyEqual(cf5Offset.segments(2).end_date, '2026-06-30');
             tc.verifyEqual(cfg.per_point.cable_accel.CF_6.offset_correction.value, -200);
             tc.verifyEqual(cfg.per_point.cable_accel.CF_7.offset_correction.value, -1500);
             tc.verifyEqual(cfg.per_point.cable_accel.CF_8.offset_correction.value, 2000);

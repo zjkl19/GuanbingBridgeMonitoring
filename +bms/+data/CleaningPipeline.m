@@ -239,6 +239,16 @@ classdef CleaningPipeline
             offset = [];
             if isempty(raw), return; end
             if isstruct(raw)
+                if numel(raw) > 1
+                    offset = struct('mode', 'segmented', 'segments', raw(:));
+                    return;
+                end
+                if isfield(raw, 'segments') && isstruct(raw.segments) ...
+                        && ~isempty(raw.segments)
+                    raw.mode = 'segmented';
+                    offset = raw;
+                    return;
+                end
                 mode = bms.data.CleaningPipeline.offsetMode(raw);
                 if isempty(mode) && bms.data.CleaningPipeline.hasFixedOffsetValue(raw)
                     raw.mode = 'fixed';
@@ -291,6 +301,17 @@ classdef CleaningPipeline
                 return;
             end
 
+            if numel(raw) > 1
+                raw = struct('mode', 'segmented', 'segments', raw(:));
+            end
+
+            if isfield(raw, 'segments') && isstruct(raw.segments) ...
+                    && ~isempty(raw.segments)
+                offset = bms.data.CleaningPipeline.resolveSegmentedOffset( ...
+                    raw.segments, times, vals);
+                return;
+            end
+
             mode = bms.data.CleaningPipeline.offsetMode(raw);
             if ~bms.data.CleaningPipeline.isSupportedOffsetMode(mode)
                 return;
@@ -339,6 +360,67 @@ classdef CleaningPipeline
                 case {'daily_mean', 'day_mean', 'daily_median', 'day_median'}
                     useMedian = contains(mode, 'median');
                     offset = bms.data.CleaningPipeline.groupedBaselineOffset(times, vals, valid, 'day', useMedian);
+                case {'hourly_mean', 'hour_mean', 'hourly_median', 'hour_median'}
+                    useMedian = contains(mode, 'median');
+                    offset = bms.data.CleaningPipeline.groupedBaselineOffset(times, vals, valid, 'hour', useMedian);
+            end
+        end
+
+        function offset = resolveSegmentedOffset(segments, times, vals)
+            offset = [];
+            if isempty(segments) || isempty(times) || isempty(vals) ...
+                    || numel(times) ~= numel(vals)
+                return;
+            end
+            if ~isdatetime(times)
+                times = bms.data.TimeSeriesLoader.toDatetime(times);
+            end
+            originalSize = size(vals);
+            vals = vals(:);
+            times = times(:);
+            combined = zeros(size(vals));
+            assigned = false(size(vals));
+            segments = segments(:);
+            for i = 1:numel(segments)
+                segment = segments(i);
+                mask = bms.data.CleaningPipeline.offsetRuleMask(segment, times, vals);
+                if ~any(mask)
+                    continue;
+                end
+                if any(assigned & mask)
+                    error('CleaningPipeline:OverlappingOffsetSegments', ...
+                        'Offset correction segments overlap at segment %d.', i);
+                end
+                segmentOffset = bms.data.CleaningPipeline.resolveOffsetValue( ...
+                    segment, times, vals);
+                if isempty(segmentOffset)
+                    continue;
+                end
+                if isscalar(segmentOffset)
+                    combined(mask) = segmentOffset;
+                elseif numel(segmentOffset) == numel(vals)
+                    segmentOffset = segmentOffset(:);
+                    combined(mask) = segmentOffset(mask);
+                else
+                    error('CleaningPipeline:InvalidSegmentedOffset', ...
+                        'Offset segment %d returned an incompatible shape.', i);
+                end
+                assigned(mask) = true;
+            end
+            if any(assigned)
+                offset = reshape(combined, originalSize);
+            end
+        end
+
+        function mask = offsetRuleMask(rule, times, vals)
+            mask = isfinite(vals) & ~isnat(times);
+            if isfield(rule, 'start_date') && ~isempty(rule.start_date)
+                t0 = bms.data.CleaningPipeline.parseOffsetDate(rule.start_date, true);
+                mask = mask & times >= t0;
+            end
+            if isfield(rule, 'end_date') && ~isempty(rule.end_date)
+                t1 = bms.data.CleaningPipeline.parseOffsetDate(rule.end_date, false);
+                mask = mask & times <= t1;
             end
         end
 
@@ -361,7 +443,9 @@ classdef CleaningPipeline
             tf = any(strcmp(lower(char(string(mode))), { ...
                 'fixed', 'constant', ...
                 'first_day_mean', 'earliest_day_mean', ...
-                'daily_mean', 'day_mean', 'daily_median', 'day_median'}));
+                'daily_mean', 'day_mean', 'daily_median', 'day_median', ...
+                'hourly_mean', 'hour_mean', 'hourly_median', 'hour_median', ...
+                'segmented'}));
         end
 
         function tf = isOffsetApplicable(offset, vals)
@@ -377,6 +461,18 @@ classdef CleaningPipeline
         end
 
         function out = compactOffsetLogValue(offset, raw)
+            if isstruct(raw) && isscalar(raw) && isfield(raw, 'segments') ...
+                    && isstruct(raw.segments)
+                out = struct('mode', 'segmented', ...
+                    'segment_count', numel(raw.segments));
+                finite = offset(isfinite(offset));
+                if ~isempty(finite)
+                    out.min = min(finite);
+                    out.max = max(finite);
+                    out.mean = mean(finite, 'omitnan');
+                end
+                return;
+            end
             if isstruct(raw) && bms.data.CleaningPipeline.hasFixedOffsetValue(raw)
                 out = bms.data.CleaningPipeline.fixedOffsetValue(raw);
                 return;
