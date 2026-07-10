@@ -8,6 +8,7 @@ function paths = save_plot_bundle(fig, out_dir, file_stub, opts)
         opts = struct();
     end
     paths = {};
+    figure_cleanup = onCleanup(@() close_figure_if_valid(fig)); %#ok<NASGU>
 
     runtime = get_runtime_settings();
 
@@ -25,13 +26,18 @@ function paths = save_plot_bundle(fig, out_dir, file_stub, opts)
 
     if save_jpg
         p = fullfile(out_dir, [file_stub '.jpg']);
-        saveas(fig, p);
+        atomic_saveas(fig, p);
         paths{end+1} = p; %#ok<AGROW>
     end
     if save_emf
         p = fullfile(out_dir, [file_stub '.emf']);
-        saveas(fig, p);
+        atomic_saveas(fig, p);
         paths{end+1} = p; %#ok<AGROW>
+    end
+
+    provenance_path = save_plot_provenance(fig, out_dir, file_stub);
+    if ~isempty(provenance_path)
+        paths{end+1} = provenance_path; %#ok<AGROW>
     end
 
     if save_fig
@@ -42,7 +48,7 @@ function paths = save_plot_bundle(fig, out_dir, file_stub, opts)
             end
             make_figure_visible_for_save(fig);
             drawnow;
-            savefig(fig, fig_path, 'compact');
+            atomic_savefig(fig, fig_path);
             if isfile(fig_path)
                 paths{end+1} = fig_path; %#ok<AGROW>
             end
@@ -52,7 +58,87 @@ function paths = save_plot_bundle(fig, out_dir, file_stub, opts)
         end
     end
 
-    if isvalid(fig)
+end
+
+function atomic_saveas(fig, target_path)
+    [target_dir, ~, ext] = fileparts(target_path);
+    tmp_path = [tempname(target_dir) ext];
+    tmp_cleanup = onCleanup(@() delete_if_exists(tmp_path)); %#ok<NASGU>
+    saveas(fig, tmp_path);
+    replace_file(tmp_path, target_path);
+end
+
+function atomic_savefig(fig, target_path)
+    [target_dir, ~, ~] = fileparts(target_path);
+    tmp_path = [tempname(target_dir) '.fig'];
+    tmp_cleanup = onCleanup(@() delete_if_exists(tmp_path)); %#ok<NASGU>
+    savefig(fig, tmp_path, 'compact');
+    replace_file(tmp_path, target_path);
+end
+
+function replace_file(source_path, target_path)
+    [ok, msg] = movefile(source_path, target_path, 'f');
+    if ~ok
+        error('save_plot_bundle:AtomicReplaceFailed', ...
+            'Failed to replace "%s": %s', target_path, msg);
+    end
+end
+
+function path = save_plot_provenance(fig, out_dir, file_stub)
+    path = '';
+    lines = findall(fig, 'Type', 'line');
+    entries = {};
+    for i = 1:numel(lines)
+        user_data = get(lines(i), 'UserData');
+        if ~isstruct(user_data) || ~isfield(user_data, 'plot_provenance') ...
+                || ~isstruct(user_data.plot_provenance)
+            continue;
+        end
+        entry = user_data.plot_provenance;
+        entry.series_index = numel(entries) + 1;
+        entries{end+1, 1} = entry; %#ok<AGROW>
+    end
+    if isempty(entries)
+        return;
+    end
+
+    payload = struct( ...
+        'schema_version', 1, ...
+        'file_stub', file_stub, ...
+        'created_at', char(datetime('now', 'Format', 'yyyy-MM-dd''T''HH:mm:ss')), ...
+        'series', vertcat(entries{:}));
+    path = fullfile(out_dir, [file_stub '.plot.json']);
+    tmp_path = [tempname(out_dir) '.json'];
+    tmp_cleanup = onCleanup(@() delete_if_exists(tmp_path)); %#ok<NASGU>
+    fid = fopen(tmp_path, 'w', 'n', 'UTF-8');
+    if fid < 0
+        error('save_plot_bundle:ProvenanceOpenFailed', ...
+            'Failed to open provenance temp file for "%s".', path);
+    end
+    fid_cleanup = onCleanup(@() close_file_if_open(fid)); %#ok<NASGU>
+    fwrite(fid, jsonencode(payload, 'PrettyPrint', true), 'char');
+    fclose(fid);
+    fid = -1;
+    replace_file(tmp_path, path);
+end
+
+function close_file_if_open(fid)
+    if isnumeric(fid) && isscalar(fid) && fid >= 0
+        try
+            fclose(fid);
+        catch
+        end
+    end
+end
+
+function delete_if_exists(path)
+    if isfile(path)
+        delete(path);
+    end
+end
+
+function close_figure_if_valid(fig)
+    if isgraphics(fig, 'figure')
         close(fig);
     end
 end

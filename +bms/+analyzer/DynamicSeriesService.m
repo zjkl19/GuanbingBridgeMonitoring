@@ -136,8 +136,10 @@ classdef DynamicSeriesService
             if keepSeries && ~isempty(keptVals)
                 rec.times = vertcat(keptTimes{:});
                 rec.vals = vertcat(keptVals{:});
-                [rec.times, order] = sort(rec.times);
-                rec.vals = rec.vals(order);
+                if ~bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg)
+                    [rec.times, order] = sort(rec.times);
+                    rec.vals = rec.vals(order);
+                end
             end
             fprintf('Dynamic %s %s collected %d plot samples; rms=%.6g\n', ...
                 char(string(sensorType)), char(string(pointId)), numel(rec.vals), rec.rms_max);
@@ -178,6 +180,10 @@ classdef DynamicSeriesService
 
         function maxPoints = rawPlotMaxPoints(cfg, defaultValue)
             if nargin < 2 || isempty(defaultValue), defaultValue = 50000; end
+            if bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg)
+                maxPoints = Inf;
+                return;
+            end
             baseMax = bms.analyzer.DynamicSeriesService.plotMaxPoints(cfg, defaultValue);
             maxPoints = baseMax;
             rawMax = bms.config.ConfigReader.getNumeric(cfg, ...
@@ -190,6 +196,10 @@ classdef DynamicSeriesService
 
         function perDayMax = rawPlotPerDayMax(cfg, dayCount, defaultValue)
             if nargin < 3 || isempty(defaultValue), defaultValue = 50000; end
+            if bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg)
+                perDayMax = Inf;
+                return;
+            end
             dayCount = max(1, double(dayCount));
             totalMax = bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, defaultValue);
             perDayMax = max(100, ceil(totalMax / dayCount));
@@ -210,6 +220,28 @@ classdef DynamicSeriesService
             opts.raw_band_bins = bms.analyzer.DynamicSeriesService.rawPlotBandBins(cfg, 24000);
             opts.raw_band_line_width = bms.analyzer.DynamicSeriesService.rawPlotBandLineWidth(cfg, 0.55);
             opts.raw_trace_points = bms.analyzer.DynamicSeriesService.rawPlotTracePoints(cfg, 120000);
+            opts.raw_sampling_mode = bms.analyzer.DynamicSeriesService.rawSamplingMode(cfg, 'capped');
+            if strcmp(opts.raw_sampling_mode, 'full')
+                opts.fig_max_points = Inf;
+                opts.raw_render_mode = 'line';
+            end
+        end
+
+        function mode = rawSamplingMode(cfg, defaultValue)
+            if nargin < 2 || isempty(defaultValue), defaultValue = 'capped'; end
+            mode = bms.config.ConfigReader.get(cfg, ...
+                'plot_common.dynamic_raw_sampling_mode', defaultValue);
+            mode = lower(strtrim(char(string(mode))));
+            if ~any(strcmp(mode, {'capped', 'full'}))
+                mode = lower(strtrim(char(string(defaultValue))));
+            end
+            if ~any(strcmp(mode, {'capped', 'full'}))
+                mode = 'capped';
+            end
+        end
+
+        function tf = isFullRawSampling(cfg)
+            tf = strcmp(bms.analyzer.DynamicSeriesService.rawSamplingMode(cfg, 'capped'), 'full');
         end
 
         function lineWidth = rawPlotLineWidth(cfg, defaultValue)
@@ -224,6 +256,10 @@ classdef DynamicSeriesService
 
         function mode = rawPlotRenderMode(cfg, defaultValue)
             if nargin < 2 || isempty(defaultValue), defaultValue = 'line'; end
+            if bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg)
+                mode = 'line';
+                return;
+            end
             mode = bms.config.ConfigReader.get(cfg, ...
                 'plot_common.dynamic_raw_render_mode', defaultValue);
             mode = lower(strtrim(char(string(mode))));
@@ -329,6 +365,43 @@ classdef DynamicSeriesService
             else
                 h = plot(ax, xPlot, yPlot, 'LineWidth', lineWidth, 'Color', color);
             end
+            bms.analyzer.DynamicSeriesService.attachPlotProvenance( ...
+                h, times, vals, yPlot, mode, opts);
+        end
+
+        function attachPlotProvenance(h, times, vals, yPlot, renderMode, opts)
+            if isempty(h) || ~isgraphics(h)
+                return;
+            end
+            inputCount = min(numel(times), numel(vals));
+            if inputCount <= 0
+                finiteCount = 0;
+            else
+                values = vals(1:inputCount);
+                if isdatetime(times)
+                    validTime = ~isnat(times(1:inputCount));
+                else
+                    validTime = isfinite(times(1:inputCount));
+                end
+                finiteCount = nnz(validTime(:) & isfinite(values(:)));
+            end
+            plottedFiniteCount = nnz(isfinite(yPlot));
+            samplingMode = bms.analyzer.DynamicSeriesService.opt( ...
+                opts, 'raw_sampling_mode', 'capped');
+            provenance = struct( ...
+                'schema_version', 1, ...
+                'sampling_mode', char(string(samplingMode)), ...
+                'render_mode', char(string(renderMode)), ...
+                'input_count', double(inputCount), ...
+                'finite_count', double(finiteCount), ...
+                'plotted_finite_count', double(plottedFiniteCount), ...
+                'reduction_applied', plottedFiniteCount < finiteCount);
+            userData = get(h, 'UserData');
+            if ~isstruct(userData)
+                userData = struct();
+            end
+            userData.plot_provenance = provenance;
+            set(h, 'UserData', userData);
         end
 
         function [xBand, yBand] = denseBandSeries(times, vals, maxBins)

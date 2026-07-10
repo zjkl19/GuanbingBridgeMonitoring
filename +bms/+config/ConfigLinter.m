@@ -14,7 +14,8 @@ classdef ConfigLinter
                 bms.config.ConfigLinter.checkGroupReferences(cfg), ...
                 bms.config.ConfigLinter.checkGroupLabelReferences(cfg), ...
                 bms.config.ConfigLinter.checkSingleOutputDirs(cfg), ...
-                bms.config.ConfigLinter.checkPlotWarningPreviews(cfg)];
+                bms.config.ConfigLinter.checkPlotWarningPreviews(cfg), ...
+                bms.config.ConfigLinter.checkDynamicRawSamplingMode(cfg)];
             result.issues = [result.issues, bms.config.ConfigLinter.issueDetails(extraWarnings, 'config')];
 
             result.warnings = bms.config.ConfigLinter.messagesBySeverity(result.issues, {'warning', 'error'});
@@ -187,6 +188,10 @@ classdef ConfigLinter
                 severity = 'warning';
                 category = 'single_output_dir_suffix';
                 action = '单图产物目录默认与测项主目录一致，不再追加 _单点 后缀；建议改为 output_dir 同名目录。';
+            elseif contains(msg, 'dynamic_raw_sampling_mode must be capped or full')
+                severity = 'warning';
+                category = 'dynamic_raw_sampling_mode';
+                action = '将 plot_common.dynamic_raw_sampling_mode 设为 capped 或 full。';
             elseif contains(msg, 'default_data_root not found')
                 severity = 'warning';
                 category = 'profile_data_root';
@@ -262,6 +267,28 @@ classdef ConfigLinter
                             styleKey, fieldName, dirValue); %#ok<AGROW>
                     end
                 end
+            end
+        end
+
+        function warnings = checkDynamicRawSamplingMode(cfg)
+            warnings = {};
+            if ~isstruct(cfg) || ~isfield(cfg, 'plot_common') || ...
+                    ~isstruct(cfg.plot_common) || ...
+                    ~isfield(cfg.plot_common, 'dynamic_raw_sampling_mode') || ...
+                    isempty(cfg.plot_common.dynamic_raw_sampling_mode)
+                return;
+            end
+            value = cfg.plot_common.dynamic_raw_sampling_mode;
+            if ischar(value) && isrow(value)
+                candidate = lower(strtrim(value));
+            elseif isstring(value) && isscalar(value)
+                candidate = lower(strtrim(char(value)));
+            else
+                candidate = '';
+            end
+            if ~any(strcmp(candidate, {'capped', 'full'}))
+                warnings{end+1} = ...
+                    'plot_common.dynamic_raw_sampling_mode must be capped or full';
             end
         end
 

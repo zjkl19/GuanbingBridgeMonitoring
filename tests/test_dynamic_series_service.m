@@ -138,6 +138,82 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), 556);
         end
 
+        function fullRawSamplingDisablesAllPointLimits(tc)
+            cfg.plot_common = struct( ...
+                'dynamic_raw_sampling_mode', 'full', ...
+                'dynamic_raw_fig_max_points', 1200000, ...
+                'dynamic_raw_render_mode', 'dense_band');
+
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawSamplingMode(cfg), 'full');
+            tc.verifyTrue(bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg));
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000), Inf);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), Inf);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotRenderMode(cfg, 'dense_band'), 'line');
+
+            opts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
+            tc.verifyEqual(opts.fig_max_points, Inf);
+            tc.verifyEqual(opts.raw_render_mode, 'line');
+            tc.verifyEqual(opts.raw_sampling_mode, 'full');
+        end
+
+        function fullRawLinePlotsEveryFiniteSample(tc)
+            fig = figure('Visible', 'off');
+            cleaner = onCleanup(@() close(fig)); %#ok<NASGU>
+            ax = axes(fig);
+            times = datetime(2026, 1, 1, 0, 0, 0) + milliseconds(0:1999)';
+            vals = sin((1:2000)' / 20);
+            vals([9 501]) = NaN;
+            cfg.plot_common = struct( ...
+                'dynamic_raw_sampling_mode', 'full', ...
+                'dynamic_raw_render_mode', 'dense_band', ...
+                'gap_mode', 'connect');
+
+            opts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 10);
+            h = bms.analyzer.DynamicSeriesService.plotRawSeries( ...
+                ax, times, vals, [0 0.4470 0.7410], opts, 1.0);
+
+            tc.verifyEqual(nnz(isfinite(h.YData)), nnz(isfinite(vals)));
+            tc.verifyEqual(h.UserData.plot_provenance.sampling_mode, 'full');
+            tc.verifyEqual(h.UserData.plot_provenance.finite_count, nnz(isfinite(vals)));
+            tc.verifyEqual(h.UserData.plot_provenance.plotted_finite_count, nnz(isfinite(vals)));
+            tc.verifyFalse(h.UserData.plot_provenance.reduction_applied);
+            tc.verifyEmpty(findall(ax, 'Type', 'patch'));
+        end
+
+        function fullCollectRecordRetainsEveryDailySample(tc)
+            values = sin((1:4000)' / 17);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'FULL.csv'), values);
+            cfg = dynamic_cfg();
+            cfg.plot_common = struct('dynamic_raw_sampling_mode', 'full');
+
+            rec = bms.analyzer.DynamicSeriesService.collectRecord( ...
+                tc.Root, 'wave', 'FULL', '2026-01-01', '2026-01-01', ...
+                cfg, 'acceleration', true, true);
+
+            tc.verifyTrue(rec.has_data);
+            tc.verifyEqual(numel(rec.vals), numel(values));
+            tc.verifyEqual(nnz(isfinite(rec.vals)), numel(values));
+        end
+
+        function fullSamplingUsesExplicitGroupPolicy(tc)
+            cfg.plot_common = struct('dynamic_raw_sampling_mode', 'full');
+            tc.verifyEqual( ...
+                bms.analyzer.DynamicAccelerationSeriesService.groupSamplingMode(cfg), 'full');
+            cfg.plot_common.dynamic_group_sampling_mode = 'capped';
+            tc.verifyEqual( ...
+                bms.analyzer.DynamicAccelerationSeriesService.groupSamplingMode(cfg), 'capped');
+            cfg2 = bms.analyzer.DynamicAccelerationSeriesService.configForSamplingMode(cfg, 'capped');
+            tc.verifyEqual(cfg2.plot_common.dynamic_raw_sampling_mode, 'capped');
+        end
+
+        function structuralDateRangeIncludesFinalDay(tc)
+            [dt0, dt1] = bms.analyzer.StructuralTimeSeriesPlotService.dateRange( ...
+                '2026-04-01', '2026-04-30');
+            tc.verifyEqual(dt0, datetime(2026, 4, 1));
+            tc.verifyGreaterThan(dt1, datetime(2026, 4, 30, 23, 59, 59));
+            tc.verifyLessThan(dt1, datetime(2026, 5, 1));
+        end
+
         function denseBandSeriesKeepsEnvelopeExtrema(tc)
             times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:999)';
             vals = sin((1:1000)' / 5);

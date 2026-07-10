@@ -39,8 +39,16 @@ classdef PlotService
 
         function opts = runtimeOptionsFromConfig(cfg)
             opts = struct();
+            fullRaw = strcmpi(char(string(bms.config.ConfigReader.get( ...
+                cfg, 'plot_common.dynamic_raw_sampling_mode', 'capped'))), 'full');
+            opts.save_jpg = bms.config.ConfigReader.getBool(cfg, 'plot_common.save_jpg', true);
+            opts.save_emf = bms.config.ConfigReader.getBool(cfg, 'plot_common.save_emf', ~fullRaw);
             opts.save_fig = bms.config.ConfigReader.getBool(cfg, 'plot_common.save_fig', true);
             opts.lightweight_fig = bms.config.ConfigReader.getBool(cfg, 'plot_common.lightweight_fig', true);
+            if fullRaw
+                opts.save_emf = false;
+                opts.lightweight_fig = true;
+            end
             opts.fig_max_points = bms.config.ConfigReader.getNumeric(cfg, 'plot_common.fig_max_points', 50000);
             opts.append_timestamp = bms.config.ConfigReader.getBool(cfg, 'plot_common.append_timestamp', false);
             opts.gap_mode = char(string(bms.config.ConfigReader.get(cfg, 'plot_common.gap_mode', 'connect')));

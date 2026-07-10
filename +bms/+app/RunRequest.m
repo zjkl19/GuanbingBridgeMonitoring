@@ -77,6 +77,9 @@ classdef RunRequest
 
         function s = toStruct(obj)
             s = struct();
+            samplingMode = bms.analyzer.DynamicSeriesService.rawSamplingMode(obj.Config, 'capped');
+            fullSampling = strcmp(samplingMode, 'full');
+            rawEmfDisabled = fullSampling;
             s.project_root = obj.ProjectRoot;
             s.data_root = obj.DataRoot;
             s.start_date = obj.StartDate;
@@ -89,6 +92,11 @@ classdef RunRequest
             s.async_run_id = obj.AsyncRunId;
             s.stop_file = obj.StopFile;
             s.async_status_file = obj.AsyncStatusFile;
+            s.plot_sampling = struct( ...
+                'mode', samplingMode, ...
+                'group_mode', bms.analyzer.DynamicAccelerationSeriesService.groupSamplingMode(obj.Config), ...
+                'render_mode', bms.analyzer.DynamicSeriesService.rawPlotRenderMode(obj.Config, 'line'), ...
+                'raw_emf_disabled', rawEmfDisabled);
             if isa(obj.Profile, 'bms.profile.BridgeProfile')
                 s.bridge_profile = obj.Profile.toStruct();
             else

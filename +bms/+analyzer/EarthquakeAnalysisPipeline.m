@@ -25,14 +25,22 @@ classdef EarthquakeAnalysisPipeline
             bms.core.PathResolver.ensureDir(outRoot);
 
             parallelPlan = bms.analyzer.EarthquakeAnalysisPipeline.parallelPlan(cfg, numel(points));
-            records = bms.analyzer.EarthquakeAnalysisPipeline.collectRecords( ...
-                rootDir, subfolder, startDate, endDate, cfg, points, parallelPlan);
+            fullSampling = bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg);
+            if fullSampling
+                [records, parallelPlan] = bms.analyzer.EarthquakeAnalysisPipeline.collectPlotFullSequential( ...
+                    rootDir, subfolder, startDate, endDate, cfg, points, style, outRoot, parallelPlan);
+            else
+                records = bms.analyzer.EarthquakeAnalysisPipeline.collectRecords( ...
+                    rootDir, subfolder, startDate, endDate, cfg, points, parallelPlan);
+            end
 
             statsPath = bms.analyzer.EarthquakeAnalysisPipeline.writeStats(rootDir, records);
             fprintf('地震动统计已写入: %s\n', statsPath);
 
-            bms.analyzer.EarthquakeAnalysisPipeline.plotRecords( ...
-                records, style, outRoot, startDate, endDate, cfg, parallelPlan);
+            if ~fullSampling
+                bms.analyzer.EarthquakeAnalysisPipeline.plotRecords( ...
+                    records, style, outRoot, startDate, endDate, cfg, parallelPlan);
+            end
 
             timeEnd = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
             fprintf('结束时间: %s\n', char(timeEnd));
@@ -132,6 +140,33 @@ classdef EarthquakeAnalysisPipeline
                     fprintf('Collected earthquake point %s (%d/%d).\n', ...
                         char(string(points{i})), i, numel(points));
                 end
+            end
+        end
+
+        function [records, parallelPlan] = collectPlotFullSequential(rootDir, subfolder, startDate, endDate, cfg, points, style, outRoot, parallelPlan)
+            if parallelPlan.enabled
+                fprintf('Earthquake full sampling forces sequential component processing.\n');
+            end
+            parallelPlan.enabled = false;
+            records = repmat(bms.analyzer.EarthquakeSeriesService.initRecord(), numel(points), 1);
+            for i = 1:numel(points)
+                bms.app.StopController.throwIfRequested('Stop requested before next earthquake full point');
+                pointId = points{i};
+                fprintf('Collecting full earthquake point %s (%d/%d) ...\n', ...
+                    char(string(pointId)), i, numel(points));
+                rec = bms.analyzer.EarthquakeAnalysisPipeline.collectRecord( ...
+                    rootDir, subfolder, pointId, startDate, endDate, cfg);
+                if rec.has_data
+                    bms.analyzer.EarthquakeAnalysisPipeline.plotTimeseries( ...
+                        rec.times, rec.vals, rec.pid, rec.comp, rec.params, style, outRoot, ...
+                        startDate, endDate, cfg, rec.peak, rec.peak_signed, rec.peak_time);
+                else
+                    warning('Earthquake point %s has no data; skipped.', char(string(pointId)));
+                end
+                rec.times = [];
+                rec.vals = [];
+                records(i) = rec;
+                clear rec;
             end
         end
 

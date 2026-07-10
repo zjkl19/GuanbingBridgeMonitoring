@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.24`: adds an explicit `capped/full` raw dynamic sampling mode. Full mode plots every cleaned finite sample, forces sequential high-frequency processing with per-point release, supports full formal group plots, disables unsafe full-waveform EMF export, writes per-plot point-count provenance, and fixes the final-day boundary of structural group plots.
+- `v1.7.24`：新增动态原始曲线 `capped/full` 采样模式。完整模式使用清洗后的全部有限样本，强制高频测点串行处理并逐点释放内存，支持正式组图全量绘制，禁用高风险的全波形 EMF 导出，逐图记录输入/绘制点数，并修复结构组图漏掉结束日期当天数据的问题。
 - `v1.7.23`: tightens Zhishan April-June cleaning for bearing displacement, strain, dynamic strain, and structural acceleration, and switches high-frequency plot reduction to bucketed local-extrema sampling so capped monthly time-history plots keep a continuous envelope.
 - `v1.7.23`：收紧芝山 4~6 月梁端位移、应变、动应变和结构加速度清洗规则，并将高频时程抽稀改为按时间桶保留局部极值，避免月度时程图因均匀抽点看起来像缺数据。
 - `v1.7.22`: keeps the MATLAB GUI aligned with the Hongtang Q2 period-report template hardening release; analysis behavior is unchanged from `v1.7.21`.
@@ -345,6 +347,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.24`: adds a strict locked-media DOCX workflow that replaces only explicitly approved `word/media/*` members, validates hashes and image dimensions, rejects shared slots, and proves that all non-media OOXML parts remain unchanged.
+- `v1.7.24`：新增严格的 DOCX 媒体锁定流程，只替换显式批准的 `word/media/*` 成员，校验基线/候选哈希与图片尺寸，拒绝共享槽位，并验证所有非媒体 OOXML 内容完全不变。
 - `v1.7.23`: keeps the report GUI aligned with the Zhishan Q2 tight-clean rerun; report generation behavior is unchanged from `v1.7.22`, and the regenerated reports should be rendered and checked with high-frequency key-image contact sheets.
 - `v1.7.23`：同步芝山 Q2 收紧清洗与重算版本；报告生成逻辑沿用 `v1.7.22`，重生成后应渲染报告并用高频关键图联系表复核图片是否已替换且视觉连续。
 - `v1.7.22`: adds the official Hongtang period-report auto template, derives quarterly report numbers, generalizes WIM anchors, falls back from incompatible WIM template tables, and removes stale template images before inserting fresh figures so checked reports can be reused as templates without duplicated figures.

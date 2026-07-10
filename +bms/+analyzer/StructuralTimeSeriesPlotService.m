@@ -121,11 +121,7 @@ classdef StructuralTimeSeriesPlotService
         end
 
         function [dt0, dt1] = dateRange(startDate, endDate)
-            dt0 = datetime(startDate, 'InputFormat', 'yyyy-MM-dd');
-            dt1 = datetime(endDate, 'InputFormat', 'yyyy-MM-dd');
-            if dt1 <= dt0
-                dt1 = dt0 + days(1);
-            end
+            [dt0, dt1] = bms.data.TimeRangeResolver.closedRange(startDate, endDate);
         end
 
         function applyDateAxis(dt0, dt1)
@@ -240,7 +236,7 @@ classdef StructuralTimeSeriesPlotService
         function tf = useRawRender(opts)
             tf = isstruct(opts) && isfield(opts, 'raw_render_mode') && ...
                 ~isempty(opts.raw_render_mode) && ...
-                any(strcmpi(char(string(opts.raw_render_mode)), {'dense_band', 'band'}));
+                any(strcmpi(char(string(opts.raw_render_mode)), {'line', 'dense_band', 'band'}));
         end
     end
 end

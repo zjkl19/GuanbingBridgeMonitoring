@@ -87,6 +87,20 @@ classdef test_plot_settings_tab_gui < matlab.unittest.TestCase
             tc.verifyEqual(cfgOut.per_point.accel_spectrum.AZ_2.peak_orders.search_center_hz, 0.600, 'AbsTol', 1e-12);
             tc.verifyEqual(cfgOut.per_point.accel_spectrum.AZ_2.peak_orders.search_half_width_hz, 0.100, 'AbsTol', 1e-12);
         end
+
+        function dynamicRawSamplingModeReadsAndWrites(tc)
+            cfg = test_plot_settings_tab_gui.sampleCfg();
+            cfg.plot_common.dynamic_raw_sampling_mode = 'full';
+            tab = uitab(uitabgroup(tc.Fig), 'Title', 'plot');
+            cfgEdit = uieditfield(tc.Fig, 'text', 'Value', fullfile(tc.TempDir, 'config.json'));
+
+            ps = build_plot_settings_tab(tab, tc.Fig, cfg, cfgEdit.Value, cfgEdit, @(~) [], [0 0.3 0.7]);
+
+            tc.verifyEqual(char(string(ps.dynamicRawSamplingModeDrop.Value)), 'full');
+            ps.dynamicRawSamplingModeDrop.Value = 'capped';
+            cfgOut = ps.applyToCfg(cfg);
+            tc.verifyEqual(cfgOut.plot_common.dynamic_raw_sampling_mode, 'capped');
+        end
     end
 
     methods (Static, Access = private)

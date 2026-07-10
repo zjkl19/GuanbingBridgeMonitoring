@@ -30,6 +30,48 @@ classdef test_writer_plot_manifest_services < matlab.unittest.TestCase
             tc.verifyEqual(merged.gap_mode, 'break');
         end
 
+        function fullRawRuntimeDisablesEmf(tc)
+            cfg.plot_common = struct( ...
+                'dynamic_raw_sampling_mode', 'full', ...
+                'save_emf', true, ...
+                'lightweight_fig', false);
+            opts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            tc.verifyTrue(opts.save_jpg);
+            tc.verifyFalse(opts.save_emf);
+            tc.verifyTrue(opts.lightweight_fig);
+        end
+
+        function rawPlotWritesAuditablePointCounts(tc)
+            tmp = tempname;
+            mkdir(tmp);
+            cleanup = onCleanup(@() rmdir(tmp, 's')); %#ok<NASGU>
+
+            fig = figure('Visible', 'off');
+            ax = axes(fig);
+            times = datetime(2026, 1, 1) + seconds(0:99)';
+            values = sin((1:100)' / 7);
+            values(11) = NaN;
+            cfg.plot_common = struct( ...
+                'dynamic_raw_sampling_mode', 'full', ...
+                'save_fig', false, ...
+                'append_timestamp', false);
+            opts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 10);
+            bms.analyzer.DynamicSeriesService.plotRawSeries( ...
+                ax, times, values, [0 0.447 0.741], opts, 1.0);
+
+            paths = bms.plot.PlotService.saveModuleBundle(fig, tmp, 'FullLine', cfg);
+            jsonPath = fullfile(tmp, 'FullLine.plot.json');
+            tc.verifyTrue(isfile(fullfile(tmp, 'FullLine.jpg')));
+            tc.verifyFalse(isfile(fullfile(tmp, 'FullLine.emf')));
+            tc.verifyTrue(isfile(jsonPath));
+            tc.verifyTrue(any(strcmp(paths, jsonPath)));
+
+            payload = jsondecode(fileread(jsonPath));
+            tc.verifyEqual(payload.series.finite_count, 99);
+            tc.verifyEqual(payload.series.plotted_finite_count, 99);
+            tc.verifyFalse(payload.series.reduction_applied);
+        end
+
         function plotServiceModuleBundleUsesRuntimeOptions(tc)
             tmp = tempname;
             mkdir(tmp);

@@ -60,7 +60,7 @@ function varargout = run_gui(varargin)
     logoPath = fullfile(projRoot,'建科院标志PNG-01.png');
     uiimg = uiimage(hgl); uiimg.Layout.Row = [1 2]; uiimg.Layout.Column = 1; uiimg.ScaleMethod = 'fit';
     if exist(logoPath,'file'), uiimg.ImageSource = logoPath; end
-    versionStr = 'v1.7.23';
+    versionStr = 'v1.7.24';
     titleLbl = uilabel(hgl,'Text',['福建建科院健康监测大数据分析 ' versionStr],'FontSize',30,'FontWeight','bold','FontColor',primaryBlue,'HorizontalAlignment','center');
     titleLbl.Layout.Row = 1; titleLbl.Layout.Column = [2 6];
     profileLbl = uilabel(hgl, 'Text', '桥梁项目:', 'HorizontalAlignment', 'right', 'FontWeight', 'bold');
@@ -243,6 +243,7 @@ function varargout = run_gui(varargin)
                 'refreshBtn', refreshBtn, ...
                 'configCheckBtn', configCheckBtn, ...
                 'lowfreqSync', cbLowfreqSync, ...
+                'dynamicRawSamplingMode', pp.dynamicRawSamplingModeDrop, ...
                 'pathProfileNote', pathProfileNote, ...
                 'progressLabel', progressLabel, ...
                 'progressTrack', progressTrack, ...
@@ -489,6 +490,10 @@ function varargout = run_gui(varargin)
                 end
                 if isfield(cfg.plot_common,'gap_break_factor')
                     addLog(sprintf('plot_common.gap_break_factor=%.3g', double(cfg.plot_common.gap_break_factor)));
+                end
+                if isfield(cfg.plot_common,'dynamic_raw_sampling_mode')
+                    addLog(sprintf('plot_common.dynamic_raw_sampling_mode=%s', ...
+                        char(string(cfg.plot_common.dynamic_raw_sampling_mode))));
                 end
                 if isfield(cfg.plot_common,'append_timestamp')
                     addLog(sprintf('plot_common.append_timestamp=%d', logical(cfg.plot_common.append_timestamp)));

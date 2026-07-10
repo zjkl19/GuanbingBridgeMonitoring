@@ -1,4 +1,11 @@
 classdef test_alarm_bounds_editor_service < matlab.unittest.TestCase
+    methods (TestClassSetup)
+        function addProjectRoot(~)
+            projectRoot = fileparts(fileparts(mfilename('fullpath')));
+            addpath(projectRoot);
+        end
+    end
+
     methods (Test)
         function rowsExpandEveryConfiguredPoint(tc)
             cfg.points.strain = {'SX-1', 'SX-2'};

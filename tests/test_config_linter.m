@@ -94,6 +94,27 @@ classdef test_config_linter < matlab.unittest.TestCase
             tc.verifyTrue(any(strcmp({result.issues.category}, 'single_output_dir_suffix')));
         end
 
+        function linterWarnsInvalidDynamicRawSamplingMode(tc)
+            cfg = minimal_config();
+            cfg.plot_common.dynamic_raw_sampling_mode = 'unlimited';
+
+            result = bms.config.ConfigLinter.lint(cfg);
+
+            tc.verifyTrue(any(contains(result.warnings, ...
+                'dynamic_raw_sampling_mode must be capped or full')));
+            tc.verifyTrue(any(strcmp({result.issues.category}, 'dynamic_raw_sampling_mode')));
+        end
+
+        function linterAcceptsNormalizedDynamicRawSamplingMode(tc)
+            cfg = minimal_config();
+            cfg.plot_common.dynamic_raw_sampling_mode = ' FULL ';
+
+            result = bms.config.ConfigLinter.lint(cfg);
+
+            tc.verifyFalse(any(contains(result.warnings, ...
+                'dynamic_raw_sampling_mode must be capped or full')));
+        end
+
         function lintProfilesCoversBridgeCatalog(tc)
             root = fileparts(fileparts(mfilename('fullpath')));
 

@@ -17,7 +17,12 @@ classdef ArtifactCollector
                 files = bms.data.ArtifactCollector.listImageFiles(dirs{i}, cutoff);
                 for j = 1:numel(files)
                     role = bms.data.ArtifactCollector.inferRole(files{j}, key);
-                    artifacts{end+1} = bms.data.ArtifactCollector.record('figure', files{j}, role); %#ok<AGROW>
+                    kind = 'figure';
+                    if endsWith(lower(files{j}), '.plot.json')
+                        kind = 'plot_provenance';
+                        role = 'plot_provenance';
+                    end
+                    artifacts{end+1} = bms.data.ArtifactCollector.record(kind, files{j}, role); %#ok<AGROW>
                 end
             end
         end
@@ -54,7 +59,7 @@ classdef ArtifactCollector
                 if any(strcmp(subdirs(k).name, {'.','..'})), continue; end
                 folders{end+1} = fullfile(subdirs(k).folder, subdirs(k).name); %#ok<AGROW>
             end
-            patterns = {'*.jpg','*.jpeg','*.png','*.emf','*.fig'};
+            patterns = {'*.jpg','*.jpeg','*.png','*.emf','*.fig','*.plot.json'};
             for f = 1:numel(folders)
                 for i = 1:numel(patterns)
                     d = dir(fullfile(folders{f}, patterns{i}));

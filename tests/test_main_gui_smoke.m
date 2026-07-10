@@ -28,13 +28,16 @@ classdef test_main_gui_smoke < matlab.unittest.TestCase
             tc.verifyNotEmpty(tc.Fig.KeyPressFcn);
             ud = tc.Fig.UserData;
             tc.verifyEqual(ud.app, 'guanbing_main_gui');
-            tc.verifyEqual(ud.version, 'v1.7.23');
+            tc.verifyEqual(ud.version, 'v1.7.24');
             tc.verifyTrue(isfield(ud, 'controls'));
             tc.verifyNotEmpty(ud.controls.rootEdit.Value);
             tc.verifyTrue(contains(ud.controls.runBtn.Text, 'Ctrl+R'));
             tc.verifyTrue(contains(ud.controls.clearBtn.Text, 'Ctrl+K'));
             tc.verifyEqual(char(ud.controls.stopBtn.Enable), 'off');
             tc.verifyTrue(isfield(ud.controls, 'lowfreqSync'));
+            tc.verifyTrue(isfield(ud.controls, 'dynamicRawSamplingMode'));
+            tc.verifyTrue(any(strcmp(char(string(ud.controls.dynamicRawSamplingMode.Value)), ...
+                {'capped', 'full'})));
             tc.verifyTrue(isfield(ud.controls, 'pathProfileNote'));
             tc.verifyTrue(contains(ud.controls.pathProfileNote.Text, 'Path profile'));
             tc.verifyTrue(isfield(ud.controls, 'progressLabel'));

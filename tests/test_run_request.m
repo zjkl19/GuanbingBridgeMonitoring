@@ -52,7 +52,11 @@ classdef test_run_request < matlab.unittest.TestCase
 
         function requestJsonRoundTripsForAsyncRun(tc)
             opts = struct('doTemp', true);
-            cfg = struct('source', 'config/default_config.json', 'plot_common', struct('gap_mode', 'connect'));
+            cfg = struct('source', 'config/default_config.json', 'plot_common', struct( ...
+                'gap_mode', 'connect', ...
+                'dynamic_raw_sampling_mode', 'full', ...
+                'dynamic_group_sampling_mode', 'full', ...
+                'dynamic_raw_disable_emf', true));
             req = bms.app.RunRequest(tc.TempDir, '2026-01-01', '2026-01-02', opts, cfg, ...
                 'StopFile', fullfile(tc.TempDir, 'stop.flag'), ...
                 'AsyncStatusFile', fullfile(tc.TempDir, 'status.json'), ...
@@ -65,6 +69,10 @@ classdef test_run_request < matlab.unittest.TestCase
             tc.verifyEqual(loaded.DataRoot, tc.TempDir);
             tc.verifyEqual(loaded.Options.doTemp, true);
             tc.verifyEqual(loaded.Config.plot_common.gap_mode, 'connect');
+            tc.verifyEqual(loaded.toStruct().plot_sampling.mode, 'full');
+            tc.verifyEqual(loaded.toStruct().plot_sampling.group_mode, 'full');
+            tc.verifyEqual(loaded.toStruct().plot_sampling.render_mode, 'line');
+            tc.verifyTrue(loaded.toStruct().plot_sampling.raw_emf_disabled);
             tc.verifyEqual(loaded.StopFile, fullfile(tc.TempDir, 'stop.flag'));
             tc.verifyEqual(loaded.AsyncStatusFile, fullfile(tc.TempDir, 'status.json'));
             tc.verifyEqual(loaded.AsyncRunId, 'test_run');

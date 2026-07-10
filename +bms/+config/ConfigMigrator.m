@@ -42,10 +42,31 @@ classdef ConfigMigrator
                 'append_timestamp', false, ...
                 'gap_mode', 'connect', ...
                 'gap_break_factor', 5, ...
+                'dynamic_raw_sampling_mode', 'capped', ...
                 'save_fig', true, ...
                 'lightweight_fig', true, ...
                 'fig_max_points', 50000);
             cfg.plot_common = bms.config.ConfigMigrator.fillMissing(cfg.plot_common, defaults);
+            cfg.plot_common.dynamic_raw_sampling_mode = ...
+                bms.config.ConfigMigrator.normalizeDynamicRawSamplingMode( ...
+                cfg.plot_common.dynamic_raw_sampling_mode);
+        end
+
+        function mode = normalizeDynamicRawSamplingMode(value)
+            mode = 'capped';
+            if nargin < 1 || isempty(value)
+                return;
+            end
+            if ischar(value) && isrow(value)
+                candidate = lower(strtrim(value));
+            elseif isstring(value) && isscalar(value)
+                candidate = lower(strtrim(char(value)));
+            else
+                return;
+            end
+            if any(strcmp(candidate, {'capped', 'full'}))
+                mode = candidate;
+            end
         end
 
         function cfg = ensureGuiDefaults(cfg)

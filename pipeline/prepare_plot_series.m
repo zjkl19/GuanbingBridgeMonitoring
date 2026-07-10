@@ -28,6 +28,13 @@ function [x_plot, y_plot] = prepare_plot_series(x, y, opts)
     y = y(1:n);
 
     valid = is_valid_x(x) & isfinite(y);
+    no_limit = isempty(max_points) || ~isscalar(max_points) || ...
+        ~isfinite(double(max_points)) || double(max_points) <= 0;
+    if all(valid) && strcmp(gap_mode, 'connect') && no_limit
+        x_plot = x;
+        y_plot = y;
+        return;
+    end
     x_valid = x(valid);
     y_valid = y(valid);
 

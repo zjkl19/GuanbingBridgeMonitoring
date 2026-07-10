@@ -219,6 +219,7 @@ classdef DynamicAccelerationPlotService
             opts.raw_band_bins = rawOpts.raw_band_bins;
             opts.raw_band_line_width = rawOpts.raw_band_line_width;
             opts.raw_trace_points = rawOpts.raw_trace_points;
+            opts.raw_sampling_mode = rawOpts.raw_sampling_mode;
 
             bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
                 rootDir, timesList, valuesList, labels, startDate, endDate, opts, cfg);

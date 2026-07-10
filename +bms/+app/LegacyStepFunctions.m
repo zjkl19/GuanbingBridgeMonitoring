@@ -149,6 +149,9 @@ classdef LegacyStepFunctions
                 if isfield(src,'append_timestamp'), pc.append_timestamp = src.append_timestamp; end
                 if isfield(src,'gap_mode'), pc.gap_mode = src.gap_mode; end
                 if isfield(src,'gap_break_factor'), pc.gap_break_factor = src.gap_break_factor; end
+                if isfield(src,'dynamic_raw_sampling_mode')
+                    pc.dynamic_raw_sampling_mode = src.dynamic_raw_sampling_mode;
+                end
             end
         end
     end

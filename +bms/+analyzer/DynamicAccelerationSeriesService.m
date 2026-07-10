@@ -3,6 +3,7 @@ classdef DynamicAccelerationSeriesService
 
     methods (Static)
         function stats = runSequential(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, points, style, stats, spec)
+            releaseFullSeries = bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg);
             parallelPlan = get_parallel_plan(cfg, numel(points), spec.parallelLabel);
             if parallelPlan.enabled
                 fprintf('%s分析检测到并行配置，但为避免整段波形累积导致内存不足，改为逐测点顺序处理。\n', spec.displayName);
@@ -15,10 +16,10 @@ classdef DynamicAccelerationSeriesService
                     char(string(spec.moduleKey)), char(string(points{i})), i, numel(points));
                 rec = bms.analyzer.DynamicAccelerationSeriesService.collectRecord( ...
                     rootDir, subfolder, points{i}, startDate, endDate, cfg, autoDetectFs, spec, true);
-                records(i) = rec;
                 fprintf('处理测点 %s ...\n', rec.pid);
                 if ~rec.has_data
                     warning('测点 %s 无数据，跳过', rec.pid);
+                    records(i) = bms.analyzer.DynamicAccelerationSeriesService.stripSeries(rec);
                     continue;
                 end
                 bms.analyzer.DynamicAccelerationSeriesService.printSampleRate(rec.fs, autoDetectFs, false);
@@ -29,6 +30,12 @@ classdef DynamicAccelerationSeriesService
                     rootDir, rec.pid, rec.times, rec.vals, rec.fs, style, cfg, spec, rec.rms_times, rec.rms_vals);
                 bms.analyzer.DynamicAccelerationPlotService.plotEnvelopeCurve( ...
                     rootDir, rec.pid, rec.times, rec.vals, style, cfg, spec);
+                if releaseFullSeries
+                    records(i) = bms.analyzer.DynamicAccelerationSeriesService.stripSeries(rec);
+                    clear rec;
+                else
+                    records(i) = rec;
+                end
             end
 
             bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroups( ...
@@ -36,6 +43,13 @@ classdef DynamicAccelerationSeriesService
         end
 
         function stats = runWithOptionalParallel(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, points, style, stats, spec)
+            if bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg)
+                fprintf('%s full sampling forces sequential point processing.\n', ...
+                    char(string(spec.moduleKey)));
+                stats = bms.analyzer.DynamicAccelerationSeriesService.runSequential( ...
+                    rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, points, style, stats, spec);
+                return;
+            end
             records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), numel(points), 1);
             parallelPlan = get_parallel_plan(cfg, numel(points), spec.parallelLabel);
             if parallelPlan.enabled
@@ -134,6 +148,13 @@ classdef DynamicAccelerationSeriesService
             if nargin < 9
                 cachedRecords = [];
             end
+            groupMode = bms.analyzer.DynamicAccelerationSeriesService.groupSamplingMode(cfg);
+            if strcmp(groupMode, 'off')
+                fprintf('%s group plots disabled by dynamic_group_sampling_mode.\n', ...
+                    char(string(spec.moduleKey)));
+                return;
+            end
+            groupCfg = bms.analyzer.DynamicAccelerationSeriesService.configForSamplingMode(cfg, groupMode);
             groupsCfg = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, spec.groupKey, []);
             if ~bms.analyzer.StructuralPlotConfigService.hasGroups(groupsCfg) && strcmp(spec.moduleKey, 'cable_accel')
                 groupsCfg = bms.analyzer.DynamicAccelerationSeriesService.cableForceGroups(cfg);
@@ -151,17 +172,47 @@ classdef DynamicAccelerationSeriesService
                 records = bms.analyzer.DynamicAccelerationSeriesService.cachedGroupRecords(cachedRecords, pointIds);
                 if isempty(records)
                     records = bms.analyzer.DynamicAccelerationSeriesService.collectGroupRecords( ...
-                        rootDir, subfolder, pointIds, startDate, endDate, cfg, autoDetectFs, spec);
+                        rootDir, subfolder, pointIds, startDate, endDate, groupCfg, autoDetectFs, spec);
                 end
                 if isempty(records)
                     warning('%s组 %s 无有效数据，跳过组图', spec.displayName, groupName);
                     continue;
                 end
                 bms.analyzer.DynamicAccelerationPlotService.plotAccelGroup( ...
-                    rootDir, groupName, records, startDate, endDate, style, cfg, spec);
+                    rootDir, groupName, records, startDate, endDate, style, groupCfg, spec);
                 bms.analyzer.DynamicAccelerationPlotService.plotRmsGroup( ...
-                    rootDir, groupName, records, startDate, endDate, style, cfg, spec);
+                    rootDir, groupName, records, startDate, endDate, style, groupCfg, spec);
+                clear records;
             end
+        end
+
+        function mode = groupSamplingMode(cfg)
+            defaultMode = bms.analyzer.DynamicSeriesService.rawSamplingMode(cfg, 'capped');
+            mode = bms.config.ConfigReader.get(cfg, ...
+                'plot_common.dynamic_group_sampling_mode', defaultMode);
+            mode = lower(strtrim(char(string(mode))));
+            if ~any(strcmp(mode, {'capped', 'full', 'off'}))
+                mode = defaultMode;
+            end
+        end
+
+        function cfgOut = configForSamplingMode(cfg, mode)
+            cfgOut = cfg;
+            if ~isstruct(cfgOut)
+                cfgOut = struct();
+            end
+            if ~isfield(cfgOut, 'plot_common') || ~isstruct(cfgOut.plot_common)
+                cfgOut.plot_common = struct();
+            end
+            cfgOut.plot_common.dynamic_raw_sampling_mode = char(string(mode));
+        end
+
+        function rec = stripSeries(rec)
+            if ~isstruct(rec)
+                return;
+            end
+            rec.times = [];
+            rec.vals = [];
         end
 
         function records = cachedGroupRecords(cachedRecords, pointIds)

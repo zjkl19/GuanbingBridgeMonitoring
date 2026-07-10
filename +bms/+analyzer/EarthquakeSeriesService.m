@@ -73,8 +73,10 @@ classdef EarthquakeSeriesService
             end
             rec.times = vertcat(keptTimes{:});
             rec.vals = vertcat(keptVals{:});
-            [rec.times, order] = sort(rec.times);
-            rec.vals = rec.vals(order);
+            if ~bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg)
+                [rec.times, order] = sort(rec.times);
+                rec.vals = rec.vals(order);
+            end
             rec.peak = bestPeak;
             rec.peak_signed = bestSigned;
             rec.peak_time = bestTime;

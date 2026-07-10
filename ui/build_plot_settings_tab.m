@@ -21,7 +21,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
     updating = false;
 
     grid = uigridlayout(tabCfg, [5 4]);
-    grid.RowHeight = {150, 32, '1x', 36, 64};
+    grid.RowHeight = {190, 32, '1x', 36, 64};
     grid.ColumnWidth = {'1x', '1x', '1x', 160};
     grid.Padding = [8 8 8 8];
     grid.RowSpacing = 8;
@@ -29,9 +29,11 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
 
     globalPanel = uipanel(grid, 'Title', '全局绘图保存设置');
     globalPanel.Layout.Row = 1; globalPanel.Layout.Column = [1 4];
-    globalGrid = uigridlayout(globalPanel, [4 4]);
-    globalGrid.RowHeight = {28, 28, 28, 28};
+    globalGrid = uigridlayout(globalPanel, [5 4]);
+    globalGrid.RowHeight = {28, 28, 28, 28, 28};
     globalGrid.ColumnWidth = {'1x', '1x', 160, '1x'};
+    globalGrid.RowSpacing = 4;
+    globalGrid.Padding = [4 4 4 4];
 
     cbSaveFig = uicheckbox(globalGrid, 'Text', '保存 .fig', ...
         'ValueChangedFcn', @(~,~) onGlobalChanged());
@@ -73,9 +75,20 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         'ValueChangedFcn', @(~,~) onGlobalChanged());
     gapFactorEdit.Layout.Row = 3; gapFactorEdit.Layout.Column = 4;
 
+    rawSamplingModeLabel = uilabel(globalGrid, 'Text', '动态原始曲线', ...
+        'HorizontalAlignment', 'right', ...
+        'Tooltip', 'capped: 按分析器点数上限采样；full: 使用清洗后的全部有限样本。');
+    rawSamplingModeLabel.Layout.Row = 4; rawSamplingModeLabel.Layout.Column = 1;
+    rawSamplingModeDrop = uidropdown(globalGrid, ...
+        'Items', {'限量采样（capped）', '完整数据（full）'}, ...
+        'ItemsData', {'capped', 'full'}, ...
+        'ValueChangedFcn', @(~,~) onGlobalChanged(), ...
+        'Tooltip', '动态加速度、地震动和风速时程的原始曲线采样模式。');
+    rawSamplingModeDrop.Layout.Row = 4; rawSamplingModeDrop.Layout.Column = [2 4];
+
     globalHint = uilabel(globalGrid, 'Text', ...
         '说明：ylabel 可按 MATLAB TeX 写法输入 m/s^2、cm/s^2、f_1；^ 表示上标，_ 表示下标，应变单位建议写 με。');
-    globalHint.Layout.Row = 4; globalHint.Layout.Column = [1 4];
+    globalHint.Layout.Row = 5; globalHint.Layout.Column = [1 4];
 
     moduleLabel = uilabel(grid, 'Text', '模块', 'HorizontalAlignment', 'right');
     moduleLabel.Layout.Row = 2; moduleLabel.Layout.Column = 1;
@@ -497,6 +510,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         cbAppendTimestamp.Value = common.append_timestamp;
         gapModeDrop.Value = common.gap_mode;
         gapFactorEdit.Value = common.gap_break_factor;
+        rawSamplingModeDrop.Value = common.dynamic_raw_sampling_mode;
         cbAutoFolders.Value = get_auto_folder_setting(draftCfg);
     end
 
@@ -613,6 +627,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         draftCfg.plot_common.append_timestamp = logical(cbAppendTimestamp.Value);
         draftCfg.plot_common.gap_mode = char(string(gapModeDrop.Value));
         draftCfg.plot_common.gap_break_factor = double(gapFactorEdit.Value);
+        draftCfg.plot_common.dynamic_raw_sampling_mode = char(string(rawSamplingModeDrop.Value));
 
         if ~isfield(draftCfg, 'gui') || ~isstruct(draftCfg.gui)
             draftCfg.gui = struct();
@@ -699,6 +714,7 @@ function psTab = build_plot_settings_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, 
         'onShow', @onShow, ...
         'applyToCfg', @applyToCfg, ...
         'moduleDrop', moduleDrop, ...
+        'dynamicRawSamplingModeDrop', rawSamplingModeDrop, ...
         'warnTabs', warnTabs, ...
         'alarmTable', alarmTable, ...
         'warnTable', warnTable, ...
@@ -721,7 +737,8 @@ function common = get_plot_common(cfg)
         'fig_max_points', 50000, ...
         'append_timestamp', false, ...
         'gap_mode', 'connect', ...
-        'gap_break_factor', 5);
+        'gap_break_factor', 5, ...
+        'dynamic_raw_sampling_mode', 'capped');
     if isstruct(cfg) && isfield(cfg, 'plot_common') && isstruct(cfg.plot_common)
         src = cfg.plot_common;
         if isfield(src, 'save_fig') && ~isempty(src.save_fig), common.save_fig = logical(src.save_fig); end
@@ -736,6 +753,11 @@ function common = get_plot_common(cfg)
         end
         if isfield(src, 'gap_break_factor') && isnumeric(src.gap_break_factor) && isscalar(src.gap_break_factor) && isfinite(src.gap_break_factor)
             common.gap_break_factor = max(1.1, double(src.gap_break_factor));
+        end
+        if isfield(src, 'dynamic_raw_sampling_mode')
+            common.dynamic_raw_sampling_mode = ...
+                bms.config.ConfigMigrator.normalizeDynamicRawSamplingMode( ...
+                src.dynamic_raw_sampling_mode);
         end
     end
 end

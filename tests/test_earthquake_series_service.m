@@ -56,6 +56,25 @@ classdef test_earthquake_series_service < matlab.unittest.TestCase
             tc.verifyEqual(rec.peak_time, datetime(2026, 1, 1, 0, 0, 1));
         end
 
+        function fullSamplingKeepsEveryFiniteEarthquakeSample(tc)
+            values = sin((1:4000)' / 17);
+            values(123) = -2.5;
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'EQ-X.csv'), values);
+            cfg = eq_cfg();
+            cfg.plot_common = struct( ...
+                'dynamic_raw_sampling_mode', 'full', ...
+                'dynamic_raw_fig_max_points', 1000);
+
+            rec = bms.analyzer.EarthquakeSeriesService.collectRecord( ...
+                tc.Root, 'wave', 'EQ-X', '2026-01-01', '2026-01-01', ...
+                cfg, struct('alarm_levels', [1 2]));
+
+            tc.verifyTrue(rec.has_data);
+            tc.verifyEqual(numel(rec.vals), numel(values));
+            tc.verifyEqual(rec.peak, 2.5, 'AbsTol', 1e-12);
+            tc.verifyEqual(rec.peak_signed, -2.5, 'AbsTol', 1e-12);
+        end
+
         function valueRulesFilterBeforeUnitScale(tc)
             params = struct('raw_min_filter', -50, 'value_scale', 0.01);
 
