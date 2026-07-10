@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-09 07:25 CST
+Last updated: 2026-07-10 10:30 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -16,6 +16,34 @@ state and keep algorithm/report decisions in the normal project docs.
   `Administrator@192.168.254.34:2222` through `ProxyJump gb-133`; direct SSH
   from this workstation is not routable.
 - 126 storage target: `\\192.168.100.126\H$\Guanbingwork`
+
+## gb-133 Guanbing G05-006 High-Pass Boxplot Rerun
+
+- Status: completed on 2026-07-10. Read-only precheck confirmed host
+  `DESKTOP-21RTG63`, user `desktop-21rtg63\dell`, no active MATLAB process,
+  and no running scheduled analysis task before execution.
+- Code root: `F:\Guanbing`, `main` at `7834efe`, with the same uncommitted
+  two-file patch as local: remove the obsolete G05-006 dynamic-strain
+  post-filter override and add its regression test.
+- Production data root: `F:\管柄数据\2026年6月`; targeted monitoring range:
+  `2026-05-26` through `2026-05-28`.
+- Remote task root:
+  `F:\Guanbing\run_logs\remote_tasks\guanbing_g05_006_highpass_20260710_101710`.
+  `status.json` records a completed analysis exit code of `0`; the task folder
+  also contains the run diary and backups of the replaced G05 outputs and
+  statistics workbook.
+- Targeted MATLAB rerun only executed `analyze_dynamic_strain_boxplot`.
+  G05-006 produced `56936` accepted high-pass samples with range
+  `[-1.95610223, 10.58718275]` microstrain. The other G05/G06 point counts were
+  retained.
+- Final report:
+  `F:\管柄数据\2026年6月\自动报告\G104线管柄大桥监测月报_2026年06月_自动生成_20260710_101948.docx`.
+  Associated manifest and QC files have the timestamp `20260710_101948` in
+  the same report directory.
+- Local QA copy:
+  `D:\MatlabProjects\Guanbing\output\doc\guanbing_g05_006_20260710_101948`.
+  Report render QA covered all `40` pages; Figure 19 has all six G05 boxes and
+  matches the G05 statistics workbook row for G05-006.
 
 ## gb-133 Hongtang/Zhishan High-Density Plot Rerun
 

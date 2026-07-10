@@ -1,10 +1,49 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-09
+Last updated: 2026-07-10
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-07-10 Guanbing G05-006 Dynamic-Strain Boxplot Restore
+
+Current completed run state:
+
+- Scope: only the high-pass dynamic-strain boxplot/statistics affected by
+  `GB-RSG-G05-001-06` under `gb-133:F:\管柄数据\2026年6月`; the monitoring
+  range is `2026-05-26` through `2026-05-28`.
+- Root cause: `config/default_config.json` contained a permanent per-point
+  post-filter range `40..52` for `GB-RSG-G05-001-06`, while the normal
+  dynamic-strain range also applied. The two sequential filters removed every
+  finite value, so G05-006 disappeared from the high-pass boxplot.
+- Fix: remove that obsolete point override and add a regression test requiring
+  `resolve_post_filter_thresholds` to return no G05-006 override. Local and
+  `gb-133:F:\Guanbing` currently contain the same uncommitted patch on `main`
+  at `7834efe`.
+- Focused MATLAB validation passed locally and on 133:
+  `tests/test_post_filter_thresholds.m` and
+  `tests/test_dynamic_strain_boxplot_service.m` (`19` tests total).
+- Remote task root:
+  `F:\Guanbing\run_logs\remote_tasks\guanbing_g05_006_highpass_20260710_101710`.
+  The previous G05 outputs and high-pass statistics workbook were backed up
+  there before the targeted rerun.
+- Recalculated G05-006 high-pass statistics: `Count=56936`,
+  `Min=-1.95610223`, `Q1=-0.45329783`, `Median=-0.18528674`,
+  `Q3=-0.01269816`, `Max=10.58718275`, `Mean=0.00038905`, and
+  `Std=0.90190458` microstrain.
+- Final report on 133:
+  `F:\管柄数据\2026年6月\自动报告\G104线管柄大桥监测月报_2026年06月_自动生成_20260710_101948.docx`.
+  Figure 19 now contains all six G05 boxes; its text reports maximum tensile
+  strain `10.59με` and maximum compressive strain `3.01με` for span 2.
+- Local QA bundle:
+  `D:\MatlabProjects\Guanbing\output\doc\guanbing_g05_006_20260710_101948`.
+  The final DOCX rendered to `40` pages with no reference-error text or missing
+  figure blocks. The source M21 template's existing page-total fields and
+  manual-highlight content were preserved. Report QC still flags the inherited
+  `m/s2` superscript-format risk; the manifest also records legacy anchor
+  lookup/pre-extracted-CSV warnings, but the template images were preserved and
+  the G05 high-pass image was explicitly replaced.
 
 ## 2026-07-09 Hongtang/Zhishan High-Sample Raw Line Plot Final Refresh
 

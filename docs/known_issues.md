@@ -104,6 +104,13 @@ data again. The same fix also made Hongtang low-frequency `abs_max_valid`
 sensor-specific; otherwise raw strain values could be removed before
 offset-correction had a chance to bring them back into range.
 
+On 2026-07-10, Guanbing `GB-RSG-G05-001-06` exposed the same class of hidden
+suppression without an inverted range: a permanent `40..52` per-point
+post-filter ran after the normal dynamic-strain bounds and therefore removed
+all finite high-pass values. The obsolete override was removed. When a boxplot
+point is unexpectedly empty, inspect both the common filter and resolved
+per-point post-filter before treating it as missing source data.
+
 Recommended fix:
 
 - add an explicit point-suppression config with start/end dates and reason;

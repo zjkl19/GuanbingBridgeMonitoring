@@ -1410,16 +1410,6 @@
         "L": 1,
         "force_decimals": 2
       }
-    },
-    "dynamic_strain": {
-      "GB-RSG-G05-001-06": {
-        "post_filter_thresholds": {
-          "min": 40,
-          "max": 52,
-          "t_range_start": "",
-          "t_range_end": ""
-        }
-      }
     }
   },
   "subfolders": {

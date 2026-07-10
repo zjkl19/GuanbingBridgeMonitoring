@@ -2,6 +2,8 @@ classdef test_post_filter_thresholds < matlab.unittest.TestCase
     methods (TestMethodSetup)
         function setupPaths(~)
             proj = fileparts(fileparts(mfilename('fullpath')));
+            addpath(proj);
+            addpath(fullfile(proj, 'config'));
             addpath(fullfile(proj, 'pipeline'));
             addpath(fullfile(proj, 'scripts'));
         end
@@ -77,6 +79,16 @@ classdef test_post_filter_thresholds < matlab.unittest.TestCase
             cfg.per_point = struct();
             warns = validate_config(cfg, false);
             tc.verifyEmpty(warns);
+        end
+
+        function guanbingG05006HasNoHighpassOverride(tc)
+            proj = fileparts(fileparts(mfilename('fullpath')));
+            cfg = load_config(fullfile(proj, 'config', 'default_config.json'));
+
+            ths = resolve_post_filter_thresholds( ...
+                cfg, 'dynamic_strain', 'GB-RSG-G05-001-06');
+
+            tc.verifyEmpty(ths);
         end
     end
 end
