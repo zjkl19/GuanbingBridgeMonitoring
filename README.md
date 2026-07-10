@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.25`: keeps the MATLAB and report GUIs aligned with the hardened locked-media report release; analysis behavior remains the full-resolution `v1.7.24` implementation.
+- `v1.7.25`：同步主分析 GUI 与报告生成器的媒体锁定安全加固版本；数据分析行为继续沿用 `v1.7.24` 的全量绘图实现。
 - `v1.7.24`: adds an explicit `capped/full` raw dynamic sampling mode. Full mode plots every cleaned finite sample, forces sequential high-frequency processing with per-point release, supports full formal group plots, disables unsafe full-waveform EMF export, writes per-plot point-count provenance, and fixes the final-day boundary of structural group plots.
 - `v1.7.24`：新增动态原始曲线 `capped/full` 采样模式。完整模式使用清洗后的全部有限样本，强制高频测点串行处理并逐点释放内存，支持正式组图全量绘制，禁用高风险的全波形 EMF 导出，逐图记录输入/绘制点数，并修复结构组图漏掉结束日期当天数据的问题。
 - `v1.7.23`: tightens Zhishan April-June cleaning for bearing displacement, strain, dynamic strain, and structural acceleration, and switches high-frequency plot reduction to bucketed local-extrema sampling so capped monthly time-history plots keep a continuous envelope.
@@ -347,6 +349,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.25`: adds an opt-in `same_aspect_or_larger` policy for manifest-bound higher-resolution report figures while preserving exact dimensions by default, pins candidate dimensions in plan schema v2, rechecks candidate bytes against their SHA-256 immediately before writing, and keeps v1 plans readable as exact-only.
+- `v1.7.25`：为清单绑定的高分辨率报告图片新增显式 `same_aspect_or_larger` 策略，默认仍要求像素尺寸完全一致；计划 schema 升至 v2 并固定候选图尺寸，写入前再次校验候选字节 SHA-256，同时将 v1 计划按 exact-only 兼容读取。
 - `v1.7.24`: adds a strict locked-media DOCX workflow that replaces only explicitly approved `word/media/*` members, validates hashes and image dimensions, rejects shared slots, and proves that all non-media OOXML parts remain unchanged.
 - `v1.7.24`：新增严格的 DOCX 媒体锁定流程，只替换显式批准的 `word/media/*` 成员，校验基线/候选哈希与图片尺寸，拒绝共享槽位，并验证所有非媒体 OOXML 内容完全不变。
 - `v1.7.23`: keeps the report GUI aligned with the Zhishan Q2 tight-clean rerun; report generation behavior is unchanged from `v1.7.22`, and the regenerated reports should be rendered and checked with high-frequency key-image contact sheets.

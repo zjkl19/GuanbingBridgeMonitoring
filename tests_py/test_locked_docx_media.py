@@ -3,9 +3,12 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 from zipfile import ZipFile
+
+from PIL import Image
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -117,6 +120,58 @@ class LockedDocxMediaTests(unittest.TestCase):
             with self.assertRaises(MediaCandidateError):
                 self._plan(baseline, wrong_size)
 
+    def test_explicit_same_aspect_policy_accepts_higher_resolution_image(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = create_minimal_docx(root / "baseline.docx")
+            candidate = write_png(root / "candidate.png", "blue", (40, 20))
+            output = root / "output.docx"
+
+            plan = self._plan(
+                baseline,
+                candidate,
+                dimension_policy="same_aspect_or_larger",
+            )
+            replacement = plan.replacements[0]
+            self.assertEqual((replacement.width_px, replacement.height_px), (20, 10))
+            self.assertEqual(
+                (replacement.candidate_width_px, replacement.candidate_height_px),
+                (40, 20),
+            )
+            apply_media_plan(plan, output)
+
+            with ZipFile(baseline) as baseline_zip, ZipFile(output) as output_zip:
+                self.assertEqual(output_zip.read(MEMBER), candidate.read_bytes())
+                self.assertEqual(
+                    output_zip.read("word/document.xml"),
+                    baseline_zip.read("word/document.xml"),
+                )
+
+    def test_same_aspect_policy_rejects_lower_resolution_or_wrong_aspect(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = create_minimal_docx(root / "baseline.docx")
+            smaller = write_png(root / "smaller.png", "blue", (10, 5))
+            narrower = write_png(root / "narrower.png", "blue", (19, 10))
+            shorter = write_png(root / "shorter.png", "blue", (20, 9))
+            wrong_aspect = write_png(root / "wrong-aspect.png", "blue", (40, 21))
+            wrong_format = root / "wrong-format.jpg"
+            Image.new("RGB", (40, 20), "blue").save(wrong_format, format="JPEG")
+
+            for label, candidate in (
+                ("smaller", smaller),
+                ("narrower", narrower),
+                ("shorter", shorter),
+                ("wrong_aspect", wrong_aspect),
+                ("wrong_format", wrong_format),
+            ):
+                with self.subTest(label=label), self.assertRaises(MediaCandidateError):
+                    self._plan(
+                        baseline,
+                        candidate,
+                        dimension_policy="same_aspect_or_larger",
+                    )
+
     def test_shared_media_reference_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -139,6 +194,19 @@ class LockedDocxMediaTests(unittest.TestCase):
                 apply_media_plan(plan, output)
             self.assertFalse(output.exists())
 
+    def test_candidate_bytes_are_rechecked_after_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline, candidate, output = self._paths(root)
+            plan = self._plan(baseline, candidate)
+            changed = write_png(root / "changed.png", "green").read_bytes()
+
+            with patch.object(Path, "read_bytes", return_value=changed):
+                with self.assertRaises(MediaCandidateError):
+                    apply_media_plan(plan, output)
+
+            self.assertFalse(output.exists())
+
     def test_baseline_change_after_plan_is_rejected_before_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -149,6 +217,22 @@ class LockedDocxMediaTests(unittest.TestCase):
 
             with self.assertRaises(BaselineMismatchError):
                 apply_media_plan(plan, output)
+            self.assertFalse(output.exists())
+
+    def test_changed_drawing_extent_in_plan_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline, candidate, output = self._paths(root)
+            plan = self._plan(baseline, candidate)
+            changed_replacement = replace(
+                plan.replacements[0],
+                extents_emu=((1, 2),),
+            )
+            changed_plan = replace(plan, replacements=(changed_replacement,))
+
+            with self.assertRaises(MediaMemberError):
+                apply_media_plan(changed_plan, output)
+
             self.assertFalse(output.exists())
 
     def test_failed_integrity_check_leaves_no_partial_output(self) -> None:

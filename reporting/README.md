@@ -185,6 +185,8 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.7.25` extends the locked-media workflow with plan schema v2 and an explicit `dimension_policy: "same_aspect_or_larger"` option for a higher-resolution source placed into an unchanged OOXML drawing extent. The candidate must keep the same format, stay at least as large in both dimensions, and remain within `max_aspect_ratio_error` (default `0.001`, hard maximum `0.01`). Candidate dimensions are pinned in the plan, candidate bytes are rechecked against their SHA-256 immediately before output, and legacy v1 plans remain exact-only.
+
 Version `v1.7.24` adds a strict locked-media DOCX workflow. It compiles explicit baseline/member/candidate bindings, validates package and image hashes plus exact pixel dimensions, atomically replaces approved `word/media/*` members, and rejects any non-media OOXML change.
 
 When an analysis manifest is supplied, every candidate image and its same-basename `.plot.json` must belong to the same manifest artifact record. All provenance series must be `full`, unreduced, and have matching finite/plotted counts; otherwise plan compilation and application both fail.

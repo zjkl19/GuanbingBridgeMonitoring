@@ -87,6 +87,161 @@ class ReportMediaPlanTests(unittest.TestCase):
             apply_media_plan(loaded, output)
             self.assertTrue(output.exists())
 
+    def test_same_aspect_policy_round_trips_with_pinned_candidate_dimensions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = create_minimal_docx(root / "baseline.docx")
+            candidate = write_png(root / "candidate.png", "blue", (40, 20))
+            bindings_path = root / "bindings.json"
+            bindings_path.write_text(
+                json.dumps(
+                    {
+                        "bindings": [
+                            {
+                                "slot_id": "demo.figure",
+                                "member": MEMBER,
+                                "candidate_path": candidate.name,
+                                "dimension_policy": "same_aspect_or_larger",
+                                "max_aspect_ratio_error": 0.0005,
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            plan = compile_media_plan(baseline, load_explicit_bindings(bindings_path))
+            loaded = load_media_plan(write_media_plan(plan, root / "plan.json"))
+
+            self.assertEqual(media_plan_to_dict(loaded), media_plan_to_dict(plan))
+            replacement = loaded.replacements[0]
+            self.assertEqual(replacement.dimension_policy, "same_aspect_or_larger")
+            self.assertEqual(replacement.max_aspect_ratio_error, 0.0005)
+            self.assertEqual(
+                (replacement.candidate_width_px, replacement.candidate_height_px),
+                (40, 20),
+            )
+
+    def test_legacy_v1_plan_without_dimension_policy_loads_as_exact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = create_minimal_docx(root / "baseline.docx")
+            candidate = write_png(root / "candidate.png", "blue")
+            plan = compile_media_plan(
+                baseline,
+                [ExplicitMediaBinding("demo.figure", MEMBER, candidate)],
+            )
+            payload = media_plan_to_dict(plan)
+            payload["schema_version"] = 1
+            for record in payload["replacements"]:
+                for key in (
+                    "candidate_width_px",
+                    "candidate_height_px",
+                    "dimension_policy",
+                    "max_aspect_ratio_error",
+                ):
+                    record.pop(key)
+            legacy_path = root / "legacy-v1-plan.json"
+            legacy_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            loaded = load_media_plan(legacy_path)
+            replacement = loaded.replacements[0]
+            self.assertEqual(replacement.dimension_policy, "exact")
+            self.assertEqual(
+                (replacement.candidate_width_px, replacement.candidate_height_px),
+                (replacement.width_px, replacement.height_px),
+            )
+            apply_media_plan(loaded, root / "legacy-output.docx")
+
+    def test_v2_plan_requires_positive_pinned_candidate_dimensions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = create_minimal_docx(root / "baseline.docx")
+            candidate = write_png(root / "candidate.png", "blue")
+            payload = media_plan_to_dict(
+                compile_media_plan(
+                    baseline,
+                    [ExplicitMediaBinding("demo.figure", MEMBER, candidate)],
+                )
+            )
+            for label, value in (("missing", None), ("zero", 0)):
+                with self.subTest(label=label):
+                    record = payload["replacements"][0]
+                    if value is None:
+                        record.pop("candidate_width_px", None)
+                    else:
+                        record["candidate_width_px"] = value
+                    plan_path = root / f"invalid-v2-{label}.json"
+                    plan_path.write_text(json.dumps(payload), encoding="utf-8")
+                    with self.assertRaises(MediaPlanError):
+                        load_media_plan(plan_path)
+                    record["candidate_width_px"] = 20
+
+    def test_same_aspect_policy_enforces_requested_tolerance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = create_minimal_docx(root / "baseline.docx")
+            inside = write_png(root / "inside.png", "blue", (1001, 500))
+            outside = write_png(root / "outside.png", "blue", (1002, 500))
+
+            compile_media_plan(
+                baseline,
+                [
+                    ExplicitMediaBinding(
+                        "inside",
+                        MEMBER,
+                        inside,
+                        dimension_policy="same_aspect_or_larger",
+                        max_aspect_ratio_error=0.00101,
+                    )
+                ],
+            )
+            with self.assertRaises(MediaCandidateError):
+                compile_media_plan(
+                    baseline,
+                    [
+                        ExplicitMediaBinding(
+                            "outside",
+                            MEMBER,
+                            outside,
+                            dimension_policy="same_aspect_or_larger",
+                            max_aspect_ratio_error=0.00101,
+                        )
+                    ],
+                )
+
+    def test_invalid_dimension_policy_or_tolerance_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            candidate = write_png(root / "candidate.png", "blue")
+            for label, extra in (
+                ("policy", {"dimension_policy": "resize_anything"}),
+                ("negative_tolerance", {"max_aspect_ratio_error": -0.1}),
+                ("large_tolerance", {"max_aspect_ratio_error": 0.02}),
+                ("boolean_tolerance", {"max_aspect_ratio_error": False}),
+                ("nan_tolerance", {"max_aspect_ratio_error": float("nan")}),
+                ("infinite_tolerance", {"max_aspect_ratio_error": float("inf")}),
+            ):
+                with self.subTest(label=label):
+                    bindings_path = root / f"{label}.json"
+                    bindings_path.write_text(
+                        json.dumps(
+                            {
+                                "bindings": [
+                                    {
+                                        "slot_id": "demo.figure",
+                                        "member": MEMBER,
+                                        "candidate_path": str(candidate),
+                                        **extra,
+                                    }
+                                ]
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    with self.assertRaises(MediaPlanError):
+                        load_explicit_bindings(bindings_path)
+
     def test_explicit_analysis_manifest_is_pinned_by_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

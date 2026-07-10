@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 try:
     from locked_docx_media import (
+        DEFAULT_MAX_ASPECT_RATIO_ERROR,
+        IMAGE_DIMENSION_POLICIES,
+        IMAGE_DIMENSION_POLICY_EXACT,
         BaselineMismatchError,
         ImageInfo,
         LockedMediaPlan,
@@ -20,9 +24,13 @@ try:
         read_image_info,
         sha256_file,
         validate_full_plot_provenance,
+        validate_image_compatibility,
     )
 except ImportError:  # pragma: no cover - package import fallback
     from .locked_docx_media import (
+        DEFAULT_MAX_ASPECT_RATIO_ERROR,
+        IMAGE_DIMENSION_POLICIES,
+        IMAGE_DIMENSION_POLICY_EXACT,
         BaselineMismatchError,
         ImageInfo,
         LockedMediaPlan,
@@ -36,10 +44,12 @@ except ImportError:  # pragma: no cover - package import fallback
         read_image_info,
         sha256_file,
         validate_full_plot_provenance,
+        validate_image_compatibility,
     )
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+SUPPORTED_SCHEMA_VERSIONS = frozenset({1, SCHEMA_VERSION})
 ACCEPTED_MANIFEST_STATUSES = frozenset({"ok", "completed", "complete", "success", "succeeded"})
 
 
@@ -57,6 +67,8 @@ class ExplicitMediaBinding:
     expected_format: str = ""
     expected_width_px: int | None = None
     expected_height_px: int | None = None
+    dimension_policy: str = IMAGE_DIMENSION_POLICY_EXACT
+    max_aspect_ratio_error: float = DEFAULT_MAX_ASPECT_RATIO_ERROR
 
 
 def _normalize_format(value: str) -> str:
@@ -64,6 +76,32 @@ def _normalize_format(value: str) -> str:
     if text == "JPG":
         return "JPEG"
     return text
+
+
+def _normalize_dimension_policy(value: Any) -> str:
+    policy = str(value or IMAGE_DIMENSION_POLICY_EXACT).strip().lower()
+    if policy not in IMAGE_DIMENSION_POLICIES:
+        raise MediaPlanError(
+            f"Unsupported image dimension policy: {policy or '<missing>'}. "
+            f"Expected one of: {', '.join(sorted(IMAGE_DIMENSION_POLICIES))}."
+        )
+    return policy
+
+
+def _normalize_aspect_ratio_error(value: Any) -> float:
+    if isinstance(value, bool):
+        raise MediaPlanError("max_aspect_ratio_error must be numeric, not boolean.")
+    try:
+        tolerance = float(
+            DEFAULT_MAX_ASPECT_RATIO_ERROR if value is None else value
+        )
+    except (TypeError, ValueError) as exc:
+        raise MediaPlanError(f"Invalid max_aspect_ratio_error: {value}") from exc
+    if not math.isfinite(tolerance) or tolerance < 0 or tolerance > 0.01:
+        raise MediaPlanError(
+            f"max_aspect_ratio_error must be between 0 and 0.01; got {tolerance}."
+        )
+    return tolerance
 
 
 def _coerce_binding(value: ExplicitMediaBinding | Mapping[str, Any]) -> ExplicitMediaBinding:
@@ -96,6 +134,10 @@ def _coerce_binding(value: ExplicitMediaBinding | Mapping[str, Any]) -> Explicit
         expected_format=_normalize_format(str(value.get("expected_format") or "")),
         expected_width_px=expected_width,
         expected_height_px=expected_height,
+        dimension_policy=_normalize_dimension_policy(value.get("dimension_policy")),
+        max_aspect_ratio_error=_normalize_aspect_ratio_error(
+            value.get("max_aspect_ratio_error")
+        ),
     )
 
 
@@ -119,6 +161,10 @@ def _resolve_binding_paths(
                 expected_format=binding.expected_format,
                 expected_width_px=binding.expected_width_px,
                 expected_height_px=binding.expected_height_px,
+                dimension_policy=_normalize_dimension_policy(binding.dimension_policy),
+                max_aspect_ratio_error=_normalize_aspect_ratio_error(
+                    binding.max_aspect_ratio_error
+                ),
             )
         )
     return resolved
@@ -233,11 +279,13 @@ def compile_media_plan(
                 f"expected {binding.expected_candidate_sha256}, got {candidate_sha256}"
             )
         candidate_info = read_image_info(candidate_path)
-        if candidate_info != baseline_info:
-            raise MediaCandidateError(
-                f"Candidate dimensions/format mismatch for {candidate_path}: "
-                f"expected {baseline_info}, got {candidate_info}"
-            )
+        validate_image_compatibility(
+            baseline_info,
+            candidate_info,
+            dimension_policy=binding.dimension_policy,
+            max_aspect_ratio_error=binding.max_aspect_ratio_error,
+            candidate_label=str(candidate_path),
+        )
 
         provenance_path: Path | None = None
         provenance_sha256 = ""
@@ -266,6 +314,10 @@ def compile_media_plan(
                 width_px=baseline_info.width_px,
                 height_px=baseline_info.height_px,
                 extents_emu=member.extents_emu,
+                candidate_width_px=candidate_info.width_px,
+                candidate_height_px=candidate_info.height_px,
+                dimension_policy=binding.dimension_policy,
+                max_aspect_ratio_error=binding.max_aspect_ratio_error,
                 provenance_path=provenance_path,
                 provenance_sha256=provenance_sha256,
                 provenance_series_count=provenance_series_count,
@@ -308,6 +360,10 @@ def media_plan_to_dict(plan: LockedMediaPlan) -> dict[str, Any]:
                 "format": replacement.format,
                 "width_px": replacement.width_px,
                 "height_px": replacement.height_px,
+                "candidate_width_px": replacement.candidate_width_px,
+                "candidate_height_px": replacement.candidate_height_px,
+                "dimension_policy": replacement.dimension_policy,
+                "max_aspect_ratio_error": replacement.max_aspect_ratio_error,
                 "extents_emu": [list(extent) for extent in replacement.extents_emu],
                 "provenance_path": (
                     str(replacement.provenance_path)
@@ -349,8 +405,15 @@ def load_media_plan(path: Path | str) -> LockedMediaPlan:
         payload = json.loads(plan_path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
         raise MediaPlanError(f"Unable to load media plan: {plan_path}: {exc}") from exc
-    if not isinstance(payload, dict) or int(payload.get("schema_version", 0)) != SCHEMA_VERSION:
-        raise MediaPlanError(f"Unsupported media plan schema: {payload.get('schema_version') if isinstance(payload, dict) else None}")
+    try:
+        schema_version = int(payload.get("schema_version", 0)) if isinstance(payload, dict) else 0
+    except (TypeError, ValueError):
+        schema_version = 0
+    if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+        raise MediaPlanError(
+            f"Unsupported media plan schema: "
+            f"{payload.get('schema_version') if isinstance(payload, dict) else None}"
+        )
     baseline = payload.get("baseline")
     if not isinstance(baseline, dict):
         raise MediaPlanError("Serialized media plan is missing baseline metadata.")
@@ -369,6 +432,24 @@ def load_media_plan(path: Path | str) -> LockedMediaPlan:
         extents_raw = record.get("extents_emu") or []
         try:
             extents = tuple((int(value[0]), int(value[1])) for value in extents_raw)
+            width_px = int(record.get("width_px"))
+            height_px = int(record.get("height_px"))
+            if schema_version == 1:
+                candidate_width_px = width_px
+                candidate_height_px = height_px
+                dimension_policy = IMAGE_DIMENSION_POLICY_EXACT
+                max_aspect_ratio_error = DEFAULT_MAX_ASPECT_RATIO_ERROR
+            else:
+                candidate_width_px = int(record.get("candidate_width_px"))
+                candidate_height_px = int(record.get("candidate_height_px"))
+                dimension_policy = _normalize_dimension_policy(
+                    record.get("dimension_policy")
+                )
+                max_aspect_ratio_error = _normalize_aspect_ratio_error(
+                    record.get("max_aspect_ratio_error")
+                )
+                if candidate_width_px <= 0 or candidate_height_px <= 0:
+                    raise ValueError("candidate dimensions must be positive")
             provenance_path_value = record.get("provenance_path")
             provenance_path = (
                 _resolve_serialized_path(
@@ -388,9 +469,13 @@ def load_media_plan(path: Path | str) -> LockedMediaPlan:
                 original_sha256=str(record.get("original_sha256") or "").strip(),
                 candidate_sha256=str(record.get("candidate_sha256") or "").strip(),
                 format=_normalize_format(str(record.get("format") or "")),
-                width_px=int(record.get("width_px")),
-                height_px=int(record.get("height_px")),
+                width_px=width_px,
+                height_px=height_px,
                 extents_emu=extents,
+                candidate_width_px=candidate_width_px,
+                candidate_height_px=candidate_height_px,
+                dimension_policy=dimension_policy,
+                max_aspect_ratio_error=max_aspect_ratio_error,
                 provenance_path=provenance_path,
                 provenance_sha256=str(record.get("provenance_sha256") or "").strip(),
                 provenance_series_count=int(record.get("provenance_series_count") or 0),

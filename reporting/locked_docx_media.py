@@ -23,6 +23,16 @@ DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 WORDPROCESSING_DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
 VML_NS = "urn:schemas-microsoft-com:vml"
 
+IMAGE_DIMENSION_POLICY_EXACT = "exact"
+IMAGE_DIMENSION_POLICY_SAME_ASPECT_OR_LARGER = "same_aspect_or_larger"
+IMAGE_DIMENSION_POLICIES = frozenset(
+    {
+        IMAGE_DIMENSION_POLICY_EXACT,
+        IMAGE_DIMENSION_POLICY_SAME_ASPECT_OR_LARGER,
+    }
+)
+DEFAULT_MAX_ASPECT_RATIO_ERROR = 0.001
+
 
 class LockedDocxMediaError(RuntimeError):
     """Base error for strict DOCX media replacement."""
@@ -104,6 +114,10 @@ class MediaReplacement:
     width_px: int
     height_px: int
     extents_emu: tuple[tuple[int, int], ...]
+    candidate_width_px: int = 0
+    candidate_height_px: int = 0
+    dimension_policy: str = IMAGE_DIMENSION_POLICY_EXACT
+    max_aspect_ratio_error: float = DEFAULT_MAX_ASPECT_RATIO_ERROR
     provenance_path: Path | None = None
     provenance_sha256: str = ""
     provenance_series_count: int = 0
@@ -172,6 +186,84 @@ def read_image_info(path: Path | str) -> ImageInfo:
             return ImageInfo(image_format, int(image.width), int(image.height))
     except (OSError, UnidentifiedImageError) as exc:
         raise MediaCandidateError(f"Unable to read candidate image: {image_path}: {exc}") from exc
+
+
+def validate_image_compatibility(
+    baseline_info: ImageInfo,
+    candidate_info: ImageInfo,
+    *,
+    dimension_policy: str = IMAGE_DIMENSION_POLICY_EXACT,
+    max_aspect_ratio_error: float = DEFAULT_MAX_ASPECT_RATIO_ERROR,
+    candidate_label: str = "candidate image",
+) -> None:
+    """Validate a raster replacement without relying on Word-side recompression.
+
+    The default remains exact pixel equality. The opt-in
+    ``same_aspect_or_larger`` policy is intended for a higher-resolution source
+    image placed into an already fixed OOXML drawing extent. It never permits a
+    lower-resolution replacement or a format change.
+    """
+
+    policy = str(dimension_policy or "").strip().lower()
+    if policy not in IMAGE_DIMENSION_POLICIES:
+        raise MediaCandidateError(
+            f"Unsupported image dimension policy for {candidate_label}: {policy or '<missing>'}"
+        )
+    if isinstance(max_aspect_ratio_error, bool):
+        raise MediaCandidateError(
+            f"Invalid aspect-ratio tolerance for {candidate_label}: boolean values are not allowed."
+        )
+    try:
+        tolerance = float(max_aspect_ratio_error)
+    except (TypeError, ValueError) as exc:
+        raise MediaCandidateError(
+            f"Invalid aspect-ratio tolerance for {candidate_label}: {max_aspect_ratio_error}"
+        ) from exc
+    if not math.isfinite(tolerance) or tolerance < 0 or tolerance > 0.01:
+        raise MediaCandidateError(
+            f"Aspect-ratio tolerance for {candidate_label} must be between 0 and 0.01; got {tolerance}."
+        )
+
+    if candidate_info.format.upper() != baseline_info.format.upper():
+        raise MediaCandidateError(
+            f"Candidate format mismatch for {candidate_label}: "
+            f"expected {baseline_info.format}, got {candidate_info.format}"
+        )
+    if policy == IMAGE_DIMENSION_POLICY_EXACT:
+        if candidate_info != baseline_info:
+            raise MediaCandidateError(
+                f"Candidate dimensions/format mismatch for {candidate_label}: "
+                f"expected {baseline_info}, got {candidate_info}"
+            )
+        return
+
+    if (
+        baseline_info.width_px <= 0
+        or baseline_info.height_px <= 0
+        or candidate_info.width_px <= 0
+        or candidate_info.height_px <= 0
+    ):
+        raise MediaCandidateError(f"Image dimensions must be positive for {candidate_label}.")
+    if (
+        candidate_info.width_px < baseline_info.width_px
+        or candidate_info.height_px < baseline_info.height_px
+    ):
+        raise MediaCandidateError(
+            f"Candidate must not reduce pixel dimensions for {candidate_label}: "
+            f"baseline={baseline_info.width_px}x{baseline_info.height_px}, "
+            f"candidate={candidate_info.width_px}x{candidate_info.height_px}"
+        )
+
+    baseline_ratio = baseline_info.width_px / baseline_info.height_px
+    candidate_ratio = candidate_info.width_px / candidate_info.height_px
+    relative_error = abs(candidate_ratio - baseline_ratio) / baseline_ratio
+    if relative_error > tolerance:
+        raise MediaCandidateError(
+            f"Candidate aspect ratio differs for {candidate_label}: "
+            f"relative_error={relative_error:.8f}, allowed={tolerance:.8f}, "
+            f"baseline={baseline_info.width_px}x{baseline_info.height_px}, "
+            f"candidate={candidate_info.width_px}x{candidate_info.height_px}"
+        )
 
 
 def normalize_artifact_path(path: Path | str) -> str:
@@ -507,11 +599,28 @@ def validate_media_plan(plan: LockedMediaPlan) -> ValidationReport:
                 f"expected {replacement.candidate_sha256}, got {candidate_sha256}"
             )
         candidate_info = read_image_info(candidate_path)
-        if candidate_info != expected_info:
+        if replacement.candidate_width_px <= 0 or replacement.candidate_height_px <= 0:
             raise MediaCandidateError(
-                f"Candidate dimensions/format mismatch for {candidate_path}: "
-                f"expected {expected_info}, got {candidate_info}"
+                f"Pinned candidate dimensions must be positive for {candidate_path}: "
+                f"{replacement.candidate_width_px}x{replacement.candidate_height_px}"
             )
+        expected_candidate_info = ImageInfo(
+            replacement.format.upper(),
+            replacement.candidate_width_px,
+            replacement.candidate_height_px,
+        )
+        if candidate_info != expected_candidate_info:
+            raise MediaCandidateError(
+                f"Candidate image metadata changed for {candidate_path}: "
+                f"expected {expected_candidate_info}, got {candidate_info}"
+            )
+        validate_image_compatibility(
+            expected_info,
+            candidate_info,
+            dimension_policy=replacement.dimension_policy,
+            max_aspect_ratio_error=replacement.max_aspect_ratio_error,
+            candidate_label=str(candidate_path),
+        )
 
     if plan.source_manifest_path is not None:
         manifest_path = plan.source_manifest_path.expanduser().resolve()
@@ -662,10 +771,28 @@ def apply_media_plan(
         raise OutputExistsError(f"Output already exists (use overwrite=True explicitly): {output_path}")
 
     validate_media_plan(plan)
-    candidate_bytes = {
-        replacement.member: replacement.candidate_path.expanduser().resolve().read_bytes()
-        for replacement in plan.replacements
-    }
+    candidate_bytes: dict[str, bytes] = {}
+    for replacement in plan.replacements:
+        candidate_path = replacement.candidate_path.expanduser().resolve()
+        data = candidate_path.read_bytes()
+        actual_sha256 = sha256_bytes(data)
+        if actual_sha256.lower() != replacement.candidate_sha256.lower():
+            raise MediaCandidateError(
+                f"Candidate changed while preparing output for {candidate_path}: "
+                f"expected {replacement.candidate_sha256}, got {actual_sha256}"
+            )
+        image_info = _read_image_info_bytes(data, str(candidate_path))
+        expected_candidate_info = ImageInfo(
+            replacement.format.upper(),
+            replacement.candidate_width_px,
+            replacement.candidate_height_px,
+        )
+        if image_info != expected_candidate_info:
+            raise MediaCandidateError(
+                f"Candidate image metadata changed while preparing output for {candidate_path}: "
+                f"expected {expected_candidate_info}, got {image_info}"
+            )
+        candidate_bytes[replacement.member] = data
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temp_handle = tempfile.NamedTemporaryFile(
         prefix=f".{output_path.name}.",
