@@ -1,10 +1,38 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-07-11 Hongtang Report Point-Token Fix (v1.7.27)
+
+Current verified implementation state:
+
+- The v1.7.26 Zhishan April and Hongtang Q2 full analyses completed on 133 and
+  passed strict plot/statistics validation. Zhishan has 14 formal full plots;
+  Hongtang has 43 formal time-history plots, including 36 acceleration/cable
+  plots with source/input/plotted count closure.
+- Full contact-sheet and selected-original visual QA found no recurrence of
+  the rolling-export daily truncation/sparse-plot defect. Hongtang A1 becomes
+  nearly flat after May 28 and A9-X remains low amplitude, but direct reads of
+  the source MAT caches reproduce both behaviors; they are source sensor data,
+  not filtering or plotting loss.
+- Current-stat report candidates exposed a separate manifest lookup defect:
+  the Hongtang `CS1` report slot selected the newer `CS12` image, and `CX1`
+  selected `CX12`, because manifest token lookup used substring matching before
+  the existing strict filesystem-token check.
+- v1.7.27 makes manifest-backed point-image selection enforce exact token
+  boundaries. It retains the defensive filesystem collision check and adds a
+  regression test where newer `CS12` must not replace `CS1`.
+- Validation completed before publication: all `142` Python report tests pass;
+  report-GUI Zhishan source self-test reports `ok=true`, `version=v1.7.27`;
+  MATLAB main-GUI and plot-settings smoke tests pass `8/8`; Python compileall
+  and `git diff --check` pass.
+- Production report regeneration remains pending until v1.7.27 is published
+  and pulled on 133. Final reports must use locked-media bindings with
+  `require_source_provenance=true`, then be rendered and checked page by page.
 
 ## 2026-07-10 Guanbing G05-006 Dynamic-Strain Boxplot Restore
 

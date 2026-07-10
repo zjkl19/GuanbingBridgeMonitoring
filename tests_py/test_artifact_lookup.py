@@ -36,6 +36,46 @@ class TestArtifactLookup(unittest.TestCase):
             self.assertEqual(result.path, right.resolve())
             self.assertTrue(result.debug["rejected_prefix_collisions"])
 
+    def test_latest_point_image_rejects_manifest_prefix_collision(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            folder = root / "时程曲线_索力加速度"
+            folder.mkdir()
+            right = folder / "CS1_time.jpg"
+            wrong = folder / "CS12_time.jpg"
+            right.write_text("right", encoding="utf-8")
+            wrong.write_text("wrong", encoding="utf-8")
+            now = time.time()
+            os.utime(right, (now - 10, now - 10))
+            os.utime(wrong, (now, now))
+            run_logs = root / "run_logs"
+            run_logs.mkdir()
+            manifest = {
+                "schema_version": 2,
+                "module_results": [
+                    {
+                        "key": "cable_accel",
+                        "artifacts": [
+                            {"kind": "figure", "role": "time_history", "path": str(right)},
+                            {"kind": "figure", "role": "time_history", "path": str(wrong)},
+                        ],
+                    }
+                ],
+            }
+            (run_logs / "analysis_manifest_1.json").write_text(
+                __import__("json").dumps(manifest), encoding="utf-8"
+            )
+
+            result = latest_point_image_patterns(
+                root,
+                "时程曲线_索力加速度",
+                "CS1",
+                ["CS1_*.jpg", "CS12_*.jpg"],
+            )
+
+            self.assertEqual(result.path, right.resolve())
+            self.assertEqual(result.debug["source"], "analysis_manifest")
+
     def test_latest_file_patterns_prefers_manifest_when_available(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

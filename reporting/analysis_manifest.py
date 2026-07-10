@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -255,6 +256,7 @@ def manifest_latest_artifact(
     role: str | None = None,
     suffixes: tuple[str, ...] | None = (".jpg", ".jpeg", ".png"),
     directory_hint: str | Path | None = None,
+    strict_point_token: bool = False,
 ) -> Path | None:
     """Return the newest matching manifest artifact, with filesystem fallback still handled by callers."""
     if not key:
@@ -265,8 +267,16 @@ def manifest_latest_artifact(
 
     filtered: list[Path] = []
     for path in paths:
-        if token_text and token_text not in path.stem:
-            continue
+        if token_text:
+            if strict_point_token:
+                token_pattern = re.escape(token_text)
+                if re.search(
+                    rf"(?<![A-Za-z0-9]){token_pattern}(?![A-Za-z0-9])",
+                    path.stem,
+                ) is None:
+                    continue
+            elif token_text not in path.stem:
+                continue
         if hint_text:
             parent_text = str(path.parent).replace("\\", "/").rstrip("/")
             hint_norm = hint_text.strip("/")

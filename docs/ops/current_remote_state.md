@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-10 10:30 CST
+Last updated: 2026-07-11 01:15 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -16,6 +16,29 @@ state and keep algorithm/report decisions in the normal project docs.
   `Administrator@192.168.254.34:2222` through `ProxyJump gb-133`; direct SSH
   from this workstation is not routable.
 - 126 storage target: `\\192.168.100.126\H$\Guanbingwork`
+
+## gb-133 Zhishan/Hongtang v1.7.26 Production Runs
+
+- `Guanbing_v1726_Zhishan_April_Full_20260710` completed successfully in
+  `4147.10` seconds and is disabled. Strict validation passed 14 formal full
+  plots and 8 statistics workbooks; visual QA covered all formal plots.
+- `Guanbing_v1726_Hongtang_Q2_Full_20260710` completed successfully in
+  `14119.03` seconds and is disabled. Strict validation passed 43 formal
+  time-history plots, including 36 source-provenance-gated acceleration/cable
+  plots, plus 9 statistics workbooks. E/F free space remained about
+  `1654/811 GB` after completion.
+- Remote task root:
+  `F:\Guanbing\run_logs\remote_tasks\full_v1726_20260710`.
+  Validations are `zhishan_full_validation.json` and
+  `hongtang_full_validation.json`; both report `ok=true`.
+- Current-stat report candidates completed under `reports\candidates`, but the
+  Hongtang candidate exposed a report-only `CS1`/`CS12` and `CX1`/`CX12`
+  manifest-prefix collision. Do not accept that candidate or continue locked
+  media replacement until the v1.7.27 exact-token fix is pulled on 133.
+- The 2-hour production-monitor automation remains active. After the corrected
+  Zhishan April/Hongtang Q2 reports pass rendered QA, continue sequentially
+  with Zhishan May and June full reruns. June must disclose the missing
+  `2026-07-01` lookahead and incomplete June 30 tail.
 
 ## gb-133 Guanbing G05-006 High-Pass Boxplot Rerun
 

@@ -84,6 +84,7 @@ def latest_file_patterns(
     kind: str | None = None,
 ) -> ArtifactLookupResult:
     configured_dir_text = str(configured_dir)
+    rejected_manifest_collision: Path | None = None
     context = analysis_manifest_context(root) if use_manifest else {"available": False}
     if context.get("available"):
         tokens = [str(point_id)] if point_id else tokens_from_patterns(patterns)
@@ -98,20 +99,26 @@ def latest_file_patterns(
                 role=manifest_role_for_lookup(configured_dir_text, token),
                 suffixes=suffixes_from_patterns(patterns),
                 directory_hint=configured_dir_text,
+                strict_point_token=point_token_strict,
             )
             if manifest_path is not None:
-                return ArtifactLookupResult(
-                    manifest_path,
-                    {
-                        "image_root": str(root),
-                        "configured_dir": configured_dir_text,
-                        "point_id": point_id or "",
-                        "patterns": patterns,
-                        "selected_file": str(manifest_path),
-                        "source": "analysis_manifest",
-                        "manifest": context.get("path", ""),
-                    },
-                )
+                if point_token_strict and point_id and not filename_has_point_token(
+                    manifest_path, point_id
+                ):
+                    rejected_manifest_collision = manifest_path
+                else:
+                    return ArtifactLookupResult(
+                        manifest_path,
+                        {
+                            "image_root": str(root),
+                            "configured_dir": configured_dir_text,
+                            "point_id": point_id or "",
+                            "patterns": patterns,
+                            "selected_file": str(manifest_path),
+                            "source": "analysis_manifest",
+                            "manifest": context.get("path", ""),
+                        },
+                    )
 
     resolved_dirs = resolve_output_dirs(root, configured_dir_text, recursive=recursive)
     matched: list[Path] = []
@@ -135,6 +142,10 @@ def latest_file_patterns(
     }
     if rejected:
         debug["rejected_prefix_collisions"] = [str(p.resolve()) for p in rejected[:10]]
+    if rejected_manifest_collision is not None:
+        debug["rejected_manifest_prefix_collision"] = str(
+            rejected_manifest_collision.resolve()
+        )
     return ArtifactLookupResult(matched[0] if matched else None, debug)
 
 

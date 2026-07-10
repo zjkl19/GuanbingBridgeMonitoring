@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.27`: aligns the MATLAB GUI with the Hongtang report image-token fix; analysis behavior remains the v1.7.26 rolling-export implementation.
+- `v1.7.27`：同步洪塘报告图片测点精确匹配修复；数据分析行为继续沿用 v1.7.26 的滚动导出自然日重建实现。
 - `v1.7.26`: fixes rolling-export calendar-day reconstruction for dynamic acceleration, including cross-month/quarter lookahead, explicit source completeness provenance, full baseline-style plotting, and safer high-frequency group behavior.
 - `v1.7.26`：修复动态加速度滚动导出的自然日重建，支持跨月/跨季度读取下一导出目录，明确记录源完整性 provenance，恢复基线 full 绘图样式，并收紧高频组图行为。
 - `v1.7.25`: keeps the MATLAB and report GUIs aligned with the hardened locked-media report release; analysis behavior remains the full-resolution `v1.7.24` implementation.
@@ -351,6 +353,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.27`: rejects manifest prefix collisions during strict point-image lookup, preventing `CS1`/`CX1` report slots from selecting `CS12`/`CX12` figures.
+- `v1.7.27`：报告按测点查图时拒绝 manifest 前缀碰撞，避免 `CS1`/`CX1` 槽位误选 `CS12`/`CX12` 图片。
 - `v1.7.26`: adds an opt-in locked-media source-provenance gate so report bindings can reject legacy “full after truncation” plots while still accepting explicitly disclosed source gaps.
 - `v1.7.26`：媒体锁定报告新增可选源 provenance 门禁，可拒绝历史“截断后 full”图，同时允许使用已明确披露真实源缺口的新图。
 - `v1.7.25`: adds an opt-in `same_aspect_or_larger` policy for manifest-bound higher-resolution report figures while preserving exact dimensions by default, pins candidate dimensions in plan schema v2, rechecks candidate bytes against their SHA-256 immediately before writing, and keeps v1 plans readable as exact-only.
