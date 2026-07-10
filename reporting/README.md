@@ -185,6 +185,10 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Report GUI Workflow / 报告 GUI 使用步骤
 
+Version `v1.7.24` adds a strict locked-media DOCX workflow. It compiles explicit baseline/member/candidate bindings, validates package and image hashes plus exact pixel dimensions, atomically replaces approved `word/media/*` members, and rejects any non-media OOXML change.
+
+When an analysis manifest is supplied, every candidate image and its same-basename `.plot.json` must belong to the same manifest artifact record. All provenance series must be `full`, unreduced, and have matching finite/plotted counts; otherwise plan compilation and application both fail.
+
 Version `v1.7.23` keeps the report GUI aligned with the Zhishan Q2 tight-clean rerun and rendered QA workflow. Report-builder behavior is unchanged from `v1.7.22`; the accepted reports were regenerated after rerunning the affected analysis modules and checking high-frequency key images.
 
 Version `v1.7.22` adds the official Hongtang period-report auto template, derives quarterly report numbers, generalizes WIM anchors, validates copied WIM template tables before reuse, and removes stale picture blocks around target captions before inserting fresh figures. This lets a manually checked Hongtang Q2 report serve as the template base without duplicate figures or WIM continuation-table failures.
