@@ -274,10 +274,17 @@ def check_hongtang_period_template(template: Path, manifest: dict | None = None)
         wind = sections.get("wind")
         if _section_available(wind):
             _add_missing_fragment(issues, texts, "风向风速监测", "wind section anchor")
-            for key in ("speed_caption", "rose_caption"):
-                caption = wind.get(key)
-                if caption:
-                    _add_missing_fragment(issues, texts, caption, f"wind caption anchor ({key})")
+            speed_caption = wind.get("speed_caption")
+            if speed_caption:
+                _add_missing_fragment(
+                    issues,
+                    texts,
+                    [speed_caption, "桥面 10min 平均风速时程图", "桥面10min平均风速时程图"],
+                    "wind caption anchor (speed_caption)",
+                )
+            rose_caption = wind.get("rose_caption")
+            if rose_caption:
+                _add_missing_fragment(issues, texts, rose_caption, "wind caption anchor (rose_caption)")
 
         eq = sections.get("eq")
         if _section_available(eq):

@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.37`: keeps the MATLAB and report GUIs aligned with the Hongtang wind diagnostic memo and legacy period-template caption compatibility fix; wind analysis remains the validated v1.7.36 implementation.
+- `v1.7.37`：同步洪塘风速专项排查简报与周期报旧模板题注兼容修复；风数据分析继续采用已验证的 v1.7.36 实现。
 - `v1.7.36`: Wind-rose axes reserve title clearance above north and give radial percentage labels a readable background.
 - `v1.7.36`：风玫瑰为北向标注与标题预留间距，并为百分比环标注增加可读底色。
 - `v1.7.35`: Wind-rose radial percentage labels move into the north-east interior so they do not overlap the corrected east compass label.
@@ -371,6 +373,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.37`: adds the Hongtang W1/W2 diagnostic memo builder and accepts the legacy deck-wind caption as a valid template anchor before replacing it with the location-aware caption.
+- `v1.7.37`：新增洪塘 W1/W2 风速专项排查简报生成器，并允许旧版桥面风速题注作为模板锚点，再替换为区分桥面/塔顶的新题注。
 - `v1.7.36`: reserves wind-rose title clearance and improves radial-label readability.
 - `v1.7.36`：修正风玫瑰标题留白并提高百分比环标注可读性。
 - `v1.7.35`: moves wind-rose radial percentage labels away from the corrected east compass label.

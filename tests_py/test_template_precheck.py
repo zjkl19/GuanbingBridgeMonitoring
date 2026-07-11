@@ -10,6 +10,7 @@ from docx import Document
 from reporting.template_precheck import (
     TemplateIssue,
     build_precheck_payload,
+    check_hongtang_period_template,
     check_template,
     summarize_template,
     write_precheck_report,
@@ -98,6 +99,58 @@ class TemplatePrecheckTests(unittest.TestCase):
             self.assertEqual(summary["paragraph_count"], 1)
             self.assertEqual(summary["table_count"], 1)
             self.assertEqual(summary["table_text_count"], 1)
+
+
+class HongtangWindCaptionPrecheckTests(unittest.TestCase):
+    @staticmethod
+    def _template(path: Path, speed_caption: str | None) -> Path:
+        doc = Document()
+        for text in (
+            "健康监测系统运行状况",
+            "交通状况监测",
+            "结构应变监测",
+            "桥梁共通过车辆",
+            "季度交通状况分月统计表",
+            "桥梁交通流参数分析",
+            "2026年4月交通状况监测",
+            "续表 4-1",
+            "风向风速监测",
+            "风玫瑰图",
+        ):
+            doc.add_paragraph(text)
+        if speed_caption:
+            doc.add_paragraph(speed_caption)
+        doc.save(path)
+        return path
+
+    @staticmethod
+    def _manifest() -> dict:
+        return {
+            "sections": {
+                "wind": {
+                    "enabled": True,
+                    "available": True,
+                    "speed_caption": "W1桥面与W2塔顶10min平均风速时程图",
+                    "rose_caption": "风玫瑰图",
+                }
+            }
+        }
+
+    def test_accepts_legacy_wind_speed_caption(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            issues = check_hongtang_period_template(
+                self._template(Path(tmp) / "template.docx", "桥面 10min 平均风速时程图"),
+                self._manifest(),
+            )
+        self.assertFalse([issue for issue in issues if "speed_caption" in issue.message])
+
+    def test_rejects_missing_wind_speed_caption(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            issues = check_hongtang_period_template(
+                self._template(Path(tmp) / "template.docx", None),
+                self._manifest(),
+            )
+        self.assertEqual(len([issue for issue in issues if "speed_caption" in issue.message]), 1)
 
 
 if __name__ == "__main__":
