@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.30`: keeps Zhishan SX-5 low-pass seasonal strain after March by removing its obsolete April-June ±100 με post-filter cleaning window. The March cap remains, other points are unchanged, and the configured SX-5 alarm range continues to be reported rather than used to erase valid samples.
+- `v1.7.30`：取消芝山 SX-5 低通结果中过时的 4~6 月 ±100 με 清洗窗口，保留 3 月限制且不改变其它测点；SX-5 报警范围继续用于报告判定，不再用于删掉有效的季节慢变应变。
 - `v1.7.29`: dynamic-strain high/low-pass analysis now defers absolute static-strain thresholds until after filtering. File aliases, offsets and other source cleaning remain active, while seasonal baseline drift can no longer erase otherwise finite dynamic-strain samples (notably Zhishan SX-5 in May-June).
 - `v1.7.29`：动应变高/低通分析改为在滤波后执行动态阈值；文件映射、偏置及其它源数据清洗仍然保留，季节性基线漂移不再把有效动应变样本整月误删（典型为芝山 5~6 月 SX-5）。
 - `v1.7.28`: fixes Zhishan CF-5 May-June baseline drift by retaining the validated April fixed offset and applying an hourly-median baseline in dated, non-overlapping offset segments; raw finite samples are no longer discarded merely because the rolling-export baseline moves within a day.
@@ -357,6 +359,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.30`: keeps the report GUI/package version aligned with the Zhishan SX-5 low-pass retention correction; report-generation behavior is unchanged.
+- `v1.7.30`：同步芝山 SX-5 低通有效样本保留修复后的统一版本号；报告生成行为保持不变。
 - `v1.7.29`: keeps the report GUI/package version aligned with the dynamic-strain source-retention correction; locked-media report behavior is unchanged.
 - `v1.7.29`：同步动应变源数据保留修复后的统一版本号；锁定媒体报告行为保持不变。
 - `v1.7.28`: keeps the report GUI/package version aligned with the Zhishan CF-5 processing correction; locked-media and exact point-token report behavior is unchanged from v1.7.27.

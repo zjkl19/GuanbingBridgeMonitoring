@@ -171,6 +171,25 @@ classdef test_dynamic_strain_boxplot_service < matlab.unittest.TestCase
             tc.verifyTrue(isfield(cfg.per_point.strain.SX_5, 'thresholds'));
         end
 
+        function zhishanSx5LowpassKeepsSeasonalResponseAfterMarch(tc)
+            projectRoot = fileparts(fileparts(mfilename('fullpath')));
+            cfg = load_config(fullfile(projectRoot, 'config', 'zhishan_config.json'));
+            mayTimes = datetime(2026, 5, 1) + seconds(0:1);
+            seasonalValues = [-150; 150];
+
+            sx5Rules = resolve_post_filter_thresholds( ...
+                cfg, 'dynamic_strain_lowpass', 'SX-5');
+            sx6Rules = resolve_post_filter_thresholds( ...
+                cfg, 'dynamic_strain_lowpass', 'SX-6');
+            sx5May = apply_threshold_rules(seasonalValues, mayTimes, sx5Rules);
+            sx6May = apply_threshold_rules(seasonalValues, mayTimes, sx6Rules);
+
+            tc.verifyEqual(sx5May, seasonalValues);
+            tc.verifyTrue(all(isnan(sx6May)));
+            marchValue = apply_threshold_rules(25, datetime(2026, 3, 15), sx5Rules);
+            tc.verifyTrue(isnan(marchValue));
+        end
+
         function pipelineLowpassFallsBackToDynamicStrainGroups(tc)
             cfg.groups.dynamic_strain = struct('G1', {{'S1', 'S2'}});
             cfg.plot_styles.dynamic_strain = struct('ylims', struct('G1', [-1 1]));

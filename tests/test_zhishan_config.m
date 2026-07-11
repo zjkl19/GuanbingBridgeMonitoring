@@ -75,7 +75,9 @@ classdef test_zhishan_config < matlab.unittest.TestCase
             lowSx4 = resolve_post_filter_thresholds(cfg, 'dynamic_strain_lowpass', 'SX-4');
             tc.verifyEqual([lowSx4.max], [20, 100]);
             lowSx5 = resolve_post_filter_thresholds(cfg, 'dynamic_strain_lowpass', 'SX-5');
-            tc.verifyEqual([lowSx5.max], [20, 100]);
+            tc.verifyEqual([lowSx5.max], 20);
+            tc.verifyEqual(lowSx5.t_range_start, '2026-03-01 00:00:00');
+            tc.verifyEqual(lowSx5.t_range_end, '2026-03-31 23:59:59');
             lowSx6 = resolve_post_filter_thresholds(cfg, 'dynamic_strain_lowpass', 'SX-6');
             tc.verifyEqual([lowSx6.max], [20, 100]);
             lowSx8 = resolve_post_filter_thresholds(cfg, 'dynamic_strain_lowpass', 'SX-8');
