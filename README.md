@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.35`: Wind-rose radial percentage labels move into the north-east interior so they do not overlap the corrected east compass label.
+- `v1.7.35`：风玫瑰百分比环标注移入东北象限内侧，避免与修正后的东向标注重叠。
 - `v1.7.34`: Wind-rose compass labels now follow the meteorological convention: north is up and east is right.
 - `v1.7.34`：风玫瑰方位标注改为气象约定：北向上、东向右。
 - `v1.7.33`: Hongtang wind processing now reconstructs every calendar day from rolling D+D1 exports, rejects physically invalid negative wind speed, records source provenance for speed, direction, 10-minute and wind-rose plots, and reports bridge-deck W1 separately from tower-top W2 with a location-aware interpretation.
@@ -367,6 +369,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.35`: moves wind-rose radial percentage labels away from the corrected east compass label.
+- `v1.7.35`：调整风玫瑰百分比环标注位置，避免与东向标注重叠。
 - `v1.7.34`: corrects wind-rose compass labels to north-up/east-right meteorological orientation.
 - `v1.7.34`：修正风玫瑰方位标注为气象学“北上东右”。
 - `v1.7.33`: fixes Hongtang rolling-export wind coverage, validates wind domains and adds location-aware W1/W2 reporting with strict source provenance.

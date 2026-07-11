@@ -192,6 +192,20 @@ classdef test_wind_analysis_pipeline < matlab.unittest.TestCase
             tc.verifyGreaterThan(east.Position(1), 0);
             tc.verifyEqual(east.Position(2), 0, 'AbsTol', 1e-12);
         end
+
+        function windRoseRadialLabelsDoNotOverlapEastCompassLabel(tc)
+            fig = figure('Visible', 'off');
+            cleanup = onCleanup(@() close(fig)); %#ok<NASGU>
+            ax = axes(fig);
+            hold(ax, 'on');
+            bms.analyzer.WindPlotService.drawPolarGrid(ax, 0.2);
+
+            labels = findobj(ax, 'Type', 'text');
+            tc.verifyEqual(numel(labels), 4);
+            positions = vertcat(labels.Position);
+            tc.verifyTrue(all(positions(:, 1) > 0));
+            tc.verifyTrue(all(positions(:, 2) > 0));
+        end
     end
 end
 

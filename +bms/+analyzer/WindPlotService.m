@@ -252,7 +252,11 @@ classdef WindPlotService
                 t = linspace(0, 2*pi, 120);
                 [x, y] = pol2cart(t, r * ones(size(t)));
                 plot(ax, x, y, 'Color', [0.8 0.8 0.8], 'LineStyle', ':');
-                text(ax, r, 0, sprintf('%.0f%%', r * 100), 'FontSize', 9, 'Color', [0.4 0.4 0.4]);
+                labelAngle = deg2rad(22.5);
+                text(ax, r * cos(labelAngle), r * sin(labelAngle), ...
+                    sprintf('%.0f%%', r * 100), 'FontSize', 9, ...
+                    'Color', [0.4 0.4 0.4], ...
+                    'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom');
             end
             for ang = 0:45:315
                 t = deg2rad(ang);
