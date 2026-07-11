@@ -28,7 +28,7 @@ classdef test_main_gui_smoke < matlab.unittest.TestCase
             tc.verifyNotEmpty(tc.Fig.KeyPressFcn);
             ud = tc.Fig.UserData;
             tc.verifyEqual(ud.app, 'guanbing_main_gui');
-            tc.verifyEqual(ud.version, 'v1.7.31');
+            tc.verifyEqual(ud.version, 'v1.7.32');
             tc.verifyTrue(isfield(ud, 'controls'));
             tc.verifyNotEmpty(ud.controls.rootEdit.Value);
             tc.verifyTrue(contains(ud.controls.runBtn.Text, 'Ctrl+R'));

@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.32`: Zhishan reports now compare low-pass strain point ranges against configured alarm bounds and replace fixed "no abnormality" wording with the measured excursion, configured boundary, and a sensor/raw-data/site-review qualification when exceeded.
+- `v1.7.32`：芝山报告会将低通应变测点范围与配置报警边界逐点比较；发生超限时，不再套用“未见异常”固定表述，而是写入实测值、配置边界及原始数据/传感器/现场复核要求。
 - `v1.7.31`: adds an audited Zhishan report source-quality note that is written into both the data-coverage narrative and the monitoring-summary table, and pinned in the report build manifest. This supports explicit partial-day rolling-export disclosures without fabricating missing samples.
 - `v1.7.31`：芝山报告新增可审计的源数据质量说明，同时写入数据覆盖段、监测结果汇总和报告构建 manifest，用于明确披露滚动导出造成的局部时段缺失，且不得伪造补齐。
 - `v1.7.30`: keeps Zhishan SX-5 low-pass seasonal strain after March by removing its obsolete April-June ±100 με post-filter cleaning window. The March cap remains, other points are unchanged, and the configured SX-5 alarm range continues to be reported rather than used to erase valid samples.
@@ -361,6 +363,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.32`: adds configuration-backed Zhishan low-pass strain alarm wording while preserving strict locked-media behavior.
+- `v1.7.32`：新增基于配置边界的芝山低通应变报警表述，严格锁定媒体行为保持不变。
 - `v1.7.31`: adds audited Zhishan source-quality-note support while preserving strict locked-media behavior.
 - `v1.7.31`：新增芝山源数据质量说明的可审计生成支持，严格锁定媒体行为保持不变。
 - `v1.7.30`: keeps the report GUI/package version aligned with the Zhishan SX-5 low-pass retention correction; report-generation behavior is unchanged.

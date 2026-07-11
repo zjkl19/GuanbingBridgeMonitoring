@@ -425,6 +425,65 @@ def load_group_stats(path: Path) -> dict[str, RangeStats]:
     return result
 
 
+def load_point_stats_from_group_workbook(path: Path) -> dict[str, RangeStats]:
+    if not path.exists():
+        return {}
+    result: dict[str, RangeStats] = {}
+    for _label, _points, sheet in STRAIN_GROUPS:
+        for row in load_sheet_rows(path, sheet):
+            point = str(row.get("PointID") or "").strip()
+            if point:
+                result[point] = aggregate_rows([row])
+    return result
+
+
+def load_strain_alarm_bounds(config_path: Path) -> dict[str, tuple[float, float]]:
+    if not config_path.exists():
+        return {}
+    payload = json.loads(config_path.read_text(encoding="utf-8-sig"))
+    points = ((payload.get("per_point") or {}).get("strain") or {})
+    result: dict[str, tuple[float, float]] = {}
+    for point, block in points.items():
+        level2 = ((block or {}).get("alarm_bounds") or {}).get("level2")
+        if not isinstance(level2, list) or len(level2) != 2:
+            continue
+        lower = as_float(level2[0])
+        upper = as_float(level2[1])
+        if lower is not None and upper is not None:
+            result[str(point)] = (lower, upper)
+    return result
+
+
+def lowpass_alarm_note(context: dict) -> str:
+    point_stats = context.get("dynamic_lp_point_stats") or {}
+    alarm_bounds = context.get("strain_alarm_bounds") or {}
+    alerts: list[str] = []
+    for point in sorted(point_stats):
+        stats = point_stats.get(point)
+        bounds = alarm_bounds.get(point)
+        if not stats or not bounds:
+            continue
+        lower, upper = bounds
+        excursions: list[str] = []
+        if stats.min_value is not None and stats.min_value < lower:
+            excursions.append(
+                f"最小值{fmt_num(stats.min_value, 1, True)}με低于{fmt_num(lower, 1, True)}με"
+            )
+        if stats.max_value is not None and stats.max_value > upper:
+            excursions.append(
+                f"最大值{fmt_num(stats.max_value, 1, True)}με高于+{fmt_num(upper, 1, True)}με"
+            )
+        if excursions:
+            alerts.append(f"{point}{'、'.join(excursions)}")
+    if not alerts:
+        return ""
+    return (
+        "低通滤波结果中，" + "；".join(alerts) +
+        "，达到或超过配置的二级预警边界。建议结合原始数据、传感器工作状态和现场巡检复核；"
+        "在完成复核前，不宜仅据此直接判定为结构异常。"
+    )
+
+
 def build_context(result_root: Path, config_path: Path | None = None) -> dict:
     stats_dir = result_root / "stats"
     bearing_rows = load_sheet_rows(stats_dir / "bearing_displacement_stats.xlsx")
@@ -440,16 +499,20 @@ def build_context(result_root: Path, config_path: Path | None = None) -> dict:
         rows = [strain_by_point[p] for p in points if p in strain_by_point]
         raw_group_stats[label] = aggregate_rows(rows)
 
+    config_path = config_path or (REPO_ROOT / "config" / "zhishan_config.json")
+    dynamic_lp_path = stats_dir / "dynamic_strain_lowpass_stats.xlsx"
     return {
         "bearing_rows": rows_by_point(bearing_rows),
         "accel_rows": rows_by_point(accel_rows),
         "accel_freq": accel_freq,
         "strain_group_stats": raw_group_stats,
         "dynamic_hp_group_stats": load_group_stats(stats_dir / "dynamic_strain_highpass_stats.xlsx"),
-        "dynamic_lp_group_stats": load_group_stats(stats_dir / "dynamic_strain_lowpass_stats.xlsx"),
+        "dynamic_lp_group_stats": load_group_stats(dynamic_lp_path),
+        "dynamic_lp_point_stats": load_point_stats_from_group_workbook(dynamic_lp_path),
+        "strain_alarm_bounds": load_strain_alarm_bounds(config_path),
         "cable_accel_rows": rows_by_point(cable_accel_rows),
         "cable_force": cable_force,
-        "accel_frequency_note": load_accel_frequency_note(config_path or (REPO_ROOT / "config" / "zhishan_config.json")),
+        "accel_frequency_note": load_accel_frequency_note(config_path),
     }
 
 
@@ -901,6 +964,7 @@ def update_narrative(doc: DocxDocument, context: dict) -> None:
         ),
     )
     lp_groups = context["dynamic_lp_group_stats"]
+    lp_alarm_note = lowpass_alarm_note(context)
     replace_first_by_prefix(
         doc,
         "由低通滤波结果可知",
@@ -909,7 +973,7 @@ def update_narrative(doc: DocxDocument, context: dict) -> None:
             f"边跨测点组实测范围为{fmt_range(lp_groups.get(STRAIN_GROUPS[0][0]), 1, 'με')}，"
             f"中跨1/4及3/4测点组实测范围为{fmt_range(lp_groups.get(STRAIN_GROUPS[1][0]), 1, 'με')}，"
             f"中跨跨中测点组实测范围为{fmt_range(lp_groups.get(STRAIN_GROUPS[2][0]), 1, 'με')}，"
-            "截面整体受力未见明显异常。"
+            + (lp_alarm_note or "截面整体受力未见明显异常。")
         ),
     )
 
@@ -958,6 +1022,7 @@ def update_summary_table(
     hp_all = aggregate_ranges(context["dynamic_hp_group_stats"].values())
     hp_abs_min = abs(hp_all.min_value) if hp_all and hp_all.min_value is not None else None
     lp_groups = context["dynamic_lp_group_stats"]
+    lp_alarm_note = lowpass_alarm_note(context)
     cable_point, cable_rms = _max_rms(context["cable_accel_rows"])
     force_rates: list[float] = []
     for point, stats in context["cable_force"].items():
@@ -995,7 +1060,7 @@ def update_summary_table(
             f"边跨测点组实测范围为{fmt_range(lp_groups.get(STRAIN_GROUPS[0][0]), 1, 'με')}，"
             f"中跨1/4及3/4测点组实测范围为{fmt_range(lp_groups.get(STRAIN_GROUPS[1][0]), 1, 'με')}，"
             f"中跨跨中测点组实测范围为{fmt_range(lp_groups.get(STRAIN_GROUPS[2][0]), 1, 'με')}，"
-            "截面整体受力未见明显异常。"
+            + (lp_alarm_note or "截面整体受力未见明显异常。")
         ),
         "4.6 斜拉索索力加速度监测",
         (
@@ -1012,6 +1077,8 @@ def update_summary_table(
         "建议继续加强监测平台运行维护和数据质量复核，重点跟踪数据传输中断、应变残余尖峰及CF-3~CF-5索力频谱波动等情况；"
         "后续报告生成时应优先采用经复核后的统计表和正式展示图。"
     )
+    if lp_alarm_note:
+        advice_text = f"{advice_text}{lp_alarm_note}"
     set_summary_result_cell(table.rows[0].cells[1], result_lines, {0, 3, 7})
     set_cell_text_preserve(table.rows[1].cells[1], advice_text)
 

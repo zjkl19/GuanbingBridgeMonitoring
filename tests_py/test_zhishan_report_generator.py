@@ -11,10 +11,34 @@ REPORTING = ROOT / "reporting"
 if str(REPORTING) not in sys.path:
     sys.path.insert(0, str(REPORTING))
 
-from build_zhishan_monthly_report import update_data_availability  # noqa: E402
+from build_zhishan_monthly_report import (  # noqa: E402
+    RangeStats,
+    lowpass_alarm_note,
+    update_data_availability,
+)
 
 
 class ZhishanReportGeneratorTests(unittest.TestCase):
+    def test_lowpass_alarm_note_uses_configured_point_bound(self) -> None:
+        context = {
+            "dynamic_lp_point_stats": {
+                "SX-5": RangeStats(min_value=317.1, max_value=999.9),
+                "SX-6": RangeStats(min_value=-15.4, max_value=54.9),
+            },
+            "strain_alarm_bounds": {
+                "SX-5": (-252.0, 405.0),
+                "SX-6": (-252.0, 405.0),
+            },
+        }
+
+        note = lowpass_alarm_note(context)
+
+        self.assertIn("SX-5", note)
+        self.assertIn("999.9με", note)
+        self.assertIn("+405.0με", note)
+        self.assertIn("不宜仅据此直接判定为结构异常", note)
+        self.assertNotIn("SX-6", note)
+
     def test_source_quality_note_is_written_to_coverage_text(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result_root = Path(tmp)
