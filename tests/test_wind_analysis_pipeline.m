@@ -176,6 +176,22 @@ classdef test_wind_analysis_pipeline < matlab.unittest.TestCase
             tc.verifyEqual(numel(rosePayload.series), 2);
             tc.verifyTrue(all(arrayfun(@(x) x.source.source_sample_count == 5, rosePayload.series)));
         end
+
+        function windRoseLabelsUseMeteorologicalCompassOrientation(tc)
+            fig = figure('Visible', 'off');
+            cleanup = onCleanup(@() close(fig)); %#ok<NASGU>
+            ax = axes(fig);
+            bms.analyzer.WindPlotService.drawDirectionLabels(ax, 1);
+
+            north = findobj(ax, 'Type', 'text', 'String', 'N');
+            east = findobj(ax, 'Type', 'text', 'String', 'E');
+            tc.verifyEqual(numel(north), 1);
+            tc.verifyEqual(numel(east), 1);
+            tc.verifyEqual(north.Position(1), 0, 'AbsTol', 1e-12);
+            tc.verifyGreaterThan(north.Position(2), 0);
+            tc.verifyGreaterThan(east.Position(1), 0);
+            tc.verifyEqual(east.Position(2), 0, 'AbsTol', 1e-12);
+        end
     end
 end
 

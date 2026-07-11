@@ -263,9 +263,11 @@ classdef WindPlotService
 
         function drawDirectionLabels(ax, r)
             labels = {'N','NE','E','SE','S','SW','W','NW'};
-            angles = 0:45:315;
-            for i = 1:numel(angles)
-                t = deg2rad(angles(i));
+            bearings = 0:45:315;
+            for i = 1:numel(bearings)
+                % Meteorological bearings start at north and increase
+                % clockwise; pol2cart starts at east counter-clockwise.
+                t = deg2rad(90 - bearings(i));
                 [x, y] = pol2cart(t, r);
                 text(ax, x, y, labels{i}, 'HorizontalAlignment', 'center', ...
                     'VerticalAlignment', 'middle', 'FontWeight', 'bold');
