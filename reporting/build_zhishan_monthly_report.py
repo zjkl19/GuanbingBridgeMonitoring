@@ -103,6 +103,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--period-label", default=profile.get("default_period_label") or "2026年3月")
     parser.add_argument("--monitoring-range", default=profile.get("default_monitoring_range") or "2026年3月1日~2026年3月31日")
     parser.add_argument("--report-date", default=profile.get("default_report_date") or datetime.now().strftime("%Y年%m月%d日"))
+    parser.add_argument(
+        "--source-quality-note",
+        default="",
+        help="Audited source-data completeness note inserted into coverage and summary text.",
+    )
     parser.add_argument("--no-word-update", action="store_true", help="Do not launch Word to refresh fields.")
     return parser.parse_args()
 
@@ -594,7 +599,13 @@ def update_period_table(doc: DocxDocument, monitoring_range: str) -> bool:
     return False
 
 
-def update_data_availability(doc: DocxDocument, result_root: Path, period_label: str, monitoring_range: str) -> None:
+def update_data_availability(
+    doc: DocxDocument,
+    result_root: Path,
+    period_label: str,
+    monitoring_range: str,
+    source_quality_note: str = "",
+) -> None:
     coverage = build_coverage(result_root, period_label, monitoring_range)
     missing_cn = coverage["missing_cn"]
     missing_iso = coverage["missing_iso"]
@@ -611,6 +622,9 @@ def update_data_availability(doc: DocxDocument, result_root: Path, period_label:
         )
         first_row_date_text = f"有效{coverage['valid_days']}天"
 
+    source_quality_note = source_quality_note.strip()
+    if source_quality_note:
+        report_section_text = f"{report_section_text}{source_quality_note}"
     replace_all_by_prefix_anywhere(doc, "本月报告分析数据覆盖", report_section_text)
     replace_all_by_prefix_anywhere(
         doc,
@@ -929,7 +943,11 @@ def update_narrative(doc: DocxDocument, context: dict) -> None:
         )
 
 
-def update_summary_table(doc: DocxDocument, context: dict) -> None:
+def update_summary_table(
+    doc: DocxDocument,
+    context: dict,
+    source_quality_note: str = "",
+) -> None:
     table = find_table(doc, ["监测结果", "建  议"])
     if table is None:
         return
@@ -987,6 +1005,9 @@ def update_summary_table(doc: DocxDocument, context: dict) -> None:
             f"{fmt_num(max(force_rates) if force_rates else None, 2, True)}%，均在±10%二级预警范围内。"
         ),
     ]
+    source_quality_note = source_quality_note.strip()
+    if source_quality_note:
+        result_lines.append(source_quality_note)
     advice_text = (
         "建议继续加强监测平台运行维护和数据质量复核，重点跟踪数据传输中断、应变残余尖峰及CF-3~CF-5索力频谱波动等情况；"
         "后续报告生成时应优先采用经复核后的统计表和正式展示图。"
@@ -1151,19 +1172,26 @@ def update_document(
     period_label: str,
     monitoring_range: str,
     report_date: str,
+    source_quality_note: str = "",
 ) -> list[str]:
     context = build_context(result_root, config_path)
     warnings: list[str] = []
     update_cover_dates(doc, period_label, report_date)
     update_period_table(doc, monitoring_range)
-    update_data_availability(doc, result_root, period_label, monitoring_range)
+    update_data_availability(
+        doc,
+        result_root,
+        period_label,
+        monitoring_range,
+        source_quality_note,
+    )
     update_temperature_humidity_placeholders(doc)
     warnings.extend(update_bearing_tables(doc, context))
     warnings.extend(update_accel_table(doc, context))
     warnings.extend(update_strain_tables(doc, context))
     warnings.extend(update_cable_tables(doc, context))
     update_narrative(doc, context)
-    update_summary_table(doc, context)
+    update_summary_table(doc, context, source_quality_note)
     warnings.extend(update_images(doc, result_root))
     normalize_caption_fields(doc)
     return warnings
@@ -1179,6 +1207,7 @@ def build_report(
     monitoring_range: str = "2026年3月1日~2026年3月31日",
     report_date: str | None = None,
     update_word: bool = True,
+    source_quality_note: str = "",
 ) -> tuple[Path, Path]:
     if not template.exists():
         raise FileNotFoundError(f"Template not found: {template}")
@@ -1198,7 +1227,15 @@ def build_report(
     shutil.copy2(template, output_docx)
 
     doc = Document(str(output_docx))
-    warnings = update_document(doc, result_root, config_path, period_label, monitoring_range, report_date)
+    warnings = update_document(
+        doc,
+        result_root,
+        config_path,
+        period_label,
+        monitoring_range,
+        report_date,
+        source_quality_note,
+    )
     doc.save(str(output_docx))
 
     if update_word:
@@ -1216,6 +1253,7 @@ def build_report(
             "period_label": period_label,
             "monitoring_range": monitoring_range,
             "report_date": report_date,
+            "source_quality_note": source_quality_note,
             "output_docx_image_count": count_docx_images(output_docx),
         },
         filename_prefix="zhishan_report_build_manifest",
@@ -1234,6 +1272,7 @@ def main() -> None:
         monitoring_range=args.monitoring_range,
         report_date=args.report_date,
         update_word=not args.no_word_update,
+        source_quality_note=args.source_quality_note,
     )
     print(f"Report:   {report_path}")
     print(f"Manifest: {manifest_path}")
