@@ -1,6 +1,6 @@
 # Known Issues And Follow-Up Items
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11
 
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
@@ -83,6 +83,10 @@ Status: explicitly disclosed residuals after v1.7.26; do not hide them with plot
 - Hongtang Q2 and Zhishan June currently have no `2026-07-01` export folder in
   their current or recognized adjacent partition roots. June 30 after about
   09:00 therefore remains unavailable until a later raw archive is recovered.
+  Zhishan June also lacks the `2026-06-19` dated partition. v1.7.28 formal
+  provenance therefore marks June 18, June 19, and June 30 incomplete. The
+  v1.7.32 June report discloses all three affected dates and does not interpolate
+  or fabricate the missing periods.
 - The UTF-16LE/CRLF parser now counts physical header lines correctly. Existing
   `csv_timeseries_v2` MAT caches are deliberately not invalidated, so historical
   Zhishan caches still omit the first three data rows of each affected CSV. The
@@ -95,6 +99,23 @@ New dynamic `.plot.json` files record required export contribution, incomplete
 calendar days, missing export dates, sample counts, and the fact that internal
 gap coverage is not automatically assessed. Locked report bindings should set
 `require_source_provenance: true` for these high-frequency images.
+
+## Zhishan SX-5 Low-Pass Strain Excursions
+
+Status: retained and disclosed after v1.7.30; requires engineering/sensor review.
+
+The old April-June SX-5 post-filter forced low-pass strain into `[-100, 100]`
+microstrain and silently discarded the seasonal baseline and large positive
+excursions. v1.7.30 removes that obsolete point-specific filter. The May and
+June recomputations retain more than 40 million finite SX-5 low-pass samples
+per month and show a `1000.0 microstrain` maximum, above the configured
+`+405.0 microstrain` level-2 boundary.
+
+This is not a plot-density artifact and must not be hidden by reinstating the
+old threshold. It is also not, by itself, proof of a structural abnormality.
+The v1.7.32 reports require cross-checking the raw sample, sensor operating
+state, acquisition saturation/limits, and site inspection before drawing an
+engineering conclusion.
 
 ## MAT-Only Dynamic RMS Refresh
 

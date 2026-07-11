@@ -6,6 +6,53 @@ Last updated: 2026-07-11
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-11 Zhishan May/June Full Recovery And Final Reports (v1.7.28-v1.7.32)
+
+Current completed and verified state:
+
+- Zhishan May and June were recomputed on 133 with the corrected natural-day
+  rolling-export loader, `dynamic_raw_sampling_mode=full`, `gap_mode=connect`,
+  and `dynamic_raw_line_width=1.0`. Both runs passed strict manifest,
+  statistics-workbook, image-dimension, and source/input/finite/plotted
+  provenance closure checks. May CF-5 used `53,511,660` source/input samples
+  and `53,160,712` finite samples; the former month-end break is absent.
+- The June full run completed in `3946.6` seconds. Its only verified source
+  omissions are the missing `2026-06-19` dated partition and missing
+  `2026-07-01` adjacent rolling file. Formal provenance identifies affected
+  dates `2026-06-18`, `2026-06-19`, and `2026-06-30`; the June 30 tail is
+  incomplete and was not synthesized.
+- v1.7.29 stopped applying static absolute strain bounds before high/low-pass
+  filtering. v1.7.30 removed the obsolete April-June SX-5 low-pass `+/-100`
+  post-filter, retaining the genuine seasonal response. The targeted May/June
+  dynamic-strain rerun completed in `2120.36` seconds; SX-5 high/low-pass counts
+  were `52,325,754/52,251,615` for May and
+  `48,253,898/48,091,016` for June. All four statistics workbooks and all 64
+  regenerated dynamic-strain figures passed QA.
+- v1.7.31 added an audited source-quality disclosure parameter. v1.7.32 makes
+  the report compare low-pass strain extrema against configured alarm bounds
+  instead of emitting the contradictory old “no abnormality” wording. May and
+  June SX-5 both contain a real `1000.0 microstrain` maximum above the configured
+  `+405.0 microstrain` level-2 boundary. Reports explicitly require raw-data,
+  sensor-state, and site-inspection review and do not directly label this as a
+  structural abnormality.
+- Final locked-media reports on 133 use nine manifest bindings with
+  `require_source_provenance=true` and v1.7.28 full acceleration/cable plots:
+  - May: `F:\芝山大桥数据\2026年5月\自动报告\芝山大桥健康监测2026年5月份月报_完整数据锁定媒体_v1.7.32_20260711_164940.docx`
+    (`SHA256 bf8668a7d4c1cfe627bc9d3522f5f94751e5338de5aab03cf3c6f5f75b018338`).
+  - June: `F:\芝山大桥数据\2026年6月\自动报告\芝山大桥健康监测2026年6月份月报_完整数据锁定媒体_v1.7.32_20260711_165035.docx`
+    (`SHA256 c18437ec7b912e89e1ba66692f14228ab213a886e4cf3dc1b1e565fefd6394bc`).
+- Final local DOCX copies are under
+  `output/doc/zhishan_may_v1732_20260711` and
+  `output/doc/zhishan_june_v1732_20260711`. QA-only frozen-field copies rendered
+  to 47 and 48 pages respectively; every page was checked. No reference-error,
+  missing-bookmark, placeholder, layout, or wrong-image defect was found. QA
+  PDFs are under the matching `output/pdf` directories.
+- Publication validation: MATLAB `497` passed, `0` failed, one expected SQL
+  assumption skip; report tests reached `144/144`; GUI smoke tests passed
+  `4/4`. Local, origin, and 133 are clean at `9ccf3c5`, exact tag `v1.7.32`.
+  The final scheduled task is disabled with result `0`, and no MATLAB process
+  is running on 133.
+
 ## 2026-07-11 Hongtang Report Point-Token Fix (v1.7.27)
 
 Current verified implementation state:

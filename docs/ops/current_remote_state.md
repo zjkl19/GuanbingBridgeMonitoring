@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-11 01:15 CST
+Last updated: 2026-07-11 17:20 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -16,6 +16,33 @@ state and keep algorithm/report decisions in the normal project docs.
   `Administrator@192.168.254.34:2222` through `ProxyJump gb-133`; direct SSH
   from this workstation is not routable.
 - 126 storage target: `\\192.168.100.126\H$\Guanbingwork`
+
+## gb-133 Zhishan May/June v1.7.28-v1.7.32 Completion
+
+- `Guanbing_v1728_Zhishan_May_Full_20260711` and
+  `Guanbing_v1728_Zhishan_June_Full_20260711` completed successfully and were
+  disabled after strict full-provenance, statistics, image-size, and visual QA.
+  June elapsed `3946.6` seconds. Task evidence is under
+  `F:\Guanbing\run_logs\remote_tasks\full_v1728_20260711` and
+  `F:\Guanbing\run_logs\remote_tasks\full_v1728_20260711_june`.
+- `Guanbing_v1730_Zhishan_MayJune_DynamicStrain_20260711` completed in
+  `2120.36` seconds with result `0` and is disabled. Result/evidence root:
+  `F:\Guanbing\run_logs\remote_tasks\dynamic_strain_v1730_20260711`.
+  May SX-5 high/low-pass counts are `52,325,754/52,251,615`; June counts are
+  `48,253,898/48,091,016`.
+- Final reports:
+  - `F:\芝山大桥数据\2026年5月\自动报告\芝山大桥健康监测2026年5月份月报_完整数据锁定媒体_v1.7.32_20260711_164940.docx`
+  - `F:\芝山大桥数据\2026年6月\自动报告\芝山大桥健康监测2026年6月份月报_完整数据锁定媒体_v1.7.32_20260711_165035.docx`
+  Both use nine `require_source_provenance=true` bindings. Local QA rendered
+  all 47/48 pages and found no field-reference, missing-image, or layout defect.
+- June explicitly discloses missing `2026-06-19` and `2026-07-01` source
+  contributions and the resulting effects on June 18, 19, and 30. No values
+  were fabricated. May/June SX-5 low-pass maxima of `1000.0 microstrain` exceed
+  the configured `+405.0 microstrain` level-2 boundary and are reported as a
+  sensor/raw/site-review item, not an automatic structural conclusion.
+- Read-only final check: no MATLAB process is running; the dynamic-strain task
+  is disabled with last result `0`; `F:\Guanbing` is clean at
+  `9ccf3c5d9a8f3d0cbccecf541ed9e8c25be6917b`, exact tag `v1.7.32`.
 
 ## gb-133 Zhishan/Hongtang v1.7.26 Production Runs
 
