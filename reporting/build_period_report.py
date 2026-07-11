@@ -7,6 +7,7 @@ import re
 import subprocess
 import tempfile
 import zipfile
+from xml.etree import ElementTree as ET
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -1102,6 +1103,29 @@ def _patch_hardcoded_total_pages_in_docx(docx_path: Path, page_count: int | None
     return patched_count
 
 
+def _docx_contains_broken_reference_text(docx_path: Path) -> bool:
+    phrases = ("引用源未找到", "Error! Reference source not found")
+    try:
+        with zipfile.ZipFile(docx_path, "r") as archive:
+            for name in archive.namelist():
+                if not name.startswith("word/") or not name.endswith(".xml"):
+                    continue
+                try:
+                    root = ET.fromstring(archive.read(name))
+                except ET.ParseError:
+                    continue
+                text = "".join(
+                    node.text or ""
+                    for node in root.iter()
+                    if node.tag.endswith("}t")
+                )
+                if any(phrase in text for phrase in phrases):
+                    return True
+    except (OSError, zipfile.BadZipFile):
+        return False
+    return False
+
+
 def _run_python_word_field_update(docx_path: Path) -> tuple[bool, str]:
     script = f"""
 import pythoncom
@@ -1111,7 +1135,15 @@ pythoncom.CoInitialize()
 word = None
 doc = None
 try:
-    word = win32com.client.DispatchEx("Word.Application")
+    com_errors = []
+    for prog_id in ("Word.Application", "KWPS.Application"):
+        try:
+            word = win32com.client.DispatchEx(prog_id)
+            break
+        except Exception as exc:
+            com_errors.append(f"{{prog_id}}: {{exc}}")
+    if word is None:
+        raise RuntimeError("; ".join(com_errors))
     word.Visible = False
     word.DisplayAlerts = 0
     doc = word.Documents.Open(p)
@@ -1238,12 +1270,18 @@ finally:
         candidates.append(Path(os.environ["PYTHON"]))
     candidates.append(Path("python"))
     errors: list[str] = []
+    original_bytes = docx_path.read_bytes()
     for py in candidates:
         if py != Path("python") and not py.exists():
             continue
+        docx_path.write_bytes(original_bytes)
         try:
             result = subprocess.run([str(py), "-c", script], check=False, timeout=180, capture_output=True, text=True)
             if result.returncode == 0:
+                if _docx_contains_broken_reference_text(docx_path):
+                    errors.append(f"{py}: field update produced broken reference results")
+                    docx_path.write_bytes(original_bytes)
+                    continue
                 page_count = _parse_word_page_count(result.stdout)
                 _patch_hardcoded_total_pages_in_docx(docx_path, page_count)
                 return True, ""
@@ -1251,6 +1289,7 @@ finally:
             errors.append(f"{py}: {detail[:300]}")
         except (OSError, subprocess.SubprocessError) as exc:
             errors.append(f"{py}: {exc}")
+    docx_path.write_bytes(original_bytes)
     return False, "; ".join(errors[-3:])
 
 
@@ -1262,7 +1301,16 @@ $word = $null
 $doc = $null
 $saved = $false
 try {
-    $word = New-Object -ComObject Word.Application
+    $comErrors = @()
+    foreach ($progId in @('Word.Application', 'KWPS.Application')) {
+        try {
+            $word = New-Object -ComObject $progId
+            break
+        } catch {
+            $comErrors += "${progId}: $($_.Exception.Message)"
+        }
+    }
+    if ($null -eq $word) { throw ($comErrors -join '; ') }
     $word.Visible = $false
     $word.DisplayAlerts = 0
     $doc = $word.Documents.Open($p)
@@ -1378,11 +1426,13 @@ if (-not $saved) { exit 1 }
     env["BMS_DOCX_PATH"] = str(docx_path)
     errors: list[str] = []
     script_path: Path | None = None
+    original_bytes = docx_path.read_bytes()
     try:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".ps1", delete=False) as tmp:
             tmp.write(ps_script)
             script_path = Path(tmp.name)
         for exe in ("powershell.exe", "powershell"):
+            docx_path.write_bytes(original_bytes)
             try:
                 result = subprocess.run(
                     [exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
@@ -1393,6 +1443,10 @@ if (-not $saved) { exit 1 }
                     env=env,
                 )
                 if result.returncode == 0:
+                    if _docx_contains_broken_reference_text(docx_path):
+                        errors.append(f"{exe}: field update produced broken reference results")
+                        docx_path.write_bytes(original_bytes)
+                        continue
                     page_count = _parse_word_page_count(result.stdout)
                     _patch_hardcoded_total_pages_in_docx(docx_path, page_count)
                     return True, ""
@@ -1406,6 +1460,7 @@ if (-not $saved) { exit 1 }
                 script_path.unlink()
             except OSError:
                 pass
+    docx_path.write_bytes(original_bytes)
     return False, "; ".join(errors[-2:])
 
 

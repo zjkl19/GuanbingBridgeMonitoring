@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.38`: adds a guarded WPS Writer fallback, rejects field updates that produce broken references, and provides OOXML field/TOC staticization for stable production delivery.
+- `v1.7.38`：新增带失败保护的 WPS Writer 回退；若域更新产生断链引用则自动拒绝，并提供 OOXML 字段与目录静态化，保证生产交付稳定。
 - `v1.7.37`: keeps the MATLAB and report GUIs aligned with the Hongtang wind diagnostic memo and legacy period-template caption compatibility fix; wind analysis remains the validated v1.7.36 implementation.
 - `v1.7.37`：同步洪塘风速专项排查简报与周期报旧模板题注兼容修复；风数据分析继续采用已验证的 v1.7.36 实现。
 - `v1.7.36`: Wind-rose axes reserve title clearance above north and give radial percentage labels a readable background.
@@ -373,6 +375,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.38`: can try WPS Writer when `Word.Application` is unavailable, but restores the original DOCX if WPS creates broken references; OOXML field/TOC staticization supports the final locked delivery path.
+- `v1.7.38`：`Word.Application` 不可用时可尝试 WPS；若产生断链引用则恢复原 DOCX，并以 OOXML 字段/目录静态化完成最终锁定交付。
 - `v1.7.37`: adds the Hongtang W1/W2 diagnostic memo builder and accepts the legacy deck-wind caption as a valid template anchor before replacing it with the location-aware caption.
 - `v1.7.37`：新增洪塘 W1/W2 风速专项排查简报生成器，并允许旧版桥面风速题注作为模板锚点，再替换为区分桥面/塔顶的新题注。
 - `v1.7.36`: reserves wind-rose title clearance and improves radial-label readability.

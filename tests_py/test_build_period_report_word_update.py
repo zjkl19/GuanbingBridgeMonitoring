@@ -10,6 +10,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 
 from build_period_report import (  # noqa: E402
+    _docx_contains_broken_reference_text,
     _parse_word_page_count,
     _patch_hardcoded_total_pages_in_docx,
     _patch_hardcoded_total_pages_xml,
@@ -116,6 +117,19 @@ class TestBuildPeriodReportWordUpdate(unittest.TestCase):
             self.assertIn("<w:t>79</w:t>", patched)
             self.assertNotIn("<w:t>63</w:t>", patched)
 
+    def test_broken_reference_detection_joins_split_runs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            docx = Path(tmp) / "report.docx"
+            document_xml = (
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                '<w:p><w:r><w:t>错误: 引用源</w:t></w:r><w:r><w:t>未找到</w:t></w:r></w:p>'
+                '</w:document>'
+            )
+            with zipfile.ZipFile(docx, "w") as archive:
+                archive.writestr("word/document.xml", document_xml)
+
+            self.assertTrue(_docx_contains_broken_reference_text(docx))
+
     def test_powershell_fallback_after_pythoncom_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
             docx = Path(tmp) / "report.docx"
@@ -137,6 +151,7 @@ class TestBuildPeriodReportWordUpdate(unittest.TestCase):
                     self.assertIn("$header.Shapes", script_text)
                     self.assertIn("Replace-HardcodedTotalPages", script_text)
                     self.assertIn("ComputeStatistics(2)", script_text)
+                    self.assertIn("KWPS.Application", script_text)
                     return SimpleNamespace(returncode=0, stdout="", stderr="")
                 return SimpleNamespace(returncode=1, stdout="", stderr="unexpected")
 
@@ -161,6 +176,28 @@ class TestBuildPeriodReportWordUpdate(unittest.TestCase):
 
             self.assertEqual(len(warnings), 1)
             self.assertIn("word_field_update_failed", warnings[0])
+
+    def test_broken_reference_update_is_rejected_and_original_restored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            docx = Path(tmp) / "report.docx"
+            original = b"original-placeholder"
+            docx.write_bytes(original)
+
+            def fake_run(args, **kwargs):
+                docx.write_bytes(b"corrupted-by-field-engine")
+                return SimpleNamespace(returncode=0, stdout="BMS_WORD_PAGE_COUNT=10", stderr="")
+
+            env = {k: v for k, v in os.environ.items() if k != "BMS_NO_WORD"}
+            with (
+                patch.dict(os.environ, env, clear=True),
+                patch("subprocess.run", side_effect=fake_run),
+                patch("build_period_report._docx_contains_broken_reference_text", return_value=True),
+            ):
+                warnings = update_fields_with_word(docx)
+
+            self.assertEqual(docx.read_bytes(), original)
+            self.assertEqual(len(warnings), 1)
+            self.assertIn("broken reference", warnings[0])
 
 
 if __name__ == "__main__":
