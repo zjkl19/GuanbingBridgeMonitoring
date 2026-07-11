@@ -856,8 +856,11 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
                 cable_parts.append("索力时程及统计结果见正文图表。")
         replacements["吊索索力监测"] = ["".join(cable_parts)]
     if section_is_available("wind", wind):
+        deck_max_10min = wind.get("deck_max_10min")
+        if deck_max_10min is None:
+            deck_max_10min = wind.get("max_10min", 0)
         replacements["风向风速监测"] = [
-            f"监测结果表明，桥面 10min 平均风速最大值为{wind.get('max_10min', 0):.2f}m/s，"
+            f"监测结果表明，桥面测点W1的10min平均风速最大值为{deck_max_10min:.2f}m/s，"
             "未超过25m/s，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
         ]
     if section_is_available("eq", eq):
@@ -1291,6 +1294,7 @@ def build_wind_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
     rose_items: list[ImageItem] = []
     table_rows: list[dict] = []
     max_10min = None
+    wind_point_cfg = cfg.get("per_point", {}).get("wind", {})
     for row in rows:
         pid = str(row["PointID"])
         speed_path, speed_lookup = find_latest_image(image_root, "风速风向结果/风速10min", f"{pid}_speed10min_")
@@ -1303,30 +1307,70 @@ def build_wind_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
         row_max_10min = parse_float(row.get("Mean10minMax"))
         if row_max_10min is not None:
             max_10min = row_max_10min if max_10min is None else max(max_10min, row_max_10min)
+        point_cfg = wind_point_cfg.get(pid, {}) if isinstance(wind_point_cfg, dict) else {}
         table_rows.append({
             "PointID": pid,
+            "location": str(point_cfg.get("location", "")).strip(),
             "mean_dir": summary_vals.get("mean_dir", ""),
             "dominant_dir": summary_vals.get("dominant_dir", ""),
             "mean_speed": parse_float(row.get("MeanSpeed")),
             "max_speed": parse_float(row.get("MaxSpeed")),
+            "mean10min_max": row_max_10min,
             "main_grade": summary_vals.get("main_grade", ""),
         })
 
-    if max_10min is not None:
-        summary = (
-            f"监测结果如表4-12所示。监测结果表明，桥面 10min 平均风速最大值为{max_10min:.2f}m/s，"
-            f"未超过25m/s，处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
-        )
+    row_by_point = {item["PointID"]: item for item in table_rows}
+    deck_row = row_by_point.get("W1")
+    tower_row = row_by_point.get("W2")
+    deck_max_10min = deck_row.get("mean10min_max") if deck_row else None
+    tower_max_10min = tower_row.get("mean10min_max") if tower_row else None
+    if deck_max_10min is not None or tower_max_10min is not None:
+        result_parts = []
+        if deck_max_10min is not None:
+            result_parts.append(f"桥面测点W1的10min平均风速最大值为{deck_max_10min:.2f}m/s")
+        if tower_max_10min is not None:
+            result_parts.append(f"塔顶测点W2的10min平均风速最大值为{tower_max_10min:.2f}m/s")
+        summary = "监测结果如表4-12所示。监测结果表明，" + "，".join(result_parts) + "，均未超过25m/s。"
+
+        if (
+            deck_row
+            and tower_row
+            and deck_row.get("mean_speed") not in (None, 0)
+            and tower_row.get("mean_speed") is not None
+        ):
+            ratio = tower_row["mean_speed"] / deck_row["mean_speed"]
+            deck_location = deck_row.get("location") or "右幅桥面散索鞍保护罩"
+            tower_location = tower_row.get("location") or "主塔塔顶"
+            directions_differ = (
+                deck_row.get("mean_dir")
+                and tower_row.get("mean_dir")
+                and deck_row.get("mean_dir") != tower_row.get("mean_dir")
+            ) or (
+                deck_row.get("dominant_dir")
+                and tower_row.get("dominant_dir")
+                and deck_row.get("dominant_dir") != tower_row.get("dominant_dir")
+            )
+            direction_note = "；两测点主要风向也存在差异" if directions_differ else ""
+            summary += (
+                f"W1位于{deck_location}，W2位于{tower_location}，两者并非同一竖向测风剖面。"
+                f"本期W1、W2平均风速分别为{deck_row['mean_speed']:.2f}m/s和{tower_row['mean_speed']:.2f}m/s，"
+                f"塔顶/桥面平均风速比约为{ratio:.1%}{direction_note}。"
+                "结合测点位置，差异可由桥塔、散索鞍保护罩及桥位地形形成的局部绕流和暴露条件差异解释，"
+                "不能按一般大气边界层的高度增风规律作简单对比。由于塔顶风速长期低于桥面风速仍与通常高度效应不一致，"
+                "建议继续核对W2安装遮挡、探头朝向与标定状态；现有结果不支持直接判定仪器故障或结构异常。"
+            )
     else:
-        summary = "监测结果如表4-12所示。桥面 10min 平均风速与风玫瑰结果见下图。"
+        summary = "监测结果如表4-12所示。W1桥面与W2塔顶的10min平均风速及风玫瑰结果见下图。"
 
     return {
         "enabled": True,
         "summary": summary,
         "max_10min": max_10min,
+        "deck_max_10min": deck_max_10min,
+        "tower_max_10min": tower_max_10min,
         "speed_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in speed_items],
         "rose_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in rose_items],
-        "speed_caption": "桥面 10min 平均风速时程图",
+        "speed_caption": "W1桥面与W2塔顶10min平均风速时程图",
         "rose_caption": "风玫瑰图",
         "table_rows": table_rows,
         "image_lookup": {
@@ -1466,6 +1510,12 @@ def update_wind_table(doc: Document, table_rows: list[dict]) -> None:
     if table is None:
         return
     row_map = {str(row.cells[0].text).strip(): row for row in table.rows[1:]}
+    for point_id, row in row_map.items():
+        if not re.fullmatch(r"W\d+", point_id, re.IGNORECASE):
+            continue
+        for cell in row.cells[1:]:
+            cell.text = ""
+            center_cell(cell)
     for item in table_rows:
         row = row_map.get(item["PointID"])
         if row is None:
@@ -1583,6 +1633,7 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
     wind = manifest["sections"]["wind"]
     if section_is_available("wind", wind):
         replace_next_nonempty_after_exact(doc, "风向风速监测", wind["summary"], use_last=True)
+        replace_last_paragraph_contains(doc, "桥面 10min 平均风速时程图", wind["speed_caption"])
         insert_labeled_images_before_caption_contains(
             doc,
             wind["speed_caption"],

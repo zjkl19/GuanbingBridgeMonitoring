@@ -9,7 +9,13 @@ from openpyxl import Workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 
-from build_monthly_report import build_eq_section, build_overview_items, build_wind_section, normalize_eq_peak_key  # noqa: E402
+from build_monthly_report import (  # noqa: E402
+    build_eq_section,
+    build_overview_items,
+    build_wind_section,
+    normalize_eq_peak_key,
+    update_wind_table,
+)
 from build_period_report import apply_period_maintenance_log  # noqa: E402
 
 
@@ -100,7 +106,7 @@ class TestHongtangPeriodFollowups(unittest.TestCase):
         self.assertIn("变化幅度均在10%以内", cable_text)
         self.assertNotIn("监测结果表明吊索加速度", cable_text)
         self.assertNotIn("与成桥索力相比变化范围在10%以内", cable_text)
-        self.assertIn("桥面 10min 平均风速", wind_text)
+        self.assertIn("桥面测点W1的10min平均风速", wind_text)
 
     def test_wind_section_uses_accepted_spacing_and_caption(self):
         with tempfile.TemporaryDirectory() as td:
@@ -117,8 +123,67 @@ class TestHongtangPeriodFollowups(unittest.TestCase):
             cfg = {"points": {"wind": ["W1"]}}
             section = build_wind_section(cfg, stats, None, root, root / "assets")
 
-            self.assertIn("桥面 10min 平均风速最大值为5.46m/s", section["summary"])
-            self.assertEqual(section["speed_caption"], "桥面 10min 平均风速时程图")
+            self.assertIn("桥面测点W1的10min平均风速最大值为5.46m/s", section["summary"])
+            self.assertEqual(section["speed_caption"], "W1桥面与W2塔顶10min平均风速时程图")
+
+    def test_wind_section_distinguishes_locations_and_explains_comparison_limit(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            stats = root / "stats"
+            stats.mkdir()
+
+            wb = Workbook()
+            ws = wb.active
+            ws.append(["PointID", "Mean10minMax", "MeanSpeed", "MaxSpeed"])
+            ws.append(["W1", 6.4, 2.74, 10.1])
+            ws.append(["W2", 4.2, 1.37, 12.0])
+            wb.save(stats / "wind_stats.xlsx")
+
+            cfg = {
+                "points": {"wind": ["W1", "W2"]},
+                "per_point": {
+                    "wind": {
+                        "W1": {"location": "右幅桥面12号墩附近散索鞍保护罩"},
+                        "W2": {"location": "13号主塔塔顶"},
+                    }
+                },
+            }
+            section = build_wind_section(cfg, stats, None, root, root / "assets")
+
+            self.assertIn("桥面测点W1的10min平均风速最大值为6.40m/s", section["summary"])
+            self.assertIn("塔顶测点W2的10min平均风速最大值为4.20m/s", section["summary"])
+            self.assertIn("两者并非同一竖向测风剖面", section["summary"])
+            self.assertIn("塔顶/桥面平均风速比约为50.0%", section["summary"])
+            self.assertIn("不能按一般大气边界层的高度增风规律作简单对比", section["summary"])
+            self.assertIn("不支持直接判定仪器故障或结构异常", section["summary"])
+            self.assertEqual(section["deck_max_10min"], 6.4)
+            self.assertEqual(section["tower_max_10min"], 4.2)
+
+    def test_wind_table_clears_stale_template_rows_when_point_missing(self):
+        doc = Document()
+        table = doc.add_table(rows=3, cols=6)
+        headers = ["测点", "平均风向", "主导风向", "平均风速", "最大风速", "主要风速等级"]
+        for idx, value in enumerate(headers):
+            table.cell(0, idx).text = value
+        for row_idx, point_id in ((1, "W1"), (2, "W2")):
+            table.cell(row_idx, 0).text = point_id
+            for col_idx in range(1, 6):
+                table.cell(row_idx, col_idx).text = "旧值"
+
+        update_wind_table(
+            doc,
+            [{
+                "PointID": "W1",
+                "mean_dir": "270°",
+                "dominant_dir": "270°-292.5°",
+                "mean_speed": 2.74,
+                "max_speed": 10.1,
+                "main_grade": "2-4 m/s",
+            }],
+        )
+
+        self.assertEqual(table.cell(1, 3).text, "2.74")
+        self.assertEqual([table.cell(2, idx).text for idx in range(1, 6)], ["", "", "", "", ""])
 
 
 if __name__ == "__main__":

@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.33`: Hongtang wind processing now reconstructs every calendar day from rolling D+D1 exports, rejects physically invalid negative wind speed, records source provenance for speed, direction, 10-minute and wind-rose plots, and reports bridge-deck W1 separately from tower-top W2 with a location-aware interpretation.
+- `v1.7.33`：洪塘风数据按滚动导出 D+D1 重建完整自然日，剔除物理无效负风速，并为风速、风向、10min 和风玫瑰图记录源证明；报告分别陈述桥面 W1 与塔顶 W2，并加入基于测点位置的客观解释。
 - `v1.7.32`: Zhishan reports now compare low-pass strain point ranges against configured alarm bounds and replace fixed "no abnormality" wording with the measured excursion, configured boundary, and a sensor/raw-data/site-review qualification when exceeded.
 - `v1.7.32`：芝山报告会将低通应变测点范围与配置报警边界逐点比较；发生超限时，不再套用“未见异常”固定表述，而是写入实测值、配置边界及原始数据/传感器/现场复核要求。
 - `v1.7.31`: adds an audited Zhishan report source-quality note that is written into both the data-coverage narrative and the monitoring-summary table, and pinned in the report build manifest. This supports explicit partial-day rolling-export disclosures without fabricating missing samples.
@@ -363,6 +365,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.33`: fixes Hongtang rolling-export wind coverage, validates wind domains and adds location-aware W1/W2 reporting with strict source provenance.
+- `v1.7.33`：修复洪塘滚动导出风数据覆盖，增加风数据物理范围校验，并在严格源证明下按位置解释 W1/W2。
 - `v1.7.32`: adds configuration-backed Zhishan low-pass strain alarm wording while preserving strict locked-media behavior.
 - `v1.7.32`：新增基于配置边界的芝山低通应变报警表述，严格锁定媒体行为保持不变。
 - `v1.7.31`: adds audited Zhishan source-quality-note support while preserving strict locked-media behavior.

@@ -11,29 +11,40 @@ classdef WindPlotService
             end
 
             bms.analyzer.WindPlotService.plotSpeedTimeseries( ...
-                series.tSpeed, series.vSpeed, series.pid, style, outRoot, startDate, endDate, cfg);
+                series.tSpeed, series.vSpeed, series.pid, style, outRoot, startDate, endDate, cfg, ...
+                series.speed_source_provenance);
             bms.analyzer.WindPlotService.plotDirectionTimeseries( ...
-                series.tDir, series.vDir, series.pid, style, outRoot, startDate, endDate, cfg);
+                series.tDir, series.vDir, series.pid, style, outRoot, startDate, endDate, cfg, ...
+                series.direction_source_provenance);
             bms.analyzer.WindPlotService.plotSpeed10min( ...
-                series.t10, series.v10, series.pid, series.params, style, outRoot, startDate, endDate, cfg);
+                series.t10, series.v10, series.pid, series.params, style, outRoot, startDate, endDate, cfg, ...
+                series.speed_source_provenance);
 
             if ~isempty(series.vDir)
                 [roseSpeed, roseDir] = bms.analyzer.WindRoseService.alignForRose( ...
                     series.tSpeed, series.vSpeed, series.tDir, series.vDir);
                 bms.analyzer.WindPlotService.plotWindRose( ...
-                    roseDir, roseSpeed, series.pid, series.params, style, outRoot, startDate, endDate, cfg);
+                    roseDir, roseSpeed, series.pid, series.params, style, outRoot, startDate, endDate, cfg, ...
+                    series.speed_source_provenance, series.direction_source_provenance);
             end
         end
 
-        function plotSpeedTimeseries(times, vals, pid, style, outRoot, startDate, endDate, cfg)
+        function plotSpeedTimeseries(times, vals, pid, style, outRoot, startDate, endDate, cfg, sourceProvenance)
             if nargin < 8
                 cfg = struct();
+            end
+            if nargin < 9
+                sourceProvenance = struct();
             end
             if isempty(vals)
                 return;
             end
             fig = figure('Position', [100 100 1100 500]);
             plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
+            plotOpts.series_id = pid;
+            if isstruct(sourceProvenance) && ~isempty(fieldnames(sourceProvenance))
+                plotOpts.source_provenance = sourceProvenance;
+            end
             lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.1);
             bms.analyzer.DynamicSeriesService.plotRawSeries( ...
                 gca, times, vals, style.speed.color, plotOpts, lineWidth);
@@ -52,15 +63,22 @@ classdef WindPlotService
                 sprintf('%s_speed_%s_%s', pid, startDate, endDate), cfg);
         end
 
-        function plotDirectionTimeseries(times, vals, pid, style, outRoot, startDate, endDate, cfg)
+        function plotDirectionTimeseries(times, vals, pid, style, outRoot, startDate, endDate, cfg, sourceProvenance)
             if nargin < 8
                 cfg = struct();
+            end
+            if nargin < 9
+                sourceProvenance = struct();
             end
             if isempty(vals)
                 return;
             end
             fig = figure('Position', [100 100 1100 500]);
             plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
+            plotOpts.series_id = pid;
+            if isstruct(sourceProvenance) && ~isempty(fieldnames(sourceProvenance))
+                plotOpts.source_provenance = sourceProvenance;
+            end
             lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.0);
             bms.analyzer.DynamicSeriesService.plotRawSeries( ...
                 gca, times, vals, style.direction.color, plotOpts, lineWidth);
@@ -77,9 +95,12 @@ classdef WindPlotService
                 sprintf('%s_direction_%s_%s', pid, startDate, endDate), cfg);
         end
 
-        function plotSpeed10min(times, v10, pid, params, style, outRoot, startDate, endDate, cfg)
+        function plotSpeed10min(times, v10, pid, params, style, outRoot, startDate, endDate, cfg, sourceProvenance)
             if nargin < 9
                 cfg = struct();
+            end
+            if nargin < 10
+                sourceProvenance = struct();
             end
             if isempty(times) || isempty(v10) || numel(times) ~= numel(v10)
                 return;
@@ -87,7 +108,13 @@ classdef WindPlotService
             fig = figure('Position', [100 100 1100 500]);
             plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
             [timesPlot, v10Plot] = prepare_plot_series(times, v10, plotOpts);
-            plot(timesPlot, v10Plot, 'LineWidth', 1.2, 'Color', style.speed10.color);
+            h = plot(timesPlot, v10Plot, 'LineWidth', 1.2, 'Color', style.speed10.color);
+            provenanceOpts = struct('series_id', pid, 'raw_sampling_mode', 'full');
+            if isstruct(sourceProvenance) && ~isempty(fieldnames(sourceProvenance))
+                provenanceOpts.source_provenance = sourceProvenance;
+            end
+            bms.analyzer.DynamicSeriesService.attachPlotProvenance( ...
+                h, times, v10, v10Plot, 'derived_10min_mean', provenanceOpts);
             xlabel('时间');
             ylabel(style.speed10.ylabel);
             title(sprintf('%s %s [%s-%s]', style.speed10.title_prefix, pid, startDate, endDate));
@@ -117,9 +144,15 @@ classdef WindPlotService
                 sprintf('%s_speed10min_%s_%s', pid, startDate, endDate), cfg);
         end
 
-        function plotWindRose(dirDeg, speed, pid, params, style, outRoot, startDate, endDate, cfg)
+        function plotWindRose(dirDeg, speed, pid, params, style, outRoot, startDate, endDate, cfg, speedSource, directionSource)
             if nargin < 9
                 cfg = struct();
+            end
+            if nargin < 10
+                speedSource = struct();
+            end
+            if nargin < 11
+                directionSource = struct();
             end
             if isempty(dirDeg)
                 return;
@@ -138,6 +171,12 @@ classdef WindPlotService
             bms.analyzer.WindPlotService.drawWindRose(ax, roseMat, sectorEdges, colors);
             bms.analyzer.WindPlotService.drawPolarGrid(ax, max(sum(roseMat, 2)));
             bms.analyzer.WindPlotService.drawDirectionLabels(ax, max(sum(roseMat, 2)) * 1.08);
+            bms.analyzer.WindPlotService.attachAggregateProvenance( ...
+                ax, numel(speed), nnz(isfinite(speed)), totalCount, ...
+                [char(string(pid)) ':wind_speed'], speedSource);
+            bms.analyzer.WindPlotService.attachAggregateProvenance( ...
+                ax, numel(dirDeg), nnz(isfinite(dirDeg)), totalCount, ...
+                [char(string(pid)) ':wind_direction'], directionSource);
 
             speedLabels = bms.analyzer.WindRoseService.speedBinLabels(speedEdges);
             legendHandles = gobjects(numel(speedLabels), 1);
@@ -238,6 +277,23 @@ classdef WindPlotService
                 cfg = struct();
             end
             bms.plot.PlotService.saveModuleBundleWithTimestamp(fig, outDir, baseName, cfg);
+        end
+
+        function attachAggregateProvenance(ax, inputCount, finiteCount, plottedCount, pointId, sourceProvenance)
+            h = plot(ax, NaN, NaN, 'Visible', 'off');
+            provenance = struct( ...
+                'schema_version', 1, ...
+                'sampling_mode', 'full', ...
+                'render_mode', 'wind_rose_aggregate', ...
+                'input_count', double(inputCount), ...
+                'finite_count', double(finiteCount), ...
+                'plotted_finite_count', double(plottedCount), ...
+                'reduction_applied', false, ...
+                'point_id', char(string(pointId)));
+            if isstruct(sourceProvenance) && ~isempty(fieldnames(sourceProvenance))
+                provenance.source = sourceProvenance;
+            end
+            set(h, 'UserData', struct('plot_provenance', provenance));
         end
 
         function style = style(cfg)

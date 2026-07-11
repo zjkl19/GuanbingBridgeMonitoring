@@ -122,12 +122,21 @@
       "outlier": []
     },
     "wind_speed": {
-      "thresholds": [],
+      "thresholds": [
+        {
+          "min": 0
+        }
+      ],
       "zero_to_nan": false,
       "outlier": []
     },
     "wind_direction": {
-      "thresholds": [],
+      "thresholds": [
+        {
+          "min": 0,
+          "max": 360
+        }
+      ],
       "zero_to_nan": false,
       "outlier": []
     },
@@ -1190,6 +1199,7 @@
       "W1": {
         "speed_point_id": "风速_162",
         "dir_point_id": "风向_163",
+        "location": "右幅桥面12号墩附近散索鞍保护罩",
         "alarm_levels": [
           25,
           29.92,
@@ -1201,6 +1211,7 @@
       "W2": {
         "speed_point_id": "塔顶风速_178",
         "dir_point_id": "塔顶风向_179",
+        "location": "13号主塔塔顶",
         "alarm_levels": [
           25,
           29.92,
