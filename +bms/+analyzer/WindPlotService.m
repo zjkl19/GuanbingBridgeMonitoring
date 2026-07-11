@@ -165,12 +165,14 @@ classdef WindPlotService
             fig = figure('Position', [100 100 720 640]);
             ax = axes(fig);
             axis(ax, 'equal'); axis(ax, 'off'); hold(ax, 'on');
-            title(ax, sprintf('%s %s [%s-%s]', style.rose.title_prefix, pid, startDate, endDate));
+            titleHandle = title(ax, sprintf('%s %s [%s-%s]', style.rose.title_prefix, pid, startDate, endDate));
 
             colors = bms.analyzer.WindPlotService.roseColors(style, size(roseMat, 2));
+            radialMax = max(sum(roseMat, 2));
             bms.analyzer.WindPlotService.drawWindRose(ax, roseMat, sectorEdges, colors);
-            bms.analyzer.WindPlotService.drawPolarGrid(ax, max(sum(roseMat, 2)));
-            bms.analyzer.WindPlotService.drawDirectionLabels(ax, max(sum(roseMat, 2)) * 1.08);
+            bms.analyzer.WindPlotService.drawPolarGrid(ax, radialMax);
+            bms.analyzer.WindPlotService.drawDirectionLabels(ax, radialMax * 1.08);
+            bms.analyzer.WindPlotService.formatWindRoseAxes(ax, radialMax, titleHandle);
             bms.analyzer.WindPlotService.attachAggregateProvenance( ...
                 ax, numel(speed), nnz(isfinite(speed)), totalCount, ...
                 [char(string(pid)) ':wind_speed'], speedSource);
@@ -256,6 +258,7 @@ classdef WindPlotService
                 text(ax, r * cos(labelAngle), r * sin(labelAngle), ...
                     sprintf('%.0f%%', r * 100), 'FontSize', 9, ...
                     'Color', [0.4 0.4 0.4], ...
+                    'BackgroundColor', 'w', 'Margin', 1, ...
                     'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom');
             end
             for ang = 0:45:315
@@ -275,6 +278,18 @@ classdef WindPlotService
                 [x, y] = pol2cart(t, r);
                 text(ax, x, y, labels{i}, 'HorizontalAlignment', 'center', ...
                     'VerticalAlignment', 'middle', 'FontWeight', 'bold');
+            end
+        end
+
+        function formatWindRoseAxes(ax, radialMax, titleHandle)
+            if ~isfinite(radialMax) || radialMax <= 0
+                radialMax = 1;
+            end
+            xlim(ax, [-1.2 1.2] * radialMax);
+            ylim(ax, [-1.2 1.2] * radialMax);
+            if nargin >= 3 && isgraphics(titleHandle)
+                titleHandle.Units = 'normalized';
+                titleHandle.Position(1:2) = [0.5 1.08];
             end
         end
 

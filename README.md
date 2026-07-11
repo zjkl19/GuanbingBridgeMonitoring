@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.36`: Wind-rose axes reserve title clearance above north and give radial percentage labels a readable background.
+- `v1.7.36`：风玫瑰为北向标注与标题预留间距，并为百分比环标注增加可读底色。
 - `v1.7.35`: Wind-rose radial percentage labels move into the north-east interior so they do not overlap the corrected east compass label.
 - `v1.7.35`：风玫瑰百分比环标注移入东北象限内侧，避免与修正后的东向标注重叠。
 - `v1.7.34`: Wind-rose compass labels now follow the meteorological convention: north is up and east is right.
@@ -369,6 +371,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.36`: reserves wind-rose title clearance and improves radial-label readability.
+- `v1.7.36`：修正风玫瑰标题留白并提高百分比环标注可读性。
 - `v1.7.35`: moves wind-rose radial percentage labels away from the corrected east compass label.
 - `v1.7.35`：调整风玫瑰百分比环标注位置，避免与东向标注重叠。
 - `v1.7.34`: corrects wind-rose compass labels to north-up/east-right meteorological orientation.

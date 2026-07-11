@@ -206,6 +206,20 @@ classdef test_wind_analysis_pipeline < matlab.unittest.TestCase
             tc.verifyTrue(all(positions(:, 1) > 0));
             tc.verifyTrue(all(positions(:, 2) > 0));
         end
+
+        function windRoseAxesLeaveSpaceBetweenNorthAndTitle(tc)
+            fig = figure('Visible', 'off');
+            cleanup = onCleanup(@() close(fig)); %#ok<NASGU>
+            ax = axes(fig);
+            titleHandle = title(ax, 'Wind rose');
+            bms.analyzer.WindPlotService.formatWindRoseAxes(ax, 0.2, titleHandle);
+
+            tc.verifyEqual(ylim(ax), [-0.24 0.24], 'AbsTol', 1e-12);
+            tc.verifyEqual(titleHandle.Units, 'normalized');
+            tc.verifyGreaterThan(titleHandle.Position(2), 1);
+            northNormalizedY = (0.2 * 1.08 + 0.24) / 0.48;
+            tc.verifyLessThan(northNormalizedY, 1);
+        end
     end
 end
 
