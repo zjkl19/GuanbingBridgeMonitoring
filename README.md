@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.29`: dynamic-strain high/low-pass analysis now defers absolute static-strain thresholds until after filtering. File aliases, offsets and other source cleaning remain active, while seasonal baseline drift can no longer erase otherwise finite dynamic-strain samples (notably Zhishan SX-5 in May-June).
+- `v1.7.29`：动应变高/低通分析改为在滤波后执行动态阈值；文件映射、偏置及其它源数据清洗仍然保留，季节性基线漂移不再把有效动应变样本整月误删（典型为芝山 5~6 月 SX-5）。
 - `v1.7.28`: fixes Zhishan CF-5 May-June baseline drift by retaining the validated April fixed offset and applying an hourly-median baseline in dated, non-overlapping offset segments; raw finite samples are no longer discarded merely because the rolling-export baseline moves within a day.
 - `v1.7.28`：修复芝山 CF-5 在 5~6 月的基线漂移误删问题；4 月继续使用已验证的固定偏置，5~6 月在互不重叠的日期分段内采用逐小时中位数基线，避免滚动导出基线日内变化导致原始有限值被整段过滤。
 - `v1.7.27`: aligns the MATLAB GUI with the Hongtang report image-token fix; analysis behavior remains the v1.7.26 rolling-export implementation.
@@ -355,6 +357,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.29`: keeps the report GUI/package version aligned with the dynamic-strain source-retention correction; locked-media report behavior is unchanged.
+- `v1.7.29`：同步动应变源数据保留修复后的统一版本号；锁定媒体报告行为保持不变。
 - `v1.7.28`: keeps the report GUI/package version aligned with the Zhishan CF-5 processing correction; locked-media and exact point-token report behavior is unchanged from v1.7.27.
 - `v1.7.28`：同步芝山 CF-5 数据处理修复后的统一版本号；锁定媒体和测点精确匹配逻辑沿用 v1.7.27。
 - `v1.7.27`: rejects manifest prefix collisions during strict point-image lookup, preventing `CS1`/`CX1` report slots from selecting `CS12`/`CX12` figures.

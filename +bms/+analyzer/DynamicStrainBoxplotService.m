@@ -78,8 +78,9 @@ classdef DynamicStrainBoxplotService
         end
 
         function [values, times] = processPoint(rootDir, subfolder, startDate, endDate, pointId, dsCfg, cfg, mode)
+            sourceCfg = bms.analyzer.DynamicStrainBoxplotService.sourceCleaningConfig(cfg);
             [times, values] = load_timeseries_range( ...
-                rootDir, subfolder, pointId, startDate, endDate, cfg, 'strain');
+                rootDir, subfolder, pointId, startDate, endDate, sourceCfg, 'strain');
             if isempty(values)
                 return;
             end
@@ -117,6 +118,38 @@ classdef DynamicStrainBoxplotService
             edgeTrimSec = bms.analyzer.DynamicStrainBoxplotService.getNumericFieldDefault(dsCfg, 'EdgeTrimSec', 0);
             [values, times] = bms.analyzer.DynamicStrainBoxplotService.trimEdges(values, times, fs, edgeTrimSec);
             values = bms.analyzer.DynamicStrainBoxplotService.applyBoundsAndThresholds(values, times, dsCfg, cfg, thresholdKey, pointId);
+        end
+
+        function sourceCfg = sourceCleaningConfig(cfg)
+            % Dynamic strain filters must see the complete finite source
+            % series. Absolute static-strain thresholds are referenced to a
+            % fixed baseline and can erase an entire later month after a
+            % legitimate seasonal baseline shift. Preserve file aliases,
+            % offsets, scaling, zero and outlier rules, but defer thresholding
+            % until after the dynamic high/low-pass filter.
+            sourceCfg = cfg;
+            if ~isstruct(sourceCfg)
+                return;
+            end
+            if isfield(sourceCfg, 'defaults') && isstruct(sourceCfg.defaults) ...
+                    && isfield(sourceCfg.defaults, 'strain') ...
+                    && isstruct(sourceCfg.defaults.strain) ...
+                    && isfield(sourceCfg.defaults.strain, 'thresholds')
+                sourceCfg.defaults.strain = rmfield(sourceCfg.defaults.strain, 'thresholds');
+            end
+            if ~isfield(sourceCfg, 'per_point') || ~isstruct(sourceCfg.per_point) ...
+                    || ~isfield(sourceCfg.per_point, 'strain') ...
+                    || ~isstruct(sourceCfg.per_point.strain)
+                return;
+            end
+            pointFields = fieldnames(sourceCfg.per_point.strain);
+            for i = 1:numel(pointFields)
+                key = pointFields{i};
+                block = sourceCfg.per_point.strain.(key);
+                if isstruct(block) && isfield(block, 'thresholds')
+                    sourceCfg.per_point.strain.(key) = rmfield(block, 'thresholds');
+                end
+            end
         end
 
         function values = highpass(values, fs, fc)

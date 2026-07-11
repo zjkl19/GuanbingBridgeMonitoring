@@ -147,6 +147,30 @@ classdef test_dynamic_strain_boxplot_service < matlab.unittest.TestCase
             tc.verifyEqual(trimmedTimes(end), times(8));
         end
 
+        function sourceCleaningConfigDefersStaticThresholds(tc)
+            cfg.defaults.strain = struct( ...
+                'thresholds', struct('min', -100, 'max', 100), ...
+                'zero_to_nan', true);
+            cfg.per_point.strain.SX_5 = struct( ...
+                'file_id', 'C1802191470', ...
+                'offset_correction', 77.83411572, ...
+                'thresholds', struct('min', -100, 'max', 100));
+            cfg.per_point.strain.SX_6 = struct( ...
+                'file_id', 'C1802191481', ...
+                'thresholds', struct('min', -100, 'max', 100));
+
+            sourceCfg = bms.analyzer.DynamicStrainBoxplotService.sourceCleaningConfig(cfg);
+
+            tc.verifyFalse(isfield(sourceCfg.defaults.strain, 'thresholds'));
+            tc.verifyTrue(sourceCfg.defaults.strain.zero_to_nan);
+            tc.verifyFalse(isfield(sourceCfg.per_point.strain.SX_5, 'thresholds'));
+            tc.verifyFalse(isfield(sourceCfg.per_point.strain.SX_6, 'thresholds'));
+            tc.verifyEqual(sourceCfg.per_point.strain.SX_5.file_id, 'C1802191470');
+            tc.verifyEqual(sourceCfg.per_point.strain.SX_5.offset_correction, 77.83411572);
+            tc.verifyTrue(isfield(cfg.defaults.strain, 'thresholds'));
+            tc.verifyTrue(isfield(cfg.per_point.strain.SX_5, 'thresholds'));
+        end
+
         function pipelineLowpassFallsBackToDynamicStrainGroups(tc)
             cfg.groups.dynamic_strain = struct('G1', {{'S1', 'S2'}});
             cfg.plot_styles.dynamic_strain = struct('ylims', struct('G1', [-1 1]));
