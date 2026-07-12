@@ -213,6 +213,7 @@ if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
         -or $smoke.auto_threshold_module_count -lt 10 `
         -or -not $smoke.auto_threshold_preview_enabled `
         -or -not $smoke.update_backup_management_enabled `
+        -or -not $smoke.profile_matrix_review_enabled `
         -or $smoke.group_plot_module_count -lt 1 `
         -or $smoke.cleaning_threshold_row_count -lt 1 `
         -or $smoke.plot_common_field_count -ne 14 `
@@ -220,6 +221,20 @@ if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
         -or $smoke.provenance_column_count -ne 7 `
         -or $smoke.report_qc_column_count -ne 5) {
     throw "Workbench EXE smoke contract failed: $($smoke | ConvertTo-Json -Compress)"
+}
+
+$profileMatrixOutput = Join-Path $distRoot "workbench_profile_matrix.json"
+& $PythonExe (Join-Path $repo "scripts\validate_workbench_installed_profiles.py") `
+    --package-root $distRoot --output $profileMatrixOutput `
+    --evidence-root (Join-Path $buildRoot "profile_matrix_evidence") | Out-Host
+if ($LASTEXITCODE -ne 0) {
+    throw "Frozen six-profile matrix failed with exit code $LASTEXITCODE"
+}
+$profileMatrix = Get-Content -LiteralPath $profileMatrixOutput -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($profileMatrix.status -ne "passed" -or $profileMatrix.profile_count -ne 6 `
+        -or $profileMatrix.report_capable_count -ne 5 -or $profileMatrix.analysis_only_count -ne 1 `
+        -or -not $profileMatrix.assets_unchanged) {
+    throw "Frozen six-profile matrix contract failed: $($profileMatrix | ConvertTo-Json -Compress -Depth 4)"
 }
 
 $screenshotOutput = Join-Path $distRoot "workbench_startup.png"
@@ -270,6 +285,14 @@ $releaseManifest = [ordered]@{
     report_gate_contract_smoke = -not $SkipReportBuilder
     report_visual_qc_smoke = -not $SkipReportBuilder
     auto_threshold_preview_runner_smoke = -not $SkipAnalysisRunner
+    installed_profile_matrix_smoke = $true
+    installed_profile_matrix = [ordered]@{
+        profile_count = $profileMatrix.profile_count
+        report_capable_count = $profileMatrix.report_capable_count
+        analysis_only_count = $profileMatrix.analysis_only_count
+        asset_count = $profileMatrix.asset_count
+        assets_unchanged = $profileMatrix.assets_unchanged
+    }
     file_count_excluding_manifest = $files.Count
     total_bytes_excluding_manifest = [long](($files | Measure-Object Length -Sum).Sum)
     file_inventory_count = $fileInventory.Count

@@ -23,6 +23,13 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   `--job-context` smoke passes. It has not yet had complete real-report
   production comparison for all bridge profiles, so the legacy GUI remains the
   production fallback.
+- The frozen shell itself now passes a six-profile matrix: all six configs load,
+  five report types and one analysis-only profile match the shared catalog, and
+  twelve packaged catalog/config/template assets retain identical SHA256 values
+  after every profile switch. This closes installed-resource/runtime parity but
+  does not substitute for production-data report comparison. The packaged
+  “六桥自检” action exposes this result and refuses a matrix that is incomplete
+  or no longer matches its release-inventory size/SHA256 record.
 - The report gate verifies manifest success, selected-module coverage,
   context identity, pinned hashes, and every manifest-declared full-plot
   provenance record. Explicit visual approval remains mandatory.
@@ -507,6 +514,14 @@ Recommended tests:
 - `tests/test_main_gui_smoke.m`
 - `tests/test_gui_state_services.m`
 - `tests/test_path_profile_resolver.m`
+
+Native `PrintWindow` evidence also needs a completeness gate. A 2026-07-13
+capture rendered only part of the frame during the repaint race, while the old
+"at least 150 bright samples" rule could still accept it. The capture helper
+now combines the bright requirement with a maximum 10% near-black sample ratio,
+waits one second before the first capture, and retries up to 15 times. The final
+ten packaged screenshots and five repeated startup captures contain no dark
+grid samples. Keep this gate when changing DPI or window-launch behavior.
 
 ## Dynamic Filter Performance On Large Periods
 

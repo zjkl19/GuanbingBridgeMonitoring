@@ -13,8 +13,11 @@ try:
     from PySide6.QtWidgets import QApplication
 
     from workbench.main_window import WorkbenchWindow
+    from workbench.__main__ import smoke_payload
+    from workbench.models import file_sha256
     from workbench.models import JobContext
     from workbench.modules import options_for_modules
+    from scripts.validate_workbench_installed_profiles import validate_profile_payload
 except ImportError:  # pragma: no cover - dependency gate
     QApplication = None
     WorkbenchWindow = None
@@ -38,6 +41,7 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertEqual(window.config_tabs.count(), 8)
             self.assertEqual(window.auto_threshold_editor.module_list.count(), 15)
             self.assertTrue(window.update_backup_btn.isEnabled())
+            self.assertTrue(window.profile_matrix_btn.isEnabled())
             self.assertGreater(window.cleaning_editor.table.rowCount(), 0)
             self.assertIsNotNone(window.offset_editor.session)
             self.assertIsNotNone(window.group_plot_editor.session)
@@ -56,6 +60,29 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertFalse(window.open_report_btn.isEnabled())
             self.assertFalse(window.open_report_qc_btn.isEnabled())
             self.assertEqual(window.analysis_progress.value(), 0)
+        finally:
+            window.poll_timer.stop()
+            window.close()
+
+    def test_all_six_profiles_load_without_mutating_assets(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        window = WorkbenchWindow(root)
+        assets = {root / "config" / "bridge_profiles.json"}
+        for profile in window.profiles:
+            assets.add(profile.config_path(root))
+            if profile.report_template:
+                assets.add(profile.template_path(root))
+        before = {path: file_sha256(path) for path in assets}
+        try:
+            rows = []
+            for index, profile in enumerate(window.profiles):
+                window.profile_combo.setCurrentIndex(index)
+                self.app.processEvents()
+                rows.append(validate_profile_payload(profile, smoke_payload(window), root))
+            self.assertEqual(len(rows), 6)
+            self.assertEqual(sum(row["report_capable"] for row in rows), 5)
+            self.assertEqual(sum(not row["report_capable"] for row in rows), 1)
+            self.assertEqual(before, {path: file_sha256(path) for path in assets})
         finally:
             window.poll_timer.stop()
             window.close()

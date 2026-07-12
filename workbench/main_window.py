@@ -48,6 +48,7 @@ from .models import JobContext, file_sha256
 from .modules import MODULE_SPECS, options_for_modules
 from .profiles import WorkbenchProfile, load_profiles, profile_by_id
 from .plot_config_tab import PlotCommonEditorWidget, SpectrumConfigEditorWidget
+from .profile_audit import ProfileAuditError, load_installed_profile_matrix
 from .provenance import PlotProvenanceSummary, inspect_manifest_plot_provenance
 from .report_task import launch_report_job, read_report_status, terminate_report_job
 from .update_ui import UpdateController
@@ -172,6 +173,10 @@ class WorkbenchWindow(QMainWindow):
         self.update_backup_btn = QPushButton("更新备份")
         self.update_backup_btn.setToolTip("查看更新备份；经确认后保留最新两个并清理更旧备份")
         title_row.addWidget(self.update_backup_btn)
+        self.profile_matrix_btn = QPushButton("六桥自检")
+        self.profile_matrix_btn.setToolTip("查看冻结版六桥配置、模板、模块和报告能力矩阵")
+        self.profile_matrix_btn.clicked.connect(self._show_profile_matrix)
+        title_row.addWidget(self.profile_matrix_btn)
         outer.addLayout(title_row)
 
         form_group = QGroupBox("任务上下文")
@@ -471,6 +476,31 @@ class WorkbenchWindow(QMainWindow):
             QMessageBox.critical(self, "任务检查失败", "\n".join(f"- {item}" for item in errors))
         else:
             QMessageBox.information(self, "任务检查通过", "数据目录、配置、日期和模块检查通过。")
+
+    def _show_profile_matrix(self) -> None:
+        try:
+            matrix = load_installed_profile_matrix(self.project_root)
+        except ProfileAuditError as exc:
+            QMessageBox.information(self, "六桥自检", str(exc))
+            return
+        lines = []
+        for row in matrix.profiles:
+            capability = row.get("report_gui_type") or "仅分析"
+            lines.append(
+                f"{row.get('bridge_name')} ({row.get('bridge_id')})："
+                f"模块 {row.get('enabled_module_count')}；{capability}；"
+                f"配置 {str(row.get('config_sha256') or '')[:16]}…"
+            )
+        box = QMessageBox(self)
+        box.setWindowTitle("冻结版六桥自检已通过")
+        box.setIcon(QMessageBox.Information)
+        box.setText(
+            f"六桥 {matrix.profile_count}/6；报告型 {matrix.report_capable_count}；"
+            f"仅分析 {matrix.analysis_only_count}；资产 {matrix.asset_count} 个未修改。"
+        )
+        box.setInformativeText(f"矩阵文件：{matrix.path}")
+        box.setDetailedText("\n".join(lines))
+        box.exec()
 
     def _build_context(self) -> JobContext:
         profile = self.current_profile

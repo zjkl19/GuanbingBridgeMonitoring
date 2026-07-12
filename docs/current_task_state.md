@@ -36,7 +36,7 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `274/274`. The current joint MATLAB
+- The current Python suite passes `277/277`. The current joint MATLAB
   workbench/runner/config/plot batch baseline remains `147/147`; the latest
   report/config/update-focused MATLAB batch passes `70/70`. The earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
@@ -63,7 +63,7 @@ Current local development state:
   Releases, so no update is offered until the first reviewed stable Release is
   deliberately published.
 - The updater now uses a schema-v2 release manifest with an exact inventory of
-  all 594 packaged files (relative path, bytes and SHA256), not only ZIP/EXE
+  all 595 packaged files (relative path, bytes and SHA256), not only ZIP/EXE
   hashes. Staging rejects traversal, absolute, duplicate-case and symbolic-link
   members, validates every inventory file and every required smoke gate, and
   automatically falls back to a short system-temporary root when a ZIP member
@@ -129,8 +129,8 @@ Current local development state:
   rebuilt compiled Runner produced one proposal and one 30-point preview while
   preserving the 100.0 source maximum under a 32-point cap. Focused MATLAB
   proposal/Runner tests pass `14/14`. The final packaged EXE SHA256 is
-  `100d96198803aa87f18215103964bf77b56402e648a87c61736331e82d3959c5`;
-  its schema-v2 release inventory closes at `594` files and records the new
+  `cdaf1bad1620d8d8b45095fd019089bae77f1de55e6e72cb42320248f07653cf`;
+  its schema-v2 release inventory closes at `595` files and records the new
   compiled-preview smoke as passed.
 - Update-backup retention is now explicit in the packaged workbench. The new
   “更新备份” action inventories only direct sibling transaction backups,
@@ -140,6 +140,26 @@ Current local development state:
   directories are excluded. A disposable regression proves that the oldest
   eligible backup is removed while two current and all anomalous directories
   remain.
+- Local installed-runtime comparison now covers all six profiles, not only
+  representative screenshots. The frozen EXE is launched independently for
+  Guanbing, Hongtang, Jiulongjiang, Shuixianhua, Chongyangxi and Zhishan and
+  must return the exact bridge identity, layout, default dates, enabled-module
+  set, config/template path and SHA256, report capability and 8-tab editor
+  shape. Five profiles close against the five packaged report job types and
+  Chongyangxi remains explicitly analysis-only. Hashes for the profile catalog,
+  six configs and five templates (`12` assets) are identical before and after
+  the matrix. MATLAB's `BridgeProfileRegistry` independently passes the same
+  six-profile/module/report contract (`2/2`). Evidence is packaged as
+  `workbench_profile_matrix.json` and is now a mandatory Release gate.
+  Packaged operators can review it from the “六桥自检” title-bar action; the
+  reader refuses incomplete checks or a matrix whose byte size/SHA256 no
+  longer matches the unique release-inventory record.
+- Native screenshot QA exposed an intermittent `PrintWindow` partial-frame
+  acceptance weakness: the old gate counted bright samples but did not cap
+  black samples. Capture now waits longer, retries up to 15 times and rejects
+  frames with more than 10% near-black grid samples. Five repeated startup
+  captures and the rebuilt ten-screenshot set all have `0/350` dark samples;
+  the title-bar “六桥自检” action is visible in the native evidence.
 - Offset correction and grouped plots are migrated as the fifth and sixth
   configuration subtabs. Offset editing covers scalar, fixed, first-day,
   daily/hourly mean or median and segmented date-window rules; overlapping
@@ -228,7 +248,7 @@ Current local development state:
   items, Jiulongjiang 11 missing items, Zhishan lacked anchors 2-5/2-6, and
   Shuixianhua still relies on a synthesized legacy manifest. Page/media deltas
   therefore remain diagnostic evidence, not production parity acceptance.
-- The Python suite now passes `274/274`; the report/config-related MATLAB batch
+- The Python suite now passes `277/277`; the report/config-related MATLAB batch
   passes `70/70`. The workbench and report builder were rebuilt, all ten native
   screenshots passed visual inspection, and the release manifest records the
   packaged report-gate contract smoke in addition to report-job and visual-QC
@@ -257,8 +277,9 @@ Remaining after the packaged embedded-report/provenance milestone:
   bundle) complete context-matched analysis manifests and every referenced
   formal `.plot.json`, then generate through the embedded task for all five
   profiles and resolve the recorded report-manifest/page/media differences;
-- complete local installed-runtime testing, then cross-bridge production
-  comparison before any 133 deployment or legacy-GUI retirement.
+- complete cross-bridge production-data comparison before any 133 deployment
+  or legacy-GUI retirement; the local six-profile installed-runtime matrix is
+  complete.
 
 ## 2026-07-12 Hongtang Typhoon Bavi Template Report
 

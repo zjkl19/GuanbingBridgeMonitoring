@@ -10,6 +10,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from .main_window import WorkbenchWindow
+from .models import file_sha256
 from .version import app_version
 
 
@@ -36,6 +37,18 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
+    profile = window.current_profile
+    config_path = Path(window.config_edit.text().strip())
+    template_path = Path(window.template_edit.text().strip()) if window.template_edit.text().strip() else None
+    config_messages = (
+        window.alarm_editor.message_label.text(),
+        window.cleaning_editor.message_label.text(),
+        window.post_filter_editor.message_label.text(),
+        window.offset_editor.message_label.text(),
+        window.group_plot_editor.summary_label.text(),
+        window.plot_common_editor.summary_label.text(),
+        window.spectrum_editor.summary_label.text(),
+    )
     return {
         "ok": True,
         "version": app_version(window.project_root),
@@ -50,6 +63,7 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
             window.auto_threshold_editor._options().get("capture_preview_series")
         ),
         "update_backup_management_enabled": window.update_backup_btn.isEnabled(),
+        "profile_matrix_review_enabled": window.profile_matrix_btn.isEnabled(),
         "offset_correction_row_count": window.offset_editor.table.rowCount(),
         "group_plot_module_count": window.group_plot_editor.module_combo.count(),
         "plot_common_field_count": window.plot_common_editor.table.rowCount(),
@@ -57,6 +71,23 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "provenance_column_count": window.provenance_table.columnCount(),
         "report_qc_column_count": window.report_qc_table.columnCount(),
         "report_gate_locked": not window.open_report_btn.isEnabled(),
+        "selected_profile_id": profile.bridge_id,
+        "selected_profile_name": profile.bridge_name,
+        "selected_data_layout": profile.data_layout,
+        "selected_report_type": profile.report_type,
+        "selected_report_gui_type": profile.report_gui_type,
+        "selected_report_capable": bool(profile.report_template and profile.report_gui_type),
+        "selected_data_root": window.data_root_edit.text().strip(),
+        "selected_start_date": window.start_date_edit.date().toString("yyyy-MM-dd"),
+        "selected_end_date": window.end_date_edit.date().toString("yyyy-MM-dd"),
+        "selected_modules": window._selected_modules(),
+        "selected_config_path": str(config_path.resolve()),
+        "selected_config_sha256": file_sha256(config_path) if config_path.is_file() else "",
+        "selected_template_path": str(template_path.resolve()) if template_path else "",
+        "selected_template_sha256": file_sha256(template_path) if template_path and template_path.is_file() else "",
+        "configuration_load_errors": [
+            message for message in config_messages if "失败" in message or "error" in message.lower()
+        ],
     }
 
 

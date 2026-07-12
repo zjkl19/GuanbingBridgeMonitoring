@@ -126,6 +126,7 @@ class UpdateBackup:
 REQUIRED_RELEASE_GATES = (
     "includes_analysis_runner",
     "auto_threshold_preview_runner_smoke",
+    "installed_profile_matrix_smoke",
     "includes_report_builder",
     "report_builder_context_smoke",
     "embedded_report_job_smoke",
@@ -203,6 +204,7 @@ LEGACY_MANAGED_FILES = (
     "VERSION",
     "release_manifest.json",
     "workbench_smoke.json",
+    "workbench_profile_matrix.json",
     "workbench_startup.png",
     "workbench_alarm_editor.png",
     "workbench_cleaning_editor.png",

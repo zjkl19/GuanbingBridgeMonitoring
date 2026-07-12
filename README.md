@@ -34,6 +34,11 @@ dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe
 `workbench_offset_editor.png`、`workbench_group_plot_editor.png`、
 `workbench_plot_common_editor.png`、`workbench_spectrum_editor.png` 与
 `workbench_report_task.png` 是构建时自动生成的界面证据。
+`workbench_profile_matrix.json` 还会让冻结版 EXE 逐一加载六桥，核对桥名、配置/模板
+SHA256、日期、模块、五种报告能力和一个纯分析项目，并证明 12 个打包配置资产在切换前后
+没有被修改；任一桥失败都会中止打包和后续 GitHub Release。
+打包版标题栏的“六桥自检”可直接查看该矩阵；读取时还会复核矩阵文件在
+`release_manifest.json` 中的唯一清单项、大小和 SHA256，防止展示被替换的旧证据。
 
 “配置与预警值”页现已迁移显式 `alarm_bounds` 以及
 `thresholds` / `zero_to_nan` / `outlier` 数据清洗字段。清洗编辑器支持默认和测点规则、

@@ -37,6 +37,15 @@ None of these milestones writes to production machines.
 - The build blocks unless the workbench EXE smoke contract, ten native Qt
   screenshots, packaged report `--job-context` smoke, and the embedded
   report-job protocol smoke pass.
+- The frozen EXE is launched once for each of the six bridge profiles. The
+  resulting `workbench_profile_matrix.json` closes selected identity, config
+  and template SHA256, default dates, module coverage, five report-capable
+  profiles, one analysis-only profile, editor shape and before/after hashes for
+  all twelve catalog/config/template assets.
+- The packaged title bar exposes this evidence through “六桥自检”. The reader
+  accepts only a six-row all-true matrix with the 5+1 capability split and also
+  rechecks the matrix byte size and SHA256 against its unique release-inventory
+  record.
 - `release_manifest.json` records SHA-256, version, file count/byte size
   excluding the manifest itself, and smoke results. Generated `build/` and
   `dist/` content is intentionally local.
@@ -150,4 +159,3 @@ inside MATLAB, and the MATLAB engine is not rewritten in Python.
 
 - Generate fresh reports through the embedded task for each report-capable
   profile and compare them with the accepted historical samples.
-- Installed-runtime comparison across every bridge profile.

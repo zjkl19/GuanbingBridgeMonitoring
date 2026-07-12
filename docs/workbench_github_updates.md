@@ -28,6 +28,9 @@ The required analysis gates include a real compiled automatic-cleaning preview
 request with closed request/config/preview SHA provenance and an
 extrema-preservation assertion; a package cannot be staged when that gate is
 false or absent.
+They also include `installed_profile_matrix_smoke`: the frozen EXE must load all
+six profiles independently, close five report-capable and one analysis-only
+entry, and leave the twelve catalog/config/template assets byte-identical.
 
 GitHub's Releases API exposes asset download URLs and may expose a platform
 `sha256:` digest. The updater accepts that digest or the separately published

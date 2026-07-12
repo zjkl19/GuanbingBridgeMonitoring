@@ -70,7 +70,7 @@ $handle = $process.MainWindowHandle
 [void][WorkbenchCaptureWin32]::ShowWindow($handle, 9)
 [void][WorkbenchCaptureWin32]::BringWindowToTop($handle)
 [void][WorkbenchCaptureWin32]::SetForegroundWindow($handle)
-Start-Sleep -Milliseconds 750
+Start-Sleep -Milliseconds 1000
 
 $rect = New-Object WorkbenchCaptureWin32+RECT
 if (-not [WorkbenchCaptureWin32]::GetWindowRect($handle, [ref]$rect)) {
@@ -86,7 +86,9 @@ $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 try {
     $captured = $false
     $brightSamples = 0
-    for ($captureAttempt = 0; $captureAttempt -lt 10; $captureAttempt++) {
+    $darkSamples = 0
+    $totalSamples = 0
+    for ($captureAttempt = 0; $captureAttempt -lt 15; $captureAttempt++) {
         [void][WorkbenchCaptureWin32]::UpdateWindow($handle)
         $graphics.Clear([System.Drawing.Color]::Black)
         $hdc = $graphics.GetHdc()
@@ -102,14 +104,20 @@ try {
             $graphics.ReleaseHdc($hdc)
         }
         $brightSamples = 0
+        $darkSamples = 0
+        $totalSamples = 0
         if ($printOk) {
             for ($x = 20; $x -lt $width; $x += 80) {
                 for ($y = 20; $y -lt $height; $y += 80) {
                     $pixel = $bitmap.GetPixel($x, $y)
-                    if (($pixel.R + $pixel.G + $pixel.B) -gt 180) { $brightSamples++ }
+                    $sum = $pixel.R + $pixel.G + $pixel.B
+                    $totalSamples++
+                    if ($sum -gt 180) { $brightSamples++ }
+                    if ($sum -lt 30) { $darkSamples++ }
                 }
             }
-            if ($brightSamples -ge 150) {
+            $maxDarkSamples = [math]::Max(3, [math]::Floor($totalSamples * 0.10))
+            if ($brightSamples -ge 150 -and $darkSamples -le $maxDarkSamples) {
                 $captured = $true
                 break
             }
@@ -117,7 +125,7 @@ try {
         Start-Sleep -Milliseconds 350
     }
     if (-not $captured) {
-        throw "PrintWindow did not produce a complete bright workbench frame after 10 attempts (bright samples: $brightSamples)"
+        throw "PrintWindow did not produce a complete workbench frame after 15 attempts (bright=$brightSamples, dark=$darkSamples, total=$totalSamples)"
     }
     $bitmap.Save($resolvedOutput, [System.Drawing.Imaging.ImageFormat]::Png)
 } finally {
