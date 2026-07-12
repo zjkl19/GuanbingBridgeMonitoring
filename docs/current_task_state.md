@@ -25,11 +25,10 @@ Current local development state:
   `BridgeAnalysisRunner.exe`, otherwise use `matlab -batch`. Status polling,
   progress fraction/current module/ETA, stdout/stderr logs, cooperative stop
   files, task restoration, and terminal manifest loading are implemented.
-- Report handoff remains additive for this round. The existing report GUI now
-  accepts `--job-context`, pre-fills the bridge/data/config/date/template/output
-  fields, and has a `--job-context-smoke-test` entry. Development handoff
-  prefers the current reporting virtual environment. The packaged workbench
-  includes a freshly rebuilt report EXE that passes the same context smoke.
+- Report execution is now embedded as a separate background process. The
+  existing report GUI and embedded task share one dispatcher; the latter writes
+  stage/status/result JSON and returns DOCX/PDF/report-manifest QC directly to
+  the workbench. The old `--job-context` prefill remains available as a fallback.
 - Formal-report enablement requires a successful manifest, no failed module
   records, complete coverage of all selected modules, and an explicit plot
   approval. Config, manifest, and report-template SHA-256 values are pinned and
@@ -37,8 +36,8 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `247/247`. The current joint MATLAB
-  workbench/runner/config/plot batch passes `146/146`; the earlier focused alarm-editor,
+- The current Python suite passes `258/258`. The current joint MATLAB
+  workbench/runner/config/plot batch passes `147/147`; the earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
   A direct MATLAB JSON-contract run completed and
   produced an `ok` manifest. A second end-to-end run through the Python
@@ -64,8 +63,9 @@ Current local development state:
   deliberately published.
 - `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
   MATLAB Runner, six project configs/templates, and the report builder. The
-  build blocks on the workbench smoke contract, nine native screenshots, and
-  packaged report `--job-context` smoke. `release_manifest.json` records the
+  build blocks on the workbench smoke contract, ten native screenshots,
+  packaged report `--job-context` smoke and embedded report-job protocol smoke.
+  `release_manifest.json` records the
   EXE SHA-256, file count, total bytes, and smoke result.
 - Explicit `defaults/per_point` `alarm_bounds` editing is migrated with strict
   level/bounds validation, save-as, automatic backup, source-SHA drift refusal,
@@ -128,9 +128,25 @@ Current local development state:
 - A shared Python/MATLAB fixture and regression suite verifies both schemas;
   all six bridge configs pass exact no-op round trips. The rebuilt packaged
   EXE passes an 8-config-tab smoke contract (`14` common fields, `2` spectrum
-  modules), packaged report-context smoke, and nine native `2020x1120` visual
+  modules), packaged report-context smoke, and ten native `2020x1120` visual
   captures. The Hongtang common-plot and Zhishan spectrum pages were inspected
   at native resolution.
+- Report generation and plot-provenance review are embedded as the next
+  workflow milestone. All analysis-manifest `.plot.json` artifacts are listed
+  with module, series/source/plotted counts and disclosed incomplete dates.
+  Approval is disabled for capped/reduced series, missing source provenance,
+  source/input or finite/plotted mismatch, or incoherent day coverage.
+- The report child process supports all five report-capable profiles and
+  records `loading/preflight/building/qc/completed` progress. It rechecks pinned
+  config/template/analysis-manifest hashes, then returns DOCX ZIP/main-part/
+  media/hash QC, available PDF pages and report-manifest missing/warning counts.
+  The legacy report GUI was refactored to the same dispatcher. A shared
+  MATLAB/Python provenance fixture closes the output contract.
+- Frozen testing found and fixed a stale-report-EXE packaging bug: the
+  workbench packager previously rebuilt the MATLAB runner when stale but only
+  copied any existing report EXE. It now rebuilds `BridgeReportBuilder.exe`
+  whenever report Python/config inputs are newer, and the release manifest
+  records a successful embedded-report protocol smoke.
 - The workbench packager now rebuilds the compiled analysis runner whenever
   included MATLAB sources are newer than the runner executable. This prevents
   a visually current PySide6 package from silently carrying an obsolete core
@@ -149,12 +165,10 @@ Current local development state:
   regression now parses all runtime configs and profile catalogs. Missing
   report test/runtime dependencies (`matplotlib`, `numpy`, `pypdf`) are pinned.
 
-Remaining after the packaged plot/spectrum milestone:
+Remaining after the packaged embedded-report/provenance milestone:
 
-- embed report build progress and final DOCX/PDF QC instead of opening the
-  existing report window;
-- automate full plot-provenance closure display rather than relying on the
-  explicit visual-review declaration alone;
+- complete rendered page-level report comparison for representative local
+  data from all five report-capable bridge profiles;
 - complete local installed-runtime testing, then cross-bridge production
   comparison before any 133 deployment or legacy-GUI retirement.
 

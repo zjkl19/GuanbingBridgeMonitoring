@@ -45,6 +45,9 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertIsNotNone(window.spectrum_editor.session)
             self.assertEqual(window.plot_common_editor.table.rowCount(), 14)
             self.assertEqual(window.spectrum_editor.module_combo.count(), 2)
+            self.assertEqual(window.provenance_table.columnCount(), 7)
+            self.assertEqual(window.report_qc_table.columnCount(), 5)
+            self.assertEqual(window.open_report_btn.text(), "在工作台内启动报告生成与 QC")
             self.assertFalse(window.module_checks["temperature"].icon().isNull())
             self.assertFalse(window.module_checks["acceleration"].icon().isNull())
             self.assertEqual(window.update_controller.policy.repository, "zjkl19/GuanbingBridgeMonitoring")
@@ -95,6 +98,48 @@ class WorkbenchGuiTests(unittest.TestCase):
                 self.assertEqual(window.analysis_progress.value(), 250)
                 self.assertIn("温度分析", window.analysis_progress_label.text())
                 self.assertIn("1分30秒", window.analysis_progress_label.text())
+            finally:
+                window.poll_timer.stop()
+                window.close()
+
+    def test_review_page_requires_closed_source_provenance(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        fixture = root / "tests" / "fixtures" / "workbench_provenance_contract.json"
+        with tempfile.TemporaryDirectory() as folder:
+            data_root = Path(folder) / "data"
+            data_root.mkdir()
+            provenance = data_root / "A1.plot.json"
+            provenance.write_bytes(fixture.read_bytes())
+            manifest = data_root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({
+                "status": "ok",
+                "bridge_profile": {"bridge_id": "guanbing"},
+                "run_request": {
+                    "data_root": str(data_root),
+                    "start_date": "2026-04-01",
+                    "end_date": "2026-04-30",
+                },
+                "module_results": [{
+                    "key": "acceleration", "label": "加速度", "status": "ok",
+                    "artifacts": [{"kind": "plot_provenance", "path": str(provenance)}],
+                }],
+            }, ensure_ascii=False), encoding="utf-8")
+            context = JobContext.create(
+                project_root=root, bridge_id="guanbing", bridge_name="管柄大桥",
+                data_root=data_root, start_date="2026-04-01", end_date="2026-04-30",
+                config_path=root / "config" / "default_config.json",
+                selected_modules=["acceleration"], options=options_for_modules(["acceleration"]),
+            )
+            context.analysis.state = "completed"
+            context.analysis.manifest_path = str(manifest)
+            window = WorkbenchWindow(root)
+            try:
+                window.current_context = context
+                window.current_context_path = context.write()
+                window._load_manifest(manifest)
+                self.assertEqual(window.provenance_table.rowCount(), 1)
+                self.assertIn("闭环：1", window.provenance_summary_label.text())
+                self.assertTrue(window.approval_check.isEnabled())
             finally:
                 window.poll_timer.stop()
                 window.close()

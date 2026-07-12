@@ -112,8 +112,19 @@ if (-not $SkipAnalysisRunner) {
 if (-not $SkipReportBuilder) {
     $reportSource = Join-Path $repo "reporting\dist\BridgeReportBuilder"
     $reportExe = Join-Path $reportSource "BridgeReportBuilder.exe"
+    $reportInputs = @(
+        Get-ChildItem -LiteralPath (Join-Path $repo "reporting") -File -Filter "*.py"
+        Get-Item -LiteralPath (Join-Path $repo "reporting\requirements.txt")
+        Get-Item -LiteralPath (Join-Path $repo "config\bridge_profiles.json")
+    )
+    $latestReportInput = ($reportInputs | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
+    if (-not (Test-Path -LiteralPath $reportExe -PathType Leaf) `
+            -or (Get-Item -LiteralPath $reportExe).LastWriteTimeUtc -lt $latestReportInput) {
+        Write-Host "Report builder is stale; rebuilding before workbench packaging."
+        & (Join-Path $repo "reporting\build_gui_exe.ps1") -PythonExe $PythonExe
+    }
     if (-not (Test-Path -LiteralPath $reportExe -PathType Leaf)) {
-        throw "Packaged report builder is missing: $reportExe. Run reporting\build_gui_exe.ps1 first."
+        throw "Packaged report builder is missing after rebuild: $reportExe"
     }
     $reportTarget = Join-Path $distRoot "reporting\dist\BridgeReportBuilder"
     if (Test-Path -LiteralPath $reportTarget) {
@@ -151,6 +162,15 @@ if (-not $SkipReportBuilder) {
     if ($reportSmokeProcess.ExitCode -ne 0) {
         throw "Packaged report builder context smoke test failed with exit code $($reportSmokeProcess.ExitCode)"
     }
+    $reportJobSmokeProcess = Start-Process `
+        -FilePath $packagedReportExe `
+        -ArgumentList @("--report-job-contract-smoke-test") `
+        -WindowStyle Hidden `
+        -Wait `
+        -PassThru
+    if ($reportJobSmokeProcess.ExitCode -ne 0) {
+        throw "Packaged embedded report-job smoke test failed with exit code $($reportJobSmokeProcess.ExitCode)"
+    }
 }
 
 $smokeOutput = Join-Path $distRoot "workbench_smoke.json"
@@ -170,7 +190,9 @@ if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
         -or $smoke.group_plot_module_count -lt 1 `
         -or $smoke.cleaning_threshold_row_count -lt 1 `
         -or $smoke.plot_common_field_count -ne 14 `
-        -or $smoke.spectrum_module_count -ne 2) {
+        -or $smoke.spectrum_module_count -ne 2 `
+        -or $smoke.provenance_column_count -ne 7 `
+        -or $smoke.report_qc_column_count -ne 5) {
     throw "Workbench EXE smoke contract failed: $($smoke | ConvertTo-Json -Compress)"
 }
 
@@ -192,6 +214,8 @@ $plotCommonScreenshotOutput = Join-Path $distRoot "workbench_plot_common_editor.
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $plotCommonScreenshotOutput -ProfileId "hongtang" -TabIndex 1 -ConfigTabIndex 6
 $spectrumScreenshotOutput = Join-Path $distRoot "workbench_spectrum_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $spectrumScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 7
+$reportTaskScreenshotOutput = Join-Path $distRoot "workbench_report_task.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $reportTaskScreenshotOutput -ProfileId "hongtang" -TabIndex 3
 
 $files = Get-ChildItem -LiteralPath $distRoot -Recurse -File
 $updatePolicy = Get-Content -LiteralPath (Join-Path $distRoot "config\workbench_update.json") -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -206,6 +230,7 @@ $releaseManifest = [ordered]@{
     includes_analysis_runner = -not $SkipAnalysisRunner
     includes_report_builder = -not $SkipReportBuilder
     report_builder_context_smoke = -not $SkipReportBuilder
+    embedded_report_job_smoke = -not $SkipReportBuilder
     file_count_excluding_manifest = $files.Count
     total_bytes_excluding_manifest = [long](($files | Measure-Object Length -Sum).Sum)
     screenshots = @(
@@ -217,7 +242,8 @@ $releaseManifest = [ordered]@{
         "workbench_offset_editor.png",
         "workbench_group_plot_editor.png",
         "workbench_plot_common_editor.png",
-        "workbench_spectrum_editor.png"
+        "workbench_spectrum_editor.png",
+        "workbench_report_task.png"
     )
     smoke = $smoke
 }

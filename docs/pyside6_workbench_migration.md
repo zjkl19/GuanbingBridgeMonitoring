@@ -25,6 +25,7 @@ parity. The fourth adds post-filter cleanup plus compiled-runner-backed
 automatic-cleaning proposals. The fifth migrates offset correction and grouped
 plot configuration. The sixth migrates common plot parameters and
 acceleration/cable-acceleration spectrum coverage plus peak-order overrides.
+The seventh embeds report execution/QC and complete plot-provenance review.
 None of these milestones writes to production machines.
 
 ## Packaged local milestone
@@ -33,8 +34,9 @@ None of these milestones writes to production machines.
 - Run `dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe`.
 - The onedir release includes the compiled MATLAB analysis runner, all profile
   configs/templates, and a freshly packaged report builder.
-- The build blocks unless the workbench EXE smoke contract, nine native Qt
-  screenshots, and the packaged report builder `--job-context` smoke test pass.
+- The build blocks unless the workbench EXE smoke contract, ten native Qt
+  screenshots, packaged report `--job-context` smoke, and the embedded
+  report-job protocol smoke pass.
 - `release_manifest.json` records SHA-256, version, file count/byte size
   excluding the manifest itself, and smoke results. Generated `build/` and
   `dist/` content is intentionally local.
@@ -80,6 +82,22 @@ unrelated fields remain untouched. Legacy `target_freqs`/`tolerance`/
 actually edited, at which point they are deliberately normalized to the
 MATLAB-supported `peak_orders` contract.
 
+Report generation now runs as a separate non-GUI child process from the
+workbench. Source and frozen runtimes share a versioned status/result JSON
+contract, and the legacy report window calls the same dispatch service so the
+two entries cannot drift. The workbench displays preflight, building, QC and
+terminal states; pins and rechecks config/template/analysis-manifest hashes;
+and summarizes DOCX package integrity/media, available PDF pages, and
+report-manifest missing/warning counts. Five report-capable profiles are
+mapped; Chongyangxi remains intentionally analysis-only.
+
+The review page enumerates every manifest-declared `.plot.json`. It requires
+full sampling, no reduction, finite/plotted equality, source/input and finite
+source/input equality, coherent requested/complete/incomplete day counts, and
+explicit missing-source/incomplete-day disclosure. Failed closure locks plot
+approval. Disclosed source gaps remain visible but admissible; no data are
+invented.
+
 The packaged shell also includes a stable-channel GitHub Release updater. It
 checks no more than once per day, supports a manual check, requires a newer
 semantic version and a runnable Windows x64 ZIP, verifies the archive SHA256
@@ -105,6 +123,5 @@ inside MATLAB, and the MATLAB engine is not rewritten in Python.
 ## Later migration work
 
 - Curve-preview parity for automatic-cleaning suggestions.
-- Embedded report build progress and final Word/PDF QC.
-- Complete per-plot provenance closure inside the review page.
+- Rendered page-level DOCX/PDF visual comparison across production examples.
 - Installed-runtime comparison across every bridge profile.

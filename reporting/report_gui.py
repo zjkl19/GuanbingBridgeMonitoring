@@ -38,6 +38,7 @@ from bridge_profiles import BridgeProfile, load_profiles, profile_by_id
 from missing_summary import missing_summary_paths
 from analysis_manifest import manifest_precheck_warnings
 from report_build_manifest import find_latest_report_build_manifest
+from report_job import ReportJobRequest, execute_report_job
 from report_module_catalog import expected_result_dirs, expected_stats_files
 from template_precheck import TemplateIssue, check_template, write_precheck_report
 
@@ -77,6 +78,7 @@ PROFILE_REPORT_TYPES = {
     "shuixianhua_monthly": SHUIXIANHUA_MONTHLY_REPORT,
     "zhishan_monthly": ZHISHAN_MONTHLY_REPORT,
 }
+REPORT_TYPE_JOB_KEYS = {value: key for key, value in PROFILE_REPORT_TYPES.items()}
 
 
 def report_type_for_profile(profile: BridgeProfile) -> str:
@@ -314,99 +316,46 @@ class ReportWorker(QObject):
                 self.log.emit(f"WIM\u7ed3\u679c\u76ee\u5f55: {self.wim_root}")
             self.log.emit("\u5f00\u59cb\u751f\u6210\u62a5\u544a...")
 
-            if self.report_type == PERIOD_REPORT:
-                manifest_path, report_path, missing = build_period_report(
-                    template=self.template,
-                    config_path=self.config_path,
-                    result_root=self.result_root,
-                    analysis_root=self.analysis_root,
-                    wim_root=self.wim_root,
-                    output_dir=self.output_dir,
-                    period_label=self.period_label,
-                    monitoring_range=self.monitoring_range,
-                    report_date=self.report_date,
-                    start_date=self.start_date,
-                    end_date=self.end_date,
-                )
-            elif self.report_type == JLJ_MONTHLY_REPORT:
-                report_path = build_jlj_monthly_report(
-                    template=self.template,
-                    config_path=self.config_path,
-                    result_root=self.result_root,
-                    image_root=self.result_root,
-                    output_dir=self.output_dir,
-                    wim_root=self.wim_root,
-                    period_label=self.period_label,
-                    monitoring_range=self.monitoring_range,
-                    report_date=self.report_date,
-                    patrol_docx=None,
-                )
-                manifest_path = find_latest_report_build_manifest(self.output_dir or (self.result_root / "自动报告"))
-                missing = []
-            elif self.report_type == GUANBING_MONTHLY_REPORT:
-                report_path, manifest_path = build_guanbing_monthly_report(
-                    template=self.template,
-                    config_path=self.config_path,
-                    result_root=self.result_root,
-                    output_dir=self.output_dir,
-                    period_label=self.period_label,
-                    monitoring_range=self.monitoring_range,
-                    report_date=self.report_date,
-                    start_date=self.start_date,
-                    end_date=self.end_date,
-                )
-                missing = []
-            elif self.report_type == SHUIXIANHUA_MONTHLY_REPORT:
-                report_path, pdf_path = build_shuixianhua_monthly_report(
-                    template=self.template,
-                    config_path=self.config_path,
-                    result_root=self.result_root,
-                    output_dir=self.output_dir,
-                    period_label=self.period_label,
-                    monitoring_range=self.monitoring_range,
-                    report_date=self.report_date,
-                )
-                manifest_path = None
-                missing = []
-                if pdf_path is not None:
-                    self.log.emit(f"PDF:      {pdf_path}")
-            elif self.report_type == ZHISHAN_MONTHLY_REPORT:
-                report_path, manifest_path = build_zhishan_monthly_report(
-                    template=self.template,
-                    config_path=self.config_path,
-                    result_root=self.result_root,
-                    output_dir=self.output_dir,
-                    period_label=self.period_label,
-                    monitoring_range=self.monitoring_range,
-                    report_date=self.report_date,
-                )
-                missing = []
-            else:
-                manifest_path, report_path, missing = build_hongtang_monthly_report(
-                    template=self.template,
-                    config_path=self.config_path,
-                    result_root=self.result_root,
-                    analysis_root=self.analysis_root,
-                    output_dir=self.output_dir,
-                    period_label=self.period_label,
-                    monitoring_range=self.monitoring_range,
-                    report_date=self.report_date,
-                )
-
-            if manifest_path is not None:
-                self.log.emit(f"Manifest: {manifest_path}")
-            self.log.emit(f"Report:   {report_path}")
-            if missing:
+            job_key = REPORT_TYPE_JOB_KEYS.get(self.report_type, "hongtang_monthly")
+            request = ReportJobRequest(
+                report_type=job_key,
+                template=self.template,
+                config_path=self.config_path,
+                result_root=self.result_root,
+                analysis_root=self.analysis_root,
+                output_dir=self.output_dir,
+                period_label=self.period_label,
+                monitoring_range=self.monitoring_range,
+                report_date=self.report_date,
+                start_date=self.start_date,
+                end_date=self.end_date,
+                wim_root=self.wim_root,
+            )
+            result = execute_report_job(
+                request,
+                lambda stage, fraction, message: self.log.emit(
+                    f"[{fraction * 100:.0f}%] {stage}: {message}"
+                ),
+            )
+            if result.manifest_path is not None:
+                self.log.emit(f"Manifest: {result.manifest_path}")
+            self.log.emit(f"Report:   {result.report_path}")
+            if result.pdf_path is not None:
+                self.log.emit(f"PDF:      {result.pdf_path}")
+            if result.missing:
                 self.log.emit("\u8b66\u544a/\u7f3a\u5931\u8d44\u6e90:")
-                for item in missing:
+                for item in result.missing:
                     self.log.emit(f"  - {item}")
-            summary_files = [path for path in missing_summary_paths(report_path) if path.exists()]
-            if summary_files:
+            if result.summary_files:
                 self.log.emit("\u7f3a\u5931\u5185\u5bb9\u6e05\u5355:")
-                for path in summary_files:
+                for path in result.summary_files:
                     self.log.emit(f"  - {path}")
             self.log.emit("\u5b8c\u6210")
-            self.finished.emit(str(manifest_path or ""), str(report_path), "\n".join(str(path) for path in summary_files))
+            self.finished.emit(
+                str(result.manifest_path or ""),
+                str(result.report_path),
+                "\n".join(str(path) for path in result.summary_files),
+            )
         except Exception as exc:  # noqa: BLE001
             self.log.emit("\u751f\u6210\u5931\u8d25")
             self.log.emit(str(exc))
@@ -1344,7 +1293,26 @@ def main() -> None:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--job-context", type=Path, default=None)
     parser.add_argument("--job-context-smoke-test", action="store_true")
+    parser.add_argument("--run-job-context", action="store_true")
+    parser.add_argument("--report-status", type=Path, default=None)
+    parser.add_argument("--report-result", type=Path, default=None)
+    parser.add_argument("--report-job-contract-smoke-test", action="store_true")
     args, qt_args = parser.parse_known_args(sys.argv[1:])
+    if args.report_job_contract_smoke_test:
+        from report_job import REPORT_TYPE_NAMES
+
+        print(json.dumps({
+            "ok": True,
+            "report_type_count": len(REPORT_TYPE_NAMES),
+            "stages": ["loading", "preflight", "building", "qc", "completed"],
+        }, ensure_ascii=False))
+        return
+    if args.run_job_context:
+        if args.job_context is None or args.report_status is None or args.report_result is None:
+            parser.error("--run-job-context requires --job-context, --report-status and --report-result")
+        from report_job_cli import run_context
+
+        raise SystemExit(run_context(args.job_context, args.report_status, args.report_result))
     app = QApplication([sys.argv[0], *qt_args])
     win = ReportGui(job_context_path=args.job_context)
     if args.job_context_smoke_test:

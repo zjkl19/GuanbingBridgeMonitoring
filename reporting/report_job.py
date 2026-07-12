@@ -1,0 +1,252 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable
+from zipfile import BadZipFile, ZipFile
+
+from build_guanbing_monthly_report import build_report as build_guanbing_monthly_report
+from build_jlj_monthly_report import build_report as build_jlj_monthly_report
+from build_monthly_report import build_report as build_hongtang_monthly_report
+from build_period_report import build_period_report
+from build_shuixianhua_monthly_report import build_report as build_shuixianhua_monthly_report
+from build_zhishan_monthly_report import build_report as build_zhishan_monthly_report
+from missing_summary import missing_summary_paths
+from report_build_manifest import find_latest_report_build_manifest
+
+
+REPORT_TYPE_NAMES = {
+    "hongtang_monthly": "洪塘月报",
+    "hongtang_period_wim": "洪塘周期报（含WIM）",
+    "jlj_monthly": "九龙江月报",
+    "guanbing_monthly": "管柄月报",
+    "shuixianhua_monthly": "水仙花月报",
+    "zhishan_monthly": "芝山月报",
+}
+ProgressCallback = Callable[[str, float, str], None]
+
+
+@dataclass(frozen=True)
+class ReportJobRequest:
+    report_type: str
+    template: Path
+    config_path: Path
+    result_root: Path
+    analysis_root: Path
+    output_dir: Path
+    period_label: str
+    monitoring_range: str
+    report_date: str
+    start_date: str
+    end_date: str
+    wim_root: Path | None = None
+
+
+@dataclass(frozen=True)
+class ReportJobResult:
+    manifest_path: Path | None
+    report_path: Path
+    pdf_path: Path | None
+    missing: tuple[str, ...]
+    summary_files: tuple[Path, ...]
+    qc: dict[str, Any]
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest().upper()
+
+
+def _docx_qc(path: Path) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "path": str(path),
+        "exists": path.is_file(),
+        "size_bytes": path.stat().st_size if path.is_file() else 0,
+        "sha256": _sha256(path) if path.is_file() else "",
+        "zip_integrity": False,
+        "document_xml": False,
+        "media_count": 0,
+    }
+    if not path.is_file():
+        return result
+    try:
+        with ZipFile(path) as archive:
+            result["zip_integrity"] = archive.testzip() is None
+            names = archive.namelist()
+            result["document_xml"] = "word/document.xml" in names
+            result["media_count"] = sum(
+                name.startswith("word/media/") and not name.endswith("/") for name in names
+            )
+    except (BadZipFile, OSError):
+        pass
+    return result
+
+
+def _pdf_qc(path: Path | None) -> dict[str, Any]:
+    if path is None:
+        return {"path": "", "exists": False, "size_bytes": 0, "sha256": "", "page_count": 0}
+    result: dict[str, Any] = {
+        "path": str(path),
+        "exists": path.is_file(),
+        "size_bytes": path.stat().st_size if path.is_file() else 0,
+        "sha256": _sha256(path) if path.is_file() else "",
+        "page_count": 0,
+    }
+    if path.is_file():
+        try:
+            from pypdf import PdfReader
+
+            result["page_count"] = len(PdfReader(str(path)).pages)
+        except Exception as exc:  # noqa: BLE001
+            result["error"] = str(exc)
+    return result
+
+
+def _manifest_qc(path: Path | None) -> dict[str, Any]:
+    if path is None or not path.is_file():
+        return {"path": str(path or ""), "exists": False, "status": "missing", "missing_count": 0, "warning_count": 0}
+    payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(payload, dict):
+        raise ValueError("report build manifest must be an object")
+    return {
+        "path": str(path),
+        "exists": True,
+        "sha256": _sha256(path),
+        "status": str(payload.get("status") or "unknown"),
+        "missing_count": int(payload.get("missing_count") or len(payload.get("missing_items") or [])),
+        "warning_count": len(payload.get("warnings") or []),
+        "output_docx_image_count": int(payload.get("output_docx_image_count") or 0),
+    }
+
+
+def build_qc(report_path: Path, manifest_path: Path | None, pdf_path: Path | None) -> dict[str, Any]:
+    docx = _docx_qc(report_path)
+    manifest = _manifest_qc(manifest_path)
+    pdf = _pdf_qc(pdf_path)
+    passed = bool(
+        docx["exists"]
+        and docx["size_bytes"] > 0
+        and docx["zip_integrity"]
+        and docx["document_xml"]
+        and manifest.get("status") in {"ok", "warning"}
+    )
+    return {"status": "passed" if passed else "failed", "docx": docx, "pdf": pdf, "manifest": manifest}
+
+
+def _ensure_report_manifest(
+    output_dir: Path, report_path: Path, manifest_path: Path | None, report_type: str
+) -> Path:
+    if manifest_path is not None and manifest_path.is_file():
+        return manifest_path
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = output_dir / f"embedded_report_build_manifest_{stamp}.json"
+    payload = {
+        "schema_version": 1,
+        "manifest_type": "report_build",
+        "report_type": report_type,
+        "status": "warning",
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "output_docx": str(report_path),
+        "missing_count": 0,
+        "missing_items": [],
+        "warnings": ["Legacy builder did not return a report manifest; embedded runner synthesized this QC record."],
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def execute_report_job(request: ReportJobRequest, progress: ProgressCallback | None = None) -> ReportJobResult:
+    emit = progress or (lambda _stage, _fraction, _message: None)
+    request.output_dir.mkdir(parents=True, exist_ok=True)
+    emit("preflight", 0.05, "正在校验模板、配置和结果目录")
+    for label, path in (("template", request.template), ("config", request.config_path)):
+        if not path.is_file():
+            raise FileNotFoundError(f"{label} does not exist: {path}")
+    if not request.result_root.is_dir():
+        raise FileNotFoundError(f"result root does not exist: {request.result_root}")
+    report_type = request.report_type
+    if report_type not in REPORT_TYPE_NAMES:
+        raise ValueError(f"unsupported report type: {report_type or '<empty>'}")
+    emit("building", 0.15, f"正在生成{REPORT_TYPE_NAMES[report_type]}")
+    manifest_path: Path | None = None
+    pdf_path: Path | None = None
+    missing: list[Any] = []
+    if report_type == "hongtang_period_wim":
+        manifest_path, report_path, missing = build_period_report(
+            template=request.template,
+            config_path=request.config_path,
+            result_root=request.result_root,
+            analysis_root=request.analysis_root,
+            wim_root=request.wim_root,
+            output_dir=request.output_dir,
+            period_label=request.period_label,
+            monitoring_range=request.monitoring_range,
+            report_date=request.report_date,
+            start_date=request.start_date,
+            end_date=request.end_date,
+        )
+    elif report_type == "jlj_monthly":
+        report_path = build_jlj_monthly_report(
+            template=request.template, config_path=request.config_path,
+            result_root=request.result_root, image_root=request.result_root,
+            output_dir=request.output_dir, wim_root=request.wim_root,
+            period_label=request.period_label, monitoring_range=request.monitoring_range,
+            report_date=request.report_date, patrol_docx=None,
+        )
+        manifest_path = find_latest_report_build_manifest(request.output_dir)
+    elif report_type == "guanbing_monthly":
+        report_path, manifest_path = build_guanbing_monthly_report(
+            template=request.template, config_path=request.config_path,
+            result_root=request.result_root, output_dir=request.output_dir,
+            period_label=request.period_label, monitoring_range=request.monitoring_range,
+            report_date=request.report_date, start_date=request.start_date, end_date=request.end_date,
+        )
+    elif report_type == "shuixianhua_monthly":
+        report_path, pdf_path = build_shuixianhua_monthly_report(
+            template=request.template, config_path=request.config_path,
+            result_root=request.result_root, output_dir=request.output_dir,
+            period_label=request.period_label, monitoring_range=request.monitoring_range,
+            report_date=request.report_date,
+        )
+        manifest_path = find_latest_report_build_manifest(request.output_dir)
+    elif report_type == "zhishan_monthly":
+        report_path, manifest_path = build_zhishan_monthly_report(
+            template=request.template, config_path=request.config_path,
+            result_root=request.result_root, output_dir=request.output_dir,
+            period_label=request.period_label, monitoring_range=request.monitoring_range,
+            report_date=request.report_date,
+        )
+    else:
+        manifest_path, report_path, missing = build_hongtang_monthly_report(
+            template=request.template, config_path=request.config_path,
+            result_root=request.result_root, analysis_root=request.analysis_root,
+            output_dir=request.output_dir, period_label=request.period_label,
+            monitoring_range=request.monitoring_range, report_date=request.report_date,
+        )
+    report_path = Path(report_path).resolve()
+    manifest_path = Path(manifest_path).resolve() if manifest_path else None
+    pdf_path = Path(pdf_path).resolve() if pdf_path else None
+    if pdf_path is None:
+        candidate_pdf = report_path.with_suffix(".pdf")
+        pdf_path = candidate_pdf.resolve() if candidate_pdf.is_file() else None
+    manifest_path = _ensure_report_manifest(request.output_dir, report_path, manifest_path, report_type)
+    emit("qc", 0.9, "正在执行 DOCX/PDF 与报告 Manifest QC")
+    qc = build_qc(report_path, manifest_path, pdf_path)
+    if qc["status"] != "passed":
+        raise RuntimeError(f"report QC failed: {qc}")
+    summary_files = tuple(path for path in missing_summary_paths(report_path) if path.exists())
+    emit("completed", 1.0, "报告生成与 QC 已完成")
+    return ReportJobResult(
+        manifest_path,
+        report_path,
+        pdf_path,
+        tuple(str(item) for item in missing),
+        summary_files,
+        qc,
+    )

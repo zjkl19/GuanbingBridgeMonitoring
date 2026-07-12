@@ -32,7 +32,8 @@ dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe
 `workbench_alarm_editor.png`、`workbench_cleaning_editor.png`、
 `workbench_post_filter_editor.png`、`workbench_auto_threshold.png`、
 `workbench_offset_editor.png`、`workbench_group_plot_editor.png`、
-`workbench_plot_common_editor.png` 与 `workbench_spectrum_editor.png` 是构建时自动生成的界面证据。
+`workbench_plot_common_editor.png`、`workbench_spectrum_editor.png` 与
+`workbench_report_task.png` 是构建时自动生成的界面证据。
 
 “配置与预警值”页现已迁移显式 `alarm_bounds` 以及
 `thresholds` / `zero_to_nan` / `outlier` 数据清洗字段。清洗编辑器支持默认和测点规则、
@@ -55,6 +56,13 @@ MATLAB `AutoThresholdProposalService`，由重新编译的同一
 该字段并回退 MATLAB 默认值；为避免产生与运行时不一致的配置，显式 `full` 不允许同时选择
 `dense_band`。“频谱覆盖与找峰”页统一管理加速度/索力加速度频谱测点及默认、逐测点
 `peak_orders`，保留采样率、阈值和未知字段；历史频率字段只在用户实际编辑后迁移。
+
+“结果与图件审核”页会从绑定的分析 Manifest 枚举全部 `.plot.json`，逐序列核验 full、
+未降采样、source=input、finite=plotted、日覆盖计数和不完整日期披露；缺少源级 provenance
+或计数不闭环时不能勾选正式报告审核。“报告生成”页不再打开第二个 GUI，而是启动独立
+报告子进程并显示预检、生成、QC、完成阶段。最终结果表展示 DOCX ZIP/主文档/媒体、可用
+PDF 页数、报告 Manifest 缺失项与警告；配置、模板和分析 Manifest 的固定 SHA 仍会在子进程
+读取前再次校验。
 
 打包版右上角提供“检查更新”。正式版启动后每天最多自动查询一次 GitHub
 Release；发现更高稳定版本时，可下载、双重 SHA256 校验、备份当前安装并在退出后

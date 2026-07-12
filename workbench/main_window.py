@@ -48,7 +48,8 @@ from .models import JobContext, file_sha256
 from .modules import MODULE_SPECS, options_for_modules
 from .profiles import WorkbenchProfile, load_profiles, profile_by_id
 from .plot_config_tab import PlotCommonEditorWidget, SpectrumConfigEditorWidget
-from .report_bridge import launch_report_gui
+from .provenance import PlotProvenanceSummary, inspect_manifest_plot_provenance
+from .report_task import launch_report_job, read_report_status, terminate_report_job
 from .update_ui import UpdateController
 from .version import app_version, project_root as default_project_root
 
@@ -69,6 +70,7 @@ class WorkbenchWindow(QMainWindow):
         self.current_context: JobContext | None = None
         self.current_context_path: Path | None = None
         self.current_manifest: ManifestSummary | None = None
+        self.current_provenance: PlotProvenanceSummary | None = None
         self.current_manifest_missing_selected: tuple[str, ...] = ()
         self.module_checks: dict[str, QCheckBox] = {}
         self.setFont(QFont("Microsoft YaHei UI", 9))
@@ -281,6 +283,24 @@ class WorkbenchWindow(QMainWindow):
         self.module_table.setColumnWidth(3, 300)
         outer.addWidget(self.module_table, 1)
 
+        provenance_group = QGroupBox("正式图件 provenance 闭环")
+        provenance_layout = QVBoxLayout(provenance_group)
+        self.provenance_summary_label = QLabel("等待加载分析 Manifest。")
+        provenance_layout.addWidget(self.provenance_summary_label)
+        self.provenance_table = QTableWidget(0, 7)
+        self.provenance_table.setHorizontalHeaderLabels(
+            ["模块", "闭环状态", "序列", "源点数", "绘制点数", "不完整日期", "provenance 文件/说明"]
+        )
+        self.provenance_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.provenance_table.setAlternatingRowColors(True)
+        provenance_header = self.provenance_table.horizontalHeader()
+        for column in range(6):
+            provenance_header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
+        provenance_header.setSectionResizeMode(6, QHeaderView.Stretch)
+        self.provenance_table.setMinimumHeight(170)
+        provenance_layout.addWidget(self.provenance_table)
+        outer.addWidget(provenance_group)
+
         approval_group = QGroupBox("正式报告门禁")
         approval_layout = QVBoxLayout(approval_group)
         approval_layout.addWidget(QLabel("请先检查关键图件、统计工作簿和 provenance。审核只对当前任务及其绑定的 manifest 生效。"))
@@ -310,23 +330,44 @@ class WorkbenchWindow(QMainWindow):
         self.report_gate_label.setWordWrap(True)
         outer.addWidget(self.report_gate_label)
         buttons = QHBoxLayout()
-        self.open_report_btn = QPushButton("打开已带入任务上下文的报告生成器")
+        self.open_report_btn = QPushButton("在工作台内启动报告生成与 QC")
         self.open_report_btn.setEnabled(False)
-        self.open_report_btn.clicked.connect(self._open_report_generator)
+        self.open_report_btn.clicked.connect(self._start_report_job)
         buttons.addWidget(self.open_report_btn)
+        self.stop_report_btn = QPushButton("停止报告任务")
+        self.stop_report_btn.setEnabled(False)
+        self.stop_report_btn.clicked.connect(self._stop_report_job)
+        buttons.addWidget(self.stop_report_btn)
         open_output = QPushButton("打开输出目录")
         open_output.clicked.connect(self._open_output_dir)
         buttons.addWidget(open_output)
         buttons.addStretch(1)
         outer.addLayout(buttons)
-        info = QLabel(
-            "第一轮MVP先复用现有报告生成器，但桥梁、数据目录、配置、周期、模板和manifest由工作台自动传递。"
-            "下一阶段将把报告构建进度和最终QC直接嵌入本页。"
-        )
-        info.setWordWrap(True)
-        info.setStyleSheet("color: #6b7280;")
-        outer.addWidget(info)
-        outer.addStretch(1)
+        progress_row = QHBoxLayout()
+        self.report_progress = QProgressBar()
+        self.report_progress.setRange(0, 1000)
+        progress_row.addWidget(self.report_progress, 1)
+        self.report_progress_label = QLabel("等待报告任务")
+        self.report_progress_label.setMinimumWidth(420)
+        progress_row.addWidget(self.report_progress_label)
+        outer.addLayout(progress_row)
+        self.report_output_label = QLabel("DOCX/PDF：尚未生成")
+        self.report_output_label.setWordWrap(True)
+        self.report_output_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        outer.addWidget(self.report_output_label)
+        self.report_qc_table = QTableWidget(0, 5)
+        self.report_qc_table.setHorizontalHeaderLabels(["对象", "状态", "大小/页数", "图片/缺失/警告", "路径或摘要"])
+        self.report_qc_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.report_qc_table.setAlternatingRowColors(True)
+        qc_header = self.report_qc_table.horizontalHeader()
+        for column in range(4):
+            qc_header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
+        qc_header.setSectionResizeMode(4, QHeaderView.Stretch)
+        outer.addWidget(self.report_qc_table)
+        self.report_log = QPlainTextEdit()
+        self.report_log.setReadOnly(True)
+        self.report_log.setPlaceholderText("报告构建阶段、错误和最终 QC 会显示在这里。")
+        outer.addWidget(self.report_log, 1)
         return page
 
     def _path_row(self, edit: QLineEdit, callback, *, directory: bool = False) -> QWidget:
@@ -571,7 +612,91 @@ class WorkbenchWindow(QMainWindow):
             path = Path(context.analysis.manifest_path)
             if path.is_file() and (self.current_manifest is None or self.current_manifest.path != path.resolve()):
                 self._load_manifest(path)
+        self._poll_report_status()
         self._update_report_gate()
+
+    def _poll_report_status(self) -> None:
+        context = self.current_context
+        if context is None or not hasattr(self, "report_progress"):
+            return
+        status = read_report_status(context)
+        state = str(status.get("state") or context.report.state or "blocked").lower()
+        stage = str(status.get("stage") or state)
+        message = str(status.get("message") or "")
+        try:
+            value = max(0, min(1000, round(float(status.get("progress_fraction", 0)) * 1000)))
+        except (TypeError, ValueError, OverflowError):
+            value = self.report_progress.value()
+        self.report_progress.setValue(value)
+        self.report_progress_label.setText(f"{state} / {stage}" + (f"；{message}" if message else ""))
+        terminal = state in {"completed", "failed", "stopped", "launch_failed"}
+        self.stop_report_btn.setEnabled(not terminal and state in {"launched", "running"})
+        if context.report.state != state:
+            context.report.state = state
+            context.write(self.current_context_path)
+            self.report_log.appendPlainText(f"[{datetime.now():%H:%M:%S}] 报告状态：{state} / {stage}；{message}")
+        if state == "completed" and status.get("qc"):
+            output_docx = str(status.get("report_path") or "")
+            output_pdf = str(status.get("pdf_path") or "")
+            report_manifest = str(status.get("manifest_path") or "")
+            qc_state = str(status.get("qc", {}).get("status") or "")
+            if (
+                context.report.output_docx != output_docx
+                or context.report.output_pdf != output_pdf
+                or context.report.manifest_path != report_manifest
+                or context.report.qc_state != qc_state
+                or context.report.pid is not None
+            ):
+                context.report.output_docx = output_docx
+                context.report.output_pdf = output_pdf
+                context.report.manifest_path = report_manifest
+                context.report.qc_state = qc_state
+                context.report.pid = None
+                context.write(self.current_context_path)
+            self._show_report_qc(status)
+        elif state == "failed":
+            context.report.pid = None
+            context.report.qc_state = "failed"
+            context.write(self.current_context_path)
+            error = str(status.get("error") or message)
+            if error and error not in self.report_log.toPlainText():
+                self.report_log.appendPlainText(f"[{datetime.now():%H:%M:%S}] 失败：{error}")
+
+    def _show_report_qc(self, result: dict[str, object]) -> None:
+        qc = result.get("qc") if isinstance(result.get("qc"), dict) else {}
+        docx = qc.get("docx") if isinstance(qc.get("docx"), dict) else {}
+        pdf = qc.get("pdf") if isinstance(qc.get("pdf"), dict) else {}
+        manifest = qc.get("manifest") if isinstance(qc.get("manifest"), dict) else {}
+        rows = (
+            (
+                "DOCX",
+                "通过" if docx.get("zip_integrity") and docx.get("document_xml") else "失败",
+                f"{docx.get('size_bytes', 0)} bytes",
+                f"媒体 {docx.get('media_count', 0)}",
+                str(docx.get("path") or ""),
+            ),
+            (
+                "PDF",
+                "通过" if pdf.get("exists") and pdf.get("page_count") else "未生成/未校验",
+                f"{pdf.get('size_bytes', 0)} bytes / {pdf.get('page_count', 0)} 页",
+                "",
+                str(pdf.get("path") or ""),
+            ),
+            (
+                "报告 Manifest",
+                str(manifest.get("status") or "missing"),
+                "",
+                f"缺失 {manifest.get('missing_count', 0)} / 警告 {manifest.get('warning_count', 0)}",
+                str(manifest.get("path") or ""),
+            ),
+        )
+        self.report_qc_table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            for column, value in enumerate(row):
+                self.report_qc_table.setItem(row_index, column, QTableWidgetItem(str(value)))
+        report_path = str(result.get("report_path") or "")
+        pdf_path = str(result.get("pdf_path") or "")
+        self.report_output_label.setText(f"DOCX：{report_path or '未生成'}\nPDF：{pdf_path or '未生成'}")
 
     def _load_latest_manifest(self) -> None:
         data_root = Path(self.data_root_edit.text().strip()).expanduser()
@@ -655,18 +780,52 @@ class WorkbenchWindow(QMainWindow):
                 self.module_table.setItem(row, column, QTableWidgetItem(value))
         self.module_table.resizeColumnsToContents()
         self.module_table.setColumnWidth(3, 300)
+        try:
+            self.current_provenance = inspect_manifest_plot_provenance(path)
+            provenance = self.current_provenance
+            self.provenance_table.setRowCount(len(provenance.rows))
+            for row_index, item in enumerate(provenance.rows):
+                values = (
+                    item.module_key,
+                    item.status,
+                    item.series_count,
+                    item.source_count,
+                    item.plotted_count,
+                    ", ".join(item.incomplete_days),
+                    f"{item.path}" + (f"；{item.message}" if item.message else ""),
+                )
+                for column, value in enumerate(values):
+                    self.provenance_table.setItem(row_index, column, QTableWidgetItem(str(value)))
+            self.provenance_summary_label.setText(
+                f"Manifest 内正式 plot provenance：{len(provenance.rows)}；"
+                f"闭环：{provenance.closed_count}；失败：{provenance.failed_count}；"
+                f"已披露不完整源日期：{provenance.incomplete_source_count}"
+            )
+            self.provenance_summary_label.setStyleSheet(
+                "color: #a33; font-weight: 600;" if provenance.failed_count else "color: #167c35; font-weight: 600;"
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.current_provenance = None
+            self.provenance_table.setRowCount(0)
+            self.provenance_summary_label.setText(f"provenance 汇总失败：{exc}")
+            self.provenance_summary_label.setStyleSheet("color: #a33; font-weight: 600;")
         self.approval_check.setEnabled(
             summary.status.lower() in SUCCESS_STATES
             and failed == 0
             and not self.current_manifest_missing_selected
             and bool(selected)
+            and bool(self.current_provenance is not None)
+            and self.current_provenance.failed_count == 0
         )
-        if failed or self.current_manifest_missing_selected:
+        if failed or self.current_manifest_missing_selected or (
+            self.current_provenance is not None and self.current_provenance.failed_count
+        ):
             self.approval_check.setChecked(False)
         self._update_report_gate()
 
     def _reset_review_state(self) -> None:
         self.current_manifest = None
+        self.current_provenance = None
         self.current_manifest_missing_selected = ()
         self.approval_check.blockSignals(True)
         self.approval_check.setChecked(False)
@@ -675,6 +834,9 @@ class WorkbenchWindow(QMainWindow):
         self.module_table.setRowCount(0)
         self.manifest_label.setText("Manifest：未加载")
         self.manifest_summary_label.setText("等待分析完成。")
+        self.provenance_table.setRowCount(0)
+        self.provenance_summary_label.setText("等待加载分析 Manifest。")
+        self.provenance_summary_label.setStyleSheet("")
         self._update_report_gate()
 
     def _on_approval_changed(self) -> None:
@@ -688,9 +850,15 @@ class WorkbenchWindow(QMainWindow):
 
     def _update_report_gate(self) -> None:
         ready = self._report_gate_ready()
-        self.open_report_btn.setEnabled(ready)
+        running = bool(
+            self.current_context
+            and self.current_context.report.state.lower() in {"launched", "running"}
+        )
+        self.open_report_btn.setEnabled(ready and not running)
         if ready:
-            self.report_gate_label.setText("报告门禁已通过：当前manifest成功，且图件已审核。")
+            self.report_gate_label.setText(
+                "报告任务运行中。" if running else "报告门禁已通过：当前manifest成功，且图件/provenance已审核。"
+            )
             self.report_gate_label.setStyleSheet("color: #167c35; font-weight: 600;")
         else:
             self.report_gate_label.setText("报告生成已锁定：需要成功的分析manifest和图件审核。")
@@ -706,7 +874,7 @@ class WorkbenchWindow(QMainWindow):
             and not self.current_manifest_missing_selected
         )
 
-    def _open_report_generator(self) -> None:
+    def _start_report_job(self) -> None:
         context = self.current_context
         if context is None or not self._report_gate_ready():
             QMessageBox.warning(self, "报告门禁未通过", "请先完成分析、加载成功manifest并审核图件。")
@@ -733,10 +901,31 @@ class WorkbenchWindow(QMainWindow):
             if context.analysis.manifest_sha256 != actual_manifest_hash:
                 raise RuntimeError("分析Manifest在图件审核后发生变化，必须重新审核")
             self.current_context_path = context.write()
-            process = launch_report_gui(context, self.current_context_path)
-            self._append_log(f"已打开报告生成器，PID={process.pid}；上下文={self.current_context_path}")
+            launch = launch_report_job(context, self.current_context_path)
+            self.report_progress.setValue(0)
+            self.report_progress_label.setText(f"launched；PID {launch.pid}")
+            self.report_qc_table.setRowCount(0)
+            self.report_output_label.setText("DOCX/PDF：正在生成")
+            self.stop_report_btn.setEnabled(True)
+            self.open_report_btn.setEnabled(False)
+            self.report_log.appendPlainText(
+                f"[{datetime.now():%H:%M:%S}] 已启动嵌入式报告任务，PID={launch.pid}\n"
+                f"状态：{launch.status_path}\n结果：{launch.result_path}"
+            )
+            self._append_log(f"已启动嵌入式报告任务，PID={launch.pid}；上下文={self.current_context_path}")
         except Exception as exc:  # noqa: BLE001
-            self._show_exception("打开报告生成器失败", exc)
+            self._show_exception("启动报告任务失败", exc)
+
+    def _stop_report_job(self) -> None:
+        if self.current_context is None:
+            return
+        try:
+            terminate_report_job(self.current_context)
+            self.stop_report_btn.setEnabled(False)
+            self.report_progress_label.setText("stopped；已终止报告子进程")
+            self.report_log.appendPlainText(f"[{datetime.now():%H:%M:%S}] 已终止报告任务")
+        except Exception as exc:  # noqa: BLE001
+            self._show_exception("停止报告任务失败", exc)
 
     def _open_output_dir(self) -> None:
         path = Path(self.output_dir_edit.text().strip()).expanduser()

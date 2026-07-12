@@ -24,9 +24,8 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   production comparison for all bridge profiles, so the legacy GUI remains the
   production fallback.
 - The report gate verifies manifest success, selected-module coverage,
-  context identity, and pinned hashes, but full per-plot provenance closure is
-  not yet summarized automatically in the workbench. Explicit visual approval
-  remains mandatory.
+  context identity, pinned hashes, and every manifest-declared full-plot
+  provenance record. Explicit visual approval remains mandatory.
 - Remote task submission/monitoring is intentionally out of first-round scope.
   Do not use this branch to alter 133 until local functional parity and
   cross-bridge regression are complete.
@@ -36,6 +35,26 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   copy and review backup/rollback behavior. Existing configs are preserved, so
   future config-schema changes need an explicit migration rather than relying
   on package replacement.
+
+## Embedded Report QC Boundary
+
+Status: implemented locally; packaged protocol smoke and structural QC covered,
+production visual comparison remains pending.
+
+The workbench now runs the same report dispatch service used by the legacy
+report GUI in a background process and records stage/status/result JSON. QC
+checks DOCX ZIP integrity, the main document part, media count, output hash and
+size; it records available PDF size/page count and report-manifest
+missing/warning counts. This catches corrupt or missing artifacts but does not
+yet replace rendered page-by-page visual inspection. Until representative
+reports for all five report-capable profiles are rendered and compared, the
+legacy production workflow and manual page review remain the acceptance
+fallback.
+
+The workbench packager now rebuilds `BridgeReportBuilder.exe` whenever report
+Python/config inputs are newer. This guard was added after the first embedded
+protocol smoke exposed a stale copied report EXE that opened the old GUI and
+never returned from the new contract check.
 
 ## Plot And Spectrum Editor Compatibility Rules
 

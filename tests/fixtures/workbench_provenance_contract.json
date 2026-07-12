@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "file_stub": "A1",
+  "series": [
+    {
+      "point_id": "A1",
+      "sampling_mode": "full",
+      "reduction_applied": false,
+      "input_count": 10,
+      "finite_count": 9,
+      "plotted_finite_count": 9,
+      "source": {
+        "source_sample_count": 10,
+        "finite_source_sample_count": 9,
+        "completeness_scope": "required_export_contribution",
+        "internal_gap_coverage_assessed": true,
+        "calendar_day_count_requested": 2,
+        "complete_day_count": 1,
+        "incomplete_day_count": 1,
+        "incomplete_days": [
+          "2026-06-30"
+        ],
+        "missing_required_sources": [
+          "2026-07-01"
+        ]
+      }
+    }
+  ]
+}

@@ -41,6 +41,8 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "group_plot_module_count": window.group_plot_editor.module_combo.count(),
         "plot_common_field_count": window.plot_common_editor.table.rowCount(),
         "spectrum_module_count": window.spectrum_editor.module_combo.count(),
+        "provenance_column_count": window.provenance_table.columnCount(),
+        "report_qc_column_count": window.report_qc_table.columnCount(),
         "report_gate_locked": not window.open_report_btn.isEnabled(),
     }
 

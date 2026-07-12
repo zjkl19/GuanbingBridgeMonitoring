@@ -53,6 +53,11 @@ class ReportState:
     plots_approved: bool = False
     stdout_log: str = ""
     stderr_log: str = ""
+    status_path: str = ""
+    result_path: str = ""
+    output_docx: str = ""
+    output_pdf: str = ""
+    qc_state: str = ""
     pid: int | None = None
 
 
@@ -126,6 +131,8 @@ class JobContext:
             output_dir=str((output_dir or (data_root / "自动报告")).resolve()),
             stdout_log=str(job_dir / "report_gui_stdout.log"),
             stderr_log=str(job_dir / "report_gui_stderr.log"),
+            status_path=str(job_dir / "report_status.json"),
+            result_path=str(job_dir / "report_result.json"),
         )
         stamp = now.isoformat(timespec="seconds")
         return cls(
