@@ -34,6 +34,26 @@ class WorkbenchModelTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown analysis modules"):
             options_for_modules(["not-a-module"])
 
+    def test_all_workbench_modules_have_stable_icons(self) -> None:
+        self.assertTrue(all(spec.icon_name for spec in MODULE_SPECS))
+        expected = {
+            "temperature": "SP_MessageBoxInformation",
+            "rainfall": "SP_ArrowDown",
+            "gnss": "SP_ComputerIcon",
+            "wind": "SP_BrowserReload",
+            "wim": "SP_DriveHDIcon",
+            "acceleration": "SP_ArrowUp",
+            "cable_accel": "SP_CommandLink",
+            "accel_spectrum": "SP_FileDialogDetailedView",
+            "cable_accel_spectrum": "SP_FileDialogDetailedView",
+            "crack": "SP_MessageBoxCritical",
+            "strain": "SP_FileDialogInfoView",
+            "dynamic_strain_highpass": "SP_ArrowUp",
+            "dynamic_strain_lowpass": "SP_ArrowDown",
+        }
+        self.assertEqual({key: next(spec.icon_name for spec in MODULE_SPECS if spec.key == key)
+                          for key in expected}, expected)
+
     def test_python_module_contract_matches_matlab_registry(self) -> None:
         root = Path(__file__).resolve().parents[1]
         source = (root / "+bms" / "+module" / "ModuleRegistry.m").read_text(encoding="utf-8")

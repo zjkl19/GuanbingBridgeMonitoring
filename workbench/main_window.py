@@ -5,7 +5,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QDate, QTimer, Qt, QUrl
+from PySide6.QtCore import QDate, QSize, QTimer, Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QPlainTextEdit,
     QProgressBar,
+    QStyle,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -121,6 +122,10 @@ class WorkbenchWindow(QMainWindow):
         for index, spec in enumerate(MODULE_SPECS):
             checkbox = QCheckBox(spec.label)
             checkbox.setProperty("module_key", spec.key)
+            checkbox.setToolTip(f"{spec.label}（{spec.key}）")
+            standard_pixmap = getattr(QStyle.StandardPixmap, spec.icon_name, QStyle.SP_FileIcon)
+            checkbox.setIcon(self.style().standardIcon(standard_pixmap))
+            checkbox.setIconSize(QSize(16, 16))
             self.module_checks[spec.key] = checkbox
             module_layout.addWidget(checkbox, index // 4, index % 4)
         outer.addWidget(module_group)

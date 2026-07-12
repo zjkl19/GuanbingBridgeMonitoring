@@ -70,7 +70,11 @@ def main(argv: list[str] | None = None) -> int:
             app.processEvents()
         window.repaint()
         app.processEvents()
-        if not window.grab().save(str(args.screenshot_output)):
+        screen = window.screen() or app.primaryScreen()
+        pixmap = screen.grabWindow(int(window.winId())) if screen is not None else window.grab()
+        if pixmap.isNull():
+            pixmap = window.grab()
+        if not pixmap.save(str(args.screenshot_output)):
             window.poll_timer.stop()
             window.close()
             return 2

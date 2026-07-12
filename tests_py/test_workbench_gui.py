@@ -33,6 +33,8 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertEqual(window.tabs.count(), 4)
             self.assertGreaterEqual(len(window.module_checks), 20)
             self.assertIsNotNone(window.alarm_editor.session)
+            self.assertFalse(window.module_checks["temperature"].icon().isNull())
+            self.assertFalse(window.module_checks["acceleration"].icon().isNull())
             self.assertFalse(window.open_report_btn.isEnabled())
             self.assertEqual(window.analysis_progress.value(), 0)
         finally:

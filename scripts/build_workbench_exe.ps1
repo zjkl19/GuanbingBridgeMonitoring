@@ -148,7 +148,6 @@ $screenshotOutput = Join-Path $distRoot "workbench_startup.png"
 $screenshotProcess = Start-Process `
     -FilePath $exePath `
     -ArgumentList @("--screenshot-output", $screenshotOutput) `
-    -WindowStyle Hidden `
     -Wait `
     -PassThru
 if ($screenshotProcess.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $screenshotOutput -PathType Leaf)) {
@@ -158,7 +157,6 @@ $configScreenshotOutput = Join-Path $distRoot "workbench_alarm_editor.png"
 $configScreenshotProcess = Start-Process `
     -FilePath $exePath `
     -ArgumentList @("--profile-id", "hongtang", "--screenshot-output", $configScreenshotOutput, "--screenshot-tab", "1") `
-    -WindowStyle Hidden `
     -Wait `
     -PassThru
 if ($configScreenshotProcess.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $configScreenshotOutput -PathType Leaf)) {

@@ -46,6 +46,10 @@ Current local development state:
   with pinned SHA-256.
 - Native Windows visual checks passed for the project/analysis page, the
   real-manifest review page, and the Hongtang 156-row alarm editor.
+- The 25 processing/analysis checkboxes now carry Qt/Windows native icons.
+  Font-based color Emoji were rejected after the frozen screenshot path showed
+  unstable black compositing; the packaged build now captures the visible
+  Windows window and verifies the native-icon layout without external assets.
 - `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
   MATLAB Runner, six project configs/templates, and the report builder. The
   build blocks on the workbench smoke contract, two native screenshots, and
