@@ -283,6 +283,8 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.7.39`: adds the full Hongtang typhoon high-frequency analysis workflow, Q2-template incremental/quick report paths, audited acceleration RMS conclusions, and final cross-application field/page locking.
+- `v1.7.39`：新增洪塘台风高频完整数据分析流程、Q2 模板增量/快速报告路径、可审核的加速度 RMS 结论，以及跨办公软件的域与页码终稿锁定。
 - `v1.7.38`: adds a guarded WPS Writer fallback, rejects field updates that produce broken references, and provides OOXML field/TOC staticization for stable production delivery.
 - `v1.7.38`：新增带失败保护的 WPS Writer 回退；若域更新产生断链引用则自动拒绝，并提供 OOXML 字段与目录静态化，保证生产交付稳定。
 - `v1.7.37`: keeps the MATLAB and report GUIs aligned with the Hongtang wind diagnostic memo and legacy period-template caption compatibility fix; wind analysis remains the validated v1.7.36 implementation.
@@ -375,6 +377,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.7.39`: adds the Hongtang typhoon full-data and quick-report workflows, Q2-template augmentation, audited RMS unit handling, and final caption/page-total locking.
+- `v1.7.39`：新增洪塘台风完整数据/快速报告流程、Q2 模板增补、RMS 单位审核处理及题注/总页数终稿锁定。
 - `v1.7.38`: can try WPS Writer when `Word.Application` is unavailable, but restores the original DOCX if WPS creates broken references; OOXML field/TOC staticization supports the final locked delivery path.
 - `v1.7.38`：`Word.Application` 不可用时可尝试 WPS；若产生断链引用则恢复原 DOCX，并以 OOXML 字段/目录静态化完成最终锁定交付。
 - `v1.7.37`: adds the Hongtang W1/W2 diagnostic memo builder and accepts the legacy deck-wind caption as a valid template anchor before replacing it with the location-aware caption.
