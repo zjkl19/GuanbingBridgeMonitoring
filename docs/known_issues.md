@@ -31,10 +31,23 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   cross-bridge regression are complete.
 - GitHub auto-update code is present, but the repository currently has no
   GitHub Releases. Tags alone are deliberately ignored. Before publishing the
-  first update, test the generated ZIP/update helper on a disposable installed
-  copy and review backup/rollback behavior. Existing configs are preserved, so
-  future config-schema changes need an explicit migration rather than relying
-  on package replacement.
+  first stable update, rerun the real-ZIP disposable update-cycle validator and
+  review its native screenshot/JSON evidence. The 2026-07-13 development ZIP
+  passed frozen installation and exact fault-injected rollback. Existing configs
+  are deliberately preserved, so future config-schema changes still need an
+  explicit migration rather than relying on package replacement.
+
+## Workbench Update Backup Retention
+
+Status: update transaction verified; retention policy remains intentionally manual.
+
+Successful updates retain a timestamped sibling backup of the full previous
+installation so rollback remains possible after restart. The updater does not
+yet delete older successful backups automatically. Before routine production
+rollout, decide an operational retention rule (for example, keep the latest two
+successful backups) and surface backup location/cleanup in the UI. This is a
+storage-management decision only; failed transactions already restore the exact
+old tree and delete their pending candidate.
 
 ## Embedded Report QC Boundary
 

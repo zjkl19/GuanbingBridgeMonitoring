@@ -109,9 +109,12 @@ invented.
 The packaged shell also includes a stable-channel GitHub Release updater. It
 checks no more than once per day, supports a manual check, requires a newer
 semantic version and a runnable Windows x64 ZIP, verifies the archive SHA256
-and internal EXE SHA256, stages outside the installation, preserves configs,
-backs up the current installation, and replaces files only after user
-confirmation and process exit. See `docs/workbench_github_updates.md`.
+and schema-v2 whole-package inventory, stages outside the installation,
+preserves configs and unmanaged operator files, validates a complete candidate,
+then atomically swaps the old installation to a backup only after user
+confirmation and process exit. Fault-injected pre/post-activation rollback and
+the frozen installed runtime are covered by the real-ZIP disposable validator.
+See `docs/workbench_github_updates.md`.
 
 ## Process boundary
 

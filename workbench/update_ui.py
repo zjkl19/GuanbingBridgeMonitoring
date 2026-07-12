@@ -15,9 +15,8 @@ from .updater import (
     UpdateInfo,
     UpdatePolicy,
     default_update_root,
-    launch_install_script,
+    launch_staged_installer,
     stage_verified_update,
-    write_install_script,
 )
 from .version import app_version
 
@@ -172,8 +171,7 @@ class UpdateController:
         if answer != QMessageBox.Yes:
             return
         try:
-            script = write_install_script(staged, self.project_root, os.getpid())
-            launch_install_script(script)
+            launch_staged_installer(staged, self.project_root, os.getpid())
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self.window, "无法启动更新安装", str(exc))
             return

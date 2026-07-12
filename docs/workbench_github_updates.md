@@ -20,8 +20,10 @@ For tag `vX.Y.Z`, publish both files with exactly these names:
 - `BridgeMonitoringWorkbench-vX.Y.Z-win-x64.zip.sha256`
 
 The ZIP must contain one `BridgeMonitoringWorkbench.exe` and its adjacent
-`release_manifest.json`. Use the source repository ZIP only for source review;
-it is not a runnable workbench update.
+schema-v2 `release_manifest.json`. The manifest inventories every packaged file
+except itself with relative path, byte count and SHA256, and pins all required
+analysis/report/gate/visual smoke results. Use the source repository ZIP only
+for source review; it is not a runnable workbench update.
 
 GitHub's Releases API exposes asset download URLs and may expose a platform
 `sha256:` digest. The updater accepts that digest or the separately published
@@ -58,17 +60,29 @@ by the build script.
 ## Installation and rollback behavior
 
 - Download occurs under `%LOCALAPPDATA%\BridgeMonitoringWorkbench\updates`.
-- The ZIP and EXE must pass SHA256 and package-structure checks before the user
-  can install.
+- The ZIP, EXE and all inventory files must pass SHA256, path, count and
+  required-smoke checks before the user can install. Traversal, absolute,
+  duplicate-case and symbolic-link ZIP entries are rejected.
 - Installation only begins after explicit confirmation.
-- A detached PowerShell helper waits for the running workbench to exit.
-- The current installation is copied to a timestamped sibling backup before
-  replacement.
+- The verified staged EXE starts in installer mode and waits for the running
+  workbench to exit. No external Python or PowerShell runtime is required.
+- If the normal staging path would approach the Windows path limit, extraction
+  automatically switches to a short system-temporary staging root.
+- A complete candidate directory is built from the current installation,
+  obsolete managed runtime files are removed, and the new package is overlaid.
+  The candidate is fully revalidated before any live path changes.
 - Existing `config` files are preserved. Config files introduced for the first
   time by a newer package are added, but existing project settings are not
   overwritten.
-- The helper starts the new EXE after copying. On failure it attempts to restore
-  the backup and writes an update log beside the helper script.
+- Unmanaged operator files are preserved. The live install is then renamed to a
+  timestamped sibling backup and the verified candidate is activated by an
+  atomic directory rename.
+- Any failure before or after activation restores the exact old directory and
+  writes a JSON update log. On success the installed runtime is revalidated and
+  the new EXE is started.
 
-The first production Release should be tested on a disposable copy of the
-installed directory before enabling it for routine bridge work.
+`scripts/validate_workbench_update_cycle.py` runs the required disposable test
+against the real Release ZIP: archive staging, frozen-EXE installation, config
+and unmanaged-file retention, stale-runtime removal, six-profile installed
+smoke, native screenshot, and fault-injected exact rollback. Run it again for
+every stable release candidate before publication.

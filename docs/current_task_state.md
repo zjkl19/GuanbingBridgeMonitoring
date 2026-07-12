@@ -36,8 +36,9 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `261/261`. The current joint MATLAB
-  workbench/runner/config/plot batch passes `147/147`; the earlier focused alarm-editor,
+- The current Python suite passes `272/272`. The current joint MATLAB
+  workbench/runner/config/plot batch baseline remains `147/147`; the latest
+  report/config/update-focused MATLAB batch passes `70/70`. The earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
   A direct MATLAB JSON-contract run completed and
   produced an `ok` manifest. A second end-to-end run through the Python
@@ -61,6 +62,27 @@ Current local development state:
   required assets but never publishes externally. GitHub currently has no
   Releases, so no update is offered until the first reviewed stable Release is
   deliberately published.
+- The updater now uses a schema-v2 release manifest with an exact inventory of
+  all 594 packaged files (relative path, bytes and SHA256), not only ZIP/EXE
+  hashes. Staging rejects traversal, absolute, duplicate-case and symbolic-link
+  members, validates every inventory file and every required smoke gate, and
+  automatically falls back to a short system-temporary root when a ZIP member
+  would approach the Windows path limit.
+- The old copy-in-place PowerShell installation path has been replaced in the
+  UI by the verified staged EXE's transaction mode. It builds and validates a
+  candidate directory, preserves existing configs and unmanaged operator files,
+  removes stale managed runtime files, then atomically swaps the live directory
+  to a timestamped backup. Faults both before activation and after activation
+  restore the exact original tree.
+- A real 200.0 MB development Release ZIP passed the complete disposable update
+  cycle in 34.3 seconds: archive/checksum/inventory verification, frozen-EXE
+  install, config and unmanaged-file preservation, stale-runtime removal,
+  installed six-profile/8-config-tab smoke, native Chinese screenshot, backup
+  creation, and fault-injected exact rollback. The run also exposed and fixed a
+  262-character extraction failure, an offscreen screenshot false alarm and a
+  native screen-grab repaint race. The final widget-rendered screenshot is
+  `2000x1075` with a `0.0` black-region ratio. Evidence is under
+  `tmp/workbench_update_cycle/validation_final2`.
 - `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
   MATLAB Runner, six project configs/templates, and the report builder. The
   build blocks on the workbench smoke contract, ten native screenshots,
@@ -184,7 +206,7 @@ Current local development state:
   items, Jiulongjiang 11 missing items, Zhishan lacked anchors 2-5/2-6, and
   Shuixianhua still relies on a synthesized legacy manifest. Page/media deltas
   therefore remain diagnostic evidence, not production parity acceptance.
-- The Python suite now passes `266/266`; the report/config-related MATLAB batch
+- The Python suite now passes `272/272`; the report/config-related MATLAB batch
   passes `70/70`. The workbench and report builder were rebuilt, all ten native
   screenshots passed visual inspection, and the release manifest records the
   packaged report-gate contract smoke in addition to report-job and visual-QC

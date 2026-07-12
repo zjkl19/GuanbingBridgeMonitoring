@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtGui import QFont
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from .main_window import WorkbenchWindow
@@ -23,6 +24,13 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--smoke-output", type=Path, default=None)
     parser.add_argument("--screenshot-output", type=Path, default=None)
     parser.add_argument("--screenshot-tab", type=int, default=0)
+    parser.add_argument("--install-staged-update", action="store_true")
+    parser.add_argument("--install-source", type=Path, default=None)
+    parser.add_argument("--install-root", type=Path, default=None)
+    parser.add_argument("--install-version", default="")
+    parser.add_argument("--wait-pid", type=int, default=0)
+    parser.add_argument("--restart-after-install", action="store_true")
+    parser.add_argument("--install-log", type=Path, default=None)
     return parser
 
 
@@ -49,6 +57,23 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.install_staged_update:
+        if args.install_source is None or args.install_root is None or not args.install_version:
+            raise SystemExit("install mode requires source, root and version")
+        from .updater import install_staged_update
+
+        try:
+            install_staged_update(
+                args.install_source,
+                args.install_root,
+                args.install_version,
+                wait_pid=args.wait_pid,
+                restart=args.restart_after_install,
+                log_path=args.install_log,
+            )
+            return 0
+        except Exception:
+            return 1
     app = QApplication([sys.argv[0]])
     app.setFont(QFont("Microsoft YaHei UI", 9))
     window = WorkbenchWindow(args.project_root)
@@ -79,16 +104,19 @@ def main(argv: list[str] | None = None) -> int:
         for tab_index in range(window.tabs.count()):
             window.tabs.setCurrentIndex(tab_index)
             app.processEvents()
+            QTest.qWait(25)
         if 0 <= args.screenshot_tab < window.tabs.count():
             window.tabs.setCurrentIndex(args.screenshot_tab)
         for _ in range(5):
             app.processEvents()
+            QTest.qWait(50)
         window.repaint()
         app.processEvents()
+        QTest.qWait(250)
         screen = window.screen() or app.primaryScreen()
-        pixmap = screen.grabWindow(int(window.winId())) if screen is not None else window.grab()
+        pixmap = window.grab()
         if pixmap.isNull():
-            pixmap = window.grab()
+            pixmap = screen.grabWindow(int(window.winId())) if screen is not None else window.grab()
         if not pixmap.save(str(args.screenshot_output)):
             window.poll_timer.stop()
             window.close()

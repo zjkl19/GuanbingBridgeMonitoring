@@ -235,10 +235,20 @@ $spectrumScreenshotOutput = Join-Path $distRoot "workbench_spectrum_editor.png"
 $reportTaskScreenshotOutput = Join-Path $distRoot "workbench_report_task.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $reportTaskScreenshotOutput -ProfileId "hongtang" -TabIndex 3
 
-$files = Get-ChildItem -LiteralPath $distRoot -Recurse -File
+$files = Get-ChildItem -LiteralPath $distRoot -Recurse -File | Where-Object {
+    $_.FullName -ne (Join-Path $distRoot "release_manifest.json")
+}
+$fileInventory = @($files | ForEach-Object {
+    $relative = $_.FullName.Substring($distRoot.Length).TrimStart([char[]]@('\', '/')).Replace('\', '/')
+    [ordered]@{
+        path = $relative
+        bytes = [long]$_.Length
+        sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+})
 $updatePolicy = Get-Content -LiteralPath (Join-Path $distRoot "config\workbench_update.json") -Raw -Encoding UTF8 | ConvertFrom-Json
 $releaseManifest = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     built_at = (Get-Date).ToString("o")
     version = (Get-Content -LiteralPath (Join-Path $distRoot "VERSION") -Raw -Encoding UTF8).Trim()
     executable = "BridgeMonitoringWorkbench.exe"
@@ -253,6 +263,8 @@ $releaseManifest = [ordered]@{
     report_visual_qc_smoke = -not $SkipReportBuilder
     file_count_excluding_manifest = $files.Count
     total_bytes_excluding_manifest = [long](($files | Measure-Object Length -Sum).Sum)
+    file_inventory_count = $fileInventory.Count
+    file_inventory = $fileInventory
     screenshots = @(
         "workbench_startup.png",
         "workbench_alarm_editor.png",

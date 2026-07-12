@@ -5,8 +5,10 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -100,6 +102,42 @@ class StagedUpdate:
     executable_path: Path
     manifest_path: Path
     archive_sha256: str
+
+
+@dataclass(frozen=True)
+class InstalledUpdate:
+    version: str
+    install_root: Path
+    backup_root: Path
+    log_path: Path
+
+
+REQUIRED_RELEASE_GATES = (
+    "includes_analysis_runner",
+    "includes_report_builder",
+    "report_builder_context_smoke",
+    "embedded_report_job_smoke",
+    "report_gate_contract_smoke",
+    "report_visual_qc_smoke",
+)
+LEGACY_MANAGED_DIRECTORIES = ("_internal", "bin", "reporting", "reports")
+LEGACY_MANAGED_FILES = (
+    "BridgeMonitoringWorkbench.exe",
+    "README.md",
+    "VERSION",
+    "release_manifest.json",
+    "workbench_smoke.json",
+    "workbench_startup.png",
+    "workbench_alarm_editor.png",
+    "workbench_cleaning_editor.png",
+    "workbench_post_filter_editor.png",
+    "workbench_auto_threshold.png",
+    "workbench_offset_editor.png",
+    "workbench_group_plot_editor.png",
+    "workbench_plot_common_editor.png",
+    "workbench_spectrum_editor.png",
+    "workbench_report_task.png",
+)
 
 
 def _version_tuple(value: str) -> tuple[int, int, int]:
@@ -245,6 +283,7 @@ class GitHubReleaseClient:
 
 
 def _safe_zip_members(archive: zipfile.ZipFile) -> Iterable[zipfile.ZipInfo]:
+    seen: set[str] = set()
     for member in archive.infolist():
         normalized = member.filename.replace("\\", "/")
         path = PurePosixPath(normalized)
@@ -255,7 +294,122 @@ def _safe_zip_members(archive: zipfile.ZipFile) -> Iterable[zipfile.ZipInfo]:
             or re.match(r"^[A-Za-z]:", normalized)
         ):
             raise UpdateSecurityError(f"更新 ZIP 含不安全路径：{member.filename}")
+        key = normalized.rstrip("/").casefold()
+        if not key:
+            raise UpdateSecurityError("update ZIP contains an empty member path")
+        if key in seen:
+            raise UpdateSecurityError(f"update ZIP contains a duplicate path: {member.filename}")
+        seen.add(key)
+        unix_mode = (member.external_attr >> 16) & 0xFFFF
+        if stat.S_ISLNK(unix_mode):
+            raise UpdateSecurityError(f"update ZIP contains a symbolic link: {member.filename}")
         yield member
+
+
+def _safe_relative_path(value: object) -> Path:
+    normalized = str(value or "").replace("\\", "/")
+    pure = PurePosixPath(normalized)
+    if (
+        not normalized
+        or pure.is_absolute()
+        or ".." in pure.parts
+        or normalized.startswith("//")
+        or re.match(r"^[A-Za-z]:", normalized)
+    ):
+        raise UpdateSecurityError(f"release manifest contains unsafe file path: {value!r}")
+    return Path(*pure.parts)
+
+
+def _release_inventory(payload: dict[str, Any]) -> tuple[tuple[Path, int, str], ...]:
+    if int(payload.get("schema_version") or 0) < 2:
+        raise UpdateSecurityError("release manifest schema_version must be at least 2")
+    raw_inventory = payload.get("file_inventory")
+    if not isinstance(raw_inventory, list) or not raw_inventory:
+        raise UpdateSecurityError("release manifest is missing the complete file inventory")
+    records: list[tuple[Path, int, str]] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(raw_inventory, start=1):
+        if not isinstance(raw, dict):
+            raise UpdateSecurityError(f"release inventory row {index} must be an object")
+        relative = _safe_relative_path(raw.get("path"))
+        normalized = relative.as_posix().casefold()
+        if normalized == "release_manifest.json":
+            raise UpdateSecurityError("release manifest cannot inventory itself")
+        if normalized in seen:
+            raise UpdateSecurityError(f"duplicate release inventory path: {relative.as_posix()}")
+        seen.add(normalized)
+        try:
+            size = int(raw.get("bytes"))
+        except (TypeError, ValueError) as exc:
+            raise UpdateSecurityError(f"invalid release inventory size: {relative.as_posix()}") from exc
+        digest = str(raw.get("sha256") or "").lower()
+        if size < 0 or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise UpdateSecurityError(f"invalid release inventory record: {relative.as_posix()}")
+        records.append((relative, size, digest))
+    declared_count = int(payload.get("file_inventory_count") or len(records))
+    if declared_count != len(records):
+        raise UpdateSecurityError("release inventory count does not close")
+    return tuple(records)
+
+
+def validate_release_package(
+    package_root: Path,
+    *,
+    expected_version: str | None = None,
+    allow_config_overrides: bool = False,
+    allow_extra_files: bool = False,
+) -> dict[str, Any]:
+    package_root = package_root.resolve()
+    manifest_path = package_root / "release_manifest.json"
+    if not manifest_path.is_file():
+        raise UpdateSecurityError("update package is missing release_manifest.json")
+    payload = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    if not isinstance(payload, dict):
+        raise UpdateSecurityError("release manifest root must be an object")
+    version = str(payload.get("version") or "")
+    _version_tuple(version)
+    if expected_version is not None and _version_tuple(version) != _version_tuple(expected_version):
+        raise UpdateSecurityError("update package version differs from the selected release")
+    for gate in REQUIRED_RELEASE_GATES:
+        if payload.get(gate) is not True:
+            raise UpdateSecurityError(f"update package did not pass required release gate: {gate}")
+    smoke = payload.get("smoke")
+    if not isinstance(smoke, dict) or smoke.get("ok") is not True:
+        raise UpdateSecurityError("update package workbench smoke gate is not successful")
+    inventory = _release_inventory(payload)
+    expected_paths: set[str] = set()
+    for relative, size, digest in inventory:
+        normalized = relative.as_posix().casefold()
+        expected_paths.add(normalized)
+        target = package_root / relative
+        if not target.is_file():
+            raise UpdateSecurityError(f"release inventory file is missing: {relative.as_posix()}")
+        if allow_config_overrides and relative.parts and relative.parts[0].casefold() == "config":
+            continue
+        if target.stat().st_size != size:
+            raise UpdateSecurityError(f"release inventory size mismatch: {relative.as_posix()}")
+        if file_sha256(target) != digest:
+            raise UpdateSecurityError(f"release inventory SHA256 mismatch: {relative.as_posix()}")
+    if not allow_extra_files:
+        actual_paths = {
+            path.relative_to(package_root).as_posix().casefold()
+            for path in package_root.rglob("*")
+            if path.is_file()
+            and path.relative_to(package_root).as_posix().casefold() != "release_manifest.json"
+        }
+        if actual_paths != expected_paths:
+            missing = sorted(expected_paths - actual_paths)
+            extra = sorted(actual_paths - expected_paths)
+            raise UpdateSecurityError(
+                f"release inventory file set differs: missing={missing[:5]}, extra={extra[:5]}"
+            )
+    executable = package_root / "BridgeMonitoringWorkbench.exe"
+    expected_exe = str(payload.get("executable_sha256") or "").lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_exe):
+        raise UpdateSecurityError("release manifest is missing a valid EXE SHA256")
+    if not executable.is_file() or file_sha256(executable) != expected_exe:
+        raise UpdateSecurityError("workbench EXE SHA256 differs from the release manifest")
+    return payload
 
 
 def stage_verified_update(
@@ -264,11 +418,20 @@ def stage_verified_update(
     archive_sha256: str,
     staging_parent: Path,
 ) -> StagedUpdate:
-    stage = staging_parent / f"{version}_{uuid.uuid4().hex[:8]}"
-    stage.mkdir(parents=True, exist_ok=False)
+    token = uuid.uuid4().hex[:8]
+    stage = staging_parent / token
     try:
         with zipfile.ZipFile(archive_path) as archive:
-            archive.extractall(stage, members=_safe_zip_members(archive))
+            members = list(_safe_zip_members(archive))
+            if not members:
+                raise UpdateSecurityError("update ZIP is empty")
+            longest = max(len(str(stage.resolve() / Path(*PurePosixPath(
+                member.filename.replace("\\", "/")
+            ).parts))) for member in members)
+            if os.name == "nt" and longest >= 240:
+                stage = Path(tempfile.gettempdir()) / "bmw_stage" / token
+            stage.mkdir(parents=True, exist_ok=False)
+            archive.extractall(stage, members=members)
         executables = list(stage.rglob("BridgeMonitoringWorkbench.exe"))
         if len(executables) != 1:
             raise UpdateSecurityError("更新包必须且只能包含一个 BridgeMonitoringWorkbench.exe")
@@ -285,6 +448,7 @@ def stage_verified_update(
             raise UpdateSecurityError("更新包清单缺少有效 EXE SHA256")
         if file_sha256(executable) != expected_exe:
             raise UpdateSecurityError("更新包 EXE SHA256 与内部清单不一致")
+        validate_release_package(package_root, expected_version=version)
         return StagedUpdate(version, archive_path, package_root, executable, manifest, archive_sha256)
     except Exception:
         shutil.rmtree(stage, ignore_errors=True)
@@ -294,6 +458,199 @@ def stage_verified_update(
 def default_update_root() -> Path:
     local = os.environ.get("LOCALAPPDATA")
     return Path(local or tempfile.gettempdir()) / "BridgeMonitoringWorkbench" / "updates"
+
+
+def _wait_for_process_exit(pid: int, timeout_seconds: int = 120) -> None:
+    if pid <= 0 or pid == os.getpid():
+        return
+    deadline = time.monotonic() + max(0, timeout_seconds)
+    if os.name == "nt":
+        import ctypes
+
+        synchronize = 0x00100000
+        handle = ctypes.windll.kernel32.OpenProcess(synchronize, False, pid)
+        if not handle:
+            return
+        try:
+            remaining = max(0, round((deadline - time.monotonic()) * 1000))
+            result = ctypes.windll.kernel32.WaitForSingleObject(handle, remaining)
+            if result == 0x00000102:
+                raise UpdateError(f"timed out waiting for workbench process {pid} to exit")
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+        return
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return
+        time.sleep(0.1)
+    raise UpdateError(f"timed out waiting for workbench process {pid} to exit")
+
+
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def _remove_managed_runtime(candidate: Path) -> None:
+    manifest_path = candidate / "release_manifest.json"
+    removed_from_inventory = False
+    if manifest_path.is_file():
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+            for relative, _size, _digest in _release_inventory(payload):
+                if relative.parts and relative.parts[0].casefold() == "config":
+                    continue
+                target = candidate / relative
+                if target.is_file() or target.is_symlink():
+                    target.unlink(missing_ok=True)
+            removed_from_inventory = True
+        except (OSError, ValueError, UpdateSecurityError, json.JSONDecodeError):
+            removed_from_inventory = False
+    if not removed_from_inventory:
+        for name in LEGACY_MANAGED_DIRECTORIES:
+            shutil.rmtree(candidate / name, ignore_errors=True)
+        for name in LEGACY_MANAGED_FILES:
+            (candidate / name).unlink(missing_ok=True)
+    (candidate / "release_manifest.json").unlink(missing_ok=True)
+
+
+def _copy_package_into_candidate(source: Path, candidate: Path) -> None:
+    for item in source.iterdir():
+        target = candidate / item.name
+        if item.name.casefold() == "config":
+            target.mkdir(parents=True, exist_ok=True)
+            for config_file in item.rglob("*"):
+                if not config_file.is_file():
+                    continue
+                relative = config_file.relative_to(item)
+                destination = target / relative
+                if not destination.exists():
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(config_file, destination)
+        elif item.is_dir():
+            shutil.copytree(item, target, dirs_exist_ok=True)
+        else:
+            shutil.copy2(item, target)
+
+
+def install_staged_update(
+    source_root: Path,
+    install_root: Path,
+    version: str,
+    *,
+    wait_pid: int = 0,
+    restart: bool = True,
+    timeout_seconds: int = 120,
+    log_path: Path | None = None,
+    failure_point: str = "",
+) -> InstalledUpdate:
+    source_root = source_root.resolve()
+    install_root = install_root.resolve()
+    if source_root == install_root or _is_relative_to(source_root, install_root) or _is_relative_to(install_root, source_root):
+        raise UpdateSecurityError("staged package and install directory must be separate")
+    if not (install_root / "BridgeMonitoringWorkbench.exe").is_file():
+        raise UpdateSecurityError(f"install directory has no workbench EXE: {install_root}")
+    validate_release_package(source_root, expected_version=version)
+    _wait_for_process_exit(wait_pid, timeout_seconds)
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    nonce = uuid.uuid4().hex[:8]
+    pending = install_root.with_name(f"{install_root.name}.pending_{version}_{nonce}")
+    backup = install_root.with_name(f"{install_root.name}.backup_{version}_{stamp}_{nonce}")
+    log = (log_path or install_root.with_name(f"{install_root.name}.update_{version}_{stamp}_{nonce}.json")).resolve()
+    swapped = False
+    activated = False
+    try:
+        shutil.copytree(install_root, pending)
+        _remove_managed_runtime(pending)
+        _copy_package_into_candidate(source_root, pending)
+        validate_release_package(
+            pending,
+            expected_version=version,
+            allow_config_overrides=True,
+            allow_extra_files=True,
+        )
+        if failure_point == "after_candidate_validation":
+            raise UpdateError("injected failure after candidate validation")
+        install_root.rename(backup)
+        swapped = True
+        if failure_point == "after_backup_rename":
+            raise UpdateError("injected failure after backup rename")
+        pending.rename(install_root)
+        swapped = False
+        activated = True
+        if failure_point == "after_activation":
+            raise UpdateError("injected failure after activation")
+        validate_release_package(
+            install_root,
+            expected_version=version,
+            allow_config_overrides=True,
+            allow_extra_files=True,
+        )
+        payload = {
+            "status": "installed",
+            "version": version,
+            "install_root": str(install_root),
+            "backup_root": str(backup),
+            "source_root": str(source_root),
+        }
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if restart:
+            subprocess.Popen(
+                [str(install_root / "BridgeMonitoringWorkbench.exe")],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
+            )
+        return InstalledUpdate(version, install_root, backup, log)
+    except Exception as exc:
+        if activated and backup.is_dir():
+            shutil.rmtree(install_root, ignore_errors=True)
+            backup.rename(install_root)
+            activated = False
+        elif swapped and backup.is_dir() and not install_root.exists():
+            backup.rename(install_root)
+            swapped = False
+        shutil.rmtree(pending, ignore_errors=True)
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text(json.dumps({
+            "status": "failed",
+            "version": version,
+            "install_root": str(install_root),
+            "source_root": str(source_root),
+            "error": str(exc),
+            "rolled_back": install_root.is_dir(),
+        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        raise
+
+
+def launch_staged_installer(
+    staged: StagedUpdate,
+    install_root: Path,
+    current_pid: int,
+) -> subprocess.Popen[bytes]:
+    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    return subprocess.Popen(
+        [
+            str(staged.executable_path),
+            "--install-staged-update",
+            "--install-source", str(staged.package_root),
+            "--install-root", str(install_root.resolve()),
+            "--install-version", staged.version,
+            "--wait-pid", str(int(current_pid)),
+            "--restart-after-install",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=creationflags,
+    )
 
 
 def _ps_quote(value: Path | str) -> str:
