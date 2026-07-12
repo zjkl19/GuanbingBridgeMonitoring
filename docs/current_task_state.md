@@ -36,7 +36,7 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `258/258`. The current joint MATLAB
+- The current Python suite passes `261/261`. The current joint MATLAB
   workbench/runner/config/plot batch passes `147/147`; the earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
   A direct MATLAB JSON-contract run completed and
@@ -147,6 +147,22 @@ Current local development state:
   copied any existing report EXE. It now rebuilds `BridgeReportBuilder.exe`
   whenever report Python/config inputs are newer, and the release manifest
   records a successful embedded-report protocol smoke.
+- Page-level report QC is now part of the shared report task. It uses
+  LibreOffice and Poppler to produce a PDF, every page PNG, a contact sheet and
+  `visual_qc.json`, with automatic blank-page and raster-edge warnings. A
+  reusable sample-matrix CLI rendered five existing local reports (371 pages):
+  Guanbing 40, Hongtang 109, Jiulongjiang 107 and Zhishan 47 passed; the
+  Shuixianhua 68-page historical sample warned on confirmed blank pages 3 and
+  10. All five DOCX packages were structurally valid.
+- The first matrix run exposed and fixed another explicit bug: repeating long
+  Chinese DOCX names in the QC/profile path made LibreOffice return code 0
+  without a PDF. QC now uses short SHA-derived directories and a disposable
+  system-temporary LibreOffice profile. The packaged report builder has a
+  dedicated visual-QC contract smoke in addition to the report-job smoke.
+- The frozen report EXE independently rendered the 40-page Guanbing sample in
+  25.6 seconds with the same zero blank/edge-warning result as source mode.
+  The report page now exposes an “打开逐页渲染 QC” action bound to the pinned
+  contact-sheet directory.
 - The workbench packager now rebuilds the compiled analysis runner whenever
   included MATLAB sources are newer than the runner executable. This prevents
   a visually current PySide6 package from silently carrying an obsolete core
@@ -167,8 +183,8 @@ Current local development state:
 
 Remaining after the packaged embedded-report/provenance milestone:
 
-- complete rendered page-level report comparison for representative local
-  data from all five report-capable bridge profiles;
+- generate fresh reports through the embedded task for all five report-capable
+  profiles and compare them with the accepted historical render matrix;
 - complete local installed-runtime testing, then cross-bridge production
   comparison before any 133 deployment or legacy-GUI retirement.
 

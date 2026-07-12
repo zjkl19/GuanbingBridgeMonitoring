@@ -91,6 +91,14 @@ and summarizes DOCX package integrity/media, available PDF pages, and
 report-manifest missing/warning counts. Five report-capable profiles are
 mapped; Chongyangxi remains intentionally analysis-only.
 
+Final report QC also renders every DOCX page through LibreOffice and Poppler,
+writes page PNGs plus a contact sheet, and flags blank pages or content touching
+the raster boundary. Output folders use short source hashes rather than long
+Chinese report names. A five-profile local matrix rendered 371 pages: Guanbing,
+Hongtang, Jiulongjiang and Zhishan passed without automatic page warnings;
+Shuixianhua retained two truly blank historical pages (3 and 10) as an explicit
+warning for manual review.
+
 The review page enumerates every manifest-declared `.plot.json`. It requires
 full sampling, no reduction, finite/plotted equality, source/input and finite
 source/input equality, coherent requested/complete/incomplete day counts, and
@@ -123,5 +131,6 @@ inside MATLAB, and the MATLAB engine is not rewritten in Python.
 ## Later migration work
 
 - Curve-preview parity for automatic-cleaning suggestions.
-- Rendered page-level DOCX/PDF visual comparison across production examples.
+- Generate fresh reports through the embedded task for each report-capable
+  profile and compare them with the accepted historical samples.
 - Installed-runtime comparison across every bridge profile.

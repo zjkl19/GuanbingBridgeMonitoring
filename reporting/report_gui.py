@@ -1297,14 +1297,42 @@ def main() -> None:
     parser.add_argument("--report-status", type=Path, default=None)
     parser.add_argument("--report-result", type=Path, default=None)
     parser.add_argument("--report-job-contract-smoke-test", action="store_true")
+    parser.add_argument("--visual-qc-contract-smoke-test", action="store_true")
+    parser.add_argument("--visual-qc-docx", type=Path, default=None)
+    parser.add_argument("--visual-qc-output", type=Path, default=None)
     args, qt_args = parser.parse_known_args(sys.argv[1:])
+    if args.visual_qc_contract_smoke_test:
+        import tempfile
+        from PIL import Image
+        from report_visual_qc import analyze_page_image, create_contact_sheet
+
+        with tempfile.TemporaryDirectory(prefix="bms_visual_smoke_") as folder:
+            root = Path(folder)
+            page = root / "page-1.png"
+            Image.new("RGB", (100, 140), "white").save(page)
+            analysis = analyze_page_image(page)
+            contact = create_contact_sheet([page], root / "contact.png")
+            if not analysis["blank"] or not contact.is_file():
+                raise RuntimeError("visual QC packaged contract smoke failed")
+        return
+    if args.visual_qc_docx is not None:
+        from report_visual_qc import render_docx_visual_qc
+
+        output = args.visual_qc_output or (args.visual_qc_docx.parent / "report_visual_qc")
+        result = render_docx_visual_qc(args.visual_qc_docx, output)
+        result_path = output / "visual_qc_result.json"
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if result.get("status") == "failed":
+            raise SystemExit(1)
+        return
     if args.report_job_contract_smoke_test:
         from report_job import REPORT_TYPE_NAMES
 
         print(json.dumps({
             "ok": True,
             "report_type_count": len(REPORT_TYPE_NAMES),
-            "stages": ["loading", "preflight", "building", "qc", "completed"],
+            "stages": ["loading", "preflight", "building", "rendering", "qc", "completed"],
         }, ensure_ascii=False))
         return
     if args.run_job_context:

@@ -85,10 +85,13 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                 "2026-04-01", "2026-04-30",
             )
             stages: list[str] = []
-            with patch("report_job.build_guanbing_monthly_report", return_value=(report, manifest)):
+            visual = {"status": "passed", "page_count": 1, "pages": [], "contact_sheet": "contact.png"}
+            with patch("report_job.build_guanbing_monthly_report", return_value=(report, manifest)), patch(
+                "report_job.render_docx_visual_qc", return_value=visual
+            ):
                 result = execute_report_job(request, lambda stage, _fraction, _message: stages.append(stage))
             self.assertEqual(result.qc["status"], "passed")
-            self.assertEqual(stages, ["preflight", "building", "qc", "completed"])
+            self.assertEqual(stages, ["preflight", "building", "rendering", "qc", "completed"])
             self.assertEqual(result.qc["docx"]["media_count"], 1)
 
     def test_qc_rejects_non_docx_and_status_reader_merges_result(self) -> None:

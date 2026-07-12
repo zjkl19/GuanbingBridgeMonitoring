@@ -58,6 +58,8 @@ class ReportState:
     output_docx: str = ""
     output_pdf: str = ""
     qc_state: str = ""
+    visual_qc_dir: str = ""
+    visual_contact_sheet: str = ""
     pid: int | None = None
 
 

@@ -64,6 +64,10 @@ MATLAB `AutoThresholdProposalService`，由重新编译的同一
 PDF 页数、报告 Manifest 缺失项与警告；配置、模板和分析 Manifest 的固定 SHA 仍会在子进程
 读取前再次校验。
 
+报告任务还会调用 LibreOffice 与 Poppler 将最终 DOCX 逐页渲染，生成页面 PNG、联系表和
+`visual_qc.json`。自动门禁标出空白页及内容触碰页面边界；这些提示用于缩小人工复核范围，
+联系表仍需人工确认。渲染输出使用短哈希目录，避免长中文报告名触发 Windows 路径上限。
+
 打包版右上角提供“检查更新”。正式版启动后每天最多自动查询一次 GitHub
 Release；发现更高稳定版本时，可下载、双重 SHA256 校验、备份当前安装并在退出后
 更新。现有项目配置不会被覆盖。发布资产命名和操作流程见

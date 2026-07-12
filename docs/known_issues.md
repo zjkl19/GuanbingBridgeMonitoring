@@ -38,23 +38,36 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
 
 ## Embedded Report QC Boundary
 
-Status: implemented locally; packaged protocol smoke and structural QC covered,
-production visual comparison remains pending.
+Status: implemented locally; packaged protocol/visual smoke and five-profile
+historical visual matrix covered; fresh embedded-build comparison remains pending.
 
 The workbench now runs the same report dispatch service used by the legacy
 report GUI in a background process and records stage/status/result JSON. QC
 checks DOCX ZIP integrity, the main document part, media count, output hash and
 size; it records available PDF size/page count and report-manifest
-missing/warning counts. This catches corrupt or missing artifacts but does not
-yet replace rendered page-by-page visual inspection. Until representative
-reports for all five report-capable profiles are rendered and compared, the
-legacy production workflow and manual page review remain the acceptance
-fallback.
+missing/warning counts. It also renders every page, creates a contact sheet and
+flags blank pages or raster-boundary contact. Five historical samples totaling
+371 pages were rendered; four passed automatically. The Shuixianhua sample has
+two genuinely blank pages (3 and 10), retained as a warning rather than silently
+accepted. Contact-sheet/manual page review remains the acceptance step; newly
+generated embedded reports still need profile-by-profile comparison before the
+legacy production workflow can retire.
+
+Installed-runtime visual execution has been verified on the 40-page Guanbing
+sample: the packaged report EXE completed in 25.6 seconds and matched source
+mode with no blank-page or edge warnings. The other four profiles have source
+render evidence but still need fresh packaged embedded-build comparison.
 
 The workbench packager now rebuilds `BridgeReportBuilder.exe` whenever report
 Python/config inputs are newer. This guard was added after the first embedded
 protocol smoke exposed a stale copied report EXE that opened the old GUI and
 never returned from the new contract check.
+
+The first five-profile render also exposed a Windows long-path defect: the QC
+folder repeated the full Chinese DOCX name and LibreOffice returned success
+without producing a PDF. Visual QC now uses short SHA-derived output folders
+and an isolated system-temporary LibreOffice profile. This avoids both the
+conversion failure and undeletable deep profile trees.
 
 ## Plot And Spectrum Editor Compatibility Rules
 

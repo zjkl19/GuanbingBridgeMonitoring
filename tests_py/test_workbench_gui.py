@@ -53,6 +53,7 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertEqual(window.update_controller.policy.repository, "zjkl19/GuanbingBridgeMonitoring")
             self.assertEqual(window.update_btn.text(), "检查更新")
             self.assertFalse(window.open_report_btn.isEnabled())
+            self.assertFalse(window.open_report_qc_btn.isEnabled())
             self.assertEqual(window.analysis_progress.value(), 0)
         finally:
             window.poll_timer.stop()
@@ -98,6 +99,34 @@ class WorkbenchGuiTests(unittest.TestCase):
                 self.assertEqual(window.analysis_progress.value(), 250)
                 self.assertIn("温度分析", window.analysis_progress_label.text())
                 self.assertIn("1分30秒", window.analysis_progress_label.text())
+            finally:
+                window.poll_timer.stop()
+                window.close()
+
+    def test_report_qc_table_exposes_render_contact_sheet(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            contact = Path(folder) / "contact.png"
+            contact.write_bytes(b"png")
+            window = WorkbenchWindow(root)
+            try:
+                window._show_report_qc({
+                    "report_path": str(Path(folder) / "report.docx"),
+                    "pdf_path": str(Path(folder) / "report.pdf"),
+                    "qc": {
+                        "docx": {"zip_integrity": True, "document_xml": True, "size_bytes": 10, "media_count": 2},
+                        "pdf": {"exists": True, "page_count": 3, "size_bytes": 20},
+                        "manifest": {"status": "ok", "missing_count": 0, "warning_count": 0},
+                        "visual": {
+                            "status": "passed", "page_count": 3,
+                            "blank_pages": [], "edge_touch_pages": [],
+                            "contact_sheet": str(contact), "output_dir": folder,
+                        },
+                    },
+                })
+                self.assertEqual(window.report_qc_table.rowCount(), 4)
+                self.assertTrue(window.open_report_qc_btn.isEnabled())
+                self.assertIn("3 页", window.report_qc_table.item(3, 2).text())
             finally:
                 window.poll_timer.stop()
                 window.close()

@@ -16,6 +16,7 @@ from build_shuixianhua_monthly_report import build_report as build_shuixianhua_m
 from build_zhishan_monthly_report import build_report as build_zhishan_monthly_report
 from missing_summary import missing_summary_paths
 from report_build_manifest import find_latest_report_build_manifest
+from report_visual_qc import render_docx_visual_qc
 
 
 REPORT_TYPE_NAMES = {
@@ -125,18 +126,30 @@ def _manifest_qc(path: Path | None) -> dict[str, Any]:
     }
 
 
-def build_qc(report_path: Path, manifest_path: Path | None, pdf_path: Path | None) -> dict[str, Any]:
+def build_qc(
+    report_path: Path,
+    manifest_path: Path | None,
+    pdf_path: Path | None,
+    visual: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     docx = _docx_qc(report_path)
     manifest = _manifest_qc(manifest_path)
     pdf = _pdf_qc(pdf_path)
-    passed = bool(
+    structural_passed = bool(
         docx["exists"]
         and docx["size_bytes"] > 0
         and docx["zip_integrity"]
         and docx["document_xml"]
         and manifest.get("status") in {"ok", "warning"}
     )
-    return {"status": "passed" if passed else "failed", "docx": docx, "pdf": pdf, "manifest": manifest}
+    visual = visual or {"status": "unavailable", "page_count": 0, "pages": []}
+    if not structural_passed or visual.get("status") == "failed":
+        status = "failed"
+    elif visual.get("status") in {"warning", "unavailable"}:
+        status = "warning"
+    else:
+        status = "passed"
+    return {"status": status, "docx": docx, "pdf": pdf, "manifest": manifest, "visual": visual}
 
 
 def _ensure_report_manifest(
@@ -236,9 +249,14 @@ def execute_report_job(request: ReportJobRequest, progress: ProgressCallback | N
         candidate_pdf = report_path.with_suffix(".pdf")
         pdf_path = candidate_pdf.resolve() if candidate_pdf.is_file() else None
     manifest_path = _ensure_report_manifest(request.output_dir, report_path, manifest_path, report_type)
-    emit("qc", 0.9, "正在执行 DOCX/PDF 与报告 Manifest QC")
-    qc = build_qc(report_path, manifest_path, pdf_path)
-    if qc["status"] != "passed":
+    emit("rendering", 0.82, "正在逐页渲染报告并生成联系表")
+    visual = render_docx_visual_qc(report_path, request.output_dir / "report_visual_qc")
+    visual_pdf = str(visual.get("pdf_path") or "")
+    if visual_pdf and Path(visual_pdf).is_file():
+        pdf_path = Path(visual_pdf).resolve()
+    emit("qc", 0.93, "正在执行 DOCX/PDF、页面渲染与报告 Manifest QC")
+    qc = build_qc(report_path, manifest_path, pdf_path, visual)
+    if qc["status"] == "failed":
         raise RuntimeError(f"report QC failed: {qc}")
     summary_files = tuple(path for path in missing_summary_paths(report_path) if path.exists())
     emit("completed", 1.0, "报告生成与 QC 已完成")

@@ -341,6 +341,10 @@ class WorkbenchWindow(QMainWindow):
         open_output = QPushButton("打开输出目录")
         open_output.clicked.connect(self._open_output_dir)
         buttons.addWidget(open_output)
+        self.open_report_qc_btn = QPushButton("打开逐页渲染 QC")
+        self.open_report_qc_btn.setEnabled(False)
+        self.open_report_qc_btn.clicked.connect(self._open_report_qc_dir)
+        buttons.addWidget(self.open_report_qc_btn)
         buttons.addStretch(1)
         outer.addLayout(buttons)
         progress_row = QHBoxLayout()
@@ -640,17 +644,24 @@ class WorkbenchWindow(QMainWindow):
             output_pdf = str(status.get("pdf_path") or "")
             report_manifest = str(status.get("manifest_path") or "")
             qc_state = str(status.get("qc", {}).get("status") or "")
+            visual = status.get("qc", {}).get("visual", {}) if isinstance(status.get("qc"), dict) else {}
+            visual_qc_dir = str(visual.get("output_dir") or "") if isinstance(visual, dict) else ""
+            visual_contact_sheet = str(visual.get("contact_sheet") or "") if isinstance(visual, dict) else ""
             if (
                 context.report.output_docx != output_docx
                 or context.report.output_pdf != output_pdf
                 or context.report.manifest_path != report_manifest
                 or context.report.qc_state != qc_state
+                or context.report.visual_qc_dir != visual_qc_dir
+                or context.report.visual_contact_sheet != visual_contact_sheet
                 or context.report.pid is not None
             ):
                 context.report.output_docx = output_docx
                 context.report.output_pdf = output_pdf
                 context.report.manifest_path = report_manifest
                 context.report.qc_state = qc_state
+                context.report.visual_qc_dir = visual_qc_dir
+                context.report.visual_contact_sheet = visual_contact_sheet
                 context.report.pid = None
                 context.write(self.current_context_path)
             self._show_report_qc(status)
@@ -667,6 +678,7 @@ class WorkbenchWindow(QMainWindow):
         docx = qc.get("docx") if isinstance(qc.get("docx"), dict) else {}
         pdf = qc.get("pdf") if isinstance(qc.get("pdf"), dict) else {}
         manifest = qc.get("manifest") if isinstance(qc.get("manifest"), dict) else {}
+        visual = qc.get("visual") if isinstance(qc.get("visual"), dict) else {}
         rows = (
             (
                 "DOCX",
@@ -689,6 +701,13 @@ class WorkbenchWindow(QMainWindow):
                 f"缺失 {manifest.get('missing_count', 0)} / 警告 {manifest.get('warning_count', 0)}",
                 str(manifest.get("path") or ""),
             ),
+            (
+                "逐页渲染",
+                str(visual.get("status") or "unavailable"),
+                f"{visual.get('page_count', 0)} 页",
+                f"空白页 {len(visual.get('blank_pages') or [])} / 边界告警 {len(visual.get('edge_touch_pages') or [])}",
+                str(visual.get("contact_sheet") or visual.get("message") or ""),
+            ),
         )
         self.report_qc_table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
@@ -697,6 +716,8 @@ class WorkbenchWindow(QMainWindow):
         report_path = str(result.get("report_path") or "")
         pdf_path = str(result.get("pdf_path") or "")
         self.report_output_label.setText(f"DOCX：{report_path or '未生成'}\nPDF：{pdf_path or '未生成'}")
+        contact_sheet = str(visual.get("contact_sheet") or "")
+        self.open_report_qc_btn.setEnabled(bool(contact_sheet and Path(contact_sheet).is_file()))
 
     def _load_latest_manifest(self) -> None:
         data_root = Path(self.data_root_edit.text().strip()).expanduser()
@@ -905,6 +926,7 @@ class WorkbenchWindow(QMainWindow):
             self.report_progress.setValue(0)
             self.report_progress_label.setText(f"launched；PID {launch.pid}")
             self.report_qc_table.setRowCount(0)
+            self.open_report_qc_btn.setEnabled(False)
             self.report_output_label.setText("DOCX/PDF：正在生成")
             self.stop_report_btn.setEnabled(True)
             self.open_report_btn.setEnabled(False)
@@ -930,6 +952,19 @@ class WorkbenchWindow(QMainWindow):
     def _open_output_dir(self) -> None:
         path = Path(self.output_dir_edit.text().strip()).expanduser()
         path.mkdir(parents=True, exist_ok=True)
+        if os.name == "nt":
+            os.startfile(path)  # type: ignore[attr-defined]
+        else:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
+
+    def _open_report_qc_dir(self) -> None:
+        context = self.current_context
+        if context is None or not context.report.visual_qc_dir:
+            return
+        path = Path(context.report.visual_qc_dir).expanduser()
+        if not path.is_dir():
+            QMessageBox.warning(self, "逐页渲染 QC 不存在", str(path))
+            return
         if os.name == "nt":
             os.startfile(path)  # type: ignore[attr-defined]
         else:

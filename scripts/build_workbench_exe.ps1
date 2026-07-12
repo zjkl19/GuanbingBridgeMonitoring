@@ -171,6 +171,15 @@ if (-not $SkipReportBuilder) {
     if ($reportJobSmokeProcess.ExitCode -ne 0) {
         throw "Packaged embedded report-job smoke test failed with exit code $($reportJobSmokeProcess.ExitCode)"
     }
+    $visualQcSmokeProcess = Start-Process `
+        -FilePath $packagedReportExe `
+        -ArgumentList @("--visual-qc-contract-smoke-test") `
+        -WindowStyle Hidden `
+        -Wait `
+        -PassThru
+    if ($visualQcSmokeProcess.ExitCode -ne 0) {
+        throw "Packaged report visual-QC smoke test failed with exit code $($visualQcSmokeProcess.ExitCode)"
+    }
 }
 
 $smokeOutput = Join-Path $distRoot "workbench_smoke.json"
@@ -231,6 +240,7 @@ $releaseManifest = [ordered]@{
     includes_report_builder = -not $SkipReportBuilder
     report_builder_context_smoke = -not $SkipReportBuilder
     embedded_report_job_smoke = -not $SkipReportBuilder
+    report_visual_qc_smoke = -not $SkipReportBuilder
     file_count_excluding_manifest = $files.Count
     total_bytes_excluding_manifest = [long](($files | Measure-Object Length -Sum).Sum)
     screenshots = @(
