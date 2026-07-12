@@ -8,6 +8,25 @@ The report builder supports both monthly reports and period reports.
 - `月报 / Monthly Report`
 - `周期报（含 WIM） / Period Report (with WIM)`
 
+## Hongtang Typhoon Brief / 洪塘台风快报
+
+`build_hongtang_typhoon_brief.py` builds a lightweight staged brief directly
+from the daily Donghua waveform and feature ZIP files. It keeps the actual data
+cutoff explicit, uses raw W1/W2 waveforms for 10-minute wind statistics, and
+uses all configured girder/tower/cable feature-peak channels for structural
+trend screening.
+
+```powershell
+python reporting/build_hongtang_typhoon_brief.py `
+  --source-root F:\path\to\source_exports `
+  --output-dir F:\path\to\brief_output
+```
+
+The generated manifest records per-ZIP/per-entry coverage, row counts, rejected
+rows, method details, summary statistics, source links, and missing-entry QC.
+The staged brief must not be described as a landfall or post-event assessment
+unless the source coverage actually includes those periods.
+
 ## Packaged GUI / 打包 GUI
 
 The packaged directory should contain at least the following files.

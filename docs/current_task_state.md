@@ -1,10 +1,43 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-07-12 Hongtang Typhoon Bavi Lightweight Brief
+
+Current staged-delivery state:
+
+- The Q2 wind correction, W1/W2 diagnostic, and v1.7.38 locked final report are
+  already complete and must not be regenerated for the typhoon task.
+- CLI-only copies of the 2026-07-09, 2026-07-10, and 2026-07-11 Donghua
+  exports are under
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_typhoon_bavi_20260711\source_exports`
+  on 133. Every waveform and feature ZIP contains 139 entries.
+- The staged initial brief reads the ZIP files directly. W1/W2 use complete raw
+  waveforms with the verified non-negative speed and 10-minute averaging
+  convention; 12 structural-acceleration and 24 cable-acceleration channels use
+  the approximately 6.4-second Donghua feature peaks for trend screening.
+- Verified common monitoring coverage is 2026-07-08 09:00:07 through
+  2026-07-11 09:00:05. Typhoon Bavi landed at Zhejiang Yuhuan at 2026-07-11
+  23:20, so this initial version ends about 14.3 hours before landfall and does
+  not claim to evaluate the landfall, peak, or post-event period.
+- Initial results: W1/W2 maximum 10-minute mean wind speeds are 6.48/5.07 m/s;
+  recent-versus-baseline structural feature-envelope medians are 1.17 for main
+  girder acceleration, 0.94 for tower acceleration, 1.15 for south-side cable
+  vibration, and 1.17 for north-side cable vibration. No sustained synchronous
+  rise is claimed before the data cutoff.
+- Local report:
+  `output/doc/hongtang_typhoon_bavi_initial_20260712/洪塘大桥台风巴威影响监测快报_阶段性初版.docx`.
+  It rendered to three pages; every page was checked after moving the structure
+  summary table to a clean page boundary. Manifest status is `ok`, with 120
+  source-entry audits and no missing entries.
+- Continue hourly CLI-only checks of 126 `H:\DHtest\定时导出`. When the
+  2026-07-12 folder is complete, verify 139 waveform and 139 feature entries,
+  copy it to the independent July source root on 133, and update this same brief
+  with the actual landfall-period data. Never synthesize unavailable data.
 
 ## 2026-07-11 Zhishan May/June Full Recovery And Final Reports (v1.7.28-v1.7.32)
 
