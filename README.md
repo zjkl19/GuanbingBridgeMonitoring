@@ -31,6 +31,11 @@ dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe
 哈希、发布清单自身以外的文件数/总大小及启动自测结果；`workbench_startup.png` 与
 `workbench_alarm_editor.png` 是构建时自动生成的界面证据。
 
+打包版右上角提供“检查更新”。正式版启动后每天最多自动查询一次 GitHub
+Release；发现更高稳定版本时，可下载、双重 SHA256 校验、备份当前安装并在退出后
+更新。现有项目配置不会被覆盖。发布资产命名和操作流程见
+`docs/workbench_github_updates.md`。
+
 ```powershell
 reporting/.venv/Scripts/python start_workbench.py
 ```

@@ -29,6 +29,12 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
 - Remote task submission/monitoring is intentionally out of first-round scope.
   Do not use this branch to alter 133 until local functional parity and
   cross-bridge regression are complete.
+- GitHub auto-update code is present, but the repository currently has no
+  GitHub Releases. Tags alone are deliberately ignored. Before publishing the
+  first update, test the generated ZIP/update helper on a disposable installed
+  copy and review backup/rollback behavior. Existing configs are preserved, so
+  future config-schema changes need an explicit migration rather than relying
+  on package replacement.
 
 ## High-Frequency Report Plot Sampling
 

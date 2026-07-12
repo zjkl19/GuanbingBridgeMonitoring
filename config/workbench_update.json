@@ -1,0 +1,9 @@
+{
+  "repository": "zjkl19/GuanbingBridgeMonitoring",
+  "channel": "stable",
+  "auto_check": true,
+  "check_interval_hours": 24,
+  "startup_delay_seconds": 5,
+  "package_prefix": "BridgeMonitoringWorkbench-",
+  "package_suffix": "-win-x64.zip"
+}

@@ -9,6 +9,7 @@ import tempfile
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
+    from PySide6.QtCore import QSettings, QThread
     from PySide6.QtWidgets import QApplication
 
     from workbench.main_window import WorkbenchWindow
@@ -35,6 +36,8 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertIsNotNone(window.alarm_editor.session)
             self.assertFalse(window.module_checks["temperature"].icon().isNull())
             self.assertFalse(window.module_checks["acceleration"].icon().isNull())
+            self.assertEqual(window.update_controller.policy.repository, "zjkl19/GuanbingBridgeMonitoring")
+            self.assertEqual(window.update_btn.text(), "检查更新")
             self.assertFalse(window.open_report_btn.isEnabled())
             self.assertEqual(window.analysis_progress.value(), 0)
         finally:
@@ -81,6 +84,43 @@ class WorkbenchGuiTests(unittest.TestCase):
                 self.assertEqual(window.analysis_progress.value(), 250)
                 self.assertIn("温度分析", window.analysis_progress_label.text())
                 self.assertIn("1分30秒", window.analysis_progress_label.text())
+            finally:
+                window.poll_timer.stop()
+                window.close()
+
+    def test_finished_check_worker_does_not_clear_replacement_download_worker(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        window = WorkbenchWindow(root)
+        stale_worker = QThread()
+        replacement_worker = QThread()
+        try:
+            window.update_controller.worker = replacement_worker
+            window.update_btn.setEnabled(False)
+            window.update_btn.setText("正在下载更新…")
+            window.update_controller._worker_finished(stale_worker)
+            self.assertIs(window.update_controller.worker, replacement_worker)
+            self.assertFalse(window.update_btn.isEnabled())
+            self.assertEqual(window.update_btn.text(), "正在下载更新…")
+        finally:
+            window.update_controller.worker = None
+            replacement_worker.deleteLater()
+            window.poll_timer.stop()
+            window.close()
+
+    def test_no_release_result_is_recorded_for_startup_throttling(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            window = WorkbenchWindow(root)
+            try:
+                window.update_controller.settings = QSettings(
+                    str(Path(folder) / "updates.ini"), QSettings.IniFormat
+                )
+                window.update_controller.manual = False
+                window.update_controller._operation_failed("GitHub 尚未发布正式 Release")
+                checked_at = float(
+                    window.update_controller.settings.value("updates/last_check_epoch", 0.0)
+                )
+                self.assertGreater(checked_at, 0.0)
             finally:
                 window.poll_timer.stop()
                 window.close()

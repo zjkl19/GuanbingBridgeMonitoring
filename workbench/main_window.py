@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QPlainTextEdit,
     QProgressBar,
-    QStyle,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -35,10 +34,12 @@ from PySide6.QtWidgets import (
 from .analysis import AnalysisLauncher, ExecutorResolver, read_analysis_status
 from .config_tab import AlarmBoundsEditorWidget
 from .manifest import ManifestSummary, find_latest_manifest, load_manifest_summary, manifest_context_issues
+from .module_icons import module_icon
 from .models import JobContext, file_sha256
 from .modules import MODULE_SPECS, options_for_modules
 from .profiles import WorkbenchProfile, load_profiles, profile_by_id
 from .report_bridge import launch_report_gui
+from .update_ui import UpdateController
 from .version import app_version, project_root as default_project_root
 
 
@@ -62,9 +63,13 @@ class WorkbenchWindow(QMainWindow):
         self.module_checks: dict[str, QCheckBox] = {}
         self.setFont(QFont("Microsoft YaHei UI", 9))
         self.setWindowTitle(f"桥梁健康监测工作台 {app_version(self.project_root)}")
-        self.resize(1280, 860)
+        # The four-column module grid and the update action are designed for
+        # the 1600 px workbench layout used by the legacy GUI.
+        self.resize(1600, 860)
         self._build_ui()
         self._apply_profile(self.profiles[0])
+        self.update_controller = UpdateController(self, self.update_btn, self.project_root)
+        self.update_controller.schedule_auto_check()
         self.poll_timer = QTimer(self)
         self.poll_timer.setInterval(2000)
         self.poll_timer.timeout.connect(self._poll_status)
@@ -86,7 +91,13 @@ class WorkbenchWindow(QMainWindow):
         outer = QVBoxLayout(page)
         title = QLabel("桥梁健康监测统一任务")
         title.setStyleSheet("font-size: 22px; font-weight: 700; color: #005eac;")
-        outer.addWidget(title)
+        title_row = QHBoxLayout()
+        title_row.addWidget(title)
+        title_row.addStretch(1)
+        self.update_btn = QPushButton("检查更新")
+        self.update_btn.setToolTip("从 GitHub Release 检查工作台正式更新")
+        title_row.addWidget(self.update_btn)
+        outer.addLayout(title_row)
 
         form_group = QGroupBox("任务上下文")
         form = QFormLayout(form_group)
@@ -123,9 +134,8 @@ class WorkbenchWindow(QMainWindow):
             checkbox = QCheckBox(spec.label)
             checkbox.setProperty("module_key", spec.key)
             checkbox.setToolTip(f"{spec.label}（{spec.key}）")
-            standard_pixmap = getattr(QStyle.StandardPixmap, spec.icon_name, QStyle.SP_FileIcon)
-            checkbox.setIcon(self.style().standardIcon(standard_pixmap))
-            checkbox.setIconSize(QSize(16, 16))
+            checkbox.setIcon(module_icon(self.project_root, spec.icon_asset))
+            checkbox.setIconSize(QSize(22, 22))
             self.module_checks[spec.key] = checkbox
             module_layout.addWidget(checkbox, index // 4, index % 4)
         outer.addWidget(module_group)

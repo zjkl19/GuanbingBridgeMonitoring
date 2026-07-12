@@ -41,6 +41,13 @@ overwritten config, preserves unrelated JSON fields, and invalidates any old
 job approval after the selected config is changed. Cleaning thresholds,
 post-filter thresholds, offsets, and plot overrides remain in the MATLAB GUI.
 
+The packaged shell also includes a stable-channel GitHub Release updater. It
+checks no more than once per day, supports a manual check, requires a newer
+semantic version and a runnable Windows x64 ZIP, verifies the archive SHA256
+and internal EXE SHA256, stages outside the installation, preserves configs,
+backs up the current installation, and replaces files only after user
+confirmation and process exit. See `docs/workbench_github_updates.md`.
+
 ## Process boundary
 
 The workbench owns user interaction and job state. MATLAB owns numerical

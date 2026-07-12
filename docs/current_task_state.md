@@ -37,8 +37,9 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `198/198`. Focused MATLAB alarm-editor,
-  plot-settings GUI, main-GUI smoke, and run-request tests pass `24/24`.
+- The current Python suite passes `208/208`. The MATLAB module-registry
+  contract passes `6/6`; the earlier focused alarm-editor, plot-settings GUI,
+  main-GUI smoke, and run-request group passes `24/24`.
   A direct MATLAB JSON-contract run completed and
   produced an `ok` manifest. A second end-to-end run through the Python
   `AnalysisLauncher` selected the compiled runner, completed in about 22.5
@@ -46,10 +47,21 @@ Current local development state:
   with pinned SHA-256.
 - Native Windows visual checks passed for the project/analysis page, the
   real-manifest review page, and the Hongtang 156-row alarm editor.
-- The 25 processing/analysis checkboxes now carry Qt/Windows native icons.
-  Font-based color Emoji were rejected after the frozen screenshot path showed
-  unstable black compositing; the packaged build now captures the visible
-  Windows window and verifies the native-icon layout without external assets.
+- The 25 processing/analysis checkboxes now carry packaged-safe custom SVG
+  line icons that depict each module's real meaning. In particular, the
+  Geokon low-frequency synchronization module uses a data-acquisition
+  instrument with waveform display, ports, and synchronization arrow. No
+  `FFT`/`HP`/`LP` text fallback is used. Font-based color Emoji were rejected
+  after frozen rendering proved unstable.
+- GitHub Release update support is implemented. Packaged stable builds check at
+  most once per 24 hours and expose a manual check button. The updater requires
+  a newer stable tag, the expected Windows x64 ZIP, a GitHub asset digest or
+  `.sha256` asset, and an internal EXE SHA256 match. Installation is explicit,
+  runs after process exit, backs up the old install, and preserves existing
+  configs. `scripts/package_workbench_github_release.ps1` prepares the two
+  required assets but never publishes externally. GitHub currently has no
+  Releases, so no update is offered until the first reviewed stable Release is
+  deliberately published.
 - `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
   MATLAB Runner, six project configs/templates, and the report builder. The
   build blocks on the workbench smoke contract, two native screenshots, and

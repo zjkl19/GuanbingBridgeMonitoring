@@ -46,7 +46,10 @@ repo = Path.cwd()
 dest = repo / "dist" / "BridgeMonitoringWorkbench"
 profile_path = repo / "config" / "bridge_profiles.json"
 payload = json.loads(profile_path.read_text(encoding="utf-8-sig"))
-relative_files = {Path("config") / "bridge_profiles.json"}
+relative_files = {
+    Path("config") / "bridge_profiles.json",
+    Path("config") / "workbench_update.json",
+}
 for profile in payload.get("profiles", []):
     for key in ("default_config", "report_template"):
         value = str(profile.get(key) or "").strip()
@@ -67,6 +70,12 @@ for relative in sorted(relative_files, key=lambda item: str(item).casefold()):
     target = dest / relative
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
+
+icon_source = repo / "workbench" / "assets" / "module_icons"
+icon_target = dest / "workbench" / "assets" / "module_icons"
+if icon_target.exists():
+    shutil.rmtree(icon_target)
+shutil.copytree(icon_source, icon_target)
 '@
 $copyScript = Join-Path $buildRoot "copy_workbench_assets.py"
 Set-Content -LiteralPath $copyScript -Value $copyAssets -Encoding UTF8
@@ -145,31 +154,20 @@ if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 -or
 }
 
 $screenshotOutput = Join-Path $distRoot "workbench_startup.png"
-$screenshotProcess = Start-Process `
-    -FilePath $exePath `
-    -ArgumentList @("--screenshot-output", $screenshotOutput) `
-    -Wait `
-    -PassThru
-if ($screenshotProcess.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $screenshotOutput -PathType Leaf)) {
-    throw "Workbench EXE screenshot test failed with exit code $($screenshotProcess.ExitCode)"
-}
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $screenshotOutput -ProfileId "guanbing" -TabIndex 0
 $configScreenshotOutput = Join-Path $distRoot "workbench_alarm_editor.png"
-$configScreenshotProcess = Start-Process `
-    -FilePath $exePath `
-    -ArgumentList @("--profile-id", "hongtang", "--screenshot-output", $configScreenshotOutput, "--screenshot-tab", "1") `
-    -Wait `
-    -PassThru
-if ($configScreenshotProcess.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $configScreenshotOutput -PathType Leaf)) {
-    throw "Workbench alarm editor screenshot test failed with exit code $($configScreenshotProcess.ExitCode)"
-}
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $configScreenshotOutput -ProfileId "hongtang" -TabIndex 1
 
 $files = Get-ChildItem -LiteralPath $distRoot -Recurse -File
+$updatePolicy = Get-Content -LiteralPath (Join-Path $distRoot "config\workbench_update.json") -Raw -Encoding UTF8 | ConvertFrom-Json
 $releaseManifest = [ordered]@{
     schema_version = 1
     built_at = (Get-Date).ToString("o")
     version = (Get-Content -LiteralPath (Join-Path $distRoot "VERSION") -Raw -Encoding UTF8).Trim()
     executable = "BridgeMonitoringWorkbench.exe"
     executable_sha256 = (Get-FileHash -LiteralPath $exePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    update_repository = $updatePolicy.repository
+    update_channel = $updatePolicy.channel
     includes_analysis_runner = -not $SkipAnalysisRunner
     includes_report_builder = -not $SkipReportBuilder
     report_builder_context_smoke = -not $SkipReportBuilder

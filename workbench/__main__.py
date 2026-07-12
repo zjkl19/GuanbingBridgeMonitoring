@@ -16,6 +16,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Bridge monitoring PySide6 workbench")
     parser.add_argument("--project-root", type=Path, default=None)
     parser.add_argument("--profile-id", default=None)
+    parser.add_argument("--initial-tab", type=int, default=0)
     parser.add_argument("--job-context", type=Path, default=None)
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--smoke-output", type=Path, default=None)
@@ -48,6 +49,8 @@ def main(argv: list[str] | None = None) -> int:
         window.profile_combo.setCurrentIndex(profile_index)
     if args.job_context:
         window.load_context(args.job_context)
+    if 0 <= args.initial_tab < window.tabs.count():
+        window.tabs.setCurrentIndex(args.initial_tab)
     if args.smoke_test:
         payload = smoke_payload(window)
         output = json.dumps(payload, ensure_ascii=False, indent=2)
