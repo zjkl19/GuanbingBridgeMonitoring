@@ -114,6 +114,7 @@ class InstalledUpdate:
 
 REQUIRED_RELEASE_GATES = (
     "includes_analysis_runner",
+    "auto_threshold_preview_runner_smoke",
     "includes_report_builder",
     "report_builder_context_smoke",
     "embedded_report_job_smoke",

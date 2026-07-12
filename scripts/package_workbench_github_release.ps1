@@ -40,7 +40,8 @@ if ($actualExeHash -ne ([string]$manifest.executable_sha256).ToLowerInvariant())
 if ($manifest.schema_version -lt 2 -or $manifest.file_inventory_count -ne $manifest.file_count_excluding_manifest) {
     throw "Workbench distribution has no closed file inventory"
 }
-if (-not $manifest.report_builder_context_smoke `
+if (-not $manifest.auto_threshold_preview_runner_smoke `
+        -or -not $manifest.report_builder_context_smoke `
         -or -not $manifest.embedded_report_job_smoke `
         -or -not $manifest.report_gate_contract_smoke `
         -or -not $manifest.report_visual_qc_smoke `

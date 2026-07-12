@@ -101,6 +101,12 @@ if (-not $SkipAnalysisRunner) {
     if (-not (Test-Path -LiteralPath (Join-Path $runnerSource "BridgeAnalysisRunner.exe") -PathType Leaf)) {
         throw "Analysis runner is missing: $runnerSource"
     }
+    $previewSmokeRoot = Join-Path $buildRoot "auto_threshold_preview_smoke"
+    & $PythonExe (Join-Path $repo "scripts\validate_auto_threshold_preview_runner.py") `
+        --project-root $repo --output-root $previewSmokeRoot --replace | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "Compiled automatic-cleaning preview contract smoke failed with exit code $LASTEXITCODE"
+    }
     $runnerTarget = Join-Path $distRoot "bin\BridgeAnalysisRunner"
     if (Test-Path -LiteralPath $runnerTarget) {
         Remove-Item -LiteralPath $runnerTarget -Recurse -Force
@@ -205,6 +211,7 @@ $smoke = Get-Content -LiteralPath $smokeOutput -Raw -Encoding UTF8 | ConvertFrom
 if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
         -or $smoke.config_tab_count -lt 8 -or $smoke.module_count -lt 20 `
         -or $smoke.auto_threshold_module_count -lt 10 `
+        -or -not $smoke.auto_threshold_preview_enabled `
         -or $smoke.group_plot_module_count -lt 1 `
         -or $smoke.cleaning_threshold_row_count -lt 1 `
         -or $smoke.plot_common_field_count -ne 14 `
@@ -223,7 +230,7 @@ $cleaningScreenshotOutput = Join-Path $distRoot "workbench_cleaning_editor.png"
 $postFilterScreenshotOutput = Join-Path $distRoot "workbench_post_filter_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $postFilterScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 2
 $autoThresholdScreenshotOutput = Join-Path $distRoot "workbench_auto_threshold.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $autoThresholdScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 3
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $autoThresholdScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 3 -DemoAutoThresholdPreview
 $offsetScreenshotOutput = Join-Path $distRoot "workbench_offset_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $offsetScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 4
 $groupScreenshotOutput = Join-Path $distRoot "workbench_group_plot_editor.png"
@@ -261,6 +268,7 @@ $releaseManifest = [ordered]@{
     embedded_report_job_smoke = -not $SkipReportBuilder
     report_gate_contract_smoke = -not $SkipReportBuilder
     report_visual_qc_smoke = -not $SkipReportBuilder
+    auto_threshold_preview_runner_smoke = -not $SkipAnalysisRunner
     file_count_excluding_manifest = $files.Count
     total_bytes_excluding_manifest = [long](($files | Measure-Object Length -Sum).Sum)
     file_inventory_count = $fileInventory.Count

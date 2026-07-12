@@ -24,6 +24,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--smoke-output", type=Path, default=None)
     parser.add_argument("--screenshot-output", type=Path, default=None)
     parser.add_argument("--screenshot-tab", type=int, default=0)
+    parser.add_argument("--demo-auto-threshold-preview", action="store_true")
     parser.add_argument("--install-staged-update", action="store_true")
     parser.add_argument("--install-source", type=Path, default=None)
     parser.add_argument("--install-root", type=Path, default=None)
@@ -45,6 +46,9 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "cleaning_threshold_row_count": window.cleaning_editor.table.rowCount(),
         "config_tab_count": window.config_tabs.count(),
         "auto_threshold_module_count": window.auto_threshold_editor.module_list.count(),
+        "auto_threshold_preview_enabled": bool(
+            window.auto_threshold_editor._options().get("capture_preview_series")
+        ),
         "offset_correction_row_count": window.offset_editor.table.rowCount(),
         "group_plot_module_count": window.group_plot_editor.module_combo.count(),
         "plot_common_field_count": window.plot_common_editor.table.rowCount(),
@@ -88,6 +92,8 @@ def main(argv: list[str] | None = None) -> int:
         window.tabs.setCurrentIndex(args.initial_tab)
     if 0 <= args.initial_config_tab < window.config_tabs.count():
         window.config_tabs.setCurrentIndex(args.initial_config_tab)
+    if args.demo_auto_threshold_preview:
+        window.auto_threshold_editor.load_preview_demo()
     if args.smoke_test:
         payload = smoke_payload(window)
         output = json.dumps(payload, ensure_ascii=False, indent=2)

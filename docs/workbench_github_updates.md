@@ -24,6 +24,10 @@ schema-v2 `release_manifest.json`. The manifest inventories every packaged file
 except itself with relative path, byte count and SHA256, and pins all required
 analysis/report/gate/visual smoke results. Use the source repository ZIP only
 for source review; it is not a runnable workbench update.
+The required analysis gates include a real compiled automatic-cleaning preview
+request with closed request/config/preview SHA provenance and an
+extrema-preservation assertion; a package cannot be staged when that gate is
+false or absent.
 
 GitHub's Releases API exposes asset download URLs and may expose a platform
 `sha256:` digest. The updater accepts that digest or the separately published

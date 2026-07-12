@@ -13,8 +13,8 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   analysis launch, status/manifest review, task restoration, and guarded report
   handoff. Explicit `alarm_bounds` and data-cleaning threshold editing are
   migrated with backup/hash gates. Compiled-runner-backed automatic-cleaning
-  proposals, post-filter cleaning, offsets, grouped plots, common plotting and
-  spectrum overrides are also migrated.
+  proposals and curve previews, post-filter cleaning, offsets, grouped plots,
+  common plotting and spectrum overrides are also migrated.
   Continue using the legacy MATLAB GUI for production configuration.
 - The Python module key/option mapping mirrors MATLAB and is protected by a
   source-contract test against `bms.module.ModuleRegistry`; future module
@@ -143,6 +143,15 @@ dispatch and the CLI dispatcher share this reader. The same utility hashes the
 pinned configuration, and the compiled proposal Runner refuses configuration
 drift before reading analysis data. The rebuilt runner completed an actual
 request with exit code 0 and matching config SHA256.
+
+The preview path now has its own contract rather than embedding potentially
+large series inside the proposal result. The Runner writes a separate JSON,
+pins its SHA256, and reports its series count. PySide6 refuses changed files,
+request/config identity mismatches, duplicate module/point keys, non-closing
+time/value/sample counts, or a series above the 50000-point safety limit. The
+packager runs a real compiled preview smoke on every analysis-runner build and
+checks that extrema-preserving sampling retains a known source maximum. This
+adds review evidence only; MATLAB still owns all proposal calculations.
 
 This encoding rule applies to JSON contracts only. Generated Windows
 PowerShell 5.1 launchers containing Chinese paths should continue to use UTF-8

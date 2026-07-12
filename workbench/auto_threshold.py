@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 import uuid
@@ -41,6 +42,7 @@ class AutoThresholdPaths:
     request: Path
     status: Path
     result: Path
+    preview: Path
     stdout: Path
     stderr: Path
 
@@ -50,6 +52,19 @@ class AutoThresholdRun:
     paths: AutoThresholdPaths
     process: subprocess.Popen[bytes]
     config_sha256: str
+
+
+@dataclass(frozen=True)
+class PreviewSeries:
+    module_key: str
+    point_id: str
+    sensor_type: str
+    times: tuple[str, ...]
+    values: tuple[float | None, ...]
+
+    @property
+    def key(self) -> tuple[str, str]:
+        return self.module_key, self.point_id
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -105,6 +120,7 @@ def prepare_request(
         request=root / "auto_threshold_request.json",
         status=root / "auto_threshold_status.json",
         result=root / "auto_threshold_result.json",
+        preview=root / "auto_threshold_preview.json",
         stdout=root / "auto_threshold_stdout.log",
         stderr=root / "auto_threshold_stderr.log",
     )
@@ -121,6 +137,7 @@ def prepare_request(
         "options": options,
         "status_path": str(paths.status),
         "result_path": str(paths.result),
+        "preview_path": str(paths.preview),
     }
     _write_json(paths.request, payload)
     _write_json(
@@ -169,3 +186,78 @@ def load_result(path: Path) -> dict[str, Any]:
     elif not isinstance(proposals, list):
         raise AutoThresholdError("自动清洗建议 proposals 必须是数组")
     return payload
+
+
+def _series_rows(value: Any) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, list) and all(isinstance(row, dict) for row in value):
+        return value
+    raise AutoThresholdError("自动清洗预览 preview_series 必须是对象数组")
+
+
+def load_preview_artifact(
+    path: Path,
+    *,
+    expected_sha256: str = "",
+    expected_request_id: str = "",
+    expected_config_sha256: str = "",
+    expected_series_count: int | None = None,
+) -> dict[tuple[str, str], PreviewSeries]:
+    path = path.expanduser().resolve()
+    if not path.is_file():
+        raise AutoThresholdError(f"自动清洗预览文件不存在：{path}")
+    if expected_sha256 and file_sha256(path).lower() != expected_sha256.lower():
+        raise AutoThresholdError("自动清洗预览文件 SHA256 与 Runner 结果不一致")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AutoThresholdError(f"自动清洗预览文件无法读取：{exc}") from exc
+    if not isinstance(payload, dict) or payload.get("artifact_type") != "auto_threshold_preview":
+        raise AutoThresholdError("自动清洗预览文件类型无效")
+    if int(payload.get("schema_version") or 0) != 1:
+        raise AutoThresholdError("不支持的自动清洗预览文件版本")
+    if expected_request_id and str(payload.get("request_id") or "") != expected_request_id:
+        raise AutoThresholdError("自动清洗预览 request_id 与建议结果不一致")
+    if expected_config_sha256 and str(payload.get("config_sha256") or "").lower() != expected_config_sha256.lower():
+        raise AutoThresholdError("自动清洗预览配置 SHA256 与建议结果不一致")
+
+    result: dict[tuple[str, str], PreviewSeries] = {}
+    for row in _series_rows(payload.get("preview_series")):
+        module_key = str(row.get("module_key") or "").strip()
+        point_id = str(row.get("point_id") or "").strip()
+        times = row.get("times")
+        values = row.get("values")
+        if not module_key or not point_id or not isinstance(times, list) or not isinstance(values, list):
+            raise AutoThresholdError("自动清洗预览序列缺少模块、测点、时间或数值")
+        if len(times) != len(values) or int(row.get("sample_count") or 0) != len(values):
+            raise AutoThresholdError(f"自动清洗预览序列点数不闭合：{module_key}/{point_id}")
+        if len(values) > 50_000:
+            raise AutoThresholdError(f"自动清洗预览序列超过 50000 点上限：{module_key}/{point_id}")
+        normalized_values: list[float | None] = []
+        for value in values:
+            if value is None:
+                normalized_values.append(None)
+                continue
+            try:
+                number = float(value)
+            except (TypeError, ValueError) as exc:
+                raise AutoThresholdError(f"自动清洗预览含非数值：{module_key}/{point_id}") from exc
+            normalized_values.append(number if math.isfinite(number) else None)
+        series = PreviewSeries(
+            module_key=module_key,
+            point_id=point_id,
+            sensor_type=str(row.get("sensor_type") or ""),
+            times=tuple(str(value) for value in times),
+            values=tuple(normalized_values),
+        )
+        if series.key in result:
+            raise AutoThresholdError(f"自动清洗预览含重复序列：{module_key}/{point_id}")
+        result[series.key] = series
+    if expected_series_count is not None and len(result) != expected_series_count:
+        raise AutoThresholdError(
+            f"自动清洗预览序列数与 Runner 结果不一致：{len(result)} != {expected_series_count}"
+        )
+    return result

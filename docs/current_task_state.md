@@ -36,7 +36,7 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `272/272`. The current joint MATLAB
+- The current Python suite passes `273/273`. The current joint MATLAB
   workbench/runner/config/plot batch baseline remains `147/147`; the latest
   report/config/update-focused MATLAB batch passes `70/70`. The earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
@@ -118,6 +118,20 @@ Current local development state:
   applying selected rows, duplicate rows are refused, and the source is backed
   up before replacement. A real compiled-runner smoke completed
   with exit code 0 and closed request/status/result/config-SHA provenance.
+- Automatic-cleaning curve-preview parity is now complete. The Runner retains
+  the existing MATLAB extrema-preserving sampler, writes preview series to a
+  separate JSON artifact, and pins its SHA256 into the proposal result. PySide6
+  validates artifact/request/config identity, sample-count closure, duplicate
+  point keys and the 50000-point safety ceiling before showing the curve.
+  Selecting or editing a proposal redraws the blue source series, red proposed
+  bounds and yellow local time window; the same view can be opened in a larger
+  dialog. A deterministic packaged screenshot exercises the real view. The
+  rebuilt compiled Runner produced one proposal and one 30-point preview while
+  preserving the 100.0 source maximum under a 32-point cap. Focused MATLAB
+  proposal/Runner tests pass `14/14`. The final packaged EXE SHA256 is
+  `ef2c367d643b07d9bc6760a8031b34fce3ab1ecaf9bac1f4c8d6c2b86e68e3c5`;
+  its schema-v2 release inventory closes at `594` files and records the new
+  compiled-preview smoke as passed.
 - Offset correction and grouped plots are migrated as the fifth and sixth
   configuration subtabs. Offset editing covers scalar, fixed, first-day,
   daily/hourly mean or median and segmented date-window rules; overlapping
@@ -206,7 +220,7 @@ Current local development state:
   items, Jiulongjiang 11 missing items, Zhishan lacked anchors 2-5/2-6, and
   Shuixianhua still relies on a synthesized legacy manifest. Page/media deltas
   therefore remain diagnostic evidence, not production parity acceptance.
-- The Python suite now passes `272/272`; the report/config-related MATLAB batch
+- The Python suite now passes `273/273`; the report/config-related MATLAB batch
   passes `70/70`. The workbench and report builder were rebuilt, all ten native
   screenshots passed visual inspection, and the release manifest records the
   packaged report-gate contract smoke in addition to report-job and visual-QC

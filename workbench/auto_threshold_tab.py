@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
+    QDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -20,6 +21,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QSplitter,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -30,10 +32,15 @@ from PySide6.QtWidgets import (
 from .auto_threshold import (
     DEFAULT_MODULE_KEYS,
     AutoThresholdRun,
+    PreviewSeries,
     launch,
     load_result,
+    load_preview_artifact,
     prepare_request,
     read_status,
+)
+from .auto_threshold_preview import (
+    AutoThresholdCurvePreview,
 )
 from .config_editor import CleaningConfigEditorSession, ConfigEditorError
 
@@ -71,6 +78,7 @@ class AutoThresholdProposalWidget(QWidget):
         self.context_provider = context_provider
         self.current_run: AutoThresholdRun | None = None
         self.result: dict[str, Any] | None = None
+        self.preview_series: dict[tuple[str, str], PreviewSeries] = {}
         self.poll_timer = QTimer(self)
         self.poll_timer.setInterval(1000)
         self.poll_timer.timeout.connect(self._poll)
@@ -176,7 +184,28 @@ class AutoThresholdProposalWidget(QWidget):
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
         header.setSectionResizeMode(13, QHeaderView.Stretch)
-        outer.addWidget(self.table, 1)
+        self.table.currentCellChanged.connect(self._refresh_preview)
+        self.table.itemChanged.connect(lambda _item: self._refresh_preview())
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(self.table)
+        preview_group = QGroupBox("建议曲线预览")
+        preview_layout = QVBoxLayout(preview_group)
+        self.preview = AutoThresholdCurvePreview()
+        preview_layout.addWidget(self.preview, 1)
+        self.preview_info = QLabel(self.preview.summary_text())
+        self.preview_info.setWordWrap(True)
+        self.preview_info.setMinimumHeight(72)
+        self.preview_info.setStyleSheet("color: #334155; background: #f8fafc; padding: 6px;")
+        preview_layout.addWidget(self.preview_info)
+        self.popup_preview_button = QPushButton("弹出大图预览")
+        self.popup_preview_button.setEnabled(False)
+        self.popup_preview_button.clicked.connect(self._open_preview_dialog)
+        preview_layout.addWidget(self.popup_preview_button)
+        splitter.addWidget(preview_group)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 2)
+        outer.addWidget(splitter, 1)
 
         actions = QHBoxLayout()
         self.generate_button = QPushButton("生成建议（独立Runner）")
@@ -245,7 +274,8 @@ class AutoThresholdProposalWidget(QWidget):
             "spike_mad_factor": self.spike_factor.value(),
             "use_zero_or_flat": self.zero_flat.isChecked(),
             "load_without_existing_cleaning": self.ignore_existing.isChecked(),
-            "capture_preview_series": False,
+            "capture_preview_series": True,
+            "preview_sample_count": 20_000,
         }
 
     def generate(self) -> None:
@@ -271,6 +301,10 @@ class AutoThresholdProposalWidget(QWidget):
             QMessageBox.critical(self, "自动建议启动失败", str(exc))
             return
         self.result = None
+        self.preview_series = {}
+        self.preview.clear()
+        self.preview_info.setText(self.preview.summary_text())
+        self.popup_preview_button.setEnabled(False)
         self.table.setRowCount(0)
         self.generate_button.setEnabled(False)
         self.stop_button.setEnabled(True)
@@ -293,6 +327,18 @@ class AutoThresholdProposalWidget(QWidget):
             self.poll_timer.stop()
             try:
                 self.result = load_result(run.paths.result)
+                preview_path_text = str(self.result.get("preview_path") or "")
+                preview_hash = str(self.result.get("preview_sha256") or "")
+                if not preview_path_text or len(preview_hash) != 64:
+                    raise ConfigEditorError("Runner 结果缺少固定的自动清洗预览路径或 SHA256")
+                preview_path = Path(preview_path_text)
+                self.preview_series = load_preview_artifact(
+                    preview_path,
+                    expected_sha256=preview_hash,
+                    expected_request_id=str(self.result.get("request_id") or ""),
+                    expected_config_sha256=str(self.result.get("config_sha256") or ""),
+                    expected_series_count=int(self.result.get("preview_series_count") or 0),
+                )
                 self._populate(self.result.get("proposals", []))
             except Exception as exc:  # noqa: BLE001
                 QMessageBox.critical(self, "建议结果读取失败", str(exc))
@@ -330,22 +376,107 @@ class AutoThresholdProposalWidget(QWidget):
             "score",
             "reason",
         )
-        self.table.setRowCount(0)
-        for proposal in proposals:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            selected = QTableWidgetItem()
-            selected.setFlags(selected.flags() | Qt.ItemIsUserCheckable)
-            selected.setCheckState(Qt.Checked if proposal.get("selected") else Qt.Unchecked)
-            selected.setData(Qt.UserRole, dict(proposal))
-            self.table.setItem(row, 0, selected)
-            for column, key in enumerate(columns, 1):
-                value = proposal.get(key)
-                text = "" if value is None else str(value)
-                item = QTableWidgetItem(text)
-                if key not in {"min", "max", "t_range_start", "t_range_end", "reason"}:
-                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                self.table.setItem(row, column, item)
+        self.table.blockSignals(True)
+        try:
+            self.table.setRowCount(0)
+            for proposal in proposals:
+                row = self.table.rowCount()
+                self.table.insertRow(row)
+                selected = QTableWidgetItem()
+                selected.setFlags(selected.flags() | Qt.ItemIsUserCheckable)
+                selected.setCheckState(Qt.Checked if proposal.get("selected") else Qt.Unchecked)
+                selected.setData(Qt.UserRole, dict(proposal))
+                self.table.setItem(row, 0, selected)
+                for column, key in enumerate(columns, 1):
+                    value = proposal.get(key)
+                    text = "" if value is None else str(value)
+                    item = QTableWidgetItem(text)
+                    if key not in {"min", "max", "t_range_start", "t_range_end", "reason"}:
+                        item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    self.table.setItem(row, column, item)
+        finally:
+            self.table.blockSignals(False)
+        if self.table.rowCount():
+            self.table.setCurrentCell(0, 2)
+        self._refresh_preview()
+
+    def _proposal_at(self, row: int) -> dict[str, Any] | None:
+        if row < 0 or row >= self.table.rowCount():
+            return None
+        first = self.table.item(row, 0)
+        if first is None:
+            return None
+        proposal = dict(first.data(Qt.UserRole) or {})
+        try:
+            proposal["min"] = self._optional_number(self.table.item(row, 5).text())
+            proposal["max"] = self._optional_number(self.table.item(row, 6).text())
+        except (AttributeError, ValueError, ConfigEditorError):
+            return proposal
+        proposal["t_range_start"] = self.table.item(row, 7).text().strip()
+        proposal["t_range_end"] = self.table.item(row, 8).text().strip()
+        proposal["reason"] = self.table.item(row, 13).text().strip()
+        return proposal
+
+    def _refresh_preview(self, *_args: Any) -> None:
+        proposal = self._proposal_at(self.table.currentRow())
+        if proposal is None:
+            self.preview.clear()
+            self.popup_preview_button.setEnabled(False)
+        else:
+            key = (str(proposal.get("module_key") or ""), str(proposal.get("point_id") or ""))
+            self.preview.set_preview(proposal, self.preview_series.get(key))
+            self.popup_preview_button.setEnabled(key in self.preview_series)
+        self.preview_info.setText(self.preview.summary_text())
+
+    def _open_preview_dialog(self) -> None:
+        proposal = self._proposal_at(self.table.currentRow())
+        if proposal is None:
+            return
+        key = (str(proposal.get("module_key") or ""), str(proposal.get("point_id") or ""))
+        series = self.preview_series.get(key)
+        if series is None:
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("自动清洗建议曲线预览")
+        dialog.resize(1120, 680)
+        layout = QVBoxLayout(dialog)
+        chart = AutoThresholdCurvePreview(dialog)
+        chart.set_preview(proposal, series)
+        layout.addWidget(chart, 1)
+        info = QLabel(chart.summary_text(), dialog)
+        info.setWordWrap(True)
+        info.setStyleSheet("background: #f8fafc; padding: 8px;")
+        layout.addWidget(info)
+        dialog.exec()
+
+    def load_preview_demo(self) -> None:
+        """Populate deterministic visual-only data for packaged screenshot QA."""
+        proposal = {
+            "selected": True,
+            "module_key": "dynamic_strain",
+            "apply_key": "dynamic_strain",
+            "point_id": "SX-5",
+            "safe_id": "SX_5",
+            "kind": "window_range",
+            "algorithm": "auto_cut",
+            "min": -86.0,
+            "max": 94.0,
+            "t_range_start": "2026-06-18 01:40:00",
+            "t_range_end": "2026-06-18 02:00:00",
+            "valid_count": 1440,
+            "removed_count": 9,
+            "removed_ratio": 0.00625,
+            "score": 8.2,
+            "reason": "局部尖峰与主体数据带明显分离，仅供人工复核",
+        }
+        values = [12 * math.sin(index / 17) for index in range(240)]
+        values[105:109] = [132, -118, 145, -102]
+        times = tuple(
+            f"2026-06-18 {index // 60:02d}:{index % 60:02d}:00" for index in range(240)
+        )
+        series = PreviewSeries("dynamic_strain", "SX-5", "strain", times, tuple(values))
+        self.preview_series = {series.key: series}
+        self._populate([proposal])
 
     @staticmethod
     def _optional_number(text: str) -> float | None:

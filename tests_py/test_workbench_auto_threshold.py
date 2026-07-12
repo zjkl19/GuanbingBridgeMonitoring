@@ -10,11 +10,15 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from workbench.auto_threshold import (
+    AutoThresholdError,
+    PreviewSeries,
     load_result,
+    load_preview_artifact,
     prepare_request,
     read_status,
     resolve_runner,
 )
+from workbench.models import file_sha256
 from workbench.config_editor import CleaningConfigEditorSession, ConfigChangedError
 
 try:
@@ -49,6 +53,7 @@ class WorkbenchAutoThresholdTests(unittest.TestCase):
             self.assertFalse(paths.request.read_bytes().startswith(b"\xef\xbb\xbf"))
             self.assertEqual(read_status(paths.status)["status"], "prepared")
             self.assertEqual(Path(payload["result_path"]), paths.result)
+            self.assertEqual(Path(payload["preview_path"]), paths.preview)
             self.assertEqual(len(payload["config_sha256"]), 64)
 
     def test_resolve_runner_and_result_normalization(self) -> None:
@@ -67,6 +72,38 @@ class WorkbenchAutoThresholdTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(len(load_result(result)["proposals"]), 1)
+
+    def test_preview_artifact_is_hash_pinned_and_count_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "preview.json"
+            payload = {
+                "schema_version": 1,
+                "artifact_type": "auto_threshold_preview",
+                "request_type": "auto_threshold_proposal",
+                "request_id": "unit-preview",
+                "config_sha256": "a" * 64,
+                "preview_series": [{
+                    "module_key": "temperature",
+                    "point_id": "T-1",
+                    "sensor_type": "temperature",
+                    "times": ["2026-01-01 00:00:00", "2026-01-01 00:01:00"],
+                    "values": [12.5, None],
+                    "sample_count": 2,
+                }],
+            }
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            rows = load_preview_artifact(
+                path,
+                expected_sha256=file_sha256(path),
+                expected_request_id="unit-preview",
+                expected_config_sha256="a" * 64,
+                expected_series_count=1,
+            )
+            self.assertEqual(rows[("temperature", "T-1")].values, (12.5, None))
+            payload["preview_series"][0]["sample_count"] = 3
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(AutoThresholdError, "点数不闭合"):
+                load_preview_artifact(path)
 
     def test_selected_proposals_use_apply_key_safe_id_and_config_pin(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
@@ -133,6 +170,21 @@ class WorkbenchAutoThresholdGuiTests(unittest.TestCase):
             self.assertEqual(widget.table.rowCount(), 1)
             self.assertEqual(widget.proposals()[0]["apply_key"], "temperature")
             self.assertEqual(widget._options()["auto_cut_mode"], "standard")
+            self.assertTrue(widget._options()["capture_preview_series"])
+            widget.preview_series = {
+                ("temperature", "T-1"): PreviewSeries(
+                    "temperature",
+                    "T-1",
+                    "temperature",
+                    ("2026-01-01 00:00:00", "2026-01-01 00:01:00"),
+                    (10.0, 100.0),
+                )
+            }
+            widget._refresh_preview()
+            self.assertIn("T-1", widget.preview.summary_text())
+            self.assertTrue(widget.popup_preview_button.isEnabled())
+            widget.table.item(0, 6).setText("80")
+            self.assertIn("80", widget.preview.summary_text())
         finally:
             widget.close()
 

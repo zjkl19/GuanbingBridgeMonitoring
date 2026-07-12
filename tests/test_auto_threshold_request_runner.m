@@ -54,9 +54,10 @@ classdef test_auto_threshold_request_runner < matlab.unittest.TestCase
             request.start_date = '2026-01-01';
             request.end_date = '2026-01-02';
             request.options = struct('module_keys', {{'temperature'}}, ...
-                'capture_preview_series', false);
+                'capture_preview_series', true);
             request.status_path = statusPath;
             request.result_path = resultPath;
+            request.preview_path = fullfile(tc.TempDir, 'preview.json');
             bms.core.Logger.writeJson(requestPath, request);
 
             actual = bms.app.AutoThresholdRequestRunner.runFile(requestPath);
@@ -67,6 +68,14 @@ classdef test_auto_threshold_request_runner < matlab.unittest.TestCase
             tc.verifyEqual(status.request_id, 'matlab_unit');
             tc.verifyEqual(result.request_type, 'auto_threshold_proposal');
             tc.verifyEqual(result.config_sha256, request.config_sha256);
+            tc.verifyEqual(result.preview_path, request.preview_path);
+            tc.verifyEqual(result.preview_series_count, 0);
+            tc.verifyEqual(result.preview_sha256, bms.io.JsonFile.sha256(request.preview_path));
+            preview = jsondecode(fileread(request.preview_path));
+            tc.verifyEqual(preview.artifact_type, 'auto_threshold_preview');
+            tc.verifyEqual(preview.request_id, 'matlab_unit');
+            tc.verifyEqual(preview.config_sha256, request.config_sha256);
+            tc.verifyEqual(status.preview_path, request.preview_path);
         end
 
         function runnerRefusesConfigDriftBeforeProposalGeneration(tc)

@@ -61,6 +61,17 @@ before selected rows are written, carries MATLAB-provided
 `apply_key`/safe point identity, skips review-only rows, backs up the source,
 and invalidates the old job context.
 
+The compiled Runner now writes sampled preview series to a separate hash-pinned
+artifact instead of inflating the proposal result. The PySide6 table selection
+and editable bounds drive a dependency-free Qt curve view with threshold lines,
+local-window shading and a pop-out view. The source service's existing
+extrema-preserving sampler remains authoritative; Python does not recompute a
+threshold or cleaning decision. Artifact type/version, request/config identity,
+SHA256, duplicate point keys and sample-count closure are validated before a
+curve is shown. A real compiled-runner contract smoke creates one proposal and
+one 30-point preview while preserving the 100.0 source maximum under a 32-point
+cap.
+
 Offset correction and grouped plots are separate guarded editors. Offset rows
 cover scalar values and the MATLAB `fixed`, first-day, daily, hourly and
 non-overlapping segmented modes without changing `vals = vals + correction`
@@ -133,7 +144,6 @@ inside MATLAB, and the MATLAB engine is not rewritten in Python.
 
 ## Later migration work
 
-- Curve-preview parity for automatic-cleaning suggestions.
 - Generate fresh reports through the embedded task for each report-capable
   profile and compare them with the accepted historical samples.
 - Installed-runtime comparison across every bridge profile.
