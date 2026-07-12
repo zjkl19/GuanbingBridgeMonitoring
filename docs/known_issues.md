@@ -5,6 +5,29 @@ Last updated: 2026-07-11
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
 
+## PySide6 Workbench Migration Boundaries
+
+Status: local dev MVP implemented on `dev/pyside6-workbench`; not a production replacement.
+
+- The PySide6 shell currently covers project/date/module selection, local
+  analysis launch, status/manifest review, task restoration, and guarded report
+  handoff. The seven advanced MATLAB configuration pages have not yet been
+  migrated. Continue using the legacy MATLAB GUI for production configuration.
+- The Python module key/option mapping mirrors MATLAB and is protected by a
+  source-contract test against `bms.module.ModuleRegistry`; future module
+  additions must update both sides or the test will fail.
+- Existing packaged `BridgeReportBuilder.exe` builds predate the new
+  `--job-context` option. Development handoff must prefer
+  `reporting/.venv/Scripts/python reporting/report_gui.py`; do not switch back
+  to packaged-first selection until a new EXE is built and context-smoke tested.
+- The report gate verifies manifest success, selected-module coverage,
+  context identity, and pinned hashes, but full per-plot provenance closure is
+  not yet summarized automatically in the workbench. Explicit visual approval
+  remains mandatory.
+- Remote task submission/monitoring is intentionally out of first-round scope.
+  Do not use this branch to alter 133 until local functional parity and
+  cross-bridge regression are complete.
+
 ## High-Frequency Report Plot Sampling
 
 Status: superseded by the v1.7.26 rolling-export fix; keep only as history and a report QA rule.

@@ -6,6 +6,58 @@ Last updated: 2026-07-12
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-12 PySide6 Unified Workbench Migration (dev branch)
+
+Current first-round state:
+
+- Development is isolated on local branch `dev/pyside6-workbench`, based on
+  tagged production release `v1.7.39`. The branch has not been pushed and 133
+  has not been modified. The legacy MATLAB GUI remains the production entry.
+- `workbench/` now provides a three-page PySide6 MVP for project/analysis,
+  manifest/plot review, and report handoff. `start_workbench.py` is the local
+  entry and supports `--smoke-test`, `--smoke-output`, and `--job-context`.
+- The workbench reads the existing six bridge profiles and its Python module
+  option contract is regression-checked against
+  `bms.module.ModuleRegistry`. It writes a versioned `job_context.json` and a
+  MATLAB-compatible `run_request.json`.
+- Local analysis uses the existing execution boundary: prefer
+  `BridgeAnalysisRunner.exe`, otherwise use `matlab -batch`. Status polling,
+  progress fraction/current module/ETA, stdout/stderr logs, cooperative stop
+  files, task restoration, and terminal manifest loading are implemented.
+- Report handoff remains additive for this round. The existing report GUI now
+  accepts `--job-context`, pre-fills the bridge/data/config/date/template/output
+  fields, and has a `--job-context-smoke-test` entry. Development handoff
+  deliberately prefers the current reporting virtual environment over a stale
+  previously packaged EXE.
+- Formal-report enablement requires a successful manifest, no failed module
+  records, complete coverage of all selected modules, and an explicit plot
+  approval. Config, manifest, and report-template SHA-256 values are pinned and
+  rechecked before MATLAB launch/report handoff.
+- Explicit historical-manifest binding rejects bridge, data-root, start-date,
+  or end-date mismatches. Starting a new job clears the previous manifest and
+  plot approval. These fixes prevent approval leakage across projects/months.
+- New focused workbench tests pass. The final first-round Python suite passed
+  `186/186`; MATLAB run-request, GUI-state, and legacy GUI
+  smoke tests passed `22/22`. A direct MATLAB JSON-contract run completed and
+  produced an `ok` manifest. A second end-to-end run through the Python
+  `AnalysisLauncher` selected the compiled runner, completed in about 22.5
+  seconds wall time, wrote logs/status, and produced a context-matched manifest
+  with pinned SHA-256.
+- Native Windows visual checks passed for the project/analysis page and the
+  real-manifest review page. Generated review evidence is under `tmp/` and is
+  intentionally not tracked.
+
+Remaining after the first MVP:
+
+- migrate threshold, automatic-cleaning, post-filter-cleaning, offset,
+  group-plot, plot-common, and spectrum override editors with semantic parity;
+- embed report build progress and final DOCX/PDF QC instead of opening the
+  existing report window;
+- automate full plot-provenance closure display rather than relying on the
+  explicit visual-review declaration alone;
+- add packaging, local installed-runtime testing, then cross-bridge production
+  comparison before any 133 deployment or legacy-GUI retirement.
+
 ## 2026-07-12 Hongtang Typhoon Bavi Template Report
 
 Current completed and verified state:

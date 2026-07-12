@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -47,7 +48,12 @@ JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
 GUANBING_MONTHLY_REPORT = "管柄月报"
 SHUIXIANHUA_MONTHLY_REPORT = "水仙花月报"
 ZHISHAN_MONTHLY_REPORT = "芝山月报"
-APP_VERSION = "v1.7.39"
+try:
+    from workbench.version import app_version as _workbench_app_version
+
+    APP_VERSION = _workbench_app_version(Path(__file__).resolve().parents[1])
+except (ImportError, OSError):
+    APP_VERSION = "v1.7.39-dev"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_0508.docx"
@@ -409,7 +415,7 @@ class ReportWorker(QObject):
 
 
 class ReportGui(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, job_context_path: Path | None = None) -> None:
         super().__init__()
         self.setWindowTitle(f"\u6865\u6881\u62a5\u544a\u751f\u6210\u5668 {APP_VERSION}")
         self.resize(1040, 820)
@@ -420,6 +426,60 @@ class ReportGui(QMainWindow):
         self.profiles = load_profiles(app_root())
         self._updating_profile = False
         self._build_ui()
+        if job_context_path is not None:
+            self._apply_job_context(job_context_path)
+
+    def _apply_job_context(self, path: Path) -> None:
+        """Prefill the legacy report GUI from the unified workbench context."""
+
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        if int(payload.get("schema_version", 0)) != 1:
+            raise ValueError(f"Unsupported workbench context schema: {payload.get('schema_version')}")
+        bridge_id = str(payload.get("bridge_id") or "")
+        profile_index = self.profile_combo.findData(bridge_id)
+        if profile_index >= 0:
+            self.profile_combo.setCurrentIndex(profile_index)
+
+        report = payload.get("report") if isinstance(payload.get("report"), dict) else {}
+        analysis = payload.get("analysis") if isinstance(payload.get("analysis"), dict) else {}
+
+        def verify_pinned_file(label: str, value: object, expected_hash: object) -> None:
+            if not value or not expected_hash:
+                return
+            candidate = Path(str(value))
+            if not candidate.is_file():
+                raise FileNotFoundError(f"{label} does not exist: {candidate}")
+            digest = hashlib.sha256(candidate.read_bytes()).hexdigest().upper()
+            if digest != str(expected_hash).upper():
+                raise RuntimeError(f"{label} changed after workbench approval: {candidate}")
+
+        verify_pinned_file("config", payload.get("config_path"), payload.get("config_sha256"))
+        verify_pinned_file("analysis manifest", analysis.get("manifest_path"), analysis.get("manifest_sha256"))
+        verify_pinned_file("report template", report.get("template_path"), report.get("template_sha256"))
+        values = (
+            (self.config_edit, payload.get("config_path")),
+            (self.result_root_edit, payload.get("data_root")),
+            (self.analysis_root_edit, payload.get("project_root")),
+            (self.template_edit, report.get("template_path")),
+            (self.output_dir_edit, report.get("output_dir")),
+            (self.period_edit, payload.get("period_label")),
+            (self.range_edit, payload.get("monitoring_range")),
+            (self.start_edit, payload.get("start_date")),
+            (self.end_edit, payload.get("end_date")),
+            (self.date_edit, payload.get("report_date")),
+        )
+        for edit, value in values:
+            if value is not None and str(value).strip():
+                edit.setText(str(value))
+        self._last_result_root = Path(self.result_root_edit.text()).expanduser()
+        self._sync_result_dependent_paths(force=False)
+        self._log(f"已加载工作台任务上下文: {path}")
+        manifest_path = str(analysis.get("manifest_path") or "")
+        if manifest_path:
+            self._log(f"已绑定分析 Manifest: {manifest_path}")
+        if not bool(report.get("plots_approved")):
+            self.generate_btn.setEnabled(False)
+            self._log("报告门禁未通过：工作台尚未确认图件审核。")
 
     def _build_ui(self) -> None:
         central = QWidget(self)
@@ -1281,8 +1341,23 @@ def main() -> None:
     self_test_exit_code = maybe_run_self_test(sys.argv[1:])
     if self_test_exit_code is not None:
         sys.exit(self_test_exit_code)
-    app = QApplication(sys.argv)
-    win = ReportGui()
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--job-context", type=Path, default=None)
+    parser.add_argument("--job-context-smoke-test", action="store_true")
+    args, qt_args = parser.parse_known_args(sys.argv[1:])
+    app = QApplication([sys.argv[0], *qt_args])
+    win = ReportGui(job_context_path=args.job_context)
+    if args.job_context_smoke_test:
+        print(json.dumps({
+            "ok": True,
+            "version": APP_VERSION,
+            "bridge_id": win.profile_combo.currentData(),
+            "result_root": win.result_root_edit.text(),
+            "output_dir": win.output_dir_edit.text(),
+            "generate_enabled": win.generate_btn.isEnabled(),
+        }, ensure_ascii=False, indent=2))
+        win.close()
+        return
     win.show()
     sys.exit(app.exec())
 

@@ -7,6 +7,33 @@ This repository contains the MATLAB analysis workflow and the Python/packaged re
 
 ## Main Entry Points / 主要入口
 
+### PySide6 Workbench (development branch)
+
+The additive PySide6 workbench unifies project selection, local MATLAB job
+launching, status/manifest review, an explicit plot-approval gate, and report
+context handoff. The validated MATLAB analysis engine and the existing report
+builders remain separate backend processes during migration.
+
+PySide6 工作台以增量方式统一项目选择、本机 MATLAB 任务启动、状态/Manifest
+审核、图件确认门禁和报告上下文传递。迁移期间，已经验证的 MATLAB 分析内核与
+现有报告生成器仍作为独立后台保留。
+
+```powershell
+reporting/.venv/Scripts/python start_workbench.py
+```
+
+Headless smoke test / 无界面冒烟测试：
+
+```powershell
+reporting/.venv/Scripts/python start_workbench.py --smoke-test --smoke-output tmp/workbench_smoke.json
+```
+
+The migration design and current scope are documented in
+`docs/pyside6_workbench_migration.md`. The legacy MATLAB GUI remains the
+production entry until parity and production-cycle validation are complete.
+迁移设计与当前范围见 `docs/pyside6_workbench_migration.md`；在功能对等和生产周期
+验证完成前，旧 MATLAB GUI 仍是正式生产入口。
+
 ### MATLAB GUI
 
 ```matlab
@@ -62,6 +89,7 @@ The release package is written under `archive/` and includes `VERSION.txt`, temp
 - `+bms/+io/` stats output helpers / 统计输出辅助
 - `config/` project configuration files / 项目配置文件
 - `ui/` MATLAB GUI / MATLAB 图形界面
+- `workbench/` unified PySide6 workbench and job contract / 统一 PySide6 工作台与任务契约
 - `reporting/` report scripts and GUI / 报告脚本与 GUI
 - `reports/` report templates / 报告模板
 - `scripts/` deployment and utility scripts / 部署与辅助脚本

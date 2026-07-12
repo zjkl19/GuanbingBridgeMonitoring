@@ -1,0 +1,87 @@
+from __future__ import annotations
+
+import os
+import json
+import unittest
+from pathlib import Path
+import tempfile
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+try:
+    from PySide6.QtWidgets import QApplication
+
+    from workbench.main_window import WorkbenchWindow
+    from workbench.models import JobContext
+    from workbench.modules import options_for_modules
+except ImportError:  # pragma: no cover - dependency gate
+    QApplication = None
+    WorkbenchWindow = None
+
+
+@unittest.skipIf(QApplication is None, "PySide6 is not installed")
+class WorkbenchGuiTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = QApplication.instance() or QApplication([])
+
+    def test_window_builds_all_three_workflow_tabs(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        window = WorkbenchWindow(root)
+        try:
+            self.assertIn("v1.7.39-dev", window.windowTitle())
+            self.assertEqual(window.tabs.count(), 3)
+            self.assertGreaterEqual(len(window.module_checks), 20)
+            self.assertFalse(window.open_report_btn.isEnabled())
+            self.assertEqual(window.analysis_progress.value(), 0)
+        finally:
+            window.poll_timer.stop()
+            window.close()
+
+    def test_window_restores_saved_job_context(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            data_root = Path(folder) / "data"
+            data_root.mkdir()
+            context = JobContext.create(
+                project_root=root,
+                bridge_id="guanbing",
+                bridge_name="管柄大桥",
+                data_root=data_root,
+                start_date="2026-03-26",
+                end_date="2026-04-26",
+                config_path=root / "config" / "default_config.json",
+                selected_modules=["temperature", "acceleration"],
+                options=options_for_modules(["temperature", "acceleration"]),
+                period_label="2026年4月",
+                job_id="restore_unit",
+            )
+            path = context.write()
+            status_path = Path(context.analysis.status_path)
+            status_path.parent.mkdir(parents=True, exist_ok=True)
+            status_path.write_text(json.dumps({
+                "status": "running",
+                "progress_fraction": 0.25,
+                "current_module_label": "温度分析",
+                "completed_modules": 1,
+                "module_total": 4,
+                "estimated_remaining_sec": 90,
+            }, ensure_ascii=False), encoding="utf-8")
+            window = WorkbenchWindow(root)
+            try:
+                window.load_context(path)
+                self.assertEqual(window.current_context.job_id, "restore_unit")
+                self.assertEqual(window.data_root_edit.text(), str(data_root.resolve()))
+                self.assertTrue(window.module_checks["temperature"].isChecked())
+                self.assertFalse(window.module_checks["wind"].isChecked())
+                self.assertEqual(window.period_label_edit.text(), "2026年4月")
+                self.assertEqual(window.analysis_progress.value(), 250)
+                self.assertIn("温度分析", window.analysis_progress_label.text())
+                self.assertIn("1分30秒", window.analysis_progress_label.text())
+            finally:
+                window.poll_timer.stop()
+                window.close()
+
+
+if __name__ == "__main__":
+    unittest.main()
