@@ -11,12 +11,25 @@ This repository contains the MATLAB analysis workflow and the Python/packaged re
 
 The additive PySide6 workbench unifies project selection, local MATLAB job
 launching, status/manifest review, an explicit plot-approval gate, and report
-context handoff. The validated MATLAB analysis engine and the existing report
+context handoff. It also includes the first migrated advanced editor for
+explicit `alarm_bounds` values. The validated MATLAB analysis engine and the existing report
 builders remain separate backend processes during migration.
 
 PySide6 工作台以增量方式统一项目选择、本机 MATLAB 任务启动、状态/Manifest
 审核、图件确认门禁和报告上下文传递。迁移期间，已经验证的 MATLAB 分析内核与
 现有报告生成器仍作为独立后台保留。
+
+开发版 EXE 构建与运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_workbench_exe.ps1
+dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe
+```
+
+发布目录会同时包含 MATLAB 编译 Runner、配置/模板和通过
+`--job-context` 冒烟测试的报告生成器。`release_manifest.json` 记录 EXE
+哈希、发布清单自身以外的文件数/总大小及启动自测结果；`workbench_startup.png` 与
+`workbench_alarm_editor.png` 是构建时自动生成的界面证据。
 
 ```powershell
 reporting/.venv/Scripts/python start_workbench.py

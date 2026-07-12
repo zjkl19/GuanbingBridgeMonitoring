@@ -8,14 +8,15 @@ This file is the handoff point for long Codex sessions. New conversations should
 
 ## 2026-07-12 PySide6 Unified Workbench Migration (dev branch)
 
-Current first-round state:
+Current local development state:
 
 - Development is isolated on local branch `dev/pyside6-workbench`, based on
   tagged production release `v1.7.39`. The branch has not been pushed and 133
   has not been modified. The legacy MATLAB GUI remains the production entry.
-- `workbench/` now provides a three-page PySide6 MVP for project/analysis,
-  manifest/plot review, and report handoff. `start_workbench.py` is the local
-  entry and supports `--smoke-test`, `--smoke-output`, and `--job-context`.
+- `workbench/` now provides a four-page PySide6 workbench for project/analysis,
+  explicit pre-warning-value configuration, manifest/plot review, and report
+  handoff. `start_workbench.py` is the source entry; the packaged local entry is
+  `dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe`.
 - The workbench reads the existing six bridge profiles and its Python module
   option contract is regression-checked against
   `bms.module.ModuleRegistry`. It writes a versioned `job_context.json` and a
@@ -27,8 +28,8 @@ Current first-round state:
 - Report handoff remains additive for this round. The existing report GUI now
   accepts `--job-context`, pre-fills the bridge/data/config/date/template/output
   fields, and has a `--job-context-smoke-test` entry. Development handoff
-  deliberately prefers the current reporting virtual environment over a stale
-  previously packaged EXE.
+  prefers the current reporting virtual environment. The packaged workbench
+  includes a freshly rebuilt report EXE that passes the same context smoke.
 - Formal-report enablement requires a successful manifest, no failed module
   records, complete coverage of all selected modules, and an explicit plot
   approval. Config, manifest, and report-template SHA-256 values are pinned and
@@ -36,26 +37,37 @@ Current first-round state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- New focused workbench tests pass. The final first-round Python suite passed
-  `186/186`; MATLAB run-request, GUI-state, and legacy GUI
-  smoke tests passed `22/22`. A direct MATLAB JSON-contract run completed and
+- The current Python suite passes `198/198`. Focused MATLAB alarm-editor,
+  plot-settings GUI, main-GUI smoke, and run-request tests pass `24/24`.
+  A direct MATLAB JSON-contract run completed and
   produced an `ok` manifest. A second end-to-end run through the Python
   `AnalysisLauncher` selected the compiled runner, completed in about 22.5
   seconds wall time, wrote logs/status, and produced a context-matched manifest
   with pinned SHA-256.
-- Native Windows visual checks passed for the project/analysis page and the
-  real-manifest review page. Generated review evidence is under `tmp/` and is
-  intentionally not tracked.
+- Native Windows visual checks passed for the project/analysis page, the
+  real-manifest review page, and the Hongtang 156-row alarm editor.
+- `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
+  MATLAB Runner, six project configs/templates, and the report builder. The
+  build blocks on the workbench smoke contract, two native screenshots, and
+  packaged report `--job-context` smoke. `release_manifest.json` records the
+  EXE SHA-256, file count, total bytes, and smoke result.
+- Explicit `defaults/per_point` `alarm_bounds` editing is migrated with strict
+  level/bounds validation, save-as, automatic backup, source-SHA drift refusal,
+  unrelated-field preservation, and old task-approval invalidation. Cleaning
+  thresholds and other advanced editors remain in MATLAB for now.
+- A long-standing bracket error in `config/sample_config.json` was fixed. A
+  regression now parses all runtime configs and profile catalogs. Missing
+  report test/runtime dependencies (`matplotlib`, `numpy`, `pypdf`) are pinned.
 
-Remaining after the first MVP:
+Remaining after the packaged alarm-editor milestone:
 
-- migrate threshold, automatic-cleaning, post-filter-cleaning, offset,
+- migrate cleaning-threshold, automatic-cleaning, post-filter-cleaning, offset,
   group-plot, plot-common, and spectrum override editors with semantic parity;
 - embed report build progress and final DOCX/PDF QC instead of opening the
   existing report window;
 - automate full plot-provenance closure display rather than relying on the
   explicit visual-review declaration alone;
-- add packaging, local installed-runtime testing, then cross-bridge production
+- complete local installed-runtime testing, then cross-bridge production
   comparison before any 133 deployment or legacy-GUI retirement.
 
 ## 2026-07-12 Hongtang Typhoon Bavi Template Report

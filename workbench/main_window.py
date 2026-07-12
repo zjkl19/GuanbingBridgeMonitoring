@@ -32,12 +32,13 @@ from PySide6.QtWidgets import (
 )
 
 from .analysis import AnalysisLauncher, ExecutorResolver, read_analysis_status
+from .config_tab import AlarmBoundsEditorWidget
 from .manifest import ManifestSummary, find_latest_manifest, load_manifest_summary, manifest_context_issues
 from .models import JobContext, file_sha256
 from .modules import MODULE_SPECS, options_for_modules
 from .profiles import WorkbenchProfile, load_profiles, profile_by_id
 from .report_bridge import launch_report_gui
-from .version import app_version
+from .version import app_version, project_root as default_project_root
 
 
 SUCCESS_STATES = {"ok", "success", "completed"}
@@ -51,7 +52,7 @@ def _set_line_edit_path(edit: QLineEdit, value: Path | str) -> None:
 class WorkbenchWindow(QMainWindow):
     def __init__(self, project_root: Path | None = None) -> None:
         super().__init__()
-        self.project_root = (project_root or Path(__file__).resolve().parents[1]).resolve()
+        self.project_root = (project_root or default_project_root()).resolve()
         self.profiles = load_profiles(self.project_root)
         self.current_context: JobContext | None = None
         self.current_context_path: Path | None = None
@@ -71,6 +72,9 @@ class WorkbenchWindow(QMainWindow):
     def _build_ui(self) -> None:
         tabs = QTabWidget(self)
         tabs.addTab(self._build_analysis_tab(), "项目与数据分析")
+        self.alarm_editor = AlarmBoundsEditorWidget()
+        self.alarm_editor.config_saved.connect(self._on_alarm_config_saved)
+        tabs.addTab(self.alarm_editor, "配置与预警值")
         tabs.addTab(self._build_review_tab(), "结果与图件审核")
         tabs.addTab(self._build_report_tab(), "报告生成")
         self.setCentralWidget(tabs)
@@ -262,6 +266,11 @@ class WorkbenchWindow(QMainWindow):
         self.current_profile = profile
         _set_line_edit_path(self.data_root_edit, profile.default_data_root)
         _set_line_edit_path(self.config_edit, profile.config_path(self.project_root))
+        try:
+            self.alarm_editor.load_path(profile.config_path(self.project_root))
+        except Exception as exc:  # noqa: BLE001
+            self.alarm_editor.message_label.setText(f"配置加载失败：{exc}")
+            self.alarm_editor.message_label.setStyleSheet("color: #a33;")
         _set_line_edit_path(self.template_edit, profile.template_path(self.project_root) if profile.report_template else "")
         output = Path(profile.default_data_root) / "自动报告" if profile.default_data_root else self.project_root / "output" / "doc"
         _set_line_edit_path(self.output_dir_edit, output)
@@ -641,6 +650,24 @@ class WorkbenchWindow(QMainWindow):
 
     def _browse_config(self) -> None:
         self._browse_file_into(self.config_edit, "选择配置文件", "JSON files (*.json)")
+        path = Path(self.config_edit.text().strip())
+        if path.is_file():
+            try:
+                self.alarm_editor.load_path(path)
+            except Exception as exc:  # noqa: BLE001
+                self._show_exception("加载预警值配置失败", exc)
+
+    def _on_alarm_config_saved(self, path: str, sha256: str, backup: str) -> None:
+        saved_path = Path(path).resolve()
+        selected_path = Path(self.config_edit.text().strip()).expanduser().resolve()
+        if saved_path == selected_path:
+            self.current_context = None
+            self.current_context_path = None
+            self._reset_review_state()
+            self.analysis_status_label.setText("状态：配置已修改，请重新保存任务上下文")
+            self._append_log(
+                f"预警值配置已保存；SHA256={sha256[:16]}…；备份={backup}。旧任务上下文已失效。"
+            )
 
     def _browse_template(self) -> None:
         self._browse_file_into(self.template_edit, "选择报告模板", "Word files (*.docx)")

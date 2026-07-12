@@ -7,19 +7,21 @@ chat history but not always urgent enough to fix immediately.
 
 ## PySide6 Workbench Migration Boundaries
 
-Status: local dev MVP implemented on `dev/pyside6-workbench`; not a production replacement.
+Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not a production replacement.
 
 - The PySide6 shell currently covers project/date/module selection, local
   analysis launch, status/manifest review, task restoration, and guarded report
-  handoff. The seven advanced MATLAB configuration pages have not yet been
-  migrated. Continue using the legacy MATLAB GUI for production configuration.
+  handoff. Explicit `alarm_bounds` editing is migrated with backup/hash gates,
+  but cleaning thresholds, automatic cleaning, post-filter cleaning, offsets,
+  group plots, common plotting, and spectrum overrides remain in MATLAB.
+  Continue using the legacy MATLAB GUI for production configuration.
 - The Python module key/option mapping mirrors MATLAB and is protected by a
   source-contract test against `bms.module.ModuleRegistry`; future module
   additions must update both sides or the test will fail.
-- Existing packaged `BridgeReportBuilder.exe` builds predate the new
-  `--job-context` option. Development handoff must prefer
-  `reporting/.venv/Scripts/python reporting/report_gui.py`; do not switch back
-  to packaged-first selection until a new EXE is built and context-smoke tested.
+- The local package includes a rebuilt report generator and its
+  `--job-context` smoke passes. It has not yet had complete real-report
+  production comparison for all bridge profiles, so the legacy GUI remains the
+  production fallback.
 - The report gate verifies manifest success, selected-module coverage,
   context identity, and pinned hashes, but full per-plot provenance closure is
   not yet summarized automatically in the workbench. Explicit visual approval

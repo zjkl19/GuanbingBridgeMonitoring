@@ -19,8 +19,27 @@ cycles prove the new shell.
 - Pass the approved context into the existing PySide6 report generator.
 - Add unit, contract, manifest, and offscreen GUI smoke tests.
 
-This round does not migrate advanced MATLAB configuration editors and does not
-write to production machines.
+The second local milestone adds a packaged EXE and migrates the explicit
+`alarm_bounds` editor. It still does not write to production machines.
+
+## Packaged local milestone
+
+- Build with `scripts/build_workbench_exe.ps1`.
+- Run `dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe`.
+- The onedir release includes the compiled MATLAB analysis runner, all profile
+  configs/templates, and a freshly packaged report builder.
+- The build blocks unless the workbench EXE smoke contract, two native Qt
+  screenshots, and the packaged report builder `--job-context` smoke test pass.
+- `release_manifest.json` records SHA-256, version, file count/byte size
+  excluding the manifest itself, and smoke results. Generated `build/` and
+  `dist/` content is intentionally local.
+
+The new configuration page edits only explicit `defaults/per_point`
+`alarm_bounds`. It validates level names and finite ordered bounds, rejects a
+save if the source file changed after loading, automatically backs up an
+overwritten config, preserves unrelated JSON fields, and invalidates any old
+job approval after the selected config is changed. Cleaning thresholds,
+post-filter thresholds, offsets, and plot overrides remain in the MATLAB GUI.
 
 ## Process boundary
 
@@ -39,9 +58,9 @@ inside MATLAB, and the MATLAB engine is not rewritten in Python.
 
 ## Later migration work
 
-- Threshold editor parity.
+- Cleaning-threshold editor parity (alarm-bound editing is now migrated).
 - Automatic-cleaning preview parity.
 - Post-filter cleanup and offset-correction parity.
 - Group-plot, plot-common, and spectrum override parity.
 - Embedded report build progress and final Word/PDF QC.
-- Packaging and end-to-end comparison across every bridge profile.
+- Installed-runtime comparison across every bridge profile.

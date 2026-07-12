@@ -6,6 +6,8 @@ tmp/
 archive/
 release_packages/
 release/
+/build/
+/dist/
 local_notes/
 ops_local/
 %SystemDrive%/

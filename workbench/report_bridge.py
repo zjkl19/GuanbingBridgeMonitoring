@@ -10,17 +10,18 @@ from .models import JobContext
 
 def report_gui_command(project_root: Path, context_path: Path) -> tuple[str, ...]:
     script = project_root / "reporting" / "report_gui.py"
-    if not script.is_file():
-        raise FileNotFoundError(f"Report GUI entry does not exist: {script}")
     packaged = project_root / "reporting" / "dist" / "BridgeReportBuilder" / "BridgeReportBuilder.exe"
     venv_python = project_root / "reporting" / ".venv" / "Scripts" / "python.exe"
-    if venv_python.is_file():
+    if venv_python.is_file() and script.is_file():
         return (str(venv_python), str(script), "--job-context", str(context_path))
-    if not getattr(sys, "frozen", False):
+    if not getattr(sys, "frozen", False) and script.is_file():
         return (sys.executable, str(script), "--job-context", str(context_path))
     if packaged.is_file():
         return (str(packaged), "--job-context", str(context_path))
-    raise FileNotFoundError("No compatible report GUI runtime is available")
+    raise FileNotFoundError(
+        "No compatible report GUI runtime is available; expected either "
+        f"{script} with Python or {packaged}"
+    )
 
 
 def launch_report_gui(context: JobContext, context_path: Path | None = None) -> subprocess.Popen[bytes]:

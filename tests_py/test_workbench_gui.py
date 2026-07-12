@@ -25,13 +25,14 @@ class WorkbenchGuiTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = QApplication.instance() or QApplication([])
 
-    def test_window_builds_all_three_workflow_tabs(self) -> None:
+    def test_window_builds_all_four_workflow_tabs(self) -> None:
         root = Path(__file__).resolve().parents[1]
         window = WorkbenchWindow(root)
         try:
             self.assertIn("v1.7.39-dev", window.windowTitle())
-            self.assertEqual(window.tabs.count(), 3)
+            self.assertEqual(window.tabs.count(), 4)
             self.assertGreaterEqual(len(window.module_checks), 20)
+            self.assertIsNotNone(window.alarm_editor.session)
             self.assertFalse(window.open_report_btn.isEnabled())
             self.assertEqual(window.analysis_progress.value(), 0)
         finally:
