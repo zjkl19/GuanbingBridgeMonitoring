@@ -39,15 +39,19 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
 
 ## Workbench Update Backup Retention
 
-Status: update transaction verified; retention policy remains intentionally manual.
+Status: explicit operator-controlled retention implemented locally; production rollout still pending.
 
 Successful updates retain a timestamped sibling backup of the full previous
-installation so rollback remains possible after restart. The updater does not
-yet delete older successful backups automatically. Before routine production
-rollout, decide an operational retention rule (for example, keep the latest two
-successful backups) and surface backup location/cleanup in the UI. This is a
-storage-management decision only; failed transactions already restore the exact
-old tree and delete their pending candidate.
+installation so rollback remains possible after restart. The packaged
+workbench now inventories these backups and offers an explicit cleanup action
+that always keeps the newest two identity-closed backups. There is deliberately
+no unattended deletion. A directory is eligible only when it is a direct,
+non-symlink sibling with the transaction naming pattern, a workbench EXE and a
+readable semantic-version release manifest. Malformed, incomplete and manual
+directories are displayed as retained or ignored and are never removed by the
+cleanup function. Failed transactions still restore the exact old tree and
+delete their pending candidate. This behavior must be exercised once more on
+the actual installation layout before the first stable GitHub Release rollout.
 
 ## Embedded Report QC Boundary
 

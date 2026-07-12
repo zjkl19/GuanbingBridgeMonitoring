@@ -125,6 +125,10 @@ preserves configs and unmanaged operator files, validates a complete candidate,
 then atomically swaps the old installation to a backup only after user
 confirmation and process exit. Fault-injected pre/post-activation rollback and
 the frozen installed runtime are covered by the real-ZIP disposable validator.
+Backup retention is operator-triggered rather than automatic: the workbench
+lists recognized sibling backups and, after a second confirmation, can remove
+older identity-closed copies while always retaining the newest two. Unreadable,
+misnamed, symlinked or incomplete backups are never selected for cleanup.
 See `docs/workbench_github_updates.md`.
 
 ## Process boundary

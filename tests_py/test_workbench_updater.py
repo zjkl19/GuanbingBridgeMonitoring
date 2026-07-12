@@ -19,7 +19,10 @@ from workbench.updater import (
     StagedUpdate,
     UpdateInfo,
     UpdatePolicy,
+    UpdateError,
     UpdateSecurityError,
+    cleanup_update_backups,
+    discover_update_backups,
     install_staged_update,
     is_newer_version,
     stage_verified_update,
@@ -107,6 +110,47 @@ def write_release_package(root: Path, version: str, files: dict[str, bytes]) -> 
 
 
 class WorkbenchUpdaterTests(unittest.TestCase):
+    def test_backup_inventory_and_explicit_retention_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            parent = Path(folder)
+            install = parent / "BridgeMonitoringWorkbench"
+            install.mkdir()
+            safe_paths = []
+            for old_version, target_version, stamp in (
+                ("v1.7.36", "v1.7.37", "20260710_010000"),
+                ("v1.7.37", "v1.7.38", "20260711_010000"),
+                ("v1.7.38", "v1.7.39", "20260712_010000"),
+            ):
+                backup = parent / f"BridgeMonitoringWorkbench.backup_{target_version}_{stamp}_abcdef12"
+                backup.mkdir()
+                (backup / "BridgeMonitoringWorkbench.exe").write_bytes(b"old")
+                (backup / "release_manifest.json").write_text(
+                    json.dumps({"version": old_version}), encoding="utf-8"
+                )
+                safe_paths.append(backup)
+            invalid = parent / "BridgeMonitoringWorkbench.backup_v1.7.40_20260713_010000_deadbeef"
+            invalid.mkdir()
+            (invalid / "BridgeMonitoringWorkbench.exe").write_bytes(b"old")
+            (invalid / "release_manifest.json").write_text("not-json", encoding="utf-8")
+            unrelated = parent / "BridgeMonitoringWorkbench.backup_manual"
+            unrelated.mkdir()
+
+            found = discover_update_backups(install)
+            self.assertEqual(len(found), 4)
+            self.assertEqual(sum(item.safe_to_remove for item in found), 3)
+            self.assertEqual(found[1].version, "v1.7.38")
+            self.assertEqual(found[1].replaced_by_version, "v1.7.39")
+            removed = cleanup_update_backups(install, keep_latest=2)
+            self.assertEqual([item.version for item in removed], ["v1.7.36"])
+            self.assertFalse(safe_paths[0].exists())
+            self.assertTrue(safe_paths[1].is_dir())
+            self.assertTrue(safe_paths[2].is_dir())
+            self.assertTrue(invalid.is_dir())
+            self.assertTrue(unrelated.is_dir())
+
+            with self.assertRaisesRegex(UpdateError, "至少保留 1 个"):
+                cleanup_update_backups(install, keep_latest=0)
+
     def test_native_update_screenshot_does_not_inherit_offscreen_qt(self) -> None:
         with patch.dict(os.environ, {"QT_QPA_PLATFORM": "offscreen"}):
             self.assertNotIn("QT_QPA_PLATFORM", native_qt_environment())

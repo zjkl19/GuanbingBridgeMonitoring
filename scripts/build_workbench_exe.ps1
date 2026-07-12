@@ -212,6 +212,7 @@ if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
         -or $smoke.config_tab_count -lt 8 -or $smoke.module_count -lt 20 `
         -or $smoke.auto_threshold_module_count -lt 10 `
         -or -not $smoke.auto_threshold_preview_enabled `
+        -or -not $smoke.update_backup_management_enabled `
         -or $smoke.group_plot_module_count -lt 1 `
         -or $smoke.cleaning_threshold_row_count -lt 1 `
         -or $smoke.plot_common_field_count -ne 14 `

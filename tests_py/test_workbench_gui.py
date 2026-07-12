@@ -37,6 +37,7 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertIsNotNone(window.cleaning_editor.session)
             self.assertEqual(window.config_tabs.count(), 8)
             self.assertEqual(window.auto_threshold_editor.module_list.count(), 15)
+            self.assertTrue(window.update_backup_btn.isEnabled())
             self.assertGreater(window.cleaning_editor.table.rowCount(), 0)
             self.assertIsNotNone(window.offset_editor.session)
             self.assertIsNotNone(window.group_plot_editor.session)

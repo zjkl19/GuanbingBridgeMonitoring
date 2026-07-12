@@ -15,6 +15,8 @@ from .updater import (
     UpdateInfo,
     UpdatePolicy,
     default_update_root,
+    cleanup_update_backups,
+    discover_update_backups,
     launch_staged_installer,
     stage_verified_update,
 )
@@ -71,7 +73,13 @@ class UpdateDownloadThread(QThread):
 
 
 class UpdateController:
-    def __init__(self, window: QMainWindow, button: QPushButton, project_root: Path) -> None:
+    def __init__(
+        self,
+        window: QMainWindow,
+        button: QPushButton,
+        project_root: Path,
+        backup_button: QPushButton | None = None,
+    ) -> None:
         self.window = window
         self.button = button
         self.project_root = project_root.resolve()
@@ -81,6 +89,66 @@ class UpdateController:
         self.worker: QThread | None = None
         self.manual = False
         self.button.clicked.connect(lambda: self.check(manual=True))
+        self.backup_button = backup_button
+        if self.backup_button is not None:
+            self.backup_button.clicked.connect(self.manage_backups)
+
+    def manage_backups(self) -> None:
+        backups = discover_update_backups(self.project_root)
+        if not backups:
+            QMessageBox.information(
+                self.window,
+                "更新备份",
+                f"当前安装目录旁没有识别到工作台更新备份。\n\n{self.project_root.parent}",
+            )
+            return
+        safe = [item for item in backups if item.safe_to_remove]
+        lines = []
+        for index, item in enumerate(backups, 1):
+            state = "可清理" if item.safe_to_remove else f"保留：{item.issue}"
+            lines.append(
+                f"{index}. 原版本 {item.version} → 更新目标 {item.replaced_by_version}　"
+                f"{item.created_at}　{state}\n   {item.path}"
+            )
+        box = QMessageBox(self.window)
+        box.setWindowTitle("更新备份")
+        box.setIcon(QMessageBox.Information)
+        box.setText(f"识别到 {len(backups)} 个更新备份，其中 {len(safe)} 个身份闭合。")
+        box.setInformativeText("清理操作始终保留最新 2 个身份闭合的备份；异常备份不会自动删除。")
+        box.setDetailedText("\n".join(lines))
+        cleanup_button = None
+        if len(safe) > 2:
+            cleanup_button = box.addButton("清理旧备份（保留最新2个）", QMessageBox.DestructiveRole)
+        open_button = box.addButton("打开备份目录", QMessageBox.ActionRole)
+        box.addButton("关闭", QMessageBox.RejectRole)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is open_button:
+            if os.name == "nt":
+                os.startfile(self.project_root.parent)  # type: ignore[attr-defined]
+            else:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.project_root.parent)))
+        elif cleanup_button is not None and clicked is cleanup_button:
+            answer = QMessageBox.question(
+                self.window,
+                "确认清理旧更新备份",
+                f"将删除 {len(safe) - 2} 个较旧且身份闭合的备份，并保留最新 2 个。\n"
+                "清单异常或无法识别的目录不会删除。是否继续？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if answer != QMessageBox.Yes:
+                return
+            try:
+                removed = cleanup_update_backups(self.project_root, keep_latest=2)
+            except Exception as exc:  # noqa: BLE001
+                QMessageBox.critical(self.window, "更新备份清理失败", str(exc))
+                return
+            QMessageBox.information(
+                self.window,
+                "更新备份清理完成",
+                f"已删除 {len(removed)} 个旧备份；最新 2 个身份闭合备份仍保留。",
+            )
 
     def schedule_auto_check(self) -> None:
         if (

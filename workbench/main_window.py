@@ -80,7 +80,9 @@ class WorkbenchWindow(QMainWindow):
         self.resize(1600, 860)
         self._build_ui()
         self._apply_profile(self.profiles[0])
-        self.update_controller = UpdateController(self, self.update_btn, self.project_root)
+        self.update_controller = UpdateController(
+            self, self.update_btn, self.project_root, self.update_backup_btn
+        )
         self.update_controller.schedule_auto_check()
         self.poll_timer = QTimer(self)
         self.poll_timer.setInterval(2000)
@@ -167,6 +169,9 @@ class WorkbenchWindow(QMainWindow):
         self.update_btn = QPushButton("检查更新")
         self.update_btn.setToolTip("从 GitHub Release 检查工作台正式更新")
         title_row.addWidget(self.update_btn)
+        self.update_backup_btn = QPushButton("更新备份")
+        self.update_backup_btn.setToolTip("查看更新备份；经确认后保留最新两个并清理更旧备份")
+        title_row.addWidget(self.update_backup_btn)
         outer.addLayout(title_row)
 
         form_group = QGroupBox("任务上下文")

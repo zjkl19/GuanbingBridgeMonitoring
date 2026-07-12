@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import re
 import shutil
 import stat
 import subprocess
@@ -112,6 +113,16 @@ class InstalledUpdate:
     log_path: Path
 
 
+@dataclass(frozen=True)
+class UpdateBackup:
+    path: Path
+    version: str
+    replaced_by_version: str
+    created_at: str
+    safe_to_remove: bool
+    issue: str = ""
+
+
 REQUIRED_RELEASE_GATES = (
     "includes_analysis_runner",
     "auto_threshold_preview_runner_smoke",
@@ -121,6 +132,70 @@ REQUIRED_RELEASE_GATES = (
     "report_gate_contract_smoke",
     "report_visual_qc_smoke",
 )
+
+
+def discover_update_backups(install_root: Path) -> tuple[UpdateBackup, ...]:
+    install_root = install_root.expanduser().resolve()
+    parent = install_root.parent
+    name = re.escape(install_root.name)
+    pattern = re.compile(
+        rf"^{name}\.backup_(?P<version>v\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)_"
+        r"(?P<stamp>\d{8}_\d{6})(?:_[0-9a-fA-F]{8})?$"
+    )
+    backups: list[UpdateBackup] = []
+    for candidate in parent.iterdir():
+        match = pattern.fullmatch(candidate.name)
+        if match is None or not candidate.is_dir() or candidate.is_symlink():
+            continue
+        resolved = candidate.resolve()
+        if resolved.parent != parent:
+            continue
+        replaced_by_version = match.group("version")
+        issue = ""
+        manifest_path = resolved / "release_manifest.json"
+        executable_path = resolved / "BridgeMonitoringWorkbench.exe"
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+            manifest_version = str(manifest.get("version") or "") if isinstance(manifest, dict) else ""
+        except (OSError, json.JSONDecodeError):
+            manifest_version = ""
+        if not executable_path.is_file():
+            issue = "缺少工作台 EXE"
+        elif not manifest_version:
+            issue = "缺少可读取的发布清单"
+        else:
+            try:
+                _version_tuple(manifest_version)
+            except UpdateError:
+                issue = f"发布清单版本无效（{manifest_version}）"
+        backups.append(
+            UpdateBackup(
+                path=resolved,
+                version=manifest_version or "未知",
+                replaced_by_version=replaced_by_version,
+                created_at=match.group("stamp"),
+                safe_to_remove=not issue,
+                issue=issue,
+            )
+        )
+    return tuple(sorted(backups, key=lambda item: (item.created_at, item.path.name), reverse=True))
+
+
+def cleanup_update_backups(install_root: Path, *, keep_latest: int = 2) -> tuple[UpdateBackup, ...]:
+    if keep_latest < 1:
+        raise UpdateError("更新备份至少保留 1 个")
+    install_root = install_root.expanduser().resolve()
+    eligible = [item for item in discover_update_backups(install_root) if item.safe_to_remove]
+    removed: list[UpdateBackup] = []
+    for item in eligible[keep_latest:]:
+        # Re-discover immediately before each destructive operation. This keeps
+        # deletion limited to a direct, recognized sibling of the live install.
+        current = {entry.path: entry for entry in discover_update_backups(install_root)}.get(item.path)
+        if current is None or not current.safe_to_remove or current.path.parent != install_root.parent:
+            raise UpdateSecurityError(f"更新备份身份在清理前发生变化：{item.path}")
+        shutil.rmtree(current.path)
+        removed.append(current)
+    return tuple(removed)
 LEGACY_MANAGED_DIRECTORIES = ("_internal", "bin", "reporting", "reports")
 LEGACY_MANAGED_FILES = (
     "BridgeMonitoringWorkbench.exe",

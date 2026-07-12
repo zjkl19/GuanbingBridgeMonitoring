@@ -36,7 +36,7 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `273/273`. The current joint MATLAB
+- The current Python suite passes `274/274`. The current joint MATLAB
   workbench/runner/config/plot batch baseline remains `147/147`; the latest
   report/config/update-focused MATLAB batch passes `70/70`. The earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
@@ -129,9 +129,17 @@ Current local development state:
   rebuilt compiled Runner produced one proposal and one 30-point preview while
   preserving the 100.0 source maximum under a 32-point cap. Focused MATLAB
   proposal/Runner tests pass `14/14`. The final packaged EXE SHA256 is
-  `ef2c367d643b07d9bc6760a8031b34fce3ab1ecaf9bac1f4c8d6c2b86e68e3c5`;
+  `100d96198803aa87f18215103964bf77b56402e648a87c61736331e82d3959c5`;
   its schema-v2 release inventory closes at `594` files and records the new
   compiled-preview smoke as passed.
+- Update-backup retention is now explicit in the packaged workbench. The new
+  “更新备份” action inventories only direct sibling transaction backups,
+  displays the original and target versions, and permits deletion only after a
+  second confirmation. Cleanup always keeps the latest two identity-closed
+  backups; malformed manifests, missing EXEs, symlinks and unrelated/manual
+  directories are excluded. A disposable regression proves that the oldest
+  eligible backup is removed while two current and all anomalous directories
+  remain.
 - Offset correction and grouped plots are migrated as the fifth and sixth
   configuration subtabs. Offset editing covers scalar, fixed, first-day,
   daily/hourly mean or median and segmented date-window rules; overlapping
@@ -220,7 +228,7 @@ Current local development state:
   items, Jiulongjiang 11 missing items, Zhishan lacked anchors 2-5/2-6, and
   Shuixianhua still relies on a synthesized legacy manifest. Page/media deltas
   therefore remain diagnostic evidence, not production parity acceptance.
-- The Python suite now passes `273/273`; the report/config-related MATLAB batch
+- The Python suite now passes `274/274`; the report/config-related MATLAB batch
   passes `70/70`. The workbench and report builder were rebuilt, all ten native
   screenshots passed visual inspection, and the release manifest records the
   packaged report-gate contract smoke in addition to report-job and visual-QC

@@ -84,6 +84,10 @@ by the build script.
 - Any failure before or after activation restores the exact old directory and
   writes a JSON update log. On success the installed runtime is revalidated and
   the new EXE is started.
+- The “更新备份” action lists recognized transaction backups. Cleanup is never
+  automatic: after explicit confirmation it preserves the newest two valid
+  backups and removes only older direct siblings whose name, EXE and release
+  manifest identity are closed. Invalid or manually named folders are retained.
 
 `scripts/validate_workbench_update_cycle.py` runs the required disposable test
 against the real Release ZIP: archive staging, frozen-EXE installation, config
