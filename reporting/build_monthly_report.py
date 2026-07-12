@@ -505,6 +505,19 @@ def replace_last_paragraph_contains(doc: Document, fragment: str, new_text: str)
     replace_paragraph_text(para, new_text)
 
 
+def replace_wind_speed_caption(doc: Document, speed_caption: str) -> None:
+    """Normalize the accepted wind-speed caption while supporting legacy templates."""
+    para = find_last_paragraph_contains_scoped(
+        doc,
+        [
+            speed_caption,
+            "桥面 10min 平均风速时程图",
+            "桥面10min平均风速时程图",
+        ],
+    )
+    replace_paragraph_text(para, speed_caption)
+
+
 def update_common_metadata(doc: Document, period_label: str, monitoring_range: str, report_date: str) -> None:
     old_period_prefix = "（监测时间："
     for para in doc.paragraphs:
@@ -1633,7 +1646,7 @@ def apply_manifest_to_doc(doc: Document, manifest: dict) -> None:
     wind = manifest["sections"]["wind"]
     if section_is_available("wind", wind):
         replace_next_nonempty_after_exact(doc, "风向风速监测", wind["summary"], use_last=True)
-        replace_last_paragraph_contains(doc, "桥面 10min 平均风速时程图", wind["speed_caption"])
+        replace_wind_speed_caption(doc, wind["speed_caption"])
         insert_labeled_images_before_caption_contains(
             doc,
             wind["speed_caption"],

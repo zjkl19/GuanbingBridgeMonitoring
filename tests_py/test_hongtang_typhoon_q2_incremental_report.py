@@ -13,6 +13,9 @@ from reporting.build_hongtang_typhoon_q2_incremental_report import (
     build_incremental_report,
     element_text,
     find_heading,
+    load_manifest,
+    locate_anchors,
+    validate_refreshed_base,
 )
 
 
@@ -39,6 +42,9 @@ def _body_payload_between(doc, start, end):
 class HongtangTyphoonQ2IncrementalReportTests(unittest.TestCase):
     def _make_base(self, path: Path, picture: Path) -> None:
         doc = Document()
+        doc.add_paragraph("G316线洪塘大桥桥梁健康监测")
+        doc.add_paragraph("周期报告")
+        doc.add_paragraph("（监测时间：2026年7月10日~2026年7月12日）")
         signatures = doc.add_table(rows=3, cols=2)
         signatures.cell(0, 0).text = "项目负责："
 
@@ -67,11 +73,17 @@ class HongtangTyphoonQ2IncrementalReportTests(unittest.TestCase):
             "6、主梁、主塔振动监测",
             "Q2原有第6项结论必须保留。",
             "7、风向风速监测",
-            "Q2原有第7项结论必须保留。",
+            "标准底座台风第7项：W1的10min平均风速最大值为5.21m/s。",
             "8、地震动监测",
             "Q2原有第8项结论必须保留。",
         ):
             result_cell.add_paragraph(text)
+        continuation.cell(1, 0).text = "建  议"
+        continuation.cell(1, 1).text = (
+            "针对目前的监测状况，建议如下：\n"
+            "洪塘大桥存在超重车辆通行现象，管养单位应采取有效的限载措施，对过往超载车辆进行必要管控。\n"
+            "（本栏以下空白）"
+        )
 
         doc.add_heading("监测概况", level=1)
         doc.add_heading("工程概况", level=2)
@@ -243,6 +255,9 @@ class HongtangTyphoonQ2IncrementalReportTests(unittest.TestCase):
             )
 
             self.assertEqual("ok", audit["status"])
+            self.assertTrue(audit["base_refresh_gate"]["period_title"])
+            self.assertTrue(audit["base_refresh_gate"]["window_dates"])
+            self.assertTrue(audit["base_refresh_gate"]["front_item7_w1_10min"])
             self.assertEqual(["1.3", "1.4", "4.1", "4.2", "4.3", "4.4"], audit["blank_sections_verified"])
             self.assertFalse(audit["front_summary"]["whole_cell_replaced"])
             doc = Document(output)
@@ -290,12 +305,21 @@ class HongtangTyphoonQ2IncrementalReportTests(unittest.TestCase):
             self.assertEqual(4, len(doc.inline_shapes))
 
             front_text = "\n".join(paragraph.text for paragraph in doc.tables[2].cell(0, 1).paragraphs)
-            self.assertIn("Q2原有第6项结论必须保留。", front_text)
-            self.assertIn("Q2原有第7项结论必须保留。", front_text)
+            self.assertNotIn("Q2原有第6项结论必须保留。", front_text)
+            self.assertIn("标准底座台风第7项：W1的10min平均风速最大值为5.21m/s。", front_text)
             self.assertIn("Q2原有第8项结论必须保留。", front_text)
             self.assertEqual(2, front_text.count("台风窗口增补："))
+            self.assertIn("0.2962m/s²", front_text)
+            self.assertIn("0.1136m/s²", front_text)
+            self.assertIn("未见登陆后持续、多测点同步放大", front_text)
             for number in (6, 7, 8):
                 self.assertEqual(1, front_text.count(f"{number}、"))
+
+            advice_text = doc.tables[2].cell(1, 1).text
+            for stale in ("超重车辆", "超载车辆", "限载措施", "本栏以下空白"):
+                self.assertNotIn(stale, advice_text)
+            self.assertIn("针对台风影响期监测情况", advice_text)
+            self.assertIn("持续关注W1/W2风速峰值", advice_text)
 
             first_page_text = "\n".join(
                 paragraph.text for paragraph in doc.tables[1].cell(3, 2).paragraphs
@@ -306,6 +330,14 @@ class HongtangTyphoonQ2IncrementalReportTests(unittest.TestCase):
             for number in (1, 2, 3, 4, 5):
                 self.assertEqual(1, first_page_text.count(f"{number}、"))
             self.assertNotIn("(以下无正文)", text)
+            self.assertNotIn("第二季度报告", text)
+            self.assertNotIn("周期报告", text)
+            self.assertIn("洪塘大桥台风巴威影响监测专题报告", text)
+            self.assertIn("2026年07月10日23:20~2026年07月12日09:00", text)
+            self.assertEqual(
+                "2026年07月10日23:20~2026年07月12日09:00",
+                doc.tables[1].cell(1, 4).text,
+            )
 
             xml = doc._element.xml
             self.assertIn("SEQ 图", xml)
@@ -321,10 +353,93 @@ class HongtangTyphoonQ2IncrementalReportTests(unittest.TestCase):
             data = json.loads(manifest.read_text(encoding="utf-8"))
             data["missing_entries"] = ["W2_speed"]
             manifest.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-            from reporting.build_hongtang_typhoon_q2_incremental_report import load_manifest
-
             with self.assertRaisesRegex(ValueError, "missing source entries"):
                 load_manifest(manifest)
+
+    def test_raw_q2_delivery_is_rejected_by_production_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            picture = root / "pixel.png"
+            picture.write_bytes(PNG_1X1)
+            base = root / "raw_q2.docx"
+            self._make_base(base, picture)
+            doc = Document(base)
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip() == "周期报告":
+                    paragraph.text = "第二季度报告"
+                if "2026年7月10日~2026年7月12日" in paragraph.text:
+                    paragraph.text = "（监测时间：2026年4月1日~2026年6月30日）"
+            cell = doc.tables[2].cell(0, 1)
+            for paragraph in cell.paragraphs:
+                if paragraph.text.startswith("标准底座台风第7项"):
+                    paragraph.text = "Q2旧风摘要：W1最大10min平均风速6.89m/s。"
+            doc.save(base)
+            manifest_path = root / "manifest.json"
+            self._make_manifest(manifest_path)
+            raw_doc = Document(base)
+            with self.assertRaisesRegex(RuntimeError, "not a refreshed typhoon-window"):
+                validate_refreshed_base(raw_doc, locate_anchors(raw_doc), load_manifest(manifest_path))
+
+    def test_quick_mode_removes_all_q2_result_payloads(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            picture = root / "pixel.png"
+            picture.write_bytes(PNG_1X1)
+            base = root / "raw_q2.docx"
+            self._make_base(base, picture)
+            doc = Document(base)
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip() == "周期报告":
+                    paragraph.text = "第二季度报告"
+            doc.save(base)
+            manifest = root / "manifest.json"
+            self._make_manifest(manifest)
+            for basename in (
+                "wind_speed_window.png",
+                "wind_maximum_comparison.png",
+                "wind_direction_window.png",
+                "structure_response_window.png",
+            ):
+                (root / basename).write_bytes(PNG_1X1)
+            output = root / "quick.docx"
+            _, audit = build_incremental_report(
+                base,
+                manifest,
+                output,
+                charts_dir=root,
+                quick_from_template=True,
+            )
+            self.assertEqual("quick_from_template", audit["mode"])
+            self.assertIn("4.8", audit["blank_sections_verified"])
+            result = Document(output)
+            text = "\n".join(paragraph.text for paragraph in result.paragraphs)
+            for stale in (
+                "4.5原有Q2索力正文必须保留。",
+                "4.6原有Q2振动正文必须保留。",
+                "4.7原有Q2风正文必须保留。",
+                "4.8原有Q2地震正文必须保留。",
+            ):
+                self.assertNotIn(stale, text)
+            self.assertIn("未取得该窗口的索力识别结果", text)
+            self.assertIn("台风期间主梁、主塔振动增量分析", text)
+            self.assertIn("台风期间风速最大值及登陆前后增量分析", text)
+            front = result.tables[1].cell(3, 2).text + "\n" + result.tables[2].cell(0, 1).text
+            self.assertNotIn("Q2旧索力保留", front)
+            self.assertNotIn("Q2原有第6项", front)
+            self.assertNotIn("Q2原有第8项", front)
+            self.assertIn("仅分析吊索振动，不分析索力", front)
+            self.assertIn("台风窗口轻量结论：主梁、主塔", front)
+            self.assertIn("台风窗口轻量结论：W1桥面、W2塔顶", front)
+            chapter_two = find_heading(result, "监测项目及内容", level=1)
+            chapter_four = find_heading(result, "监测结果", level=1, after=chapter_two)
+            eq = find_heading(result, "地震动监测", level=2, after=chapter_four)
+            conclusion = find_heading(
+                result,
+                "台风影响综合分析、运营建议与数据限制",
+                level=2,
+                after=eq,
+            )
+            self.assertEqual([], _body_payload_between(result, eq, conclusion))
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from build_monthly_report import (  # noqa: E402
     build_overview_items,
     build_wind_section,
     normalize_eq_peak_key,
+    replace_wind_speed_caption,
     update_wind_table,
 )
 from build_period_report import apply_period_maintenance_log  # noqa: E402
@@ -125,6 +126,21 @@ class TestHongtangPeriodFollowups(unittest.TestCase):
 
             self.assertIn("桥面测点W1的10min平均风速最大值为5.46m/s", section["summary"])
             self.assertEqual(section["speed_caption"], "W1桥面与W2塔顶10min平均风速时程图")
+
+    def test_wind_speed_caption_prefers_v1738_and_falls_back_to_legacy(self):
+        accepted = "W1桥面与W2塔顶10min平均风速时程图"
+
+        current_doc = Document()
+        current = current_doc.add_paragraph(accepted)
+        legacy = current_doc.add_paragraph("图 4-15 桥面 10min 平均风速时程图")
+        replace_wind_speed_caption(current_doc, accepted)
+        self.assertEqual(current.text, accepted)
+        self.assertEqual(legacy.text, "图 4-15 桥面 10min 平均风速时程图")
+
+        legacy_doc = Document()
+        legacy_only = legacy_doc.add_paragraph("图 4-15 桥面 10min 平均风速时程图")
+        replace_wind_speed_caption(legacy_doc, accepted)
+        self.assertEqual(legacy_only.text, accepted)
 
     def test_wind_section_distinguishes_locations_and_explains_comparison_limit(self):
         with tempfile.TemporaryDirectory() as td:

@@ -196,6 +196,95 @@ def clear_unavailable_sections(doc: DocumentType, anchors: Anchors) -> dict[str,
     return cleared
 
 
+def clear_quick_template_sections(doc: DocumentType, anchors: Anchors) -> dict[str, int]:
+    """Clear every old Q2 result payload while retaining 4.1-4.8 headings."""
+    cleared = clear_unavailable_sections(doc, anchors)
+    titles = list(anchors.result_sections)
+    for index in range(4, 7):
+        cleared[f"4.{index + 1}"] = clear_between(
+            doc,
+            anchors.result_sections[titles[index]],
+            anchors.result_sections[titles[index + 1]],
+        )
+    final_sect = next(element for element in body_children(doc) if element.tag == qn("w:sectPr"))
+    cleared["4.8"] = clear_between(
+        doc,
+        anchors.result_sections["地震动监测"],
+        final_sect,
+    )
+    for index, title in enumerate(titles[:-1]):
+        assert_empty_between(
+            doc,
+            anchors.result_sections[title],
+            anchors.result_sections[titles[index + 1]],
+            f"4.{index + 1}",
+        )
+    assert_empty_between(doc, anchors.result_sections[titles[-1]], final_sect, "4.8")
+    return cleared
+
+
+def validate_refreshed_base(
+    doc: DocumentType,
+    anchors: Anchors,
+    manifest: dict[str, object],
+) -> dict[str, object]:
+    """Reject a raw Q2 delivery DOCX masquerading as the refreshed base.
+
+    The incremental builder intentionally preserves 4.5-4.8.  Production use
+    therefore requires a base already rebuilt by build_period_report for the
+    typhoon window.  A raw Q2 document is unsafe because its cable, vibration,
+    wind and earthquake figures still depict April-June even if the cover is
+    later renamed.
+    """
+    titles = {paragraph.text.strip() for paragraph in doc.paragraphs if paragraph.text.strip()}
+    accepted_titles = {"周期报告", "洪塘大桥台风巴威影响监测专题报告"}
+    title_ok = bool(titles & accepted_titles)
+
+    start = _parse_datetime(manifest["window"]["start"], "window.start")
+    end = _parse_datetime(manifest["window"]["end"], "window.end")
+    document_text = "\n".join(paragraph.text for paragraph in doc.paragraphs)
+    def date_tokens(value: datetime) -> tuple[str, str]:
+        return (
+            f"{value:%Y年%m月%d日}",
+            f"{value.year}年{value.month}月{value.day}日",
+        )
+
+    period_ok = any(token in document_text for token in date_tokens(start)) and any(
+        token in document_text for token in date_tokens(end)
+    )
+
+    result_cell = doc.tables[2].cell(0, 1) if len(doc.tables) >= 3 else None
+    item7_text = ""
+    if result_cell is not None:
+        paragraphs = result_cell.paragraphs
+        index_7 = next(
+            (index for index, paragraph in enumerate(paragraphs) if re.match(r"^7、", paragraph.text.strip())),
+            None,
+        )
+        index_8 = next(
+            (index for index, paragraph in enumerate(paragraphs) if re.match(r"^8、", paragraph.text.strip())),
+            None,
+        )
+        if index_7 is not None and index_8 is not None and index_7 < index_8:
+            item7_text = "\n".join(paragraph.text for paragraph in paragraphs[index_7 + 1 : index_8])
+    expected_w1 = f"{float(manifest['wind_summary']['W1']['max_10min']):.2f}m/s"
+    wind_summary_ok = expected_w1 in item7_text
+
+    checks = {
+        "period_title": title_ok,
+        "window_dates": period_ok,
+        "front_item7_w1_10min": wind_summary_ok,
+        "expected_w1_10min_text": expected_w1,
+    }
+    failed = [name for name, value in checks.items() if isinstance(value, bool) and not value]
+    if failed:
+        raise RuntimeError(
+            "base DOCX is not a refreshed typhoon-window build_period_report output; "
+            f"failed checks={failed}. Refusing to preserve stale Q2 content in 4.5-4.8."
+        )
+    return checks
+
+
 def _body_style(doc: DocumentType) -> str:
     names = {style.name for style in doc.styles}
     return "洪塘大桥月报正文" if "洪塘大桥月报正文" in names else "Normal"
@@ -531,9 +620,16 @@ def _insert_cable_increment(
     doc: DocumentType,
     anchors: Anchors,
     manifest: dict[str, object],
+    *,
+    lightweight: bool = False,
 ) -> None:
     cursor = InsertBefore(doc, anchors.result_sections["主梁、主塔振动监测"])
     cursor.heading("台风期间吊索振动增量分析", level=3)
+    if lightweight:
+        cursor.paragraph(
+            "轻量分析口径：本节仅依据台风窗口吊索振动特征值包络峰值开展趋势比较；"
+            "未取得该窗口的索力识别结果，因此不对吊索索力变化作结论。"
+        )
     south = manifest["structure_summary"]["南侧索振动"]
     north = manifest["structure_summary"]["北侧索振动"]
     cursor.paragraph(
@@ -779,17 +875,40 @@ def append_front_summary(doc: DocumentType, manifest: dict[str, object]) -> None
     index_6 = headings[6][0]
     index_7 = headings[7][0]
     index_8 = headings[8][0]
-    content_6 = next((p for p in reversed(paragraphs[index_6 + 1 : index_7]) if p.text.strip()), None)
-    content_7 = next((p for p in reversed(paragraphs[index_7 + 1 : index_8]) if p.text.strip()), None)
-    if content_6 is None or content_7 is None:
-        raise RuntimeError("front summary items 6/7 do not contain an existing Q2 paragraph")
-
+    # build_period_report does not refresh item 6.  Remove every legacy
+    # paragraph between the item-6 and item-7 headings, then insert a complete
+    # typhoon-window summary rather than appending to a stale Q2 conclusion.
+    for paragraph in paragraphs[index_6 + 1 : index_7]:
+        result_cell._tc.remove(paragraph._p)
     structure = manifest["structure_summary"]
     _insert_cell_paragraph_after(
-        content_6,
+        headings[6][1],
         f"{INCREMENT_MARKER}台风登陆前后比较中，主梁、主塔10min包络峰值中位值比分别为"
         f"{float(structure['主梁加速度']['median_ratio']):.2f}和"
-        f"{float(structure['主塔加速度']['median_ratio']):.2f}，未见持续、多测点同步放大。",
+        f"{float(structure['主塔加速度']['median_ratio']):.2f}；全时段最大值分别为"
+        f"{float(structure['主梁加速度']['maximum']):.4f}m/s²"
+        f"（{structure['主梁加速度']['maximum_point']}，"
+        f"{_fmt_time(structure['主梁加速度']['maximum_time'], '%m-%d %H:%M')}）和"
+        f"{float(structure['主塔加速度']['maximum']):.4f}m/s²"
+        f"（{structure['主塔加速度']['maximum_point']}，"
+        f"{_fmt_time(structure['主塔加速度']['maximum_time'], '%m-%d %H:%M')}）。"
+        "未见登陆后持续、多测点同步放大。",
+    )
+    refreshed = result_cell.paragraphs
+    refreshed_headings: dict[int, int] = {}
+    for index, paragraph in enumerate(refreshed):
+        match = re.match(r"^([678])、", paragraph.text.strip())
+        if match:
+            refreshed_headings[int(match.group(1))] = index
+    content_7 = next(
+        (
+            paragraph
+            for paragraph in reversed(
+                refreshed[refreshed_headings[7] + 1 : refreshed_headings[8]]
+            )
+            if paragraph.text.strip()
+        ),
+        headings[7][1],
     )
     wind = manifest["wind_summary"]
     _insert_cell_paragraph_after(
@@ -803,6 +922,136 @@ def append_front_summary(doc: DocumentType, manifest: dict[str, object]) -> None
     for number in (6, 7, 8):
         if len(re.findall(rf"(?m)^{number}、", updated)) != 1:
             raise RuntimeError(f"front summary item {number} was not preserved exactly once")
+
+
+def replace_front_advice(doc: DocumentType) -> None:
+    if len(doc.tables) < 3:
+        raise RuntimeError("Q2 front advice table was not found")
+    cell = doc.tables[2].cell(1, 1)
+    old_styles = [paragraph.style for paragraph in cell.paragraphs if paragraph.style is not None]
+    for paragraph in list(cell.paragraphs):
+        cell._tc.remove(paragraph._p)
+    style = old_styles[0] if old_styles else None
+    advice = [
+        "针对台风影响期监测情况，建议如下：",
+        "1、运营管理应以气象预警、交通管控指令和现场巡查为准，不因单项监测指标未达阈值而降低防台等级。",
+        "2、持续关注W1/W2风速峰值、10min平均风速以及主梁、主塔、吊索振动的同步变化；若出现持续抬升，应复核原始波形、频谱和现场状态。",
+        "3、后续取得新增导出数据时，应按相同统计口径更新最大值、登陆前后阶段比较和综合结论。",
+    ]
+    for index, text in enumerate(advice):
+        paragraph = cell.add_paragraph()
+        if style is not None:
+            paragraph.style = style
+        run = paragraph.add_run(text)
+        run.bold = index == 0
+    updated = "\n".join(paragraph.text for paragraph in cell.paragraphs)
+    forbidden = ("超重车辆", "超载车辆", "限载措施", "本栏以下空白")
+    leaked = [value for value in forbidden if value in updated]
+    if leaked:
+        raise RuntimeError(f"stale Q2 traffic advice remains: {leaked}")
+
+
+def _numbered_cell_sections(cell, numbers: Iterable[int]) -> dict[int, tuple[int, Paragraph]]:
+    wanted = set(numbers)
+    result: dict[int, tuple[int, Paragraph]] = {}
+    for index, paragraph in enumerate(cell.paragraphs):
+        match = re.match(r"^(\d+)、", paragraph.text.strip())
+        if match and int(match.group(1)) in wanted:
+            result[int(match.group(1))] = (index, paragraph)
+    if set(result) != wanted:
+        raise RuntimeError(f"front summary headings missing: expected={sorted(wanted)}, found={sorted(result)}")
+    return result
+
+
+def replace_front_quick_summary(doc: DocumentType, manifest: dict[str, object]) -> None:
+    """Write a no-Q2-value lightweight summary for quick template mode."""
+    if len(doc.tables) < 3:
+        raise RuntimeError("Q2 front summary tables were not found")
+    first = doc.tables[1].cell(3, 2)
+    first_headings = _numbered_cell_sections(first, range(1, 6))
+    paragraphs = first.paragraphs
+    start_5 = first_headings[5][0]
+    for paragraph in paragraphs[start_5 + 1 :]:
+        first._tc.remove(paragraph._p)
+    structure = manifest["structure_summary"]
+    _insert_cell_paragraph_after(
+        first_headings[5][1],
+        "台风窗口轻量结论：仅分析吊索振动，不分析索力。南、北侧吊索10min包络峰值"
+        f"登陆后/登陆前中位值比分别为{float(structure['南侧索振动']['median_ratio']):.2f}和"
+        f"{float(structure['北侧索振动']['median_ratio']):.2f}，未见持续、多测点同步放大。",
+    )
+
+    second = doc.tables[2].cell(0, 1)
+    second_headings = _numbered_cell_sections(second, (6, 7, 8))
+    original = second.paragraphs
+    for number, next_number in ((8, None), (7, 8), (6, 7)):
+        start = second_headings[number][0]
+        end = second_headings[next_number][0] if next_number is not None else len(original)
+        for paragraph in original[start + 1 : end]:
+            second._tc.remove(paragraph._p)
+    _insert_cell_paragraph_after(
+        second_headings[6][1],
+        "台风窗口轻量结论：主梁、主塔10min包络峰值登陆后/登陆前中位值比分别为"
+        f"{float(structure['主梁加速度']['median_ratio']):.2f}和"
+        f"{float(structure['主塔加速度']['median_ratio']):.2f}；全时段最大值分别为"
+        f"{float(structure['主梁加速度']['maximum']):.4f}m/s²和"
+        f"{float(structure['主塔加速度']['maximum']):.4f}m/s²，未见持续、多测点同步放大。",
+    )
+    wind = manifest["wind_summary"]
+    _insert_cell_paragraph_after(
+        second_headings[7][1],
+        "台风窗口轻量结论：W1桥面、W2塔顶原始风速最大值分别为"
+        f"{float(wind['W1']['raw_max']):.2f}m/s和{float(wind['W2']['raw_max']):.2f}m/s；"
+        f"最大10min平均风速分别为{float(wind['W1']['max_10min']):.2f}m/s和"
+        f"{float(wind['W2']['max_10min']):.2f}m/s，均未达到25m/s一级阈值。",
+    )
+    # Item 8 intentionally remains title-only because no typhoon-window EQ
+    # analysis is included in quick mode.
+    refreshed = second.paragraphs
+    refreshed_headings = _numbered_cell_sections(second, (6, 7, 8))
+    if refreshed_headings[8][0] != len(refreshed) - 1:
+        trailing = [p.text for p in refreshed[refreshed_headings[8][0] + 1 :] if p.text.strip()]
+        if trailing:
+            raise RuntimeError(f"quick front item 8 is not empty: {trailing}")
+
+
+def _replace_paragraph_text_preserving_first_run(paragraph: Paragraph, text: str) -> None:
+    nonempty = [run for run in paragraph.runs if run.text]
+    if nonempty:
+        nonempty[0].text = text
+        for run in nonempty[1:]:
+            run.text = ""
+    else:
+        paragraph.add_run(text)
+
+
+def update_visible_report_identity(doc: DocumentType, manifest: dict[str, object]) -> dict[str, int]:
+    replacement = "洪塘大桥台风巴威影响监测专题报告"
+    window = manifest["window"]
+    start = _parse_datetime(window["start"], "window.start")
+    end = _parse_datetime(window["end"], "window.end")
+    period = f"（监测时间：{start:%Y年%m月%d日%H:%M}~{end:%Y年%m月%d日%H:%M}）"
+    changed_titles = 0
+    changed_periods = 0
+    for paragraph in doc.paragraphs:
+        if paragraph.text.strip() == replacement:
+            continue
+        if paragraph.text.strip() in {"第二季度报告", "周期报告"}:
+            _replace_paragraph_text_preserving_first_run(paragraph, replacement)
+            changed_titles += 1
+            continue
+        normalized = paragraph.text.strip().replace(" ", "")
+        if normalized.startswith(("（监测时间：", "(监测时间：")):
+            _replace_paragraph_text_preserving_first_run(paragraph, period)
+            changed_periods += 1
+    if len(doc.tables) >= 2 and len(doc.tables[1].rows) >= 2 and len(doc.tables[1].columns) >= 5:
+        metadata_period = doc.tables[1].cell(1, 4)
+        paragraph = metadata_period.paragraphs[0]
+        _replace_paragraph_text_preserving_first_run(
+            paragraph,
+            f"{start:%Y年%m月%d日%H:%M}~{end:%Y年%m月%d日%H:%M}",
+        )
+    return {"titles": changed_titles, "periods": changed_periods}
 
 
 def _field_kind(paragraph_element) -> str | None:
@@ -871,6 +1120,8 @@ def build_incremental_report(
     charts_dir: Path | None = None,
     explicit_charts: dict[str, Path | None] | None = None,
     audit_path: Path | None = None,
+    allow_unrefreshed_base: bool = False,
+    quick_from_template: bool = False,
 ) -> tuple[Path, dict[str, object]]:
     base_docx = base_docx.resolve()
     manifest_path = manifest_path.resolve()
@@ -887,11 +1138,26 @@ def build_incremental_report(
 
     doc = Document(base_docx)
     anchors = locate_anchors(doc)
-    cleared = clear_unavailable_sections(doc, anchors)
+    if quick_from_template:
+        base_refresh_gate = {"quick_from_template": True, "raw_q2_values_preserved": False}
+    elif allow_unrefreshed_base:
+        base_refresh_gate: dict[str, object] = {"bypassed_for_smoke": True}
+    else:
+        base_refresh_gate = validate_refreshed_base(doc, anchors, manifest)
+    cleared = (
+        clear_quick_template_sections(doc, anchors)
+        if quick_from_template
+        else clear_unavailable_sections(doc, anchors)
+    )
     clear_front_unavailable_summary(doc)
-    append_front_summary(doc, manifest)
+    if quick_from_template:
+        replace_front_quick_summary(doc, manifest)
+    else:
+        append_front_summary(doc, manifest)
+    replace_front_advice(doc)
+    identity_changes = update_visible_report_identity(doc, manifest)
     _insert_event_and_coverage(doc, anchors, manifest)
-    _insert_cable_increment(doc, anchors, manifest)
+    _insert_cable_increment(doc, anchors, manifest, lightweight=quick_from_template)
     _insert_girder_tower_increment(doc, anchors, manifest, charts["structure"])
     _insert_wind_increment(doc, anchors, manifest, charts)
     _insert_conclusion(doc, anchors, manifest)
@@ -922,6 +1188,21 @@ def build_incremental_report(
             anchors.result_sections[next_title],
             f"4.{index + 1}",
         )
+    blank_sections = ["1.3", "1.4", "4.1", "4.2", "4.3", "4.4"]
+    if quick_from_template:
+        heading_49 = find_heading(
+            doc,
+            "台风影响综合分析、运营建议与数据限制",
+            level=2,
+            after=anchors.result_sections["地震动监测"],
+        )
+        assert_empty_between(
+            doc,
+            anchors.result_sections["地震动监测"],
+            heading_49,
+            "4.8",
+        )
+        blank_sections.append("4.8")
 
     doc.core_properties.title = "洪塘大桥台风巴威影响监测报告（Q2模板增量版）"
     doc.core_properties.subject = "台风登陆前后监测数据增量分析"
@@ -941,15 +1222,20 @@ def build_incremental_report(
         "output_docx": str(output_docx),
         "output_sha256": _sha256(output_docx),
         "window": manifest["window"],
+        "mode": "quick_from_template" if quick_from_template else "incremental",
+        "base_refresh_gate": base_refresh_gate,
         "cleared_sections": cleared,
-        "blank_sections_verified": ["1.3", "1.4", "4.1", "4.2", "4.3", "4.4"],
-        "preserved_result_sections": ["4.5", "4.6", "4.7", "4.8"],
+        "blank_sections_verified": blank_sections,
+        "preserved_result_sections": [] if quick_from_template else ["4.5", "4.6", "4.7", "4.8"],
         "front_summary": {
             "preserved_items": list(range(1, 9)),
-            "cleared_items": [1, 2, 3, 4],
-            "appended_items": [6, 7],
+            "cleared_items": [1, 2, 3, 4, 8] if quick_from_template else [1, 2, 3, 4],
+            "replaced_items": [5, 6, 7] if quick_from_template else [6],
+            "appended_items": [] if quick_from_template else [7],
             "whole_cell_replaced": False,
         },
+        "front_advice_replaced": True,
+        "visible_report_identity_changes": identity_changes,
         "charts": {key: {"path": str(path), "sha256": _sha256(path)} for key, path in charts.items()},
         "sequence_fields": sequence_counts,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -973,6 +1259,16 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--wind-direction-chart", type=Path)
     value.add_argument("--structure-chart", type=Path)
     value.add_argument("--audit-output", type=Path)
+    value.add_argument(
+        "--allow-unrefreshed-base",
+        action="store_true",
+        help="Smoke-test only: bypass the production gate that rejects a raw Q2 delivery DOCX",
+    )
+    value.add_argument(
+        "--quick-from-template",
+        action="store_true",
+        help="Build a lightweight typhoon report directly from the accepted Q2 template after removing all Q2 result payloads",
+    )
     return value
 
 
@@ -990,6 +1286,8 @@ def main() -> None:
             "structure": args.structure_chart,
         },
         audit_path=args.audit_output,
+        allow_unrefreshed_base=args.allow_unrefreshed_base,
+        quick_from_template=args.quick_from_template,
     )
     print(
         json.dumps(
