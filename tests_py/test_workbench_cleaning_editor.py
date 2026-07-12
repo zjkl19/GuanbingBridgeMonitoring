@@ -15,16 +15,20 @@ from workbench.config_editor import (
     ConfigChangedError,
     ConfigEditorError,
     apply_cleaning_thresholds,
+    apply_post_filter_thresholds,
     extract_cleaning_thresholds,
+    extract_post_filter_thresholds,
+    PostFilterConfigEditorSession,
 )
 
 try:
     from PySide6.QtWidgets import QApplication
 
-    from workbench.config_tab import CleaningThresholdEditorWidget
+    from workbench.config_tab import CleaningThresholdEditorWidget, PostFilterThresholdEditorWidget
 except ImportError:  # pragma: no cover - dependency gate
     QApplication = None
     CleaningThresholdEditorWidget = None
+    PostFilterThresholdEditorWidget = None
 
 
 FIXTURE = (
@@ -128,6 +132,48 @@ class WorkbenchCleaningEditorTests(unittest.TestCase):
             with self.assertRaises(ConfigChangedError):
                 stale.save(stale.rows)
 
+    def test_post_filter_round_trip_and_edit_preserve_other_fields(self) -> None:
+        rows = extract_post_filter_thresholds(self.payload)
+        self.assertEqual(len(rows), 2)
+        point = next(row for row in rows if row.point_key == "PT_1")
+        self.assertIsNone(point.minimum)
+        self.assertEqual(point.maximum, 4)
+        self.assertEqual(point.t_range_start, "2026-01-01 00:00:00")
+        updated = apply_post_filter_thresholds(
+            self.payload,
+            [
+                CleaningThresholdRow(
+                    row.scope,
+                    row.module_key,
+                    row.point_key,
+                    row.minimum,
+                    3 if row.point_key == "PT_1" else row.maximum,
+                    row.t_range_start,
+                    row.t_range_end,
+                )
+                for row in rows
+            ],
+        )
+        self.assertEqual(
+            updated["per_point"]["deflection"]["PT_1"]["post_filter_thresholds"][0]["max"],
+            3,
+        )
+        self.assertEqual(updated["per_point"]["deflection"]["PT_1"]["offset_correction"], 12)
+        self.assertEqual(
+            updated["per_point"]["deflection"]["PT_1"]["thresholds"],
+            self.payload["per_point"]["deflection"]["PT_1"]["thresholds"],
+        )
+
+    def test_all_bridge_post_filter_configs_noop_round_trip(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        profiles = json.loads(
+            (root / "config" / "bridge_profiles.json").read_text(encoding="utf-8-sig")
+        )["profiles"]
+        for profile in profiles:
+            with self.subTest(profile=profile["bridge_id"]):
+                session = PostFilterConfigEditorSession(root / profile["default_config"])
+                self.assertEqual(session.build_payload(session.rows), session.payload)
+
 
 @unittest.skipIf(QApplication is None, "PySide6 is not installed")
 class WorkbenchCleaningEditorGuiTests(unittest.TestCase):
@@ -142,6 +188,16 @@ class WorkbenchCleaningEditorGuiTests(unittest.TestCase):
             self.assertEqual(widget.table.rowCount(), 3)
             self.assertEqual(widget.rows(), widget.session.rows)
             self.assertIn("3 条", widget.count_label.text())
+        finally:
+            widget.close()
+
+    def test_post_filter_widget_hides_unsupported_columns(self) -> None:
+        widget = PostFilterThresholdEditorWidget()
+        try:
+            widget.load_path(FIXTURE)
+            self.assertEqual(widget.table.rowCount(), 2)
+            self.assertTrue(widget.table.isColumnHidden(7))
+            self.assertEqual(widget.rows(), widget.session.rows)
         finally:
             widget.close()
 

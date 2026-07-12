@@ -1,0 +1,435 @@
+from __future__ import annotations
+
+import math
+import os
+from pathlib import Path
+from typing import Any, Callable
+
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from .auto_threshold import (
+    DEFAULT_MODULE_KEYS,
+    AutoThresholdRun,
+    launch,
+    load_result,
+    prepare_request,
+    read_status,
+)
+from .config_editor import CleaningConfigEditorSession, ConfigEditorError
+
+
+MODULE_LABELS = {
+    "temperature": "温度",
+    "humidity": "湿度",
+    "rainfall": "雨量",
+    "wind_speed": "风速",
+    "earthquake": "地震动",
+    "deflection": "挠度",
+    "bearing_displacement": "支座位移",
+    "tilt": "倾角",
+    "gnss": "GNSS",
+    "acceleration": "加速度",
+    "cable_accel": "索力加速度",
+    "strain": "应变",
+    "dynamic_strain": "动应变高通",
+    "dynamic_strain_lowpass": "动应变低通",
+    "crack": "裂缝",
+}
+
+
+class AutoThresholdProposalWidget(QWidget):
+    config_saved = Signal(str, str, str)
+
+    def __init__(
+        self,
+        project_root: Path,
+        context_provider: Callable[[], dict[str, Any]],
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.project_root = project_root.resolve()
+        self.context_provider = context_provider
+        self.current_run: AutoThresholdRun | None = None
+        self.result: dict[str, Any] | None = None
+        self.poll_timer = QTimer(self)
+        self.poll_timer.setInterval(1000)
+        self.poll_timer.timeout.connect(self._poll)
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        outer = QVBoxLayout(self)
+        title = QLabel("自动清洗建议（草稿与人工复核）")
+        title.setStyleSheet("font-size: 20px; font-weight: 700; color: #005eac;")
+        outer.addWidget(title)
+        hint = QLabel(
+            "由现有 MATLAB AutoThresholdProposalService 读取当前数据生成草稿；不会自动改配置。"
+            "仅勾选的 range/window_range 会在二次确认后写入，并校验生成时配置 SHA256。"
+        )
+        hint.setWordWrap(True)
+        outer.addWidget(hint)
+
+        settings_row = QHBoxLayout()
+        module_group = QGroupBox("参与模块")
+        module_layout = QVBoxLayout(module_group)
+        self.module_list = QListWidget()
+        self.module_list.setMaximumHeight(150)
+        for key in DEFAULT_MODULE_KEYS:
+            item = QListWidgetItem(f"{MODULE_LABELS.get(key, key)}  ({key})")
+            item.setData(Qt.UserRole, key)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked)
+            self.module_list.addItem(item)
+        module_layout.addWidget(self.module_list)
+        settings_row.addWidget(module_group, 2)
+
+        options_group = QGroupBox("建议参数")
+        options = QGridLayout(options_group)
+        self.auto_cut = QCheckBox("智能切线")
+        self.auto_cut.setChecked(True)
+        self.auto_cut_mode = QComboBox()
+        self.auto_cut_mode.addItem("标准", "standard")
+        self.auto_cut_mode.addItem("保守", "conservative")
+        self.auto_cut_mode.addItem("激进", "aggressive")
+        self.quantile = QCheckBox("分位数")
+        self.q_low = self._double(0.5, 0, 50, 3)
+        self.q_high = self._double(99.5, 50, 100, 3)
+        self.padding = self._double(0.05, 0, 10, 3)
+        self.mad = QCheckBox("MAD")
+        self.mad_factor = self._double(6, 0.1, 100, 2)
+        self.iqr = QCheckBox("IQR")
+        self.iqr_factor = self._double(3, 0.1, 100, 2)
+        self.spike = QCheckBox("局部尖峰时间窗")
+        self.spike_factor = self._double(8, 0.1, 100, 2)
+        self.zero_flat = QCheckBox("零值/固定值提示")
+        self.zero_flat.setChecked(True)
+        self.min_valid = QSpinBox()
+        self.min_valid.setRange(1, 2_000_000_000)
+        self.min_valid.setValue(30)
+        self.max_removed = self._double(0.20, 0, 1, 3)
+        self.ignore_existing = QCheckBox("生成时忽略现有清洗阈值")
+        self.ignore_existing.setChecked(True)
+        options.setColumnStretch(0, 1)
+        options.setColumnStretch(1, 2)
+        options.setColumnStretch(2, 1)
+        options.setColumnStretch(3, 2)
+        options.addWidget(self.auto_cut, 0, 0)
+        options.addWidget(QLabel("切线模式"), 0, 1)
+        options.addWidget(self.auto_cut_mode, 0, 2, 1, 2)
+        options.addWidget(self.quantile, 1, 0)
+        options.addWidget(self._inline("低分位", self.q_low), 1, 1)
+        options.addWidget(self._inline("高分位", self.q_high), 1, 2)
+        options.addWidget(self._inline("范围外扩", self.padding), 1, 3)
+        options.addWidget(self.mad, 2, 0)
+        options.addWidget(self._inline("MAD系数", self.mad_factor), 2, 1)
+        options.addWidget(self.iqr, 2, 2)
+        options.addWidget(self._inline("IQR系数", self.iqr_factor), 2, 3)
+        options.addWidget(self.spike, 3, 0)
+        options.addWidget(self._inline("尖峰系数", self.spike_factor), 3, 1)
+        options.addWidget(self.zero_flat, 3, 2, 1, 2)
+        options.addWidget(self._inline("最少有效点", self.min_valid), 4, 0, 1, 2)
+        options.addWidget(self._inline("最大剔除比例", self.max_removed), 4, 2, 1, 2)
+        options.addWidget(self.ignore_existing, 5, 0, 1, 4)
+        settings_row.addWidget(options_group, 5)
+        outer.addLayout(settings_row)
+
+        self.table = QTableWidget(0, 14)
+        self.table.setHorizontalHeaderLabels(
+            [
+                "采用",
+                "模块",
+                "测点",
+                "类型",
+                "算法",
+                "min",
+                "max",
+                "开始时间",
+                "结束时间",
+                "有效点",
+                "剔除点",
+                "剔除比例",
+                "评分",
+                "原因",
+            ]
+        )
+        self.table.setAlternatingRowColors(True)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        header.setSectionResizeMode(13, QHeaderView.Stretch)
+        outer.addWidget(self.table, 1)
+
+        actions = QHBoxLayout()
+        self.generate_button = QPushButton("生成建议（独立Runner）")
+        self.generate_button.setStyleSheet(
+            "font-weight: 700; background: #005eac; color: white; padding: 6px 12px;"
+        )
+        self.generate_button.clicked.connect(self.generate)
+        actions.addWidget(self.generate_button)
+        self.stop_button = QPushButton("终止建议任务")
+        self.stop_button.setEnabled(False)
+        self.stop_button.clicked.connect(self.stop)
+        actions.addWidget(self.stop_button)
+        self.apply_button = QPushButton("应用勾选到配置（自动备份）")
+        self.apply_button.setEnabled(False)
+        self.apply_button.clicked.connect(self.apply_selected)
+        actions.addWidget(self.apply_button)
+        self.open_button = QPushButton("打开任务目录")
+        self.open_button.setEnabled(False)
+        self.open_button.clicked.connect(self.open_run_folder)
+        actions.addWidget(self.open_button)
+        actions.addStretch(1)
+        self.status_label = QLabel("尚未生成建议。")
+        actions.addWidget(self.status_label)
+        outer.addLayout(actions)
+
+    @staticmethod
+    def _double(value: float, minimum: float, maximum: float, decimals: int) -> QDoubleSpinBox:
+        widget = QDoubleSpinBox()
+        widget.setRange(minimum, maximum)
+        widget.setDecimals(decimals)
+        widget.setValue(value)
+        return widget
+
+    @staticmethod
+    def _inline(label: str, control: QWidget) -> QWidget:
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(QLabel(label))
+        layout.addWidget(control, 1)
+        return container
+
+    def _selected_modules(self) -> list[str]:
+        return [
+            str(item.data(Qt.UserRole))
+            for index in range(self.module_list.count())
+            if (item := self.module_list.item(index)).checkState() == Qt.Checked
+        ]
+
+    def _options(self) -> dict[str, Any]:
+        return {
+            "module_keys": self._selected_modules(),
+            "min_valid_count": self.min_valid.value(),
+            "max_removed_ratio": self.max_removed.value(),
+            "use_auto_cut": self.auto_cut.isChecked(),
+            "auto_cut_mode": self.auto_cut_mode.currentData(),
+            "use_quantile": self.quantile.isChecked(),
+            "quantile_low": self.q_low.value(),
+            "quantile_high": self.q_high.value(),
+            "padding_factor": self.padding.value(),
+            "use_mad": self.mad.isChecked(),
+            "mad_factor": self.mad_factor.value(),
+            "use_iqr": self.iqr.isChecked(),
+            "iqr_factor": self.iqr_factor.value(),
+            "use_spike_window": self.spike.isChecked(),
+            "spike_mad_factor": self.spike_factor.value(),
+            "use_zero_or_flat": self.zero_flat.isChecked(),
+            "load_without_existing_cleaning": self.ignore_existing.isChecked(),
+            "capture_preview_series": False,
+        }
+
+    def generate(self) -> None:
+        if self.current_run is not None and self.current_run.process.poll() is None:
+            return
+        modules = self._selected_modules()
+        if not modules:
+            QMessageBox.warning(self, "无法生成", "请至少勾选一个模块。")
+            return
+        try:
+            context = self.context_provider()
+            paths, payload = prepare_request(
+                data_root=Path(context["data_root"]),
+                config_path=Path(context["config_path"]),
+                start_date=str(context["start_date"]),
+                end_date=str(context["end_date"]),
+                options=self._options(),
+            )
+            self.current_run = launch(
+                self.project_root, paths, str(payload["config_sha256"])
+            )
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "自动建议启动失败", str(exc))
+            return
+        self.result = None
+        self.table.setRowCount(0)
+        self.generate_button.setEnabled(False)
+        self.stop_button.setEnabled(True)
+        self.apply_button.setEnabled(False)
+        self.open_button.setEnabled(True)
+        self.status_label.setText(f"运行中；PID {self.current_run.process.pid}")
+        self.poll_timer.start()
+
+    def _poll(self) -> None:
+        run = self.current_run
+        if run is None:
+            self.poll_timer.stop()
+            return
+        status = read_status(run.paths.status)
+        state = str(status.get("status") or "unknown").lower()
+        self.status_label.setText(
+            f"{state}；建议 {status.get('proposal_count', '…')}；任务 {run.paths.root.name}"
+        )
+        if state == "completed":
+            self.poll_timer.stop()
+            try:
+                self.result = load_result(run.paths.result)
+                self._populate(self.result.get("proposals", []))
+            except Exception as exc:  # noqa: BLE001
+                QMessageBox.critical(self, "建议结果读取失败", str(exc))
+            self.generate_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
+            self.apply_button.setEnabled(bool(self.result and self.result.get("proposals")))
+        elif state == "failed":
+            self.poll_timer.stop()
+            self.generate_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
+            QMessageBox.critical(
+                self,
+                "自动建议失败",
+                f"{status.get('error_id', '')}\n{status.get('message', '')}\n\n{run.paths.stderr}",
+            )
+        elif run.process.poll() not in (None, 0):
+            self.poll_timer.stop()
+            self.generate_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
+            QMessageBox.critical(self, "自动建议进程退出", f"请检查：{run.paths.stderr}")
+
+    def _populate(self, proposals: list[dict[str, Any]]) -> None:
+        columns = (
+            "module_key",
+            "point_id",
+            "kind",
+            "algorithm",
+            "min",
+            "max",
+            "t_range_start",
+            "t_range_end",
+            "valid_count",
+            "removed_count",
+            "removed_ratio",
+            "score",
+            "reason",
+        )
+        self.table.setRowCount(0)
+        for proposal in proposals:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            selected = QTableWidgetItem()
+            selected.setFlags(selected.flags() | Qt.ItemIsUserCheckable)
+            selected.setCheckState(Qt.Checked if proposal.get("selected") else Qt.Unchecked)
+            selected.setData(Qt.UserRole, dict(proposal))
+            self.table.setItem(row, 0, selected)
+            for column, key in enumerate(columns, 1):
+                value = proposal.get(key)
+                text = "" if value is None else str(value)
+                item = QTableWidgetItem(text)
+                if key not in {"min", "max", "t_range_start", "t_range_end", "reason"}:
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                self.table.setItem(row, column, item)
+
+    @staticmethod
+    def _optional_number(text: str) -> float | None:
+        if not text.strip():
+            return None
+        value = float(text)
+        if not math.isfinite(value):
+            raise ConfigEditorError("建议上下限必须是有限数值或留空")
+        return int(value) if value.is_integer() else value
+
+    def proposals(self) -> list[dict[str, Any]]:
+        proposals: list[dict[str, Any]] = []
+        for row in range(self.table.rowCount()):
+            first = self.table.item(row, 0)
+            proposal = dict(first.data(Qt.UserRole) or {})
+            proposal["selected"] = first.checkState() == Qt.Checked
+            proposal["min"] = self._optional_number(self.table.item(row, 5).text())
+            proposal["max"] = self._optional_number(self.table.item(row, 6).text())
+            proposal["t_range_start"] = self.table.item(row, 7).text().strip()
+            proposal["t_range_end"] = self.table.item(row, 8).text().strip()
+            proposal["reason"] = self.table.item(row, 13).text().strip()
+            proposals.append(proposal)
+        return proposals
+
+    def apply_selected(self) -> None:
+        if self.result is None or self.current_run is None:
+            return
+        try:
+            proposals = self.proposals()
+            selected = [
+                item
+                for item in proposals
+                if item.get("selected") and item.get("kind") in {"range", "window_range"}
+            ]
+            if not selected:
+                raise ConfigEditorError("没有勾选可写入的 range/window_range 建议")
+            config_path = Path(str(self.result.get("config_path") or ""))
+            expected = str(self.result.get("config_sha256") or "")
+            answer = QMessageBox.question(
+                self,
+                "确认写入自动清洗建议",
+                f"将把 {len(selected)} 条人工勾选建议写入：\n{config_path}\n\n"
+                "配置会自动备份；建议写入后必须重新运行相应模块并审核图件。是否继续？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if answer != QMessageBox.Yes:
+                return
+            result = CleaningConfigEditorSession(config_path).save_proposals(
+                proposals, expected_sha256=expected
+            )
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "建议写入失败", str(exc))
+            return
+        backup = str(result.backup_path) if result.backup_path else "无"
+        self.status_label.setText(
+            f"建议已写入；SHA256={result.sha256[:16]}…；备份={backup}"
+        )
+        self.config_saved.emit(str(result.path), result.sha256, backup)
+        QMessageBox.information(self, "建议写入完成", self.status_label.text())
+
+    def stop(self) -> None:
+        run = self.current_run
+        if run is None or run.process.poll() is not None:
+            return
+        answer = QMessageBox.question(
+            self,
+            "终止建议任务",
+            "确认终止当前自动建议 Runner？已生成的完整结果文件不会被伪造或补写。",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer == QMessageBox.Yes:
+            run.process.terminate()
+            self.poll_timer.stop()
+            self.generate_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
+            self.status_label.setText("任务已由用户终止")
+
+    def open_run_folder(self) -> None:
+        if self.current_run is None:
+            return
+        path = self.current_run.paths.root
+        if os.name == "nt":
+            os.startfile(path)  # type: ignore[attr-defined]
+        else:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))

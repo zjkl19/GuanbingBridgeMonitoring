@@ -15,7 +15,20 @@ function manifestPath = run_request_cli(requestPath)
     addpath(fullfile(projectRoot, 'analysis'), '-begin');
     addpath(fullfile(projectRoot, 'scripts'), '-begin');
 
-    manifestPath = bms.app.RunRequestRunner.runFile(requestPath);
+    requestType = 'analysis';
+    try
+        raw = bms.io.JsonFile.read(requestPath);
+        if isstruct(raw) && isfield(raw, 'request_type') && ~isempty(raw.request_type)
+            requestType = lower(char(string(raw.request_type)));
+        end
+    catch
+        % Analysis requests retain the legacy reader/error behavior below.
+    end
+    if strcmp(requestType, 'auto_threshold_proposal')
+        manifestPath = bms.app.AutoThresholdRequestRunner.runFile(requestPath);
+    else
+        manifestPath = bms.app.RunRequestRunner.runFile(requestPath);
+    end
     if nargout == 0 && ~isempty(manifestPath)
         fprintf('Manifest: %s\n', manifestPath);
     end

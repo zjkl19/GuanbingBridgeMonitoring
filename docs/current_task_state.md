@@ -37,8 +37,8 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `214/214`. The focused MATLAB workbench
-  cleaning/module contracts pass `21/21`; the earlier focused alarm-editor,
+- The current Python suite passes `221/221`. The current focused MATLAB
+  workbench/runner/config batch passes `55/55`; the earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
   A direct MATLAB JSON-contract run completed and
   produced an `ok` manifest. A second end-to-end run through the Python
@@ -64,7 +64,7 @@ Current local development state:
   deliberately published.
 - `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
   MATLAB Runner, six project configs/templates, and the report builder. The
-  build blocks on the workbench smoke contract, three native screenshots, and
+  build blocks on the workbench smoke contract, five native screenshots, and
   packaged report `--job-context` smoke. `release_manifest.json` records the
   EXE SHA-256, file count, total bytes, and smoke result.
 - Explicit `defaults/per_point` `alarm_bounds` editing is migrated with strict
@@ -78,6 +78,33 @@ Current local development state:
   loaded payload exactly; source overwrites use the same SHA-drift refusal and
   backup gate. The packaged build records a third native screenshot for this
   editor.
+- Post-filter cleanup is migrated as a third configuration subtab. It edits
+  only `post_filter_thresholds`, supports scalar/array/empty and one-sided
+  timed rules, preserves unrelated cleaning/offset/alarm fields, and passes
+  no-op round trips across all six bridge configs. The packaged Zhishan visual
+  gate exercises the real one-sided low-pass rules.
+- Automatic-cleaning proposals are migrated as a fourth configuration subtab
+  without reimplementing the algorithm in Python. `run_request_cli` now
+  dispatches `auto_threshold_proposal` requests to the existing MATLAB
+  `AutoThresholdProposalService`; the same rebuilt
+  `BridgeAnalysisRunner.exe` used for analysis writes deterministic
+  request/status/result artifacts. PySide6 provides module/algorithm options,
+  polling, editable human-review rows, explicit selection, termination, and a
+  guarded apply step. Only selected `range/window_range` rows are appended;
+  `apply_key` and safe point identity come from MATLAB, the generation-time
+  config SHA256 is checked by the Runner before data loading and again before
+  applying selected rows, duplicate rows are refused, and the source is backed
+  up before replacement. A real compiled-runner smoke completed
+  with exit code 0 and closed request/status/result/config-SHA provenance.
+- The workbench packager now rebuilds the compiled analysis runner whenever
+  included MATLAB sources are newer than the runner executable. This prevents
+  a visually current PySide6 package from silently carrying an obsolete core
+  runner.
+- Compiled-runner testing exposed UTF-8 BOM incompatibility in request JSON.
+  Python now writes request JSON as BOM-free UTF-8, and the shared MATLAB
+  `bms.io.JsonFile` reader accepts either form. Analysis and automatic-proposal
+  dispatch both use the shared reader; BOM-specific regression coverage is in
+  place.
 - Cross-language contract testing exposed and fixed a pre-existing MATLAB bug:
   default and per-point cleaning thresholds with different optional struct
   fields could not be concatenated. `CleaningPipeline` now normalizes the four
@@ -87,10 +114,10 @@ Current local development state:
   regression now parses all runtime configs and profile catalogs. Missing
   report test/runtime dependencies (`matplotlib`, `numpy`, `pypdf`) are pinned.
 
-Remaining after the packaged cleaning-editor milestone:
+Remaining after the packaged automatic/post-filter milestone:
 
-- migrate automatic-cleaning proposals, post-filter-cleaning, offset,
-  group-plot, plot-common, and spectrum override editors with semantic parity;
+- migrate offset, group-plot, plot-common, and spectrum override editors with
+  semantic parity;
 - embed report build progress and final DOCX/PDF QC instead of opening the
   existing report window;
 - automate full plot-provenance closure display rather than relying on the

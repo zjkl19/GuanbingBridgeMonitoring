@@ -83,6 +83,21 @@ Set-Content -LiteralPath $copyScript -Value $copyAssets -Encoding UTF8
 
 if (-not $SkipAnalysisRunner) {
     $runnerSource = Join-Path $repo "bin\BridgeAnalysisRunner"
+    $runnerExe = Join-Path $runnerSource "BridgeAnalysisRunner.exe"
+    $runnerInputs = @(
+        Get-Item -LiteralPath (Join-Path $repo "run_request_cli.m")
+        Get-ChildItem -LiteralPath (Join-Path $repo "+bms") -Recurse -File -Filter "*.m"
+        Get-ChildItem -LiteralPath (Join-Path $repo "analysis") -Recurse -File -Filter "*.m"
+        Get-ChildItem -LiteralPath (Join-Path $repo "pipeline") -Recurse -File -Filter "*.m"
+        Get-ChildItem -LiteralPath (Join-Path $repo "scripts") -Recurse -File -Filter "*.m"
+        Get-ChildItem -LiteralPath (Join-Path $repo "ui") -Recurse -File -Filter "*.m"
+    )
+    $latestRunnerInput = ($runnerInputs | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
+    if (-not (Test-Path -LiteralPath $runnerExe -PathType Leaf) `
+            -or (Get-Item -LiteralPath $runnerExe).LastWriteTimeUtc -lt $latestRunnerInput) {
+        Write-Host "Analysis runner is stale; rebuilding before workbench packaging."
+        & (Join-Path $repo "scripts\build_analysis_runner.ps1")
+    }
     if (-not (Test-Path -LiteralPath (Join-Path $runnerSource "BridgeAnalysisRunner.exe") -PathType Leaf)) {
         throw "Analysis runner is missing: $runnerSource"
     }
@@ -150,7 +165,8 @@ if ($smokeProcess.ExitCode -ne 0) {
 }
 $smoke = Get-Content -LiteralPath $smokeOutput -Raw -Encoding UTF8 | ConvertFrom-Json
 if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
-        -or $smoke.config_tab_count -lt 2 -or $smoke.module_count -lt 20 `
+        -or $smoke.config_tab_count -lt 4 -or $smoke.module_count -lt 20 `
+        -or $smoke.auto_threshold_module_count -lt 10 `
         -or $smoke.cleaning_threshold_row_count -lt 1) {
     throw "Workbench EXE smoke contract failed: $($smoke | ConvertTo-Json -Compress)"
 }
@@ -161,6 +177,10 @@ $configScreenshotOutput = Join-Path $distRoot "workbench_alarm_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $configScreenshotOutput -ProfileId "hongtang" -TabIndex 1
 $cleaningScreenshotOutput = Join-Path $distRoot "workbench_cleaning_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $cleaningScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 1
+$postFilterScreenshotOutput = Join-Path $distRoot "workbench_post_filter_editor.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $postFilterScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 2
+$autoThresholdScreenshotOutput = Join-Path $distRoot "workbench_auto_threshold.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $autoThresholdScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 3
 
 $files = Get-ChildItem -LiteralPath $distRoot -Recurse -File
 $updatePolicy = Get-Content -LiteralPath (Join-Path $distRoot "config\workbench_update.json") -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -177,7 +197,13 @@ $releaseManifest = [ordered]@{
     report_builder_context_smoke = -not $SkipReportBuilder
     file_count_excluding_manifest = $files.Count
     total_bytes_excluding_manifest = [long](($files | Measure-Object Length -Sum).Sum)
-    screenshots = @("workbench_startup.png", "workbench_alarm_editor.png", "workbench_cleaning_editor.png")
+    screenshots = @(
+        "workbench_startup.png",
+        "workbench_alarm_editor.png",
+        "workbench_cleaning_editor.png",
+        "workbench_post_filter_editor.png",
+        "workbench_auto_threshold.png"
+    )
     smoke = $smoke
 }
 $manifestPath = Join-Path $distRoot "release_manifest.json"

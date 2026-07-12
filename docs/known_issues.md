@@ -12,8 +12,8 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
 - The PySide6 shell currently covers project/date/module selection, local
   analysis launch, status/manifest review, task restoration, and guarded report
   handoff. Explicit `alarm_bounds` and data-cleaning threshold editing are
-  migrated with backup/hash gates, but automatic-cleaning proposals,
-  post-filter cleaning, offsets,
+  migrated with backup/hash gates. Compiled-runner-backed automatic-cleaning
+  proposals and post-filter cleaning are also migrated; offsets,
   group plots, common plotting, and spectrum overrides remain in MATLAB.
   Continue using the legacy MATLAB GUI for production configuration.
 - The Python module key/option mapping mirrors MATLAB and is protected by a
@@ -36,6 +36,37 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   copy and review backup/rollback behavior. Existing configs are preserved, so
   future config-schema changes need an explicit migration rather than relying
   on package replacement.
+
+## Compiled Runner Request JSON Encoding
+
+Status: fixed locally on `dev/pyside6-workbench`; real compiled EXE verified.
+
+MATLAB `jsondecode(fileread(...))` rejected UTF-8 JSON files beginning with a
+BOM. The first compiled automatic-proposal smoke therefore fell through to the
+legacy analysis dispatcher and exited before writing a result. Workbench
+request writers now use BOM-free UTF-8, while `bms.io.JsonFile` strips a BOM
+when one is supplied by an external tool. `RunRequest`, automatic-proposal
+dispatch and the CLI dispatcher share this reader. The same utility hashes the
+pinned configuration, and the compiled proposal Runner refuses configuration
+drift before reading analysis data. The rebuilt runner completed an actual
+request with exit code 0 and matching config SHA256.
+
+This encoding rule applies to JSON contracts only. Generated Windows
+PowerShell 5.1 launchers containing Chinese paths should continue to use UTF-8
+with BOM as documented below.
+
+## MATLAB Path Pollution From Archived Runtime Copies
+
+Status: test harness guarded; repository archives remain untouched.
+
+Blind `addpath(genpath(projectRoot))` can put MATLAB files below
+`ops_local/release_archives` or `release_packages` ahead of the current
+`pipeline`. During this milestone it selected a v1.7.8
+`resolve_post_filter_thresholds.m` instead of the dev-branch implementation.
+Focused workbench tests now explicitly place the current root, pipeline,
+analysis, config and UI paths at the beginning. Do not delete or edit archived
+deliverables to solve path order; production launchers and compiled builds must
+add only the intended current source directories.
 
 ## Cleaning Threshold Struct Field Compatibility
 

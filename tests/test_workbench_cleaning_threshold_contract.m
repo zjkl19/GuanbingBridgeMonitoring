@@ -38,5 +38,19 @@ classdef test_workbench_cleaning_threshold_contract < matlab.unittest.TestCase
             tc.verifyEqual(cleaned(1:2), [49 50]);
             tc.verifyTrue(isnan(cleaned(3)));
         end
+
+        function postFilterContractSupportsOneSidedTimedRule(tc)
+            root = fileparts(fileparts(mfilename('fullpath')));
+            addpath(fullfile(root, 'pipeline'), '-begin');
+            path = fullfile(root, 'tests', 'fixtures', ...
+                'workbench_cleaning_threshold_contract.json');
+            cfg = bms.core.ConfigStore.load(path);
+            rules = resolve_post_filter_thresholds(cfg, 'deflection', 'PT-1');
+            tc.verifyNumElements(rules, 1);
+            tc.verifyEmpty(rules.min);
+            tc.verifyEqual(rules.max, 4);
+            tc.verifyEqual(rules.t_range_start, '2026-01-01 00:00:00');
+            tc.verifyEqual(rules.t_range_end, '2026-01-31 23:59:59');
+        end
     end
 end

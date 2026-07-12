@@ -29,12 +29,19 @@ dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe
 发布目录会同时包含 MATLAB 编译 Runner、配置/模板和通过
 `--job-context` 冒烟测试的报告生成器。`release_manifest.json` 记录 EXE
 哈希、发布清单自身以外的文件数/总大小及启动自测结果；`workbench_startup.png`、
-`workbench_alarm_editor.png` 与 `workbench_cleaning_editor.png` 是构建时自动生成的界面证据。
+`workbench_alarm_editor.png`、`workbench_cleaning_editor.png`、
+`workbench_post_filter_editor.png` 与 `workbench_auto_threshold.png` 是构建时自动生成的界面证据。
 
 “配置与预警值”页现已迁移显式 `alarm_bounds` 以及
 `thresholds` / `zero_to_nan` / `outlier` 数据清洗字段。清洗编辑器支持默认和测点规则、
 单边阈值、成对时间窗及历史 `1000/-1000` 全抑制哨兵；覆盖保存前执行源文件哈希校验并自动备份，
-不会修改零点修正、滤波后二次清洗或绘图字段。自动清洗建议生成仍保留在 MATLAB GUI。
+不会修改零点修正、滤波后二次清洗或绘图字段。
+
+工作台现已增加独立“滤波后二次清洗”和“自动清洗建议”子页。后者仍调用
+MATLAB `AutoThresholdProposalService`，由重新编译的同一
+`BridgeAnalysisRunner.exe` 在独立进程生成建议；PySide6只负责参数、状态、人工复核和受保护写入。
+建议不会自动落入配置，Runner 会在读取数据前校验请求固定的配置 SHA；只有勾选的
+`range/window_range` 在二次确认、再次校验配置 SHA 和自动备份后写入。
 
 打包版右上角提供“检查更新”。正式版启动后每天最多自动查询一次 GitHub
 Release；发现更高稳定版本时，可下载、双重 SHA256 校验、备份当前安装并在退出后

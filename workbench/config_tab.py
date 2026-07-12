@@ -23,6 +23,7 @@ from .config_editor import (
     CleaningThresholdRow,
     ConfigEditorError,
     ConfigEditorSession,
+    PostFilterConfigEditorSession,
 )
 
 
@@ -222,6 +223,13 @@ class AlarmBoundsEditorWidget(QWidget):
 
 class CleaningThresholdEditorWidget(QWidget):
     config_saved = Signal(str, str, str)
+    session_class = CleaningConfigEditorSession
+    row_label = "清洗配置行"
+    copy_suffix = "cleaning_workbench"
+    editor_label = "清洗配置"
+    managed_field_text = "显式清洗字段"
+    add_default_text = "新增默认清洗规则"
+    add_point_text = "新增测点清洗规则"
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -230,16 +238,16 @@ class CleaningThresholdEditorWidget(QWidget):
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
-        title = QLabel("数据清洗阈值配置")
-        title.setStyleSheet("font-size: 20px; font-weight: 700; color: #005eac;")
-        outer.addWidget(title)
-        hint = QLabel(
+        self.title_label = QLabel("数据清洗阈值配置")
+        self.title_label.setStyleSheet("font-size: 20px; font-weight: 700; color: #005eac;")
+        outer.addWidget(self.title_label)
+        self.hint_label = QLabel(
             "编辑 defaults/per_point 下的 thresholds、zero_to_nan 和 outlier。min/max 可单边填写；"
             "时间窗必须成对填写。历史 1000/-1000 全抑制哨兵可读取和保留，但不建议新增。"
             "保存仅替换上述清洗字段，预警值、零点修正和其它配置保持不变。"
         )
-        hint.setWordWrap(True)
-        outer.addWidget(hint)
+        self.hint_label.setWordWrap(True)
+        outer.addWidget(self.hint_label)
 
         path_row = QHBoxLayout()
         self.path_label = QLabel("配置：尚未加载")
@@ -278,12 +286,12 @@ class CleaningThresholdEditorWidget(QWidget):
         outer.addWidget(self.table, 1)
 
         actions = QHBoxLayout()
-        add_default = QPushButton("新增默认清洗规则")
-        add_default.clicked.connect(lambda: self.add_row("defaults"))
-        actions.addWidget(add_default)
-        add_point = QPushButton("新增测点清洗规则")
-        add_point.clicked.connect(lambda: self.add_row("per_point"))
-        actions.addWidget(add_point)
+        self.add_default_button = QPushButton(self.add_default_text)
+        self.add_default_button.clicked.connect(lambda: self.add_row("defaults"))
+        actions.addWidget(self.add_default_button)
+        self.add_point_button = QPushButton(self.add_point_text)
+        self.add_point_button.clicked.connect(lambda: self.add_row("per_point"))
+        actions.addWidget(self.add_point_button)
         delete_button = QPushButton("删除选中行")
         delete_button.clicked.connect(self.delete_selected_rows)
         actions.addWidget(delete_button)
@@ -307,12 +315,12 @@ class CleaningThresholdEditorWidget(QWidget):
         outer.addWidget(self.message_label)
 
     def load_path(self, path: Path) -> None:
-        session = CleaningConfigEditorSession(path)
+        session = self.session_class(path)
         self.session = session
         self.path_label.setText(f"配置：{session.path}")
         self._populate(session.rows)
         self.message_label.setText(
-            f"已加载；SHA256={session.loaded_sha256[:16]}…。仅列出显式清洗字段。"
+            f"已加载；SHA256={session.loaded_sha256[:16]}…。仅列出{self.managed_field_text}。"
         )
         self.message_label.setStyleSheet("color: #167c35;")
 
@@ -337,7 +345,7 @@ class CleaningThresholdEditorWidget(QWidget):
         self.table.setRowCount(0)
         for row in rows:
             self._append_row(row)
-        self.count_label.setText(f"{len(rows)} 条清洗配置行")
+        self.count_label.setText(f"{len(rows)} 条{self.row_label}")
 
     def _append_row(self, row: CleaningThresholdRow) -> None:
         index = self.table.rowCount()
@@ -367,13 +375,13 @@ class CleaningThresholdEditorWidget(QWidget):
         row = self.table.rowCount() - 1
         self.table.selectRow(row)
         self.table.scrollToItem(self.table.item(row, 0))
-        self.count_label.setText(f"{self.table.rowCount()} 条清洗配置行")
+        self.count_label.setText(f"{self.table.rowCount()} 条{self.row_label}")
 
     def delete_selected_rows(self) -> None:
         selected = sorted({index.row() for index in self.table.selectedIndexes()}, reverse=True)
         for row in selected:
             self.table.removeRow(row)
-        self.count_label.setText(f"{self.table.rowCount()} 条清洗配置行")
+        self.count_label.setText(f"{self.table.rowCount()} 条{self.row_label}")
 
     @staticmethod
     def _optional_float(text: str) -> float | None:
@@ -423,13 +431,13 @@ class CleaningThresholdEditorWidget(QWidget):
         try:
             rows = self.rows()
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "清洗配置校验失败", str(exc))
+            QMessageBox.critical(self, f"{self.editor_label}校验失败", str(exc))
             return
         suppressions = sum(
             row.minimum == 1000 and row.maximum == -1000 for row in rows
         )
         suffix = f"；其中 {suppressions} 条历史全抑制哨兵" if suppressions else ""
-        QMessageBox.information(self, "清洗配置校验通过", f"{len(rows)} 条配置行均有效{suffix}。")
+        QMessageBox.information(self, f"{self.editor_label}校验通过", f"{len(rows)} 条配置行均有效{suffix}。")
 
     def _save_source(self) -> None:
         if self.session is None:
@@ -452,7 +460,7 @@ class CleaningThresholdEditorWidget(QWidget):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "保存配置副本",
-            str(self.session.path.with_name(f"{self.session.path.stem}_cleaning_workbench.json")),
+            str(self.session.path.with_name(f"{self.session.path.stem}_{self.copy_suffix}.json")),
             "JSON files (*.json)",
         )
         if path:
@@ -463,7 +471,7 @@ class CleaningThresholdEditorWidget(QWidget):
         try:
             result = self.session.save(self.rows(), target=target)
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "保存清洗配置失败", str(exc))
+            QMessageBox.critical(self, f"保存{self.editor_label}失败", str(exc))
             return
         backup = str(result.backup_path) if result.backup_path else "无（内容未变化或为新文件）"
         self.message_label.setText(
@@ -472,3 +480,23 @@ class CleaningThresholdEditorWidget(QWidget):
         self.message_label.setStyleSheet("color: #167c35; font-weight: 600;")
         self.config_saved.emit(str(result.path), result.sha256, backup)
         QMessageBox.information(self, "保存完成", self.message_label.text())
+
+
+class PostFilterThresholdEditorWidget(CleaningThresholdEditorWidget):
+    session_class = PostFilterConfigEditorSession
+    row_label = "滤波后二次清洗行"
+    copy_suffix = "post_filter_workbench"
+    editor_label = "滤波后二次清洗配置"
+    managed_field_text = "显式 post_filter_thresholds"
+    add_default_text = "新增默认滤波后规则"
+    add_point_text = "新增测点滤波后规则"
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.title_label.setText("滤波后二次清洗配置")
+        self.hint_label.setText(
+            "编辑 defaults/per_point 下的 post_filter_thresholds，仅在滤波完成后按顺序执行。"
+            "支持单边上下限和成对时间窗；不修改原始清洗、零点修正或报警边界。"
+        )
+        for column in (7, 8, 9):
+            self.table.setColumnHidden(column, True)

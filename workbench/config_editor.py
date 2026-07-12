@@ -435,6 +435,118 @@ def apply_cleaning_thresholds(
     return updated
 
 
+def extract_post_filter_thresholds(payload: dict[str, Any]) -> list[CleaningThresholdRow]:
+    rows: list[CleaningThresholdRow] = []
+    for scope in ("defaults", "per_point"):
+        root = payload.get(scope, {}) or {}
+        if not isinstance(root, dict):
+            raise ConfigEditorError(f"{scope} 必须是对象")
+        for module_key, module in root.items():
+            if not isinstance(module, dict):
+                continue
+            blocks = [("", module)] if scope == "defaults" else module.items()
+            for point_key, block in blocks:
+                if not isinstance(block, dict) or "post_filter_thresholds" not in block:
+                    continue
+                raw = block.get("post_filter_thresholds")
+                if isinstance(raw, dict):
+                    rules = [raw]
+                elif isinstance(raw, list):
+                    if not all(isinstance(item, dict) for item in raw):
+                        raise ConfigEditorError(
+                            f"{scope}.{module_key}.{point_key}.post_filter_thresholds 必须是对象数组"
+                        )
+                    rules = raw
+                elif raw is None:
+                    rules = []
+                else:
+                    raise ConfigEditorError(
+                        f"{scope}.{module_key}.{point_key}.post_filter_thresholds 必须是对象或数组"
+                    )
+                if not rules:
+                    rules = [{}]
+                rows.extend(
+                    CleaningThresholdRow(
+                        scope,
+                        str(module_key),
+                        str(point_key),
+                        rule.get("min"),
+                        rule.get("max"),
+                        str(rule.get("t_range_start") or ""),
+                        str(rule.get("t_range_end") or ""),
+                    ).validated()
+                    for rule in rules
+                )
+    return sorted(
+        rows,
+        key=lambda row: (
+            0 if row.scope == "defaults" else 1,
+            row.module_key.casefold(),
+            row.point_key.casefold(),
+            row.t_range_start,
+        ),
+    )
+
+
+def apply_post_filter_thresholds(
+    payload: dict[str, Any], rows: Iterable[CleaningThresholdRow]
+) -> dict[str, Any]:
+    validated = [row.validated() for row in rows]
+    groups: dict[tuple[str, str, str], list[CleaningThresholdRow]] = {}
+    seen: set[tuple[Any, ...]] = set()
+    for row in validated:
+        if row.zero_to_nan is not None or row.outlier_window_sec is not None:
+            raise ConfigEditorError("滤波后二次清洗不支持 zero_to_nan 或 outlier")
+        identity = (row.scope, row.module_key, row.point_key)
+        rule_id = identity + (row.minimum, row.maximum, row.t_range_start, row.t_range_end)
+        if (row.minimum is not None or row.maximum is not None) and rule_id in seen:
+            raise ConfigEditorError(f"存在重复滤波后规则：{'/'.join(identity)}")
+        seen.add(rule_id)
+        groups.setdefault(identity, []).append(row)
+
+    updated = copy.deepcopy(payload)
+    for scope in ("defaults", "per_point"):
+        root = updated.get(scope, {}) or {}
+        if not isinstance(root, dict):
+            raise ConfigEditorError(f"{scope} 必须是对象")
+        for module in root.values():
+            if not isinstance(module, dict):
+                continue
+            blocks = [module] if scope == "defaults" else module.values()
+            for block in blocks:
+                if isinstance(block, dict):
+                    block.pop("post_filter_thresholds", None)
+
+    for identity, block_rows in groups.items():
+        scope, module_key, point_key = identity
+        root = updated.setdefault(scope, {})
+        module = root.setdefault(module_key, {})
+        target = module if scope == "defaults" else module.setdefault(point_key, {})
+        if not isinstance(target, dict):
+            raise ConfigEditorError(f"配置块不是对象：{'/'.join(identity)}")
+        active = [row for row in block_rows if row.minimum is not None or row.maximum is not None]
+        existing = _existing_cleaning_block(payload, identity)
+        existing_raw = existing.get("post_filter_thresholds") if existing else None
+        if active:
+            rules: list[dict[str, Any]] = []
+            for row in active:
+                rule: dict[str, Any] = {}
+                if row.minimum is not None:
+                    rule["min"] = row.minimum
+                if row.maximum is not None:
+                    rule["max"] = row.maximum
+                if row.t_range_start:
+                    rule["t_range_start"] = row.t_range_start
+                    rule["t_range_end"] = row.t_range_end
+                rules.append(rule)
+            target["post_filter_thresholds"] = (
+                rules[0] if isinstance(existing_raw, dict) and len(rules) == 1 else rules
+            )
+        elif existing is not None and "post_filter_thresholds" in existing:
+            target["post_filter_thresholds"] = []
+    return updated
+
+
 def _encoded_config(payload: dict[str, Any]) -> bytes:
     return (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
@@ -510,6 +622,93 @@ class CleaningConfigEditorSession(ConfigEditorSession):
         if normalized == self.rows:
             return copy.deepcopy(self.payload)
         return apply_cleaning_thresholds(self.payload, normalized)
+
+    def save(
+        self, rows: Iterable[CleaningThresholdRow], *, target: Path | None = None
+    ) -> ConfigSaveResult:
+        return self._save_updated(self.build_payload(rows), target=target)
+
+    def build_payload_with_proposals(self, proposals: Iterable[dict[str, Any]]) -> dict[str, Any]:
+        rows = list(self.rows)
+        existing = {
+            (
+                row.scope,
+                row.module_key,
+                row.point_key,
+                row.minimum,
+                row.maximum,
+                row.t_range_start,
+                row.t_range_end,
+            )
+            for row in rows
+            if row.minimum is not None or row.maximum is not None
+        }
+        names: dict[str, str] = {}
+        accepted = 0
+        for proposal in proposals:
+            if not bool(proposal.get("selected", False)):
+                continue
+            if str(proposal.get("kind") or "") not in {"range", "window_range"}:
+                continue
+            module_key = str(proposal.get("apply_key") or "").strip()
+            point_key = str(proposal.get("safe_id") or "").strip()
+            point_id = str(proposal.get("point_id") or point_key).strip()
+            if not module_key or not point_key:
+                raise ConfigEditorError("自动建议缺少 apply_key 或 safe_id，拒绝写入")
+            row = CleaningThresholdRow(
+                "per_point",
+                module_key,
+                point_key,
+                proposal.get("min"),
+                proposal.get("max"),
+                str(proposal.get("t_range_start") or ""),
+                str(proposal.get("t_range_end") or ""),
+            ).validated()
+            identity = (
+                row.scope,
+                row.module_key,
+                row.point_key,
+                row.minimum,
+                row.maximum,
+                row.t_range_start,
+                row.t_range_end,
+            )
+            if identity not in existing:
+                rows.append(row)
+                existing.add(identity)
+                accepted += 1
+            names[point_key] = point_id
+        if accepted == 0:
+            raise ConfigEditorError("没有新的、可写入的已勾选阈值建议")
+        updated = apply_cleaning_thresholds(self.payload, rows)
+        name_map = updated.setdefault("name_map_global", {})
+        if not isinstance(name_map, dict):
+            raise ConfigEditorError("name_map_global 必须是对象")
+        name_map.update(names)
+        return updated
+
+    def save_proposals(
+        self,
+        proposals: Iterable[dict[str, Any]],
+        *,
+        expected_sha256: str,
+    ) -> ConfigSaveResult:
+        expected = expected_sha256.strip().lower()
+        if self.loaded_sha256.lower() != expected or file_sha256(self.path).lower() != expected:
+            raise ConfigChangedError("建议生成后配置文件已变化，请重新生成建议")
+        return self._save_updated(self.build_payload_with_proposals(proposals))
+
+
+class PostFilterConfigEditorSession(ConfigEditorSession):
+    @property
+    def rows(self) -> list[CleaningThresholdRow]:
+        return extract_post_filter_thresholds(self.payload)
+
+    def build_payload(self, rows: Iterable[CleaningThresholdRow]) -> dict[str, Any]:
+        normalized = [row.validated() for row in rows]
+        if normalized == self.rows:
+            return copy.deepcopy(self.payload)
+        return apply_post_filter_thresholds(self.payload, normalized)
 
     def save(
         self, rows: Iterable[CleaningThresholdRow], *, target: Path | None = None

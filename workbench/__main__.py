@@ -36,6 +36,7 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "alarm_bound_row_count": window.alarm_editor.table.rowCount(),
         "cleaning_threshold_row_count": window.cleaning_editor.table.rowCount(),
         "config_tab_count": window.config_tabs.count(),
+        "auto_threshold_module_count": window.auto_threshold_editor.module_list.count(),
         "report_gate_locked": not window.open_report_btn.isEnabled(),
     }
 

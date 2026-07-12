@@ -330,7 +330,7 @@ try {{
         $path = Join-Path $target $name
         if (Test-Path -LiteralPath $path) {{ Remove-Item -LiteralPath $path -Recurse -Force }}
     }}
-    foreach ($name in @('BridgeMonitoringWorkbench.exe','README.md','VERSION','release_manifest.json','workbench_smoke.json','workbench_startup.png','workbench_alarm_editor.png','workbench_cleaning_editor.png')) {{
+    foreach ($name in @('BridgeMonitoringWorkbench.exe','README.md','VERSION','release_manifest.json','workbench_smoke.json','workbench_startup.png','workbench_alarm_editor.png','workbench_cleaning_editor.png','workbench_post_filter_editor.png','workbench_auto_threshold.png')) {{
         $path = Join-Path $target $name
         if (Test-Path -LiteralPath $path) {{ Remove-Item -LiteralPath $path -Force }}
     }}

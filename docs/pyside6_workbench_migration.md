@@ -21,7 +21,9 @@ cycles prove the new shell.
 
 The second local milestone adds a packaged EXE and migrates the explicit
 `alarm_bounds` editor. The third local milestone adds data-cleaning threshold
-parity. Neither milestone writes to production machines.
+parity. The fourth adds post-filter cleanup plus compiled-runner-backed
+automatic-cleaning proposals. None of these milestones writes to production
+machines.
 
 ## Packaged local milestone
 
@@ -29,7 +31,7 @@ parity. Neither milestone writes to production machines.
 - Run `dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe`.
 - The onedir release includes the compiled MATLAB analysis runner, all profile
   configs/templates, and a freshly packaged report builder.
-- The build blocks unless the workbench EXE smoke contract, three native Qt
+- The build blocks unless the workbench EXE smoke contract, five native Qt
   screenshots, and the packaged report builder `--job-context` smoke test pass.
 - `release_manifest.json` records SHA-256, version, file count/byte size
   excluding the manifest itself, and smoke results. Generated `build/` and
@@ -43,8 +45,17 @@ configs, including scalar/array/empty threshold containers, one-sided rules,
 optional time windows, and the legacy `1000/-1000` suppression sentinel. Both
 reject a save if the source file changed after loading, automatically back up an
 overwritten config, preserves unrelated JSON fields, and invalidates any old
-job approval after the selected config is changed. Automatic-cleaning proposal
-generation, post-filter thresholds, offsets, and plot overrides remain in the
+job approval after the selected config is changed.
+
+Post-filter `post_filter_thresholds` uses a separate editor with the same
+representation and save guards. Automatic-cleaning proposal generation remains
+numerically owned by MATLAB: `BridgeAnalysisRunner.exe` dispatches a versioned
+proposal request to `AutoThresholdProposalService`, while PySide6 owns options,
+status polling, the human-review table and explicit application. Applying
+requires the generation-time config SHA256 both before MATLAB data loading and
+before selected rows are written, carries MATLAB-provided
+`apply_key`/safe point identity, skips review-only rows, backs up the source,
+and invalidates the old job context. Offset and plot overrides remain in the
 MATLAB GUI.
 
 The packaged shell also includes a stable-channel GitHub Release updater. It
@@ -71,8 +82,8 @@ inside MATLAB, and the MATLAB engine is not rewritten in Python.
 
 ## Later migration work
 
-- Automatic-cleaning preview parity.
-- Post-filter cleanup and offset-correction parity.
+- Curve-preview parity for automatic-cleaning suggestions.
+- Offset-correction parity.
 - Group-plot, plot-common, and spectrum override parity.
 - Embedded report build progress and final Word/PDF QC.
 - Installed-runtime comparison across every bridge profile.

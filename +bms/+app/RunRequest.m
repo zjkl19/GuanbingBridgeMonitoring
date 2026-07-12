@@ -159,7 +159,7 @@ classdef RunRequest
         end
 
         function obj = readJson(path)
-            s = jsondecode(fileread(path));
+            s = bms.io.JsonFile.read(path);
             obj = bms.app.RunRequest.fromJsonStruct(s);
         end
 

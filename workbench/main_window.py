@@ -32,7 +32,12 @@ from PySide6.QtWidgets import (
 )
 
 from .analysis import AnalysisLauncher, ExecutorResolver, read_analysis_status
-from .config_tab import AlarmBoundsEditorWidget, CleaningThresholdEditorWidget
+from .auto_threshold_tab import AutoThresholdProposalWidget
+from .config_tab import (
+    AlarmBoundsEditorWidget,
+    CleaningThresholdEditorWidget,
+    PostFilterThresholdEditorWidget,
+)
 from .manifest import ManifestSummary, find_latest_manifest, load_manifest_summary, manifest_context_issues
 from .module_icons import module_icon
 from .models import JobContext, file_sha256
@@ -91,8 +96,24 @@ class WorkbenchWindow(QMainWindow):
                 "数据清洗", path, sha256, backup
             )
         )
+        self.post_filter_editor = PostFilterThresholdEditorWidget()
+        self.post_filter_editor.config_saved.connect(
+            lambda path, sha256, backup: self._on_config_saved(
+                "滤波后二次清洗", path, sha256, backup
+            )
+        )
+        self.auto_threshold_editor = AutoThresholdProposalWidget(
+            self.project_root, self._auto_threshold_context
+        )
+        self.auto_threshold_editor.config_saved.connect(
+            lambda path, sha256, backup: self._on_config_saved(
+                "自动清洗建议", path, sha256, backup
+            )
+        )
         config_tabs.addTab(self.alarm_editor, "预警值")
         config_tabs.addTab(self.cleaning_editor, "数据清洗阈值")
+        config_tabs.addTab(self.post_filter_editor, "滤波后二次清洗")
+        config_tabs.addTab(self.auto_threshold_editor, "自动清洗建议")
         self.config_tabs = config_tabs
         tabs.addTab(config_tabs, "配置与预警值")
         tabs.addTab(self._build_review_tab(), "结果与图件审核")
@@ -291,6 +312,14 @@ class WorkbenchWindow(QMainWindow):
         if bridge_id:
             self._apply_profile(profile_by_id(self.profiles, bridge_id))
 
+    def _auto_threshold_context(self) -> dict[str, str]:
+        return {
+            "data_root": self.data_root_edit.text().strip(),
+            "config_path": self.config_edit.text().strip(),
+            "start_date": self.start_date_edit.date().toString("yyyy-MM-dd"),
+            "end_date": self.end_date_edit.date().toString("yyyy-MM-dd"),
+        }
+
     def _apply_profile(self, profile: WorkbenchProfile) -> None:
         self.current_profile = profile
         _set_line_edit_path(self.data_root_edit, profile.default_data_root)
@@ -298,11 +327,14 @@ class WorkbenchWindow(QMainWindow):
         try:
             self.alarm_editor.load_path(profile.config_path(self.project_root))
             self.cleaning_editor.load_path(profile.config_path(self.project_root))
+            self.post_filter_editor.load_path(profile.config_path(self.project_root))
         except Exception as exc:  # noqa: BLE001
             self.alarm_editor.message_label.setText(f"配置加载失败：{exc}")
             self.alarm_editor.message_label.setStyleSheet("color: #a33;")
             self.cleaning_editor.message_label.setText(f"配置加载失败：{exc}")
             self.cleaning_editor.message_label.setStyleSheet("color: #a33;")
+            self.post_filter_editor.message_label.setText(f"配置加载失败：{exc}")
+            self.post_filter_editor.message_label.setStyleSheet("color: #a33;")
         _set_line_edit_path(self.template_edit, profile.template_path(self.project_root) if profile.report_template else "")
         output = Path(profile.default_data_root) / "自动报告" if profile.default_data_root else self.project_root / "output" / "doc"
         _set_line_edit_path(self.output_dir_edit, output)
@@ -687,6 +719,7 @@ class WorkbenchWindow(QMainWindow):
             try:
                 self.alarm_editor.load_path(path)
                 self.cleaning_editor.load_path(path)
+                self.post_filter_editor.load_path(path)
             except Exception as exc:  # noqa: BLE001
                 self._show_exception("加载高级配置失败", exc)
 
@@ -702,6 +735,15 @@ class WorkbenchWindow(QMainWindow):
                 f"{editor_label}配置已保存；SHA256={sha256[:16]}…；备份={backup}。"
                 "旧任务上下文已失效。"
             )
+            for editor in (
+                self.alarm_editor,
+                self.cleaning_editor,
+                self.post_filter_editor,
+            ):
+                try:
+                    editor.load_path(saved_path)
+                except Exception as exc:  # noqa: BLE001
+                    self._append_log(f"配置编辑器重新加载失败：{exc}")
 
     def _browse_template(self) -> None:
         self._browse_file_into(self.template_edit, "选择报告模板", "Word files (*.docx)")

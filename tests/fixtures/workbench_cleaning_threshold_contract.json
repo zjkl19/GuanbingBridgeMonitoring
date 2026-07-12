@@ -13,7 +13,8 @@
       "outlier": {
         "window_sec": 15,
         "threshold_factor": 3
-      }
+      },
+      "post_filter_thresholds": []
     },
     "temperature": {
       "thresholds": {
@@ -35,7 +36,14 @@
             -20,
             20
           ]
-        }
+        },
+        "post_filter_thresholds": [
+          {
+            "max": 4,
+            "t_range_start": "2026-01-01 00:00:00",
+            "t_range_end": "2026-01-31 23:59:59"
+          }
+        ]
       }
     }
   },
