@@ -64,6 +64,75 @@ class AlarmBoundRow:
 
 
 @dataclass(frozen=True)
+class CleaningThresholdRow:
+    scope: str
+    module_key: str
+    point_key: str
+    minimum: float | None
+    maximum: float | None
+    t_range_start: str = ""
+    t_range_end: str = ""
+    zero_to_nan: bool | None = None
+    outlier_window_sec: float | None = None
+    outlier_threshold_factor: float | None = None
+
+    def validated(self) -> "CleaningThresholdRow":
+        scope = self.scope.strip()
+        module_key = self.module_key.strip()
+        point_key = self.point_key.strip()
+        if scope not in {"defaults", "per_point"}:
+            raise ConfigEditorError(f"scope 必须是 defaults 或 per_point：{scope!r}")
+        if not module_key:
+            raise ConfigEditorError("module_key 不能为空")
+        if scope == "defaults" and point_key:
+            raise ConfigEditorError("defaults 行不能填写 point_key")
+        if scope == "per_point" and not point_key:
+            raise ConfigEditorError("per_point 行必须填写 point_key")
+
+        minimum = _optional_finite(self.minimum, "min")
+        maximum = _optional_finite(self.maximum, "max")
+        start = str(self.t_range_start or "").strip()
+        end = str(self.t_range_end or "").strip()
+        if bool(start) != bool(end):
+            raise ConfigEditorError("时间窗必须同时填写开始和结束")
+        for label, value in (("t_range_start", start), ("t_range_end", end)):
+            if value:
+                try:
+                    datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+                except ValueError as exc:
+                    raise ConfigEditorError(f"{label} 格式必须为 yyyy-MM-dd HH:mm:ss：{value!r}") from exc
+        if start and minimum is None and maximum is None:
+            raise ConfigEditorError("时间窗行至少需要 min 或 max")
+        if minimum is not None and maximum is not None and minimum > maximum:
+            if not (minimum == 1000 and maximum == -1000):
+                raise ConfigEditorError(
+                    f"min 大于 max 仅允许历史全抑制哨兵 1000/-1000：{minimum}/{maximum}"
+                )
+
+        window = _optional_finite(self.outlier_window_sec, "outlier_window_sec")
+        factor = _optional_finite(self.outlier_threshold_factor, "outlier_threshold_factor")
+        if (window is None) != (factor is None):
+            raise ConfigEditorError("移动窗秒数和异常阈值系数必须同时填写")
+        if window is not None and (window <= 0 or factor is None or factor <= 0):
+            raise ConfigEditorError("移动窗秒数和异常阈值系数必须大于 0")
+        zero = self.zero_to_nan
+        if zero is not None and not isinstance(zero, bool):
+            raise ConfigEditorError("zero_to_nan 必须是 true、false 或留空")
+        return CleaningThresholdRow(
+            scope,
+            module_key,
+            point_key,
+            minimum,
+            maximum,
+            start,
+            end,
+            zero,
+            window,
+            factor,
+        )
+
+
+@dataclass(frozen=True)
 class ConfigSaveResult:
     path: Path
     sha256: str
@@ -74,6 +143,18 @@ class ConfigSaveResult:
 def _level_sort_key(level: str) -> tuple[int, str]:
     match = LEVEL_PATTERN.fullmatch(level)
     return (int(match.group(1)), level) if match else (2**31 - 1, level)
+
+
+def _optional_finite(value: Any, label: str) -> int | float | None:
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ConfigEditorError(f"{label} 必须是有限数值或留空") from exc
+    if not math.isfinite(number):
+        raise ConfigEditorError(f"{label} 必须是有限数值或留空")
+    return int(number) if number.is_integer() else number
 
 
 def _bounds_rows(scope: str, module_key: str, point_key: str, raw: Any) -> list[AlarmBoundRow]:
@@ -164,6 +245,196 @@ def apply_alarm_bounds(payload: dict[str, Any], rows: Iterable[AlarmBoundRow]) -
     return updated
 
 
+def _cleaning_rows_for_block(
+    scope: str,
+    module_key: str,
+    point_key: str,
+    block: dict[str, Any],
+) -> list[CleaningThresholdRow]:
+    managed = {"thresholds", "zero_to_nan", "outlier"}
+    if not managed.intersection(block):
+        return []
+    raw_thresholds = block.get("thresholds")
+    if raw_thresholds is None:
+        thresholds: list[dict[str, Any]] = []
+    elif isinstance(raw_thresholds, dict):
+        thresholds = [raw_thresholds]
+    elif isinstance(raw_thresholds, list):
+        if not all(isinstance(item, dict) for item in raw_thresholds):
+            raise ConfigEditorError(f"{scope}.{module_key}.{point_key}.thresholds 必须是对象或对象数组")
+        thresholds = raw_thresholds
+    else:
+        raise ConfigEditorError(f"{scope}.{module_key}.{point_key}.thresholds 必须是对象或对象数组")
+
+    zero = None
+    if "zero_to_nan" in block:
+        raw_zero = block.get("zero_to_nan")
+        if not isinstance(raw_zero, (bool, int, float)):
+            raise ConfigEditorError(f"{scope}.{module_key}.{point_key}.zero_to_nan 必须是布尔值")
+        zero = bool(raw_zero)
+    window = factor = None
+    raw_outlier = block.get("outlier")
+    if isinstance(raw_outlier, dict):
+        window = raw_outlier.get("window_sec")
+        factor = raw_outlier.get("threshold_factor")
+    elif raw_outlier not in (None, []):
+        raise ConfigEditorError(f"{scope}.{module_key}.{point_key}.outlier 必须是对象或空数组")
+
+    if not thresholds:
+        thresholds = [{}]
+    rows = [
+        CleaningThresholdRow(
+            scope,
+            module_key,
+            point_key,
+            raw.get("min"),
+            raw.get("max"),
+            str(raw.get("t_range_start") or ""),
+            str(raw.get("t_range_end") or ""),
+            zero,
+            window,
+            factor,
+        ).validated()
+        for raw in thresholds
+    ]
+    return rows
+
+
+def extract_cleaning_thresholds(payload: dict[str, Any]) -> list[CleaningThresholdRow]:
+    rows: list[CleaningThresholdRow] = []
+    defaults = payload.get("defaults", {}) or {}
+    if not isinstance(defaults, dict):
+        raise ConfigEditorError("defaults 必须是对象")
+    for module_key, block in defaults.items():
+        if isinstance(block, dict):
+            rows.extend(_cleaning_rows_for_block("defaults", str(module_key), "", block))
+
+    per_point = payload.get("per_point", {}) or {}
+    if not isinstance(per_point, dict):
+        raise ConfigEditorError("per_point 必须是对象")
+    for module_key, points in per_point.items():
+        if not isinstance(points, dict):
+            continue
+        for point_key, block in points.items():
+            if isinstance(block, dict):
+                rows.extend(
+                    _cleaning_rows_for_block("per_point", str(module_key), str(point_key), block)
+                )
+    return sorted(
+        rows,
+        key=lambda row: (
+            0 if row.scope == "defaults" else 1,
+            row.module_key.casefold(),
+            row.point_key.casefold(),
+            row.t_range_start,
+            row.minimum if row.minimum is not None else float("-inf"),
+        ),
+    )
+
+
+def _existing_cleaning_block(
+    payload: dict[str, Any], identity: tuple[str, str, str]
+) -> dict[str, Any] | None:
+    scope, module_key, point_key = identity
+    root = payload.get(scope)
+    if not isinstance(root, dict):
+        return None
+    module = root.get(module_key)
+    if not isinstance(module, dict):
+        return None
+    if scope == "defaults":
+        return module
+    block = module.get(point_key)
+    return block if isinstance(block, dict) else None
+
+
+def apply_cleaning_thresholds(
+    payload: dict[str, Any], rows: Iterable[CleaningThresholdRow]
+) -> dict[str, Any]:
+    validated = [row.validated() for row in rows]
+    groups: dict[tuple[str, str, str], list[CleaningThresholdRow]] = {}
+    seen_rules: set[tuple[Any, ...]] = set()
+    for row in validated:
+        identity = (row.scope, row.module_key, row.point_key)
+        rule_identity = identity + (
+            row.minimum,
+            row.maximum,
+            row.t_range_start,
+            row.t_range_end,
+        )
+        if (row.minimum is not None or row.maximum is not None) and rule_identity in seen_rules:
+            raise ConfigEditorError(f"存在重复清洗规则：{'/'.join(identity)}")
+        seen_rules.add(rule_identity)
+        groups.setdefault(identity, []).append(row)
+
+    updated = copy.deepcopy(payload)
+    for root_name in ("defaults", "per_point"):
+        root = updated.get(root_name, {}) or {}
+        if not isinstance(root, dict):
+            raise ConfigEditorError(f"{root_name} 必须是对象")
+        modules = root.values()
+        for module in modules:
+            if not isinstance(module, dict):
+                continue
+            blocks = [module] if root_name == "defaults" else module.values()
+            for block in blocks:
+                if isinstance(block, dict):
+                    for field in ("thresholds", "zero_to_nan", "outlier"):
+                        block.pop(field, None)
+
+    for identity, block_rows in groups.items():
+        zero_values = {row.zero_to_nan for row in block_rows}
+        outlier_values = {
+            (row.outlier_window_sec, row.outlier_threshold_factor) for row in block_rows
+        }
+        if len(zero_values) > 1:
+            raise ConfigEditorError(f"同一配置块的 zero_to_nan 不一致：{'/'.join(identity)}")
+        if len(outlier_values) > 1:
+            raise ConfigEditorError(f"同一配置块的 outlier 参数不一致：{'/'.join(identity)}")
+
+        scope, module_key, point_key = identity
+        root = updated.setdefault(scope, {})
+        if not isinstance(root, dict):
+            raise ConfigEditorError(f"{scope} 必须是对象")
+        module = root.setdefault(module_key, {})
+        if not isinstance(module, dict):
+            raise ConfigEditorError(f"{scope}.{module_key} 必须是对象")
+        target = module
+        if scope == "per_point":
+            target = module.setdefault(point_key, {})
+            if not isinstance(target, dict):
+                raise ConfigEditorError(f"per_point.{module_key}.{point_key} 必须是对象")
+
+        active = [row for row in block_rows if row.minimum is not None or row.maximum is not None]
+        existing = _existing_cleaning_block(payload, identity)
+        existing_thresholds = existing.get("thresholds") if existing else None
+        if active:
+            rules: list[dict[str, Any]] = []
+            for row in active:
+                rule: dict[str, Any] = {}
+                if row.minimum is not None:
+                    rule["min"] = row.minimum
+                if row.maximum is not None:
+                    rule["max"] = row.maximum
+                if row.t_range_start:
+                    rule["t_range_start"] = row.t_range_start
+                    rule["t_range_end"] = row.t_range_end
+                rules.append(rule)
+            target["thresholds"] = rules[0] if isinstance(existing_thresholds, dict) and len(rules) == 1 else rules
+        elif existing is not None and "thresholds" in existing:
+            target["thresholds"] = []
+
+        zero = next(iter(zero_values))
+        if zero is not None:
+            target["zero_to_nan"] = zero
+        window, factor = next(iter(outlier_values))
+        if window is not None and factor is not None:
+            target["outlier"] = {"window_sec": window, "threshold_factor": factor}
+        elif existing is not None and "outlier" in existing and existing.get("outlier") in (None, []):
+            target["outlier"] = copy.deepcopy(existing.get("outlier"))
+    return updated
+
+
 def _encoded_config(payload: dict[str, Any]) -> bytes:
     return (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
@@ -186,11 +457,15 @@ class ConfigEditorSession:
         return apply_alarm_bounds(self.payload, rows)
 
     def save(self, rows: Iterable[AlarmBoundRow], *, target: Path | None = None) -> ConfigSaveResult:
+        return self._save_updated(self.build_payload(rows), target=target)
+
+    def _save_updated(
+        self, updated: dict[str, Any], *, target: Path | None = None
+    ) -> ConfigSaveResult:
         target_path = (target or self.path).expanduser().resolve()
         overwriting_source = target_path == self.path
         if overwriting_source and file_sha256(self.path) != self.loaded_sha256:
             raise ConfigChangedError("配置文件已被其它程序修改，请重新加载后再保存")
-        updated = self.build_payload(rows)
         if overwriting_source and updated == self.payload:
             return ConfigSaveResult(self.path, self.loaded_sha256, False)
         encoded = _encoded_config(updated)
@@ -220,3 +495,23 @@ class ConfigEditorSession:
             self.payload = updated
             self.loaded_sha256 = file_sha256(target_path)
         return ConfigSaveResult(target_path, file_sha256(target_path), True, backup_path)
+
+
+class CleaningConfigEditorSession(ConfigEditorSession):
+    @property
+    def rows(self) -> list[CleaningThresholdRow]:
+        return extract_cleaning_thresholds(self.payload)
+
+    def build_payload(self, rows: Iterable[CleaningThresholdRow]) -> dict[str, Any]:
+        normalized = [row.validated() for row in rows]
+        # Preserve the original representation byte-for-byte on a no-op save.
+        # This matters because production configs mix scalar objects, arrays,
+        # empty arrays and one-sided threshold objects.
+        if normalized == self.rows:
+            return copy.deepcopy(self.payload)
+        return apply_cleaning_thresholds(self.payload, normalized)
+
+    def save(
+        self, rows: Iterable[CleaningThresholdRow], *, target: Path | None = None
+    ) -> ConfigSaveResult:
+        return self._save_updated(self.build_payload(rows), target=target)

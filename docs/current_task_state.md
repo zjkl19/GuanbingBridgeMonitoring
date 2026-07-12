@@ -37,9 +37,9 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `208/208`. The MATLAB module-registry
-  contract passes `6/6`; the earlier focused alarm-editor, plot-settings GUI,
-  main-GUI smoke, and run-request group passes `24/24`.
+- The current Python suite passes `214/214`. The focused MATLAB workbench
+  cleaning/module contracts pass `21/21`; the earlier focused alarm-editor,
+  plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
   A direct MATLAB JSON-contract run completed and
   produced an `ok` manifest. A second end-to-end run through the Python
   `AnalysisLauncher` selected the compiled runner, completed in about 22.5
@@ -64,20 +64,32 @@ Current local development state:
   deliberately published.
 - `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
   MATLAB Runner, six project configs/templates, and the report builder. The
-  build blocks on the workbench smoke contract, two native screenshots, and
+  build blocks on the workbench smoke contract, three native screenshots, and
   packaged report `--job-context` smoke. `release_manifest.json` records the
   EXE SHA-256, file count, total bytes, and smoke result.
 - Explicit `defaults/per_point` `alarm_bounds` editing is migrated with strict
   level/bounds validation, save-as, automatic backup, source-SHA drift refusal,
   unrelated-field preservation, and old task-approval invalidation. Cleaning
-  thresholds and other advanced editors remain in MATLAB for now.
+  thresholds are now also migrated in a separate configuration subtab. It
+  supports scalar/array/empty representations, one-sided and timed rules,
+  `zero_to_nan`, moving-window outlier parameters, and the legacy
+  `1000/-1000` all-data suppression sentinel without changing analysis
+  semantics. No-op round trips across all six bridge configs preserve the
+  loaded payload exactly; source overwrites use the same SHA-drift refusal and
+  backup gate. The packaged build records a third native screenshot for this
+  editor.
+- Cross-language contract testing exposed and fixed a pre-existing MATLAB bug:
+  default and per-point cleaning thresholds with different optional struct
+  fields could not be concatenated. `CleaningPipeline` now normalizes the four
+  supported threshold fields before merging. This is a schema-compatibility
+  fix only; threshold comparisons and statistics remain unchanged.
 - A long-standing bracket error in `config/sample_config.json` was fixed. A
   regression now parses all runtime configs and profile catalogs. Missing
   report test/runtime dependencies (`matplotlib`, `numpy`, `pypdf`) are pinned.
 
-Remaining after the packaged alarm-editor milestone:
+Remaining after the packaged cleaning-editor milestone:
 
-- migrate cleaning-threshold, automatic-cleaning, post-filter-cleaning, offset,
+- migrate automatic-cleaning proposals, post-filter-cleaning, offset,
   group-plot, plot-common, and spectrum override editors with semantic parity;
 - embed report build progress and final DOCX/PDF QC instead of opening the
   existing report window;

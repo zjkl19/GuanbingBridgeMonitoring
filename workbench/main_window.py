@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from .analysis import AnalysisLauncher, ExecutorResolver, read_analysis_status
-from .config_tab import AlarmBoundsEditorWidget
+from .config_tab import AlarmBoundsEditorWidget, CleaningThresholdEditorWidget
 from .manifest import ManifestSummary, find_latest_manifest, load_manifest_summary, manifest_context_issues
 from .module_icons import module_icon
 from .models import JobContext, file_sha256
@@ -78,9 +78,23 @@ class WorkbenchWindow(QMainWindow):
     def _build_ui(self) -> None:
         tabs = QTabWidget(self)
         tabs.addTab(self._build_analysis_tab(), "项目与数据分析")
+        config_tabs = QTabWidget()
         self.alarm_editor = AlarmBoundsEditorWidget()
-        self.alarm_editor.config_saved.connect(self._on_alarm_config_saved)
-        tabs.addTab(self.alarm_editor, "配置与预警值")
+        self.alarm_editor.config_saved.connect(
+            lambda path, sha256, backup: self._on_config_saved(
+                "预警值", path, sha256, backup
+            )
+        )
+        self.cleaning_editor = CleaningThresholdEditorWidget()
+        self.cleaning_editor.config_saved.connect(
+            lambda path, sha256, backup: self._on_config_saved(
+                "数据清洗", path, sha256, backup
+            )
+        )
+        config_tabs.addTab(self.alarm_editor, "预警值")
+        config_tabs.addTab(self.cleaning_editor, "数据清洗阈值")
+        self.config_tabs = config_tabs
+        tabs.addTab(config_tabs, "配置与预警值")
         tabs.addTab(self._build_review_tab(), "结果与图件审核")
         tabs.addTab(self._build_report_tab(), "报告生成")
         self.setCentralWidget(tabs)
@@ -283,9 +297,12 @@ class WorkbenchWindow(QMainWindow):
         _set_line_edit_path(self.config_edit, profile.config_path(self.project_root))
         try:
             self.alarm_editor.load_path(profile.config_path(self.project_root))
+            self.cleaning_editor.load_path(profile.config_path(self.project_root))
         except Exception as exc:  # noqa: BLE001
             self.alarm_editor.message_label.setText(f"配置加载失败：{exc}")
             self.alarm_editor.message_label.setStyleSheet("color: #a33;")
+            self.cleaning_editor.message_label.setText(f"配置加载失败：{exc}")
+            self.cleaning_editor.message_label.setStyleSheet("color: #a33;")
         _set_line_edit_path(self.template_edit, profile.template_path(self.project_root) if profile.report_template else "")
         output = Path(profile.default_data_root) / "自动报告" if profile.default_data_root else self.project_root / "output" / "doc"
         _set_line_edit_path(self.output_dir_edit, output)
@@ -669,10 +686,11 @@ class WorkbenchWindow(QMainWindow):
         if path.is_file():
             try:
                 self.alarm_editor.load_path(path)
+                self.cleaning_editor.load_path(path)
             except Exception as exc:  # noqa: BLE001
-                self._show_exception("加载预警值配置失败", exc)
+                self._show_exception("加载高级配置失败", exc)
 
-    def _on_alarm_config_saved(self, path: str, sha256: str, backup: str) -> None:
+    def _on_config_saved(self, editor_label: str, path: str, sha256: str, backup: str) -> None:
         saved_path = Path(path).resolve()
         selected_path = Path(self.config_edit.text().strip()).expanduser().resolve()
         if saved_path == selected_path:
@@ -681,7 +699,8 @@ class WorkbenchWindow(QMainWindow):
             self._reset_review_state()
             self.analysis_status_label.setText("状态：配置已修改，请重新保存任务上下文")
             self._append_log(
-                f"预警值配置已保存；SHA256={sha256[:16]}…；备份={backup}。旧任务上下文已失效。"
+                f"{editor_label}配置已保存；SHA256={sha256[:16]}…；备份={backup}。"
+                "旧任务上下文已失效。"
             )
 
     def _browse_template(self) -> None:

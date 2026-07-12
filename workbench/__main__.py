@@ -17,6 +17,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-root", type=Path, default=None)
     parser.add_argument("--profile-id", default=None)
     parser.add_argument("--initial-tab", type=int, default=0)
+    parser.add_argument("--initial-config-tab", type=int, default=0)
     parser.add_argument("--job-context", type=Path, default=None)
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--smoke-output", type=Path, default=None)
@@ -33,6 +34,8 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "tab_count": window.tabs.count(),
         "module_count": len(window.module_checks),
         "alarm_bound_row_count": window.alarm_editor.table.rowCount(),
+        "cleaning_threshold_row_count": window.cleaning_editor.table.rowCount(),
+        "config_tab_count": window.config_tabs.count(),
         "report_gate_locked": not window.open_report_btn.isEnabled(),
     }
 
@@ -51,6 +54,8 @@ def main(argv: list[str] | None = None) -> int:
         window.load_context(args.job_context)
     if 0 <= args.initial_tab < window.tabs.count():
         window.tabs.setCurrentIndex(args.initial_tab)
+    if 0 <= args.initial_config_tab < window.config_tabs.count():
+        window.config_tabs.setCurrentIndex(args.initial_config_tab)
     if args.smoke_test:
         payload = smoke_payload(window)
         output = json.dumps(payload, ensure_ascii=False, indent=2)

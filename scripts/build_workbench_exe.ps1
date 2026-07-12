@@ -149,7 +149,9 @@ if ($smokeProcess.ExitCode -ne 0) {
     throw "Workbench EXE smoke test failed with exit code $($smokeProcess.ExitCode)"
 }
 $smoke = Get-Content -LiteralPath $smokeOutput -Raw -Encoding UTF8 | ConvertFrom-Json
-if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 -or $smoke.module_count -lt 20) {
+if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
+        -or $smoke.config_tab_count -lt 2 -or $smoke.module_count -lt 20 `
+        -or $smoke.cleaning_threshold_row_count -lt 1) {
     throw "Workbench EXE smoke contract failed: $($smoke | ConvertTo-Json -Compress)"
 }
 
@@ -157,6 +159,8 @@ $screenshotOutput = Join-Path $distRoot "workbench_startup.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $screenshotOutput -ProfileId "guanbing" -TabIndex 0
 $configScreenshotOutput = Join-Path $distRoot "workbench_alarm_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $configScreenshotOutput -ProfileId "hongtang" -TabIndex 1
+$cleaningScreenshotOutput = Join-Path $distRoot "workbench_cleaning_editor.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $cleaningScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 1
 
 $files = Get-ChildItem -LiteralPath $distRoot -Recurse -File
 $updatePolicy = Get-Content -LiteralPath (Join-Path $distRoot "config\workbench_update.json") -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -173,7 +177,7 @@ $releaseManifest = [ordered]@{
     report_builder_context_smoke = -not $SkipReportBuilder
     file_count_excluding_manifest = $files.Count
     total_bytes_excluding_manifest = [long](($files | Measure-Object Length -Sum).Sum)
-    screenshots = @("workbench_startup.png", "workbench_alarm_editor.png")
+    screenshots = @("workbench_startup.png", "workbench_alarm_editor.png", "workbench_cleaning_editor.png")
     smoke = $smoke
 }
 $manifestPath = Join-Path $distRoot "release_manifest.json"

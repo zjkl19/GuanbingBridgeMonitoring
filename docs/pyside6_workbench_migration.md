@@ -20,7 +20,8 @@ cycles prove the new shell.
 - Add unit, contract, manifest, and offscreen GUI smoke tests.
 
 The second local milestone adds a packaged EXE and migrates the explicit
-`alarm_bounds` editor. It still does not write to production machines.
+`alarm_bounds` editor. The third local milestone adds data-cleaning threshold
+parity. Neither milestone writes to production machines.
 
 ## Packaged local milestone
 
@@ -28,18 +29,23 @@ The second local milestone adds a packaged EXE and migrates the explicit
 - Run `dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe`.
 - The onedir release includes the compiled MATLAB analysis runner, all profile
   configs/templates, and a freshly packaged report builder.
-- The build blocks unless the workbench EXE smoke contract, two native Qt
+- The build blocks unless the workbench EXE smoke contract, three native Qt
   screenshots, and the packaged report builder `--job-context` smoke test pass.
 - `release_manifest.json` records SHA-256, version, file count/byte size
   excluding the manifest itself, and smoke results. Generated `build/` and
   `dist/` content is intentionally local.
 
-The new configuration page edits only explicit `defaults/per_point`
-`alarm_bounds`. It validates level names and finite ordered bounds, rejects a
-save if the source file changed after loading, automatically backs up an
+The configuration page has separate editors for explicit `defaults/per_point`
+`alarm_bounds` and data-cleaning `thresholds` / `zero_to_nan` / `outlier`.
+The alarm editor validates level names and finite ordered bounds. The cleaning
+editor preserves the production schema variants used by all six bridge
+configs, including scalar/array/empty threshold containers, one-sided rules,
+optional time windows, and the legacy `1000/-1000` suppression sentinel. Both
+reject a save if the source file changed after loading, automatically back up an
 overwritten config, preserves unrelated JSON fields, and invalidates any old
-job approval after the selected config is changed. Cleaning thresholds,
-post-filter thresholds, offsets, and plot overrides remain in the MATLAB GUI.
+job approval after the selected config is changed. Automatic-cleaning proposal
+generation, post-filter thresholds, offsets, and plot overrides remain in the
+MATLAB GUI.
 
 The packaged shell also includes a stable-channel GitHub Release updater. It
 checks no more than once per day, supports a manual check, requires a newer
@@ -65,7 +71,6 @@ inside MATLAB, and the MATLAB engine is not rewritten in Python.
 
 ## Later migration work
 
-- Cleaning-threshold editor parity (alarm-bound editing is now migrated).
 - Automatic-cleaning preview parity.
 - Post-filter cleanup and offset-correction parity.
 - Group-plot, plot-common, and spectrum override parity.

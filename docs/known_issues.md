@@ -1,6 +1,6 @@
 # Known Issues And Follow-Up Items
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
@@ -11,8 +11,9 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
 
 - The PySide6 shell currently covers project/date/module selection, local
   analysis launch, status/manifest review, task restoration, and guarded report
-  handoff. Explicit `alarm_bounds` editing is migrated with backup/hash gates,
-  but cleaning thresholds, automatic cleaning, post-filter cleaning, offsets,
+  handoff. Explicit `alarm_bounds` and data-cleaning threshold editing are
+  migrated with backup/hash gates, but automatic-cleaning proposals,
+  post-filter cleaning, offsets,
   group plots, common plotting, and spectrum overrides remain in MATLAB.
   Continue using the legacy MATLAB GUI for production configuration.
 - The Python module key/option mapping mirrors MATLAB and is protected by a
@@ -35,6 +36,23 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   copy and review backup/rollback behavior. Existing configs are preserved, so
   future config-schema changes need an explicit migration rather than relying
   on package replacement.
+
+## Cleaning Threshold Struct Field Compatibility
+
+Status: fixed locally on `dev/pyside6-workbench`; regression covered.
+
+MATLAB struct concatenation fails when a default cleaning threshold contains
+`min/max/t_range_start/t_range_end` but a per-point threshold omits one or more
+optional fields. This is valid in current production configs—for example,
+one-sided wind/temperature rules and the legacy `1000/-1000` suppression
+sentinel—and previously could fail inside `CleaningPipeline.applyRuleBlock`.
+
+The pipeline now normalizes each threshold to the four supported fields before
+default/per-point merging. Missing min/max remain empty, so one-sided filtering
+semantics are unchanged. The Python editor and MATLAB pipeline share
+`tests/fixtures/workbench_cleaning_threshold_contract.json`; focused MATLAB
+coverage verifies default/point merging and one-sided filtering. This fix does
+not change any configured bound, comparison rule, or statistical definition.
 
 ## High-Frequency Report Plot Sampling
 

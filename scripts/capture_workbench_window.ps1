@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory = $true)][string]$ExePath,
     [Parameter(Mandatory = $true)][string]$OutputPath,
     [string]$ProfileId = "guanbing",
-    [int]$TabIndex = 0
+    [int]$TabIndex = 0,
+    [int]$ConfigTabIndex = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,7 +35,11 @@ Add-Type -AssemblyName System.Drawing
 [void][WorkbenchCaptureWin32]::SetProcessDpiAwarenessContext([IntPtr](-4))
 
 $before = @(Get-Process -Name "BridgeMonitoringWorkbench" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
-$started = Start-Process -FilePath $resolvedExe -ArgumentList @("--profile-id", $ProfileId, "--initial-tab", "$TabIndex") -PassThru
+$started = Start-Process -FilePath $resolvedExe -ArgumentList @(
+    "--profile-id", $ProfileId,
+    "--initial-tab", "$TabIndex",
+    "--initial-config-tab", "$ConfigTabIndex"
+) -PassThru
 $process = $null
 for ($attempt = 0; $attempt -lt 40; $attempt++) {
     Start-Sleep -Milliseconds 250

@@ -1,0 +1,45 @@
+{
+  "defaults": {
+    "deflection": {
+      "thresholds": [
+        {
+          "min": -5,
+          "max": 5,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
+      ],
+      "zero_to_nan": true,
+      "outlier": {
+        "window_sec": 15,
+        "threshold_factor": 3
+      }
+    },
+    "temperature": {
+      "thresholds": {
+        "max": 50
+      }
+    }
+  },
+  "per_point": {
+    "deflection": {
+      "PT_1": {
+        "thresholds": {
+          "min": 1000,
+          "max": -1000
+        },
+        "zero_to_nan": false,
+        "offset_correction": 12,
+        "alarm_bounds": {
+          "level2": [
+            -20,
+            20
+          ]
+        }
+      }
+    }
+  },
+  "plot_common": {
+    "gap_mode": "connect"
+  }
+}

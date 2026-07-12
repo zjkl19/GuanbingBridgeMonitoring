@@ -209,10 +209,12 @@ classdef CleaningPipeline
         function rules = applyRuleBlock(rules, block, appendThresholds)
             if ~isstruct(block), return; end
             if isfield(block, 'thresholds') && ~isempty(block.thresholds)
+                incomingThresholds = bms.data.CleaningPipeline.normalizeThresholds(block.thresholds);
                 if appendThresholds && ~isempty(rules.thresholds)
-                    rules.thresholds = [rules.thresholds(:); block.thresholds(:)];
+                    existingThresholds = bms.data.CleaningPipeline.normalizeThresholds(rules.thresholds);
+                    rules.thresholds = [existingThresholds(:); incomingThresholds(:)];
                 else
-                    rules.thresholds = block.thresholds;
+                    rules.thresholds = incomingThresholds;
                 end
             end
             if isfield(block, 'zero_to_nan')
@@ -282,6 +284,27 @@ classdef CleaningPipeline
             end
             if isnumeric(raw) && isscalar(raw) && isfinite(raw)
                 scale = double(raw);
+            end
+        end
+
+        function out = normalizeThresholds(raw)
+            out = struct('min', {}, 'max', {}, ...
+                't_range_start', {}, 't_range_end', {});
+            if isempty(raw) || ~isstruct(raw)
+                return;
+            end
+            raw = raw(:);
+            out(numel(raw), 1) = struct('min', [], 'max', [], ...
+                't_range_start', '', 't_range_end', '');
+            for i = 1:numel(raw)
+                if isfield(raw(i), 'min'), out(i).min = raw(i).min; end
+                if isfield(raw(i), 'max'), out(i).max = raw(i).max; end
+                if isfield(raw(i), 't_range_start') && ~isempty(raw(i).t_range_start)
+                    out(i).t_range_start = raw(i).t_range_start;
+                end
+                if isfield(raw(i), 't_range_end') && ~isempty(raw(i).t_range_end)
+                    out(i).t_range_end = raw(i).t_range_end;
+                end
             end
         end
 

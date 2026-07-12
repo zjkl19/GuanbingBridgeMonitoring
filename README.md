@@ -28,8 +28,13 @@ dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe
 
 发布目录会同时包含 MATLAB 编译 Runner、配置/模板和通过
 `--job-context` 冒烟测试的报告生成器。`release_manifest.json` 记录 EXE
-哈希、发布清单自身以外的文件数/总大小及启动自测结果；`workbench_startup.png` 与
-`workbench_alarm_editor.png` 是构建时自动生成的界面证据。
+哈希、发布清单自身以外的文件数/总大小及启动自测结果；`workbench_startup.png`、
+`workbench_alarm_editor.png` 与 `workbench_cleaning_editor.png` 是构建时自动生成的界面证据。
+
+“配置与预警值”页现已迁移显式 `alarm_bounds` 以及
+`thresholds` / `zero_to_nan` / `outlier` 数据清洗字段。清洗编辑器支持默认和测点规则、
+单边阈值、成对时间窗及历史 `1000/-1000` 全抑制哨兵；覆盖保存前执行源文件哈希校验并自动备份，
+不会修改零点修正、滤波后二次清洗或绘图字段。自动清洗建议生成仍保留在 MATLAB GUI。
 
 打包版右上角提供“检查更新”。正式版启动后每天最多自动查询一次 GitHub
 Release；发现更高稳定版本时，可下载、双重 SHA256 校验、备份当前安装并在退出后
