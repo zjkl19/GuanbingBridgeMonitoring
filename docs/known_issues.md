@@ -38,8 +38,8 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
 
 ## Embedded Report QC Boundary
 
-Status: implemented locally; packaged protocol/visual smoke and five-profile
-historical visual matrix covered; fresh embedded-build comparison remains pending.
+Status: implemented locally; packaged protocol/gate/visual smokes and five-profile
+historical visual matrix covered; production-eligible fresh embedded inputs remain pending.
 
 The workbench now runs the same report dispatch service used by the legacy
 report GUI in a background process and records stage/status/result JSON. QC
@@ -57,6 +57,19 @@ Installed-runtime visual execution has been verified on the 40-page Guanbing
 sample: the packaged report EXE completed in 25.6 seconds and matched source
 mode with no blank-page or edge warnings. The other four profiles have source
 render evidence but still need fresh packaged embedded-build comparison.
+
+Do not treat an old successful analysis manifest as report-ready merely because
+its module status is `ok`. The child process now requires non-empty formal
+`.plot.json` provenance and independently repeats identity, hash, module and
+count-closure checks. The 2026-07-13 local audit intentionally found zero
+eligible five-profile contexts: the local historical manifests predate formal
+provenance or reference result files that exist only in the production bundle.
+Generator-only fallback builds are explicitly labelled and are not an approval
+substitute. Their current deltas are: Hongtang 108 pages/182 media (10 missing,
+4 warnings), Jiulongjiang 104/147 (11 missing, 1 warning), Shuixianhua 67/85
+(blank pages 10 and 42, synthesized legacy manifest), and Zhishan 46/57
+(missing figure anchors 2-5 and 2-6). These must be resolved against complete
+context-matched results before the legacy report workflow can retire.
 
 The workbench packager now rebuilds `BridgeReportBuilder.exe` whenever report
 Python/config inputs are newer. This guard was added after the first embedded

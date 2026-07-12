@@ -68,6 +68,13 @@ PDF 页数、报告 Manifest 缺失项与警告；配置、模板和分析 Manif
 `visual_qc.json`。自动门禁标出空白页及内容触碰页面边界；这些提示用于缩小人工复核范围，
 联系表仍需人工确认。渲染输出使用短哈希目录，避免长中文报告名触发 Windows 路径上限。
 
+报告子进程会独立重放完整门禁，而不只信任 UI 保存的“已审核”布尔值：固定配置、模板和
+分析 Manifest 的 SHA256、桥梁/数据根/日期、所选模块覆盖、运行状态以及每个正式
+`.plot.json` 的 full/source/input/finite/plotted 闭环都必须再次通过。缺少任何正式图
+provenance 的旧 Manifest 不能用于嵌入式生产报告。可用
+`scripts/validate_fresh_report_profiles.py` 审计五桥候选；`--generate-fallback` 只用于隔离的
+生成器/版式回归，并会明确标为 `generator_only_fallback`，不能冒充通过正式门禁。
+
 打包版右上角提供“检查更新”。正式版启动后每天最多自动查询一次 GitHub
 Release；发现更高稳定版本时，可下载、双重 SHA256 校验、备份当前安装并在退出后
 更新。现有项目配置不会被覆盖。发布资产命名和操作流程见

@@ -836,6 +836,7 @@ class WorkbenchWindow(QMainWindow):
             and not self.current_manifest_missing_selected
             and bool(selected)
             and bool(self.current_provenance is not None)
+            and bool(self.current_provenance.rows)
             and self.current_provenance.failed_count == 0
         )
         if failed or self.current_manifest_missing_selected or (
@@ -886,14 +887,18 @@ class WorkbenchWindow(QMainWindow):
             self.report_gate_label.setStyleSheet("color: #a33; font-weight: 600;")
 
     def _report_gate_ready(self) -> bool:
-        return bool(
+        ui_ready = bool(
             self.current_context
             and self.current_context.report_ready
             and self.current_manifest is not None
             and self.current_manifest.status.lower() in SUCCESS_STATES
             and not self.current_manifest.failed_modules
             and not self.current_manifest_missing_selected
+            and self.current_provenance is not None
+            and bool(self.current_provenance.rows)
+            and self.current_provenance.failed_count == 0
         )
+        return ui_ready
 
     def _start_report_job(self) -> None:
         context = self.current_context

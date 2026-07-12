@@ -1297,10 +1297,94 @@ def main() -> None:
     parser.add_argument("--report-status", type=Path, default=None)
     parser.add_argument("--report-result", type=Path, default=None)
     parser.add_argument("--report-job-contract-smoke-test", action="store_true")
+    parser.add_argument("--report-gate-contract-smoke-test", action="store_true")
     parser.add_argument("--visual-qc-contract-smoke-test", action="store_true")
     parser.add_argument("--visual-qc-docx", type=Path, default=None)
     parser.add_argument("--visual-qc-output", type=Path, default=None)
     args, qt_args = parser.parse_known_args(sys.argv[1:])
+    if args.report_gate_contract_smoke_test:
+        import tempfile
+
+        from report_job_cli import request_from_context
+        from workbench.models import JobContext, file_sha256
+
+        with tempfile.TemporaryDirectory(prefix="bms_report_gate_smoke_") as folder:
+            root = Path(folder)
+            data_root = root / "data"
+            data_root.mkdir()
+            config = root / "config.json"
+            template = root / "template.docx"
+            provenance = root / "temperature.plot.json"
+            manifest = root / "analysis_manifest.json"
+            config.write_text("{}", encoding="utf-8")
+            template.write_bytes(b"frozen gate smoke")
+            provenance.write_text(json.dumps({
+                "series": [{
+                    "sampling_mode": "full",
+                    "reduction_applied": False,
+                    "input_count": 10,
+                    "finite_count": 9,
+                    "plotted_finite_count": 9,
+                    "source": {
+                        "source_sample_count": 10,
+                        "finite_source_sample_count": 9,
+                        "completeness_scope": "required_export_contribution",
+                        "internal_gap_coverage_assessed": True,
+                        "calendar_day_count_requested": 1,
+                        "complete_day_count": 1,
+                        "incomplete_day_count": 0,
+                        "incomplete_days": [],
+                        "missing_required_sources": [],
+                    },
+                }],
+            }), encoding="utf-8")
+            manifest_payload = {
+                "status": "ok",
+                "bridge_profile": {"bridge_id": "guanbing"},
+                "run_request": {
+                    "data_root": str(data_root),
+                    "start_date": "2026-01-01",
+                    "end_date": "2026-01-01",
+                },
+                "module_results": [{
+                    "key": "temperature",
+                    "status": "ok",
+                    "artifacts": [{"kind": "plot_provenance", "path": str(provenance)}],
+                }],
+            }
+            manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+            context = JobContext.create(
+                project_root=Path.cwd(),
+                bridge_id="guanbing",
+                bridge_name="guanbing",
+                data_root=data_root,
+                start_date="2026-01-01",
+                end_date="2026-01-01",
+                config_path=config,
+                selected_modules=["temperature"],
+                options={},
+                report_type="guanbing_monthly",
+                template_path=template,
+                output_dir=root / "output",
+            )
+            context.analysis.state = "completed"
+            context.analysis.manifest_path = str(manifest)
+            context.analysis.manifest_sha256 = file_sha256(manifest)
+            context.report.plots_approved = True
+            context_path = context.write(root / "job_context.json")
+            request_from_context(context_path)
+            manifest_payload["module_results"][0]["artifacts"] = []
+            manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+            context.analysis.manifest_sha256 = file_sha256(manifest)
+            context.write(context_path)
+            try:
+                request_from_context(context_path)
+            except RuntimeError as exc:
+                if "no formal plot provenance" not in str(exc):
+                    raise
+            else:
+                raise RuntimeError("frozen report gate accepted a manifest without provenance")
+        return
     if args.visual_qc_contract_smoke_test:
         import tempfile
         from PIL import Image

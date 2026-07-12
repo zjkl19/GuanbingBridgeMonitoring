@@ -163,6 +163,32 @@ Current local development state:
   25.6 seconds with the same zero blank/edge-warning result as source mode.
   The report page now exposes an “打开逐页渲染 QC” action bound to the pinned
   contact-sheet directory.
+- The report approval gate is now revalidated inside the report child process,
+  not only in the PySide6 page. The child refuses missing/unpinned or changed
+  config/template/manifest files, bridge/data-root/date mismatches, unsuccessful
+  or incomplete module records, absent formal plot provenance, and any
+  source/input/finite/plotted closure failure. The UI also refuses approval when
+  a manifest contains zero formal provenance records. A frozen-EXE contract
+  smoke proves both a valid context and rejection of a provenance-free context.
+- A reusable five-profile audit/comparison CLI is available at
+  `scripts/validate_fresh_report_profiles.py`. The local audit found zero
+  production-eligible historical contexts: Guanbing's configured F: result root
+  is absent; Jiulongjiang, Shuixianhua and local Zhishan March manifests predate
+  `.plot.json`; the copied Hongtang/remote Zhishan manifests reference result
+  provenance not present on this machine. No gate was bypassed or fabricated.
+- Isolated generator-only fallback builds were nevertheless completed for the
+  four locally available result roots and compared with accepted samples.
+  Hongtang/Jiulongjiang/Zhishan rendered 108/104/46 pages without blank or edge
+  warnings; Shuixianhua rendered 67 pages and warned on blank pages 10 and 42.
+  All four report manifests remained warnings: Hongtang reported 10 missing/WIM
+  items, Jiulongjiang 11 missing items, Zhishan lacked anchors 2-5/2-6, and
+  Shuixianhua still relies on a synthesized legacy manifest. Page/media deltas
+  therefore remain diagnostic evidence, not production parity acceptance.
+- The Python suite now passes `266/266`; the report/config-related MATLAB batch
+  passes `70/70`. The workbench and report builder were rebuilt, all ten native
+  screenshots passed visual inspection, and the release manifest records the
+  packaged report-gate contract smoke in addition to report-job and visual-QC
+  smokes.
 - The workbench packager now rebuilds the compiled analysis runner whenever
   included MATLAB sources are newer than the runner executable. This prevents
   a visually current PySide6 package from silently carrying an obsolete core
@@ -183,8 +209,10 @@ Current local development state:
 
 Remaining after the packaged embedded-report/provenance milestone:
 
-- generate fresh reports through the embedded task for all five report-capable
-  profiles and compare them with the accepted historical render matrix;
+- make locally available (or deliberately stage from an approved production
+  bundle) complete context-matched analysis manifests and every referenced
+  formal `.plot.json`, then generate through the embedded task for all five
+  profiles and resolve the recorded report-manifest/page/media differences;
 - complete local installed-runtime testing, then cross-bridge production
   comparison before any 133 deployment or legacy-GUI retirement.
 

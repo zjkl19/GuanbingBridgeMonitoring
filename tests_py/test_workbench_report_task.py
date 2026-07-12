@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -19,6 +21,33 @@ from workbench.report_task import read_report_status, report_job_command
 
 
 class WorkbenchReportTaskTests(unittest.TestCase):
+    def _write_closed_manifest(
+        self,
+        root: Path,
+        data_root: Path,
+        *,
+        bridge_id: str = "guanbing",
+        module: str = "temperature",
+    ) -> Path:
+        provenance = root / f"{module}.plot.json"
+        provenance.write_bytes((ROOT / "tests" / "fixtures" / "workbench_provenance_contract.json").read_bytes())
+        manifest = root / "analysis_manifest.json"
+        manifest.write_text(json.dumps({
+            "status": "ok",
+            "bridge_profile": {"bridge_id": bridge_id},
+            "run_request": {
+                "data_root": str(data_root),
+                "start_date": "2026-04-01",
+                "end_date": "2026-04-30",
+            },
+            "module_results": [{
+                "key": module,
+                "status": "ok",
+                "artifacts": [{"kind": "plot_provenance", "path": str(provenance)}],
+            }],
+        }, ensure_ascii=False), encoding="utf-8")
+        return manifest
+
     def test_all_report_capable_profiles_have_embedded_dispatch(self) -> None:
         profiles = load_profiles(ROOT)
         actual = {profile.report_gui_type for profile in profiles if profile.report_gui_type}
@@ -37,6 +66,21 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             self.assertIn("--status", command)
             self.assertIn("--result", command)
 
+    def test_source_report_gate_contract_smoke_runs_from_reporting_script(self) -> None:
+        environment = dict(os.environ)
+        environment.setdefault("QT_QPA_PLATFORM", "offscreen")
+        completed = subprocess.run(
+            [sys.executable, str(ROOT / "reporting" / "report_gui.py"), "--report-gate-contract-smoke-test"],
+            cwd=ROOT,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
     def test_context_request_requires_approval_and_pinned_files(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -44,10 +88,9 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             data.mkdir()
             config = root / "config.json"
             template = root / "template.docx"
-            manifest = root / "analysis_manifest.json"
             config.write_text("{}", encoding="utf-8")
             template.write_bytes(b"template")
-            manifest.write_text("{}", encoding="utf-8")
+            manifest = self._write_closed_manifest(root, data)
             context = JobContext.create(
                 project_root=ROOT,
                 bridge_id="guanbing", bridge_name="管柄大桥", data_root=data,
@@ -66,6 +109,54 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             context.report.plots_approved = False
             context.write(path)
             with self.assertRaisesRegex(RuntimeError, "not approved"):
+                request_from_context(path)
+
+    def test_child_process_rechecks_manifest_context_module_and_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            data = root / "data"
+            data.mkdir()
+            config = root / "config.json"
+            template = root / "template.docx"
+            config.write_text("{}", encoding="utf-8")
+            template.write_bytes(b"template")
+            manifest = self._write_closed_manifest(root, data)
+            context = JobContext.create(
+                project_root=ROOT,
+                bridge_id="guanbing", bridge_name="guanbing", data_root=data,
+                start_date="2026-04-01", end_date="2026-04-30", config_path=config,
+                selected_modules=["temperature"], options={}, report_type="guanbing_monthly",
+                template_path=template, output_dir=data / "report",
+            )
+            context.analysis.state = "completed"
+            context.analysis.manifest_path = str(manifest)
+            context.analysis.manifest_sha256 = file_sha256(manifest)
+            context.report.plots_approved = True
+            path = context.write(root / "job_context.json")
+            self.assertEqual(request_from_context(path).result_root, data.resolve())
+
+            context.bridge_id = "hongtang"
+            context.write(path)
+            with self.assertRaisesRegex(RuntimeError, "bridge mismatch"):
+                request_from_context(path)
+            context.bridge_id = "guanbing"
+            context.selected_modules = ["acceleration"]
+            context.write(path)
+            with self.assertRaisesRegex(RuntimeError, "does not cover selected modules"):
+                request_from_context(path)
+
+            manifest.write_text(json.dumps({
+                "status": "ok",
+                "bridge_profile": {"bridge_id": "guanbing"},
+                "run_request": {
+                    "data_root": str(data), "start_date": "2026-04-01", "end_date": "2026-04-30",
+                },
+                "module_results": [{"key": "temperature", "status": "ok", "artifacts": []}],
+            }), encoding="utf-8")
+            context.selected_modules = ["temperature"]
+            context.analysis.manifest_sha256 = file_sha256(manifest)
+            context.write(path)
+            with self.assertRaisesRegex(RuntimeError, "no formal plot provenance"):
                 request_from_context(path)
 
     def test_execute_job_emits_stages_and_structural_qc(self) -> None:

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
+import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -11,13 +11,12 @@ from typing import Any
 
 from report_job import ReportJobRequest, execute_report_job
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest().upper()
+from workbench.models import JobContext
+from workbench.report_gate import require_report_gate
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -27,46 +26,28 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
-def _verify_file(label: str, value: object, expected: object) -> Path:
-    path = Path(str(value or "")).expanduser().resolve()
-    if not path.is_file():
-        raise FileNotFoundError(f"{label} does not exist: {path}")
-    if expected and _sha256(path) != str(expected).upper():
-        raise RuntimeError(f"{label} changed after workbench approval: {path}")
-    return path
-
-
 def request_from_context(path: Path) -> ReportJobRequest:
-    payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    if not isinstance(payload, dict) or int(payload.get("schema_version", 0)) != 1:
-        raise ValueError("unsupported workbench job context")
-    analysis = payload.get("analysis") if isinstance(payload.get("analysis"), dict) else {}
-    report = payload.get("report") if isinstance(payload.get("report"), dict) else {}
-    if not report.get("plots_approved"):
-        raise RuntimeError("plot review gate is not approved")
-    if str(analysis.get("state") or "").lower() != "completed":
-        raise RuntimeError("analysis is not completed")
-    _verify_file("analysis manifest", analysis.get("manifest_path"), analysis.get("manifest_sha256"))
-    template = _verify_file("report template", report.get("template_path"), report.get("template_sha256"))
-    config = _verify_file("config", payload.get("config_path"), payload.get("config_sha256"))
-    result_root = Path(str(payload.get("data_root") or "")).expanduser().resolve()
-    output_dir = Path(str(report.get("output_dir") or result_root / "自动报告")).expanduser().resolve()
-    project_root = Path(str(payload.get("project_root") or Path.cwd())).expanduser().resolve()
-    report_type = str(report.get("report_type") or "").strip()
-    wim_root = result_root / "WIM" / "results" / "hongtang" if report_type == "hongtang_period_wim" else None
+    context = JobContext.read(path)
+    require_report_gate(context)
+    result_root = Path(context.data_root).expanduser().resolve()
+    report_type = context.report.report_type.strip()
     return ReportJobRequest(
         report_type=report_type,
-        template=template,
-        config_path=config,
+        template=Path(context.report.template_path).expanduser().resolve(),
+        config_path=Path(context.config_path).expanduser().resolve(),
         result_root=result_root,
-        analysis_root=project_root,
-        output_dir=output_dir,
-        period_label=str(payload.get("period_label") or ""),
-        monitoring_range=str(payload.get("monitoring_range") or ""),
-        report_date=str(payload.get("report_date") or ""),
-        start_date=str(payload.get("start_date") or ""),
-        end_date=str(payload.get("end_date") or ""),
-        wim_root=wim_root,
+        analysis_root=Path(context.project_root or Path.cwd()).expanduser().resolve(),
+        output_dir=Path(context.report.output_dir or result_root / "自动报告").expanduser().resolve(),
+        period_label=context.period_label,
+        monitoring_range=context.monitoring_range,
+        report_date=context.report_date,
+        start_date=context.start_date,
+        end_date=context.end_date,
+        wim_root=(
+            result_root / "WIM" / "results" / "hongtang"
+            if report_type == "hongtang_period_wim"
+            else None
+        ),
     )
 
 
