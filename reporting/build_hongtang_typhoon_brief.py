@@ -67,15 +67,21 @@ class BinStats:
     sumsq: float = 0.0
     minimum: float = math.inf
     maximum: float = -math.inf
+    minimum_time: datetime | None = None
+    maximum_time: datetime | None = None
     cos_sum: float = 0.0
     sin_sum: float = 0.0
 
-    def add(self, value: float, *, circular: bool = False) -> None:
+    def add(self, value: float, *, timestamp: datetime | None = None, circular: bool = False) -> None:
         self.count += 1
         self.total += value
         self.sumsq += value * value
-        self.minimum = min(self.minimum, value)
-        self.maximum = max(self.maximum, value)
+        if value < self.minimum:
+            self.minimum = value
+            self.minimum_time = timestamp
+        if value > self.maximum:
+            self.maximum = value
+            self.maximum_time = timestamp
         if circular:
             radians = math.radians(value % 360.0)
             self.cos_sum += math.cos(radians)
@@ -178,7 +184,7 @@ def aggregate_entry(
             audit.rows += 1
             audit.first_time = timestamp if audit.first_time is None else min(audit.first_time, timestamp)
             audit.last_time = timestamp if audit.last_time is None else max(audit.last_time, timestamp)
-            result[ten_minute_bin(timestamp)].add(value, circular=circular)
+            result[ten_minute_bin(timestamp)].add(value, timestamp=timestamp, circular=circular)
     return dict(result), audit
 
 
@@ -188,8 +194,12 @@ def merge_bins(target: dict[datetime, BinStats], source: dict[datetime, BinStats
         current.count += item.count
         current.total += item.total
         current.sumsq += item.sumsq
-        current.minimum = min(current.minimum, item.minimum)
-        current.maximum = max(current.maximum, item.maximum)
+        if item.minimum < current.minimum:
+            current.minimum = item.minimum
+            current.minimum_time = item.minimum_time
+        if item.maximum > current.maximum:
+            current.maximum = item.maximum
+            current.maximum_time = item.maximum_time
         current.cos_sum += item.cos_sum
         current.sin_sum += item.sin_sum
 
@@ -199,12 +209,18 @@ def locate_zip(day_dir: Path, folder: str) -> Path | None:
     return candidates[0] if candidates else None
 
 
-def analyze(source_root: Path) -> Analysis:
+def analyze(source_root: Path, day_filter: set[str] | None = None) -> Analysis:
     output = Analysis(
         wind={key: {} for key in WIND_ENTRIES},
         structure={group: {point: {} for point in points} for group, points in STRUCTURE_GROUPS.items()},
     )
-    day_dirs = sorted(path for path in source_root.iterdir() if path.is_dir() and path.name[:4].isdigit())
+    day_dirs = sorted(
+        path
+        for path in source_root.iterdir()
+        if path.is_dir()
+        and path.name[:4].isdigit()
+        and (day_filter is None or path.name in day_filter)
+    )
     print(f"[analyze] source_root={source_root} day_dirs={len(day_dirs)}", flush=True)
     for day_dir in day_dirs:
         wave_zip = locate_zip(day_dir, "波形")
@@ -282,6 +298,7 @@ def wind_rows(analysis: Analysis, point: str) -> list[dict[str, object]]:
                 "time": timestamp,
                 "mean_speed": speed[timestamp].mean,
                 "raw_peak": speed[timestamp].maximum,
+                "raw_peak_time": speed[timestamp].maximum_time,
                 "direction": direction[timestamp].circular_mean,
                 "count": min(speed[timestamp].count, direction[timestamp].count),
             }
@@ -436,7 +453,11 @@ def build_report(args: argparse.Namespace, analysis: Analysis) -> tuple[Path, di
     plot_structure(structure_chart, rows_by_group, baseline_end)
 
     for point, rows in rows_by_point.items():
-        write_csv(args.output_dir / f"{point}_wind_10min.csv", rows, ["time", "mean_speed", "raw_peak", "direction", "count"])
+        write_csv(
+            args.output_dir / f"{point}_wind_10min.csv",
+            rows,
+            ["time", "mean_speed", "raw_peak", "raw_peak_time", "direction", "count"],
+        )
     for group, rows in rows_by_group.items():
         write_csv(args.output_dir / f"{group}_10min.csv", rows, ["time", "peak", "point"])
 

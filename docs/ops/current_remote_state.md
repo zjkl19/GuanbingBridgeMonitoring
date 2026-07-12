@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-12 08:50 CST
+Last updated: 2026-07-12 09:45 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -17,26 +17,32 @@ state and keep algorithm/report decisions in the normal project docs.
   from this workstation is not routable.
 - 126 storage target: `\\192.168.100.126\H$\Guanbingwork`
 
-## gb-126/gb-133 Hongtang Typhoon Brief
+## gb-126/gb-133 Hongtang Typhoon Template Report
 
-- The active workflow is CLI-only. Do not use Computer Use. Read 126 through
-  WinRM/SMB and perform a read-only state check before each remote write.
-- At 2026-07-12 06:49 CST, 126 `H:\DHtest\定时导出\2026-07-12` did not yet
-  exist; the latest export remained `2026-07-11`. Continue hourly checks.
-- Existing source copy on 133:
-  `F:\Guanbing\run_logs\remote_tasks\hongtang_typhoon_bavi_20260711\source_exports`.
-  It contains the 2026-07-09 through 2026-07-11 batches, six ZIPs total, each
-  with 139 entries.
-- Initial brief output on 133:
-  `F:\Guanbing\run_logs\remote_tasks\hongtang_typhoon_bavi_20260711\brief_initial_20260712_0802`.
-  The corrected DOCX SHA256 is
-  `acda5354fcefbc58dd79b0816942b59c59e132115d7ff5acc14719bf89ab531d`.
-  Common data coverage is 2026-07-08 09:00:07 to 2026-07-11 09:00:05;
-  manifest status is `ok`, missing entry count is zero, and 120 ZIP-entry audits
-  are recorded.
-- When the 2026-07-12 export becomes available, verify both ZIP counts and W1/W2
-  presence before copying. Then update the staged report with actual landfall
-  data instead of generating another Q2 report.
+- The workflow remained CLI-only. The completed 126 export at
+  `H:\DHtest\定时导出\2026-07-12` contains 139 waveform entries and 139 feature
+  entries, including W1/W2. Direct ZIP inspection gives common W1/W2 waveform
+  coverage from 2026-07-11 09:00:05.116 through 2026-07-12 09:00:05.066.
+- After read-only verification, 133 copied the export directly from 126 to
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_typhoon_bavi_20260711\source_exports\2026-07-12`.
+  The waveform/feature SHA256 hashes exactly match 126:
+  `EDB8AD130724E1DE124060676E9CF7D939DA225BE354834D0103EC8A7B1E42EA` and
+  `D17AF98F8D229E1FF3C6F928BC011C2467BCA8ECBC53184494B90D6924A4F589`.
+- Final formal-report evidence root:
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_typhoon_template_20260712\final_20260712_layoutfix`.
+  The report uses the accepted v1.7.38 Q2 template and covers 2026-07-10 23:20
+  through the actual 2026-07-12 09:00 cutoff. Manifest status is `ok`, missing
+  entries are zero, 80 source entries were audited, and all 202 expected
+  complete 10-minute bins are present.
+- Final field-updated DOCX SHA256 is
+  `4E04BCFD083F99E745EC28A15FAABA9FC86107EC04C252C70655BA7E779D0D6C`.
+- Word COM updated 62 fields and one TOC and reported 21 Word-layout pages.
+  Local LibreOffice QA rendered 23 pages and inspected all of them. The
+  redundant blank section page was removed and Chapter 4 subsections now retain
+  the template's 4.1-4.5 multilevel numbering.
+- The old three-page initial brief is superseded. No further hourly export
+  polling is required for this requested cutoff unless the user asks to extend
+  the report with later data.
 
 ## gb-133 Zhishan May/June v1.7.28-v1.7.32 Completion
 

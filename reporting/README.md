@@ -27,6 +27,31 @@ rows, method details, summary statistics, source links, and missing-entry QC.
 The staged brief must not be described as a landfall or post-event assessment
 unless the source coverage actually includes those periods.
 
+For an owner-facing formal report based on the accepted Hongtang period-report
+layout, use `build_hongtang_typhoon_template_report.py`. It preserves the cover,
+signatures, engineering overview, sensor layout, alarm thresholds, headers and
+footers, then replaces the old period results with a source-audited typhoon
+chapter. The generator reports both raw gust maxima and threshold-comparable
+10-minute mean maxima, includes their occurrence times and concurrent wind
+directions, compares pre/post-landfall wind and structural-response stages, and
+writes a JSON manifest beside the DOCX.
+
+```powershell
+python reporting/build_hongtang_typhoon_template_report.py `
+  --template F:\path\to\accepted_period_report.docx `
+  --source-root F:\path\to\source_exports `
+  --output-dir F:\path\to\formal_report `
+  --window-start 2026-07-10T23:20:00 `
+  --landfall-time 2026-07-11T23:20:00 `
+  --export-days 2026-07-11,2026-07-12
+```
+
+The template may store multilevel numbering directly on existing heading
+paragraphs. New Chapter 4 subsections copy that numbering contract explicitly.
+The generator also removes a redundant empty section-break paragraph before
+the result chapter to prevent a blank page after the alarm-threshold table.
+Always update Word fields/TOC and render every page before delivery.
+
 ## Packaged GUI / 打包 GUI
 
 The packaged directory should contain at least the following files.

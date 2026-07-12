@@ -6,38 +6,43 @@ Last updated: 2026-07-12
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
-## 2026-07-12 Hongtang Typhoon Bavi Lightweight Brief
+## 2026-07-12 Hongtang Typhoon Bavi Template Report
 
-Current staged-delivery state:
+Current completed and verified state:
 
 - The Q2 wind correction, W1/W2 diagnostic, and v1.7.38 locked final report are
-  already complete and must not be regenerated for the typhoon task.
-- CLI-only copies of the 2026-07-09, 2026-07-10, and 2026-07-11 Donghua
-  exports are under
-  `F:\Guanbing\run_logs\remote_tasks\hongtang_typhoon_bavi_20260711\source_exports`
-  on 133. Every waveform and feature ZIP contains 139 entries.
-- The staged initial brief reads the ZIP files directly. W1/W2 use complete raw
-  waveforms with the verified non-negative speed and 10-minute averaging
-  convention; 12 structural-acceleration and 24 cable-acceleration channels use
-  the approximately 6.4-second Donghua feature peaks for trend screening.
-- Verified common monitoring coverage is 2026-07-08 09:00:07 through
-  2026-07-11 09:00:05. Typhoon Bavi landed at Zhejiang Yuhuan at 2026-07-11
-  23:20, so this initial version ends about 14.3 hours before landfall and does
-  not claim to evaluate the landfall, peak, or post-event period.
-- Initial results: W1/W2 maximum 10-minute mean wind speeds are 6.48/5.07 m/s;
-  recent-versus-baseline structural feature-envelope medians are 1.17 for main
-  girder acceleration, 0.94 for tower acceleration, 1.15 for south-side cable
-  vibration, and 1.17 for north-side cable vibration. No sustained synchronous
-  rise is claimed before the data cutoff.
-- Local report:
-  `output/doc/hongtang_typhoon_bavi_initial_20260712/洪塘大桥台风巴威影响监测快报_阶段性初版.docx`.
-  It rendered to three pages; every page was checked after moving the structure
-  summary table to a clean page boundary. Manifest status is `ok`, with 120
-  source-entry audits and no missing entries.
-- Continue hourly CLI-only checks of 126 `H:\DHtest\定时导出`. When the
-  2026-07-12 folder is complete, verify 139 waveform and 139 feature entries,
-  copy it to the independent July source root on 133, and update this same brief
-  with the actual landfall-period data. Never synthesize unavailable data.
+  unchanged. The typhoon report uses that accepted Q2 report only as the formal
+  mother template; it does not rerun or overwrite the Q2 deliverable.
+- The 2026-07-12 Donghua export was verified on 126 before copying directly to
+  133. Its waveform and feature ZIP files each contain 139 entries including
+  W1/W2. Their SHA256 values are respectively
+  `EDB8AD130724E1DE124060676E9CF7D939DA225BE354834D0103EC8A7B1E42EA`
+  and `D17AF98F8D229E1FF3C6F928BC011C2467BCA8ECBC53184494B90D6924A4F589`.
+- The formal analysis window is the 24 hours before Typhoon Bavi's confirmed
+  2026-07-11 23:20 landfall through the latest actual export sample:
+  2026-07-10 23:20 to 2026-07-12 09:00. No later data are interpolated or
+  inferred. W1/W2 each have all 202 expected complete 10-minute bins.
+- W1/W2 raw maximum wind speeds are 14.74/17.42 m/s at 2026-07-11
+  16:09:29/17:02:49. Their maximum 10-minute mean wind speeds are 5.21/7.60 m/s
+  at 14:10/16:00 and do not reach the 25 m/s level-1 10-minute threshold. Both
+  maxima occurred before landfall. The report keeps raw gust peaks separate
+  from threshold-comparable 10-minute means.
+- Main-girder, tower, south-cable, and north-cable post/pre envelope-median
+  ratios are 1.03, 1.04, 0.85, and 0.88. No sustained multi-point synchronous
+  amplification is claimed; the report retains the operational caveat that
+  weather warnings, traffic controls, and site inspection remain controlling.
+- The final Q2-template report is under
+  `output/doc/hongtang_typhoon_template_final_20260712_v2`. Manifest status is
+  `ok`, missing-entry count is zero, and 80 source-entry audits are recorded.
+  Final DOCX SHA256 is
+  `4E04BCFD083F99E745EC28A15FAABA9FC86107EC04C252C70655BA7E779D0D6C`.
+  Word fields and the TOC were updated. LibreOffice rendered 23 pages; every
+  page was inspected, including the corrected chapter break and 4.1-4.5 TOC
+  numbering. The previous blank page is absent.
+- Production evidence is under
+  `F:\Guanbing\run_logs\remote_tasks\hongtang_typhoon_template_20260712\final_20260712_layoutfix`.
+  The earlier three-page lightweight brief remains only as a superseded staged
+  artifact and must not be presented as the final owner deliverable.
 
 ## 2026-07-11 Zhishan May/June Full Recovery And Final Reports (v1.7.28-v1.7.32)
 
