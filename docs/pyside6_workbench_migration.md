@@ -23,7 +23,9 @@ The second local milestone adds a packaged EXE and migrates the explicit
 `alarm_bounds` editor. The third local milestone adds data-cleaning threshold
 parity. The fourth adds post-filter cleanup plus compiled-runner-backed
 automatic-cleaning proposals. The fifth migrates offset correction and grouped
-plot configuration. None of these milestones writes to production machines.
+plot configuration. The sixth migrates common plot parameters and
+acceleration/cable-acceleration spectrum coverage plus peak-order overrides.
+None of these milestones writes to production machines.
 
 ## Packaged local milestone
 
@@ -31,7 +33,7 @@ plot configuration. None of these milestones writes to production machines.
 - Run `dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe`.
 - The onedir release includes the compiled MATLAB analysis runner, all profile
   configs/templates, and a freshly packaged report builder.
-- The build blocks unless the workbench EXE smoke contract, seven native Qt
+- The build blocks unless the workbench EXE smoke contract, nine native Qt
   screenshots, and the packaged report builder `--job-context` smoke test pass.
 - `release_manifest.json` records SHA-256, version, file count/byte size
   excluding the manifest itself, and smoke results. Generated `build/` and
@@ -66,6 +68,18 @@ containers on no-op edits, and updates the corresponding `group_labels` while
 preserving unrelated plot settings. All six bridge configs pass exact no-op
 round trips through both services.
 
+The plot-common editor covers the complete 14-field union present across the
+six production bridge configs and preserves unknown future fields. It keeps
+MATLAB defaults implicit when a checkbox is cleared and refuses an explicit
+`full + dense_band` combination because the MATLAB runtime forces full raw
+sampling to line rendering. The spectrum editor manages explicit/fallback
+coverage for `accel_spectrum` and `cable_accel_spectrum`, together with default
+and per-point peak orders. Existing `fs`, `auto_detect_fs`, thresholds and
+unrelated fields remain untouched. Legacy `target_freqs`/`tolerance`/
+`theor_freqs` fields round-trip exactly until the corresponding module is
+actually edited, at which point they are deliberately normalized to the
+MATLAB-supported `peak_orders` contract.
+
 The packaged shell also includes a stable-channel GitHub Release updater. It
 checks no more than once per day, supports a manual check, requires a newer
 semantic version and a runnable Windows x64 ZIP, verifies the archive SHA256
@@ -91,6 +105,6 @@ inside MATLAB, and the MATLAB engine is not rewritten in Python.
 ## Later migration work
 
 - Curve-preview parity for automatic-cleaning suggestions.
-- Plot-common and spectrum override parity.
 - Embedded report build progress and final Word/PDF QC.
+- Complete per-plot provenance closure inside the review page.
 - Installed-runtime comparison across every bridge profile.

@@ -165,10 +165,12 @@ if ($smokeProcess.ExitCode -ne 0) {
 }
 $smoke = Get-Content -LiteralPath $smokeOutput -Raw -Encoding UTF8 | ConvertFrom-Json
 if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
-        -or $smoke.config_tab_count -lt 6 -or $smoke.module_count -lt 20 `
+        -or $smoke.config_tab_count -lt 8 -or $smoke.module_count -lt 20 `
         -or $smoke.auto_threshold_module_count -lt 10 `
         -or $smoke.group_plot_module_count -lt 1 `
-        -or $smoke.cleaning_threshold_row_count -lt 1) {
+        -or $smoke.cleaning_threshold_row_count -lt 1 `
+        -or $smoke.plot_common_field_count -ne 14 `
+        -or $smoke.spectrum_module_count -ne 2) {
     throw "Workbench EXE smoke contract failed: $($smoke | ConvertTo-Json -Compress)"
 }
 
@@ -186,6 +188,10 @@ $offsetScreenshotOutput = Join-Path $distRoot "workbench_offset_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $offsetScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 4
 $groupScreenshotOutput = Join-Path $distRoot "workbench_group_plot_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $groupScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 5
+$plotCommonScreenshotOutput = Join-Path $distRoot "workbench_plot_common_editor.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $plotCommonScreenshotOutput -ProfileId "hongtang" -TabIndex 1 -ConfigTabIndex 6
+$spectrumScreenshotOutput = Join-Path $distRoot "workbench_spectrum_editor.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $spectrumScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 7
 
 $files = Get-ChildItem -LiteralPath $distRoot -Recurse -File
 $updatePolicy = Get-Content -LiteralPath (Join-Path $distRoot "config\workbench_update.json") -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -209,7 +215,9 @@ $releaseManifest = [ordered]@{
         "workbench_post_filter_editor.png",
         "workbench_auto_threshold.png",
         "workbench_offset_editor.png",
-        "workbench_group_plot_editor.png"
+        "workbench_group_plot_editor.png",
+        "workbench_plot_common_editor.png",
+        "workbench_spectrum_editor.png"
     )
     smoke = $smoke
 }

@@ -47,6 +47,7 @@ from .module_icons import module_icon
 from .models import JobContext, file_sha256
 from .modules import MODULE_SPECS, options_for_modules
 from .profiles import WorkbenchProfile, load_profiles, profile_by_id
+from .plot_config_tab import PlotCommonEditorWidget, SpectrumConfigEditorWidget
 from .report_bridge import launch_report_gui
 from .update_ui import UpdateController
 from .version import app_version, project_root as default_project_root
@@ -126,12 +127,26 @@ class WorkbenchWindow(QMainWindow):
                 "组图", path, sha256, backup
             )
         )
+        self.plot_common_editor = PlotCommonEditorWidget()
+        self.plot_common_editor.config_saved.connect(
+            lambda path, sha256, backup: self._on_config_saved(
+                "绘图公共参数", path, sha256, backup
+            )
+        )
+        self.spectrum_editor = SpectrumConfigEditorWidget()
+        self.spectrum_editor.config_saved.connect(
+            lambda path, sha256, backup: self._on_config_saved(
+                "频谱覆盖与找峰", path, sha256, backup
+            )
+        )
         config_tabs.addTab(self.alarm_editor, "预警值")
         config_tabs.addTab(self.cleaning_editor, "数据清洗阈值")
         config_tabs.addTab(self.post_filter_editor, "滤波后二次清洗")
         config_tabs.addTab(self.auto_threshold_editor, "自动清洗建议")
         config_tabs.addTab(self.offset_editor, "零点修正")
         config_tabs.addTab(self.group_plot_editor, "组图配置")
+        config_tabs.addTab(self.plot_common_editor, "绘图公共参数")
+        config_tabs.addTab(self.spectrum_editor, "频谱覆盖与找峰")
         self.config_tabs = config_tabs
         tabs.addTab(config_tabs, "配置与预警值")
         tabs.addTab(self._build_review_tab(), "结果与图件审核")
@@ -348,6 +363,8 @@ class WorkbenchWindow(QMainWindow):
             self.post_filter_editor.load_path(profile.config_path(self.project_root))
             self.offset_editor.load_path(profile.config_path(self.project_root))
             self.group_plot_editor.load_path(profile.config_path(self.project_root))
+            self.plot_common_editor.load_path(profile.config_path(self.project_root))
+            self.spectrum_editor.load_path(profile.config_path(self.project_root))
         except Exception as exc:  # noqa: BLE001
             self.alarm_editor.message_label.setText(f"配置加载失败：{exc}")
             self.alarm_editor.message_label.setStyleSheet("color: #a33;")
@@ -359,6 +376,10 @@ class WorkbenchWindow(QMainWindow):
             self.offset_editor.message_label.setStyleSheet("color: #a33;")
             self.group_plot_editor.summary_label.setText(f"配置加载失败：{exc}")
             self.group_plot_editor.summary_label.setStyleSheet("color: #a33;")
+            self.plot_common_editor.summary_label.setText(f"配置加载失败：{exc}")
+            self.plot_common_editor.summary_label.setStyleSheet("color: #a33;")
+            self.spectrum_editor.summary_label.setText(f"配置加载失败：{exc}")
+            self.spectrum_editor.summary_label.setStyleSheet("color: #a33;")
         _set_line_edit_path(self.template_edit, profile.template_path(self.project_root) if profile.report_template else "")
         output = Path(profile.default_data_root) / "自动报告" if profile.default_data_root else self.project_root / "output" / "doc"
         _set_line_edit_path(self.output_dir_edit, output)
@@ -746,6 +767,8 @@ class WorkbenchWindow(QMainWindow):
                 self.post_filter_editor.load_path(path)
                 self.offset_editor.load_path(path)
                 self.group_plot_editor.load_path(path)
+                self.plot_common_editor.load_path(path)
+                self.spectrum_editor.load_path(path)
             except Exception as exc:  # noqa: BLE001
                 self._show_exception("加载高级配置失败", exc)
 
@@ -767,6 +790,8 @@ class WorkbenchWindow(QMainWindow):
                 self.post_filter_editor,
                 self.offset_editor,
                 self.group_plot_editor,
+                self.plot_common_editor,
+                self.spectrum_editor,
             ):
                 try:
                     editor.load_path(saved_path)

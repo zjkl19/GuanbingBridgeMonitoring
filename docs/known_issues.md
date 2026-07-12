@@ -1,6 +1,6 @@
 # Known Issues And Follow-Up Items
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
@@ -13,8 +13,8 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   analysis launch, status/manifest review, task restoration, and guarded report
   handoff. Explicit `alarm_bounds` and data-cleaning threshold editing are
   migrated with backup/hash gates. Compiled-runner-backed automatic-cleaning
-  proposals, post-filter cleaning, offsets and grouped plots are also migrated;
-  common plotting and spectrum overrides remain in MATLAB.
+  proposals, post-filter cleaning, offsets, grouped plots, common plotting and
+  spectrum overrides are also migrated.
   Continue using the legacy MATLAB GUI for production configuration.
 - The Python module key/option mapping mirrors MATLAB and is protected by a
   source-contract test against `bms.module.ModuleRegistry`; future module
@@ -36,6 +36,27 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   copy and review backup/rollback behavior. Existing configs are preserved, so
   future config-schema changes need an explicit migration rather than relying
   on package replacement.
+
+## Plot And Spectrum Editor Compatibility Rules
+
+Status: migrated locally on `dev/pyside6-workbench`; six-bridge no-op and
+cross-language contracts covered.
+
+- MATLAB deliberately forces high-frequency `dynamic_raw_sampling_mode=full`
+  to line rendering. The PySide6 editor therefore refuses an explicit
+  `full + dense_band` pair instead of saving a value MATLAB would silently
+  override. This is a configuration truthfulness guard, not an algorithm or
+  plot-statistics change.
+- Legacy spectrum `target_freqs`, `tolerance`, `theor_freqs`, labels and the
+  newer `peak_orders` are all readable. A no-op load/save preserves the exact
+  original representation. Once a user edits a spectrum module, its managed
+  frequency fields are normalized to `peak_orders`, matching the existing
+  MATLAB `SpectrumPeakOrderEditorService`; `fs`, auto-detection, thresholds
+  and unrelated fields remain unchanged.
+- Spectrum point coverage may be explicit under `points.<spectrum_module>` or
+  inherited from the corresponding acceleration/cable/group points. The UI
+  displays the effective inherited list but only writes an explicit list when
+  the user selects that mode.
 
 ## Strain Group Editor Alias Read/Write Mismatch
 

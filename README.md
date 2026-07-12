@@ -31,7 +31,8 @@ dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe
 哈希、发布清单自身以外的文件数/总大小及启动自测结果；`workbench_startup.png`、
 `workbench_alarm_editor.png`、`workbench_cleaning_editor.png`、
 `workbench_post_filter_editor.png`、`workbench_auto_threshold.png`、
-`workbench_offset_editor.png` 与 `workbench_group_plot_editor.png` 是构建时自动生成的界面证据。
+`workbench_offset_editor.png`、`workbench_group_plot_editor.png`、
+`workbench_plot_common_editor.png` 与 `workbench_spectrum_editor.png` 是构建时自动生成的界面证据。
 
 “配置与预警值”页现已迁移显式 `alarm_bounds` 以及
 `thresholds` / `zero_to_nan` / `outlier` 数据清洗字段。清洗编辑器支持默认和测点规则、
@@ -48,6 +49,12 @@ MATLAB `AutoThresholdProposalService`，由重新编译的同一
 `segmented` 分段结构，并在写入前拒绝日期重叠。“组图配置”页直接管理
 `groups` 与 `group_labels`，分开呈现应变统计组和时程组，支持测点筛选、排序及
 历史二维数组无修改往返。两页均沿用源 SHA 漂移拒绝、自动备份和旧任务失效门禁。
+
+“绘图公共参数”页覆盖六桥实际使用的全部 14 个 `plot_common` 字段，包括普通图点数、
+缺口连接方式及高频原始图的 full/capped、line/dense_band 和线宽设置。取消“显式”会删除
+该字段并回退 MATLAB 默认值；为避免产生与运行时不一致的配置，显式 `full` 不允许同时选择
+`dense_band`。“频谱覆盖与找峰”页统一管理加速度/索力加速度频谱测点及默认、逐测点
+`peak_orders`，保留采样率、阈值和未知字段；历史频率字段只在用户实际编辑后迁移。
 
 打包版右上角提供“检查更新”。正式版启动后每天最多自动查询一次 GitHub
 Release；发现更高稳定版本时，可下载、双重 SHA256 校验、备份当前安装并在退出后

@@ -1,6 +1,6 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 ## Purpose
 
@@ -37,8 +37,8 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `235/235`. The current focused MATLAB
-  workbench/runner/config batch passes `70/70`; the earlier focused alarm-editor,
+- The current Python suite passes `247/247`. The current joint MATLAB
+  workbench/runner/config/plot batch passes `146/146`; the earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
   A direct MATLAB JSON-contract run completed and
   produced an `ok` manifest. A second end-to-end run through the Python
@@ -64,7 +64,7 @@ Current local development state:
   deliberately published.
 - `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
   MATLAB Runner, six project configs/templates, and the report builder. The
-  build blocks on the workbench smoke contract, seven native screenshots, and
+  build blocks on the workbench smoke contract, nine native screenshots, and
   packaged report `--job-context` smoke. `release_manifest.json` records the
   EXE SHA-256, file count, total bytes, and smoke result.
 - Explicit `defaults/per_point` `alarm_bounds` editing is migrated with strict
@@ -110,6 +110,27 @@ Current local development state:
   key and synchronizes the canonical key only when both were identical before
   editing; intentionally divergent statistical/time-series groups are left
   separate.
+- Plot-common and spectrum settings are migrated as the seventh and eighth
+  configuration subtabs. The common editor covers the complete 14-field union
+  used by the six bridge configs, including full/capped high-frequency
+  sampling, line/dense-band rendering, gap behavior and line widths. It
+  preserves unknown fields, keeps MATLAB defaults implicit, and refuses the
+  misleading explicit `full + dense_band` pair because MATLAB forces full
+  sampling to line rendering.
+- The spectrum editor manages explicit or inherited point coverage for both
+  `accel_spectrum` and `cable_accel_spectrum`, and default/per-point find-peak
+  orders. It reads legacy target/tolerance/theoretical-frequency arrays and
+  newer `peak_orders`; exact no-op saves preserve representation, while an
+  actual edit migrates only managed frequency fields to `peak_orders` and
+  retains `fs`, automatic sample-rate detection, thresholds and unrelated
+  fields. Invalid table edits block module switching without discarding the
+  draft.
+- A shared Python/MATLAB fixture and regression suite verifies both schemas;
+  all six bridge configs pass exact no-op round trips. The rebuilt packaged
+  EXE passes an 8-config-tab smoke contract (`14` common fields, `2` spectrum
+  modules), packaged report-context smoke, and nine native `2020x1120` visual
+  captures. The Hongtang common-plot and Zhishan spectrum pages were inspected
+  at native resolution.
 - The workbench packager now rebuilds the compiled analysis runner whenever
   included MATLAB sources are newer than the runner executable. This prevents
   a visually current PySide6 package from silently carrying an obsolete core
@@ -128,9 +149,8 @@ Current local development state:
   regression now parses all runtime configs and profile catalogs. Missing
   report test/runtime dependencies (`matplotlib`, `numpy`, `pypdf`) are pinned.
 
-Remaining after the packaged offset/group milestone:
+Remaining after the packaged plot/spectrum milestone:
 
-- migrate plot-common and spectrum override editors with semantic parity;
 - embed report build progress and final DOCX/PDF QC instead of opening the
   existing report window;
 - automate full plot-provenance closure display rather than relying on the
