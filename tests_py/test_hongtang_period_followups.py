@@ -13,6 +13,8 @@ from build_monthly_report import (  # noqa: E402
     build_eq_section,
     build_overview_items,
     build_wind_section,
+    format_rms_threshold,
+    format_rms_value,
     normalize_eq_peak_key,
     replace_wind_speed_caption,
     update_wind_table,
@@ -104,10 +106,19 @@ class TestHongtangPeriodFollowups(unittest.TestCase):
         wind_text = items["风向风速监测"][0]
 
         self.assertIn("监测结果表明，吊索加速度", cable_text)
+        self.assertIn("370mm/s²（0.370m/s²）", cable_text)
+        self.assertIn("1000mm/s²（1.000m/s²）", cable_text)
+        self.assertNotIn("1000m/s²", cable_text)
         self.assertIn("变化幅度均在10%以内", cable_text)
         self.assertNotIn("监测结果表明吊索加速度", cable_text)
         self.assertNotIn("与成桥索力相比变化范围在10%以内", cable_text)
         self.assertIn("桥面测点W1的10min平均风速", wind_text)
+
+    def test_rms_format_preserves_mm_per_second_squared_precision(self):
+        self.assertEqual(format_rms_value(0.027), "27mm/s²（0.027m/s²）")
+        self.assertEqual(format_rms_value(0.453), "453mm/s²（0.453m/s²）")
+        self.assertEqual(format_rms_threshold(315), "315mm/s²（0.315m/s²）")
+        self.assertEqual(format_rms_threshold(1000), "1000mm/s²（1.000m/s²）")
 
     def test_wind_section_uses_accepted_spacing_and_caption(self):
         with tempfile.TemporaryDirectory() as td:

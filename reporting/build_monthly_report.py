@@ -852,8 +852,8 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
             if max_abs is not None and max_rms is not None:
                 cable_parts.append(
                     f"监测结果表明，吊索加速度各测点绝对最大值为{max_abs:.2f}m/s²，"
-                    f"各测点10min加速度均方根值最大为{max_rms:.2f}m/s²，"
-                    "未超过1000m/s²，均处于超限阈值范围之内，未出现超过各级超限阈值和报警的情况。"
+                    f"各测点10min加速度均方根值最大为{format_rms_value(max_rms)}，"
+                    f"低于一级超限阈值{format_rms_threshold(1000.0)}，未触发相应报警。"
                 )
             else:
                 cable_parts.append("吊索加速度时程及10min加速度均方根结果见正文图表。")
@@ -885,6 +885,18 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
         ]
 
     return replacements
+
+
+def format_rms_value(value_m_s2: float) -> str:
+    """Format acceleration RMS without losing engineering-scale precision."""
+
+    return f"{value_m_s2 * 1000:.0f}mm/s²（{value_m_s2:.3f}m/s²）"
+
+
+def format_rms_threshold(value_mm_s2: float) -> str:
+    """Format an RMS threshold in both report and SI units."""
+
+    return f"{value_mm_s2:.0f}mm/s²（{value_mm_s2 / 1000:.3f}m/s²）"
 
 
 def update_overview_tables(doc: Document, manifest: dict) -> None:
@@ -1189,8 +1201,8 @@ def build_cable_force_section(cfg: dict, stats_root: Path, fallback_stats_root: 
     if max_abs is not None and max_rms is not None:
         accel_summary = (
             f"\u9009\u53d6\u5178\u578b\u76d1\u6d4b\u6570\u636e\u8fdb\u884c\u5206\u6790\uff0c\u76d1\u6d4b\u7ed3\u679c\u8868\u660e\uff0c\u540a\u7d22\u52a0\u901f\u5ea6\u5404\u6d4b\u70b9\u7edd\u5bf9\u6700\u5927\u503c\u4e3a{max_abs:.2f}m/s\xb2\uff0c"
-            f"\u5404\u6d4b\u70b910min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u503c\u6700\u5927\u4e3a{max_rms:.2f}m/s\xb2\uff0c\u672a\u8d85\u8fc71000m/s\xb2\uff0c\u5747\u5904\u4e8e\u8d85\u9650\u9608\u503c\u8303\u56f4\u4e4b\u5185\uff0c"
-            f"\u672a\u51fa\u73b0\u8d85\u8fc7\u5404\u7ea7\u8d85\u9650\u9608\u503c\u548c\u62a5\u8b66\u7684\u60c5\u51b5\u3002"
+            f"\u5404\u6d4b\u70b910min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u503c\u6700\u5927\u4e3a{format_rms_value(max_rms)}\uff0c"
+            f"\u4f4e\u4e8e\u4e00\u7ea7\u8d85\u9650\u9608\u503c{format_rms_threshold(1000.0)}\uff0c\u672a\u89e6\u53d1\u76f8\u5e94\u62a5\u8b66\u3002"
         )
     else:
         accel_summary = "\u9009\u53d6\u5178\u578b\u76d1\u6d4b\u6570\u636e\u8fdb\u884c\u5206\u6790\uff0c\u540a\u7d22\u52a0\u901f\u5ea6\u4e0e10min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u7ed3\u679c\u89c1\u4e0b\u56fe\u3002"
@@ -1267,8 +1279,8 @@ def build_vibration_section(cfg: dict, stats_root: Path, fallback_stats_root: Pa
     if max_abs is not None and max_rms is not None:
         timeseries_summary = (
             f"选取典型监测数据进行分析，监测结果表明，主梁及主塔加速度各测点绝对最大值为{max_abs:.2f}m/s²，"
-            f"各测点10min加速度均方根值最大为{max_rms:.2f}m/s²，未超过315m/s²，均处于超限阈值范围之内，"
-            f"未出现超过各级超限阈值和报警的情况。"
+            f"各测点10min加速度均方根值最大为{format_rms_value(max_rms)}，"
+            f"低于一级超限阈值{format_rms_threshold(315.0)}，未触发相应报警。"
         )
     else:
         timeseries_summary = "选取典型监测数据进行分析，主梁及主塔加速度时程与10min加速度均方根结果见下图。"
