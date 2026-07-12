@@ -1,0 +1,60 @@
+{
+  "bridge_name": "workbench offset/group contract",
+  "points": {
+    "strain": ["S-1", "S-2", "S-3"],
+    "deflection": ["D-1", "D-2", "D-3"]
+  },
+  "defaults": {
+    "cable_accel": {
+      "offset_correction": {
+        "mode": "daily_median",
+        "start_date": "2026-03-01",
+        "end_date": "2026-03-31",
+        "note": "contract default"
+      },
+      "thresholds": {"min": -100, "max": 100}
+    }
+  },
+  "per_point": {
+    "cable_accel": {
+      "CF-5": {
+        "offset_correction": {
+          "mode": "segmented",
+          "segments": [
+            {
+              "mode": "fixed",
+              "value": 10,
+              "start_date": "2026-04-01",
+              "end_date": "2026-04-30"
+            },
+            {
+              "mode": "hourly_median",
+              "value": null,
+              "start_date": "2026-05-01",
+              "end_date": "2026-06-30"
+            }
+          ],
+          "note": "contract segmented"
+        },
+        "alarm_bounds": {"level1": [-1000, 1000]}
+      }
+    },
+    "strain": {
+      "S_1": {"offset_correction": 2}
+    }
+  },
+  "name_map_global": {"S_1": "S-1"},
+  "groups": {
+    "deflection": [["D-1", "D-2"], ["D-3"]],
+    "strain": {"BOX": ["S-1", "S-2"]},
+    "strain_timeseries": {"TS": ["S-1", "S-2"]}
+  },
+  "plot_styles": {
+    "strain": {
+      "group_labels": {"BOX": "箱线组", "TS": "时程组"},
+      "line_width": 1
+    },
+    "deflection": {"line_width": 1}
+  },
+  "unrelated_marker": {"keep": true}
+}

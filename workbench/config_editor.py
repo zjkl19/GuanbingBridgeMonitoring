@@ -15,6 +15,41 @@ from .models import file_sha256
 
 
 LEVEL_PATTERN = re.compile(r"^level([1-9]\d*)$")
+GROUP_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_]+$")
+OFFSET_MODES = {
+    "fixed",
+    "constant",
+    "first_day_mean",
+    "earliest_day_mean",
+    "daily_mean",
+    "day_mean",
+    "daily_median",
+    "day_median",
+    "hourly_mean",
+    "hour_mean",
+    "hourly_median",
+    "hour_median",
+}
+GROUP_MODULE_KEYS = (
+    "temperature",
+    "humidity",
+    "strain",
+    "strain_timeseries",
+    "dynamic_strain",
+    "dynamic_strain_lowpass",
+    "deflection",
+    "bearing_displacement",
+    "tilt",
+    "acceleration",
+    "cable_accel",
+    "crack",
+)
+GROUP_POINT_KEYS = {
+    "strain_timeseries": ("strain",),
+    "dynamic_strain": ("dynamic_strain", "strain"),
+    "dynamic_strain_lowpass": ("dynamic_strain_lowpass", "dynamic_strain", "strain"),
+}
+GROUP_STYLE_KEYS = {"strain_timeseries": "strain"}
 
 
 class ConfigEditorError(ValueError):
@@ -133,6 +168,89 @@ class CleaningThresholdRow:
 
 
 @dataclass(frozen=True)
+class OffsetCorrectionRow:
+    scope: str
+    module_key: str
+    point_key: str
+    mode: str
+    value: float | None = None
+    start_date: str = ""
+    end_date: str = ""
+    segmented: bool = False
+    segment_index: int = 0
+    note: str = ""
+
+    def validated(self) -> "OffsetCorrectionRow":
+        scope = self.scope.strip()
+        module = self.module_key.strip()
+        point = self.point_key.strip()
+        mode = self.mode.strip().lower()
+        if scope not in {"defaults", "per_point"}:
+            raise ConfigEditorError("offset scope 必须是 defaults 或 per_point")
+        if not module:
+            raise ConfigEditorError("offset module_key 不能为空")
+        if scope == "defaults" and point:
+            raise ConfigEditorError("defaults 零点修正不能填写 point_key")
+        if scope == "per_point" and not point:
+            raise ConfigEditorError("per_point 零点修正必须填写 point_key")
+        if mode != "scalar" and mode not in OFFSET_MODES:
+            raise ConfigEditorError(f"不支持的 offset mode：{mode!r}")
+        value = _optional_finite(self.value, "offset value")
+        if mode in {"scalar", "fixed", "constant"} and value is None:
+            raise ConfigEditorError(f"{mode} 零点修正必须填写有限 value")
+        if mode not in {"scalar", "fixed", "constant"} and value is not None:
+            raise ConfigEditorError(f"{mode} 零点修正不使用 value，请留空")
+        start = str(self.start_date or "").strip()
+        end = str(self.end_date or "").strip()
+        for label, text in (("start_date", start), ("end_date", end)):
+            if text:
+                _parse_offset_date(text, label)
+        if mode == "scalar" and (start or end or self.segmented):
+            raise ConfigEditorError("scalar 零点修正不能设置日期或分段")
+        segment_index = int(self.segment_index or 0)
+        if self.segmented and segment_index < 1:
+            raise ConfigEditorError("分段零点修正的 segment_index 必须从 1 开始")
+        if not self.segmented:
+            segment_index = 0
+        return OffsetCorrectionRow(
+            scope,
+            module,
+            point,
+            mode,
+            value,
+            start,
+            end,
+            bool(self.segmented),
+            segment_index,
+            str(self.note or "").strip(),
+        )
+
+
+@dataclass(frozen=True)
+class GroupPlotRow:
+    module_key: str
+    group_key: str
+    label: str
+    points: tuple[str, ...]
+
+    def validated(self) -> "GroupPlotRow":
+        module = self.module_key.strip()
+        key = self.group_key.strip()
+        if module not in GROUP_MODULE_KEYS:
+            raise ConfigEditorError(f"不支持的组图模块：{module!r}")
+        if not GROUP_KEY_PATTERN.fullmatch(key):
+            raise ConfigEditorError(
+                f"group_key 只能使用英文字母、数字和下划线：{key!r}"
+            )
+        points = tuple(str(point).strip() for point in self.points if str(point).strip())
+        if not points:
+            raise ConfigEditorError(f"组 {key} 至少需要一个测点")
+        if len(points) != len(set(points)):
+            raise ConfigEditorError(f"组 {key} 内存在重复测点")
+        return GroupPlotRow(module, key, str(self.label or "").strip(), points)
+
+
+@dataclass(frozen=True)
 class ConfigSaveResult:
     path: Path
     sha256: str
@@ -155,6 +273,15 @@ def _optional_finite(value: Any, label: str) -> int | float | None:
     if not math.isfinite(number):
         raise ConfigEditorError(f"{label} 必须是有限数值或留空")
     return int(number) if number.is_integer() else number
+
+
+def _parse_offset_date(value: str, label: str) -> datetime:
+    for pattern in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(value, pattern)
+        except ValueError:
+            pass
+    raise ConfigEditorError(f"{label} 必须是 yyyy-MM-dd 或 yyyy-MM-dd HH:mm:ss：{value!r}")
 
 
 def _bounds_rows(scope: str, module_key: str, point_key: str, raw: Any) -> list[AlarmBoundRow]:
@@ -547,6 +674,338 @@ def apply_post_filter_thresholds(
     return updated
 
 
+def _offset_rows_for_value(
+    scope: str, module: str, point: str, raw: Any
+) -> list[OffsetCorrectionRow]:
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return [OffsetCorrectionRow(scope, module, point, "scalar", raw).validated()]
+    if isinstance(raw, str):
+        try:
+            number = float(raw)
+        except ValueError:
+            number = math.nan
+        if math.isfinite(number):
+            return [OffsetCorrectionRow(scope, module, point, "scalar", number).validated()]
+        mode = raw.strip().lower()
+        if mode in OFFSET_MODES:
+            return [OffsetCorrectionRow(scope, module, point, mode).validated()]
+    if not isinstance(raw, dict):
+        raise ConfigEditorError(
+            f"{scope}.{module}.{point}.offset_correction 必须是有限数值或对象"
+        )
+    mode = str(raw.get("mode") or raw.get("method") or raw.get("type") or "").lower()
+    if not mode and any(key in raw for key in ("value", "offset", "offset_value")):
+        mode = "fixed"
+    note = str(raw.get("note") or "")
+    if mode == "segmented" or isinstance(raw.get("segments"), list):
+        segments = raw.get("segments")
+        if not isinstance(segments, list) or not segments:
+            raise ConfigEditorError(f"{scope}.{module}.{point}.offset_correction.segments 不能为空")
+        rows: list[OffsetCorrectionRow] = []
+        for index, segment in enumerate(segments, 1):
+            if not isinstance(segment, dict):
+                raise ConfigEditorError("offset_correction.segments 必须是对象数组")
+            segment_mode = str(
+                segment.get("mode") or segment.get("method") or segment.get("type") or ""
+            ).lower()
+            if not segment_mode and any(
+                key in segment for key in ("value", "offset", "offset_value")
+            ):
+                segment_mode = "fixed"
+            value = segment.get("value", segment.get("offset", segment.get("offset_value")))
+            rows.append(
+                OffsetCorrectionRow(
+                    scope,
+                    module,
+                    point,
+                    segment_mode,
+                    value,
+                    str(segment.get("start_date") or ""),
+                    str(segment.get("end_date") or ""),
+                    True,
+                    index,
+                    note,
+                ).validated()
+            )
+        return rows
+    value = raw.get("value", raw.get("offset", raw.get("offset_value")))
+    return [
+        OffsetCorrectionRow(
+            scope,
+            module,
+            point,
+            mode,
+            value,
+            str(raw.get("start_date") or ""),
+            str(raw.get("end_date") or ""),
+            False,
+            0,
+            note,
+        ).validated()
+    ]
+
+
+def extract_offset_corrections(payload: dict[str, Any]) -> list[OffsetCorrectionRow]:
+    rows: list[OffsetCorrectionRow] = []
+    for scope in ("defaults", "per_point"):
+        root = payload.get(scope, {}) or {}
+        if not isinstance(root, dict):
+            raise ConfigEditorError(f"{scope} 必须是对象")
+        for module, module_block in root.items():
+            if not isinstance(module_block, dict):
+                continue
+            blocks = [("", module_block)] if scope == "defaults" else module_block.items()
+            for point, block in blocks:
+                if isinstance(block, dict) and "offset_correction" in block:
+                    rows.extend(
+                        _offset_rows_for_value(
+                            scope, str(module), str(point), block["offset_correction"]
+                        )
+                    )
+    return sorted(
+        rows,
+        key=lambda row: (
+            0 if row.scope == "defaults" else 1,
+            row.module_key.casefold(),
+            row.point_key.casefold(),
+            row.segment_index,
+        ),
+    )
+
+
+def _validate_offset_groups(
+    rows: Iterable[OffsetCorrectionRow],
+) -> dict[tuple[str, str, str], list[OffsetCorrectionRow]]:
+    grouped: dict[tuple[str, str, str], list[OffsetCorrectionRow]] = {}
+    for raw in rows:
+        row = raw.validated()
+        grouped.setdefault((row.scope, row.module_key, row.point_key), []).append(row)
+    for identity, block_rows in grouped.items():
+        segmented = {row.segmented for row in block_rows}
+        if len(segmented) != 1:
+            raise ConfigEditorError(f"同一零点修正不能混合分段和非分段：{'/'.join(identity)}")
+        if not next(iter(segmented)):
+            if len(block_rows) != 1:
+                raise ConfigEditorError(f"非分段零点修正只能有一行：{'/'.join(identity)}")
+            continue
+        indexes = [row.segment_index for row in block_rows]
+        if len(indexes) != len(set(indexes)):
+            raise ConfigEditorError(f"分段序号重复：{'/'.join(identity)}")
+        ordered = sorted(block_rows, key=lambda row: row.segment_index)
+        if len({row.note for row in ordered}) > 1:
+            raise ConfigEditorError("同一 segmented 零点修正的外层备注必须一致")
+        intervals: list[tuple[datetime, datetime]] = []
+        for row in ordered:
+            if not row.start_date or not row.end_date:
+                raise ConfigEditorError("分段零点修正必须成对填写 start_date/end_date")
+            start = _parse_offset_date(row.start_date, "start_date")
+            end = _parse_offset_date(row.end_date, "end_date")
+            if end < start:
+                raise ConfigEditorError("分段零点修正的 end_date 不能早于 start_date")
+            if any(start <= old_end and end >= old_start for old_start, old_end in intervals):
+                raise ConfigEditorError(f"分段零点修正日期重叠：{'/'.join(identity)}")
+            intervals.append((start, end))
+        grouped[identity] = ordered
+    return grouped
+
+
+def apply_offset_corrections(
+    payload: dict[str, Any], rows: Iterable[OffsetCorrectionRow]
+) -> dict[str, Any]:
+    grouped = _validate_offset_groups(rows)
+    updated = copy.deepcopy(payload)
+    for scope in ("defaults", "per_point"):
+        root = updated.get(scope, {}) or {}
+        if not isinstance(root, dict):
+            raise ConfigEditorError(f"{scope} 必须是对象")
+        for module in root.values():
+            if not isinstance(module, dict):
+                continue
+            blocks = [module] if scope == "defaults" else module.values()
+            for block in blocks:
+                if isinstance(block, dict):
+                    block.pop("offset_correction", None)
+    for (scope, module_key, point_key), block_rows in grouped.items():
+        root = updated.setdefault(scope, {})
+        if not isinstance(root, dict):
+            raise ConfigEditorError(f"{scope} 必须是对象")
+        module = root.setdefault(module_key, {})
+        if not isinstance(module, dict):
+            raise ConfigEditorError(f"{scope}.{module_key} 必须是对象")
+        target = module
+        if scope == "per_point":
+            target = module.setdefault(point_key, {})
+            if not isinstance(target, dict):
+                raise ConfigEditorError(f"per_point.{module_key}.{point_key} 必须是对象")
+        first = block_rows[0]
+        if first.mode == "scalar":
+            target["offset_correction"] = first.value
+            continue
+        if first.segmented:
+            segments: list[dict[str, Any]] = []
+            for row in block_rows:
+                segment: dict[str, Any] = {"mode": row.mode}
+                if row.value is not None:
+                    segment["value"] = row.value
+                if row.start_date:
+                    segment["start_date"] = row.start_date
+                if row.end_date:
+                    segment["end_date"] = row.end_date
+                segments.append(segment)
+            value: dict[str, Any] = {"mode": "segmented", "segments": segments}
+            if first.note:
+                value["note"] = first.note
+            target["offset_correction"] = value
+            continue
+        value = {"mode": first.mode}
+        if first.value is not None:
+            value["value"] = first.value
+        if first.start_date:
+            value["start_date"] = first.start_date
+        if first.end_date:
+            value["end_date"] = first.end_date
+        if first.note:
+            value["note"] = first.note
+        target["offset_correction"] = value
+    return updated
+
+
+def _normalize_group_points(raw: Any) -> tuple[str, ...]:
+    if isinstance(raw, str):
+        text = raw.strip()
+        return (text,) if text else ()
+    if not isinstance(raw, list):
+        return ()
+    points: list[str] = []
+    for item in raw:
+        if isinstance(item, str) and item.strip() and item.strip() not in points:
+            points.append(item.strip())
+    return tuple(points)
+
+
+def _group_rows(payload: dict[str, Any], module_key: str) -> list[GroupPlotRow]:
+    groups_root = payload.get("groups", {}) or {}
+    if not isinstance(groups_root, dict):
+        raise ConfigEditorError("groups 必须是对象")
+    raw = groups_root.get(module_key)
+    if raw is None:
+        return []
+    labels: dict[str, Any] = {}
+    style_key = GROUP_STYLE_KEYS.get(module_key, module_key)
+    styles = payload.get("plot_styles", {}) or {}
+    if isinstance(styles, dict) and isinstance(styles.get(style_key), dict):
+        candidate = styles[style_key].get("group_labels", {})
+        if isinstance(candidate, dict):
+            labels = candidate
+    rows: list[GroupPlotRow] = []
+    if isinstance(raw, dict):
+        items = raw.items()
+    elif isinstance(raw, list):
+        items = ((f"G{index}", value) for index, value in enumerate(raw, 1))
+    else:
+        raise ConfigEditorError(f"groups.{module_key} 必须是对象或数组")
+    for key, value in items:
+        points = _normalize_group_points(value)
+        if not points:
+            continue
+        rows.append(
+            GroupPlotRow(module_key, str(key), str(labels.get(str(key)) or ""), points).validated()
+        )
+    return rows
+
+
+def group_plot_modules(payload: dict[str, Any]) -> list[str]:
+    candidates: set[str] = set()
+    for section in ("groups", "points", "per_point"):
+        root = payload.get(section, {}) or {}
+        if isinstance(root, dict):
+            candidates.update(str(key) for key in root)
+    return [key for key in GROUP_MODULE_KEYS if key in candidates]
+
+
+def extract_group_plots(payload: dict[str, Any]) -> list[GroupPlotRow]:
+    rows: list[GroupPlotRow] = []
+    for module in group_plot_modules(payload):
+        rows.extend(_group_rows(payload, module))
+    return rows
+
+
+def available_group_points(payload: dict[str, Any], module_key: str) -> tuple[str, ...]:
+    keys = GROUP_POINT_KEYS.get(module_key, (module_key,))
+    points: list[str] = []
+    root = payload.get("points", {}) or {}
+    if isinstance(root, dict):
+        for key in keys:
+            for point in _normalize_group_points(root.get(key)):
+                if point not in points:
+                    points.append(point)
+    per_point = payload.get("per_point", {}) or {}
+    name_map = payload.get("name_map_global", {}) or {}
+    if isinstance(per_point, dict):
+        for key in keys:
+            block = per_point.get(key)
+            if isinstance(block, dict):
+                for point in block:
+                    display = str(name_map.get(point) or point) if isinstance(name_map, dict) else str(point)
+                    if display not in points:
+                        points.append(display)
+    for row in _group_rows(payload, module_key):
+        for point in row.points:
+            if point not in points:
+                points.append(point)
+    return tuple(points)
+
+
+def apply_group_plots(
+    payload: dict[str, Any], module_key: str, rows: Iterable[GroupPlotRow]
+) -> dict[str, Any]:
+    if module_key not in GROUP_MODULE_KEYS:
+        raise ConfigEditorError(f"不支持的组图模块：{module_key!r}")
+    normalized = [row.validated() for row in rows]
+    if any(row.module_key != module_key for row in normalized):
+        raise ConfigEditorError("组图行的 module_key 与当前模块不一致")
+    keys = [row.group_key for row in normalized]
+    if len(keys) != len(set(keys)):
+        raise ConfigEditorError("group_key 不能重复")
+    known = set(available_group_points(payload, module_key))
+    if known:
+        unknown = sorted({point for row in normalized for point in row.points if point not in known})
+        if unknown:
+            raise ConfigEditorError(f"组图引用未知测点：{', '.join(unknown)}")
+    updated = copy.deepcopy(payload)
+    groups = updated.setdefault("groups", {})
+    if not isinstance(groups, dict):
+        raise ConfigEditorError("groups 必须是对象")
+    original = groups.get(module_key)
+    preserve_list = isinstance(original, list) and all(
+        row.group_key == f"G{index}" and not row.label
+        for index, row in enumerate(normalized, 1)
+    )
+    groups[module_key] = (
+        [list(row.points) for row in normalized]
+        if preserve_list
+        else {row.group_key: list(row.points) for row in normalized}
+    )
+    styles = updated.setdefault("plot_styles", {})
+    if not isinstance(styles, dict):
+        raise ConfigEditorError("plot_styles 必须是对象")
+    style_key = GROUP_STYLE_KEYS.get(module_key, module_key)
+    style = styles.setdefault(style_key, {})
+    if not isinstance(style, dict):
+        raise ConfigEditorError(f"plot_styles.{style_key} 必须是对象")
+    had_group_labels = "group_labels" in style
+    existing_labels = style.get("group_labels", {})
+    if not isinstance(existing_labels, dict):
+        existing_labels = {}
+    labels = copy.deepcopy(existing_labels)
+    for row in _group_rows(payload, module_key):
+        labels.pop(row.group_key, None)
+    labels.update({row.group_key: row.label for row in normalized if row.label})
+    if labels or had_group_labels:
+        style["group_labels"] = labels
+    return updated
+
+
 def _encoded_config(payload: dict[str, Any]) -> bytes:
     return (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
@@ -714,3 +1173,92 @@ class PostFilterConfigEditorSession(ConfigEditorSession):
         self, rows: Iterable[CleaningThresholdRow], *, target: Path | None = None
     ) -> ConfigSaveResult:
         return self._save_updated(self.build_payload(rows), target=target)
+
+
+class OffsetConfigEditorSession(ConfigEditorSession):
+    @property
+    def rows(self) -> list[OffsetCorrectionRow]:
+        return extract_offset_corrections(self.payload)
+
+    def build_payload(self, rows: Iterable[OffsetCorrectionRow]) -> dict[str, Any]:
+        normalized = [row.validated() for row in rows]
+        if normalized == self.rows:
+            return copy.deepcopy(self.payload)
+        return apply_offset_corrections(self.payload, normalized)
+
+    def save(
+        self, rows: Iterable[OffsetCorrectionRow], *, target: Path | None = None
+    ) -> ConfigSaveResult:
+        return self._save_updated(self.build_payload(rows), target=target)
+
+
+class GroupPlotConfigEditorSession(ConfigEditorSession):
+    @property
+    def modules(self) -> list[str]:
+        return group_plot_modules(self.payload)
+
+    @property
+    def rows(self) -> list[GroupPlotRow]:
+        return extract_group_plots(self.payload)
+
+    def rows_for(self, module_key: str) -> list[GroupPlotRow]:
+        return _group_rows(self.payload, module_key)
+
+    def available_points(self, module_key: str) -> tuple[str, ...]:
+        return available_group_points(self.payload, module_key)
+
+    def build_payload(
+        self, module_key: str, rows: Iterable[GroupPlotRow]
+    ) -> dict[str, Any]:
+        normalized = [row.validated() for row in rows]
+        if normalized == self.rows_for(module_key):
+            return copy.deepcopy(self.payload)
+        return apply_group_plots(self.payload, module_key, normalized)
+
+    def save_module(
+        self,
+        module_key: str,
+        rows: Iterable[GroupPlotRow],
+        *,
+        target: Path | None = None,
+    ) -> ConfigSaveResult:
+        return self._save_updated(self.build_payload(module_key, rows), target=target)
+
+    def build_payload_all(
+        self, drafts: dict[str, Iterable[GroupPlotRow]]
+    ) -> dict[str, Any]:
+        normalized_drafts = {
+            module: [row.validated() for row in raw_rows]
+            for module, raw_rows in drafts.items()
+        }
+        if "strain" in normalized_drafts and "strain_timeseries" in normalized_drafts:
+            box_labels = {row.group_key: row.label for row in normalized_drafts["strain"]}
+            time_labels = {
+                row.group_key: row.label for row in normalized_drafts["strain_timeseries"]
+            }
+            conflicts = sorted(
+                key
+                for key in box_labels.keys() & time_labels.keys()
+                if box_labels[key] != time_labels[key]
+            )
+            if conflicts:
+                raise ConfigEditorError(
+                    "strain 与 strain_timeseries 共用 group_labels，以下同名组显示名称不一致："
+                    + ", ".join(conflicts)
+                )
+        updated = copy.deepcopy(self.payload)
+        changed = False
+        for module_key, rows in normalized_drafts.items():
+            current = _group_rows(updated, module_key)
+            if rows != current:
+                updated = apply_group_plots(updated, module_key, rows)
+                changed = True
+        return updated if changed else copy.deepcopy(self.payload)
+
+    def save_all(
+        self,
+        drafts: dict[str, Iterable[GroupPlotRow]],
+        *,
+        target: Path | None = None,
+    ) -> ConfigSaveResult:
+        return self._save_updated(self.build_payload_all(drafts), target=target)

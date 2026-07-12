@@ -22,8 +22,8 @@ cycles prove the new shell.
 The second local milestone adds a packaged EXE and migrates the explicit
 `alarm_bounds` editor. The third local milestone adds data-cleaning threshold
 parity. The fourth adds post-filter cleanup plus compiled-runner-backed
-automatic-cleaning proposals. None of these milestones writes to production
-machines.
+automatic-cleaning proposals. The fifth migrates offset correction and grouped
+plot configuration. None of these milestones writes to production machines.
 
 ## Packaged local milestone
 
@@ -31,7 +31,7 @@ machines.
 - Run `dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe`.
 - The onedir release includes the compiled MATLAB analysis runner, all profile
   configs/templates, and a freshly packaged report builder.
-- The build blocks unless the workbench EXE smoke contract, five native Qt
+- The build blocks unless the workbench EXE smoke contract, seven native Qt
   screenshots, and the packaged report builder `--job-context` smoke test pass.
 - `release_manifest.json` records SHA-256, version, file count/byte size
   excluding the manifest itself, and smoke results. Generated `build/` and
@@ -55,8 +55,16 @@ status polling, the human-review table and explicit application. Applying
 requires the generation-time config SHA256 both before MATLAB data loading and
 before selected rows are written, carries MATLAB-provided
 `apply_key`/safe point identity, skips review-only rows, backs up the source,
-and invalidates the old job context. Offset and plot overrides remain in the
-MATLAB GUI.
+and invalidates the old job context.
+
+Offset correction and grouped plots are separate guarded editors. Offset rows
+cover scalar values and the MATLAB `fixed`, first-day, daily, hourly and
+non-overlapping segmented modes without changing `vals = vals + correction`
+semantics. Group editing operates on the actual `groups.<key>` containers,
+distinguishes `strain` from `strain_timeseries`, preserves historical list
+containers on no-op edits, and updates the corresponding `group_labels` while
+preserving unrelated plot settings. All six bridge configs pass exact no-op
+round trips through both services.
 
 The packaged shell also includes a stable-channel GitHub Release updater. It
 checks no more than once per day, supports a manual check, requires a newer
@@ -83,7 +91,6 @@ inside MATLAB, and the MATLAB engine is not rewritten in Python.
 ## Later migration work
 
 - Curve-preview parity for automatic-cleaning suggestions.
-- Offset-correction parity.
-- Group-plot, plot-common, and spectrum override parity.
+- Plot-common and spectrum override parity.
 - Embedded report build progress and final Word/PDF QC.
 - Installed-runtime comparison across every bridge profile.

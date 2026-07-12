@@ -13,8 +13,8 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   analysis launch, status/manifest review, task restoration, and guarded report
   handoff. Explicit `alarm_bounds` and data-cleaning threshold editing are
   migrated with backup/hash gates. Compiled-runner-backed automatic-cleaning
-  proposals and post-filter cleaning are also migrated; offsets,
-  group plots, common plotting, and spectrum overrides remain in MATLAB.
+  proposals, post-filter cleaning, offsets and grouped plots are also migrated;
+  common plotting and spectrum overrides remain in MATLAB.
   Continue using the legacy MATLAB GUI for production configuration.
 - The Python module key/option mapping mirrors MATLAB and is protected by a
   source-contract test against `bms.module.ModuleRegistry`; future module
@@ -36,6 +36,20 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   copy and review backup/rollback behavior. Existing configs are preserved, so
   future config-schema changes need an explicit migration rather than relying
   on package replacement.
+
+## Strain Group Editor Alias Read/Write Mismatch
+
+Status: fixed locally on `dev/pyside6-workbench`; MATLAB and Python contracts covered.
+
+The legacy group editor read `strain` through `ModuleConfigResolver`, whose
+compatibility order prefers `groups.strain_timeseries`, but saved through the
+canonical key `groups.strain`. Configs containing both keys could therefore
+show a successful save while the next reload still displayed the unchanged
+timeseries groups. The MATLAB service now writes the same resolved group key it
+read. When the resolved and canonical containers were identical before the
+edit, both are kept synchronized; when they were intentionally different, the
+canonical statistical groups remain untouched. The PySide6 editor exposes the
+two JSON keys separately and shares labels safely through `plot_styles.strain`.
 
 ## Compiled Runner Request JSON Encoding
 

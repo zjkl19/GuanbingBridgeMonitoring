@@ -32,6 +32,10 @@ from PySide6.QtWidgets import (
 )
 
 from .analysis import AnalysisLauncher, ExecutorResolver, read_analysis_status
+from .advanced_config_tab import (
+    GroupPlotConfigEditorWidget,
+    OffsetCorrectionEditorWidget,
+)
 from .auto_threshold_tab import AutoThresholdProposalWidget
 from .config_tab import (
     AlarmBoundsEditorWidget,
@@ -110,10 +114,24 @@ class WorkbenchWindow(QMainWindow):
                 "自动清洗建议", path, sha256, backup
             )
         )
+        self.offset_editor = OffsetCorrectionEditorWidget()
+        self.offset_editor.config_saved.connect(
+            lambda path, sha256, backup: self._on_config_saved(
+                "零点修正", path, sha256, backup
+            )
+        )
+        self.group_plot_editor = GroupPlotConfigEditorWidget()
+        self.group_plot_editor.config_saved.connect(
+            lambda path, sha256, backup: self._on_config_saved(
+                "组图", path, sha256, backup
+            )
+        )
         config_tabs.addTab(self.alarm_editor, "预警值")
         config_tabs.addTab(self.cleaning_editor, "数据清洗阈值")
         config_tabs.addTab(self.post_filter_editor, "滤波后二次清洗")
         config_tabs.addTab(self.auto_threshold_editor, "自动清洗建议")
+        config_tabs.addTab(self.offset_editor, "零点修正")
+        config_tabs.addTab(self.group_plot_editor, "组图配置")
         self.config_tabs = config_tabs
         tabs.addTab(config_tabs, "配置与预警值")
         tabs.addTab(self._build_review_tab(), "结果与图件审核")
@@ -328,6 +346,8 @@ class WorkbenchWindow(QMainWindow):
             self.alarm_editor.load_path(profile.config_path(self.project_root))
             self.cleaning_editor.load_path(profile.config_path(self.project_root))
             self.post_filter_editor.load_path(profile.config_path(self.project_root))
+            self.offset_editor.load_path(profile.config_path(self.project_root))
+            self.group_plot_editor.load_path(profile.config_path(self.project_root))
         except Exception as exc:  # noqa: BLE001
             self.alarm_editor.message_label.setText(f"配置加载失败：{exc}")
             self.alarm_editor.message_label.setStyleSheet("color: #a33;")
@@ -335,6 +355,10 @@ class WorkbenchWindow(QMainWindow):
             self.cleaning_editor.message_label.setStyleSheet("color: #a33;")
             self.post_filter_editor.message_label.setText(f"配置加载失败：{exc}")
             self.post_filter_editor.message_label.setStyleSheet("color: #a33;")
+            self.offset_editor.message_label.setText(f"配置加载失败：{exc}")
+            self.offset_editor.message_label.setStyleSheet("color: #a33;")
+            self.group_plot_editor.summary_label.setText(f"配置加载失败：{exc}")
+            self.group_plot_editor.summary_label.setStyleSheet("color: #a33;")
         _set_line_edit_path(self.template_edit, profile.template_path(self.project_root) if profile.report_template else "")
         output = Path(profile.default_data_root) / "自动报告" if profile.default_data_root else self.project_root / "output" / "doc"
         _set_line_edit_path(self.output_dir_edit, output)
@@ -720,6 +744,8 @@ class WorkbenchWindow(QMainWindow):
                 self.alarm_editor.load_path(path)
                 self.cleaning_editor.load_path(path)
                 self.post_filter_editor.load_path(path)
+                self.offset_editor.load_path(path)
+                self.group_plot_editor.load_path(path)
             except Exception as exc:  # noqa: BLE001
                 self._show_exception("加载高级配置失败", exc)
 
@@ -739,6 +765,8 @@ class WorkbenchWindow(QMainWindow):
                 self.alarm_editor,
                 self.cleaning_editor,
                 self.post_filter_editor,
+                self.offset_editor,
+                self.group_plot_editor,
             ):
                 try:
                     editor.load_path(saved_path)

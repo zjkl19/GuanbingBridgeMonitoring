@@ -165,8 +165,9 @@ if ($smokeProcess.ExitCode -ne 0) {
 }
 $smoke = Get-Content -LiteralPath $smokeOutput -Raw -Encoding UTF8 | ConvertFrom-Json
 if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
-        -or $smoke.config_tab_count -lt 4 -or $smoke.module_count -lt 20 `
+        -or $smoke.config_tab_count -lt 6 -or $smoke.module_count -lt 20 `
         -or $smoke.auto_threshold_module_count -lt 10 `
+        -or $smoke.group_plot_module_count -lt 1 `
         -or $smoke.cleaning_threshold_row_count -lt 1) {
     throw "Workbench EXE smoke contract failed: $($smoke | ConvertTo-Json -Compress)"
 }
@@ -181,6 +182,10 @@ $postFilterScreenshotOutput = Join-Path $distRoot "workbench_post_filter_editor.
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $postFilterScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 2
 $autoThresholdScreenshotOutput = Join-Path $distRoot "workbench_auto_threshold.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $autoThresholdScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 3
+$offsetScreenshotOutput = Join-Path $distRoot "workbench_offset_editor.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $offsetScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 4
+$groupScreenshotOutput = Join-Path $distRoot "workbench_group_plot_editor.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $groupScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 5
 
 $files = Get-ChildItem -LiteralPath $distRoot -Recurse -File
 $updatePolicy = Get-Content -LiteralPath (Join-Path $distRoot "config\workbench_update.json") -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -202,7 +207,9 @@ $releaseManifest = [ordered]@{
         "workbench_alarm_editor.png",
         "workbench_cleaning_editor.png",
         "workbench_post_filter_editor.png",
-        "workbench_auto_threshold.png"
+        "workbench_auto_threshold.png",
+        "workbench_offset_editor.png",
+        "workbench_group_plot_editor.png"
     )
     smoke = $smoke
 }

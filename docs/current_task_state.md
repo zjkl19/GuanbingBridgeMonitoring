@@ -37,8 +37,8 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `221/221`. The current focused MATLAB
-  workbench/runner/config batch passes `55/55`; the earlier focused alarm-editor,
+- The current Python suite passes `235/235`. The current focused MATLAB
+  workbench/runner/config batch passes `70/70`; the earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
   A direct MATLAB JSON-contract run completed and
   produced an `ok` manifest. A second end-to-end run through the Python
@@ -64,7 +64,7 @@ Current local development state:
   deliberately published.
 - `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
   MATLAB Runner, six project configs/templates, and the report builder. The
-  build blocks on the workbench smoke contract, five native screenshots, and
+  build blocks on the workbench smoke contract, seven native screenshots, and
   packaged report `--job-context` smoke. `release_manifest.json` records the
   EXE SHA-256, file count, total bytes, and smoke result.
 - Explicit `defaults/per_point` `alarm_bounds` editing is migrated with strict
@@ -96,6 +96,20 @@ Current local development state:
   applying selected rows, duplicate rows are refused, and the source is backed
   up before replacement. A real compiled-runner smoke completed
   with exit code 0 and closed request/status/result/config-SHA provenance.
+- Offset correction and grouped plots are migrated as the fifth and sixth
+  configuration subtabs. Offset editing covers scalar, fixed, first-day,
+  daily/hourly mean or median and segmented date-window rules; overlapping
+  segments are rejected before save. Group editing exposes the actual group
+  container key, explicitly separates `strain` and `strain_timeseries`, keeps
+  point order, validates known points and group keys, and preserves legacy list
+  representation when unchanged. Both services pass exact no-op round trips
+  across all six bridge configs and share a MATLAB/Python JSON fixture.
+- This milestone fixed a pre-existing MATLAB group-editor alias bug:
+  `readGroups(cfg,'strain')` preferred `groups.strain_timeseries`, while the old
+  save path always wrote `groups.strain`. Saving now writes the resolved source
+  key and synchronizes the canonical key only when both were identical before
+  editing; intentionally divergent statistical/time-series groups are left
+  separate.
 - The workbench packager now rebuilds the compiled analysis runner whenever
   included MATLAB sources are newer than the runner executable. This prevents
   a visually current PySide6 package from silently carrying an obsolete core
@@ -114,10 +128,9 @@ Current local development state:
   regression now parses all runtime configs and profile catalogs. Missing
   report test/runtime dependencies (`matplotlib`, `numpy`, `pypdf`) are pinned.
 
-Remaining after the packaged automatic/post-filter milestone:
+Remaining after the packaged offset/group milestone:
 
-- migrate offset, group-plot, plot-common, and spectrum override editors with
-  semantic parity;
+- migrate plot-common and spectrum override editors with semantic parity;
 - embed report build progress and final DOCX/PDF QC instead of opening the
   existing report window;
 - automate full plot-provenance closure display rather than relying on the

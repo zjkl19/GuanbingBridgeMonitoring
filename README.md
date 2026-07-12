@@ -30,7 +30,8 @@ dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe
 `--job-context` 冒烟测试的报告生成器。`release_manifest.json` 记录 EXE
 哈希、发布清单自身以外的文件数/总大小及启动自测结果；`workbench_startup.png`、
 `workbench_alarm_editor.png`、`workbench_cleaning_editor.png`、
-`workbench_post_filter_editor.png` 与 `workbench_auto_threshold.png` 是构建时自动生成的界面证据。
+`workbench_post_filter_editor.png`、`workbench_auto_threshold.png`、
+`workbench_offset_editor.png` 与 `workbench_group_plot_editor.png` 是构建时自动生成的界面证据。
 
 “配置与预警值”页现已迁移显式 `alarm_bounds` 以及
 `thresholds` / `zero_to_nan` / `outlier` 数据清洗字段。清洗编辑器支持默认和测点规则、
@@ -42,6 +43,11 @@ MATLAB `AutoThresholdProposalService`，由重新编译的同一
 `BridgeAnalysisRunner.exe` 在独立进程生成建议；PySide6只负责参数、状态、人工复核和受保护写入。
 建议不会自动落入配置，Runner 会在读取数据前校验请求固定的配置 SHA；只有勾选的
 `range/window_range` 在二次确认、再次校验配置 SHA 和自动备份后写入。
+
+“零点修正”页完整保留六桥现用的纯数值、`fixed`、首日/逐日/逐小时基线和
+`segmented` 分段结构，并在写入前拒绝日期重叠。“组图配置”页直接管理
+`groups` 与 `group_labels`，分开呈现应变统计组和时程组，支持测点筛选、排序及
+历史二维数组无修改往返。两页均沿用源 SHA 漂移拒绝、自动备份和旧任务失效门禁。
 
 打包版右上角提供“检查更新”。正式版启动后每天最多自动查询一次 GitHub
 Release；发现更高稳定版本时，可下载、双重 SHA256 校验、备份当前安装并在退出后

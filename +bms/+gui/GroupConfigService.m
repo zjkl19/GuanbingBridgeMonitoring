@@ -73,12 +73,23 @@ classdef GroupConfigService
                 error('GroupConfigService:InvalidGroups', '%s', strjoin(report.errors, newline));
             end
 
-            groupKey = bms.gui.GroupConfigService.groupKey(moduleKey);
+            groupKey = bms.gui.GroupConfigService.resolvedGroupKey(cfg, moduleKey);
+            canonicalGroupKey = bms.gui.GroupConfigService.groupKey(moduleKey);
             styleKey = bms.gui.GroupConfigService.styleKey(moduleKey);
             if ~isfield(cfg, 'groups') || ~isstruct(cfg.groups)
                 cfg.groups = struct();
             end
+            syncCanonical = false;
+            if ~strcmp(groupKey, canonicalGroupKey) && ...
+                    isfield(cfg.groups, groupKey) && isfield(cfg.groups, canonicalGroupKey)
+                activeBefore = bms.data.PointResolver.normalizeGroups(cfg.groups.(groupKey));
+                canonicalBefore = bms.data.PointResolver.normalizeGroups(cfg.groups.(canonicalGroupKey));
+                syncCanonical = isequal(activeBefore, canonicalBefore);
+            end
             cfg.groups.(groupKey) = groups;
+            if syncCanonical
+                cfg.groups.(canonicalGroupKey) = groups;
+            end
 
             if ~isfield(cfg, 'plot_styles') || ~isstruct(cfg.plot_styles)
                 cfg.plot_styles = struct();
@@ -239,6 +250,20 @@ classdef GroupConfigService
             if isempty(key)
                 key = spec.value;
             end
+        end
+
+        function key = resolvedGroupKey(cfg, moduleKey)
+            spec = bms.config.ModuleConfigRegistry.fromKey(moduleKey);
+            aliases = bms.config.ModuleConfigResolver.groupAliases(spec);
+            if isstruct(cfg) && isfield(cfg, 'groups') && isstruct(cfg.groups)
+                for i = 1:numel(aliases)
+                    if isfield(cfg.groups, aliases{i})
+                        key = aliases{i};
+                        return;
+                    end
+                end
+            end
+            key = bms.gui.GroupConfigService.groupKey(moduleKey);
         end
 
         function key = styleKey(moduleKey)
