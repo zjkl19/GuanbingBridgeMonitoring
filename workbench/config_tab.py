@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
@@ -11,6 +13,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QInputDialog,
     QMessageBox,
     QPushButton,
     QTabWidget,
@@ -27,7 +30,13 @@ from .config_editor import (
     ConfigEditorError,
     ConfigEditorSession,
     EffectiveWarningRow,
+    ExcludeRangeRow,
     PostFilterConfigEditorSession,
+    apply_alarm_bounds,
+    extract_alarm_bounds,
+    extract_effective_warning_rows,
+    update_effective_warning_value,
+    warning_edit_value,
 )
 
 
@@ -80,6 +89,7 @@ class AlarmBoundsEditorWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.session: ConfigEditorSession | None = None
+        self.working_payload: dict = {}
         self.effective_rows: list[EffectiveWarningRow] = []
         self._build_ui()
 
@@ -143,21 +153,46 @@ class AlarmBoundsEditorWidget(QWidget):
 
         self.effective_table = QTableWidget(0, 10)
         self.effective_table.setHorizontalHeaderLabels(
-            ["来源", "范围", "模块", "测点/分组", "等级/标签", "配置值", "单位", "用途", "状态", "配置路径"]
+            ["来源", "范围", "模块", "测点/分组", "等级/标签", "配置值", "单位", "用途", "状态", "编辑位置（JSON路径）"]
         )
         self.effective_table.setAlternatingRowColors(True)
         self.effective_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.effective_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.effective_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.effective_table.itemDoubleClicked.connect(
+            lambda _item: self._edit_selected_effective_value()
+        )
         effective_header = self.effective_table.horizontalHeader()
         effective_header.setSectionResizeMode(QHeaderView.ResizeToContents)
         effective_header.setSectionResizeMode(3, QHeaderView.Stretch)
         effective_header.setSectionResizeMode(7, QHeaderView.Stretch)
         effective_header.setSectionResizeMode(9, QHeaderView.Stretch)
         overview_layout.addWidget(self.effective_table, 1)
+        overview_actions = QHBoxLayout()
+        self.edit_effective_button = QPushButton("编辑选中预警值…")
+        self.edit_effective_button.setToolTip(
+            "按原有来源修改选中值：上下限仍是上下限，分级值仍是分级值，图上参考线仍是参考线"
+        )
+        self.edit_effective_button.clicked.connect(self._edit_selected_effective_value)
+        overview_actions.addWidget(self.edit_effective_button)
+        revert_effective = QPushButton("撤销未保存修改")
+        revert_effective.clicked.connect(self._discard_warning_edits)
+        overview_actions.addWidget(revert_effective)
+        overview_actions.addStretch(1)
+        save_overview_copy = QPushButton("保存副本…")
+        save_overview_copy.clicked.connect(self._save_copy)
+        overview_actions.addWidget(save_overview_copy)
+        save_overview = QPushButton("保存全部预警修改（自动备份）")
+        save_overview.setStyleSheet(
+            "font-weight: 700; background: #005eac; color: white; padding: 6px 12px;"
+        )
+        save_overview.clicked.connect(self._save_source)
+        overview_actions.addWidget(save_overview)
+        overview_layout.addLayout(overview_actions)
         overview_hint = QLabel(
             "说明：图上参考线只影响图件表达；分级预警值是单边等级；测点/索力上下限才是成对的下限和上限。"
             "“未设置”表示字段存在但为空，“格式错误”必须修复后才能作为有效预警依据。"
+            "双击任一有效行或点击“编辑选中预警值”可在原来源中修改，不会把不同含义的值互相转换。"
         )
         overview_hint.setWordWrap(True)
         overview_hint.setStyleSheet("color: #5f6368;")
@@ -233,6 +268,7 @@ class AlarmBoundsEditorWidget(QWidget):
     def load_path(self, path: Path) -> None:
         session = ConfigEditorSession(path)
         self.session = session
+        self.working_payload = copy.deepcopy(session.payload)
         self.path_label.setText(f"配置：{session.path}")
         self._populate(session.rows)
         self._populate_effective(session.effective_warning_rows)
@@ -318,6 +354,71 @@ class AlarmBoundsEditorWidget(QWidget):
             + " border-radius: 4px; padding: 7px;"
         )
         self._apply_effective_filters()
+
+    def _selected_effective_row(self) -> EffectiveWarningRow:
+        selected = self.effective_table.currentRow()
+        if selected < 0:
+            raise ConfigEditorError("请先在有效值总览中选择一行")
+        path_item = self.effective_table.item(selected, 9)
+        config_path = path_item.text().strip() if path_item else ""
+        matches = [row for row in self.effective_rows if row.config_path == config_path]
+        if len(matches) != 1:
+            raise ConfigEditorError("无法唯一定位选中的配置值，请重新加载后再试")
+        if matches[0].status == "invalid":
+            raise ConfigEditorError("该行当前格式错误，请先在配置文件中修复结构后再编辑")
+        if matches[0].status == "unset":
+            raise ConfigEditorError(
+                "该来源目前是空集合，尚无可定位的等级或图线。为避免猜测语义，本页只直接编辑已有值；"
+                "双边上下限可在相邻页新增，其它来源请先按项目制度明确等级或标签。"
+            )
+        return matches[0]
+
+    def _edit_selected_effective_value(self) -> None:
+        if self.session is None:
+            QMessageBox.warning(self, "无法编辑", "尚未加载配置文件。")
+            return
+        try:
+            row = self._selected_effective_row()
+            current = warning_edit_value(self.working_payload, row)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, "无法编辑", str(exc))
+            return
+        if row.source_kind in {"alarm_bounds", "force_alarm_bounds"}:
+            prompt = "填写“下限, 上限”；留空表示该等级未设置。"
+        elif row.source_kind == "alarm_levels":
+            prompt = "填写单个分级预警值；各等级必须保持从小到大。"
+        else:
+            prompt = "填写单个图上参考值；原有标签、单位、颜色和线型保持不变。"
+        value, accepted = QInputDialog.getText(
+            self,
+            f"编辑{WARNING_SOURCE_LABELS.get(row.source_kind, row.source_kind)}",
+            f"{row.module_key} / {row.target_key or '默认'} / {row.level or '当前值'}\n"
+            f"{prompt}\n配置位置：{row.config_path}",
+            text=current,
+        )
+        if not accepted:
+            return
+        try:
+            self.working_payload = update_effective_warning_value(
+                self.working_payload, row, value
+            )
+            self._populate(extract_alarm_bounds(self.working_payload))
+            self._populate_effective(extract_effective_warning_rows(self.working_payload))
+            self.message_label.setText(
+                "预警值已在工作区修改，尚未写入配置文件；请复核后点击“保存全部预警修改”。"
+            )
+            self.message_label.setStyleSheet("color: #a65a00; font-weight: 600;")
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "预警值修改失败", str(exc))
+
+    def _discard_warning_edits(self) -> None:
+        if self.session is None:
+            return
+        self.working_payload = copy.deepcopy(self.session.payload)
+        self._populate(extract_alarm_bounds(self.working_payload))
+        self._populate_effective(extract_effective_warning_rows(self.working_payload))
+        self.message_label.setText("已撤销未保存的预警修改。")
+        self.message_label.setStyleSheet("color: #167c35;")
 
     def _apply_effective_filters(self, *_args: object) -> None:
         source = str(self.source_filter.currentData() or "")
@@ -483,7 +584,8 @@ class AlarmBoundsEditorWidget(QWidget):
     def _save(self, target: Path | None) -> None:
         assert self.session is not None
         try:
-            result = self.session.save(self.rows(), target=target)
+            updated = apply_alarm_bounds(self.working_payload, self.rows())
+            result = self.session.save_payload(updated, target=target)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "保存配置失败", str(exc))
             return
@@ -492,6 +594,10 @@ class AlarmBoundsEditorWidget(QWidget):
             f"保存完成：{result.path}；SHA256={result.sha256[:16]}…；备份={backup}"
         )
         self.message_label.setStyleSheet("color: #167c35; font-weight: 600;")
+        if target is None:
+            self.working_payload = copy.deepcopy(self.session.payload)
+            self._populate(extract_alarm_bounds(self.working_payload))
+            self._populate_effective(extract_effective_warning_rows(self.working_payload))
         self.config_saved.emit(str(result.path), result.sha256, backup)
         QMessageBox.information(self, "保存完成", self.message_label.text())
 
@@ -503,8 +609,9 @@ class CleaningThresholdEditorWidget(QWidget):
     copy_suffix = "cleaning_workbench"
     editor_label = "清洗配置"
     managed_field_text = "显式清洗字段"
-    add_default_text = "新增默认清洗规则"
-    add_point_text = "新增测点清洗规则"
+    add_default_text = "新增默认数值清洗规则"
+    add_point_text = "新增测点数值清洗规则"
+    supports_exclude_ranges = True
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -518,8 +625,8 @@ class CleaningThresholdEditorWidget(QWidget):
         outer.addWidget(self.title_label)
         self.hint_label = QLabel(
             "编辑 defaults/per_point 下的 thresholds、zero_to_nan 和 outlier。min/max 可单边填写；"
-            "时间窗必须成对填写。历史 1000/-1000 全抑制哨兵可读取和保留，但不建议新增。"
-            "保存仅替换上述清洗字段，预警值、零点修正和其它配置保持不变。"
+            "时间窗必须成对填写。需要将某个测点在一段时间内全部排除时，请使用“整段排除规则”页，"
+            "明确填写起止时间和原因。保存不修改预警值、零点修正和其它配置。"
         )
         self.hint_label.setWordWrap(True)
         outer.addWidget(self.hint_label)
@@ -558,7 +665,42 @@ class CleaningThresholdEditorWidget(QWidget):
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
-        outer.addWidget(self.table, 1)
+        self.cleaning_tabs = QTabWidget()
+        self.cleaning_tabs.addTab(self.table, "数值清洗规则")
+        if self.supports_exclude_ranges:
+            exclude_page = QWidget()
+            exclude_layout = QVBoxLayout(exclude_page)
+            exclude_hint = QLabel(
+                "整段排除规则用于明确标记某测点在指定起止时间内整体无效；原因会随配置保留，"
+                "便于复核。它不是数值上下限，也不会与预警值互相转换。"
+            )
+            exclude_hint.setWordWrap(True)
+            exclude_layout.addWidget(exclude_hint)
+            self.exclude_table = QTableWidget(0, 6)
+            self.exclude_table.setHorizontalHeaderLabels(
+                ["范围", "分析类型", "测点编号", "开始时间", "结束时间", "排除原因"]
+            )
+            self.exclude_table.setAlternatingRowColors(True)
+            self.exclude_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.exclude_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+            exclude_header = self.exclude_table.horizontalHeader()
+            for column in range(5):
+                exclude_header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
+            exclude_header.setSectionResizeMode(5, QHeaderView.Stretch)
+            exclude_layout.addWidget(self.exclude_table, 1)
+            exclude_actions = QHBoxLayout()
+            add_exclude = QPushButton("新增测点整段排除规则")
+            add_exclude.clicked.connect(self.add_exclude_row)
+            exclude_actions.addWidget(add_exclude)
+            delete_exclude = QPushButton("删除选中排除规则")
+            delete_exclude.clicked.connect(self.delete_selected_exclude_rows)
+            exclude_actions.addWidget(delete_exclude)
+            exclude_actions.addStretch(1)
+            self.exclude_count_label = QLabel("0 条整段排除规则")
+            exclude_actions.addWidget(self.exclude_count_label)
+            exclude_layout.addLayout(exclude_actions)
+            self.cleaning_tabs.addTab(exclude_page, "整段排除规则（0 条）")
+        outer.addWidget(self.cleaning_tabs, 1)
 
         actions = QHBoxLayout()
         self.add_default_button = QPushButton(self.add_default_text)
@@ -567,7 +709,7 @@ class CleaningThresholdEditorWidget(QWidget):
         self.add_point_button = QPushButton(self.add_point_text)
         self.add_point_button.clicked.connect(lambda: self.add_row("per_point"))
         actions.addWidget(self.add_point_button)
-        delete_button = QPushButton("删除选中行")
+        delete_button = QPushButton("删除选中数值规则")
         delete_button.clicked.connect(self.delete_selected_rows)
         actions.addWidget(delete_button)
         actions.addStretch(1)
@@ -594,8 +736,17 @@ class CleaningThresholdEditorWidget(QWidget):
         self.session = session
         self.path_label.setText(f"配置：{session.path}")
         self._populate(session.rows)
+        if self.supports_exclude_ranges:
+            self._populate_exclude_rows(session.exclude_rows)
+        if self.supports_exclude_ranges:
+            detail = (
+                f"数值清洗 {len(session.rows)} 条；整段排除 {len(session.exclude_rows)} 条。"
+                "未显示的其它配置保持不变。"
+            )
+        else:
+            detail = f"仅列出{self.managed_field_text}；未显示的其它配置保持不变。"
         self.message_label.setText(
-            f"已加载；SHA256={session.loaded_sha256[:16]}…。仅列出{self.managed_field_text}。"
+            f"已加载；SHA256={session.loaded_sha256[:16]}…。{detail}"
         )
         self.message_label.setStyleSheet("color: #167c35;")
 
@@ -658,6 +809,72 @@ class CleaningThresholdEditorWidget(QWidget):
             self.table.removeRow(row)
         self.count_label.setText(f"{self.table.rowCount()} 条{self.row_label}")
 
+    def _populate_exclude_rows(self, rows: list[ExcludeRangeRow]) -> None:
+        self.exclude_table.setRowCount(0)
+        for row in rows:
+            index = self.exclude_table.rowCount()
+            self.exclude_table.insertRow(index)
+            for column, value in enumerate(
+                (
+                    row.scope,
+                    row.module_key,
+                    row.point_key,
+                    row.start_time,
+                    row.end_time,
+                    row.reason,
+                )
+            ):
+                self.exclude_table.setItem(index, column, QTableWidgetItem(str(value)))
+        self.exclude_count_label.setText(f"{len(rows)} 条整段排除规则")
+        self.cleaning_tabs.setTabText(1, f"整段排除规则（{len(rows)} 条）")
+
+    def add_exclude_row(self) -> None:
+        now = datetime.now().replace(minute=0, second=0, microsecond=0)
+        row = ExcludeRangeRow(
+            "per_point",
+            "acceleration",
+            "POINT_ID",
+            now.strftime("%Y-%m-%d %H:%M:%S"),
+            now.strftime("%Y-%m-%d %H:%M:%S"),
+            "请填写排除原因",
+        )
+        index = self.exclude_table.rowCount()
+        self.exclude_table.insertRow(index)
+        for column, value in enumerate(
+            (row.scope, row.module_key, row.point_key, row.start_time, row.end_time, row.reason)
+        ):
+            self.exclude_table.setItem(index, column, QTableWidgetItem(str(value)))
+        self.exclude_table.selectRow(index)
+        self.exclude_count_label.setText(f"{self.exclude_table.rowCount()} 条整段排除规则")
+        self.cleaning_tabs.setTabText(1, f"整段排除规则（{self.exclude_table.rowCount()} 条）")
+
+    def delete_selected_exclude_rows(self) -> None:
+        selected = sorted(
+            {index.row() for index in self.exclude_table.selectedIndexes()}, reverse=True
+        )
+        for row in selected:
+            self.exclude_table.removeRow(row)
+        count = self.exclude_table.rowCount()
+        self.exclude_count_label.setText(f"{count} 条整段排除规则")
+        self.cleaning_tabs.setTabText(1, f"整段排除规则（{count} 条）")
+
+    def exclude_rows(self) -> list[ExcludeRangeRow]:
+        if not self.supports_exclude_ranges:
+            return []
+        rows: list[ExcludeRangeRow] = []
+        for index in range(self.exclude_table.rowCount()):
+            values = [
+                self.exclude_table.item(index, column).text().strip()
+                if self.exclude_table.item(index, column)
+                else ""
+                for column in range(6)
+            ]
+            try:
+                rows.append(ExcludeRangeRow(*values).validated())
+            except ConfigEditorError as exc:
+                raise ConfigEditorError(f"整段排除规则第 {index + 1} 行无效：{exc}") from exc
+        return rows
+
     @staticmethod
     def _optional_float(text: str) -> float | None:
         return None if not text.strip() else float(text)
@@ -705,14 +922,15 @@ class CleaningThresholdEditorWidget(QWidget):
     def _validate_dialog(self) -> None:
         try:
             rows = self.rows()
+            exclude_rows = self.exclude_rows()
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, f"{self.editor_label}校验失败", str(exc))
             return
-        suppressions = sum(
-            row.minimum == 1000 and row.maximum == -1000 for row in rows
+        QMessageBox.information(
+            self,
+            f"{self.editor_label}校验通过",
+            f"{len(rows)} 条数值清洗规则、{len(exclude_rows)} 条整段排除规则均有效。",
         )
-        suffix = f"；其中 {suppressions} 条历史全抑制哨兵" if suppressions else ""
-        QMessageBox.information(self, f"{self.editor_label}校验通过", f"{len(rows)} 条配置行均有效{suffix}。")
 
     def _save_source(self) -> None:
         if self.session is None:
@@ -744,7 +962,11 @@ class CleaningThresholdEditorWidget(QWidget):
     def _save(self, target: Path | None) -> None:
         assert self.session is not None
         try:
-            result = self.session.save(self.rows(), target=target)
+            if self.supports_exclude_ranges:
+                updated = self.session.build_payload_all(self.rows(), self.exclude_rows())
+                result = self.session.save_payload(updated, target=target)
+            else:
+                result = self.session.save(self.rows(), target=target)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, f"保存{self.editor_label}失败", str(exc))
             return
@@ -765,6 +987,7 @@ class PostFilterThresholdEditorWidget(CleaningThresholdEditorWidget):
     managed_field_text = "显式 post_filter_thresholds"
     add_default_text = "新增默认滤波后规则"
     add_point_text = "新增测点滤波后规则"
+    supports_exclude_ranges = False
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)

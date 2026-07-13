@@ -82,6 +82,32 @@ def _nonnegative(value: Any) -> float:
     return number
 
 
+def _validate_series_counts(index: int, item: dict[str, Any]) -> tuple[float, float, float]:
+    """Validate plot-domain counts without conflating them with raw-source counts.
+
+    A raw time-history line has a one-to-one relationship with its source
+    samples.  Derived 10-minute series and wind-rose aggregates intentionally
+    contain fewer plot-domain observations than their raw source, so their
+    closure must be checked as two linked but distinct stages.
+    """
+
+    input_count = _nonnegative(item.get("input_count", item.get("finite_count")))
+    finite = _nonnegative(item.get("finite_count"))
+    plotted = _nonnegative(item.get("plotted_finite_count"))
+    render_mode = str(item.get("render_mode") or "line").strip().lower()
+    if render_mode == "wind_rose_aggregate":
+        if not (input_count >= finite >= plotted):
+            raise ValueError(f"series {index} aggregate input/finite/plotted counts do not close")
+    elif render_mode == "derived_10min_mean":
+        if not (input_count >= finite == plotted):
+            raise ValueError(f"series {index} derived input/finite/plotted counts do not close")
+    elif not (input_count >= finite == plotted):
+        raise ValueError(f"series {index} input/finite/plotted counts do not close")
+    if plotted <= 0:
+        raise ValueError(f"series {index} contains no plotted finite values")
+    return input_count, finite, plotted
+
+
 def inspect_plot_provenance(module_key: str, path: Path) -> PlotProvenanceRow:
     try:
         if not path.is_file():
@@ -102,21 +128,21 @@ def inspect_plot_provenance(module_key: str, path: Path) -> PlotProvenanceRow:
                 raise ValueError(f"series {index} is not full sampling")
             if item.get("reduction_applied") is not False:
                 raise ValueError(f"series {index} reports reduction_applied != false")
-            finite = _nonnegative(item.get("finite_count"))
-            plotted = _nonnegative(item.get("plotted_finite_count"))
-            if finite != plotted:
-                raise ValueError(f"series {index} finite/plotted counts differ")
+            input_count, finite, plotted = _validate_series_counts(index, item)
             plotted_total += plotted
             source = item.get("source")
             if not isinstance(source, dict):
                 has_source = False
-                source_total += _nonnegative(item.get("input_count", finite))
+                source_total += input_count
                 continue
-            input_count = _nonnegative(item.get("input_count"))
             source_count = _nonnegative(source.get("source_sample_count"))
             finite_source = _nonnegative(source.get("finite_source_sample_count"))
-            if source_count != input_count or finite_source != finite:
-                raise ValueError(f"series {index} source/input/finite counts do not close")
+            render_mode = str(item.get("render_mode") or "line").strip().lower()
+            if render_mode in {"derived_10min_mean", "wind_rose_aggregate"}:
+                if source_count < input_count or finite_source < finite:
+                    raise ValueError(f"series {index} derived source/input/finite counts do not close")
+            elif source_count != input_count or finite_source != finite:
+                raise ValueError(f"series {index} raw source/input/finite counts do not close")
             if str(source.get("completeness_scope") or "") != "required_export_contribution":
                 raise ValueError(f"series {index} has unsupported source completeness scope")
             if not isinstance(source.get("internal_gap_coverage_assessed"), bool):

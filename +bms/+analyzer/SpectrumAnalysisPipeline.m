@@ -4,6 +4,7 @@ classdef SpectrumAnalysisPipeline
     methods (Static)
         function run(kind, rootDir, startDate, endDate, pointIds, excelFile, subfolder, targetFreqs, tolerance, useParallel, cfg)
             spec = bms.analyzer.SpectrumAnalysisPipeline.spec(kind);
+            targetFreqsSupplied = nargin >= 8 && ~isempty(targetFreqs);
 
             if nargin < 2 || isempty(rootDir), rootDir = pwd; end
             if nargin < 3 || isempty(startDate), error('必须指定 start_date'); end
@@ -58,7 +59,8 @@ classdef SpectrumAnalysisPipeline
 
                 [targetFreqsPt, tolerancePt, theorFreqsPt, theorLabelsPt, peakLabelsPt] = ...
                     bms.analyzer.SpectrumAnalysisPipeline.pointParams( ...
-                        cfg, pid, spec, targetFreqs, tolerance, theorFreqs, theorLabels);
+                        cfg, pid, spec, targetFreqs, tolerance, theorFreqs, theorLabels, ...
+                        ~targetFreqsSupplied);
                 [ampDay, freqDay] = bms.analyzer.SpectrumAnalysisPipeline.processPoint( ...
                     datesAll, pid, rootDir, subfolder, targetFreqsPt, tolerancePt, dirs.psdRoot, style, cfg, spec, useParallel);
 

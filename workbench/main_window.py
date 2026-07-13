@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QDate, QSize, QTimer, Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtGui import QDesktopServices, QFont, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 )
 
 from .analysis import AnalysisLauncher, ExecutorResolver, read_analysis_status
+from .branding import application_icon, organization_logo_path
 from .advanced_config_tab import (
     GroupPlotConfigEditorWidget,
     OffsetCorrectionEditorWidget,
@@ -47,7 +48,7 @@ from .manifest import ManifestSummary, find_latest_manifest, load_manifest_summa
 from .module_icons import module_icon
 from .models import JobContext, file_sha256
 from .modules import MODULE_SPECS, options_for_modules
-from .profiles import WorkbenchProfile, load_profiles, profile_by_id
+from .profiles import PathProfileResolver, WorkbenchProfile, load_profiles, profile_by_id
 from .plot_config_tab import PlotCommonEditorWidget, SpectrumConfigEditorWidget
 from .profile_audit import ProfileAuditError, load_installed_profile_matrix
 from .provenance import PlotProvenanceSummary, inspect_manifest_plot_provenance
@@ -70,6 +71,9 @@ class WorkbenchWindow(QMainWindow):
         super().__init__()
         self.project_root = (project_root or default_project_root()).resolve()
         self.profiles = load_profiles(self.project_root)
+        self.path_resolver = PathProfileResolver(self.project_root)
+        self.active_path_profile = self.path_resolver.active()
+        self.custom_data_roots: dict[str, str] = {}
         self.current_context: JobContext | None = None
         self.current_context_path: Path | None = None
         self.current_manifest: ManifestSummary | None = None
@@ -79,6 +83,7 @@ class WorkbenchWindow(QMainWindow):
         self.module_checks: dict[str, QCheckBox] = {}
         self.setFont(QFont("Microsoft YaHei UI", 10))
         self.setWindowTitle(f"{APP_DISPLAY_NAME} {app_version(self.project_root)}")
+        self.setWindowIcon(application_icon(self.project_root))
         # The four-column module grid and the update action are designed for
         # the 1600 px workbench layout used by the legacy GUI.
         self.resize(1600, 860)
@@ -172,8 +177,27 @@ class WorkbenchWindow(QMainWindow):
         title = QLabel("桥梁健康监测统一任务")
         title.setStyleSheet("font-size: 22px; font-weight: 700; color: #005eac;")
         title_row = QHBoxLayout()
+        self.brand_icon_label = QLabel()
+        brand_icon = application_icon(self.project_root)
+        self.brand_icon_label.setPixmap(brand_icon.pixmap(38, 38))
+        self.brand_icon_label.setToolTip("桥梁健康监测工作台")
+        title_row.addWidget(self.brand_icon_label)
         title_row.addWidget(title)
         title_row.addStretch(1)
+        self.organization_logo_label = QLabel()
+        logo_path = organization_logo_path(self.project_root)
+        if logo_path is not None:
+            logo = QPixmap(str(logo_path))
+            self.organization_logo_label.setPixmap(
+                logo.scaled(160, 42, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            )
+            self.organization_logo_label.setToolTip("单位标识")
+        else:
+            self.organization_logo_label.hide()
+            self.organization_logo_label.setToolTip(
+                "已预留单位标识位置；加入 workbench/assets/organization_logo.svg 或 .png 后自动显示"
+            )
+        title_row.addWidget(self.organization_logo_label)
         self.auto_update_check = QCheckBox("自动检查更新")
         self.auto_update_check.setToolTip("默认开启；关闭后仍可随时手动检查更新")
         title_row.addWidget(self.auto_update_check)
@@ -189,7 +213,7 @@ class WorkbenchWindow(QMainWindow):
         title_row.addWidget(self.profile_matrix_btn)
         outer.addLayout(title_row)
 
-        form_group = QGroupBox("任务上下文")
+        form_group = QGroupBox("任务设置")
         form = QFormLayout(form_group)
         self.profile_combo = QComboBox()
         for profile in self.profiles:
@@ -197,9 +221,29 @@ class WorkbenchWindow(QMainWindow):
         self.profile_combo.currentIndexChanged.connect(self._on_profile_changed)
         form.addRow("桥梁项目", self.profile_combo)
 
+        self.path_profile_combo = QComboBox()
+        self.path_profile_combo.addItem("自动识别（推荐）", PathProfileResolver.AUTO_ID)
+        selectable_profiles = {
+            path_profile.profile_id: path_profile for path_profile in self.path_resolver.profiles
+        }
+        for path_profile in selectable_profiles.values():
+            self.path_profile_combo.addItem(path_profile.display_name, path_profile.profile_id)
+        self.path_profile_combo.addItem("自定义路径", PathProfileResolver.CUSTOM_ID)
+        self.path_profile_combo.setToolTip(
+            "默认按 GUANBING_PATH_PROFILE、电脑名、已有目录的顺序自动选择；也可手动指定配置组或自定义路径"
+        )
+        self.path_profile_combo.currentIndexChanged.connect(self._on_path_profile_changed)
+        form.addRow("存储位置方案", self.path_profile_combo)
+        self.path_profile_status_label = QLabel()
+        self.path_profile_status_label.setWordWrap(True)
+        self.path_profile_status_label.setStyleSheet("color: #174a75;")
+        form.addRow("自动匹配结果", self.path_profile_status_label)
+
         self.data_root_edit = QLineEdit()
+        self.data_root_edit.textEdited.connect(self._on_data_root_edited)
         form.addRow("数据根目录", self._path_row(self.data_root_edit, self._browse_data_root, directory=True))
         self.config_edit = QLineEdit()
+        self.config_edit.setToolTip("桥梁业务配置保持单一；机器配置组只切换数据路径，不复制业务参数")
         form.addRow("配置文件", self._path_row(self.config_edit, self._browse_config))
 
         date_row = QWidget()
@@ -231,17 +275,28 @@ class WorkbenchWindow(QMainWindow):
         outer.addWidget(module_group)
 
         action_row = QHBoxLayout()
-        self.validate_btn = QPushButton("检查任务")
+        self.validate_btn = QPushButton("检查配置与路径（不运行）")
+        self.validate_btn.setToolTip(
+            "只检查数据目录、配置文件、日期和所选模块是否可用，不启动 MATLAB，也不修改数据"
+        )
         self.validate_btn.clicked.connect(self._validate_inputs_dialog)
         action_row.addWidget(self.validate_btn)
-        self.open_context_btn = QPushButton("打开已有任务")
+        self.open_context_btn = QPushButton("打开已保存任务方案")
+        self.open_context_btn.setToolTip(
+            "读取以前保存的桥梁、目录、日期和模块选择；打开后不会自动重新运行分析"
+        )
         self.open_context_btn.clicked.connect(self._open_context_dialog)
         action_row.addWidget(self.open_context_btn)
-        self.history_btn = QPushButton("任务历史")
-        self.history_btn.setToolTip("扫描当前数据根目录中的本机任务并在恢复前检查配置和产物")
+        self.history_btn = QPushButton("查看任务历史")
+        self.history_btn.setToolTip(
+            "查看当前数据目录里已经保存或运行过的任务，便于恢复进度；仅查看，不会自动重算"
+        )
         self.history_btn.clicked.connect(lambda: self.show_task_history())
         action_row.addWidget(self.history_btn)
-        self.save_btn = QPushButton("保存任务上下文")
+        self.save_btn = QPushButton("保存任务方案（便于恢复）")
+        self.save_btn.setToolTip(
+            "保存当前桥梁、数据路径、配置、日期和模块选择，供中断后恢复或复核；不会启动分析"
+        )
         self.save_btn.clicked.connect(self._save_context)
         action_row.addWidget(self.save_btn)
         self.start_btn = QPushButton("启动本机分析")
@@ -254,6 +309,13 @@ class WorkbenchWindow(QMainWindow):
         action_row.addWidget(self.stop_btn)
         action_row.addStretch(1)
         outer.addLayout(action_row)
+        task_help = QLabel(
+            "建议顺序：先“检查配置与路径（不运行）”→ 再“保存任务方案（便于恢复）”→ 最后启动分析。"
+            "“打开已保存任务方案”和“查看任务历史”都只恢复或查看记录，不会自行重算数据。"
+        )
+        task_help.setWordWrap(True)
+        task_help.setStyleSheet("color: #5f6368; padding: 2px 0;")
+        outer.addWidget(task_help)
 
         self.analysis_status_label = QLabel("状态：尚未建立任务")
         self.analysis_status_label.setStyleSheet("font-weight: 600;")
@@ -421,6 +483,44 @@ class WorkbenchWindow(QMainWindow):
         if bridge_id:
             self._apply_profile(profile_by_id(self.profiles, bridge_id))
 
+    def _on_path_profile_changed(self, _index: int) -> None:
+        if not hasattr(self, "current_profile"):
+            return
+        selection = str(self.path_profile_combo.currentData() or PathProfileResolver.AUTO_ID)
+        if selection == PathProfileResolver.CUSTOM_ID:
+            value = self.custom_data_roots.get(
+                self.current_profile.bridge_id, self.data_root_edit.text().strip()
+            )
+            if value:
+                _set_line_edit_path(self.data_root_edit, value)
+            self.active_path_profile = None
+            self.path_profile_status_label.setText(
+                "当前配置组：自定义路径（只影响本任务；任务方案会保存该路径）"
+            )
+            return
+        selected = self.path_resolver.select(selection)
+        self.active_path_profile = selected
+        root = self.path_resolver.resolve_data_root(
+            self.current_profile.bridge_id,
+            self.current_profile.default_data_root,
+            selected,
+        )
+        _set_line_edit_path(self.data_root_edit, root)
+        self.path_profile_status_label.setText(self.path_resolver.describe(selected))
+        self._update_default_output_dir(root)
+
+    def _on_data_root_edited(self, value: str) -> None:
+        if not hasattr(self, "current_profile"):
+            return
+        self.custom_data_roots[self.current_profile.bridge_id] = value.strip()
+        custom_index = self.path_profile_combo.findData(PathProfileResolver.CUSTOM_ID)
+        if custom_index >= 0 and self.path_profile_combo.currentIndex() != custom_index:
+            self.path_profile_combo.setCurrentIndex(custom_index)
+
+    def _update_default_output_dir(self, data_root: str) -> None:
+        output = Path(data_root) / "自动报告" if data_root else self.project_root / "output" / "doc"
+        _set_line_edit_path(self.output_dir_edit, output)
+
     def _auto_threshold_context(self) -> dict[str, str]:
         return {
             "data_root": self.data_root_edit.text().strip(),
@@ -431,7 +531,22 @@ class WorkbenchWindow(QMainWindow):
 
     def _apply_profile(self, profile: WorkbenchProfile) -> None:
         self.current_profile = profile
-        _set_line_edit_path(self.data_root_edit, profile.default_data_root)
+        selection = str(self.path_profile_combo.currentData() or PathProfileResolver.AUTO_ID)
+        if selection == PathProfileResolver.CUSTOM_ID:
+            data_root = self.custom_data_roots.get(profile.bridge_id, profile.default_data_root)
+            self.active_path_profile = None
+            self.path_profile_status_label.setText(
+                "当前配置组：自定义路径（只影响本任务；任务方案会保存该路径）"
+            )
+        else:
+            self.active_path_profile = self.path_resolver.select(selection)
+            data_root = self.path_resolver.resolve_data_root(
+                profile.bridge_id, profile.default_data_root, self.active_path_profile
+            )
+            self.path_profile_status_label.setText(
+                self.path_resolver.describe(self.active_path_profile)
+            )
+        _set_line_edit_path(self.data_root_edit, data_root)
         _set_line_edit_path(self.config_edit, profile.config_path(self.project_root))
         try:
             self.alarm_editor.load_path(profile.config_path(self.project_root))
@@ -457,8 +572,7 @@ class WorkbenchWindow(QMainWindow):
             self.spectrum_editor.summary_label.setText(f"配置加载失败：{exc}")
             self.spectrum_editor.summary_label.setStyleSheet("color: #a33;")
         _set_line_edit_path(self.template_edit, profile.template_path(self.project_root) if profile.report_template else "")
-        output = Path(profile.default_data_root) / "自动报告" if profile.default_data_root else self.project_root / "output" / "doc"
-        _set_line_edit_path(self.output_dir_edit, output)
+        self._update_default_output_dir(data_root)
         self.period_label_edit.setText(profile.default_period_label)
         self.monitoring_range_edit.setText(profile.default_monitoring_range)
         self.report_date_edit.setText(profile.default_report_date or datetime.now().strftime("%Y年%m月%d日"))
@@ -556,7 +670,7 @@ class WorkbenchWindow(QMainWindow):
             self._reset_review_state()
             self.current_context_path = context.write()
             self.known_context_paths.add(self.current_context_path)
-            self._append_log(f"任务上下文已保存：{self.current_context_path}")
+            self._append_log(f"任务方案已保存：{self.current_context_path}")
             self.analysis_status_label.setText(f"状态：draft；任务 {context.job_id}")
         except Exception as exc:  # noqa: BLE001
             self._show_exception("保存任务失败", exc)
@@ -564,9 +678,9 @@ class WorkbenchWindow(QMainWindow):
     def _open_context_dialog(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "打开工作台任务上下文",
+            "打开已保存任务方案",
             str(self.project_root / "run_logs"),
-            "Workbench context (job_context.json);;JSON files (*.json)",
+            "任务方案 (job_context.json);;JSON files (*.json)",
         )
         if path:
             try:
@@ -580,7 +694,19 @@ class WorkbenchWindow(QMainWindow):
         index = self.profile_combo.findData(profile.bridge_id)
         if index >= 0:
             self.profile_combo.setCurrentIndex(index)
-        _set_line_edit_path(self.data_root_edit, context.data_root)
+        restored_root = str(Path(context.data_root))
+        auto_profile = self.path_resolver.select(PathProfileResolver.AUTO_ID)
+        automatic_root = self.path_resolver.resolve_data_root(
+            profile.bridge_id, profile.default_data_root, auto_profile
+        )
+        if os.path.normcase(os.path.normpath(restored_root)) != os.path.normcase(
+            os.path.normpath(automatic_root)
+        ):
+            self.custom_data_roots[profile.bridge_id] = restored_root
+            custom_index = self.path_profile_combo.findData(PathProfileResolver.CUSTOM_ID)
+            if custom_index >= 0:
+                self.path_profile_combo.setCurrentIndex(custom_index)
+        _set_line_edit_path(self.data_root_edit, restored_root)
         _set_line_edit_path(self.config_edit, context.config_path)
         self._set_date(self.start_date_edit, context.start_date)
         self._set_date(self.end_date_edit, context.end_date)
@@ -602,7 +728,7 @@ class WorkbenchWindow(QMainWindow):
                 self.approval_check.blockSignals(True)
                 self.approval_check.setChecked(True)
                 self.approval_check.blockSignals(False)
-        self._append_log(f"已恢复任务：{context.job_id}；上下文={path}")
+        self._append_log(f"已恢复任务：{context.job_id}；任务方案={path}")
         self._poll_status()
 
     def _start_analysis(self) -> None:
@@ -1024,7 +1150,7 @@ class WorkbenchWindow(QMainWindow):
                 f"[{datetime.now():%H:%M:%S}] 已启动嵌入式报告任务，PID={launch.pid}\n"
                 f"状态：{launch.status_path}\n结果：{launch.result_path}"
             )
-            self._append_log(f"已启动嵌入式报告任务，PID={launch.pid}；上下文={self.current_context_path}")
+            self._append_log(f"已启动报告任务，PID={launch.pid}；任务方案={self.current_context_path}")
         except Exception as exc:  # noqa: BLE001
             self._show_exception("启动报告任务失败", exc)
 
@@ -1061,7 +1187,19 @@ class WorkbenchWindow(QMainWindow):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
 
     def _browse_data_root(self) -> None:
-        self._browse_directory_into(self.data_root_edit, "选择数据根目录")
+        value = QFileDialog.getExistingDirectory(
+            self,
+            "选择数据根目录",
+            self.data_root_edit.text() or str(self.project_root),
+        )
+        if not value:
+            return
+        _set_line_edit_path(self.data_root_edit, value)
+        if hasattr(self, "current_profile"):
+            self.custom_data_roots[self.current_profile.bridge_id] = value
+            custom_index = self.path_profile_combo.findData(PathProfileResolver.CUSTOM_ID)
+            if custom_index >= 0:
+                self.path_profile_combo.setCurrentIndex(custom_index)
 
     def _browse_output_dir(self) -> None:
         self._browse_directory_into(self.output_dir_edit, "选择报告输出目录")
@@ -1093,10 +1231,10 @@ class WorkbenchWindow(QMainWindow):
             self.current_context = None
             self.current_context_path = None
             self._reset_review_state()
-            self.analysis_status_label.setText("状态：配置已修改，请重新保存任务上下文")
+            self.analysis_status_label.setText("状态：配置已修改，请重新保存任务方案")
             self._append_log(
                 f"{editor_label}配置已保存；SHA256={sha256[:16]}…；备份={backup}。"
-                "旧任务上下文已失效。"
+                "旧任务方案已失效。"
             )
             for editor in (
                 self.alarm_editor,

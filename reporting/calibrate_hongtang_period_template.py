@@ -5,7 +5,7 @@ from pathlib import Path
 
 from docx import Document
 
-from build_monthly_report import replace_paragraph_text
+from build_monthly_report import ensure_wind_table_schema, replace_paragraph_text
 from docx_header_fields import audit_header_pagination_fields, ensure_header_pagination_fields
 
 
@@ -55,6 +55,7 @@ def calibrate_template(source: Path, destination: Path) -> dict:
     header_cells = ensure_header_pagination_fields(doc)
     if header_cells != 1:
         raise RuntimeError(f"Expected one Hongtang pagination header cell, found {header_cells}")
+    wind_table_upgraded = ensure_wind_table_schema(doc)
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(destination))
@@ -66,6 +67,7 @@ def calibrate_template(source: Path, destination: Path) -> dict:
         "destination": str(destination),
         "paragraph_changes": len(changes),
         "header_cells": header_cells,
+        "wind_table_upgraded": wind_table_upgraded,
         "header_audit": audit,
     }
 
@@ -84,6 +86,7 @@ def main() -> None:
     result = calibrate_template(args.source, args.output)
     print(f"Template written to: {result['destination']}")
     print(f"Paragraph changes: {result['paragraph_changes']}")
+    print(f"Wind table upgraded: {result['wind_table_upgraded']}")
     print(f"Header audit: {result['header_audit']}")
 
 

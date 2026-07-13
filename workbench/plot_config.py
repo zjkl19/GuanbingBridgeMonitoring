@@ -394,7 +394,7 @@ def _order_rows(
                 frequency + half,
                 str(_index_or_last(theor_labels, index, "")),
                 True,
-                f"{source}_legacy",
+                "兼容配置",
             ).validated()
         )
     return rows

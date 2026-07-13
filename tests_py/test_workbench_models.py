@@ -16,7 +16,7 @@ from workbench.version import app_version
 class WorkbenchModelTests(unittest.TestCase):
     def test_version_uses_single_project_file(self) -> None:
         root = Path(__file__).resolve().parents[1]
-        self.assertEqual(app_version(root), "v1.8.0-rc1")
+        self.assertEqual(app_version(root), "v1.8.0-rc2")
 
     def test_profile_catalog_matches_shared_json(self) -> None:
         root = Path(__file__).resolve().parents[1]
@@ -56,6 +56,13 @@ class WorkbenchModelTests(unittest.TestCase):
         }
         self.assertEqual({key: next(spec.icon_asset for spec in MODULE_SPECS if spec.key == key)
                           for key in expected}, expected)
+        app_assets = root.parent
+        for name in ("app_icon.svg", "app_icon.png", "app_icon.ico"):
+            self.assertTrue((app_assets / name).is_file(), name)
+        self.assertEqual(
+            (app_assets / "organization_logo.png").read_bytes(),
+            (app_assets.parents[1] / "建科院标志PNG-01.png").read_bytes(),
+        )
 
     def test_python_module_contract_matches_matlab_registry(self) -> None:
         root = Path(__file__).resolve().parents[1]
@@ -102,6 +109,33 @@ class WorkbenchModelTests(unittest.TestCase):
             loaded.analysis.manifest_path = str(root / "manifest.json")
             loaded.report.plots_approved = True
             self.assertTrue(loaded.report_ready)
+
+    def test_job_context_migrates_v1_to_v2_with_derived_manifest_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            config = root / "config.json"
+            config.write_text("{}", encoding="utf-8")
+            context = JobContext.create(
+                project_root=root,
+                bridge_id="unit",
+                bridge_name="unit",
+                data_root=root,
+                start_date="2026-01-01",
+                end_date="2026-01-01",
+                config_path=config,
+                selected_modules=["temperature"],
+                options=options_for_modules(["temperature"]),
+            )
+            payload = context.to_dict()
+            payload["schema_version"] = 1
+            payload["report"].pop("derived_artifact_manifest_path", None)
+            payload["report"].pop("derived_artifact_manifest_sha256", None)
+
+            migrated = JobContext.from_dict(payload)
+
+            self.assertEqual(migrated.schema_version, 2)
+            self.assertEqual(migrated.report.derived_artifact_manifest_path, "")
+            self.assertEqual(migrated.report.derived_artifact_manifest_sha256, "")
 
     def test_job_context_rejects_reversed_date_range(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

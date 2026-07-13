@@ -282,7 +282,7 @@ def ensure_dir(path: Path) -> Path:
 
 
 def load_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def load_sheet_rows(path: Path, sheet: str | None = None) -> list[dict]:

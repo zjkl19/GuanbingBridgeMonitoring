@@ -14,6 +14,7 @@ from build_monthly_report import build_report as build_hongtang_monthly_report
 from build_period_report import build_period_report
 from build_shuixianhua_monthly_report import build_report as build_shuixianhua_monthly_report
 from build_zhishan_monthly_report import build_report as build_zhishan_monthly_report
+from analysis_manifest import pinned_analysis_manifest_scope, pinned_derived_artifact_manifest_scope
 from missing_summary import missing_summary_paths
 from report_build_manifest import find_latest_report_build_manifest
 from report_visual_qc import render_docx_visual_qc
@@ -44,6 +45,11 @@ class ReportJobRequest:
     start_date: str
     end_date: str
     wim_root: Path | None = None
+    analysis_manifest_path: Path | None = None
+    analysis_manifest_sha256: str = ""
+    derived_artifact_manifest_path: Path | None = None
+    derived_artifact_manifest_sha256: str = ""
+    require_source_provenance: bool = False
 
 
 @dataclass(frozen=True)
@@ -131,16 +137,28 @@ def build_qc(
     manifest_path: Path | None,
     pdf_path: Path | None,
     visual: dict[str, Any] | None = None,
+    *,
+    require_source_provenance: bool = False,
 ) -> dict[str, Any]:
     docx = _docx_qc(report_path)
     manifest = _manifest_qc(manifest_path)
     pdf = _pdf_qc(pdf_path)
+    manifest_passed = bool(
+        manifest.get("status") == "ok"
+        and int(manifest.get("missing_count") or 0) == 0
+        and (
+            not require_source_provenance
+            or int(manifest.get("warning_count") or 0) == 0
+        )
+    )
+    if not require_source_provenance:
+        manifest_passed = manifest.get("status") in {"ok", "warning"}
     structural_passed = bool(
         docx["exists"]
         and docx["size_bytes"] > 0
         and docx["zip_integrity"]
         and docx["document_xml"]
-        and manifest.get("status") in {"ok", "warning"}
+        and manifest_passed
     )
     visual = visual or {"status": "unavailable", "page_count": 0, "pages": []}
     if not structural_passed or visual.get("status") == "failed":
@@ -153,10 +171,20 @@ def build_qc(
 
 
 def _ensure_report_manifest(
-    output_dir: Path, report_path: Path, manifest_path: Path | None, report_type: str
+    output_dir: Path,
+    report_path: Path,
+    manifest_path: Path | None,
+    report_type: str,
+    *,
+    require_source_provenance: bool = False,
 ) -> Path:
     if manifest_path is not None and manifest_path.is_file():
         return manifest_path
+    if require_source_provenance:
+        raise FileNotFoundError(
+            "Strict source provenance requires a real report build manifest; "
+            "a synthesized legacy warning manifest is not accepted."
+        )
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = output_dir / f"embedded_report_build_manifest_{stamp}.json"
     payload = {
@@ -175,6 +203,21 @@ def _ensure_report_manifest(
 
 
 def execute_report_job(request: ReportJobRequest, progress: ProgressCallback | None = None) -> ReportJobResult:
+    with pinned_analysis_manifest_scope(
+        request.analysis_manifest_path,
+        request.analysis_manifest_sha256,
+        require_source_provenance=request.require_source_provenance,
+        result_root=request.result_root,
+    ):
+        with pinned_derived_artifact_manifest_scope(
+            request.derived_artifact_manifest_path,
+            request.derived_artifact_manifest_sha256,
+            require_source_provenance=request.require_source_provenance,
+        ):
+            return _execute_report_job(request, progress)
+
+
+def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | None = None) -> ReportJobResult:
     emit = progress or (lambda _stage, _fraction, _message: None)
     request.output_dir.mkdir(parents=True, exist_ok=True)
     emit("preflight", 0.05, "正在校验模板、配置和结果目录")
@@ -248,14 +291,31 @@ def execute_report_job(request: ReportJobRequest, progress: ProgressCallback | N
     if pdf_path is None:
         candidate_pdf = report_path.with_suffix(".pdf")
         pdf_path = candidate_pdf.resolve() if candidate_pdf.is_file() else None
-    manifest_path = _ensure_report_manifest(request.output_dir, report_path, manifest_path, report_type)
+    if request.require_source_provenance and missing:
+        raise RuntimeError(
+            "Strict report build has missing or warning items: "
+            + "; ".join(str(item) for item in missing[:20])
+        )
+    manifest_path = _ensure_report_manifest(
+        request.output_dir,
+        report_path,
+        manifest_path,
+        report_type,
+        require_source_provenance=request.require_source_provenance,
+    )
     emit("rendering", 0.82, "正在逐页渲染报告并生成联系表")
     visual = render_docx_visual_qc(report_path, request.output_dir / "report_visual_qc")
     visual_pdf = str(visual.get("pdf_path") or "")
     if visual_pdf and Path(visual_pdf).is_file():
         pdf_path = Path(visual_pdf).resolve()
     emit("qc", 0.93, "正在执行 DOCX/PDF、页面渲染与报告 Manifest QC")
-    qc = build_qc(report_path, manifest_path, pdf_path, visual)
+    qc = build_qc(
+        report_path,
+        manifest_path,
+        pdf_path,
+        visual,
+        require_source_provenance=request.require_source_provenance,
+    )
     if qc["status"] == "failed":
         raise RuntimeError(f"report QC failed: {qc}")
     summary_files = tuple(path for path in missing_summary_paths(report_path) if path.exists())

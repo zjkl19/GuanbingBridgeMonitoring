@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -12,7 +13,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from workbench.config_editor import ConfigEditorSession, extract_effective_warning_rows
 
 try:
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QMessageBox
 
     from workbench.config_tab import AlarmBoundsEditorWidget
 except ImportError:  # pragma: no cover - dependency gate
@@ -152,6 +153,60 @@ class WorkbenchWarningOverviewGuiTests(unittest.TestCase):
             self.assertEqual(widget.effective_table.item(0, 5).text(), "≥ 29.92")
         finally:
             widget.close()
+
+    def test_common_warning_sources_are_editable_and_saved_without_semantic_conversion(self) -> None:
+        payload = {
+            "per_point": {
+                "cable_accel": {
+                    "CS1": {"force_alarm_bounds": {"level2": [100, 200]}}
+                }
+            },
+            "wind_params": {"alarm_levels": [25, 30, 37.4]},
+            "plot_styles": {
+                "deflection": {
+                    "warn_lines": [{"y": -20, "label": "二级下限", "color": "red"}]
+                }
+            },
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "config.json"
+            path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            widget = AlarmBoundsEditorWidget()
+            try:
+                widget.load_path(path)
+                edits = {
+                    "per_point.cable_accel.CS1.force_alarm_bounds.level2": "90, 210",
+                    "wind_params.alarm_levels[1]": "31",
+                    "plot_styles.deflection.warn_lines[0]": "-22",
+                }
+                for config_path, value in edits.items():
+                    row_index = next(
+                        index
+                        for index in range(widget.effective_table.rowCount())
+                        if widget.effective_table.item(index, 9).text() == config_path
+                    )
+                    widget.effective_table.setCurrentCell(row_index, 0)
+                    with patch("workbench.config_tab.QInputDialog.getText", return_value=(value, True)):
+                        widget._edit_selected_effective_value()
+                self.assertEqual(json.loads(path.read_text(encoding="utf-8")), payload)
+                with patch(
+                    "workbench.config_tab.QMessageBox.question",
+                    return_value=QMessageBox.Yes,
+                ), patch("workbench.config_tab.QMessageBox.information"):
+                    widget._save_source()
+                updated = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(
+                    updated["per_point"]["cable_accel"]["CS1"]["force_alarm_bounds"]["level2"],
+                    [90, 210],
+                )
+                self.assertEqual(updated["wind_params"]["alarm_levels"], [25, 31, 37.4])
+                self.assertEqual(updated["plot_styles"]["deflection"]["warn_lines"][0]["y"], -22)
+                self.assertEqual(
+                    updated["plot_styles"]["deflection"]["warn_lines"][0]["label"],
+                    "二级下限",
+                )
+            finally:
+                widget.close()
 
 
 if __name__ == "__main__":

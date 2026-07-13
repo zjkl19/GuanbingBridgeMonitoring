@@ -21,5 +21,5 @@ def app_version(root: Path | None = None) -> str:
     try:
         value = version_file.read_text(encoding="utf-8-sig").strip()
     except OSError:
-        return "v1.8.0-rc1"
-    return value or "v1.8.0-rc1"
+        return "v1.8.0-rc2"
+    return value or "v1.8.0-rc2"

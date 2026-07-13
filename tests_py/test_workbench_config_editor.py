@@ -12,6 +12,8 @@ from workbench.config_editor import (
     ConfigEditorSession,
     apply_alarm_bounds,
     extract_alarm_bounds,
+    extract_effective_warning_rows,
+    update_effective_warning_value,
 )
 
 
@@ -50,6 +52,54 @@ class WorkbenchConfigEditorTests(unittest.TestCase):
         self.assertEqual(updated["per_point"]["wind"]["W2"]["gain"], 3)
         self.assertEqual(updated["defaults"]["wind"]["alarm_bounds"]["level1"], [-12.0, 12.0])
         self.assertEqual(updated["per_point"]["wind"]["W2"]["alarm_bounds"]["level1"], [0.0, 30.0])
+
+    def test_effective_warning_editor_preserves_each_source_semantics(self) -> None:
+        payload = {
+            "per_point": {
+                "cable_accel": {
+                    "CS1": {
+                        "force_alarm_bounds": {"level2": [100, 200]},
+                        "sensor": "keep",
+                    }
+                }
+            },
+            "wind_params": {"alarm_levels": [25, 30, 37.4]},
+            "plot_styles": {
+                "deflection": {
+                    "warn_lines": [
+                        {"y": -20, "label": "二级下限", "color": "red"}
+                    ]
+                }
+            },
+        }
+        rows = extract_effective_warning_rows(payload)
+        force = next(row for row in rows if row.source_kind == "force_alarm_bounds")
+        level = next(row for row in rows if row.config_path == "wind_params.alarm_levels[1]")
+        line = next(row for row in rows if row.source_kind == "warn_lines")
+        updated = update_effective_warning_value(payload, force, "90, 210")
+        updated = update_effective_warning_value(updated, level, "31")
+        updated = update_effective_warning_value(updated, line, "-22")
+        self.assertEqual(
+            updated["per_point"]["cable_accel"]["CS1"]["force_alarm_bounds"]["level2"],
+            [90, 210],
+        )
+        self.assertEqual(updated["per_point"]["cable_accel"]["CS1"]["sensor"], "keep")
+        self.assertEqual(updated["wind_params"]["alarm_levels"], [25, 31, 37.4])
+        self.assertEqual(updated["plot_styles"]["deflection"]["warn_lines"][0]["y"], -22)
+        self.assertEqual(
+            updated["plot_styles"]["deflection"]["warn_lines"][0]["label"],
+            "二级下限",
+        )
+
+    def test_effective_warning_editor_rejects_invalid_level_order(self) -> None:
+        payload = {"wind_params": {"alarm_levels": [25, 30, 37.4]}}
+        row = next(
+            item
+            for item in extract_effective_warning_rows(payload)
+            if item.config_path == "wind_params.alarm_levels[1]"
+        )
+        with self.assertRaisesRegex(Exception, "等级顺序"):
+            update_effective_warning_value(payload, row, "40")
 
     def test_rejects_invalid_bounds_and_duplicates(self) -> None:
         with self.assertRaises(ConfigEditorError):

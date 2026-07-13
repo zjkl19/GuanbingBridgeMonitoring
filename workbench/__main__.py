@@ -10,9 +10,10 @@ from PySide6.QtGui import QFont
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
+from .branding import application_icon, set_windows_app_user_model_id
 from .main_window import WorkbenchWindow
 from .models import file_sha256
-from .version import EXECUTABLE_FILENAME, app_version
+from .version import EXECUTABLE_FILENAME, app_version, project_root as default_project_root
 
 
 CLI_DIAGNOSTIC_LOG = Path(tempfile.gettempdir()) / "BridgeMonitoringWorkbench_cli_error.log"
@@ -54,6 +55,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--initial-tab", type=int, default=0)
     parser.add_argument("--initial-config-tab", type=int, default=0)
     parser.add_argument("--initial-warning-tab", type=int, default=0)
+    parser.add_argument("--initial-cleaning-tab", type=int, default=0)
     parser.add_argument("--job-context", type=Path, default=None)
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--smoke-output", type=Path, default=None)
@@ -85,6 +87,7 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         window.plot_common_editor.summary_label.text(),
         window.spectrum_editor.summary_label.text(),
     )
+    organization_logo = window.organization_logo_label.pixmap()
     return {
         "ok": True,
         "executable_filename": EXECUTABLE_FILENAME,
@@ -100,6 +103,8 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
             row.status == "invalid" for row in window.alarm_editor.effective_rows
         ),
         "cleaning_threshold_row_count": window.cleaning_editor.table.rowCount(),
+        "cleaning_exclude_editor_available": window.cleaning_editor.cleaning_tabs.count() == 2,
+        "cleaning_exclude_range_count": window.cleaning_editor.exclude_table.rowCount(),
         "config_tab_count": window.config_tabs.count(),
         "auto_threshold_module_count": window.auto_threshold_editor.module_list.count(),
         "auto_threshold_preview_enabled": bool(
@@ -120,6 +125,14 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "report_gate_locked": not window.open_report_btn.isEnabled(),
         "selected_profile_id": profile.bridge_id,
         "selected_profile_name": profile.bridge_name,
+        "selected_path_profile_id": (
+            window.active_path_profile.profile_id if window.active_path_profile is not None else "custom_or_default"
+        ),
+        "selected_path_profile_reason": window.path_profile_status_label.text(),
+        "window_icon_available": not window.windowIcon().isNull(),
+        "organization_logo_available": (
+            organization_logo is not None and not organization_logo.isNull()
+        ),
         "selected_data_layout": profile.data_layout,
         "selected_report_type": profile.report_type,
         "selected_report_gui_type": profile.report_gui_type,
@@ -157,8 +170,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         except Exception:
             return 1
+    set_windows_app_user_model_id()
     app = QApplication([sys.argv[0]])
     app.setFont(QFont("Microsoft YaHei UI", 10))
+    icon_root = (args.project_root or default_project_root()).resolve()
+    app.setWindowIcon(application_icon(icon_root))
     window = WorkbenchWindow(args.project_root)
     if args.profile_id:
         profile_index = window.profile_combo.findData(args.profile_id)
@@ -173,6 +189,8 @@ def main(argv: list[str] | None = None) -> int:
         window.config_tabs.setCurrentIndex(args.initial_config_tab)
     if 0 <= args.initial_warning_tab < window.alarm_editor.inner_tabs.count():
         window.alarm_editor.inner_tabs.setCurrentIndex(args.initial_warning_tab)
+    if 0 <= args.initial_cleaning_tab < window.cleaning_editor.cleaning_tabs.count():
+        window.cleaning_editor.cleaning_tabs.setCurrentIndex(args.initial_cleaning_tab)
     if args.demo_auto_threshold_preview:
         window.auto_threshold_editor.load_preview_demo()
     if args.demo_task_history:

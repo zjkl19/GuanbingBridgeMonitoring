@@ -48,6 +48,15 @@ def request_from_context(path: Path) -> ReportJobRequest:
             if report_type == "hongtang_period_wim"
             else None
         ),
+        analysis_manifest_path=Path(context.analysis.manifest_path).expanduser().resolve(),
+        analysis_manifest_sha256=context.analysis.manifest_sha256,
+        derived_artifact_manifest_path=(
+            Path(context.report.derived_artifact_manifest_path).expanduser().resolve()
+            if context.report.derived_artifact_manifest_path
+            else None
+        ),
+        derived_artifact_manifest_sha256=context.report.derived_artifact_manifest_sha256,
+        require_source_provenance=True,
     )
 
 

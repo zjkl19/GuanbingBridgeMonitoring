@@ -667,6 +667,23 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEmpty(warnLines);
         end
 
+        function rmsAutoYLimOverridesConfiguredFixedRanges(tc)
+            style = struct( ...
+                'rms_ylim_auto', true, ...
+                'rms_ylim', [0 1], ...
+                'rms_ylims', struct('name', 'C1', 'ylim', [0 0.5]));
+
+            tc.verifyEmpty( ...
+                bms.analyzer.DynamicAccelerationPlotService.resolveRmsYLim( ...
+                    style, 'C1'));
+
+            fig = figure('Visible', 'off');
+            cleanup = onCleanup(@() close(fig)); %#ok<NASGU>
+            plot(0:10, 0:10);
+            bms.analyzer.DynamicAccelerationPlotService.applyRmsYLim(style, 'C1');
+            tc.verifyNotEqual(ylim, [0 1]);
+        end
+
         function cableAccelerationGroupsFallbackToCableForceGroups(tc)
             values = sin((0:1200)' / 10);
             write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'C1.csv'), values);

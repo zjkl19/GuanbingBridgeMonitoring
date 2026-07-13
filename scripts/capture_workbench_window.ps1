@@ -5,6 +5,7 @@ param(
     [int]$TabIndex = 0,
     [int]$ConfigTabIndex = 0,
     [int]$WarningTabIndex = 0,
+    [int]$CleaningTabIndex = 0,
     [switch]$DemoAutoThresholdPreview,
     [switch]$ShowTaskHistory,
     [switch]$DemoTaskHistory
@@ -44,7 +45,8 @@ $arguments = @(
     "--profile-id", $ProfileId,
     "--initial-tab", "$TabIndex",
     "--initial-config-tab", "$ConfigTabIndex",
-    "--initial-warning-tab", "$WarningTabIndex"
+    "--initial-warning-tab", "$WarningTabIndex",
+    "--initial-cleaning-tab", "$CleaningTabIndex"
 )
 if ($DemoAutoThresholdPreview) {
     $arguments += "--demo-auto-threshold-preview"

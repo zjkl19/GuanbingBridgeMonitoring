@@ -165,15 +165,13 @@ classdef test_zhishan_config < matlab.unittest.TestCase
         function spectrumTargetsUseConfirmedZhishanFrequencies(tc)
             cfg = load_config(tc.ConfigPath);
 
-            tc.verifyEqual(cfg.accel_spectrum_params.theor_freqs, 0.593);
-            tc.verifyEqual(cfg.accel_spectrum_params.tolerance, 0.02);
+            tc.verifyEqual(cfg.accel_spectrum_params.peak_orders.theoretical_hz, 0.593);
             tc.verifyEqual(cfg.accel_spectrum_params.peak_orders.search_half_width_hz, 0.02);
 
             pointFields = {'AZ_1', 'AZ_2', 'AZ_3', 'AZ_4', 'AZ_5'};
             for k = 1:numel(pointFields)
                 pointCfg = cfg.per_point.accel_spectrum.(pointFields{k});
-                tc.verifyEqual(pointCfg.target_freqs, 0.640);
-                tc.verifyEqual(pointCfg.tolerance, 0.02);
+                tc.verifyEqual(pointCfg.peak_orders.search_center_hz, 0.640);
                 tc.verifyEqual(pointCfg.peak_orders.search_half_width_hz, 0.02);
             end
         end
@@ -198,12 +196,14 @@ classdef test_zhishan_config < matlab.unittest.TestCase
 
             [ok, cf1] = bms.data.PointResolver.getPointConfig(cfg.per_point.cable_accel, 'CF-1', cfg);
             tc.verifyTrue(ok);
-            tc.verifyEqual(cf1.target_freqs, 1.621);
+            cf1FirstFreq = mean([cf1.peak_orders(1).search_min_hz, ...
+                cf1.peak_orders(1).search_max_hz]);
+            tc.verifyEqual(cf1FirstFreq, 1.621, 'AbsTol', 1e-12);
             tc.verifyEqual(cf1.ocr_force_kN, 3466);
             tc.verifyEqual(cf1.completed_force_kN, 3496);
             tc.verifyEqual(cf1.force_alarm_bounds.level2(:).', [3146, 3846]);
             tc.verifyEqual(cf1.force_alarm_bounds.level3(:).', [2972, 4020]);
-            force = bms.analyzer.CableForceService.compute(cf1.target_freqs, rho, L, decimals);
+            force = bms.analyzer.CableForceService.compute(cf1FirstFreq, rho, L, decimals);
             tc.verifyEqual(force(1), cf1.force_baseline_kN, 'AbsTol', 0.02);
 
             [ok, cf3] = bms.data.PointResolver.getPointConfig(cfg.per_point.cable_accel, 'CF-3', cfg);

@@ -21,7 +21,8 @@ classdef EarthquakeSeriesService
         function rec = initRecord()
             rec = struct('pid', '', 'sensor_type', '', 'comp', '', ...
                 'times', [], 'vals', [], 'params', struct(), 'peak', NaN, ...
-                'peak_signed', NaN, 'peak_time', NaT, 'has_data', false);
+                'peak_signed', NaN, 'peak_time', NaT, 'has_data', false, ...
+                'source_provenance', bms.analyzer.DynamicSeriesService.initSourceProvenance(0));
         end
 
         function rec = collectRecord(rootDir, subfolder, pointId, startDate, endDate, cfg, params)
@@ -41,6 +42,7 @@ classdef EarthquakeSeriesService
             bestPeak = NaN;
             bestSigned = NaN;
             bestTime = NaT;
+            sourceProvenance = bms.analyzer.DynamicSeriesService.initSourceProvenance(numel(dateList));
 
             for i = 1:numel(dateList)
                 bms.app.StopController.throwIfRequested('Stop requested before next earthquake data day');
@@ -49,11 +51,14 @@ classdef EarthquakeSeriesService
                     fprintf('Earthquake %s loading %s (%d/%d)\n', ...
                         char(string(pointId)), day, i, numel(dateList));
                 end
-                [times, vals] = load_timeseries_range(rootDir, subfolder, pointId, day, day, cfg, rec.sensor_type);
+                [times, vals, dayMeta] = bms.data.TimeSeriesRangeLoader.loadCalendarDay( ...
+                    rootDir, subfolder, pointId, day, cfg, rec.sensor_type);
+                vals = bms.analyzer.EarthquakeSeriesService.applyValueRules(vals, params);
+                sourceProvenance = bms.analyzer.DynamicSeriesService.accumulateSourceProvenance( ...
+                    sourceProvenance, day, dayMeta, times, vals);
                 if isempty(vals)
                     continue;
                 end
-                vals = bms.analyzer.EarthquakeSeriesService.applyValueRules(vals, params);
                 [dayPeak, daySigned, dayTime, idx] = bms.analyzer.EarthquakeSeriesService.absPeak(times, vals);
                 if ~isempty(idx) && isfinite(dayPeak) && idx >= 1 && idx <= numel(times) ...
                         && (~isfinite(bestPeak) || dayPeak > bestPeak)
@@ -66,6 +71,17 @@ classdef EarthquakeSeriesService
                     keptTimes{end+1, 1} = td; %#ok<AGROW>
                     keptVals{end+1, 1} = vd; %#ok<AGROW>
                 end
+            end
+
+            rec.source_provenance = ...
+                bms.analyzer.DynamicSeriesService.finalizeSourceProvenance(sourceProvenance);
+            if rec.source_provenance.incomplete_day_count > 0
+                warning('EarthquakeSeriesService:IncompleteSourceCoverage', ...
+                    '%s %s has incomplete rolling-export source coverage on %d/%d calendar days: %s', ...
+                    char(string(rec.sensor_type)), char(string(pointId)), ...
+                    rec.source_provenance.incomplete_day_count, ...
+                    rec.source_provenance.calendar_day_count_requested, ...
+                    strjoin(rec.source_provenance.incomplete_days, ', '));
             end
 
             if isempty(keptVals)

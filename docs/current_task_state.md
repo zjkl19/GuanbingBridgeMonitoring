@@ -1,10 +1,95 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-07-14 Hongtang Q2 Supplement Recalculation (June 28-30)
+
+- The previously omitted `2026-06-28` through `2026-06-30` Hongtang folders
+  were added under the local read-only source
+  `E:\洪塘大桥数据\2026年4-6月`. Recalculation used an isolated `mat_only`
+  candidate tree at
+  `E:\GuanbingLocalValidation\v1.8.0-rc2_20260713_2118\hongtang_q2_complete_0628_0630_20260713_2225`;
+  no CSV extraction, resampling, preprocessing or WIM rerun was enabled.
+- The 9-module analysis completed in 7,090.16 seconds. The signed analysis
+  manifest is `run_logs\analysis_manifest_20260714_002903.json` with SHA-256
+  `1E1694A6CE60E717E1348A845A88053EE34376FFF2BA9A99CF6C51EC1A070A41`.
+  All 47 formal plot records close their source/input/finite/plotted counts:
+  8 wind, 3 earthquake, 12 structural acceleration and 24 cable acceleration.
+  Nine statistics workbooks contain 43 readable sheets with no formula errors.
+- The immutable coverage audit is `run_logs\data_coverage_audit.json` with
+  SHA-256
+  `CD60E3D70B87A6D3D0BBF0BC331F57E1F33FC2BE4DF6C9E2C97D03536A471587`.
+  W1/W2 each contain 4,021,058 samples for June 28-30, with an actual gap on
+  June 29 from `08:46:26.532` to `09:48:30.684` (3,724.152 seconds). Because
+  the July 1 adjacent rolling export is absent, June 30 is available only to
+  about 09:00 and must not be described as a complete day.
+- Against the earlier partial-period result, only the quarter mean wind speeds
+  changed: W1 `2.75 -> 2.74 m/s`, W2 `1.37 -> 1.36 m/s`. Maximum 10-minute
+  means remain W1 `6.892408934 m/s` at `2026-05-28 15:35` and W2
+  `6.508341430 m/s` at `2026-04-23 11:35`.
+- The maximum cable-acceleration 10-minute RMS is CS8 `2.468 m/s2` at
+  `2026-06-22 10:05`, above the stated first-level threshold of
+  `1000 mm/s2 (1.000 m/s2)`. The report generator now compares measured RMS
+  values with the threshold instead of emitting a fixed “below threshold”
+  sentence, and directs the operator to review the original time history and
+  alarm record. Structural acceleration remains below its threshold: maximum
+  10-minute RMS `0.035 m/s2` versus `315 mm/s2`.
+- The original analysis manifest omitted twelve cable-force report JPGs because
+  the producer collector did not recognize `索力时程图` and
+  `索力时程图_组图`. The current report binds those exact files plus the
+  coverage audit through
+  `run_logs\derived_report_inputs_20260714_0050.json`, SHA-256
+  `02BD4BF6D35DADFCFC322831AA60371B35C454B7CA100AA08D248E475C47FAA6`.
+  Future runs collect the corrected directories directly.
+- Strict report generation now pins the analysis manifest, the derived
+  sidecar, all selected artifact sizes/hashes and the result root; it rejects
+  filesystem fallback, unlisted coverage audits, missing/warning manifests,
+  or synthesized legacy manifests. The full Python regression passes
+  `340/340`; the final ten-file MATLAB batch, including the hidden legacy GUI
+  smoke, passes `99/99`.
+- The rebuilt `v1.8.0-rc2` workbench package validates its complete 605-file,
+  392,272,449-byte inventory. The workbench EXE SHA-256 is
+  `8A803627746C743F70E31629AC99734356AF70EEFB7B3DBA19AFF430F358C546`,
+  the report builder SHA-256 is
+  `270C30D051A44E77472BD16DF80F575D64DE289A84AA7CA43F620E1BE070E027`,
+  and the rebuilt analysis runner SHA-256 is
+  `10A93329971C43FDFE948B95BBE16C41091E5F68B6220059ACA512CB55453E0E`.
+  Compiled analysis/report protocol, strict report conditions, all-profile
+  configuration, invalid CLI, automatic-cleaning preview and fifteen native
+  GUI screenshots pass.
+- The final report is
+  `E:\GuanbingLocalValidation\v1.8.0-rc2_20260713_2118\hongtang_q2_complete_0628_0630_20260713_2225\自动报告\洪塘大桥健康监测2026年第二季度周期报_20260714_041653.docx`,
+  SHA-256
+  `4F6663ADBBDFDB44D766DDEC49CB40CC089E80FEDCC47029C66EF27D33894181`.
+  Its Microsoft Word authoritative PDF is beside it with the same stem,
+  SHA-256
+  `9E6FA907339ED92AE13D5DDF75A74E707D078A0C526F0052A556FE2C684FC603`.
+  The end-to-end report manifest is
+  `period_report_manifest_20260714_041653.json`, SHA-256
+  `1F551AB315C769BF2896FDFF866CCCC25B76281C7E89BE597B22A19D10C2F316`;
+  it records `front_matter_pages=3`, `status=ok`, zero missing/warning items
+  and all 186 bound report images.
+  Word renders 81 physical pages: page 2 is the intentional blank cover verso,
+  and the 78-page numbered body runs from `第 1 页 共 78 页` through
+  `第 78 页 共 78 页`. This exposed and fixed the prior off-by-one
+  `{ = NUMPAGES - 4 }` formula; the template and generator now use the actual
+  three unnumbered front-matter pages. All pages render without edge clipping
+  or broken cross-references, and the final `图 4-15 地震动时程图` is correct.
+  The authoritative Word-PDF audit is
+  `run_logs\workbench\hongtang_q2_complete_rc2_20260713_2225\word_qc_final_pagefix_e2e_20260714_0420\authoritative_word_pdf_qc.json`,
+  SHA-256
+  `380A6116C81359D98C5EB349F10FC5DF7EFA98BC070E6F27E4F0CF46C9E5F300`.
+- The durable delivery record is
+  `run_logs\final_delivery_qc_20260714_0425.json`, SHA-256
+  `28F7C6D9293881F14F3213B464A2B69414A1BA905AABE690E0FF0CF5FB64FF5D`.
+  The schema-v2 task context is closed as `completed/passed` and points to the
+  Word-authoritative PDF rather than the LibreOffice compatibility preview;
+  its SHA-256 is
+  `6CB2CD9C1EC02863E48A8BE3327C0CC88369FFA1C9D9F62F661CD040719A4BF8`.
 
 ## 2026-07-13 v1.8.0-rc1 All-Profile Workbench Candidate
 
@@ -201,9 +286,9 @@ Current local development state:
   unrelated-field preservation, and old task-approval invalidation. Cleaning
   thresholds are now also migrated in a separate configuration subtab. It
   supports scalar/array/empty representations, one-sided and timed rules,
-  `zero_to_nan`, moving-window outlier parameters, and the legacy
-  `1000/-1000` all-data suppression sentinel without changing analysis
-  semantics. No-op round trips across every currently configured bridge preserve the
+  `zero_to_nan`, moving-window outlier parameters, and explicit dated
+  `exclude_ranges` with a readable reason. The GUI no longer exposes inverted
+  thresholds as an all-data suppression mechanism. No-op round trips across every currently configured bridge preserve the
   loaded payload exactly; source overwrites use the same SHA-drift refusal and
   backup gate. The packaged build records a third native screenshot for this
   editor.
@@ -360,12 +445,11 @@ Current local development state:
   sampling to line rendering.
 - The spectrum editor manages explicit or inherited point coverage for both
   `accel_spectrum` and `cable_accel_spectrum`, and default/per-point find-peak
-  orders. It reads legacy target/tolerance/theoretical-frequency arrays and
-  newer `peak_orders`; exact no-op saves preserve representation, while an
-  actual edit migrates only managed frequency fields to `peak_orders` and
-  retains `fs`, automatic sample-rate detection, thresholds and unrelated
-  fields. Invalid table edits block module switching without discarding the
-  draft.
+  orders. All active bridge configurations now use `peak_orders`; older external
+  target/tolerance/theoretical-frequency arrays remain importable through a
+  compatibility path and are normalized on edit. `fs`, automatic sample-rate
+  detection, thresholds and unrelated fields are retained. Invalid table edits
+  block module switching without discarding the draft.
 - A shared Python/MATLAB fixture and regression suite verifies both schemas;
   all currently configured bridges pass exact no-op round trips. The rebuilt packaged
   EXE passes an 8-config-tab smoke contract (`14` common fields, `2` spectrum

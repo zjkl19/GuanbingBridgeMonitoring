@@ -52,6 +52,17 @@ classdef test_earthquake_analysis_pipeline < matlab.unittest.TestCase
             tc.verifyTrue(all(ismember({'PointID', 'Component', 'Peak', 'PeakSigned', 'PeakTime'}, T.Properties.VariableNames)));
             tc.verifyEqual(sort(T.Component), ["X"; "Y"; "Z"]);
             tc.verifyEqual(max(T.Peak), 0.6, 'AbsTol', 1e-12);
+
+            provenanceFiles = dir(fullfile(tc.Root, 'eq_out', 'series', '*.plot.json'));
+            tc.verifyEqual(numel(provenanceFiles), 3);
+            payload = jsondecode(fileread(fullfile( ...
+                provenanceFiles(1).folder, provenanceFiles(1).name)));
+            tc.verifyTrue(isfield(payload.series(1), 'source'));
+            tc.verifyEqual(payload.series(1).source.calendar_day_count_requested, 1);
+            tc.verifyEqual(payload.series(1).source.source_sample_count, 3);
+            tc.verifyEqual(payload.series(1).source.finite_source_sample_count, 3);
+            tc.verifyEqual(payload.series(1).source.completeness_scope, ...
+                'required_export_contribution');
         end
 
         function earthquakeStatsExposeSignedPeakValue(tc)

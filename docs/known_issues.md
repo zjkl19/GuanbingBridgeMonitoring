@@ -1,9 +1,38 @@
 # Known Issues And Follow-Up Items
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
+
+## Hongtang Q2 Supplement Coverage And Review Items
+
+Status: June 28-30 supplement recalculated and disclosed; two data-quality
+items still require engineering review.
+
+- W1/W2 have an actual June 29 gap from `08:46:26.532` to `09:48:30.684`
+  (3,724.152 seconds). The adjacent July 1 rolling export is also absent, so
+  the June 30 high-frequency tail after about 09:00 cannot be reconstructed.
+  Reports must disclose both facts and must not present June 30 as a complete
+  natural day.
+- The maximum cable-acceleration 10-minute RMS is CS8 `2.468 m/s2` at
+  `2026-06-22 10:05`. This exceeds the stated `1000 mm/s2 (1.000 m/s2)`
+  first-level threshold. The software no longer labels this result “below
+  threshold” or infers that no alarm occurred; the original time history and
+  system alarm record require operator review.
+- CS10 contains one isolated `-15.268 m/s2` sample at
+  `2026-05-27 19:01:55.786` among 145,474,555 samples. Current CS10 cleaning
+  is intentionally empty, so the value remains in formal statistics. Do not
+  silently remove it; confirm whether it is a physical transient or an
+  acquisition outlier before changing the cleaning contract.
+- The accepted low-frequency source still has missing rows for Z12-2, Z14-2
+  and Z15-1. The supplement run freezes the existing low-frequency and WIM
+  results rather than fabricating replacements.
+- The signed analysis manifest from this one completed run predates the
+  corrected cable-force directory collector, so twelve exact cable-force JPGs
+  are bound through a signed derived sidecar. This is an audited compatibility
+  bridge, not permission for ordinary filesystem fallback. Future analysis
+  manifests should carry those images directly.
 
 ## PySide6 Workbench Migration Boundaries
 
@@ -23,6 +52,12 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   template is not an acceptance test for caption cross-references; acceptance
   remains a fully populated report followed by Word field update and complete
   page rendering.
+  The current template has three unnumbered physical pages before the body
+  (cover, blank verso and approval page), so the adjusted total is
+  `{ = NUMPAGES - 3 }`. The earlier `- 4` value rendered the final page as
+  `第 78 页 共 77 页`; Word PDF QA on 2026-07-14 caught and fixed that
+  off-by-one error. Revalidate the offset against an authoritative Word PDF if
+  the front matter is ever changed.
 
 - The PySide6 shell currently covers project/date/module selection, local
   analysis launch, status/manifest review, task restoration, and guarded report
@@ -161,12 +196,12 @@ cross-language contracts covered.
   `full + dense_band` pair instead of saving a value MATLAB would silently
   override. This is a configuration truthfulness guard, not an algorithm or
   plot-statistics change.
-- Legacy spectrum `target_freqs`, `tolerance`, `theor_freqs`, labels and the
-  newer `peak_orders` are all readable. A no-op load/save preserves the exact
-  original representation. Once a user edits a spectrum module, its managed
-  frequency fields are normalized to `peak_orders`, matching the existing
-  MATLAB `SpectrumPeakOrderEditorService`; `fs`, auto-detection, thresholds
-  and unrelated fields remain unchanged.
+- All active bridge configurations have been migrated to `peak_orders`. Older
+  external `target_freqs`, `tolerance` and `theor_freqs` files remain readable
+  through an import-compatibility path; saving an edited spectrum module
+  normalizes its managed frequency fields to `peak_orders`, matching MATLAB
+  `SpectrumPeakOrderEditorService`. `fs`, auto-detection, thresholds and
+  unrelated fields remain unchanged.
 - Spectrum point coverage may be explicit under `points.<spectrum_module>` or
   inherited from the corresponding acceleration/cable/group points. The UI
   displays the effective inherited list but only writes an explicit list when
@@ -233,8 +268,9 @@ Status: fixed locally on `dev/pyside6-workbench`; regression covered.
 MATLAB struct concatenation fails when a default cleaning threshold contains
 `min/max/t_range_start/t_range_end` but a per-point threshold omits one or more
 optional fields. This is valid in current production configs—for example,
-one-sided wind/temperature rules and the legacy `1000/-1000` suppression
-sentinel—and previously could fail inside `CleaningPipeline.applyRuleBlock`.
+one-sided wind/temperature rules—and previously could fail inside
+`CleaningPipeline.applyRuleBlock`. Known invalid date intervals now use the
+separate `exclude_ranges` contract instead of inverted thresholds.
 
 The pipeline now normalizes each threshold to the four supported fields before
 default/per-point merging. Missing min/max remain empty, so one-sided filtering

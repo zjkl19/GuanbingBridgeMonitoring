@@ -96,6 +96,72 @@ class WorkbenchProvenanceTests(unittest.TestCase):
             self.assertEqual(summary.failed_count, 1)
             self.assertIn("not full", summary.rows[0].message)
 
+    def test_derived_series_close_against_larger_raw_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            provenance = root / "W1.plot.json"
+            raw_source = source()
+            raw_source["source_sample_count"] = 1000
+            raw_source["finite_source_sample_count"] = 900
+            provenance.write_text(json.dumps({
+                "series": [
+                    {
+                        "sampling_mode": "full",
+                        "render_mode": "derived_10min_mean",
+                        "reduction_applied": False,
+                        "input_count": 100,
+                        "finite_count": 90,
+                        "plotted_finite_count": 90,
+                        "source": raw_source,
+                    },
+                    {
+                        "sampling_mode": "full",
+                        "render_mode": "wind_rose_aggregate",
+                        "reduction_applied": False,
+                        "input_count": 800,
+                        "finite_count": 750,
+                        "plotted_finite_count": 700,
+                        "source": raw_source,
+                    },
+                ],
+            }), encoding="utf-8")
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({
+                "module_results": [{"key": "wind", "artifacts": [str(provenance)]}],
+            }), encoding="utf-8")
+
+            summary = inspect_manifest_plot_provenance(manifest)
+
+            self.assertEqual(summary.closed_count, 1)
+            self.assertEqual(summary.failed_count, 0)
+            self.assertEqual(summary.rows[0].source_count, 2000)
+            self.assertEqual(summary.rows[0].plotted_count, 790)
+
+    def test_derived_series_reject_impossible_source_or_plot_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            provenance = root / "W1.plot.json"
+            provenance.write_text(json.dumps({
+                "series": [{
+                    "sampling_mode": "full",
+                    "render_mode": "derived_10min_mean",
+                    "reduction_applied": False,
+                    "input_count": 11,
+                    "finite_count": 10,
+                    "plotted_finite_count": 10,
+                    "source": source(),
+                }],
+            }), encoding="utf-8")
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({
+                "module_results": [{"key": "wind", "artifacts": [str(provenance)]}],
+            }), encoding="utf-8")
+
+            summary = inspect_manifest_plot_provenance(manifest)
+
+            self.assertEqual(summary.failed_count, 1)
+            self.assertIn("derived source/input/finite", summary.rows[0].message)
+
     def test_duplicate_manifest_artifact_is_listed_once(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

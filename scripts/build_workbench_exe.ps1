@@ -23,7 +23,7 @@ $bundleName = -join (26725, 26753, 20581, 24247, 30417, 27979, 24037, 20316, 214
     --noconfirm `
     --clean `
     --noconsole `
-    --icon "reporting\assets\BridgeReportBuilder.ico" `
+    --icon "workbench\assets\app_icon.ico" `
     --name $bundleName `
     --distpath $distParent `
     --workpath $buildRoot `
@@ -59,6 +59,7 @@ profile_path = repo / "config" / "bridge_profiles.json"
 payload = json.loads(profile_path.read_text(encoding="utf-8-sig"))
 relative_files = {
     Path("config") / "bridge_profiles.json",
+    Path("config") / "path_profiles.json",
     Path("config") / "workbench_update.json",
 }
 for profile in payload.get("profiles", []):
@@ -68,11 +69,6 @@ for profile in payload.get("profiles", []):
             candidate = Path(value)
             if not candidate.is_absolute():
                 relative_files.add(candidate)
-    machine_pattern = str(profile.get("machine_config_pattern") or "").strip()
-    if machine_pattern and "<COMPUTERNAME>" not in machine_pattern:
-        candidate = Path(machine_pattern)
-        if not candidate.is_absolute():
-            relative_files.add(candidate)
 
 for relative in sorted(relative_files, key=lambda item: str(item).casefold()):
     source = repo / relative
@@ -82,8 +78,8 @@ for relative in sorted(relative_files, key=lambda item: str(item).casefold()):
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
 
-icon_source = repo / "workbench" / "assets" / "module_icons"
-icon_target = dest / "workbench" / "assets" / "module_icons"
+icon_source = repo / "workbench" / "assets"
+icon_target = dest / "workbench" / "assets"
 if icon_target.exists():
     shutil.rmtree(icon_target)
 shutil.copytree(icon_source, icon_target)
@@ -131,6 +127,7 @@ if (-not $SkipReportBuilder) {
     $reportExe = Join-Path $reportSource "BridgeReportBuilder.exe"
     $reportInputs = @(
         Get-ChildItem -LiteralPath (Join-Path $repo "reporting") -File -Filter "*.py"
+        Get-ChildItem -LiteralPath (Join-Path $repo "workbench") -File -Filter "*.py"
         Get-Item -LiteralPath (Join-Path $repo "reporting\requirements.txt")
         Get-Item -LiteralPath (Join-Path $repo "config\bridge_profiles.json")
     )
@@ -252,6 +249,9 @@ if (-not $smoke.ok -or $smoke.profile_count -ne $expectedProfileCount -or $smoke
         -or $smoke.invalid_warning_row_count -ne 0 `
         -or $smoke.group_plot_module_count -lt 1 `
         -or $smoke.cleaning_threshold_row_count -lt 1 `
+        -or -not $smoke.cleaning_exclude_editor_available `
+        -or -not $smoke.window_icon_available `
+        -or -not $smoke.organization_logo_available `
         -or $smoke.plot_common_field_count -ne 14 `
         -or $smoke.spectrum_module_count -ne 2 `
         -or $smoke.provenance_column_count -ne 7 `
@@ -283,6 +283,8 @@ $warningEmptyBoundsScreenshotOutput = Join-Path $distRoot "workbench_warning_emp
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $warningEmptyBoundsScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -WarningTabIndex 1
 $cleaningScreenshotOutput = Join-Path $distRoot "workbench_cleaning_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $cleaningScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 1
+$cleaningExclusionScreenshotOutput = Join-Path $distRoot "workbench_cleaning_exclusion_editor.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $cleaningExclusionScreenshotOutput -ProfileId "hongtang" -TabIndex 1 -ConfigTabIndex 1 -CleaningTabIndex 1
 $postFilterScreenshotOutput = Join-Path $distRoot "workbench_post_filter_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $postFilterScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 2
 $autoThresholdScreenshotOutput = Join-Path $distRoot "workbench_auto_threshold.png"
@@ -349,6 +351,7 @@ $releaseManifest = [ordered]@{
         "workbench_warning_overview.png",
         "workbench_warning_empty_bounds.png",
         "workbench_cleaning_editor.png",
+        "workbench_cleaning_exclusion_editor.png",
         "workbench_post_filter_editor.png",
         "workbench_auto_threshold.png",
         "workbench_offset_editor.png",

@@ -18,10 +18,17 @@ classdef test_workbench_cleaning_threshold_contract < matlab.unittest.TestCase
             pointRules = bms.data.CleaningPipeline.resolveRules( ...
                 cfg, 'deflection', 'PT-1');
             tc.verifyNumElements(pointRules.thresholds, 2);
-            tc.verifyEqual(pointRules.thresholds(2).min, 1000);
-            tc.verifyEqual(pointRules.thresholds(2).max, -1000);
+            tc.verifyEqual(pointRules.thresholds(2).min, -10);
+            tc.verifyEqual(pointRules.thresholds(2).max, 10);
             tc.verifyFalse(pointRules.zero_to_nan);
             tc.verifyEqual(pointRules.offset_correction, 12);
+            tc.verifyNumElements(pointRules.exclude_ranges, 1);
+            tc.verifyEqual(pointRules.exclude_ranges.start_time, ...
+                '2026-01-10 00:00:00');
+            tc.verifyEqual(pointRules.exclude_ranges.end_time, ...
+                '2026-01-10 23:59:59');
+            tc.verifyEqual(pointRules.exclude_ranges.reason, ...
+                '测试夹具中的明确整段排除规则');
         end
 
         function oneSidedThresholdRemainsSupported(tc)

@@ -31,7 +31,6 @@
       "bridge_id": "hongtang",
       "bridge_name": "洪塘大桥",
       "default_config": "config/hongtang_config.json",
-      "machine_config_pattern": "config/hongtang_config_<COMPUTERNAME>.json",
       "default_data_root": "E:/洪塘大桥数据/2026年4-6月",
       "data_layout": "hongtang_period",
       "report_type": "period",

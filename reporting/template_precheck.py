@@ -479,7 +479,7 @@ def main() -> None:
 
     manifest = None
     if args.manifest is not None and args.manifest.exists():
-        manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+        manifest = json.loads(args.manifest.read_text(encoding="utf-8-sig"))
     issues = check_template(args.kind, args.template, manifest=manifest)
     warnings = []
     if args.result_root is not None and manifest_precheck_warnings is not None:

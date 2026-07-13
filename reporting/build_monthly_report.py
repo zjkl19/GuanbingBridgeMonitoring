@@ -13,13 +13,13 @@ from typing import Iterable
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
-from docx.shared import Mm
+from docx.shared import Mm, Twips
 from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from analysis_manifest import missing_module_summary_items
-from docx_utils import remove_nearby_picture_block_before
+from docx_utils import remove_nearby_picture_block_before, set_cell_text_preserve
 from docx_table_utils import center_cell, find_table_by_header
 from stats_lookup import resolve_from_analysis_manifest
 from excel_utils import load_sheet_rows as load_xlsx_rows
@@ -56,6 +56,17 @@ HONGTANG_CABLE_BUILT_FORCE = {
     "CX9": 1928.46,
 }
 
+WIND_TABLE_HEADERS = (
+    "测点",
+    "平均风向（°）",
+    "主导风向（°）",
+    "平均风速（m/s）",
+    "瞬时最大风速（m/s）",
+    "10min平均风速最大值（m/s）",
+    "主要风速等级（m/s）",
+)
+WIND_TABLE_WIDTHS_TWIPS = (650, 1050, 1250, 900, 980, 1500, 1211)
+
 
 def parse_args() -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
@@ -75,7 +86,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+    # Windows PowerShell 5 writes UTF-8 text with a BOM by default.  Accepting
+    # utf-8-sig keeps CLI/GUI generated configs interoperable while remaining
+    # fully compatible with ordinary BOM-less UTF-8 JSON.
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def load_sheet_rows(path: Path) -> list[dict]:
@@ -855,7 +869,7 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
                 cable_parts.append(
                     f"监测结果表明，吊索加速度各测点绝对最大值为{max_abs:.2f}m/s²，"
                     f"各测点10min加速度均方根值最大为{format_rms_value(max_rms)}，"
-                    f"低于一级超限阈值{format_rms_threshold(1000.0)}，未触发相应报警。"
+                    f"{rms_threshold_assessment(max_rms, 1000.0)}"
                 )
             else:
                 cable_parts.append("吊索加速度时程及10min加速度均方根结果见正文图表。")
@@ -878,7 +892,7 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
                 "选取典型监测数据进行分析。"
                 f"监测结果表明，主梁及主塔加速度各测点绝对最大值为{max_abs:.2f}m/s²，"
                 f"各测点10min加速度均方根值最大为{format_rms_value(max_rms)}，"
-                f"低于一级超限阈值{format_rms_threshold(315.0)}，未触发相应报警。"
+                f"{rms_threshold_assessment(max_rms, 315.0)}"
             ]
     if section_is_available("wind", wind):
         deck_max_10min = wind.get("deck_max_10min")
@@ -909,6 +923,24 @@ def format_rms_threshold(value_mm_s2: float) -> str:
     """Format an RMS threshold in both report and SI units."""
 
     return f"{value_mm_s2:.0f}mm/s²（{value_mm_s2 / 1000:.3f}m/s²）"
+
+
+def rms_threshold_assessment(value_m_s2: float, threshold_mm_s2: float) -> str:
+    """Describe the measured RMS against the stated threshold without contradiction."""
+
+    value_mm_s2 = float(value_m_s2) * 1000.0
+    threshold_text = format_rms_threshold(float(threshold_mm_s2))
+    tolerance = max(1e-9, abs(float(threshold_mm_s2)) * 1e-9)
+    if value_mm_s2 > float(threshold_mm_s2) + tolerance:
+        return (
+            f"超过一级超限阈值{threshold_text}，按统计值已达到一级超限条件，"
+            "建议结合原始时程和系统报警记录复核。"
+        )
+    if abs(value_mm_s2 - float(threshold_mm_s2)) <= tolerance:
+        return (
+            f"达到一级超限阈值{threshold_text}，建议结合原始时程和系统报警记录复核。"
+        )
+    return f"低于一级超限阈值{threshold_text}，未达到一级超限条件。"
 
 
 def update_overview_tables(doc: Document, manifest: dict) -> None:
@@ -1214,7 +1246,7 @@ def build_cable_force_section(cfg: dict, stats_root: Path, fallback_stats_root: 
         accel_summary = (
             f"\u9009\u53d6\u5178\u578b\u76d1\u6d4b\u6570\u636e\u8fdb\u884c\u5206\u6790\uff0c\u76d1\u6d4b\u7ed3\u679c\u8868\u660e\uff0c\u540a\u7d22\u52a0\u901f\u5ea6\u5404\u6d4b\u70b9\u7edd\u5bf9\u6700\u5927\u503c\u4e3a{max_abs:.2f}m/s\xb2\uff0c"
             f"\u5404\u6d4b\u70b910min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u503c\u6700\u5927\u4e3a{format_rms_value(max_rms)}\uff0c"
-            f"\u4f4e\u4e8e\u4e00\u7ea7\u8d85\u9650\u9608\u503c{format_rms_threshold(1000.0)}\uff0c\u672a\u89e6\u53d1\u76f8\u5e94\u62a5\u8b66\u3002"
+            f"{rms_threshold_assessment(max_rms, 1000.0)}"
         )
     else:
         accel_summary = "\u9009\u53d6\u5178\u578b\u76d1\u6d4b\u6570\u636e\u8fdb\u884c\u5206\u6790\uff0c\u540a\u7d22\u52a0\u901f\u5ea6\u4e0e10min\u52a0\u901f\u5ea6\u5747\u65b9\u6839\u7ed3\u679c\u89c1\u4e0b\u56fe\u3002"
@@ -1292,7 +1324,7 @@ def build_vibration_section(cfg: dict, stats_root: Path, fallback_stats_root: Pa
         timeseries_summary = (
             f"选取典型监测数据进行分析，监测结果表明，主梁及主塔加速度各测点绝对最大值为{max_abs:.2f}m/s²，"
             f"各测点10min加速度均方根值最大为{format_rms_value(max_rms)}，"
-            f"低于一级超限阈值{format_rms_threshold(315.0)}，未触发相应报警。"
+            f"{rms_threshold_assessment(max_rms, 315.0)}"
         )
     else:
         timeseries_summary = "选取典型监测数据进行分析，主梁及主塔加速度时程与10min加速度均方根结果见下图。"
@@ -1551,31 +1583,100 @@ def update_cable_force_table(doc: Document, table_rows: list[dict]) -> None:
             center_cell(cell)
 
 
+def _set_wind_table_column_widths(table) -> None:
+    if len(table.columns) != len(WIND_TABLE_WIDTHS_TWIPS):
+        return
+    table.autofit = False
+    for column_index, width_twips in enumerate(WIND_TABLE_WIDTHS_TWIPS):
+        width = Twips(width_twips)
+        table.columns[column_index].width = width
+        for row in table.rows:
+            cell = row.cells[column_index]
+            cell.width = width
+            tc_width = cell._tc.get_or_add_tcPr().get_or_add_tcW()
+            tc_width.type = "dxa"
+            tc_width.w = width_twips
+
+
+def _keep_wind_table_rows_together(table) -> None:
+    last_row_index = len(table.rows) - 1
+    for row_index, row in enumerate(table.rows):
+        tr_pr = row._tr.get_or_add_trPr()
+        if not any(child.tag.endswith("}cantSplit") for child in tr_pr):
+            tr_pr.append(OxmlElement("w:cantSplit"))
+        for cell in row.cells:
+            for paragraph in cell.paragraphs:
+                paragraph.paragraph_format.keep_with_next = row_index < last_row_index
+
+
+def ensure_wind_table_schema(doc: Document) -> int:
+    """Upgrade the Hongtang wind summary table to the seven-column schema.
+
+    The sixth legacy column contains the wind-speed grade.  When upgrading a
+    six-column template, that cell is cloned to the new final column so all
+    direct formatting and existing placeholder values remain intact.  The
+    original sixth column then becomes the maximum 10-minute mean wind speed.
+    """
+
+    table = find_table_by_header(doc, "平均风向")
+    if table is None or not table.rows:
+        return 0
+
+    changed = 0
+    if len(table.columns) == len(WIND_TABLE_HEADERS) - 1:
+        table.add_column(Twips(WIND_TABLE_WIDTHS_TWIPS[-1]))
+        for row in table.rows:
+            source_cell = row.cells[-2]._tc
+            target_cell = row.cells[-1]._tc
+            target_cell.getparent().replace(target_cell, deepcopy(source_cell))
+        changed = 1
+    elif len(table.columns) != len(WIND_TABLE_HEADERS):
+        raise ValueError(
+            "Hongtang wind summary table must contain six legacy columns or "
+            f"seven current columns, found {len(table.columns)}"
+        )
+
+    _set_wind_table_column_widths(table)
+    _keep_wind_table_rows_together(table)
+    for column_index, header in enumerate(WIND_TABLE_HEADERS):
+        set_cell_text_preserve(table.rows[0].cells[column_index], header)
+        center_cell(table.rows[0].cells[column_index])
+
+    if changed:
+        for row in table.rows[1:]:
+            set_cell_text_preserve(row.cells[5], "")
+            center_cell(row.cells[5])
+    return changed
+
+
 def update_wind_table(doc: Document, table_rows: list[dict]) -> None:
     if not table_rows:
         return
+    ensure_wind_table_schema(doc)
     table = find_table_by_header(doc, "平均风向")
     if table is None:
         return
-    if table.rows and len(table.rows[0].cells) >= 5:
-        table.rows[0].cells[4].text = "瞬时最大风速"
-        center_cell(table.rows[0].cells[4])
     row_map = {str(row.cells[0].text).strip(): row for row in table.rows[1:]}
     for point_id, row in row_map.items():
         if not re.fullmatch(r"W\d+", point_id, re.IGNORECASE):
             continue
         for cell in row.cells[1:]:
-            cell.text = ""
+            set_cell_text_preserve(cell, "")
             center_cell(cell)
     for item in table_rows:
         row = row_map.get(item["PointID"])
         if row is None:
             continue
-        row.cells[1].text = item.get("mean_dir", "")
-        row.cells[2].text = item.get("dominant_dir", "")
-        row.cells[3].text = "" if item["mean_speed"] is None else f"{item['mean_speed']:.2f}"
-        row.cells[4].text = "" if item["max_speed"] is None else f"{item['max_speed']:.2f}"
-        row.cells[5].text = item.get("main_grade", "")
+        values = (
+            item.get("mean_dir", ""),
+            item.get("dominant_dir", ""),
+            "" if item.get("mean_speed") is None else f"{item['mean_speed']:.2f}",
+            "" if item.get("max_speed") is None else f"{item['max_speed']:.2f}",
+            "" if item.get("mean10min_max") is None else f"{item['mean10min_max']:.2f}",
+            item.get("main_grade", ""),
+        )
+        for column_index, value in enumerate(values, start=1):
+            set_cell_text_preserve(row.cells[column_index], value)
         for cell in row.cells:
             center_cell(cell)
 

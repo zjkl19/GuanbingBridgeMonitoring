@@ -11,7 +11,8 @@ from typing import Any
 from .version import app_version
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+READABLE_SCHEMA_VERSIONS = {1, SCHEMA_VERSION}
 TERMINAL_ANALYSIS_STATES = {"completed", "failed", "stopped", "launch_failed"}
 
 
@@ -50,6 +51,8 @@ class ReportState:
     template_sha256: str = ""
     output_dir: str = ""
     manifest_path: str = ""
+    derived_artifact_manifest_path: str = ""
+    derived_artifact_manifest_sha256: str = ""
     plots_approved: bool = False
     stdout_log: str = ""
     stderr_log: str = ""
@@ -193,8 +196,10 @@ class JobContext:
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "JobContext":
         payload = dict(raw)
-        if int(payload.get("schema_version", 0)) != SCHEMA_VERSION:
+        source_version = int(payload.get("schema_version", 0))
+        if source_version not in READABLE_SCHEMA_VERSIONS:
             raise ValueError(f"Unsupported job context schema: {payload.get('schema_version')}")
+        payload["schema_version"] = SCHEMA_VERSION
         payload["analysis"] = AnalysisState(**payload.get("analysis", {}))
         payload["report"] = ReportState(**payload.get("report", {}))
         context = cls(**payload)

@@ -190,7 +190,7 @@ def smoke_guanbing(args: argparse.Namespace, output_root: Path) -> None:
     _assert_generated_docx(report_path, ["G104线管柄大桥", "综上所述"])
     print(f"[guanbing] generated OK: {report_path}")
     print(f"[guanbing] manifest: {manifest_path}")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
     missing = manifest.get("missing") or []
     if missing:
         print("[guanbing] warnings/missing:")

@@ -248,10 +248,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-02-K16-ZDG5": {
@@ -263,10 +278,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-03-K16-ZDG8": {
@@ -278,10 +308,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-04-K16-ZDG11": {
@@ -293,10 +338,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-05-K16-ZDG15": {
@@ -308,10 +368,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-06-K16-ZFFDG2": {
@@ -323,10 +398,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-07-K16-ZFFDG3": {
@@ -338,10 +428,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-08-K16-ZFFDG4": {
@@ -353,10 +458,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-09-K16-ZFFDG5": {
@@ -368,10 +488,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-10-K16-ZFFDG6": {
@@ -383,10 +518,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-11-K16-YFFDG2": {
@@ -398,10 +548,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-12-K16-YFFDG3": {
@@ -413,10 +578,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-13-K16-YFFDG4": {
@@ -428,10 +608,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-14-K16-YFFDG5": {
@@ -443,10 +638,25 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       },
       "SLCGQ-15-K16-YFFDG6": {
@@ -458,300 +668,475 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
         ]
       }
     },
     "accel_spectrum": {
       "ZDCQG-01-K15-X1-G18": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-02-K15-X4-G18": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-03-K16-X1-G19": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-04-K16-X4-G19": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-05-K16-X1-G20": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-06-K16-X4-G20": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-07-K16-X1-G21": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-08-K16-X4-G21": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-09-K17-X1-G22": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-10-K17-X4-G22": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-11-K16-ZFGD-A20": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-12-K16-ZFGD-A20": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-13-K16-ZGD-A20": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-14-K16-ZGD-A20": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-15-K16-YFGD-A20": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       },
       "ZDCQG-16-K16-YFGD-A20": {
-        "target_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          1.26,
-          2.02,
-          3.13
-        ],
-        "theor_labels": [
-          "目标峰值频率 f1 = 1.26Hz",
-          "目标峰值频率 f2 = 2.02Hz",
-          "目标峰值频率 f3 = 3.13Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.11,
+            "search_max_hz": 1.41,
+            "theoretical_hz": 1.26,
+            "theor_label": "目标峰值频率 f1 = 1.26Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.87,
+            "search_max_hz": 2.17,
+            "theoretical_hz": 2.02,
+            "theor_label": "目标峰值频率 f2 = 2.02Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.98,
+            "search_max_hz": 3.28,
+            "theoretical_hz": 3.13,
+            "theor_label": "目标峰值频率 f3 = 3.13Hz"
+          }
         ]
       }
     },
@@ -1845,39 +2230,59 @@
     "fig_size_list": []
   },
   "accel_spectrum_params": {
-    "target_freqs": [
-      1.26,
-      2.02,
-      3.13
-    ],
-    "tolerance": 0.15,
-    "theor_freqs": [
-      1.26,
-      2.02,
-      3.13
-    ],
-    "theor_labels": [
-      "目标峰值频率 f1 = 1.26Hz",
-      "目标峰值频率 f2 = 2.02Hz",
-      "目标峰值频率 f3 = 3.13Hz"
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "search_min_hz": 1.11,
+        "search_max_hz": 1.41,
+        "theoretical_hz": 1.26,
+        "theor_label": "目标峰值频率 f1 = 1.26Hz"
+      },
+      {
+        "order": 2,
+        "label": "二阶",
+        "search_min_hz": 1.87,
+        "search_max_hz": 2.17,
+        "theoretical_hz": 2.02,
+        "theor_label": "目标峰值频率 f2 = 2.02Hz"
+      },
+      {
+        "order": 3,
+        "label": "三阶",
+        "search_min_hz": 2.98,
+        "search_max_hz": 3.28,
+        "theoretical_hz": 3.13,
+        "theor_label": "目标峰值频率 f3 = 3.13Hz"
+      }
     ]
   },
   "cable_accel_spectrum_params": {
-    "target_freqs": [
-      1,
-      2,
-      3
-    ],
-    "tolerance": 0.15,
-    "theor_freqs": [
-      0.975,
-      1.243,
-      1.528
-    ],
-    "theor_labels": [
-      "理论竖向一阶自振频率 0.975Hz",
-      "理论竖向二阶自振频率 1.243Hz",
-      "理论竖向三阶自振频率 1.528Hz"
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "search_min_hz": 0.85,
+        "search_max_hz": 1.15,
+        "theoretical_hz": 0.975,
+        "theor_label": "理论竖向一阶自振频率 0.975Hz"
+      },
+      {
+        "order": 2,
+        "label": "二阶",
+        "search_min_hz": 1.85,
+        "search_max_hz": 2.15,
+        "theoretical_hz": 1.243,
+        "theor_label": "理论竖向二阶自振频率 1.243Hz"
+      },
+      {
+        "order": 3,
+        "label": "三阶",
+        "search_min_hz": 2.85,
+        "search_max_hz": 3.15,
+        "theoretical_hz": 1.528,
+        "theor_label": "理论竖向三阶自振频率 1.528Hz"
+      }
     ]
   },
   "data_adapter": {

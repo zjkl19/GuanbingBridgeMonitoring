@@ -292,6 +292,11 @@ classdef DynamicAccelerationPlotService
         end
 
         function applyRmsYLim(style, pointId)
+            if isfield(style, 'rms_ylim_auto') ...
+                    && bms.config.ConfigReader.boolValue(style.rms_ylim_auto, false)
+                ylim auto;
+                return;
+            end
             yl = bms.plot.PlotService.resolveNamedYLim(style.rms_ylims, pointId, style.rms_ylim);
             if bms.plot.PlotService.isValidYLim(yl)
                 ylim(yl);
@@ -524,6 +529,11 @@ classdef DynamicAccelerationPlotService
         end
 
         function yl = resolveRmsYLim(style, groupName)
+            if isfield(style, 'rms_ylim_auto') ...
+                    && bms.config.ConfigReader.boolValue(style.rms_ylim_auto, false)
+                yl = [];
+                return;
+            end
             yl = bms.plot.PlotService.resolveNamedYLim(style.rms_ylims, groupName, style.rms_ylim);
             if ~bms.plot.PlotService.isValidYLim(yl)
                 yl = [];

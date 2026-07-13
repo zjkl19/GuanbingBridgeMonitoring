@@ -125,7 +125,7 @@ class TaskHistoryWidget(QWidget):
             TaskHistoryEntry(base / "running/job_context.json", "hongtang_q2", "hongtang", "洪塘大桥", "2026-04-01 至 2026-06-30", "2026-07-13T08:12:00+08:00", "running", "索力加速度 7/11；64%", "blocked", "", "ready", (), True),
             TaskHistoryEntry(base / "done/job_context.json", "zhishan_april", "zhishan", "芝山大桥", "2026-04-01 至 2026-04-30", "2026-07-13T07:50:00+08:00", "completed", "11/11；100%", "completed", "QC=passed", "ready", (), True),
             TaskHistoryEntry(base / "drift/job_context.json", "guanbing_june", "guanbing", "管柄大桥", "2026-06-01 至 2026-06-30", "2026-07-12T23:10:00+08:00", "completed", "10/10；100%", "blocked", "", "warning", ("配置SHA256已变化",), True),
-            TaskHistoryEntry(base / "bad/job_context.json", "broken_context", "", "不可读取", "", "2026-07-12T20:00:00+08:00", "invalid", "", "invalid", "", "invalid", ("任务上下文不可读：JSON格式错误",), False),
+            TaskHistoryEntry(base / "bad/job_context.json", "broken_context", "", "不可读取", "", "2026-07-12T20:00:00+08:00", "invalid", "", "invalid", "", "invalid", ("任务方案不可读：JSON格式错误",), False),
         )
         self._apply_filters()
 

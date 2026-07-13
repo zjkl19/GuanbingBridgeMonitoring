@@ -43,5 +43,25 @@ classdef test_bridge_profile < matlab.unittest.TestCase
             p = bms.profile.BridgeProfileRegistry.infer(cfg, 'D:\芝山大桥数据\2026年3月');
             tc.verifyEqual(p.BridgeId, 'zhishan');
         end
+
+        function legacyMachineConfigPatternCannotOverrideCanonicalConfig(tc)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() rmdir(root, 's')); %#ok<NASGU>
+            canonical = fullfile(root, 'canonical.json');
+            legacy = fullfile(root, 'legacy_HOST.json');
+            fclose(fopen(canonical, 'w'));
+            fclose(fopen(legacy, 'w'));
+            raw = struct( ...
+                'bridge_id', 'demo', ...
+                'bridge_name', 'Demo', ...
+                'default_config', 'canonical.json', ...
+                'machine_config_pattern', 'legacy_HOST.json');
+
+            profile = bms.profile.BridgeProfile.fromStruct(raw, root);
+
+            tc.verifyEqual(profile.DefaultConfig, canonical);
+            tc.verifyFalse(isfield(profile.toStruct(), 'machine_config_pattern'));
+        end
     end
 end

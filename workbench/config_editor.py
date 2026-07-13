@@ -160,10 +160,10 @@ class CleaningThresholdRow:
         if start and minimum is None and maximum is None:
             raise ConfigEditorError("时间窗行至少需要 min 或 max")
         if minimum is not None and maximum is not None and minimum > maximum:
-            if not (minimum == 1000 and maximum == -1000):
-                raise ConfigEditorError(
-                    f"min 大于 max 仅允许历史全抑制哨兵 1000/-1000：{minimum}/{maximum}"
-                )
+            raise ConfigEditorError(
+                f"min 不能大于 max：{minimum}/{maximum}。"
+                "如需排除整段历史数据，请改用 exclude_ranges（整段排除规则）。"
+            )
 
         window = _optional_finite(self.outlier_window_sec, "outlier_window_sec")
         factor = _optional_finite(self.outlier_threshold_factor, "outlier_threshold_factor")
@@ -186,6 +186,40 @@ class CleaningThresholdRow:
             window,
             factor,
         )
+
+
+@dataclass(frozen=True)
+class ExcludeRangeRow:
+    scope: str
+    module_key: str
+    point_key: str
+    start_time: str
+    end_time: str
+    reason: str = ""
+
+    def validated(self) -> "ExcludeRangeRow":
+        scope = self.scope.strip()
+        module = self.module_key.strip()
+        point = self.point_key.strip()
+        start = self.start_time.strip()
+        end = self.end_time.strip()
+        reason = self.reason.strip()
+        if scope not in {"defaults", "per_point"}:
+            raise ConfigEditorError("整段排除范围必须是 defaults 或 per_point")
+        if not module:
+            raise ConfigEditorError("整段排除规则的分析类型不能为空")
+        if scope == "defaults" and point:
+            raise ConfigEditorError("模块默认整段排除规则不能填写测点")
+        if scope == "per_point" and not point:
+            raise ConfigEditorError("测点整段排除规则必须填写测点编号")
+        try:
+            start_value = datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
+            end_value = datetime.strptime(end, "%Y-%m-%d %H:%M:%S")
+        except ValueError as exc:
+            raise ConfigEditorError("整段排除起止时间必须为 yyyy-MM-dd HH:mm:ss") from exc
+        if end_value < start_value:
+            raise ConfigEditorError("整段排除结束时间不能早于开始时间")
+        return ExcludeRangeRow(scope, module, point, start, end, reason)
 
 
 @dataclass(frozen=True)
@@ -715,6 +749,133 @@ def extract_effective_warning_rows(payload: dict[str, Any]) -> list[EffectiveWar
     return sorted(rows, key=sort_key)
 
 
+def _config_path_tokens(path: str) -> list[str | int]:
+    tokens: list[str | int] = []
+    position = 0
+    while position < len(path):
+        if path[position] == ".":
+            position += 1
+            continue
+        if path[position] == "[":
+            end = path.find("]", position + 1)
+            if end < 0 or not path[position + 1:end].isdigit():
+                raise ConfigEditorError(f"无法解析配置位置：{path}")
+            tokens.append(int(path[position + 1:end]))
+            position = end + 1
+            continue
+        end = position
+        while end < len(path) and path[end] not in ".[":
+            end += 1
+        key = path[position:end]
+        if not key:
+            raise ConfigEditorError(f"无法解析配置位置：{path}")
+        tokens.append(key)
+        position = end
+    return tokens
+
+
+def _value_at_config_path(payload: dict[str, Any], path: str) -> Any:
+    current: Any = payload
+    for token in _config_path_tokens(path):
+        try:
+            current = current[token]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ConfigEditorError(f"配置位置不存在：{path}") from exc
+    return current
+
+
+def _set_value_at_config_path(payload: dict[str, Any], path: str, value: Any) -> None:
+    tokens = _config_path_tokens(path)
+    if not tokens:
+        raise ConfigEditorError("配置位置不能为空")
+    current: Any = payload
+    for token in tokens[:-1]:
+        try:
+            current = current[token]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ConfigEditorError(f"配置位置不存在：{path}") from exc
+    try:
+        current[tokens[-1]] = value
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ConfigEditorError(f"配置位置不可编辑：{path}") from exc
+
+
+def warning_edit_value(payload: dict[str, Any], row: EffectiveWarningRow) -> str:
+    value = _value_at_config_path(payload, row.config_path)
+    if row.source_kind in {"alarm_bounds", "force_alarm_bounds"}:
+        if value in (None, []):
+            return ""
+        if isinstance(value, list) and len(value) == 2:
+            return f"{value[0]}, {value[1]}"
+    if row.source_kind == "alarm_levels":
+        return str(value)
+    if row.source_kind in {"warn_lines", "rms_warn_lines", "group_warn_lines"}:
+        return str(value.get("y")) if isinstance(value, dict) and "y" in value else str(value)
+    raise ConfigEditorError(f"暂不支持编辑该预警来源：{row.source_kind}")
+
+
+def update_effective_warning_value(
+    payload: dict[str, Any], row: EffectiveWarningRow, text: str
+) -> dict[str, Any]:
+    """Update one warning source in place without changing its source semantics."""
+
+    updated = copy.deepcopy(payload)
+    raw_text = str(text or "").strip()
+    if row.source_kind in {"alarm_bounds", "force_alarm_bounds"}:
+        if not raw_text:
+            replacement: Any = []
+        else:
+            parts = [item.strip() for item in raw_text.replace("，", ",").split(",")]
+            if len(parts) != 2:
+                raise ConfigEditorError("上下限必须填写为“下限, 上限”")
+            lower = _optional_finite(parts[0], "下限")
+            upper = _optional_finite(parts[1], "上限")
+            if lower is None or upper is None or upper <= lower:
+                raise ConfigEditorError("上限必须大于下限，且两者都必须是有限数值")
+            replacement = [
+                int(lower) if float(lower).is_integer() else lower,
+                int(upper) if float(upper).is_integer() else upper,
+            ]
+        _set_value_at_config_path(updated, row.config_path, replacement)
+    elif row.source_kind == "alarm_levels":
+        number = _optional_finite(raw_text, "分级预警值")
+        if number is None:
+            raise ConfigEditorError("分级预警值不能为空")
+        _set_value_at_config_path(
+            updated, row.config_path, int(number) if float(number).is_integer() else number
+        )
+    elif row.source_kind in {"warn_lines", "rms_warn_lines", "group_warn_lines"}:
+        number = _optional_finite(raw_text, "图上参考值")
+        if number is None:
+            raise ConfigEditorError("图上参考值不能为空")
+        current = _value_at_config_path(updated, row.config_path)
+        replacement = copy.deepcopy(current)
+        value = int(number) if float(number).is_integer() else number
+        if isinstance(replacement, dict):
+            replacement["y"] = value
+        else:
+            replacement = value
+        _set_value_at_config_path(updated, row.config_path, replacement)
+    else:
+        raise ConfigEditorError(f"暂不支持编辑该预警来源：{row.source_kind}")
+
+    refreshed = extract_effective_warning_rows(updated)
+    matching = [item for item in refreshed if item.config_path == row.config_path]
+    related_invalid = []
+    if row.source_kind == "alarm_levels":
+        base_path = row.config_path.split("[", 1)[0]
+        related_invalid = [
+            item
+            for item in refreshed
+            if item.source_kind == "alarm_levels"
+            and item.config_path.startswith(base_path)
+            and item.status == "invalid"
+        ]
+    if not matching or matching[0].status == "invalid" or related_invalid:
+        raise ConfigEditorError("修改后预警值格式或等级顺序无效，请检查输入")
+    return updated
+
+
 def apply_alarm_bounds(payload: dict[str, Any], rows: Iterable[AlarmBoundRow]) -> dict[str, Any]:
     validated: list[AlarmBoundRow] = []
     seen: set[tuple[str, str, str, str]] = set()
@@ -922,7 +1083,14 @@ def apply_cleaning_thresholds(
         existing_thresholds = existing.get("thresholds") if existing else None
         if active:
             rules: list[dict[str, Any]] = []
-            for row in active:
+            existing_rules = (
+                [existing_thresholds]
+                if isinstance(existing_thresholds, dict)
+                else existing_thresholds
+                if isinstance(existing_thresholds, list)
+                else []
+            )
+            for index, row in enumerate(active):
                 rule: dict[str, Any] = {}
                 if row.minimum is not None:
                     rule["min"] = row.minimum
@@ -931,6 +1099,11 @@ def apply_cleaning_thresholds(
                 if row.t_range_start:
                     rule["t_range_start"] = row.t_range_start
                     rule["t_range_end"] = row.t_range_end
+                elif index < len(existing_rules) and isinstance(existing_rules[index], dict):
+                    existing_rule = existing_rules[index]
+                    if "t_range_start" in existing_rule or "t_range_end" in existing_rule:
+                        rule["t_range_start"] = str(existing_rule.get("t_range_start") or "")
+                        rule["t_range_end"] = str(existing_rule.get("t_range_end") or "")
                 rules.append(rule)
             target["thresholds"] = rules[0] if isinstance(existing_thresholds, dict) and len(rules) == 1 else rules
         elif existing is not None and "thresholds" in existing:
@@ -944,6 +1117,96 @@ def apply_cleaning_thresholds(
             target["outlier"] = {"window_sec": window, "threshold_factor": factor}
         elif existing is not None and "outlier" in existing and existing.get("outlier") in (None, []):
             target["outlier"] = copy.deepcopy(existing.get("outlier"))
+    return updated
+
+
+def extract_exclude_ranges(payload: dict[str, Any]) -> list[ExcludeRangeRow]:
+    rows: list[ExcludeRangeRow] = []
+    for scope in ("defaults", "per_point"):
+        root = payload.get(scope, {}) or {}
+        if not isinstance(root, dict):
+            raise ConfigEditorError(f"{scope} 必须是对象")
+        for module_key, module in root.items():
+            if not isinstance(module, dict):
+                continue
+            targets = [("", module)] if scope == "defaults" else module.items()
+            for point_key, block in targets:
+                if not isinstance(block, dict) or "exclude_ranges" not in block:
+                    continue
+                raw = block.get("exclude_ranges")
+                values = [raw] if isinstance(raw, dict) else raw
+                if values in (None, []):
+                    continue
+                if not isinstance(values, list) or not all(isinstance(item, dict) for item in values):
+                    raise ConfigEditorError(
+                        f"{scope}.{module_key}.{point_key}.exclude_ranges 必须是对象或对象数组"
+                    )
+                for item in values:
+                    rows.append(
+                        ExcludeRangeRow(
+                            scope,
+                            str(module_key),
+                            str(point_key),
+                            str(item.get("start_time") or ""),
+                            str(item.get("end_time") or ""),
+                            str(item.get("reason") or ""),
+                        ).validated()
+                    )
+    return sorted(
+        rows,
+        key=lambda row: (
+            0 if row.scope == "defaults" else 1,
+            row.module_key.casefold(),
+            row.point_key.casefold(),
+            row.start_time,
+        ),
+    )
+
+
+def apply_exclude_ranges(payload: dict[str, Any], rows: Iterable[ExcludeRangeRow]) -> dict[str, Any]:
+    validated = [row.validated() for row in rows]
+    identities: set[tuple[str, str, str, str, str]] = set()
+    grouped: dict[tuple[str, str, str], list[ExcludeRangeRow]] = {}
+    for row in validated:
+        identity = (row.scope, row.module_key, row.point_key, row.start_time, row.end_time)
+        if identity in identities:
+            raise ConfigEditorError("存在重复的整段排除起止时间")
+        identities.add(identity)
+        grouped.setdefault((row.scope, row.module_key, row.point_key), []).append(row)
+
+    updated = copy.deepcopy(payload)
+    for scope in ("defaults", "per_point"):
+        root = updated.get(scope, {}) or {}
+        if not isinstance(root, dict):
+            raise ConfigEditorError(f"{scope} 必须是对象")
+        for module in root.values():
+            if not isinstance(module, dict):
+                continue
+            blocks = [module] if scope == "defaults" else module.values()
+            for block in blocks:
+                if isinstance(block, dict):
+                    block.pop("exclude_ranges", None)
+
+    for (scope, module_key, point_key), group in grouped.items():
+        root = updated.setdefault(scope, {})
+        module = root.setdefault(module_key, {})
+        target = module if scope == "defaults" else module.setdefault(point_key, {})
+        values = [
+            {
+                "start_time": row.start_time,
+                "end_time": row.end_time,
+                **({"reason": row.reason} if row.reason else {}),
+            }
+            for row in group
+        ]
+        existing = _existing_cleaning_block(payload, (scope, module_key, point_key))
+        target["exclude_ranges"] = (
+            values[0]
+            if existing is not None
+            and isinstance(existing.get("exclude_ranges"), dict)
+            and len(values) == 1
+            else values
+        )
     return updated
 
 
@@ -1419,6 +1682,11 @@ class ConfigEditorSession:
     def save(self, rows: Iterable[AlarmBoundRow], *, target: Path | None = None) -> ConfigSaveResult:
         return self._save_updated(self.build_payload(rows), target=target)
 
+    def save_payload(self, payload: dict[str, Any], *, target: Path | None = None) -> ConfigSaveResult:
+        if not isinstance(payload, dict):
+            raise ConfigEditorError("配置文件根节点必须是 JSON 对象")
+        return self._save_updated(copy.deepcopy(payload), target=target)
+
     def _save_updated(
         self, updated: dict[str, Any], *, target: Path | None = None
     ) -> ConfigSaveResult:
@@ -1461,6 +1729,23 @@ class CleaningConfigEditorSession(ConfigEditorSession):
     @property
     def rows(self) -> list[CleaningThresholdRow]:
         return extract_cleaning_thresholds(self.payload)
+
+    @property
+    def exclude_rows(self) -> list[ExcludeRangeRow]:
+        return extract_exclude_ranges(self.payload)
+
+    def build_payload_all(
+        self,
+        rows: Iterable[CleaningThresholdRow],
+        exclude_rows: Iterable[ExcludeRangeRow],
+    ) -> dict[str, Any]:
+        normalized_rows = [row.validated() for row in rows]
+        normalized_exclusions = [row.validated() for row in exclude_rows]
+        if normalized_rows == self.rows and normalized_exclusions == self.exclude_rows:
+            return copy.deepcopy(self.payload)
+        return apply_exclude_ranges(
+            apply_cleaning_thresholds(self.payload, normalized_rows), normalized_exclusions
+        )
 
     def build_payload(self, rows: Iterable[CleaningThresholdRow]) -> dict[str, Any]:
         normalized = [row.validated() for row in rows]

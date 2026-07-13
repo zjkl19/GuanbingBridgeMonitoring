@@ -155,7 +155,7 @@ classdef ArtifactCollector
                 case 'accel_spectrum'
                     names = {'频谱峰值曲线_加速度','频谱峰值曲线_加速度_组图','PSD_备查'};
                 case 'cable_accel_spectrum'
-                    names = {'频谱峰值曲线_索力加速度','索力时程曲线','PSD_备查_索力加速度'};
+                    names = {'频谱峰值曲线_索力加速度','索力时程图','索力时程图_组图','PSD_备查_索力加速度'};
                 case 'crack'
                     names = {'时程曲线_裂缝宽度','时程曲线_裂缝温度'};
                 case 'strain'
@@ -199,7 +199,8 @@ classdef ArtifactCollector
             end
             fields = {'output_dir','single_output_dir','group_output_dir','rms_group_output_dir','boxplot_output_dir', ...
                 'output_dir_ts','group_output_dir_ts','output_dir_crack','output_dir_temp', ...
-                'raw_output_dir','filtered_output_dir','raw_group_output_dir','filtered_group_output_dir'};
+                'raw_output_dir','filtered_output_dir','raw_group_output_dir','filtered_group_output_dir', ...
+                'freq_group_output_dir','force_output_dir','force_group_output_dir'};
             for i = 1:numel(fields)
                 if isfield(style, fields{i}) && ~isempty(style.(fields{i}))
                     names{end+1} = style.(fields{i}); %#ok<AGROW>

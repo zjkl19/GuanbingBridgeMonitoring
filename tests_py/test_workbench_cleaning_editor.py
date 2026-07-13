@@ -14,9 +14,12 @@ from workbench.config_editor import (
     CleaningThresholdRow,
     ConfigChangedError,
     ConfigEditorError,
+    ExcludeRangeRow,
     apply_cleaning_thresholds,
+    apply_exclude_ranges,
     apply_post_filter_thresholds,
     extract_cleaning_thresholds,
+    extract_exclude_ranges,
     extract_post_filter_thresholds,
     PostFilterConfigEditorSession,
 )
@@ -43,14 +46,24 @@ class WorkbenchCleaningEditorTests(unittest.TestCase):
     def setUp(self) -> None:
         self.payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
 
-    def test_extract_supports_one_sided_and_suppression_rules(self) -> None:
+    def test_extract_supports_one_sided_rules_and_explicit_exclusion(self) -> None:
         rows = extract_cleaning_thresholds(self.payload)
         temperature = next(row for row in rows if row.module_key == "temperature")
-        suppression = next(row for row in rows if row.point_key == "PT_1")
+        point_rule = next(row for row in rows if row.point_key == "PT_1")
         self.assertIsNone(temperature.minimum)
         self.assertEqual(temperature.maximum, 50)
-        self.assertEqual((suppression.minimum, suppression.maximum), (1000, -1000))
-        self.assertFalse(suppression.zero_to_nan)
+        self.assertEqual((point_rule.minimum, point_rule.maximum), (-10, 10))
+        self.assertFalse(point_rule.zero_to_nan)
+        exclusions = extract_exclude_ranges(self.payload)
+        self.assertEqual(len(exclusions), 1)
+        self.assertEqual(exclusions[0].point_key, "PT_1")
+        self.assertEqual(exclusions[0].reason, "测试夹具中的明确整段排除规则")
+
+    def test_inverted_numeric_threshold_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ConfigEditorError, "整段排除规则"):
+            CleaningThresholdRow(
+                "per_point", "deflection", "PT_1", 1000, -1000
+            ).validated()
 
     def test_noop_round_trip_preserves_mixed_json_representations(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
@@ -58,6 +71,9 @@ class WorkbenchCleaningEditorTests(unittest.TestCase):
             path.write_text(json.dumps(self.payload, ensure_ascii=False, indent=2), encoding="utf-8")
             session = CleaningConfigEditorSession(path)
             self.assertEqual(session.build_payload(session.rows), self.payload)
+            self.assertEqual(
+                session.build_payload_all(session.rows, session.exclude_rows), self.payload
+            )
             result = session.save(session.rows)
             self.assertFalse(result.changed)
             self.assertIsNone(result.backup_path)
@@ -101,6 +117,39 @@ class WorkbenchCleaningEditorTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(ConfigEditorError, "zero_to_nan 不一致"):
             apply_cleaning_thresholds(copy.deepcopy(self.payload), rows)
+
+    def test_canonical_exclude_ranges_round_trip_with_reason(self) -> None:
+        payload = copy.deepcopy(self.payload)
+        payload["per_point"]["deflection"]["PT_1"]["exclude_ranges"] = [
+            {
+                "start_time": "2025-12-15 00:00:00",
+                "end_time": "2025-12-31 23:59:59",
+                "reason": "该时段数据整体无效",
+            }
+        ]
+        rows = extract_exclude_ranges(payload)
+        self.assertEqual(
+            rows,
+            [
+                ExcludeRangeRow(
+                    "per_point",
+                    "deflection",
+                    "PT_1",
+                    "2025-12-15 00:00:00",
+                    "2025-12-31 23:59:59",
+                    "该时段数据整体无效",
+                )
+            ],
+        )
+        self.assertEqual(apply_exclude_ranges(payload, rows), payload)
+        with self.assertRaisesRegex(ConfigEditorError, "结束时间"):
+            ExcludeRangeRow(
+                "per_point",
+                "deflection",
+                "PT_1",
+                "2025-12-31 00:00:00",
+                "2025-12-15 00:00:00",
+            ).validated()
 
     def test_save_backs_up_and_refuses_source_drift(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
@@ -188,6 +237,10 @@ class WorkbenchCleaningEditorGuiTests(unittest.TestCase):
             self.assertEqual(widget.table.rowCount(), 3)
             self.assertEqual(widget.rows(), widget.session.rows)
             self.assertIn("3 条", widget.count_label.text())
+            self.assertEqual(widget.cleaning_tabs.count(), 2)
+            self.assertEqual(widget.exclude_table.rowCount(), 1)
+            self.assertEqual(widget.exclude_table.item(0, 2).text(), "PT_1")
+            self.assertIn("明确整段排除", widget.exclude_table.item(0, 5).text())
         finally:
             widget.close()
 
@@ -198,6 +251,7 @@ class WorkbenchCleaningEditorGuiTests(unittest.TestCase):
             self.assertEqual(widget.table.rowCount(), 2)
             self.assertTrue(widget.table.isColumnHidden(7))
             self.assertEqual(widget.rows(), widget.session.rows)
+            self.assertEqual(widget.cleaning_tabs.count(), 1)
         finally:
             widget.close()
 

@@ -13,7 +13,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from workbench.models import file_sha256  # noqa: E402
-from workbench.profiles import WorkbenchProfile, load_profiles  # noqa: E402
+from workbench.config_editor import CleaningConfigEditorSession  # noqa: E402
+from workbench.profiles import PathProfileResolver, WorkbenchProfile, load_profiles  # noqa: E402
 from workbench.version import EXECUTABLE_FILENAME  # noqa: E402
 
 
@@ -36,7 +37,14 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _asset_paths(package_root: Path, profiles: list[WorkbenchProfile]) -> tuple[Path, ...]:
-    assets = {package_root / "config" / "bridge_profiles.json"}
+    assets = {
+        package_root / "config" / "bridge_profiles.json",
+        package_root / "config" / "path_profiles.json",
+        package_root / "workbench" / "assets" / "app_icon.svg",
+        package_root / "workbench" / "assets" / "app_icon.png",
+        package_root / "workbench" / "assets" / "app_icon.ico",
+        package_root / "workbench" / "assets" / "organization_logo.png",
+    }
     for profile in profiles:
         assets.add(profile.config_path(package_root))
         if profile.report_template:
@@ -61,6 +69,10 @@ def validate_profile_payload(
     if expected_profile_count is None:
         expected_profile_count = len(load_profiles(package_root))
     expected_config = profile.config_path(package_root)
+    expected_exclude_count = len(CleaningConfigEditorSession(expected_config).exclude_rows)
+    expected_data_root = PathProfileResolver(package_root).resolve_data_root(
+        profile.bridge_id, profile.default_data_root
+    )
     expected_template = profile.template_path(package_root) if profile.report_template else None
     expected_report_capable = bool(profile.report_template and profile.report_gui_type)
     checks = {
@@ -71,7 +83,7 @@ def validate_profile_payload(
         "report_type": payload.get("selected_report_type") == profile.report_type,
         "report_gui_type": payload.get("selected_report_gui_type") == profile.report_gui_type,
         "report_capable": payload.get("selected_report_capable") is expected_report_capable,
-        "data_root": payload.get("selected_data_root") == profile.default_data_root,
+        "data_root": str(Path(str(payload.get("selected_data_root") or ""))) == str(Path(expected_data_root)),
         "dates": (
             payload.get("selected_start_date") == profile.default_start_date
             and payload.get("selected_end_date") == profile.default_end_date
@@ -93,6 +105,14 @@ def validate_profile_payload(
             else not payload.get("selected_template_sha256")
         ),
         "config_load": not payload.get("configuration_load_errors"),
+        "branding": (
+            payload.get("window_icon_available") is True
+            and payload.get("organization_logo_available") is True
+        ),
+        "cleaning_exclusions": (
+            payload.get("cleaning_exclude_editor_available") is True
+            and int(payload.get("cleaning_exclude_range_count") or 0) == expected_exclude_count
+        ),
         "workflow_shape": (
             payload.get("profile_count") == expected_profile_count
             and payload.get("executable_filename") == EXECUTABLE_FILENAME
@@ -128,6 +148,7 @@ def validate_profile_payload(
         "effective_warning_row_count": int(payload.get("effective_warning_row_count") or 0),
         "invalid_warning_row_count": int(payload.get("invalid_warning_row_count") or 0),
         "cleaning_threshold_row_count": int(payload.get("cleaning_threshold_row_count") or 0),
+        "cleaning_exclude_range_count": int(payload.get("cleaning_exclude_range_count") or 0),
         "offset_correction_row_count": int(payload.get("offset_correction_row_count") or 0),
         "group_plot_module_count": int(payload.get("group_plot_module_count") or 0),
         "checks": checks,

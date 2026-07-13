@@ -69,7 +69,14 @@ def load_installed_profile_matrix(project_root: Path) -> InstalledProfileMatrix:
             raise ProfileAuditError(f"桥梁项目自检未完全通过：{row.get('bridge_id', '')}")
 
     expected_report_capable = 0
-    asset_paths = {project_root / "config" / "bridge_profiles.json"}
+    asset_paths = {
+        project_root / "config" / "bridge_profiles.json",
+        project_root / "config" / "path_profiles.json",
+        project_root / "workbench" / "assets" / "app_icon.svg",
+        project_root / "workbench" / "assets" / "app_icon.png",
+        project_root / "workbench" / "assets" / "app_icon.ico",
+        project_root / "workbench" / "assets" / "organization_logo.png",
+    }
     for profile in profiles:
         report_capable = bool(profile.report_template and profile.report_gui_type)
         expected_report_capable += int(report_capable)

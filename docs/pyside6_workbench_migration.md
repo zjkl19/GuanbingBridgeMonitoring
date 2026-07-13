@@ -56,8 +56,9 @@ The configuration page has separate editors for explicit `defaults/per_point`
 The alarm editor validates level names and finite ordered bounds. The cleaning
 editor preserves the production schema variants used by all currently
 configured bridge configs, including scalar/array/empty threshold containers, one-sided rules,
-optional time windows, and the legacy `1000/-1000` suppression sentinel. Both
-reject a save if the source file changed after loading, automatically back up an
+optional time windows, plus explicit dated exclusion ranges with a required
+human-readable reason. Inverted thresholds are no longer exposed as an
+all-data suppression mechanism. Both reject a save if the source file changed after loading, automatically back up an
 overwritten config, preserves unrelated JSON fields, and invalidates any old
 job approval after the selected config is changed.
 
@@ -98,10 +99,10 @@ MATLAB defaults implicit when a checkbox is cleared and refuses an explicit
 sampling to line rendering. The spectrum editor manages explicit/fallback
 coverage for `accel_spectrum` and `cable_accel_spectrum`, together with default
 and per-point peak orders. Existing `fs`, `auto_detect_fs`, thresholds and
-unrelated fields remain untouched. Legacy `target_freqs`/`tolerance`/
-`theor_freqs` fields round-trip exactly until the corresponding module is
-actually edited, at which point they are deliberately normalized to the
-MATLAB-supported `peak_orders` contract.
+unrelated fields remain untouched. All active bridge configurations now use the
+MATLAB-supported `peak_orders` contract. The loader retains a hidden read-only
+compatibility path for importing external older `target_freqs`/`tolerance`/
+`theor_freqs` files, and normalizes those fields when a spectrum module is saved.
 
 Report generation now runs as a separate non-GUI child process from the
 workbench. Source and frozen runtimes share a versioned status/result JSON

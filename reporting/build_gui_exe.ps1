@@ -8,18 +8,82 @@ if (-not (Test-Path $PythonExe)) {
     throw "Python executable not found: $PythonExe"
 }
 
-& $PythonExe -m pip install pyinstaller | Out-Host
-& $PythonExe -m pip install -r reporting\requirements.txt | Out-Host
+function Invoke-NativeBuildStep {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StepName,
+        [Parameter(Mandatory = $true)]
+        [string]$Executable,
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
 
-& $PythonExe -m PyInstaller `
-  --noconfirm `
-  --clean `
-  --noconsole `
-  --icon reporting\assets\BridgeReportBuilder.ico `
-  --name BridgeReportBuilder `
-  --distpath reporting\dist `
-  --workpath reporting\build `
-  reporting\report_gui.py | Out-Host
+    & $Executable @Arguments | Out-Host
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        throw "$StepName failed with exit code $exitCode."
+    }
+}
+
+# The mutex name is derived from the absolute output paths, so any two processes
+# targeting the same reporting/dist and reporting/build trees share one lock,
+# including builds launched from different Windows sessions.
+$distPathForLock = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path "reporting\dist"))
+$buildPathForLock = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path "reporting\build"))
+$lockIdentity = ($distPathForLock + "|" + $buildPathForLock).ToUpperInvariant()
+$sha256 = [System.Security.Cryptography.SHA256]::Create()
+try {
+    $lockDigest = [System.BitConverter]::ToString(
+        $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($lockIdentity))
+    ).Replace("-", "").Substring(0, 24)
+}
+finally {
+    $sha256.Dispose()
+}
+
+$mutexName = "Global\Guanbing_BridgeReportBuilder_Build_$lockDigest"
+$buildMutex = $null
+$buildMutexAcquired = $false
+
+try {
+    $buildMutex = [System.Threading.Mutex]::new($false, $mutexName)
+    try {
+        $buildMutexAcquired = $buildMutex.WaitOne(0)
+    }
+    catch [System.Threading.AbandonedMutexException] {
+        # The owning process terminated without releasing the mutex. Windows
+        # transfers ownership to this process, so it is safe to continue.
+        $buildMutexAcquired = $true
+    }
+
+    if (-not $buildMutexAcquired) {
+        throw "Another report-builder build is already writing reporting/dist or reporting/build (mutex: $mutexName)."
+    }
+
+Invoke-NativeBuildStep `
+    -StepName "Installing PyInstaller" `
+    -Executable $PythonExe `
+    -Arguments @("-m", "pip", "install", "pyinstaller")
+
+Invoke-NativeBuildStep `
+    -StepName "Installing report-builder requirements" `
+    -Executable $PythonExe `
+    -Arguments @("-m", "pip", "install", "-r", "reporting\requirements.txt")
+
+Invoke-NativeBuildStep `
+    -StepName "Building BridgeReportBuilder with PyInstaller" `
+    -Executable $PythonExe `
+    -Arguments @(
+        "-m", "PyInstaller",
+        "--noconfirm",
+        "--clean",
+        "--noconsole",
+        "--icon", "reporting\assets\BridgeReportBuilder.ico",
+        "--name", "BridgeReportBuilder",
+        "--distpath", "reporting\dist",
+        "--workpath", "reporting\build",
+        "reporting\report_gui.py"
+    )
 
 $distRoot = "reporting\dist\BridgeReportBuilder"
 $distReports = Join-Path $distRoot "reports"
@@ -69,13 +133,6 @@ if profile_path.exists():
                 src_cfg = repo / rel_cfg
                 if src_cfg.exists() and rel_cfg not in config_files:
                     config_files.append(rel_cfg)
-        machine_config = str(profile.get("machine_config_pattern") or "").strip()
-        if machine_config and "<COMPUTERNAME>" not in machine_config:
-            rel_machine_cfg = Path(machine_config)
-            if not rel_machine_cfg.is_absolute():
-                src_machine_cfg = repo / rel_machine_cfg
-                if src_machine_cfg.exists() and rel_machine_cfg not in config_files:
-                    config_files.append(rel_machine_cfg)
         template = str(profile.get("report_template") or "").strip()
         if not template:
             continue
@@ -99,7 +156,7 @@ if asset_root.exists():
     dst_asset_root = dest_root / "reports" / "assets"
     if dst_asset_root.exists():
         shutil.rmtree(dst_asset_root)
-    shutil.copytree(asset_root, dst_asset_root)
+    shutil.copytree(asset_root, dst_asset_root, dirs_exist_ok=True)
 
 for rel in config_files:
     src = repo / rel
@@ -112,8 +169,20 @@ for rel in config_files:
 $copyReportsScriptPath = "reporting\build\copy_report_templates.py"
 Set-Content -LiteralPath $copyReportsScriptPath -Value $copyReportsScript -Encoding UTF8
 & $PythonExe $copyReportsScriptPath | Out-Host
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to copy report templates/assets into the packaged report builder."
+}
 
 Copy-Item -Force reporting\README.md reporting\dist\BridgeReportBuilder\README.md
 Copy-Item -Force reporting\REPORTING_LOGIC.md reporting\dist\BridgeReportBuilder\REPORTING_LOGIC.md
 
 Write-Host "GUI exe built at reporting\dist\BridgeReportBuilder\BridgeReportBuilder.exe"
+}
+finally {
+    if ($buildMutexAcquired -and $null -ne $buildMutex) {
+        $buildMutex.ReleaseMutex()
+    }
+    if ($null -ne $buildMutex) {
+        $buildMutex.Dispose()
+    }
+}

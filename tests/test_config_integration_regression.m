@@ -48,6 +48,58 @@ classdef test_config_integration_regression < matlab.unittest.TestCase
             tc.verifyEqual(cfg.plot_common.gap_mode, 'connect');
             tc.verifyTrue(isfield(cfg.groups, 'cable_accel'));
             tc.verifyFalse(bms.analyzer.StructuralPlotConfigService.hasGroups(cfg.groups.cable_accel));
+
+            accelRules = bms.data.CleaningPipeline.resolveRules( ...
+                cfg, 'acceleration', 'A1');
+            tc.verifyEqual(accelRules.thresholds.min, -0.5);
+            tc.verifyEqual(accelRules.thresholds.max, 0.5);
+
+            requested = struct('CS1', 1, 'CS6', 6, 'CS8', 2.6, ...
+                'CS9', 1, 'CS11', 1, 'CS12', 2);
+            names = fieldnames(requested);
+            for i = 1:numel(names)
+                rules = bms.data.CleaningPipeline.resolveRules( ...
+                    cfg, 'cable_accel', names{i});
+                tc.verifyEqual(rules.thresholds.min, -requested.(names{i}));
+                tc.verifyEqual(rules.thresholds.max, requested.(names{i}));
+            end
+
+            cx6Rules = bms.data.CleaningPipeline.resolveRules( ...
+                cfg, 'cable_accel', 'CX6');
+            tc.verifyEqual(cx6Rules.thresholds.min, -3);
+            tc.verifyEqual(cx6Rules.thresholds.max, 3);
+            tc.verifyNumElements(cx6Rules.exclude_ranges, 1);
+            tc.verifyEqual(cx6Rules.exclude_ranges.start_time, '2025-12-15 00:00:00');
+            tc.verifyEqual(cx6Rules.exclude_ranges.end_time, '2025-12-31 23:59:59');
+
+            style = bms.analyzer.DynamicAccelerationPipeline.plotStyle( ...
+                cfg, bms.analyzer.DynamicAccelerationPipeline.spec('cable_accel'));
+            tc.verifyTrue(style.ylim_auto);
+            tc.verifyTrue(style.rms_ylim_auto);
+            tc.verifyEmpty(style.ylim);
+            tc.verifyEmpty(style.ylims);
+            tc.verifyEmpty(style.rms_ylim);
+            tc.verifyEmpty(style.rms_ylims);
+        end
+
+        function hongtangAccelerationSpectrumStartsAboveTheory(tc)
+            rootDir = project_root();
+            cfg = load_config(fullfile(rootDir, 'config', 'hongtang_config.json'));
+            spec = bms.analyzer.SpectrumAnalysisPipeline.spec('accel_spectrum');
+            pointIds = bms.analyzer.SpectrumConfigService.resolvePoints(cfg, spec);
+            for i = 1:numel(pointIds)
+                [~, ~, theorFreqs, ~, ~] = ...
+                    bms.analyzer.SpectrumConfigService.pointParams( ...
+                        cfg, pointIds{i}, spec, [], [], [], {});
+                pt = bms.analyzer.SpectrumConfigService.pointConfig( ...
+                    cfg, spec.perPointKey, pointIds{i});
+                orders = pt.peak_orders;
+                for j = 1:numel(orders)
+                    tc.verifyGreaterThanOrEqual(orders(j).search_min_hz, ...
+                        theorFreqs(j) + 0.05 - 1e-12);
+                    tc.verifyLessThan(orders(j).search_min_hz, orders(j).search_max_hz);
+                end
+            end
         end
     end
 end

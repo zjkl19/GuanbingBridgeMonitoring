@@ -38,5 +38,26 @@ classdef test_artifact_manifest_v2 < matlab.unittest.TestCase
             tc.verifyEqual(manifest.artifact_count, 1);
             tc.verifyEqual(manifest.module_status_counts.ok, 1);
         end
+
+        function collectorFindsCableForceSingleAndGroupFigures(tc)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() rmdir(root, 's'));
+            singleDir = fullfile(root, '索力时程图');
+            groupDir = fullfile(root, '索力时程图_组图');
+            mkdir(singleDir);
+            mkdir(groupDir);
+            singlePath = fullfile(singleDir, 'CableForce_CS4_20260401_20260630.jpg');
+            groupPath = fullfile(groupDir, 'CableForce_CS4-CX4_20260401_20260630.jpg');
+            fid = fopen(singlePath, 'w'); fwrite(fid, 'single'); fclose(fid);
+            fid = fopen(groupPath, 'w'); fwrite(fid, 'group'); fclose(fid);
+
+            artifacts = bms.data.ArtifactCollector.collectModule( ...
+                root, 'cable_accel_spectrum', '', datetime('now') - minutes(1), struct());
+            paths = cellfun(@(s) string(s.path), artifacts, 'UniformOutput', true);
+            tc.verifyTrue(any(paths == string(singlePath)));
+            tc.verifyTrue(any(paths == string(groupPath)));
+            clear cleanup;
+        end
     end
 end

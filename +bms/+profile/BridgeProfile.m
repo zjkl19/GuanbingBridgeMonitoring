@@ -5,7 +5,6 @@ classdef BridgeProfile
         BridgeId char = ''
         BridgeName char = ''
         DefaultConfig char = ''
-        MachineConfigPattern char = ''
         DefaultDataRoot char = ''
         DefaultReportTemplate char = ''
         DataLayout char = ''
@@ -35,7 +34,6 @@ classdef BridgeProfile
             s.bridge_id = obj.BridgeId;
             s.bridge_name = obj.BridgeName;
             s.default_config = obj.DefaultConfig;
-            s.machine_config_pattern = obj.MachineConfigPattern;
             s.default_data_root = obj.DefaultDataRoot;
             s.default_report_template = obj.DefaultReportTemplate;
             s.data_layout = obj.DataLayout;
@@ -80,16 +78,8 @@ classdef BridgeProfile
             obj = bms.profile.BridgeProfile();
             obj.BridgeId = bms.profile.BridgeProfile.fieldText(s, 'bridge_id', '');
             obj.BridgeName = bms.profile.BridgeProfile.fieldText(s, 'bridge_name', obj.BridgeId);
-            obj.MachineConfigPattern = bms.profile.BridgeProfile.resolvePath( ...
-                bms.profile.BridgeProfile.fieldText(s, 'machine_config_pattern', ''), projectRoot);
-
-            defaultConfig = bms.profile.BridgeProfile.resolvePath( ...
+            obj.DefaultConfig = bms.profile.BridgeProfile.resolvePath( ...
                 bms.profile.BridgeProfile.fieldText(s, 'default_config', ''), projectRoot);
-            if ~isempty(obj.MachineConfigPattern) && isfile(obj.MachineConfigPattern)
-                obj.DefaultConfig = obj.MachineConfigPattern;
-            else
-                obj.DefaultConfig = defaultConfig;
-            end
 
             defaultDataRoot = bms.profile.BridgeProfile.normalizePathText( ...
                 bms.profile.BridgeProfile.fieldText(s, 'default_data_root', ''));

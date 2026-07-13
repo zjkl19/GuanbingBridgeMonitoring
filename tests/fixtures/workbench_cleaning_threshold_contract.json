@@ -26,9 +26,16 @@
     "deflection": {
       "PT_1": {
         "thresholds": {
-          "min": 1000,
-          "max": -1000
+          "min": -10,
+          "max": 10
         },
+        "exclude_ranges": [
+          {
+            "start_time": "2026-01-10 00:00:00",
+            "end_time": "2026-01-10 23:59:59",
+            "reason": "测试夹具中的明确整段排除规则"
+          }
+        ],
         "zero_to_nan": false,
         "offset_correction": 12,
         "alarm_bounds": {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sys
 import tempfile
 import unittest
@@ -19,10 +20,124 @@ from reporting.analysis_manifest import (
     manifest_missing_modules,
     manifest_precheck_warnings,
     missing_module_summary_items,
+    pinned_analysis_manifest_scope,
+    pinned_derived_artifact_manifest_scope,
 )
 
 
 class AnalysisManifestTests(unittest.TestCase):
+    def test_strict_scope_rejects_manifest_outside_allowed_result_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "result"
+            root.mkdir()
+            outside = base / "analysis.json"
+            outside.write_text('{"status":"ok"}', encoding="utf-8")
+            outside_hash = hashlib.sha256(outside.read_bytes()).hexdigest().upper()
+
+            with self.assertRaisesRegex(ValueError, "outside result_root"):
+                with pinned_analysis_manifest_scope(
+                    outside,
+                    outside_hash,
+                    require_source_provenance=True,
+                    result_root=root,
+                ):
+                    pass
+
+    def test_derived_manifest_requires_path_and_hash_as_a_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            analysis = root / "analysis.json"
+            analysis.write_text('{"status":"ok"}', encoding="utf-8")
+            analysis_hash = hashlib.sha256(analysis.read_bytes()).hexdigest().upper()
+
+            with pinned_analysis_manifest_scope(
+                analysis,
+                analysis_hash,
+                require_source_provenance=True,
+                result_root=root,
+            ):
+                with self.assertRaisesRegex(ValueError, "provided together"):
+                    with pinned_derived_artifact_manifest_scope(
+                        None, "A" * 64, require_source_provenance=True
+                    ):
+                        pass
+
+    def test_derived_artifact_scope_verifies_parent_and_each_file_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            analysis = root / "analysis.json"
+            artifact = root / "derived" / "CableForce_CS4.jpg"
+            artifact.parent.mkdir()
+            analysis.write_text(json.dumps({"status": "ok"}), encoding="utf-8")
+            artifact.write_bytes(b"derived")
+            analysis_hash = hashlib.sha256(analysis.read_bytes()).hexdigest().upper()
+            artifact_hash = hashlib.sha256(artifact.read_bytes()).hexdigest().upper()
+            sidecar = root / "derived_manifest.json"
+            sidecar.write_text(json.dumps({
+                "schema_version": 1,
+                "manifest_type": "derived_artifact_manifest",
+                "result_root": str(root),
+                "analysis_manifest": {"path": str(analysis), "sha256": analysis_hash},
+                "artifacts": [{
+                    "kind": "figure",
+                    "role": "cable_force",
+                    "path": str(artifact),
+                    "bytes": artifact.stat().st_size,
+                    "sha256": artifact_hash,
+                }],
+            }), encoding="utf-8")
+            sidecar_hash = hashlib.sha256(sidecar.read_bytes()).hexdigest().upper()
+
+            with pinned_analysis_manifest_scope(
+                analysis, analysis_hash, require_source_provenance=True, result_root=root
+            ):
+                with pinned_derived_artifact_manifest_scope(
+                    sidecar, sidecar_hash, require_source_provenance=True
+                ):
+                    context = analysis_manifest_context(root)
+                    self.assertTrue(context["derived_artifact_manifest"]["available"])
+                    self.assertEqual(context["derived_artifact_manifest"]["artifact_count"], 1)
+
+                artifact.write_bytes(b"tampered")
+                with self.assertRaisesRegex(ValueError, "artifact SHA-256 mismatch"):
+                    with pinned_derived_artifact_manifest_scope(
+                        sidecar, sidecar_hash, require_source_provenance=True
+                    ):
+                        pass
+
+    def test_strict_scope_uses_exact_manifest_and_rejects_hash_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_logs = root / "run_logs"
+            run_logs.mkdir()
+            pinned = run_logs / "analysis_manifest_1.json"
+            latest = run_logs / "analysis_manifest_2.json"
+            pinned.write_text(json.dumps({"status": "ok", "marker": "pinned"}), encoding="utf-8")
+            latest.write_text(json.dumps({"status": "ok", "marker": "latest"}), encoding="utf-8")
+            expected_hash = hashlib.sha256(pinned.read_bytes()).hexdigest().upper()
+
+            with pinned_analysis_manifest_scope(
+                pinned,
+                expected_hash,
+                require_source_provenance=True,
+                result_root=root,
+            ):
+                context = analysis_manifest_context(root)
+                self.assertEqual(context["path"], str(pinned.resolve()))
+                self.assertEqual(context["manifest"]["marker"], "pinned")
+                self.assertTrue(context["strict_source_provenance"])
+                self.assertEqual(context["sha256"], expected_hash)
+
+            with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
+                with pinned_analysis_manifest_scope(
+                    pinned,
+                    "0" * 64,
+                    require_source_provenance=True,
+                    result_root=root,
+                ):
+                    pass
+
     def test_latest_manifest_and_missing_modules(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

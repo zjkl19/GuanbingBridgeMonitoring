@@ -64,7 +64,7 @@ def _profile_defaults() -> dict:
     path = REPO_ROOT / "config" / "bridge_profiles.json"
     if not path.exists():
         return {}
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(path.read_text(encoding="utf-8-sig"))
     for row in data.get("profiles", []):
         if row.get("bridge_id") == "zhishan":
             return row
@@ -255,7 +255,7 @@ def _format_frequency_values(values: list[float], fallback: float) -> tuple[str,
 
 def load_accel_frequency_note(config_path: Path) -> str:
     try:
-        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config = json.loads(config_path.read_text(encoding="utf-8-sig"))
     except Exception:
         config = {}
     params = config.get("accel_spectrum_params", {}) if isinstance(config, dict) else {}

@@ -12,7 +12,6 @@ class BridgeProfile:
     bridge_id: str
     bridge_name: str
     default_config: str = ""
-    machine_config_pattern: str = ""
     default_data_root: str = ""
     data_layout: str = ""
     report_type: str = ""
@@ -32,7 +31,6 @@ class BridgeProfile:
             bridge_id=str(raw.get("bridge_id", "")),
             bridge_name=str(raw.get("bridge_name", raw.get("bridge_id", ""))),
             default_config=str(raw.get("default_config", "")),
-            machine_config_pattern=str(raw.get("machine_config_pattern", "")),
             default_data_root=str(raw.get("default_data_root", "")),
             data_layout=str(raw.get("data_layout", "")),
             report_type=str(raw.get("report_type", "")),
@@ -55,10 +53,6 @@ class BridgeProfile:
         return path.resolve()
 
     def config_path(self, root: Path) -> Path:
-        if self.machine_config_pattern:
-            machine_path = self.resolve_path(self.machine_config_pattern, root)
-            if machine_path.exists():
-                return machine_path
         return self.resolve_path(self.default_config, root)
 
     def template_path(self, root: Path) -> Path:
@@ -76,7 +70,7 @@ class BridgeProfile:
 def load_profiles(project_root: Path) -> list[BridgeProfile]:
     profile_path = project_root / "config" / "bridge_profiles.json"
     if profile_path.exists():
-        data = json.loads(profile_path.read_text(encoding="utf-8"))
+        data = json.loads(profile_path.read_text(encoding="utf-8-sig"))
         return [BridgeProfile.from_mapping(item) for item in data.get("profiles", [])]
     return fallback_profiles()
 
@@ -96,7 +90,6 @@ def fallback_profiles() -> list[BridgeProfile]:
             bridge_id="hongtang",
             bridge_name="洪塘大桥",
             default_config="config/hongtang_config.json",
-            machine_config_pattern="config/hongtang_config_<COMPUTERNAME>.json",
             default_data_root=r"E:\洪塘大桥数据\2026年4-6月",
             data_layout="hongtang_period",
             report_gui_type="hongtang_period_wim",

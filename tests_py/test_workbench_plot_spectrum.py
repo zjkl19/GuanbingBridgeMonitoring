@@ -43,6 +43,9 @@ CONFIGS = (
     "chongyangxi_config.json",
     "zhishan_config.json",
 )
+ACTIVE_SPECTRUM_CONFIGS = tuple(ROOT / "config" / name for name in CONFIGS) + (
+    ROOT / "config" / "shuixianhua_layers" / "base.json",
+)
 FIXTURE = ROOT / "tests" / "fixtures" / "workbench_plot_spectrum_contract.json"
 
 
@@ -110,16 +113,16 @@ class WorkbenchSpectrumConfigTests(unittest.TestCase):
             if row.scope == "point"
         }
         expected = {
-            ("A1", 1): (0.748, 1.048),
-            ("A1", 2): (1.310, 1.610),
+            ("A1", 1): (0.783, 1.048),
+            ("A1", 2): (1.428, 1.610),
             ("A1", 3): (2.587, 2.887),
             ("A5", 3): (2.384, 2.684),
             ("A9-X", 3): (2.416, 2.716),
             ("A9-Y", 3): (2.394, 2.694),
-            ("A10-X", 1): (0.722, 1.022),
+            ("A10-X", 1): (0.783, 1.022),
             ("A10-X", 3): (2.587, 2.887),
-            ("A10-Y", 1): (0.748, 1.048),
-            ("A10-Y", 2): (1.386, 1.686),
+            ("A10-Y", 1): (0.783, 1.048),
+            ("A10-Y", 2): (1.428, 1.686),
             ("A10-Y", 3): (2.296, 2.596),
         }
         for key, bounds in expected.items():
@@ -127,10 +130,49 @@ class WorkbenchSpectrumConfigTests(unittest.TestCase):
                 self.assertAlmostEqual(point_rows[key][0], bounds[0], places=6)
                 self.assertAlmostEqual(point_rows[key][1], bounds[1], places=6)
 
+        for row in rows:
+            if row.scope == "point":
+                self.assertGreaterEqual(
+                    row.search_min_hz,
+                    (row.theoretical_hz or float("-inf")) + 0.05 - 1e-12,
+                )
+                self.assertLess(row.search_min_hz, row.search_max_hz)
+
+    def test_active_configs_use_only_canonical_peak_orders(self) -> None:
+        legacy_fields = {
+            "target_freqs",
+            "tolerance",
+            "theor_freqs",
+            "theor_labels",
+            "peak_labels",
+            "tolerance_hz",
+        }
+        for path in ACTIVE_SPECTRUM_CONFIGS:
+            with self.subTest(name=str(path.relative_to(ROOT))):
+                session = SpectrumConfigSession(path)
+                payload = session.payload
+                blocks = [
+                    payload.get("accel_spectrum_params", {}),
+                    payload.get("cable_accel_spectrum_params", {}),
+                ]
+                per_point = payload.get("per_point", {})
+                blocks.extend((per_point.get("accel_spectrum", {}) or {}).values())
+                blocks.extend((per_point.get("cable_accel", {}) or {}).values())
+                for block in blocks:
+                    if isinstance(block, dict):
+                        self.assertTrue(legacy_fields.isdisjoint(block))
+                for module in SPECTRUM_MODULES:
+                    self.assertTrue(
+                        all(
+                            "legacy" not in row.source.casefold()
+                            for row in session.orders(module)
+                        )
+                    )
+
     def test_all_bridge_spectrum_configs_noop_round_trip(self) -> None:
-        for name in CONFIGS:
-            with self.subTest(name=name):
-                session = SpectrumConfigSession(ROOT / "config" / name)
+        for path in ACTIVE_SPECTRUM_CONFIGS:
+            with self.subTest(name=str(path.relative_to(ROOT))):
+                session = SpectrumConfigSession(path)
                 coverages = {
                     module: session.coverage(module) for module in SPECTRUM_MODULES
                 }
@@ -147,7 +189,7 @@ class WorkbenchSpectrumConfigTests(unittest.TestCase):
         self.assertEqual(coverage.points, ("A-1", "A-2"))
         self.assertEqual(len(rows), 3)
         a1 = next(row for row in rows if row.point_id == "A-1")
-        self.assertEqual(a1.source, "per_point_legacy")
+        self.assertEqual(a1.source, "兼容配置")
         self.assertAlmostEqual(a1.search_min_hz, 0.62)
         self.assertAlmostEqual(a1.search_max_hz, 0.68)
 
@@ -234,7 +276,7 @@ class WorkbenchPlotSpectrumGuiTests(unittest.TestCase):
         ]
         self.assertEqual(len(matching_rows), 1)
         row = matching_rows[0]
-        self.assertEqual(widget.order_table.item(row, 6).text(), "1.386")
+        self.assertEqual(widget.order_table.item(row, 6).text(), "1.428")
         self.assertEqual(widget.order_table.item(row, 7).text(), "1.686")
 
     def test_invalid_order_blocks_module_switch_without_losing_draft(self) -> None:

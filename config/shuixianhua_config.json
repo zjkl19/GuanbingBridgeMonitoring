@@ -2411,16 +2411,6 @@
   "wim_db": {},
   "wim_plot": {},
   "accel_spectrum_params": {
-    "target_freqs": [
-      1.2
-    ],
-    "tolerance": 0.1,
-    "theor_freqs": [
-      1.05
-    ],
-    "theor_labels": [
-      "理论一阶自振频率 1.05Hz"
-    ],
     "peak_orders": [
       {
         "order": 1,
@@ -2434,14 +2424,28 @@
     "auto_detect_fs": true
   },
   "cable_accel_spectrum_params": {
-    "target_freqs": [
-      1,
-      2,
-      3
-    ],
-    "tolerance": 0.15,
     "fs": 20,
-    "auto_detect_fs": true
+    "auto_detect_fs": true,
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "search_min_hz": 0.85,
+        "search_max_hz": 1.15
+      },
+      {
+        "order": 2,
+        "label": "二阶",
+        "search_min_hz": 1.85,
+        "search_max_hz": 2.15
+      },
+      {
+        "order": 3,
+        "label": "三阶",
+        "search_min_hz": 2.85,
+        "search_max_hz": 3.15
+      }
+    ]
   },
   "data_adapter": {
     "vendor": "shuixianhua",

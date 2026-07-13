@@ -53,8 +53,9 @@ def _matrix_payload(profile_ids: tuple[str, ...] = PROFILE_IDS) -> dict[str, obj
                 "checks": {"identity": True, "assets": True},
             }
         )
-    # Catalog + one config per bridge + one template per report-capable bridge.
-    asset_count = 1 + len(profile_ids) + report_capable_count
+    # Catalog + path groups + four branding assets + one config per bridge +
+    # one template per report-capable bridge.
+    asset_count = 6 + len(profile_ids) + report_capable_count
     return {
         "schema_version": 1,
         "status": "passed",
@@ -75,6 +76,11 @@ def _write_catalog(root: Path, profile_ids: tuple[str, ...] = PROFILE_IDS) -> No
     (config / "bridge_profiles.json").write_text(
         json.dumps(_catalog_payload(profile_ids)), encoding="utf-8"
     )
+    (config / "path_profiles.json").write_text('{"profiles": []}', encoding="utf-8")
+    assets = root / "workbench" / "assets"
+    assets.mkdir(parents=True)
+    for name in ("app_icon.svg", "app_icon.png", "app_icon.ico", "organization_logo.png"):
+        (assets / name).write_bytes(name.encode("ascii"))
 
 
 class WorkbenchProfileAuditTests(unittest.TestCase):
@@ -98,7 +104,7 @@ class WorkbenchProfileAuditTests(unittest.TestCase):
             matrix = load_installed_profile_matrix(root)
             self.assertEqual(matrix.profile_count, len(PROFILE_IDS))
             self.assertEqual(matrix.report_capable_count, len(PROFILE_IDS) - 1)
-            self.assertEqual(matrix.asset_count, 2 * len(PROFILE_IDS))
+            self.assertEqual(matrix.asset_count, 2 * len(PROFILE_IDS) + 5)
 
             payload = _matrix_payload()
             payload["elapsed_seconds"] = 3.0

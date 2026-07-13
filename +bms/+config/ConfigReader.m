@@ -142,6 +142,7 @@ classdef ConfigReader
                 if isfield(rms, 'title_prefix'), style.rms_title_prefix = rms.title_prefix; end
                 if isfield(rms, 'ylim'), style.rms_ylim = rms.ylim; end
                 if isfield(rms, 'ylims'), style.rms_ylims = rms.ylims; end
+                if isfield(rms, 'ylim_auto'), style.rms_ylim_auto = rms.ylim_auto; end
                 if isfield(rms, 'color'), style.color_rms = rms.color; end
             end
         end

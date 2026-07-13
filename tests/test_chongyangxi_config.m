@@ -126,10 +126,11 @@ classdef test_chongyangxi_config < matlab.unittest.TestCase
                 bms.analyzer.StructuralFilteredSeriesPipeline.tiltGroupOutputDir( ...
                 cfg.plot_styles.tilt, tiltSpec), '时程曲线_墩身倾角_组图');
 
-            tc.verifyEqual(cfg.accel_spectrum_params.target_freqs(:).', 3.2);
-            tc.verifyEqual(cfg.accel_spectrum_params.theor_freqs(:).', 2.83);
-            tc.verifyEqual(cfg.accel_spectrum_params.theor_labels{1}, '理论竖向一阶自振频率 2.83Hz');
-            tc.verifyEqual(cfg.accel_spectrum_params.tolerance, 0.15);
+            order = cfg.accel_spectrum_params.peak_orders;
+            tc.verifyEqual(order.search_min_hz, 3.05);
+            tc.verifyEqual(order.search_max_hz, 3.35);
+            tc.verifyEqual(order.theoretical_hz, 2.83);
+            tc.verifyEqual(order.theor_label, '理论竖向一阶自振频率 2.83Hz');
             tc.verifyEqual(cfg.plot_styles.acceleration.group_output_dir, '时程曲线_加速度_组图');
             tc.verifyTrue(contains(cfg.plot_styles.acceleration.ylabel, 'mm/s^2'));
             tc.verifyTrue(contains(cfg.plot_styles.acceleration.rms_ylabel, 'mm/s^2'));

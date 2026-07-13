@@ -159,7 +159,8 @@ classdef EarthquakeAnalysisPipeline
                 if rec.has_data
                     bms.analyzer.EarthquakeAnalysisPipeline.plotTimeseries( ...
                         rec.times, rec.vals, rec.pid, rec.comp, rec.params, style, outRoot, ...
-                        startDate, endDate, cfg, rec.peak, rec.peak_signed, rec.peak_time);
+                        startDate, endDate, cfg, rec.peak, rec.peak_signed, rec.peak_time, ...
+                        rec.source_provenance);
                 else
                     warning('Earthquake point %s has no data; skipped.', char(string(pointId)));
                 end
@@ -190,7 +191,7 @@ classdef EarthquakeAnalysisPipeline
                 end
                 bms.analyzer.EarthquakeAnalysisPipeline.plotTimeseries( ...
                     rec.times, rec.vals, rec.pid, rec.comp, rec.params, style, outRoot, startDate, endDate, cfg, ...
-                    rec.peak, rec.peak_signed, rec.peak_time);
+                    rec.peak, rec.peak_signed, rec.peak_time, rec.source_provenance);
             end
         end
 
@@ -260,7 +261,7 @@ classdef EarthquakeAnalysisPipeline
             end
         end
 
-        function plotTimeseries(times, vals, pointId, component, params, style, outRoot, startDate, endDate, cfg, peakAbs, peakSigned, peakTime)
+        function plotTimeseries(times, vals, pointId, component, params, style, outRoot, startDate, endDate, cfg, peakAbs, peakSigned, peakTime, sourceProvenance)
             if nargin < 10
                 cfg = struct();
             end
@@ -273,9 +274,16 @@ classdef EarthquakeAnalysisPipeline
             if nargin < 13
                 peakTime = NaT;
             end
+            if nargin < 14
+                sourceProvenance = struct();
+            end
 
             fig = figure('Position', [100 100 1100 500]);
             plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
+            plotOpts.series_id = pointId;
+            if isstruct(sourceProvenance) && ~isempty(fieldnames(sourceProvenance))
+                plotOpts.source_provenance = sourceProvenance;
+            end
             lineWidth = bms.analyzer.DynamicSeriesService.rawPlotLineWidth(cfg, 1.1);
             bms.analyzer.DynamicSeriesService.plotRawSeries( ...
                 gca, times, vals, style.main_color, plotOpts, lineWidth);

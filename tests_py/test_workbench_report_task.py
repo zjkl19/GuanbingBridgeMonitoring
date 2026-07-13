@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "reporting"))
 from tests_py.locked_docx_media_test_utils import create_minimal_docx
 from report_job import REPORT_TYPE_NAMES, ReportJobRequest, build_qc, execute_report_job
 from report_job_cli import request_from_context
+from analysis_manifest import active_pinned_analysis_manifest
 from workbench.models import JobContext, file_sha256
 from workbench.profiles import load_profiles
 from workbench.report_task import read_report_status, report_job_command
@@ -101,11 +102,23 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             context.analysis.state = "completed"
             context.analysis.manifest_path = str(manifest)
             context.analysis.manifest_sha256 = file_sha256(manifest)
+            derived_manifest = root / "derived_artifacts.json"
+            derived_manifest.write_text("{}", encoding="utf-8")
+            context.report.derived_artifact_manifest_path = str(derived_manifest)
+            context.report.derived_artifact_manifest_sha256 = file_sha256(derived_manifest)
             context.report.plots_approved = True
             path = context.write(root / "job_context.json")
             request = request_from_context(path)
             self.assertEqual(request.report_type, "guanbing_monthly")
             self.assertEqual(request.template, template.resolve())
+            self.assertEqual(request.analysis_manifest_path, manifest.resolve())
+            self.assertEqual(request.analysis_manifest_sha256, file_sha256(manifest))
+            self.assertEqual(request.derived_artifact_manifest_path, derived_manifest.resolve())
+            self.assertEqual(
+                request.derived_artifact_manifest_sha256,
+                file_sha256(derived_manifest),
+            )
+            self.assertTrue(request.require_source_provenance)
             context.report.plots_approved = False
             context.write(path)
             with self.assertRaisesRegex(RuntimeError, "图件尚未审核"):
@@ -184,6 +197,100 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             self.assertEqual(result.qc["status"], "passed")
             self.assertEqual(stages, ["preflight", "building", "rendering", "qc", "completed"])
             self.assertEqual(result.qc["docx"]["media_count"], 1)
+
+    def test_execute_job_binds_exact_manifest_for_strict_builder_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            template = create_minimal_docx(root / "template.docx")
+            config = root / "config.json"
+            config.write_text("{}", encoding="utf-8")
+            output = root / "output"
+            output.mkdir()
+            report = create_minimal_docx(output / "report.docx", color="blue")
+            report_manifest = output / "report_build_manifest_1.json"
+            report_manifest.write_text(
+                json.dumps({"status": "ok", "missing_count": 0, "warnings": []}),
+                encoding="utf-8",
+            )
+            analysis_manifest = root / "analysis_manifest.json"
+            analysis_manifest.write_text(json.dumps({"status": "ok"}), encoding="utf-8")
+            analysis_hash = file_sha256(analysis_manifest)
+            request = ReportJobRequest(
+                "guanbing_monthly", template, config, root, ROOT, output,
+                "2026年4月", "2026年4月1日至2026年4月30日", "2026年5月1日",
+                "2026-04-01", "2026-04-30",
+                analysis_manifest_path=analysis_manifest,
+                analysis_manifest_sha256=analysis_hash,
+                require_source_provenance=True,
+            )
+            observed: dict[str, str] = {}
+
+            def strict_builder(**_kwargs):
+                binding = active_pinned_analysis_manifest()
+                self.assertIsNotNone(binding)
+                observed["path"] = str(binding.path)
+                observed["sha256"] = binding.sha256
+                return report, report_manifest
+
+            visual = {"status": "passed", "page_count": 1, "pages": [], "contact_sheet": "contact.png"}
+            with patch("report_job.build_guanbing_monthly_report", side_effect=strict_builder), patch(
+                "report_job.render_docx_visual_qc", return_value=visual
+            ):
+                execute_report_job(request)
+
+            self.assertEqual(observed["path"], str(analysis_manifest.resolve()))
+            self.assertEqual(observed["sha256"], analysis_hash)
+            self.assertIsNone(active_pinned_analysis_manifest())
+
+    def test_strict_qc_rejects_warning_manifest_with_missing_items(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            report = create_minimal_docx(root / "report.docx")
+            manifest = root / "report_manifest.json"
+            manifest.write_text(json.dumps({
+                "status": "warning",
+                "missing_count": 1,
+                "missing_items": [{"label": "missing formal plot"}],
+                "warnings": ["filesystem fallback attempted"],
+            }), encoding="utf-8")
+            visual = {"status": "passed", "page_count": 1, "pages": []}
+
+            qc = build_qc(
+                report,
+                manifest,
+                None,
+                visual,
+                require_source_provenance=True,
+            )
+
+            self.assertEqual(qc["status"], "failed")
+
+    def test_strict_job_rejects_missing_real_report_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            template = create_minimal_docx(root / "template.docx")
+            config = root / "config.json"
+            config.write_text("{}", encoding="utf-8")
+            output = root / "output"
+            output.mkdir()
+            report = create_minimal_docx(output / "report.docx")
+            analysis = root / "analysis.json"
+            analysis.write_text('{"status":"ok"}', encoding="utf-8")
+            request = ReportJobRequest(
+                "guanbing_monthly", template, config, root, ROOT, output,
+                "2026-04", "2026-04-01 to 2026-04-30", "2026-05-01",
+                "2026-04-01", "2026-04-30",
+                analysis_manifest_path=analysis,
+                analysis_manifest_sha256=file_sha256(analysis),
+                require_source_provenance=True,
+            )
+            visual = {"status": "passed", "page_count": 1, "pages": []}
+
+            with patch(
+                "report_job.build_guanbing_monthly_report", return_value=(report, None)
+            ), patch("report_job.render_docx_visual_qc", return_value=visual):
+                with self.assertRaisesRegex(FileNotFoundError, "real report build manifest"):
+                    execute_report_job(request)
 
     def test_qc_rejects_non_docx_and_status_reader_merges_result(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

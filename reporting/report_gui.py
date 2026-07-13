@@ -145,12 +145,7 @@ def detect_default_config(report_type: str = PERIOD_REPORT) -> Path:
                 return zhishan_cfg.resolve()
         return (app_root() / "config" / "zhishan_config.json").resolve()
 
-    computer_name = os.environ.get("COMPUTERNAME", "").strip()
     for config_dir in candidate_config_roots():
-        if computer_name:
-            machine_cfg = config_dir / f"hongtang_config_{computer_name}.json"
-            if machine_cfg.exists():
-                return machine_cfg.resolve()
         default_cfg = config_dir / "hongtang_config.json"
         if default_cfg.exists():
             return default_cfg.resolve()
@@ -482,7 +477,7 @@ class ReportGui(QMainWindow):
             ("桥梁项目", self.profile_combo, None, self._profile_description(self.current_profile)),
             ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, report_type_description(initial_report_type)),
             ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6d2a\u5858\u6708\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u6d2a\u5858\u5468\u671f\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\uff1b\u4e5d\u9f99\u6c5f\u6708\u62a5\uff1a\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx\uff1b管柄月报：G104线管柄大桥监测月报模板-自动报告.docx；水仙花月报：水仙花大桥健康监测月报模板.docx。"),
-            ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "\u6d2a\u5858\u4f18\u5148\u8bfb\u53d6\u673a\u5668\u4e13\u7528\u914d\u7f6e hongtang_config_<COMPUTERNAME>.json\uff1b\u4e5d\u9f99\u6c5f\u9ed8\u8ba4\u4f7f\u7528 jiulongjiang_config.json；管柄默认使用 default_config.json。"),
+            ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "每座桥只使用一份业务配置；不同电脑的数据盘符由工作台的存储位置方案切换，不再复制主机专用业务配置。"),
             ("\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55", self.result_root_edit, self._browse_result_root, "\u8fd9\u91cc\u5e94\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\u5bf9\u5468\u671f\u62a5\uff0c\u8fd9\u4e2a\u76ee\u5f55\u6700\u597d\u540c\u65f6\u5305\u542b raw \u539f\u59cb\u6570\u636e\uff0c\u5426\u5219 1.4 \u7ae0\u8282\u4f1a\u5c06\u7f3a\u5c11\u539f\u59cb\u6570\u636e\u89c6\u4e3a\u7f3a\u5931\u3002"),
             ("\u7a0b\u5e8f\u6839\u76ee\u5f55\uff08\u9ad8\u7ea7\uff09", self.analysis_root_edit, self._browse_analysis_root, "\u517c\u5bb9\u65e7\u8def\u5f84\u548c\u5c11\u91cf\u56de\u9000\u67e5\u627e\uff0c\u901a\u5e38\u4fdd\u6301\u7a0b\u5e8f\u6240\u5728\u76ee\u5f55\u5373\u53ef\u3002"),
             ("WIM\u7ed3\u679c\u76ee\u5f55", self.wim_root_edit, self._browse_wim_root, "\u5468\u671f\u62a5\u4f7f\u7528\uff0c\u9ed8\u8ba4\u662f <\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55>/WIM/results/hongtang\u3002WIM \u4ecd\u6309\u6708\u63d2\u5165\uff0c\u4e0d\u662f\u628a 1~3 \u4e2a\u6708\u76f4\u63a5\u5408\u6210\u4e00\u5f20\u8868\u3002"),
@@ -634,9 +629,6 @@ class ReportGui(QMainWindow):
             "shuixianhua_config.json",
             "zhishan_config.json",
         }
-        computer_name = os.environ.get("COMPUTERNAME", "").strip()
-        if computer_name:
-            names.add(f"hongtang_config_{computer_name}.json")
         should_replace = (not current) or (Path(current).name in names) or (not Path(current).exists())
         if should_replace:
             self.config_edit.setText(str(detect_default_config(self.report_type_combo.currentText())))
