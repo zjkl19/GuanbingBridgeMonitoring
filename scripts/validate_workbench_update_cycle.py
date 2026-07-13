@@ -44,6 +44,8 @@ def _write_legacy_install(path: Path) -> dict[str, str]:
         '{"owner":"site-operator","preserve":true}\n', encoding="utf-8"
     )
     (path / "operator_notes.txt").write_text("preserve unmanaged operator note\n", encoding="utf-8")
+    (path / "workbench_warning_overview.png").write_bytes(b"stale-warning-overview")
+    (path / "workbench_task_history.png").write_bytes(b"stale-task-history")
     (path / "release_manifest.json").write_text('{"schema_version":1}\n', encoding="utf-8")
     return _tree_fingerprint(path)
 
@@ -121,6 +123,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     unmanaged_preserved = (install / "operator_notes.txt").is_file()
     stale_runtime_removed = not (install / "_internal" / "obsolete.dll").exists()
+    managed_evidence_replaced = all(
+        file_sha256(install / name) == file_sha256(staged.package_root / name)
+        for name in ("workbench_warning_overview.png", "workbench_task_history.png")
+    )
 
     smoke_path = output / "installed_smoke.json"
     smoke_process = subprocess.run(
@@ -186,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         "config_preserved": config_preserved,
         "unmanaged_file_preserved": unmanaged_preserved,
         "stale_runtime_removed": stale_runtime_removed,
+        "managed_evidence_replaced": managed_evidence_replaced,
         "backup_created": backup.is_dir(),
         "installed_smoke": smoke,
         "installed_screenshot": str(screenshot),
@@ -200,6 +207,7 @@ def main(argv: list[str] | None = None) -> int:
         result["config_preserved"],
         result["unmanaged_file_preserved"],
         result["stale_runtime_removed"],
+        result["managed_evidence_replaced"],
         result["backup_created"],
         result["rollback_exact"],
         result["installed_executable_sha256"] == result["installed_manifest_executable_sha256"],

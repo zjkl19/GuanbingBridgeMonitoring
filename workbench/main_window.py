@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QPlainTextEdit,
     QProgressBar,
+    QStackedWidget,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -51,6 +52,7 @@ from .plot_config_tab import PlotCommonEditorWidget, SpectrumConfigEditorWidget
 from .profile_audit import ProfileAuditError, load_installed_profile_matrix
 from .provenance import PlotProvenanceSummary, inspect_manifest_plot_provenance
 from .report_task import launch_report_job, read_report_status, terminate_report_job
+from .task_history_tab import TaskHistoryWidget
 from .update_ui import UpdateController
 from .version import app_version, project_root as default_project_root
 
@@ -73,6 +75,7 @@ class WorkbenchWindow(QMainWindow):
         self.current_manifest: ManifestSummary | None = None
         self.current_provenance: PlotProvenanceSummary | None = None
         self.current_manifest_missing_selected: tuple[str, ...] = ()
+        self.known_context_paths: set[Path] = set()
         self.module_checks: dict[str, QCheckBox] = {}
         self.setFont(QFont("Microsoft YaHei UI", 9))
         self.setWindowTitle(f"桥梁健康监测工作台 {app_version(self.project_root)}")
@@ -227,6 +230,10 @@ class WorkbenchWindow(QMainWindow):
         self.open_context_btn = QPushButton("打开已有任务")
         self.open_context_btn.clicked.connect(self._open_context_dialog)
         action_row.addWidget(self.open_context_btn)
+        self.history_btn = QPushButton("任务历史")
+        self.history_btn.setToolTip("扫描当前数据根目录中的本机任务并在恢复前检查配置和产物")
+        self.history_btn.clicked.connect(lambda: self.show_task_history())
+        action_row.addWidget(self.history_btn)
         self.save_btn = QPushButton("保存任务上下文")
         self.save_btn.clicked.connect(self._save_context)
         action_row.addWidget(self.save_btn)
@@ -258,7 +265,14 @@ class WorkbenchWindow(QMainWindow):
         self.analysis_log.setReadOnly(True)
         self.analysis_log.setPlaceholderText("工作台操作、启动信息和状态变化会显示在这里。")
         outer.addWidget(self.analysis_log, 1)
-        return page
+        self.analysis_form_page = page
+        self.task_history_page = TaskHistoryWidget(tuple(profile.bridge_id for profile in self.profiles))
+        self.task_history_page.back_requested.connect(lambda: self.analysis_stack.setCurrentIndex(0))
+        self.task_history_page.restore_requested.connect(self._restore_history_context)
+        self.analysis_stack = QStackedWidget()
+        self.analysis_stack.addWidget(page)
+        self.analysis_stack.addWidget(self.task_history_page)
+        return self.analysis_stack
 
     def _build_review_tab(self) -> QWidget:
         page = QWidget()
@@ -534,6 +548,7 @@ class WorkbenchWindow(QMainWindow):
             context = self._build_context()
             self._reset_review_state()
             self.current_context_path = context.write()
+            self.known_context_paths.add(self.current_context_path)
             self._append_log(f"任务上下文已保存：{self.current_context_path}")
             self.analysis_status_label.setText(f"状态：draft；任务 {context.job_id}")
         except Exception as exc:  # noqa: BLE001
@@ -572,6 +587,7 @@ class WorkbenchWindow(QMainWindow):
         self.report_date_edit.setText(context.report_date)
         self.current_context = context
         self.current_context_path = path.resolve()
+        self.known_context_paths.add(self.current_context_path)
         self._reset_review_state()
         if context.analysis.manifest_path and Path(context.analysis.manifest_path).is_file():
             self._load_manifest(Path(context.analysis.manifest_path))
@@ -594,6 +610,7 @@ class WorkbenchWindow(QMainWindow):
             executor = resolver.resolve()
             result = AnalysisLauncher(self.project_root).launch(context, executor)
             self.current_context_path = context.context_path
+            self.known_context_paths.add(self.current_context_path)
             self.start_btn.setEnabled(False)
             self.stop_btn.setEnabled(True)
             self.analysis_status_label.setText(f"状态：launched；PID {result.pid}")
@@ -601,6 +618,28 @@ class WorkbenchWindow(QMainWindow):
             self._append_log(f"请求文件：{context.analysis.request_path}")
         except Exception as exc:  # noqa: BLE001
             self._show_exception("启动分析失败", exc)
+
+    def show_task_history(self, *, demo: bool = False) -> None:
+        """Show the bounded local task index for the current data root."""
+        if demo:
+            self.task_history_page.load_demo()
+        else:
+            roots: list[Path] = []
+            data_root = self.data_root_edit.text().strip()
+            if data_root:
+                roots.append(Path(data_root))
+            extras = set(self.known_context_paths)
+            if self.current_context_path is not None:
+                extras.add(self.current_context_path)
+            self.task_history_page.load_sources(tuple(roots), tuple(extras))
+        self.analysis_stack.setCurrentIndex(1)
+
+    def _restore_history_context(self, path: str) -> None:
+        try:
+            self.load_context(Path(path))
+            self.analysis_stack.setCurrentIndex(0)
+        except Exception as exc:  # noqa: BLE001
+            self._show_exception("恢复历史任务失败", exc)
 
     def _request_stop(self) -> None:
         if self.current_context is None:

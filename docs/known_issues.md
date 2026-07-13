@@ -40,11 +40,20 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
 - Remote task submission/monitoring is intentionally out of first-round scope.
   Do not use this branch to alter 133 until local functional parity and
   cross-bridge regression are complete.
+- The local task center is intentionally a bounded recovery index, not a
+  filesystem-wide scheduler database. It scans only direct job directories
+  under the currently selected data root and contexts explicitly opened in the
+  running process; it does not recurse through large raw-data or backup trees,
+  discover other drives automatically, or poll 133. A missing data root or
+  changed configuration is shown as a warning for operator review, while an
+  unknown bridge or unreadable context is blocked. Restoring a warning does not
+  waive the ordinary launch/report validation gates.
 - GitHub auto-update code is present, but the repository currently has no
   GitHub Releases. Tags alone are deliberately ignored. Before publishing the
   first stable update, rerun the real-ZIP disposable update-cycle validator and
   review its native screenshot/JSON evidence. The 2026-07-13 development ZIP
-  passed frozen installation and exact fault-injected rollback. Existing configs
+  passed frozen installation, replacement of the warning/task-history managed
+  screenshots, and exact fault-injected rollback. Existing configs
   are deliberately preserved, so future config-schema changes still need an
   explicit migration rather than relying on package replacement.
 - The warning inventory covers values resident in bridge JSON configuration.

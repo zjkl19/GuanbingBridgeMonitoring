@@ -36,7 +36,7 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `283/283`. The current joint MATLAB
+- The current Python suite passes `290/290`. The current joint MATLAB
   workbench/runner/config/plot batch baseline remains `147/147`; the latest
   report/config/update-focused MATLAB batch passes `70/70`. The earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
@@ -85,7 +85,7 @@ Current local development state:
   `tmp/workbench_update_cycle/validation_final2`.
 - `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
   MATLAB Runner, six project configs/templates, and the report builder. The
-  build blocks on the workbench smoke contract, eleven native screenshots,
+  build blocks on the workbench smoke contract, twelve native screenshots,
   packaged report `--job-context` smoke and embedded report-job protocol smoke.
   `release_manifest.json` records the
   EXE SHA-256, file count, total bytes, and smoke result.
@@ -124,12 +124,42 @@ Current local development state:
   now exits with code 2 and appends the real diagnostic to
   `%TEMP%\BridgeMonitoringWorkbench_cli_error.log`; the package build has a
   mandatory invalid-CLI smoke so this dialog cannot regress silently.
+- The project page now includes a local task center rather than relying only
+  on a file picker. It indexes only direct task children under the selected
+  data root's `run_logs/workbench` plus contexts explicitly opened in the
+  current process, merges newer analysis status plus separate report
+  status/result JSON, and checks bridge
+  identity, data-root availability, config SHA drift, completed Manifest and
+  report outputs before enabling restore. Warning contexts remain visible and
+  recoverable; unknown bridges and unreadable JSON are visible but blocked.
+  Search/status filters, direct directory opening and a return-to-config path
+  are embedded without adding a fifth top-level workflow tab.
+- The task-center contract is shared through
+  `tests/fixtures/workbench_task_history_contract.json`; Python index/widget/
+  main-window tests pass, and the focused MATLAB task/context/request batch
+  passes `14/14`. Full Python regression passes `290/290`. The frozen
+  six-profile gate now additionally
+  requires an enabled 8-column task center, and the release/update gate records
+  `task_history_smoke=true`.
+- This milestone also fixed a pre-existing transactional-update cleanup gap:
+  the generated install script omitted the managed
+  `workbench_warning_overview.png`, so an old overview image could survive an
+  update. Both it and the new task-center image are now removed/replaced as
+  managed evidence while unrelated operator files remain preserved.
+- A fresh `v1.7.39-dev` 210,047,646-byte ZIP passed the full disposable update
+  cycle in 35.3 seconds. The frozen EXE preserved the operator config and
+  unmanaged note, removed stale runtime, replaced both old managed screenshots,
+  returned the 8-column task-center smoke, rendered a native `2000x1075`
+  screenshot with zero black-region ratio, created a backup, and restored the
+  exact old tree after an injected post-rename failure. Evidence is under
+  `tmp/workbench_task_history_update_cycle`.
 - The rebuilt workbench EXE SHA256 is
-  `73c91f0361fbb07ba7ff151c1ffe99792d7c9a293597e633859dae2c0b7c07df`.
-  Its schema-v2 release inventory closes at `596` files, includes both the
+  `c4fc3caef76e1c32058694891be34010459a2987da492a37b94cf57c13290fc9`.
+  Its schema-v2 release inventory closes at `597` files, includes both the
   Guanbing warning-overview and Hongtang explicit-bound screenshots, and pins
-  all eleven native screenshot hashes. The six-profile matrix, invalid-CLI
-  smoke, report gates and compiled preview smoke all pass.
+  all twelve native screenshot hashes including the task center. The
+  six-profile matrix, invalid-CLI/task-history smokes, report gates and
+  compiled preview smoke all pass.
 - Post-filter cleanup is migrated as a third configuration subtab. It edits
   only `post_filter_thresholds`, supports scalar/array/empty and one-sided
   timed rules, preserves unrelated cleaning/offset/alarm fields, and passes
@@ -279,8 +309,8 @@ Current local development state:
   items, Jiulongjiang 11 missing items, Zhishan lacked anchors 2-5/2-6, and
   Shuixianhua still relies on a synthesized legacy manifest. Page/media deltas
   therefore remain diagnostic evidence, not production parity acceptance.
-- The Python suite now passes `283/283`; the report/config-related MATLAB batch
-  passes `70/70`. The workbench and report builder were rebuilt, all eleven native
+- The Python suite now passes `290/290`; the report/config-related MATLAB batch
+  passes `70/70`. The workbench and report builder were rebuilt, all twelve native
   screenshots passed visual inspection, and the release manifest records the
   packaged report-gate contract smoke in addition to report-job and visual-QC
   smokes.

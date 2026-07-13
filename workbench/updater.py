@@ -128,6 +128,7 @@ REQUIRED_RELEASE_GATES = (
     "auto_threshold_preview_runner_smoke",
     "installed_profile_matrix_smoke",
     "invalid_cli_smoke",
+    "task_history_smoke",
     "includes_report_builder",
     "report_builder_context_smoke",
     "embedded_report_job_smoke",
@@ -217,6 +218,7 @@ LEGACY_MANAGED_FILES = (
     "workbench_plot_common_editor.png",
     "workbench_spectrum_editor.png",
     "workbench_report_task.png",
+    "workbench_task_history.png",
 )
 
 
@@ -767,7 +769,7 @@ try {{
         $path = Join-Path $target $name
         if (Test-Path -LiteralPath $path) {{ Remove-Item -LiteralPath $path -Recurse -Force }}
     }}
-    foreach ($name in @('BridgeMonitoringWorkbench.exe','README.md','VERSION','release_manifest.json','workbench_smoke.json','workbench_startup.png','workbench_alarm_editor.png','workbench_cleaning_editor.png','workbench_post_filter_editor.png','workbench_auto_threshold.png','workbench_offset_editor.png','workbench_group_plot_editor.png','workbench_plot_common_editor.png','workbench_spectrum_editor.png','workbench_report_task.png')) {{
+    foreach ($name in @('BridgeMonitoringWorkbench.exe','README.md','VERSION','release_manifest.json','workbench_smoke.json','workbench_startup.png','workbench_alarm_editor.png','workbench_warning_overview.png','workbench_cleaning_editor.png','workbench_post_filter_editor.png','workbench_auto_threshold.png','workbench_offset_editor.png','workbench_group_plot_editor.png','workbench_plot_common_editor.png','workbench_spectrum_editor.png','workbench_report_task.png','workbench_task_history.png')) {{
         $path = Join-Path $target $name
         if (Test-Path -LiteralPath $path) {{ Remove-Item -LiteralPath $path -Force }}
     }}

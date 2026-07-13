@@ -60,6 +60,9 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertFalse(window.open_report_btn.isEnabled())
             self.assertFalse(window.open_report_qc_btn.isEnabled())
             self.assertEqual(window.analysis_progress.value(), 0)
+            self.assertTrue(window.history_btn.isEnabled())
+            self.assertEqual(window.analysis_stack.count(), 2)
+            self.assertEqual(window.task_history_page.table.columnCount(), 8)
         finally:
             window.poll_timer.stop()
             window.close()
@@ -127,9 +130,24 @@ class WorkbenchGuiTests(unittest.TestCase):
                 self.assertEqual(window.analysis_progress.value(), 250)
                 self.assertIn("温度分析", window.analysis_progress_label.text())
                 self.assertIn("1分30秒", window.analysis_progress_label.text())
+                self.assertIn(path.resolve(), window.known_context_paths)
             finally:
                 window.poll_timer.stop()
                 window.close()
+
+    def test_task_history_demo_is_embedded_without_changing_top_level_tabs(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        window = WorkbenchWindow(root)
+        try:
+            window.show_task_history(demo=True)
+            self.assertEqual(window.tabs.count(), 4)
+            self.assertEqual(window.analysis_stack.currentIndex(), 1)
+            self.assertEqual(window.task_history_page.table.rowCount(), 4)
+            window.task_history_page.back_requested.emit()
+            self.assertEqual(window.analysis_stack.currentIndex(), 0)
+        finally:
+            window.poll_timer.stop()
+            window.close()
 
     def test_report_qc_table_exposes_render_contact_sheet(self) -> None:
         root = Path(__file__).resolve().parents[1]

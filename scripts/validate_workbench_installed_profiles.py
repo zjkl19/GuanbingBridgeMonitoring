@@ -99,6 +99,8 @@ def validate_profile_payload(
             and int(payload.get("effective_warning_row_count") or 0) > 0
             and int(payload.get("invalid_warning_row_count") or 0) == 0
             and payload.get("report_gate_locked") is True
+            and payload.get("task_history_enabled") is True
+            and payload.get("task_history_column_count") == 8
         ),
     }
     failed = [name for name, passed in checks.items() if not passed]

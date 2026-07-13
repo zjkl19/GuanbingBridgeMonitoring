@@ -42,6 +42,7 @@ if ($manifest.schema_version -lt 2 -or $manifest.file_inventory_count -ne $manif
 }
 if (-not $manifest.auto_threshold_preview_runner_smoke `
         -or -not $manifest.installed_profile_matrix_smoke `
+        -or -not $manifest.task_history_smoke `
         -or -not $manifest.report_builder_context_smoke `
         -or -not $manifest.embedded_report_job_smoke `
         -or -not $manifest.report_gate_contract_smoke `

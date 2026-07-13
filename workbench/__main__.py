@@ -60,6 +60,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--screenshot-output", type=Path, default=None)
     parser.add_argument("--screenshot-tab", type=int, default=0)
     parser.add_argument("--demo-auto-threshold-preview", action="store_true")
+    parser.add_argument("--show-task-history", action="store_true")
+    parser.add_argument("--demo-task-history", action="store_true")
     parser.add_argument("--install-staged-update", action="store_true")
     parser.add_argument("--install-source", type=Path, default=None)
     parser.add_argument("--install-root", type=Path, default=None)
@@ -103,6 +105,8 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         ),
         "update_backup_management_enabled": window.update_backup_btn.isEnabled(),
         "profile_matrix_review_enabled": window.profile_matrix_btn.isEnabled(),
+        "task_history_enabled": window.history_btn.isEnabled(),
+        "task_history_column_count": window.task_history_page.table.columnCount(),
         "offset_correction_row_count": window.offset_editor.table.rowCount(),
         "group_plot_module_count": window.group_plot_editor.module_combo.count(),
         "plot_common_field_count": window.plot_common_editor.table.rowCount(),
@@ -167,6 +171,10 @@ def main(argv: list[str] | None = None) -> int:
         window.alarm_editor.inner_tabs.setCurrentIndex(args.initial_warning_tab)
     if args.demo_auto_threshold_preview:
         window.auto_threshold_editor.load_preview_demo()
+    if args.demo_task_history:
+        window.show_task_history(demo=True)
+    elif args.show_task_history:
+        window.show_task_history()
     if args.smoke_test:
         payload = smoke_payload(window)
         output = json.dumps(payload, ensure_ascii=False, indent=2)

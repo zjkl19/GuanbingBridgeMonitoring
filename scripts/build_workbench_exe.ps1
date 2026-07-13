@@ -226,6 +226,8 @@ if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
         -or -not $smoke.auto_threshold_preview_enabled `
         -or -not $smoke.update_backup_management_enabled `
         -or -not $smoke.profile_matrix_review_enabled `
+        -or -not $smoke.task_history_enabled `
+        -or $smoke.task_history_column_count -ne 8 `
         -or $smoke.effective_warning_row_count -lt 1 `
         -or $smoke.warning_subtab_count -ne 2 `
         -or $smoke.invalid_warning_row_count -ne 0 `
@@ -274,6 +276,8 @@ $spectrumScreenshotOutput = Join-Path $distRoot "workbench_spectrum_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $spectrumScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 7
 $reportTaskScreenshotOutput = Join-Path $distRoot "workbench_report_task.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $reportTaskScreenshotOutput -ProfileId "hongtang" -TabIndex 3
+$taskHistoryScreenshotOutput = Join-Path $distRoot "workbench_task_history.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $taskHistoryScreenshotOutput -ProfileId "guanbing" -TabIndex 0 -DemoTaskHistory
 
 $files = Get-ChildItem -LiteralPath $distRoot -Recurse -File | Where-Object {
     $_.FullName -ne (Join-Path $distRoot "release_manifest.json")
@@ -304,6 +308,7 @@ $releaseManifest = [ordered]@{
     auto_threshold_preview_runner_smoke = -not $SkipAnalysisRunner
     installed_profile_matrix_smoke = $true
     invalid_cli_smoke = $true
+    task_history_smoke = $true
     installed_profile_matrix = [ordered]@{
         profile_count = $profileMatrix.profile_count
         report_capable_count = $profileMatrix.report_capable_count
@@ -327,6 +332,7 @@ $releaseManifest = [ordered]@{
         "workbench_plot_common_editor.png",
         "workbench_spectrum_editor.png",
         "workbench_report_task.png"
+        "workbench_task_history.png"
     )
     smoke = $smoke
 }

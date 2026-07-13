@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "analysis_status": {
+    "status": "running",
+    "progress_fraction": 0.64,
+    "current_module_key": "cable_acceleration",
+    "current_module_label": "索力加速度",
+    "completed_modules": 7,
+    "module_total": 11,
+    "manifest_path": ""
+  },
+  "report_status": {
+    "state": "completed",
+    "stage": "qc",
+    "result_path": "C:/BridgeMonitoring/run_logs/workbench/demo/report_result.json"
+  },
+  "report_result": {
+    "state": "completed",
+    "report_path": "C:/BridgeMonitoring/output/report.docx",
+    "pdf_path": "C:/BridgeMonitoring/output/report.pdf",
+    "qc": {
+      "status": "passed"
+    }
+  }
+}

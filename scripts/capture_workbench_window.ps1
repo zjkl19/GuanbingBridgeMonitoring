@@ -5,7 +5,9 @@ param(
     [int]$TabIndex = 0,
     [int]$ConfigTabIndex = 0,
     [int]$WarningTabIndex = 0,
-    [switch]$DemoAutoThresholdPreview
+    [switch]$DemoAutoThresholdPreview,
+    [switch]$ShowTaskHistory,
+    [switch]$DemoTaskHistory
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,6 +47,12 @@ $arguments = @(
 )
 if ($DemoAutoThresholdPreview) {
     $arguments += "--demo-auto-threshold-preview"
+}
+if ($ShowTaskHistory) {
+    $arguments += "--show-task-history"
+}
+if ($DemoTaskHistory) {
+    $arguments += "--demo-task-history"
 }
 $started = Start-Process -FilePath $resolvedExe -ArgumentList $arguments -PassThru
 $process = $null
