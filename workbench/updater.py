@@ -26,7 +26,9 @@ from .version import (
 
 GITHUB_API_VERSION = "2022-11-28"
 DEFAULT_REPOSITORY = "zjkl19/GuanbingBridgeMonitoring"
-VERSION_PATTERN = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$")
+VERSION_PATTERN = re.compile(
+    r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$"
+)
 
 
 class UpdateError(RuntimeError):
@@ -245,11 +247,49 @@ def _version_tuple(value: str) -> tuple[int, int, int]:
     match = VERSION_PATTERN.fullmatch(value.strip())
     if not match:
         raise UpdateError(f"不支持的版本格式：{value!r}")
-    return tuple(int(item) for item in match.groups())  # type: ignore[return-value]
+    return tuple(int(item) for item in match.groups()[:3])  # type: ignore[return-value]
+
+
+def _version_prerelease(value: str) -> tuple[str, ...]:
+    match = VERSION_PATTERN.fullmatch(value.strip())
+    if not match:
+        raise UpdateError(f"不支持的版本格式：{value!r}")
+    prerelease = match.group(4)
+    return tuple(prerelease.split(".")) if prerelease else ()
+
+
+def _compare_prerelease(left: tuple[str, ...], right: tuple[str, ...]) -> int:
+    # A version without a prerelease suffix has higher SemVer precedence than
+    # the same base version with one (v1.8.0 > v1.8.0-rc1).
+    if not left and not right:
+        return 0
+    if not left:
+        return 1
+    if not right:
+        return -1
+    for left_item, right_item in zip(left, right):
+        if left_item == right_item:
+            continue
+        left_numeric = left_item.isdigit()
+        right_numeric = right_item.isdigit()
+        if left_numeric and right_numeric:
+            return 1 if int(left_item) > int(right_item) else -1
+        if left_numeric != right_numeric:
+            return -1 if left_numeric else 1
+        return 1 if left_item > right_item else -1
+    if len(left) == len(right):
+        return 0
+    return 1 if len(left) > len(right) else -1
 
 
 def is_newer_version(current: str, latest: str) -> bool:
-    return _version_tuple(latest) > _version_tuple(current)
+    latest_base = _version_tuple(latest)
+    current_base = _version_tuple(current)
+    if latest_base != current_base:
+        return latest_base > current_base
+    return _compare_prerelease(
+        _version_prerelease(latest), _version_prerelease(current)
+    ) > 0
 
 
 def file_sha256(path: Path) -> str:

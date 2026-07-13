@@ -183,8 +183,8 @@ class WorkbenchWindow(QMainWindow):
         self.update_backup_btn = QPushButton("更新备份")
         self.update_backup_btn.setToolTip("查看更新备份；经确认后保留最新两个并清理更旧备份")
         title_row.addWidget(self.update_backup_btn)
-        self.profile_matrix_btn = QPushButton("六桥自检")
-        self.profile_matrix_btn.setToolTip("查看冻结版六桥配置、模板、模块和报告能力矩阵")
+        self.profile_matrix_btn = QPushButton("所有桥梁自检")
+        self.profile_matrix_btn.setToolTip("查看冻结版所有桥梁的配置、模板、模块和报告能力矩阵")
         self.profile_matrix_btn.clicked.connect(self._show_profile_matrix)
         title_row.addWidget(self.profile_matrix_btn)
         outer.addLayout(title_row)
@@ -502,7 +502,7 @@ class WorkbenchWindow(QMainWindow):
         try:
             matrix = load_installed_profile_matrix(self.project_root)
         except ProfileAuditError as exc:
-            QMessageBox.information(self, "六桥自检", str(exc))
+            QMessageBox.information(self, "所有桥梁自检", str(exc))
             return
         lines = []
         for row in matrix.profiles:
@@ -513,10 +513,10 @@ class WorkbenchWindow(QMainWindow):
                 f"配置 {str(row.get('config_sha256') or '')[:16]}…"
             )
         box = QMessageBox(self)
-        box.setWindowTitle("冻结版六桥自检已通过")
+        box.setWindowTitle("冻结版所有桥梁自检已通过")
         box.setIcon(QMessageBox.Information)
         box.setText(
-            f"六桥 {matrix.profile_count}/6；报告型 {matrix.report_capable_count}；"
+            f"所有桥梁 {matrix.profile_count}/{matrix.profile_count}；报告型 {matrix.report_capable_count}；"
             f"仅分析 {matrix.analysis_only_count}；资产 {matrix.asset_count} 个未修改。"
         )
         box.setInformativeText(f"矩阵文件：{matrix.path}")

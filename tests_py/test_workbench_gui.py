@@ -36,7 +36,7 @@ class WorkbenchGuiTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         window = WorkbenchWindow(root)
         try:
-            self.assertIn("v1.7.39-dev", window.windowTitle())
+            self.assertIn("v1.8.0-rc1", window.windowTitle())
             self.assertEqual(window.tabs.count(), 4)
             self.assertGreaterEqual(len(window.module_checks), 20)
             self.assertIsNotNone(window.alarm_editor.session)
@@ -45,6 +45,7 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertEqual(window.auto_threshold_editor.module_list.count(), 15)
             self.assertTrue(window.update_backup_btn.isEnabled())
             self.assertTrue(window.profile_matrix_btn.isEnabled())
+            self.assertEqual(window.profile_matrix_btn.text(), "所有桥梁自检")
             self.assertGreater(window.cleaning_editor.table.rowCount(), 0)
             self.assertIsNotNone(window.offset_editor.session)
             self.assertIsNotNone(window.group_plot_editor.session)
@@ -93,7 +94,7 @@ class WorkbenchGuiTests(unittest.TestCase):
             window.poll_timer.stop()
             window.close()
 
-    def test_all_six_profiles_load_without_mutating_assets(self) -> None:
+    def test_all_catalog_profiles_load_without_mutating_assets(self) -> None:
         root = Path(__file__).resolve().parents[1]
         window = WorkbenchWindow(root)
         assets = {root / "config" / "bridge_profiles.json"}
@@ -108,9 +109,16 @@ class WorkbenchGuiTests(unittest.TestCase):
                 window.profile_combo.setCurrentIndex(index)
                 self.app.processEvents()
                 rows.append(validate_profile_payload(profile, smoke_payload(window), root))
-            self.assertEqual(len(rows), 6)
-            self.assertEqual(sum(row["report_capable"] for row in rows), 5)
-            self.assertEqual(sum(not row["report_capable"] for row in rows), 1)
+            self.assertEqual(len(rows), len(window.profiles))
+            expected_report_capable = sum(
+                bool(profile.report_template and profile.report_gui_type)
+                for profile in window.profiles
+            )
+            self.assertEqual(sum(row["report_capable"] for row in rows), expected_report_capable)
+            self.assertEqual(
+                sum(not row["report_capable"] for row in rows),
+                len(window.profiles) - expected_report_capable,
+            )
             self.assertEqual(before, {path: file_sha256(path) for path in assets})
         finally:
             window.poll_timer.stop()

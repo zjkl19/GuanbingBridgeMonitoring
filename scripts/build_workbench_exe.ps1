@@ -231,7 +231,12 @@ if ($invalidCliProcess.ExitCode -ne 2) {
     throw "Workbench invalid-CLI smoke expected exit code 2, got $($invalidCliProcess.ExitCode)"
 }
 $smoke = Get-Content -LiteralPath $smokeOutput -Raw -Encoding UTF8 | ConvertFrom-Json
-if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
+$profileCatalog = Get-Content -LiteralPath (Join-Path $distRoot "config\bridge_profiles.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+$expectedProfileCount = @($profileCatalog.profiles).Count
+if ($expectedProfileCount -lt 1) {
+    throw "Packaged bridge profile catalog is empty"
+}
+if (-not $smoke.ok -or $smoke.profile_count -ne $expectedProfileCount -or $smoke.tab_count -ne 4 `
         -or $smoke.config_tab_count -lt 8 -or $smoke.module_count -lt 20 `
         -or $smoke.auto_threshold_module_count -lt 10 `
         -or -not $smoke.auto_threshold_preview_enabled `
@@ -259,13 +264,13 @@ $profileMatrixOutput = Join-Path $distRoot "workbench_profile_matrix.json"
     --package-root $distRoot --output $profileMatrixOutput `
     --evidence-root (Join-Path $buildRoot "profile_matrix_evidence") | Out-Host
 if ($LASTEXITCODE -ne 0) {
-    throw "Frozen six-profile matrix failed with exit code $LASTEXITCODE"
+    throw "Frozen all-profile matrix failed with exit code $LASTEXITCODE"
 }
 $profileMatrix = Get-Content -LiteralPath $profileMatrixOutput -Raw -Encoding UTF8 | ConvertFrom-Json
-if ($profileMatrix.status -ne "passed" -or $profileMatrix.profile_count -ne 6 `
-        -or $profileMatrix.report_capable_count -ne 5 -or $profileMatrix.analysis_only_count -ne 1 `
+if ($profileMatrix.status -ne "passed" -or $profileMatrix.profile_count -ne $expectedProfileCount `
+        -or ($profileMatrix.report_capable_count + $profileMatrix.analysis_only_count) -ne $expectedProfileCount `
         -or -not $profileMatrix.assets_unchanged) {
-    throw "Frozen six-profile matrix contract failed: $($profileMatrix | ConvertTo-Json -Compress -Depth 4)"
+    throw "Frozen all-profile matrix contract failed: $($profileMatrix | ConvertTo-Json -Compress -Depth 4)"
 }
 
 $screenshotOutput = Join-Path $distRoot "workbench_startup.png"

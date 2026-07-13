@@ -37,15 +37,16 @@ None of these milestones writes to production machines.
 - The build blocks unless the workbench EXE smoke contract, fourteen native Qt
   screenshots, packaged report `--job-context` smoke, and the embedded
   report-job protocol smoke pass.
-- The frozen EXE is launched once for each of the six bridge profiles. The
-  resulting `workbench_profile_matrix.json` closes selected identity, config
-  and template SHA256, default dates, module coverage, five report-capable
-  profiles, one analysis-only profile, editor shape and before/after hashes for
-  all twelve catalog/config/template assets.
-- The packaged title bar exposes this evidence through “六桥自检”. The reader
-  accepts only a six-row all-true matrix with the 5+1 capability split and also
-  rechecks the matrix byte size and SHA256 against its unique release-inventory
-  record.
+- The frozen EXE is launched once for every bridge profile currently present in
+  `config/bridge_profiles.json`. The resulting
+  `workbench_profile_matrix.json` closes selected identity, config
+  and template SHA256, default dates, module coverage, the catalog-declared
+  report/analysis capabilities, editor shape and before/after hashes for every
+  catalog/config/template asset.
+- The packaged title bar exposes this evidence through “所有桥梁自检”. The reader
+  accepts only an all-true matrix whose identities and counts exactly match the
+  installed catalog and also rechecks the matrix byte size and SHA256 against
+  its unique release-inventory record.
 - `release_manifest.json` records SHA-256, version, file count/byte size
   excluding the manifest itself, and smoke results. Generated `build/` and
   `dist/` content is intentionally local.
@@ -53,8 +54,8 @@ None of these milestones writes to production machines.
 The configuration page has separate editors for explicit `defaults/per_point`
 `alarm_bounds` and data-cleaning `thresholds` / `zero_to_nan` / `outlier`.
 The alarm editor validates level names and finite ordered bounds. The cleaning
-editor preserves the production schema variants used by all six bridge
-configs, including scalar/array/empty threshold containers, one-sided rules,
+editor preserves the production schema variants used by all currently
+configured bridge configs, including scalar/array/empty threshold containers, one-sided rules,
 optional time windows, and the legacy `1000/-1000` suppression sentinel. Both
 reject a save if the source file changed after loading, automatically back up an
 overwritten config, preserves unrelated JSON fields, and invalidates any old
@@ -87,8 +88,8 @@ non-overlapping segmented modes without changing `vals = vals + correction`
 semantics. Group editing operates on the actual `groups.<key>` containers,
 distinguishes `strain` from `strain_timeseries`, preserves historical list
 containers on no-op edits, and updates the corresponding `group_labels` while
-preserving unrelated plot settings. All six bridge configs pass exact no-op
-round trips through both services.
+preserving unrelated plot settings. All currently configured bridge configs
+pass exact no-op round trips through both services.
 
 The plot-common editor covers the complete 14-field union present across the
 six production bridge configs and preserves unknown future fields. It keeps

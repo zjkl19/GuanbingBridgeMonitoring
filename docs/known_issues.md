@@ -9,6 +9,13 @@ chat history but not always urgent enough to fix immediately.
 
 Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not a production replacement.
 
+- `v1.8.0-rc1` is a parallel-validation candidate, not authorization to remove
+  the legacy MATLAB GUI. The 133 deployment must remain in
+  `F:\Guanbing_v1.8.0-rc1`; do not replace or auto-update `F:\Guanbing`.
+- Candidate production-data validation must keep task names, logs and outputs
+  separate. Hongtang Q2 analysis/report and Guanbing analysis may not overwrite
+  the accepted old-version statistics, figures or reports during comparison.
+
 - Hongtang period-report pagination is now generated from Word `PAGE` and
   `NUMPAGES` fields and no longer patches a hard-coded total. Any future
   template replacement must retain the one-header/one-PAGE/one-NUMPAGES
@@ -35,13 +42,15 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   `--job-context` smoke passes. It has not yet had complete real-report
   production comparison for all bridge profiles, so the legacy GUI remains the
   production fallback.
-- The frozen shell itself now passes a six-profile matrix: all six configs load,
-  five report types and one analysis-only profile match the shared catalog, and
-  twelve packaged catalog/config/template assets retain identical SHA256 values
+- The frozen shell itself now passes a catalog-driven all-profile matrix: every
+  configured project loads, each report/analysis-only capability matches the
+  shared catalog, and all packaged catalog/config/template assets retain
+  identical SHA256 values
   after every profile switch. This closes installed-resource/runtime parity but
   does not substitute for production-data report comparison. The packaged
-  “六桥自检” action exposes this result and refuses a matrix that is incomplete
-  or no longer matches its release-inventory size/SHA256 record.
+  “所有桥梁自检” action exposes this result and refuses a matrix that is
+  incomplete, has a hard-coded/stale project count, or no longer matches its
+  release-inventory size/SHA256 record.
 - The report gate verifies manifest success, selected-module coverage,
   context identity, pinned hashes, and every manifest-declared full-plot
   provenance record. Explicit visual approval remains mandatory.

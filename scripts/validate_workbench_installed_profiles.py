@@ -55,7 +55,11 @@ def validate_profile_payload(
     profile: WorkbenchProfile,
     payload: dict[str, Any],
     package_root: Path,
+    *,
+    expected_profile_count: int | None = None,
 ) -> dict[str, Any]:
+    if expected_profile_count is None:
+        expected_profile_count = len(load_profiles(package_root))
     expected_config = profile.config_path(package_root)
     expected_template = profile.template_path(package_root) if profile.report_template else None
     expected_report_capable = bool(profile.report_template and profile.report_gui_type)
@@ -90,7 +94,7 @@ def validate_profile_payload(
         ),
         "config_load": not payload.get("configuration_load_errors"),
         "workflow_shape": (
-            payload.get("profile_count") == 6
+            payload.get("profile_count") == expected_profile_count
             and payload.get("executable_filename") == EXECUTABLE_FILENAME
             and int(payload.get("ui_font_point_size") or 0) >= 10
             and payload.get("tab_count") == 4
@@ -137,11 +141,15 @@ def main() -> int:
     if not executable.is_file():
         raise SystemExit(f"workbench executable missing: {executable}")
     profiles = load_profiles(package_root)
-    if len(profiles) != 6 or len({profile.bridge_id for profile in profiles}) != 6:
-        raise SystemExit("packaged bridge profile catalog must contain six unique profiles")
+    if not profiles or len({profile.bridge_id for profile in profiles}) != len(profiles):
+        raise SystemExit("packaged bridge profile catalog must contain non-empty unique profile ids")
     report_types = {profile.report_gui_type for profile in profiles if profile.report_gui_type}
-    if report_types != SUPPORTED_REPORT_TYPES:
-        raise SystemExit(f"packaged report capability set differs: {sorted(report_types)}")
+    unsupported_report_types = report_types - SUPPORTED_REPORT_TYPES
+    if unsupported_report_types:
+        raise SystemExit(
+            f"packaged bridge profile catalog contains unsupported report type(s): "
+            f"{sorted(unsupported_report_types)}"
+        )
     assets = _asset_paths(package_root, profiles)
     before = _hash_snapshot(assets)
     output = args.output.resolve()
@@ -175,7 +183,14 @@ def main() -> int:
                 f"frozen profile smoke failed: {profile.bridge_id}, exit={process.returncode}, output={smoke_path}"
             )
         payload = json.loads(smoke_path.read_text(encoding="utf-8-sig"))
-        rows.append(validate_profile_payload(profile, payload, package_root))
+        rows.append(
+            validate_profile_payload(
+                profile,
+                payload,
+                package_root,
+                expected_profile_count=len(profiles),
+            )
+        )
     after = _hash_snapshot(assets)
     if before != after:
         changed = [path for path in before if before.get(path) != after.get(path)]
@@ -186,6 +201,7 @@ def main() -> int:
         "package_root": str(package_root),
         "executable_sha256": file_sha256(executable),
         "profile_count": len(rows),
+        "catalog_profile_ids": [profile.bridge_id for profile in profiles],
         "report_capable_count": sum(row["report_capable"] for row in rows),
         "analysis_only_count": sum(not row["report_capable"] for row in rows),
         "asset_count": len(assets),

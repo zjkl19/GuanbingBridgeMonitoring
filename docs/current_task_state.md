@@ -6,6 +6,39 @@ Last updated: 2026-07-13
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-13 v1.8.0-rc1 All-Profile Workbench Candidate
+
+- The workbench/profile/release gates no longer assume six bridges or a fixed
+  5+1 report-capability split. The installed matrix is derived from
+  `config/bridge_profiles.json`, requires exactly the catalog identities and
+  dynamically computed report/analysis-only counts, and fails when a newly
+  added bridge has not been checked by the frozen EXE.
+- User-facing “六桥自检” wording is replaced by “所有桥梁自检”. The frozen
+  native GUI shows `所有桥梁 6/6` for the current catalog, without embedding 6
+  in the code or test contract.
+- Version is `v1.8.0-rc1`. SemVer prerelease precedence is now implemented so a
+  future stable `v1.8.0` is newer than this RC; numeric prerelease identifiers
+  such as `rc.10` also sort correctly.
+- Python regression passes `297/297`. MATLAB's dynamic catalog contract passes
+  `2/2`; the legacy GUI smoke passes `4/4`.
+- The packaged Chinese EXE SHA256 is
+  `37d4c52afb8bad8d4436cf4c1e3f7ff1e714ec74e597231fa97bff279b2ffad9`.
+  Its schema-v2 release manifest closes at 599 files. All current profiles,
+  14 native screenshots, compiled proposal preview, embedded report, visual
+  quality and invalid-CLI gates pass.
+- The 210,241,987-byte RC ZIP SHA256 is
+  `0e92ed58d79448e30ee5678b92dca7e9cfbff0fa9e0494e25a3a30a445b58903`.
+  A disposable install/update cycle passed config and unmanaged-file
+  preservation, stale-runtime/legacy-EXE removal, native screenshot, backup
+  creation and exact fault-injected rollback in 37.8 seconds.
+- Real Windows UI automation opened the frozen EXE, found the
+  “所有桥梁自检” control, and verified the modal summary: current catalog 6/6,
+  report-capable 5, analysis-only 1, 12 assets unchanged.
+- Deployment plan: publish GitHub prerelease `v1.8.0-rc1`, install on 133 under
+  isolated `F:\Guanbing_v1.8.0-rc1`, leave `F:\Guanbing` untouched, and validate
+  Hongtang Q2 analysis/report plus Guanbing analysis with independent task/log
+  and output paths.
+
 ## 2026-07-13 Hongtang Q2 Spectrum And Report-Template Calibration
 
 - The Hongtang structural-acceleration spectrum search uses three inclusive
@@ -58,7 +91,7 @@ Current local development state:
   explicit pre-warning-value configuration, manifest/plot review, and report
   handoff. `start_workbench.py` is the source entry; the packaged local entry is
   `dist/BridgeMonitoringWorkbench/桥梁健康监测工作台.exe`.
-- The workbench reads the existing six bridge profiles and its Python module
+- The workbench reads every bridge profile in the shared project catalog and its Python module
   option contract is regression-checked against
   `bms.module.ModuleRegistry`. It writes a versioned `job_context.json` and a
   MATLAB-compatible `run_request.json`.
@@ -134,7 +167,7 @@ Current local development state:
 - A real 200.0 MB development Release ZIP passed the complete disposable update
   cycle in 34.3 seconds: archive/checksum/inventory verification, frozen-EXE
   install, config and unmanaged-file preservation, stale-runtime removal,
-  installed six-profile/8-config-tab smoke, native Chinese screenshot, backup
+  installed all-profile/8-config-tab smoke, native Chinese screenshot, backup
   creation, and fault-injected exact rollback. The run also exposed and fixed a
   262-character extraction failure, an offscreen screenshot false alarm and a
   native screen-grab repaint race. The final widget-rendered screenshot is
@@ -153,7 +186,7 @@ Current local development state:
   supports scalar/array/empty representations, one-sided and timed rules,
   `zero_to_nan`, moving-window outlier parameters, and the legacy
   `1000/-1000` all-data suppression sentinel without changing analysis
-  semantics. No-op round trips across all six bridge configs preserve the
+  semantics. No-op round trips across every currently configured bridge preserve the
   loaded payload exactly; source overwrites use the same SHA-drift refusal and
   backup gate. The packaged build records a third native screenshot for this
   editor.
@@ -170,9 +203,9 @@ Current local development state:
 - Guanbing now shows 12 inventory rows: 3 wind alarm levels, 8 configured
   deflection/tilt plot lines and one explicitly empty bearing-displacement
   line field; 11 are configured and none are malformed. The packaged
-  six-profile gate closes at Guanbing 12, Hongtang 222, Jiulongjiang 14,
+  all-profile gate closes at Guanbing 12, Hongtang 222, Jiulongjiang 14,
   Shuixianhua 111, Chongyangxi 46 and Zhishan 40 rows, with zero invalid rows
-  and exact no-op payload preservation for all six configs. A MATLAB contract
+  and exact no-op payload preservation for every catalog config. A MATLAB contract
   verifies that Guanbing's displayed wind/deflection/tilt values match the
   existing runtime resolvers. The focused MATLAB warning batch passes `17/17`.
 - A malformed direct frozen-EXE smoke command exposed a pre-existing
@@ -195,7 +228,7 @@ Current local development state:
   `tests/fixtures/workbench_task_history_contract.json`; Python index/widget/
   main-window tests pass, and the focused MATLAB task/context/request batch
   passes `14/14`. Full Python regression passes `292/292`. The frozen
-  six-profile gate now additionally
+  catalog-driven all-profile gate now additionally
   requires an enabled 8-column task center, and the release/update gate records
   `task_history_smoke=true`.
 - This milestone also fixed a pre-existing transactional-update cleanup gap:
@@ -224,12 +257,12 @@ Current local development state:
   Guanbing warning-overview and Hongtang explicit-bound screenshots, and pins
   all fourteen native screenshot hashes including the empty-bounds explanation,
   operator-friendly review wording and task center. The
-  six-profile matrix, invalid-CLI/task-history smokes, report gates and
+  all-profile matrix, invalid-CLI/task-history smokes, report gates and
   compiled preview smoke all pass.
 - Post-filter cleanup is migrated as a third configuration subtab. It edits
   only `post_filter_thresholds`, supports scalar/array/empty and one-sided
   timed rules, preserves unrelated cleaning/offset/alarm fields, and passes
-  no-op round trips across all six bridge configs. The packaged Zhishan visual
+  no-op round trips across every currently configured bridge. The packaged Zhishan visual
   gate exercises the real one-sided low-pass rules.
 - Automatic-cleaning proposals are migrated as a fourth configuration subtab
   without reimplementing the algorithm in Python. `run_request_cli` now
@@ -266,7 +299,7 @@ Current local development state:
   directories are excluded. A disposable regression proves that the oldest
   eligible backup is removed while two current and all anomalous directories
   remain.
-- Local installed-runtime comparison now covers all six profiles, not only
+- Local installed-runtime comparison now covers every configured profile, not only
   representative screenshots. The frozen EXE is launched independently for
   Guanbing, Hongtang, Jiulongjiang, Shuixianhua, Chongyangxi and Zhishan and
   must return the exact bridge identity, layout, default dates, enabled-module
@@ -275,9 +308,9 @@ Current local development state:
   Chongyangxi remains explicitly analysis-only. Hashes for the profile catalog,
   six configs and five templates (`12` assets) are identical before and after
   the matrix. MATLAB's `BridgeProfileRegistry` independently passes the same
-  six-profile/module/report contract (`2/2`). Evidence is packaged as
+  all-profile/module/report contract (`2/2`). Evidence is packaged as
   `workbench_profile_matrix.json` and is now a mandatory Release gate.
-  Packaged operators can review it from the “六桥自检” title-bar action; the
+  Packaged operators can review it from the “所有桥梁自检” title-bar action; the
   reader refuses incomplete checks or a matrix whose byte size/SHA256 no
   longer matches the unique release-inventory record.
 - Native screenshot QA exposed an intermittent `PrintWindow` partial-frame
@@ -285,7 +318,7 @@ Current local development state:
   black samples. Capture now waits longer, retries up to 15 times, rejects
   frames with more than 10% near-black coarse-grid samples, and independently
   caps a dense whole-frame sample at 3%. Five repeated startup captures and the
-  rebuilt eleven-screenshot set pass both gates; the title-bar “六桥自检”
+  rebuilt eleven-screenshot set pass both gates; the title-bar “所有桥梁自检”
   action is visible in the native evidence.
 - Offset correction and grouped plots are migrated as the fifth and sixth
   configuration subtabs. Offset editing covers scalar, fixed, first-day,
@@ -294,7 +327,7 @@ Current local development state:
   container key, explicitly separates `strain` and `strain_timeseries`, keeps
   point order, validates known points and group keys, and preserves legacy list
   representation when unchanged. Both services pass exact no-op round trips
-  across all six bridge configs and share a MATLAB/Python JSON fixture.
+  across every currently configured bridge and share a MATLAB/Python JSON fixture.
 - This milestone fixed a pre-existing MATLAB group-editor alias bug:
   `readGroups(cfg,'strain')` preferred `groups.strain_timeseries`, while the old
   save path always wrote `groups.strain`. Saving now writes the resolved source
@@ -303,7 +336,7 @@ Current local development state:
   separate.
 - Plot-common and spectrum settings are migrated as the seventh and eighth
   configuration subtabs. The common editor covers the complete 14-field union
-  used by the six bridge configs, including full/capped high-frequency
+  used by the current bridge catalog, including full/capped high-frequency
   sampling, line/dense-band rendering, gap behavior and line widths. It
   preserves unknown fields, keeps MATLAB defaults implicit, and refuses the
   misleading explicit `full + dense_band` pair because MATLAB forces full
@@ -317,7 +350,7 @@ Current local development state:
   fields. Invalid table edits block module switching without discarding the
   draft.
 - A shared Python/MATLAB fixture and regression suite verifies both schemas;
-  all six bridge configs pass exact no-op round trips. The rebuilt packaged
+  all currently configured bridges pass exact no-op round trips. The rebuilt packaged
   EXE passes an 8-config-tab smoke contract (`14` common fields, `2` spectrum
   modules), packaged report-context smoke, and ten native `2020x1120` visual
   captures. The Hongtang common-plot and Zhishan spectrum pages were inspected
@@ -405,7 +438,7 @@ Remaining after the packaged embedded-report/provenance milestone:
   formal `.plot.json`, then generate through the embedded task for all five
   profiles and resolve the recorded report-manifest/page/media differences;
 - complete cross-bridge production-data comparison before any 133 deployment
-  or legacy-GUI retirement; the local six-profile installed-runtime matrix is
+  or legacy-GUI retirement; the local all-profile installed-runtime matrix is
   complete.
 
 ## 2026-07-12 Hongtang Typhoon Bavi Template Report

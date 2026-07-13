@@ -165,8 +165,12 @@ class WorkbenchUpdaterTests(unittest.TestCase):
             self.assertNotIn("QT_QPA_PLATFORM", native_qt_environment())
 
     def test_version_comparison_does_not_replace_same_base_development_build(self) -> None:
-        self.assertFalse(is_newer_version("v1.7.39-dev", "v1.7.39"))
+        self.assertTrue(is_newer_version("v1.7.39-dev", "v1.7.39"))
         self.assertTrue(is_newer_version("v1.7.39-dev", "v1.7.40"))
+        self.assertTrue(is_newer_version("v1.8.0-rc1", "v1.8.0"))
+        self.assertTrue(is_newer_version("v1.8.0-rc1", "v1.8.0-rc2"))
+        self.assertTrue(is_newer_version("v1.8.0-rc.2", "v1.8.0-rc.10"))
+        self.assertFalse(is_newer_version("v1.8.0", "v1.8.0-rc2"))
         self.assertFalse(is_newer_version("v1.8.0", "v1.7.99"))
 
     def test_latest_release_selects_expected_windows_asset(self) -> None:
