@@ -138,7 +138,11 @@ class WorkbenchWarningOverviewGuiTests(unittest.TestCase):
             self.assertEqual(widget.effective_table.rowCount(), 12)
             self.assertEqual(widget.table.rowCount(), 0)
             self.assertIn("11 条有效", widget.overview_summary_label.text())
-            self.assertIn("其它已检测到的配置来源", widget.overview_summary_label.text())
+            self.assertIn("其它预警值和参考线", widget.overview_summary_label.text())
+            self.assertFalse(widget.empty_bounds_label.isHidden())
+            self.assertTrue(widget.table.isHidden())
+            self.assertIn("不是加载失败", widget.empty_bounds_label.text())
+            self.assertEqual(widget.inner_tabs.tabText(1), "双边上下限（未配置）")
 
             source_index = widget.source_filter.findData("alarm_levels")
             widget.source_filter.setCurrentIndex(source_index)

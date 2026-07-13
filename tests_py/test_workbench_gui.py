@@ -10,13 +10,16 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
     from PySide6.QtCore import QSettings, QThread
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import (
+        QAbstractButton, QApplication, QCheckBox, QGroupBox, QLabel, QMainWindow, QPushButton
+    )
 
     from workbench.main_window import WorkbenchWindow
     from workbench.__main__ import smoke_payload
     from workbench.models import file_sha256
     from workbench.models import JobContext
     from workbench.modules import options_for_modules
+    from workbench.update_ui import UpdateController
     from scripts.validate_workbench_installed_profiles import validate_profile_payload
 except ImportError:  # pragma: no cover - dependency gate
     QApplication = None
@@ -52,17 +55,40 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertEqual(window.spectrum_editor.module_combo.count(), 2)
             self.assertEqual(window.provenance_table.columnCount(), 7)
             self.assertEqual(window.report_qc_table.columnCount(), 5)
-            self.assertEqual(window.open_report_btn.text(), "在工作台内启动报告生成与 QC")
+            self.assertEqual(window.open_report_btn.text(), "生成报告并执行质量检查")
+            self.assertEqual(window.update_btn.text(), "立即检查更新")
+            self.assertTrue(window.auto_update_check.isEnabled())
+            self.assertGreaterEqual(window.font().pointSize(), 10)
             self.assertFalse(window.module_checks["temperature"].icon().isNull())
             self.assertFalse(window.module_checks["acceleration"].icon().isNull())
             self.assertEqual(window.update_controller.policy.repository, "zjkl19/GuanbingBridgeMonitoring")
-            self.assertEqual(window.update_btn.text(), "检查更新")
+            self.assertEqual(window.update_btn.text(), "立即检查更新")
             self.assertFalse(window.open_report_btn.isEnabled())
             self.assertFalse(window.open_report_qc_btn.isEnabled())
             self.assertEqual(window.analysis_progress.value(), 0)
             self.assertTrue(window.history_btn.isEnabled())
             self.assertEqual(window.analysis_stack.count(), 2)
             self.assertEqual(window.task_history_page.table.columnCount(), 8)
+        finally:
+            window.poll_timer.stop()
+            window.close()
+
+    def test_primary_workflow_uses_operator_friendly_terms(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        window = WorkbenchWindow(root)
+        try:
+            visible_text = [widget.text() for widget in window.findChildren(QLabel)]
+            visible_text += [widget.text() for widget in window.findChildren(QAbstractButton)]
+            visible_text += [widget.title() for widget in window.findChildren(QGroupBox)]
+            visible_text += [
+                window.provenance_table.horizontalHeaderItem(column).text()
+                for column in range(window.provenance_table.columnCount())
+            ]
+            joined = "\n".join(visible_text).casefold()
+            for jargon in ("manifest", "provenance", "门禁", " qc"):
+                self.assertNotIn(jargon, joined)
+            self.assertIn("正式图件数据完整性检查", joined)
+            self.assertIn("正式报告生成条件", joined)
         finally:
             window.poll_timer.stop()
             window.close()
@@ -213,11 +239,33 @@ class WorkbenchGuiTests(unittest.TestCase):
                 window.current_context_path = context.write()
                 window._load_manifest(manifest)
                 self.assertEqual(window.provenance_table.rowCount(), 1)
-                self.assertIn("闭环：1", window.provenance_summary_label.text())
+                self.assertIn("通过：1", window.provenance_summary_label.text())
                 self.assertTrue(window.approval_check.isEnabled())
             finally:
                 window.poll_timer.stop()
                 window.close()
+
+    def test_auto_update_defaults_on_and_user_choice_persists(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            settings = QSettings(str(Path(folder) / "updates.ini"), QSettings.IniFormat)
+            window = QMainWindow()
+            checkbox = QCheckBox()
+            controller = UpdateController(
+                window, QPushButton(), root, auto_check_box=checkbox, settings=settings
+            )
+            self.assertTrue(controller.policy.auto_check)
+            self.assertTrue(checkbox.isChecked())
+            checkbox.setChecked(False)
+            self.assertFalse(controller.auto_check_enabled())
+            self.assertEqual(settings.value("updates/auto_check_enabled", type=bool), False)
+
+            second_checkbox = QCheckBox()
+            second = UpdateController(
+                window, QPushButton(), root, auto_check_box=second_checkbox, settings=settings
+            )
+            self.assertFalse(second.auto_check_enabled())
+            window.close()
 
     def test_finished_check_worker_does_not_clear_replacement_download_worker(self) -> None:
         root = Path(__file__).resolve().parents[1]

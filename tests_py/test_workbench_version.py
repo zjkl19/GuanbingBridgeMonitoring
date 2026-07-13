@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from workbench.version import app_version, project_root
+from workbench.version import EXECUTABLE_FILENAME, app_version, project_root
 
 
 class WorkbenchVersionTests(unittest.TestCase):
@@ -15,7 +15,7 @@ class WorkbenchVersionTests(unittest.TestCase):
 
     def test_frozen_project_root_is_executable_directory(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
-            executable = Path(folder) / "BridgeMonitoringWorkbench.exe"
+            executable = Path(folder) / EXECUTABLE_FILENAME
             with (
                 patch.object(sys, "frozen", True, create=True),
                 patch.object(sys, "executable", str(executable)),

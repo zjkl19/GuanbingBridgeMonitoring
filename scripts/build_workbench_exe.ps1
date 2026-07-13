@@ -16,18 +16,29 @@ if (-not (Test-Path -LiteralPath $PythonExe -PathType Leaf)) {
 
 $distParent = Join-Path $repo "dist"
 $buildRoot = Join-Path $repo "build\workbench"
+# Keep this PowerShell 5.1 script ASCII-safe while constructing the canonical
+# Chinese display name from its Unicode code points.
+$bundleName = -join (26725, 26753, 20581, 24247, 30417, 27979, 24037, 20316, 21488 | ForEach-Object { [char]$_ })
 & $PythonExe -m PyInstaller `
     --noconfirm `
     --clean `
     --noconsole `
     --icon "reporting\assets\BridgeReportBuilder.ico" `
-    --name "BridgeMonitoringWorkbench" `
+    --name $bundleName `
     --distpath $distParent `
     --workpath $buildRoot `
     "start_workbench.py" | Out-Host
 
+$generatedRoot = Join-Path $distParent $bundleName
 $distRoot = Join-Path $distParent "BridgeMonitoringWorkbench"
-$exePath = Join-Path $distRoot "BridgeMonitoringWorkbench.exe"
+if (-not (Test-Path -LiteralPath $generatedRoot -PathType Container)) {
+    throw "PyInstaller output directory was not produced: $generatedRoot"
+}
+if (Test-Path -LiteralPath $distRoot) {
+    Remove-Item -LiteralPath $distRoot -Recurse -Force
+}
+Move-Item -LiteralPath $generatedRoot -Destination $distRoot
+$exePath = Join-Path $distRoot "${bundleName}.exe"
 if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
     throw "Workbench executable was not produced: $exePath"
 }
@@ -225,7 +236,10 @@ if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
         -or $smoke.auto_threshold_module_count -lt 10 `
         -or -not $smoke.auto_threshold_preview_enabled `
         -or -not $smoke.update_backup_management_enabled `
+        -or -not $smoke.auto_update_option_available `
         -or -not $smoke.profile_matrix_review_enabled `
+        -or $smoke.executable_filename -ne "${bundleName}.exe" `
+        -or $smoke.ui_font_point_size -lt 10 `
         -or -not $smoke.task_history_enabled `
         -or $smoke.task_history_column_count -ne 8 `
         -or $smoke.effective_warning_row_count -lt 1 `
@@ -260,6 +274,8 @@ $configScreenshotOutput = Join-Path $distRoot "workbench_alarm_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $configScreenshotOutput -ProfileId "hongtang" -TabIndex 1 -WarningTabIndex 1
 $warningOverviewScreenshotOutput = Join-Path $distRoot "workbench_warning_overview.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $warningOverviewScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -WarningTabIndex 0
+$warningEmptyBoundsScreenshotOutput = Join-Path $distRoot "workbench_warning_empty_bounds.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $warningEmptyBoundsScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -WarningTabIndex 1
 $cleaningScreenshotOutput = Join-Path $distRoot "workbench_cleaning_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $cleaningScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 1
 $postFilterScreenshotOutput = Join-Path $distRoot "workbench_post_filter_editor.png"
@@ -274,6 +290,8 @@ $plotCommonScreenshotOutput = Join-Path $distRoot "workbench_plot_common_editor.
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $plotCommonScreenshotOutput -ProfileId "hongtang" -TabIndex 1 -ConfigTabIndex 6
 $spectrumScreenshotOutput = Join-Path $distRoot "workbench_spectrum_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $spectrumScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 7
+$reviewTermsScreenshotOutput = Join-Path $distRoot "workbench_review_terms.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $reviewTermsScreenshotOutput -ProfileId "guanbing" -TabIndex 2
 $reportTaskScreenshotOutput = Join-Path $distRoot "workbench_report_task.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $reportTaskScreenshotOutput -ProfileId "hongtang" -TabIndex 3
 $taskHistoryScreenshotOutput = Join-Path $distRoot "workbench_task_history.png"
@@ -295,7 +313,7 @@ $releaseManifest = [ordered]@{
     schema_version = 2
     built_at = (Get-Date).ToString("o")
     version = (Get-Content -LiteralPath (Join-Path $distRoot "VERSION") -Raw -Encoding UTF8).Trim()
-    executable = "BridgeMonitoringWorkbench.exe"
+    executable = "${bundleName}.exe"
     executable_sha256 = (Get-FileHash -LiteralPath $exePath -Algorithm SHA256).Hash.ToLowerInvariant()
     update_repository = $updatePolicy.repository
     update_channel = $updatePolicy.channel
@@ -324,6 +342,7 @@ $releaseManifest = [ordered]@{
         "workbench_startup.png",
         "workbench_alarm_editor.png",
         "workbench_warning_overview.png",
+        "workbench_warning_empty_bounds.png",
         "workbench_cleaning_editor.png",
         "workbench_post_filter_editor.png",
         "workbench_auto_threshold.png",
@@ -331,6 +350,7 @@ $releaseManifest = [ordered]@{
         "workbench_group_plot_editor.png",
         "workbench_plot_common_editor.png",
         "workbench_spectrum_editor.png",
+        "workbench_review_terms.png",
         "workbench_report_task.png"
         "workbench_task_history.png"
     )

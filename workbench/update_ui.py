@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QSettings, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox, QPushButton
+from PySide6.QtWidgets import QApplication, QCheckBox, QMainWindow, QMessageBox, QPushButton
 
 from .updater import (
     GitHubReleaseClient,
@@ -79,19 +79,40 @@ class UpdateController:
         button: QPushButton,
         project_root: Path,
         backup_button: QPushButton | None = None,
+        auto_check_box: QCheckBox | None = None,
+        settings: QSettings | None = None,
     ) -> None:
         self.window = window
         self.button = button
         self.project_root = project_root.resolve()
         self.current_version = app_version(self.project_root)
         self.policy = UpdatePolicy.load(self.project_root)
-        self.settings = QSettings("Guanbing", "BridgeMonitoringWorkbench")
+        self.settings = settings or QSettings("Guanbing", "BridgeMonitoringWorkbench")
         self.worker: QThread | None = None
         self.manual = False
         self.button.clicked.connect(lambda: self.check(manual=True))
+        self.auto_check_box = auto_check_box
+        if self.auto_check_box is not None:
+            stored = self.settings.value("updates/auto_check_enabled", None)
+            enabled = self.policy.auto_check if stored is None else str(stored).lower() in {
+                "1", "true", "yes", "on"
+            }
+            self.auto_check_box.setChecked(enabled)
+            self.auto_check_box.toggled.connect(self.set_auto_check_enabled)
         self.backup_button = backup_button
         if self.backup_button is not None:
             self.backup_button.clicked.connect(self.manage_backups)
+
+    def auto_check_enabled(self) -> bool:
+        if self.auto_check_box is not None:
+            return self.auto_check_box.isChecked()
+        stored = self.settings.value("updates/auto_check_enabled", None)
+        return self.policy.auto_check if stored is None else str(stored).lower() in {
+            "1", "true", "yes", "on"
+        }
+
+    def set_auto_check_enabled(self, enabled: bool) -> None:
+        self.settings.setValue("updates/auto_check_enabled", bool(enabled))
 
     def manage_backups(self) -> None:
         backups = discover_update_backups(self.project_root)
@@ -153,7 +174,7 @@ class UpdateController:
     def schedule_auto_check(self) -> None:
         if (
             not getattr(sys, "frozen", False)
-            or not self.policy.auto_check
+            or not self.auto_check_enabled()
             or "-" in self.current_version
             or "+" in self.current_version
         ):
@@ -183,7 +204,7 @@ class UpdateController:
         if self.worker is finished_worker:
             self.worker = None
             self.button.setEnabled(True)
-            self.button.setText("检查更新")
+            self.button.setText("立即检查更新")
 
     def _check_completed(self, info: UpdateInfo) -> None:
         self.settings.setValue("updates/last_check_epoch", time.time())

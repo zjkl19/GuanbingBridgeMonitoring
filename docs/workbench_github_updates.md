@@ -4,8 +4,8 @@
 
 The packaged PySide6 workbench uses the public repository
 `zjkl19/GuanbingBridgeMonitoring` and the stable GitHub Release channel. It
-queries GitHub's `releases/latest` API once per 24 hours after startup and also
-provides a manual **检查更新** button. Source/development launches never install
+queries GitHub's `releases/latest` API once per 24 hours after startup by default.
+The user can disable **自动检查更新** and can always use **立即检查更新**. Source/development launches never install
 updates automatically.
 
 Git tags alone are not updates. The repository currently has tags through
@@ -19,7 +19,7 @@ For tag `vX.Y.Z`, publish both files with exactly these names:
 - `BridgeMonitoringWorkbench-vX.Y.Z-win-x64.zip`
 - `BridgeMonitoringWorkbench-vX.Y.Z-win-x64.zip.sha256`
 
-The ZIP must contain one `BridgeMonitoringWorkbench.exe` and its adjacent
+The ZIP must contain one `桥梁健康监测工作台.exe` and its adjacent
 schema-v2 `release_manifest.json`. The manifest inventories every packaged file
 except itself with relative path, byte count and SHA256, and pins all required
 analysis/report/gate/visual smoke results. Use the source repository ZIP only

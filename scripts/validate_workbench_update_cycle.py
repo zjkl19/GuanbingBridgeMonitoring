@@ -24,6 +24,7 @@ from workbench.updater import (
     stage_verified_update,
     validate_release_package,
 )
+from workbench.version import EXECUTABLE_FILENAME, LEGACY_EXECUTABLE_FILENAME
 
 
 def _tree_fingerprint(root: Path) -> dict[str, str]:
@@ -45,6 +46,8 @@ def _write_legacy_install(path: Path) -> dict[str, str]:
     )
     (path / "operator_notes.txt").write_text("preserve unmanaged operator note\n", encoding="utf-8")
     (path / "workbench_warning_overview.png").write_bytes(b"stale-warning-overview")
+    (path / "workbench_warning_empty_bounds.png").write_bytes(b"stale-warning-empty-bounds")
+    (path / "workbench_review_terms.png").write_bytes(b"stale-review-terms")
     (path / "workbench_task_history.png").write_bytes(b"stale-task-history")
     (path / "release_manifest.json").write_text('{"schema_version":1}\n', encoding="utf-8")
     return _tree_fingerprint(path)
@@ -123,14 +126,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     unmanaged_preserved = (install / "operator_notes.txt").is_file()
     stale_runtime_removed = not (install / "_internal" / "obsolete.dll").exists()
+    legacy_executable_removed = not (install / LEGACY_EXECUTABLE_FILENAME).exists()
     managed_evidence_replaced = all(
         file_sha256(install / name) == file_sha256(staged.package_root / name)
-        for name in ("workbench_warning_overview.png", "workbench_task_history.png")
+        for name in (
+            "workbench_warning_overview.png",
+            "workbench_warning_empty_bounds.png",
+            "workbench_review_terms.png",
+            "workbench_task_history.png",
+        )
     )
 
     smoke_path = output / "installed_smoke.json"
     smoke_process = subprocess.run(
-        [str(install / "BridgeMonitoringWorkbench.exe"), "--smoke-test", "--smoke-output", str(smoke_path)],
+        [str(install / EXECUTABLE_FILENAME), "--smoke-test", "--smoke-output", str(smoke_path)],
         timeout=120,
         check=False,
     )
@@ -140,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     screenshot = output / "installed_workbench.png"
     screenshot_process = subprocess.run(
         [
-            str(install / "BridgeMonitoringWorkbench.exe"),
+            str(install / EXECUTABLE_FILENAME),
             "--profile-id", "hongtang",
             "--initial-tab", "3",
             "--screenshot-output", str(screenshot),
@@ -187,11 +196,12 @@ def main(argv: list[str] | None = None) -> int:
         "archive_sha256": actual_archive_sha,
         "staged_manifest_schema": staged_manifest.get("schema_version"),
         "staged_file_inventory_count": staged_manifest.get("file_inventory_count"),
-        "installed_executable_sha256": file_sha256(install / "BridgeMonitoringWorkbench.exe"),
+        "installed_executable_sha256": file_sha256(install / EXECUTABLE_FILENAME),
         "installed_manifest_executable_sha256": installed_manifest.get("executable_sha256"),
         "config_preserved": config_preserved,
         "unmanaged_file_preserved": unmanaged_preserved,
         "stale_runtime_removed": stale_runtime_removed,
+        "legacy_executable_removed": legacy_executable_removed,
         "managed_evidence_replaced": managed_evidence_replaced,
         "backup_created": backup.is_dir(),
         "installed_smoke": smoke,
@@ -207,6 +217,7 @@ def main(argv: list[str] | None = None) -> int:
         result["config_preserved"],
         result["unmanaged_file_preserved"],
         result["stale_runtime_removed"],
+        result["legacy_executable_removed"],
         result["managed_evidence_replaced"],
         result["backup_created"],
         result["rollback_exact"],

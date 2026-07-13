@@ -108,7 +108,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             self.assertEqual(request.template, template.resolve())
             context.report.plots_approved = False
             context.write(path)
-            with self.assertRaisesRegex(RuntimeError, "not approved"):
+            with self.assertRaisesRegex(RuntimeError, "图件尚未审核"):
                 request_from_context(path)
 
     def test_child_process_rechecks_manifest_context_module_and_provenance(self) -> None:
@@ -137,12 +137,12 @@ class WorkbenchReportTaskTests(unittest.TestCase):
 
             context.bridge_id = "hongtang"
             context.write(path)
-            with self.assertRaisesRegex(RuntimeError, "bridge mismatch"):
+            with self.assertRaisesRegex(RuntimeError, "桥梁不一致"):
                 request_from_context(path)
             context.bridge_id = "guanbing"
             context.selected_modules = ["acceleration"]
             context.write(path)
-            with self.assertRaisesRegex(RuntimeError, "does not cover selected modules"):
+            with self.assertRaisesRegex(RuntimeError, "未覆盖所选项目"):
                 request_from_context(path)
 
             manifest.write_text(json.dumps({
@@ -156,7 +156,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             context.selected_modules = ["temperature"]
             context.analysis.manifest_sha256 = file_sha256(manifest)
             context.write(path)
-            with self.assertRaisesRegex(RuntimeError, "no formal plot provenance"):
+            with self.assertRaisesRegex(RuntimeError, "没有正式图件的数据核验记录"):
                 request_from_context(path)
 
     def test_execute_job_emits_stages_and_structural_qc(self) -> None:

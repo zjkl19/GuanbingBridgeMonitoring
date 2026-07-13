@@ -202,7 +202,7 @@ class TaskHistoryIndex:
             ).strip()
             manifest = Path(manifest_value) if manifest_value else None
             if manifest is None or not manifest.is_file():
-                issues.append("分析已完成但Manifest不存在")
+                issues.append("分析已完成但结果清单不存在")
         if report_state == "completed":
             report_payload = report_payload or {}
             outputs = [

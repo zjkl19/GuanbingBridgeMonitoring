@@ -76,17 +76,17 @@ def load_manifest_summary(path: Path) -> ManifestSummary:
 def manifest_context_issues(summary: ManifestSummary, *, bridge_id: str, data_root: Path, start_date: str, end_date: str) -> list[str]:
     issues: list[str] = []
     if summary.bridge_id and summary.bridge_id != bridge_id:
-        issues.append(f"bridge mismatch: manifest={summary.bridge_id}, job={bridge_id}")
+        issues.append(f"桥梁不一致：分析结果={summary.bridge_id}，当前任务={bridge_id}")
     if summary.data_root:
         try:
             manifest_root = Path(summary.data_root).resolve()
             job_root = data_root.resolve()
             if os.path.normcase(str(manifest_root)) != os.path.normcase(str(job_root)):
-                issues.append(f"data root mismatch: manifest={manifest_root}, job={job_root}")
+                issues.append(f"数据目录不一致：分析结果={manifest_root}，当前任务={job_root}")
         except OSError:
-            issues.append(f"manifest data root is invalid: {summary.data_root}")
+            issues.append(f"分析结果中的数据目录无效：{summary.data_root}")
     if summary.start_date and summary.start_date != start_date:
-        issues.append(f"start date mismatch: manifest={summary.start_date}, job={start_date}")
+        issues.append(f"开始日期不一致：分析结果={summary.start_date}，当前任务={start_date}")
     if summary.end_date and summary.end_date != end_date:
-        issues.append(f"end date mismatch: manifest={summary.end_date}, job={end_date}")
+        issues.append(f"结束日期不一致：分析结果={summary.end_date}，当前任务={end_date}")
     return issues

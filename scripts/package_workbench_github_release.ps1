@@ -24,12 +24,15 @@ if (-not $SkipBuild) {
 }
 
 $distRoot = Join-Path $repo "dist\BridgeMonitoringWorkbench"
-$exePath = Join-Path $distRoot "BridgeMonitoringWorkbench.exe"
 $manifestPath = Join-Path $distRoot "release_manifest.json"
-if (-not (Test-Path -LiteralPath $exePath -PathType Leaf) -or -not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     throw "Verified workbench distribution is missing: $distRoot"
 }
 $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$exePath = Join-Path $distRoot ([string]$manifest.executable)
+if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
+    throw "Verified workbench executable is missing: $exePath"
+}
 if ($manifest.version -ne $Version) {
     throw "VERSION and release manifest differ: $Version vs $($manifest.version)"
 }

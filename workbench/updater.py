@@ -4,7 +4,6 @@ import hashlib
 import json
 import os
 import re
-import re
 import shutil
 import stat
 import subprocess
@@ -17,6 +16,12 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable
+
+from .version import (
+    EXECUTABLE_FILENAME,
+    LEGACY_EXECUTABLE_FILENAME,
+    SUPPORTED_EXECUTABLE_FILENAMES,
+)
 
 
 GITHUB_API_VERSION = "2022-11-28"
@@ -137,6 +142,15 @@ REQUIRED_RELEASE_GATES = (
 )
 
 
+def existing_workbench_executable(root: Path) -> Path | None:
+    """Return the current or legacy executable without accepting arbitrary EXEs."""
+    for name in SUPPORTED_EXECUTABLE_FILENAMES:
+        candidate = root / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def discover_update_backups(install_root: Path) -> tuple[UpdateBackup, ...]:
     install_root = install_root.expanduser().resolve()
     parent = install_root.parent
@@ -156,13 +170,13 @@ def discover_update_backups(install_root: Path) -> tuple[UpdateBackup, ...]:
         replaced_by_version = match.group("version")
         issue = ""
         manifest_path = resolved / "release_manifest.json"
-        executable_path = resolved / "BridgeMonitoringWorkbench.exe"
+        executable_path = existing_workbench_executable(resolved)
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
             manifest_version = str(manifest.get("version") or "") if isinstance(manifest, dict) else ""
         except (OSError, json.JSONDecodeError):
             manifest_version = ""
-        if not executable_path.is_file():
+        if executable_path is None:
             issue = "缺少工作台 EXE"
         elif not manifest_version:
             issue = "缺少可读取的发布清单"
@@ -199,9 +213,12 @@ def cleanup_update_backups(install_root: Path, *, keep_latest: int = 2) -> tuple
         shutil.rmtree(current.path)
         removed.append(current)
     return tuple(removed)
+
+
 LEGACY_MANAGED_DIRECTORIES = ("_internal", "bin", "reporting", "reports")
 LEGACY_MANAGED_FILES = (
-    "BridgeMonitoringWorkbench.exe",
+    EXECUTABLE_FILENAME,
+    LEGACY_EXECUTABLE_FILENAME,
     "README.md",
     "VERSION",
     "release_manifest.json",
@@ -210,6 +227,7 @@ LEGACY_MANAGED_FILES = (
     "workbench_startup.png",
     "workbench_alarm_editor.png",
     "workbench_warning_overview.png",
+    "workbench_warning_empty_bounds.png",
     "workbench_cleaning_editor.png",
     "workbench_post_filter_editor.png",
     "workbench_auto_threshold.png",
@@ -217,6 +235,7 @@ LEGACY_MANAGED_FILES = (
     "workbench_group_plot_editor.png",
     "workbench_plot_common_editor.png",
     "workbench_spectrum_editor.png",
+    "workbench_review_terms.png",
     "workbench_report_task.png",
     "workbench_task_history.png",
 )
@@ -450,6 +469,8 @@ def validate_release_package(
         raise UpdateSecurityError("release manifest root must be an object")
     version = str(payload.get("version") or "")
     _version_tuple(version)
+    if payload.get("executable") != EXECUTABLE_FILENAME:
+        raise UpdateSecurityError(f"update package executable must be {EXECUTABLE_FILENAME}")
     if expected_version is not None and _version_tuple(version) != _version_tuple(expected_version):
         raise UpdateSecurityError("update package version differs from the selected release")
     for gate in REQUIRED_RELEASE_GATES:
@@ -485,7 +506,7 @@ def validate_release_package(
             raise UpdateSecurityError(
                 f"release inventory file set differs: missing={missing[:5]}, extra={extra[:5]}"
             )
-    executable = package_root / "BridgeMonitoringWorkbench.exe"
+    executable = package_root / EXECUTABLE_FILENAME
     expected_exe = str(payload.get("executable_sha256") or "").lower()
     if not re.fullmatch(r"[0-9a-f]{64}", expected_exe):
         raise UpdateSecurityError("release manifest is missing a valid EXE SHA256")
@@ -514,9 +535,9 @@ def stage_verified_update(
                 stage = Path(tempfile.gettempdir()) / "bmw_stage" / token
             stage.mkdir(parents=True, exist_ok=False)
             archive.extractall(stage, members=members)
-        executables = list(stage.rglob("BridgeMonitoringWorkbench.exe"))
+        executables = list(stage.rglob(EXECUTABLE_FILENAME))
         if len(executables) != 1:
-            raise UpdateSecurityError("更新包必须且只能包含一个 BridgeMonitoringWorkbench.exe")
+            raise UpdateSecurityError(f"更新包必须且只能包含一个 {EXECUTABLE_FILENAME}")
         executable = executables[0]
         package_root = executable.parent
         manifest = package_root / "release_manifest.json"
@@ -635,7 +656,7 @@ def install_staged_update(
     install_root = install_root.resolve()
     if source_root == install_root or _is_relative_to(source_root, install_root) or _is_relative_to(install_root, source_root):
         raise UpdateSecurityError("staged package and install directory must be separate")
-    if not (install_root / "BridgeMonitoringWorkbench.exe").is_file():
+    if existing_workbench_executable(install_root) is None:
         raise UpdateSecurityError(f"install directory has no workbench EXE: {install_root}")
     validate_release_package(source_root, expected_version=version)
     _wait_for_process_exit(wait_pid, timeout_seconds)
@@ -684,7 +705,7 @@ def install_staged_update(
         log.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         if restart:
             subprocess.Popen(
-                [str(install_root / "BridgeMonitoringWorkbench.exe")],
+                [str(install_root / EXECUTABLE_FILENAME)],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -747,7 +768,7 @@ def write_install_script(
     script_parent: Path | None = None,
 ) -> Path:
     install_root = install_root.resolve()
-    if not (install_root / "BridgeMonitoringWorkbench.exe").is_file():
+    if existing_workbench_executable(install_root) is None:
         raise UpdateSecurityError(f"安装目录无工作台 EXE：{install_root}")
     if staged.package_root.resolve() == install_root:
         raise UpdateSecurityError("更新暂存目录不能与当前安装目录相同")
@@ -761,7 +782,7 @@ $log = {_ps_quote(log_path)}
 $backup = "$target.backup_{staged.version}_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
 try {{
     Wait-Process -Id {int(current_pid)} -Timeout 120 -ErrorAction SilentlyContinue
-    if (-not (Test-Path -LiteralPath (Join-Path $source 'BridgeMonitoringWorkbench.exe'))) {{ throw 'staged exe missing' }}
+    if (-not (Test-Path -LiteralPath (Join-Path $source '{EXECUTABLE_FILENAME}'))) {{ throw 'staged exe missing' }}
     New-Item -ItemType Directory -Path $backup -Force | Out-Null
     $backupCode = robocopy $target $backup /E /XD (Join-Path $target 'updates') /R:1 /W:1 /NFL /NDL /NJH /NJS /NP
     if ($LASTEXITCODE -gt 7) {{ throw "backup failed: $LASTEXITCODE" }}
@@ -769,7 +790,7 @@ try {{
         $path = Join-Path $target $name
         if (Test-Path -LiteralPath $path) {{ Remove-Item -LiteralPath $path -Recurse -Force }}
     }}
-    foreach ($name in @('BridgeMonitoringWorkbench.exe','README.md','VERSION','release_manifest.json','workbench_smoke.json','workbench_startup.png','workbench_alarm_editor.png','workbench_warning_overview.png','workbench_cleaning_editor.png','workbench_post_filter_editor.png','workbench_auto_threshold.png','workbench_offset_editor.png','workbench_group_plot_editor.png','workbench_plot_common_editor.png','workbench_spectrum_editor.png','workbench_report_task.png','workbench_task_history.png')) {{
+    foreach ($name in @('{EXECUTABLE_FILENAME}','{LEGACY_EXECUTABLE_FILENAME}','README.md','VERSION','release_manifest.json','workbench_smoke.json','workbench_startup.png','workbench_alarm_editor.png','workbench_warning_overview.png','workbench_warning_empty_bounds.png','workbench_cleaning_editor.png','workbench_post_filter_editor.png','workbench_auto_threshold.png','workbench_offset_editor.png','workbench_group_plot_editor.png','workbench_plot_common_editor.png','workbench_spectrum_editor.png','workbench_review_terms.png','workbench_report_task.png','workbench_task_history.png')) {{
         $path = Join-Path $target $name
         if (Test-Path -LiteralPath $path) {{ Remove-Item -LiteralPath $path -Force }}
     }}
@@ -782,7 +803,7 @@ try {{
         $targetFile = Join-Path $targetConfig $_.Name
         if (-not (Test-Path -LiteralPath $targetFile)) {{ Copy-Item -LiteralPath $_.FullName -Destination $targetFile }}
     }}
-    Start-Process -FilePath (Join-Path $target 'BridgeMonitoringWorkbench.exe')
+    Start-Process -FilePath (Join-Path $target '{EXECUTABLE_FILENAME}')
     "$(Get-Date -Format o) update installed; backup=$backup" | Set-Content -LiteralPath $log -Encoding UTF8
 }} catch {{
     if (Test-Path -LiteralPath $backup) {{

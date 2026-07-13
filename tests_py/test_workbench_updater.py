@@ -29,6 +29,7 @@ from workbench.updater import (
     validate_release_package,
     write_install_script,
 )
+from workbench.version import EXECUTABLE_FILENAME
 
 
 class FakeResponse(io.BytesIO):
@@ -49,6 +50,7 @@ def package_bytes(version: str = "v1.8.0") -> tuple[bytes, str]:
     manifest = {
         "schema_version": 2,
         "version": version,
+        "executable": EXECUTABLE_FILENAME,
         "executable_sha256": exe_hash,
         "includes_analysis_runner": True,
         "auto_threshold_preview_runner_smoke": True,
@@ -63,14 +65,14 @@ def package_bytes(version: str = "v1.8.0") -> tuple[bytes, str]:
         "smoke": {"ok": True},
         "file_inventory_count": 1,
         "file_inventory": [{
-            "path": "BridgeMonitoringWorkbench.exe",
+            "path": EXECUTABLE_FILENAME,
             "bytes": len(executable),
             "sha256": exe_hash,
         }],
     }
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe", executable)
+        archive.writestr(f"BridgeMonitoringWorkbench/{EXECUTABLE_FILENAME}", executable)
         archive.writestr(
             "BridgeMonitoringWorkbench/release_manifest.json",
             json.dumps(manifest),
@@ -92,10 +94,11 @@ def write_release_package(root: Path, version: str, files: dict[str, bytes]) -> 
             "bytes": len(content),
             "sha256": hashlib.sha256(content).hexdigest(),
         })
-    executable = files["BridgeMonitoringWorkbench.exe"]
+    executable = files[EXECUTABLE_FILENAME]
     manifest = {
         "schema_version": 2,
         "version": version,
+        "executable": EXECUTABLE_FILENAME,
         "executable_sha256": hashlib.sha256(executable).hexdigest(),
         "includes_analysis_runner": True,
         "auto_threshold_preview_runner_smoke": True,
@@ -285,7 +288,7 @@ class WorkbenchUpdaterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             package = write_release_package(root, "v1.8.0", {
-                "BridgeMonitoringWorkbench.exe": b"new",
+                EXECUTABLE_FILENAME: b"new",
                 "_internal/runtime.dll": b"runtime",
             })
             validate_release_package(package, expected_version="v1.8.0")
@@ -310,13 +313,14 @@ class WorkbenchUpdaterTests(unittest.TestCase):
             (install / "operator_notes.txt").write_text("keep me", encoding="utf-8")
             (install / "release_manifest.json").write_text('{"schema_version":1}', encoding="utf-8")
             package = write_release_package(root / "source", "v1.8.0", {
-                "BridgeMonitoringWorkbench.exe": b"new",
+                EXECUTABLE_FILENAME: b"new",
                 "_internal/new.dll": b"new-runtime",
                 "config/default_config.json": b'{"owner":"default"}',
                 "config/new_profile.json": b'{"new":true}',
             })
             result = install_staged_update(package, install, "v1.8.0", restart=False)
-            self.assertEqual((install / "BridgeMonitoringWorkbench.exe").read_bytes(), b"new")
+            self.assertEqual((install / EXECUTABLE_FILENAME).read_bytes(), b"new")
+            self.assertFalse((install / "BridgeMonitoringWorkbench.exe").exists())
             self.assertFalse((install / "_internal" / "old.dll").exists())
             self.assertEqual((install / "_internal" / "new.dll").read_bytes(), b"new-runtime")
             self.assertEqual(
@@ -340,7 +344,7 @@ class WorkbenchUpdaterTests(unittest.TestCase):
                 for path in install.rglob("*") if path.is_file()
             }
             package = write_release_package(root / "source", "v1.8.0", {
-                "BridgeMonitoringWorkbench.exe": b"new",
+                EXECUTABLE_FILENAME: b"new",
                 "_internal/new.dll": b"new-runtime",
             })
             log = root / "rollback.json"
@@ -381,7 +385,7 @@ class WorkbenchUpdaterTests(unittest.TestCase):
             install.mkdir(parents=True)
             package.mkdir(parents=True)
             (install / "BridgeMonitoringWorkbench.exe").write_bytes(b"old")
-            staged_exe = package / "BridgeMonitoringWorkbench.exe"
+            staged_exe = package / EXECUTABLE_FILENAME
             staged_exe.write_bytes(b"new")
             manifest = package / "release_manifest.json"
             manifest.write_text("{}", encoding="utf-8")

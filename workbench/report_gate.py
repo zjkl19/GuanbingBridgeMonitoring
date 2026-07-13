@@ -25,14 +25,14 @@ class ReportGateAudit:
 def _pinned_file_issues(label: str, raw_path: str, expected_sha256: str) -> tuple[Path | None, list[str]]:
     issues: list[str] = []
     if not raw_path:
-        return None, [f"{label} path is not pinned"]
+        return None, [f"{label}路径尚未固定"]
     path = Path(raw_path).expanduser().resolve()
     if not path.is_file():
-        return path, [f"{label} does not exist: {path}"]
+        return path, [f"{label}不存在：{path}"]
     if not expected_sha256:
-        issues.append(f"{label} SHA256 is not pinned")
+        issues.append(f"{label}版本尚未固定")
     elif file_sha256(path) != expected_sha256.upper():
-        issues.append(f"{label} changed after workbench approval: {path}")
+        issues.append(f"{label}在审核后发生变化：{path}")
     return path, issues
 
 
@@ -43,18 +43,18 @@ def inspect_report_gate(context: JobContext) -> ReportGateAudit:
     manifest: ManifestSummary | None = None
     provenance: PlotProvenanceSummary | None = None
     if context.analysis.state.lower() != "completed":
-        issues.append("analysis is not completed")
+        issues.append("分析尚未完成")
     if not context.report.plots_approved:
-        issues.append("plot review gate is not approved")
+        issues.append("当前图件尚未审核")
     if not context.selected_modules:
-        issues.append("no analysis modules are bound to the report task")
+        issues.append("报告任务尚未绑定任何分析项目")
 
-    _, config_issues = _pinned_file_issues("config", context.config_path, context.config_sha256)
+    _, config_issues = _pinned_file_issues("配置文件", context.config_path, context.config_sha256)
     _, template_issues = _pinned_file_issues(
-        "report template", context.report.template_path, context.report.template_sha256
+        "报告模板", context.report.template_path, context.report.template_sha256
     )
     manifest_path, manifest_file_issues = _pinned_file_issues(
-        "analysis manifest", context.analysis.manifest_path, context.analysis.manifest_sha256
+        "分析结果清单", context.analysis.manifest_path, context.analysis.manifest_sha256
     )
     issues.extend(config_issues)
     issues.extend(template_issues)
@@ -73,27 +73,27 @@ def inspect_report_gate(context: JobContext) -> ReportGateAudit:
                 )
             )
             if manifest.status.lower() not in SUCCESS_STATES:
-                issues.append(f"analysis manifest status is not successful: {manifest.status}")
+                issues.append(f"分析结果状态不是成功：{manifest.status}")
             if manifest.failed_modules:
                 failed = ", ".join(item.key or item.label for item in manifest.failed_modules)
-                issues.append(f"analysis manifest contains failed modules: {failed}")
+                issues.append(f"分析结果包含失败项目：{failed}")
             missing = manifest.missing_selected_modules(context.selected_modules)
             if missing:
-                issues.append(f"analysis manifest does not cover selected modules: {', '.join(missing)}")
+                issues.append(f"分析结果未覆盖所选项目：{', '.join(missing)}")
         except Exception as exc:  # noqa: BLE001
-            issues.append(f"analysis manifest cannot be parsed: {exc}")
+            issues.append(f"分析结果清单无法读取：{exc}")
 
         try:
             provenance = inspect_manifest_plot_provenance(manifest_path)
             if not provenance.rows:
-                issues.append("analysis manifest contains no formal plot provenance")
+                issues.append("分析结果中没有正式图件的数据核验记录")
             elif provenance.failed_count:
                 failures = "; ".join(
                     f"{row.path}: {row.message or row.status}" for row in provenance.rows if not row.closed
                 )
-                issues.append(f"formal plot provenance does not close: {failures}")
+                issues.append(f"正式图件数据检查未通过：{failures}")
         except Exception as exc:  # noqa: BLE001
-            issues.append(f"formal plot provenance cannot be verified: {exc}")
+            issues.append(f"正式图件数据无法核验：{exc}")
 
     return ReportGateAudit(manifest, provenance, tuple(dict.fromkeys(issues)))
 
@@ -101,5 +101,5 @@ def inspect_report_gate(context: JobContext) -> ReportGateAudit:
 def require_report_gate(context: JobContext) -> ReportGateAudit:
     audit = inspect_report_gate(context)
     if audit.issues:
-        raise RuntimeError("report gate validation failed: " + "; ".join(audit.issues))
+        raise RuntimeError("报告生成条件检查未通过：" + "; ".join(audit.issues))
     return audit

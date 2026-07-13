@@ -54,7 +54,7 @@ from .provenance import PlotProvenanceSummary, inspect_manifest_plot_provenance
 from .report_task import launch_report_job, read_report_status, terminate_report_job
 from .task_history_tab import TaskHistoryWidget
 from .update_ui import UpdateController
-from .version import app_version, project_root as default_project_root
+from .version import APP_DISPLAY_NAME, app_version, project_root as default_project_root
 
 
 SUCCESS_STATES = {"ok", "success", "completed"}
@@ -77,15 +77,19 @@ class WorkbenchWindow(QMainWindow):
         self.current_manifest_missing_selected: tuple[str, ...] = ()
         self.known_context_paths: set[Path] = set()
         self.module_checks: dict[str, QCheckBox] = {}
-        self.setFont(QFont("Microsoft YaHei UI", 9))
-        self.setWindowTitle(f"桥梁健康监测工作台 {app_version(self.project_root)}")
+        self.setFont(QFont("Microsoft YaHei UI", 10))
+        self.setWindowTitle(f"{APP_DISPLAY_NAME} {app_version(self.project_root)}")
         # The four-column module grid and the update action are designed for
         # the 1600 px workbench layout used by the legacy GUI.
         self.resize(1600, 860)
         self._build_ui()
         self._apply_profile(self.profiles[0])
         self.update_controller = UpdateController(
-            self, self.update_btn, self.project_root, self.update_backup_btn
+            self,
+            self.update_btn,
+            self.project_root,
+            self.update_backup_btn,
+            self.auto_update_check,
         )
         self.update_controller.schedule_auto_check()
         self.poll_timer = QTimer(self)
@@ -170,7 +174,10 @@ class WorkbenchWindow(QMainWindow):
         title_row = QHBoxLayout()
         title_row.addWidget(title)
         title_row.addStretch(1)
-        self.update_btn = QPushButton("检查更新")
+        self.auto_update_check = QCheckBox("自动检查更新")
+        self.auto_update_check.setToolTip("默认开启；关闭后仍可随时手动检查更新")
+        title_row.addWidget(self.auto_update_check)
+        self.update_btn = QPushButton("立即检查更新")
         self.update_btn.setToolTip("从 GitHub Release 检查工作台正式更新")
         title_row.addWidget(self.update_btn)
         self.update_backup_btn = QPushButton("更新备份")
@@ -278,14 +285,14 @@ class WorkbenchWindow(QMainWindow):
         page = QWidget()
         outer = QVBoxLayout(page)
         header = QHBoxLayout()
-        self.manifest_label = QLabel("Manifest：未加载")
+        self.manifest_label = QLabel("分析结果清单：未加载")
         self.manifest_label.setWordWrap(True)
         self.manifest_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         header.addWidget(self.manifest_label, 1)
         refresh = QPushButton("刷新当前任务")
         refresh.clicked.connect(self._poll_status)
         header.addWidget(refresh)
-        load_latest = QPushButton("显式加载数据目录最新Manifest")
+        load_latest = QPushButton("选择数据目录中的最新分析结果")
         load_latest.clicked.connect(self._load_latest_manifest)
         header.addWidget(load_latest)
         outer.addLayout(header)
@@ -293,7 +300,7 @@ class WorkbenchWindow(QMainWindow):
         self.manifest_summary_label = QLabel("等待分析完成。")
         outer.addWidget(self.manifest_summary_label)
         self.module_table = QTableWidget(0, 6)
-        self.module_table.setHorizontalHeaderLabels(["模块", "状态", "耗时", "统计文件", "消息", "Key"])
+        self.module_table.setHorizontalHeaderLabels(["模块", "状态", "耗时", "统计文件", "消息", "内部标识"])
         self.module_table.setAlternatingRowColors(True)
         self.module_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.module_table.horizontalHeader().setStretchLastSection(False)
@@ -307,13 +314,13 @@ class WorkbenchWindow(QMainWindow):
         self.module_table.setColumnWidth(3, 300)
         outer.addWidget(self.module_table, 1)
 
-        provenance_group = QGroupBox("正式图件 provenance 闭环")
+        provenance_group = QGroupBox("正式图件数据完整性检查")
         provenance_layout = QVBoxLayout(provenance_group)
-        self.provenance_summary_label = QLabel("等待加载分析 Manifest。")
+        self.provenance_summary_label = QLabel("等待加载分析结果清单。")
         provenance_layout.addWidget(self.provenance_summary_label)
         self.provenance_table = QTableWidget(0, 7)
         self.provenance_table.setHorizontalHeaderLabels(
-            ["模块", "闭环状态", "序列", "源点数", "绘制点数", "不完整日期", "provenance 文件/说明"]
+            ["模块", "检查结果", "序列", "源点数", "绘制点数", "不完整日期", "核验文件/说明"]
         )
         self.provenance_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.provenance_table.setAlternatingRowColors(True)
@@ -325,9 +332,9 @@ class WorkbenchWindow(QMainWindow):
         provenance_layout.addWidget(self.provenance_table)
         outer.addWidget(provenance_group)
 
-        approval_group = QGroupBox("正式报告门禁")
+        approval_group = QGroupBox("正式报告生成条件")
         approval_layout = QVBoxLayout(approval_group)
-        approval_layout.addWidget(QLabel("请先检查关键图件、统计工作簿和 provenance。审核只对当前任务及其绑定的 manifest 生效。"))
+        approval_layout.addWidget(QLabel("请先检查关键图件、统计工作簿和图件数据完整性。审核只对当前任务及其分析结果清单生效。"))
         self.approval_check = QCheckBox("我已审核当前任务图件，允许进入正式报告阶段")
         self.approval_check.stateChanged.connect(self._on_approval_changed)
         approval_layout.addWidget(self.approval_check)
@@ -350,11 +357,11 @@ class WorkbenchWindow(QMainWindow):
         form.addRow("报告日期", self.report_date_edit)
         outer.addLayout(form)
 
-        self.report_gate_label = QLabel("报告生成已锁定：需要成功的分析 manifest 和图件审核。")
+        self.report_gate_label = QLabel("尚不能生成报告：请先完成分析结果检查和图件审核。")
         self.report_gate_label.setWordWrap(True)
         outer.addWidget(self.report_gate_label)
         buttons = QHBoxLayout()
-        self.open_report_btn = QPushButton("在工作台内启动报告生成与 QC")
+        self.open_report_btn = QPushButton("生成报告并执行质量检查")
         self.open_report_btn.setEnabled(False)
         self.open_report_btn.clicked.connect(self._start_report_job)
         buttons.addWidget(self.open_report_btn)
@@ -365,7 +372,7 @@ class WorkbenchWindow(QMainWindow):
         open_output = QPushButton("打开输出目录")
         open_output.clicked.connect(self._open_output_dir)
         buttons.addWidget(open_output)
-        self.open_report_qc_btn = QPushButton("打开逐页渲染 QC")
+        self.open_report_qc_btn = QPushButton("打开逐页版面检查")
         self.open_report_qc_btn.setEnabled(False)
         self.open_report_qc_btn.clicked.connect(self._open_report_qc_dir)
         buttons.addWidget(self.open_report_qc_btn)
@@ -394,7 +401,7 @@ class WorkbenchWindow(QMainWindow):
         outer.addWidget(self.report_qc_table)
         self.report_log = QPlainTextEdit()
         self.report_log.setReadOnly(True)
-        self.report_log.setPlaceholderText("报告构建阶段、错误和最终 QC 会显示在这里。")
+        self.report_log.setPlaceholderText("报告生成阶段、错误和最终质量检查会显示在这里。")
         outer.addWidget(self.report_log, 1)
         return page
 
@@ -769,7 +776,7 @@ class WorkbenchWindow(QMainWindow):
                 str(pdf.get("path") or ""),
             ),
             (
-                "报告 Manifest",
+                "报告内容清单",
                 str(manifest.get("status") or "missing"),
                 "",
                 f"缺失 {manifest.get('missing_count', 0)} / 警告 {manifest.get('warning_count', 0)}",
@@ -797,12 +804,12 @@ class WorkbenchWindow(QMainWindow):
         data_root = Path(self.data_root_edit.text().strip()).expanduser()
         path = find_latest_manifest(data_root)
         if path is None:
-            QMessageBox.warning(self, "未找到", f"未在 {data_root / 'run_logs'} 找到 analysis_manifest。")
+            QMessageBox.warning(self, "未找到", f"未在 {data_root / 'run_logs'} 找到分析结果清单。")
             return
         answer = QMessageBox.question(
             self,
-            "绑定最新Manifest",
-            "这会把数据目录中最新的Manifest显式绑定到当前工作台任务。请确认它与当前桥梁和监测周期一致。\n\n"
+            "使用最新分析结果",
+            "这会把数据目录中最新的分析结果清单绑定到当前任务。请确认它与当前桥梁和监测周期一致。\n\n"
             f"{path}",
         )
         if answer != QMessageBox.Yes:
@@ -823,7 +830,7 @@ class WorkbenchWindow(QMainWindow):
             end_date=self.current_context.end_date,
         )
         if issues:
-            QMessageBox.critical(self, "Manifest与任务不一致", "\n".join(f"- {item}" for item in issues))
+            QMessageBox.critical(self, "分析结果与任务不一致", "\n".join(f"- {item}" for item in issues))
             self.current_context.analysis.manifest_path = ""
             return
         self.current_context.analysis.state = "completed" if summary.status.lower() in SUCCESS_STATES else summary.status.lower()
@@ -834,7 +841,7 @@ class WorkbenchWindow(QMainWindow):
         try:
             summary = load_manifest_summary(path)
         except Exception as exc:  # noqa: BLE001
-            self._show_exception("读取Manifest失败", exc)
+            self._show_exception("读取分析结果清单失败", exc)
             return
         if self.current_context is not None:
             issues = manifest_context_issues(
@@ -846,14 +853,14 @@ class WorkbenchWindow(QMainWindow):
             )
             if issues:
                 self._reset_review_state()
-                self._append_log("Manifest上下文校验失败：" + "; ".join(issues))
+                self._append_log("分析结果与当前任务不一致：" + "; ".join(issues))
                 return
             actual_hash = file_sha256(path)
             pinned_hash = self.current_context.analysis.manifest_sha256
             if pinned_hash and pinned_hash != actual_hash:
                 self._reset_review_state()
                 self._append_log(
-                    f"Manifest哈希变化，拒绝沿用审核：expected={pinned_hash}, actual={actual_hash}"
+                    f"分析结果清单已发生变化，需重新审核：expected={pinned_hash}, actual={actual_hash}"
                 )
                 return
             self.current_context.analysis.manifest_path = str(path.resolve())
@@ -862,7 +869,7 @@ class WorkbenchWindow(QMainWindow):
         self.current_manifest = summary
         selected = self.current_context.selected_modules if self.current_context is not None else []
         self.current_manifest_missing_selected = summary.missing_selected_modules(selected)
-        self.manifest_label.setText(f"Manifest：{summary.path}")
+        self.manifest_label.setText(f"分析结果清单：{summary.path}")
         failed = len(summary.failed_modules)
         self.manifest_summary_label.setText(
             f"运行状态：{summary.status}；模块记录：{len(summary.modules)}；失败/异常：{failed}；"
@@ -882,7 +889,11 @@ class WorkbenchWindow(QMainWindow):
             for row_index, item in enumerate(provenance.rows):
                 values = (
                     item.module_key,
-                    item.status,
+                    {
+                        "closed": "通过",
+                        "closed_incomplete_source": "通过（有已说明的数据缺口）",
+                        "failed": "未通过",
+                    }.get(item.status, item.status),
                     item.series_count,
                     item.source_count,
                     item.plotted_count,
@@ -892,8 +903,8 @@ class WorkbenchWindow(QMainWindow):
                 for column, value in enumerate(values):
                     self.provenance_table.setItem(row_index, column, QTableWidgetItem(str(value)))
             self.provenance_summary_label.setText(
-                f"Manifest 内正式 plot provenance：{len(provenance.rows)}；"
-                f"闭环：{provenance.closed_count}；失败：{provenance.failed_count}；"
+                f"正式图件核验记录：{len(provenance.rows)}；"
+                f"通过：{provenance.closed_count}；未通过：{provenance.failed_count}；"
                 f"已披露不完整源日期：{provenance.incomplete_source_count}"
             )
             self.provenance_summary_label.setStyleSheet(
@@ -902,7 +913,7 @@ class WorkbenchWindow(QMainWindow):
         except Exception as exc:  # noqa: BLE001
             self.current_provenance = None
             self.provenance_table.setRowCount(0)
-            self.provenance_summary_label.setText(f"provenance 汇总失败：{exc}")
+            self.provenance_summary_label.setText(f"图件数据完整性检查失败：{exc}")
             self.provenance_summary_label.setStyleSheet("color: #a33; font-weight: 600;")
         self.approval_check.setEnabled(
             summary.status.lower() in SUCCESS_STATES
@@ -928,10 +939,10 @@ class WorkbenchWindow(QMainWindow):
         self.approval_check.setEnabled(False)
         self.approval_check.blockSignals(False)
         self.module_table.setRowCount(0)
-        self.manifest_label.setText("Manifest：未加载")
+        self.manifest_label.setText("分析结果清单：未加载")
         self.manifest_summary_label.setText("等待分析完成。")
         self.provenance_table.setRowCount(0)
-        self.provenance_summary_label.setText("等待加载分析 Manifest。")
+        self.provenance_summary_label.setText("等待加载分析结果清单。")
         self.provenance_summary_label.setStyleSheet("")
         self._update_report_gate()
 
@@ -953,11 +964,11 @@ class WorkbenchWindow(QMainWindow):
         self.open_report_btn.setEnabled(ready and not running)
         if ready:
             self.report_gate_label.setText(
-                "报告任务运行中。" if running else "报告门禁已通过：当前manifest成功，且图件/provenance已审核。"
+                "报告任务运行中。" if running else "已满足报告生成条件：分析结果和图件数据均已检查。"
             )
             self.report_gate_label.setStyleSheet("color: #167c35; font-weight: 600;")
         else:
-            self.report_gate_label.setText("报告生成已锁定：需要成功的分析manifest和图件审核。")
+            self.report_gate_label.setText("尚不能生成报告：请先完成分析结果检查和图件审核。")
             self.report_gate_label.setStyleSheet("color: #a33; font-weight: 600;")
 
     def _report_gate_ready(self) -> bool:
@@ -977,7 +988,7 @@ class WorkbenchWindow(QMainWindow):
     def _start_report_job(self) -> None:
         context = self.current_context
         if context is None or not self._report_gate_ready():
-            QMessageBox.warning(self, "报告门禁未通过", "请先完成分析、加载成功manifest并审核图件。")
+            QMessageBox.warning(self, "尚不能生成报告", "请先完成分析、加载有效的分析结果清单并审核图件。")
             return
         try:
             config_path = Path(context.config_path)
@@ -996,10 +1007,10 @@ class WorkbenchWindow(QMainWindow):
             context.report_date = self.report_date_edit.text().strip()
             manifest_path = Path(context.analysis.manifest_path)
             if not manifest_path.is_file():
-                raise FileNotFoundError(f"分析Manifest不存在：{manifest_path}")
+                raise FileNotFoundError(f"分析结果清单不存在：{manifest_path}")
             actual_manifest_hash = file_sha256(manifest_path)
             if context.analysis.manifest_sha256 != actual_manifest_hash:
-                raise RuntimeError("分析Manifest在图件审核后发生变化，必须重新审核")
+                raise RuntimeError("分析结果清单在图件审核后发生变化，必须重新审核")
             self.current_context_path = context.write()
             launch = launch_report_job(context, self.current_context_path)
             self.report_progress.setValue(0)
@@ -1042,7 +1053,7 @@ class WorkbenchWindow(QMainWindow):
             return
         path = Path(context.report.visual_qc_dir).expanduser()
         if not path.is_dir():
-            QMessageBox.warning(self, "逐页渲染 QC 不存在", str(path))
+            QMessageBox.warning(self, "逐页版面检查结果不存在", str(path))
             return
         if os.name == "nt":
             os.startfile(path)  # type: ignore[attr-defined]

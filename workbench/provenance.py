@@ -85,7 +85,7 @@ def _nonnegative(value: Any) -> float:
 def inspect_plot_provenance(module_key: str, path: Path) -> PlotProvenanceRow:
     try:
         if not path.is_file():
-            raise FileNotFoundError(f"provenance file does not exist: {path}")
+            raise FileNotFoundError(f"图件数据核验文件不存在：{path}")
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
         if not isinstance(payload, dict):
             raise ValueError("root must be an object")
@@ -139,7 +139,7 @@ def inspect_plot_provenance(module_key: str, path: Path) -> PlotProvenanceRow:
         status = "failed" if not has_source else (
             "closed_incomplete_source" if incomplete_days else "closed"
         )
-        message = "部分序列缺少源数据日级 provenance" if not has_source else ""
+        message = "部分序列缺少源数据日级核验记录" if not has_source else ""
         return PlotProvenanceRow(
             module_key,
             path,
@@ -157,7 +157,7 @@ def inspect_plot_provenance(module_key: str, path: Path) -> PlotProvenanceRow:
 def inspect_manifest_plot_provenance(path: Path) -> PlotProvenanceSummary:
     payload = json.loads(path.read_text(encoding="utf-8-sig"))
     if not isinstance(payload, dict):
-        raise ValueError("analysis manifest must be a JSON object")
+        raise ValueError("分析结果清单格式无效")
     rows = tuple(
         inspect_plot_provenance(module, provenance)
         for module, provenance in manifest_plot_provenance_paths(payload)

@@ -14,6 +14,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from workbench.models import file_sha256  # noqa: E402
 from workbench.profiles import WorkbenchProfile, load_profiles  # noqa: E402
+from workbench.version import EXECUTABLE_FILENAME  # noqa: E402
 
 
 SUPPORTED_REPORT_TYPES = {
@@ -90,6 +91,8 @@ def validate_profile_payload(
         "config_load": not payload.get("configuration_load_errors"),
         "workflow_shape": (
             payload.get("profile_count") == 6
+            and payload.get("executable_filename") == EXECUTABLE_FILENAME
+            and int(payload.get("ui_font_point_size") or 0) >= 10
             and payload.get("tab_count") == 4
             and payload.get("config_tab_count") == 8
             and payload.get("warning_subtab_count") == 2
@@ -99,6 +102,7 @@ def validate_profile_payload(
             and int(payload.get("effective_warning_row_count") or 0) > 0
             and int(payload.get("invalid_warning_row_count") or 0) == 0
             and payload.get("report_gate_locked") is True
+            and payload.get("auto_update_option_available") is True
             and payload.get("task_history_enabled") is True
             and payload.get("task_history_column_count") == 8
         ),
@@ -129,7 +133,7 @@ def validate_profile_payload(
 def main() -> int:
     args = _parser().parse_args()
     package_root = args.package_root.resolve()
-    executable = package_root / "BridgeMonitoringWorkbench.exe"
+    executable = package_root / EXECUTABLE_FILENAME
     if not executable.is_file():
         raise SystemExit(f"workbench executable missing: {executable}")
     profiles = load_profiles(package_root)

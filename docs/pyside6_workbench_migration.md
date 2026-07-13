@@ -31,10 +31,10 @@ None of these milestones writes to production machines.
 ## Packaged local milestone
 
 - Build with `scripts/build_workbench_exe.ps1`.
-- Run `dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe`.
+- Run `dist/BridgeMonitoringWorkbench/桥梁健康监测工作台.exe`.
 - The onedir release includes the compiled MATLAB analysis runner, all profile
   configs/templates, and a freshly packaged report builder.
-- The build blocks unless the workbench EXE smoke contract, ten native Qt
+- The build blocks unless the workbench EXE smoke contract, fourteen native Qt
   screenshots, packaged report `--job-context` smoke, and the embedded
   report-job protocol smoke pass.
 - The frozen EXE is launched once for each of the six bridge profiles. The

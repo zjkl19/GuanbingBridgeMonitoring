@@ -38,7 +38,8 @@ Add-Type -AssemblyName System.Drawing
 # makes GetWindowRect return the real physical size of the Qt window.
 [void][WorkbenchCaptureWin32]::SetProcessDpiAwarenessContext([IntPtr](-4))
 
-$before = @(Get-Process -Name "BridgeMonitoringWorkbench" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
+$processName = [System.IO.Path]::GetFileNameWithoutExtension($resolvedExe)
+$before = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
 $arguments = @(
     "--profile-id", $ProfileId,
     "--initial-tab", "$TabIndex",
@@ -58,7 +59,7 @@ $started = Start-Process -FilePath $resolvedExe -ArgumentList $arguments -PassTh
 $process = $null
 for ($attempt = 0; $attempt -lt 40; $attempt++) {
     Start-Sleep -Milliseconds 250
-    $candidates = @(Get-Process -Name "BridgeMonitoringWorkbench" -ErrorAction SilentlyContinue | Where-Object {
+    $candidates = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | Where-Object {
         $before -notcontains $_.Id -and $_.MainWindowHandle -ne 0
     })
     if ($candidates.Count -gt 0) {

@@ -1380,10 +1380,10 @@ def main() -> None:
             try:
                 request_from_context(context_path)
             except RuntimeError as exc:
-                if "no formal plot provenance" not in str(exc):
+                if "没有正式图件的数据核验记录" not in str(exc):
                     raise
             else:
-                raise RuntimeError("frozen report gate accepted a manifest without provenance")
+                raise RuntimeError("冻结版报告生成条件错误地接受了缺少图件核验记录的分析结果")
         return
     if args.visual_qc_contract_smoke_test:
         import tempfile

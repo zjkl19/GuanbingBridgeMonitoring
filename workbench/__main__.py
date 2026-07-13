@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QApplication
 
 from .main_window import WorkbenchWindow
 from .models import file_sha256
-from .version import app_version
+from .version import EXECUTABLE_FILENAME, app_version
 
 
 CLI_DIAGNOSTIC_LOG = Path(tempfile.gettempdir()) / "BridgeMonitoringWorkbench_cli_error.log"
@@ -87,6 +87,8 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
     )
     return {
         "ok": True,
+        "executable_filename": EXECUTABLE_FILENAME,
+        "ui_font_point_size": window.font().pointSize(),
         "version": app_version(window.project_root),
         "profile_count": len(window.profiles),
         "tab_count": window.tabs.count(),
@@ -104,6 +106,8 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
             window.auto_threshold_editor._options().get("capture_preview_series")
         ),
         "update_backup_management_enabled": window.update_backup_btn.isEnabled(),
+        "auto_update_option_available": window.auto_update_check.isEnabled(),
+        "auto_update_enabled": window.auto_update_check.isChecked(),
         "profile_matrix_review_enabled": window.profile_matrix_btn.isEnabled(),
         "task_history_enabled": window.history_btn.isEnabled(),
         "task_history_column_count": window.task_history_page.table.columnCount(),
@@ -154,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             return 1
     app = QApplication([sys.argv[0]])
-    app.setFont(QFont("Microsoft YaHei UI", 9))
+    app.setFont(QFont("Microsoft YaHei UI", 10))
     window = WorkbenchWindow(args.project_root)
     if args.profile_id:
         profile_index = window.profile_combo.findData(args.profile_id)

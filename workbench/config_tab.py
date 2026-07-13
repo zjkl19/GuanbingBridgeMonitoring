@@ -90,8 +90,8 @@ class AlarmBoundsEditorWidget(QWidget):
         outer.addWidget(title)
         hint = QLabel(
             "“有效值总览”完整列出当前配置中的测点上下限、索力上下限、风/地震分级值及各类图上参考线，"
-            "并保留各自来源和用途，绝不把不同语义的配置自动互转。“上下限编辑”只修改"
-            " defaults/per_point 下的 alarm_bounds；覆盖保存前校验文件哈希并自动备份。"
+            "并保留各自来源和用途，绝不把不同含义的配置自动互转。“双边上下限”页只修改"
+            "模块默认或测点专属的成对上下限；覆盖保存前校验文件版本并自动备份。"
         )
         hint.setWordWrap(True)
         outer.addWidget(hint)
@@ -156,7 +156,7 @@ class AlarmBoundsEditorWidget(QWidget):
         effective_header.setSectionResizeMode(9, QHeaderView.Stretch)
         overview_layout.addWidget(self.effective_table, 1)
         overview_hint = QLabel(
-            "说明：图上参考线只影响图件表达；alarm_levels 是单边分级值；alarm_bounds/force_alarm_bounds 才是上下限。"
+            "说明：图上参考线只影响图件表达；分级预警值是单边等级；测点/索力上下限才是成对的下限和上限。"
             "“未设置”表示字段存在但为空，“格式错误”必须修复后才能作为有效预警依据。"
         )
         overview_hint.setWordWrap(True)
@@ -167,13 +167,24 @@ class AlarmBoundsEditorWidget(QWidget):
         explicit_page = QWidget()
         explicit_layout = QVBoxLayout(explicit_page)
         explicit_hint = QLabel(
-            "此处仅编辑显式 alarm_bounds。level 使用 level1、level2、level3…；上下限必须为有限数值且上限大于下限。"
+            "本页只编辑成对的下限/上限规则；未配置时不代表项目没有预警值。"
+            "规则可作用于整个分析类型或单个测点，等级使用 level1、level2、level3…；"
+            "上下限必须为有限数值且上限大于下限。"
         )
         explicit_hint.setWordWrap(True)
         explicit_layout.addWidget(explicit_hint)
+        self.empty_bounds_label = QLabel()
+        self.empty_bounds_label.setAlignment(Qt.AlignCenter)
+        self.empty_bounds_label.setWordWrap(True)
+        self.empty_bounds_label.setMinimumHeight(150)
+        self.empty_bounds_label.setStyleSheet(
+            "background: #eef6ff; border: 1px solid #b8d8f4; border-radius: 6px; "
+            "color: #174a75; font-size: 15px; padding: 24px;"
+        )
+        explicit_layout.addWidget(self.empty_bounds_label, 1)
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(
-            ["范围", "模块键", "测点配置键", "等级", "下限", "上限"]
+            ["适用范围", "分析类型", "测点编号", "等级", "下限", "上限"]
         )
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -191,17 +202,17 @@ class AlarmBoundsEditorWidget(QWidget):
         validate_explicit = QPushButton("校验上下限表格")
         validate_explicit.clicked.connect(self._validate_dialog)
         actions.addWidget(validate_explicit)
-        add_default = QPushButton("新增默认阈值")
+        add_default = QPushButton("新增模块默认上下限")
         add_default.clicked.connect(lambda: self.add_row("defaults"))
         actions.addWidget(add_default)
-        add_point = QPushButton("新增测点阈值")
+        add_point = QPushButton("新增测点上下限")
         add_point.clicked.connect(lambda: self.add_row("per_point"))
         actions.addWidget(add_point)
         delete_button = QPushButton("删除选中行")
         delete_button.clicked.connect(self.delete_selected_rows)
         actions.addWidget(delete_button)
         actions.addStretch(1)
-        self.count_label = QLabel("0 条显式预警配置")
+        self.count_label = QLabel("尚未配置双边上下限")
         actions.addWidget(self.count_label)
         save_copy = QPushButton("保存副本…")
         save_copy.clicked.connect(self._save_copy)
@@ -211,7 +222,7 @@ class AlarmBoundsEditorWidget(QWidget):
         save_source.clicked.connect(self._save_source)
         actions.addWidget(save_source)
         explicit_layout.addLayout(actions)
-        self.inner_tabs.addTab(explicit_page, "上下限编辑 (alarm_bounds)")
+        self.inner_tabs.addTab(explicit_page, "双边上下限（未配置）")
         outer.addWidget(self.inner_tabs, 1)
 
         self.message_label = QLabel("尚未加载配置。")
@@ -225,13 +236,14 @@ class AlarmBoundsEditorWidget(QWidget):
         self.path_label.setText(f"配置：{session.path}")
         self._populate(session.rows)
         self._populate_effective(session.effective_warning_rows)
+        self._refresh_explicit_state()
         configured = sum(row.status == "configured" for row in self.effective_rows)
         unset = sum(row.status == "unset" for row in self.effective_rows)
         invalid = sum(row.status == "invalid" for row in self.effective_rows)
         self.message_label.setText(
             f"已加载；SHA256={session.loaded_sha256[:16]}…。"
             f"有效值 {configured} 条，未设置 {unset} 条，格式错误 {invalid} 条；"
-            f"显式 alarm_bounds {len(session.rows)} 条。"
+            f"双边上下限 {len(session.rows)} 条。"
         )
         self.message_label.setStyleSheet("color: #b42318; font-weight: 600;" if invalid else "color: #167c35;")
 
@@ -248,8 +260,27 @@ class AlarmBoundsEditorWidget(QWidget):
         self.table.setRowCount(0)
         for row in rows:
             self._append_row(row)
-        self.count_label.setText(f"{len(rows)} 条显式预警配置")
-        self.inner_tabs.setTabText(1, f"上下限编辑 ({len(rows)})")
+        self._refresh_explicit_state()
+
+    def _refresh_explicit_state(self) -> None:
+        count = self.table.rowCount()
+        has_rows = count > 0
+        self.table.setVisible(has_rows)
+        self.empty_bounds_label.setVisible(not has_rows)
+        if has_rows:
+            self.count_label.setText(f"{count} 条双边上下限")
+            self.inner_tabs.setTabText(1, f"双边上下限（{count} 条）")
+            return
+        configured = sum(row.status == "configured" for row in self.effective_rows)
+        self.count_label.setText("尚未配置双边上下限")
+        self.inner_tabs.setTabText(1, "双边上下限（未配置）")
+        self.empty_bounds_label.setText(
+            "<b>本项目未配置双边上下限规则，这不是加载失败。</b><br><br>"
+            f"当前配置仍有 {configured} 条有效的分级预警值或图上参考线，可在“有效值总览”查看。"
+            "这些值与双边上下限含义不同，程序不会自动转换。<br><br>"
+            "如项目标准确实要求新增双边上下限，请使用下方“新增模块默认上下限”或“新增测点上下限”，"
+            "并在覆盖保存前核对正式预警标准。"
+        )
 
     def _populate_effective(self, rows: list[EffectiveWarningRow]) -> None:
         self.effective_rows = list(rows)
@@ -271,10 +302,10 @@ class AlarmBoundsEditorWidget(QWidget):
         explicit = sum(row.source_kind == "alarm_bounds" for row in rows)
         summary = (
             f"检测到 {configured} 条有效预警/参考值；{unset} 条字段已存在但未设置；"
-            f"{invalid} 条格式错误。显式 alarm_bounds 为 {explicit} 条。"
+            f"{invalid} 条格式错误。双边上下限为 {explicit} 条。"
         )
         if explicit == 0 and configured:
-            summary += " 当前桥梁未采用显式 alarm_bounds；其它已检测到的配置来源已在下表按来源展示。"
+            summary += " 当前桥梁未配置双边上下限；其它预警值和参考线已在下表按来源展示。"
         elif not rows:
             summary = "当前配置未检测到任何受支持的预警来源；请核对配置或补充明确的预警配置。"
         self.overview_summary_label.setText(summary)
@@ -367,13 +398,13 @@ class AlarmBoundsEditorWidget(QWidget):
         row = self.table.rowCount() - 1
         self.table.selectRow(row)
         self.table.scrollToItem(self.table.item(row, 0))
-        self.count_label.setText(f"{self.table.rowCount()} 条显式预警配置")
+        self._refresh_explicit_state()
 
     def delete_selected_rows(self) -> None:
         selected = sorted({index.row() for index in self.table.selectedIndexes()}, reverse=True)
         for row in selected:
             self.table.removeRow(row)
-        self.count_label.setText(f"{self.table.rowCount()} 条显式预警配置")
+        self._refresh_explicit_state()
 
     def rows(self) -> list[AlarmBoundRow]:
         rows: list[AlarmBoundRow] = []

@@ -10,13 +10,16 @@ This file is the handoff point for long Codex sessions. New conversations should
 
 Current local development state:
 
+- The recurring `pyside6` high-saturation refactor automation is paused at the
+  user's request because this computer is currently needed for frequent manual
+  use. Do not resume it until the user explicitly asks.
 - Development is isolated on local branch `dev/pyside6-workbench`, based on
   tagged production release `v1.7.39`. The branch has not been pushed and 133
   has not been modified. The legacy MATLAB GUI remains the production entry.
 - `workbench/` now provides a four-page PySide6 workbench for project/analysis,
   explicit pre-warning-value configuration, manifest/plot review, and report
   handoff. `start_workbench.py` is the source entry; the packaged local entry is
-  `dist/BridgeMonitoringWorkbench/BridgeMonitoringWorkbench.exe`.
+  `dist/BridgeMonitoringWorkbench/桥梁健康监测工作台.exe`.
 - The workbench reads the existing six bridge profiles and its Python module
   option contract is regression-checked against
   `bms.module.ModuleRegistry`. It writes a versioned `job_context.json` and a
@@ -36,7 +39,7 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `290/290`. The current joint MATLAB
+- The current Python suite passes `292/292`. The current joint MATLAB
   workbench/runner/config/plot batch baseline remains `147/147`; the latest
   report/config/update-focused MATLAB batch passes `70/70`. The earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
@@ -47,6 +50,22 @@ Current local development state:
   with pinned SHA-256.
 - Native Windows visual checks passed for the project/analysis page, the
   real-manifest review page, and the Hongtang 156-row alarm editor.
+- The packaged user-facing executable is now named
+  `桥梁健康监测工作台.exe`; the English distribution folder and GitHub ZIP
+  asset prefix remain stable for tooling. The transactional updater accepts a
+  legacy installation containing `BridgeMonitoringWorkbench.exe`, removes the
+  old executable as managed runtime, installs/restarts the Chinese executable,
+  and requires the Chinese name in every new release inventory.
+- The default UI font is raised from 9 pt to 10 pt. The title bar exposes a
+  persisted “自动检查更新” checkbox, initially enabled from policy and
+  independently switchable by the user, plus “立即检查更新”. Source and
+  development builds still never auto-install an update.
+- User-facing report-review wording no longer exposes `manifest`,
+  `provenance`, `门禁` or `QC`. The UI now says “分析结果清单”, “图件数据完整性检查”,
+  “报告生成条件” and “质量检查”; internal JSON keys and file protocols are
+  unchanged. A widget-level wording regression prevents those original terms
+  from returning to the primary workflow.
+  The focused warning/profile/provenance MATLAB contract batch passes `12/12`.
 - The 25 processing/analysis checkboxes now carry packaged-safe custom SVG
   line icons that depict each module's real meaning. In particular, the
   Geokon low-frequency synchronization module uses a data-acquisition
@@ -85,7 +104,7 @@ Current local development state:
   `tmp/workbench_update_cycle/validation_final2`.
 - `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
   MATLAB Runner, six project configs/templates, and the report builder. The
-  build blocks on the workbench smoke contract, twelve native screenshots,
+  build blocks on the workbench smoke contract, fourteen native screenshots,
   packaged report `--job-context` smoke and embedded report-job protocol smoke.
   `release_manifest.json` records the
   EXE SHA-256, file count, total bytes, and smoke result.
@@ -137,7 +156,7 @@ Current local development state:
 - The task-center contract is shared through
   `tests/fixtures/workbench_task_history_contract.json`; Python index/widget/
   main-window tests pass, and the focused MATLAB task/context/request batch
-  passes `14/14`. Full Python regression passes `290/290`. The frozen
+  passes `14/14`. Full Python regression passes `292/292`. The frozen
   six-profile gate now additionally
   requires an enabled 8-column task center, and the release/update gate records
   `task_history_smoke=true`.
@@ -153,11 +172,20 @@ Current local development state:
   screenshot with zero black-region ratio, created a backup, and restored the
   exact old tree after an injected post-rename failure. Evidence is under
   `tmp/workbench_task_history_update_cycle`.
+- The later Chinese-EXE/UI milestone produced a 210,204,728-byte development
+  ZIP and passed the same frozen update cycle in 38.7 seconds. The starting
+  installation contained only the legacy English EXE; the final candidate
+  contained `桥梁健康监测工作台.exe`, removed the English EXE, preserved the
+  operator config/unmanaged note, replaced all managed visual evidence,
+  reported 10 pt font and auto-update enabled, rendered at `2000x1075` with
+  zero black-region ratio, and restored the exact legacy tree under injected
+  failure. Evidence is under `tmp/workbench_chinese_exe_update_cycle_final`.
 - The rebuilt workbench EXE SHA256 is
-  `c4fc3caef76e1c32058694891be34010459a2987da492a37b94cf57c13290fc9`.
-  Its schema-v2 release inventory closes at `597` files, includes both the
+  `8f7b04baebca53739faa57859bdc41720c128e8f8fa8b622b906b8300753a93f`.
+  Its schema-v2 release inventory closes at `599` files, includes both the
   Guanbing warning-overview and Hongtang explicit-bound screenshots, and pins
-  all twelve native screenshot hashes including the task center. The
+  all fourteen native screenshot hashes including the empty-bounds explanation,
+  operator-friendly review wording and task center. The
   six-profile matrix, invalid-CLI/task-history smokes, report gates and
   compiled preview smoke all pass.
 - Post-filter cleanup is migrated as a third configuration subtab. It edits
@@ -309,8 +337,8 @@ Current local development state:
   items, Jiulongjiang 11 missing items, Zhishan lacked anchors 2-5/2-6, and
   Shuixianhua still relies on a synthesized legacy manifest. Page/media deltas
   therefore remain diagnostic evidence, not production parity acceptance.
-- The Python suite now passes `290/290`; the report/config-related MATLAB batch
-  passes `70/70`. The workbench and report builder were rebuilt, all twelve native
+- The Python suite now passes `292/292`; the report/config-related MATLAB batch
+  passes `70/70`. The workbench and report builder were rebuilt, all fourteen native
   screenshots passed visual inspection, and the release manifest records the
   packaged report-gate contract smoke in addition to report-job and visual-QC
   smokes.

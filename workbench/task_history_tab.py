@@ -50,7 +50,7 @@ class TaskHistoryWidget(QWidget):
         outer.addLayout(header)
         hint = QLabel(
             "只读索引当前数据根目录 run_logs/workbench 下的任务。状态文件优先于旧上下文；"
-            "配置哈希、数据目录、Manifest和报告产物会在恢复前复核。"
+            "配置版本、数据目录、分析结果清单和报告文件会在恢复前复核。"
         )
         hint.setWordWrap(True)
         outer.addWidget(hint)

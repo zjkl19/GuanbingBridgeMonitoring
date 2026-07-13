@@ -53,7 +53,8 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   first stable update, rerun the real-ZIP disposable update-cycle validator and
   review its native screenshot/JSON evidence. The 2026-07-13 development ZIP
   passed frozen installation, replacement of the warning/task-history managed
-  screenshots, and exact fault-injected rollback. Existing configs
+  screenshots, migration from the legacy English EXE to the Chinese EXE, and
+  exact fault-injected rollback. Existing configs
   are deliberately preserved, so future config-schema changes still need an
   explicit migration rather than relying on package replacement.
 - The warning inventory covers values resident in bridge JSON configuration.
@@ -61,6 +62,12 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   prose or generator code. Those constants must be centralized only after
   their engineering/statistical meaning is reviewed; the overview must not
   imply that a plotting reference line is an alarm-engine threshold.
+- Guanbing has valid wind grading values and deflection/tilt plot reference
+  lines but no explicit two-sided lower/upper rules. This is intentional, not a
+  load failure. The editor now hides the empty table and explains the
+  distinction; it offers explicit add actions but never converts one-sided
+  grades or plot lines automatically. Any new two-sided rule still requires
+  confirmation against the formal project warning standard before saving.
 
 ## Workbench Update Backup Retention
 
