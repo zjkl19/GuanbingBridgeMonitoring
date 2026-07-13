@@ -682,6 +682,7 @@ OVERVIEW_SECTION_NAMES = (
     "主塔倾斜监测",
     "支座变位监测",
     "吊索索力监测",
+    "主梁、主塔振动监测",
     "风向风速监测",
     "地震动监测",
 )
@@ -801,6 +802,7 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
     tilt = sections["tilt"]
     bearing = sections["bearing_displacement"]
     cable = sections["cable_force"]
+    vibration = sections.get("vibration", {})
     wind = sections["wind"]
     eq = sections["eq"]
 
@@ -868,6 +870,16 @@ def build_overview_items(manifest: dict) -> dict[str, list[str]]:
             else:
                 cable_parts.append("索力时程及统计结果见正文图表。")
         replacements["吊索索力监测"] = ["".join(cable_parts)]
+    if section_is_available("vibration", vibration):
+        max_abs = vibration.get("max_abs")
+        max_rms = vibration.get("max_rms")
+        if max_abs is not None and max_rms is not None:
+            replacements["主梁、主塔振动监测"] = [
+                "选取典型监测数据进行分析。"
+                f"监测结果表明，主梁及主塔加速度各测点绝对最大值为{max_abs:.2f}m/s²，"
+                f"各测点10min加速度均方根值最大为{format_rms_value(max_rms)}，"
+                f"低于一级超限阈值{format_rms_threshold(315.0)}，未触发相应报警。"
+            ]
     if section_is_available("wind", wind):
         deck_max_10min = wind.get("deck_max_10min")
         if deck_max_10min is None:
@@ -987,7 +999,7 @@ def build_strain_section(cfg: dict, stats_root: Path, fallback_stats_root: Path 
         "girder_timeseries_caption": "\u56fe 4-4 \u4e3b\u6881\u5404\u622a\u9762\u4f4d\u7f6e\u5e94\u53d8\u65f6\u7a0b\u66f2\u7ebf\u56fe",
         "girder_boxplot_caption": "\u56fe 4-5 \u4e3b\u6881\u5404\u622a\u9762\u4f4d\u7f6e\u5e94\u53d8\u7bb1\u7ebf\u56fe",
         "tower_timeseries_caption": "\u56fe 4-6 \u6865\u5854\u5404\u622a\u9762\u4f4d\u7f6e\u5e94\u53d8\u65f6\u7a0b\u66f2\u7ebf\u56fe",
-        "tower_boxplot_caption": "\u56fe 4-7 \u6865\u5854\u5404\u622a\u9762\u4f4d\u7f6e\u5e94\u53d8\u7bb1\u7ebf\u66f2\u7ebf\u56fe",
+        "tower_boxplot_caption": "\u56fe 4-7 \u6865\u5854\u5404\u622a\u9762\u4f4d\u7f6e\u5e94\u53d8\u7bb1\u7ebf\u56fe",
         "image_lookup": {
             "girder_timeseries": [deepcopy(item.lookup) | {"label": item.label} for item in girder_ts_imgs],
             "girder_boxplot": [deepcopy(item.lookup) | {"label": item.label} for item in girder_box_imgs],
@@ -1284,7 +1296,7 @@ def build_vibration_section(cfg: dict, stats_root: Path, fallback_stats_root: Pa
         )
     else:
         timeseries_summary = "选取典型监测数据进行分析，主梁及主塔加速度时程与10min加速度均方根结果见下图。"
-    freq_summary = "选取典型监测数据进行分析，典型测点自振频率时程如图4-12所示，本月主梁及主塔自振频率识别结果整体稳定，未见明显异常漂移。"
+    freq_summary = "选取典型监测数据进行分析，典型测点自振频率时程如下图所示，监测周期内主梁及主塔自振频率识别结果整体稳定，未见明显异常漂移。"
 
     return {
         "enabled": True,
@@ -1349,13 +1361,22 @@ def build_wind_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
     tower_row = row_by_point.get("W2")
     deck_max_10min = deck_row.get("mean10min_max") if deck_row else None
     tower_max_10min = tower_row.get("mean10min_max") if tower_row else None
+    deck_max_speed = deck_row.get("max_speed") if deck_row else None
+    tower_max_speed = tower_row.get("max_speed") if tower_row else None
     if deck_max_10min is not None or tower_max_10min is not None:
         result_parts = []
         if deck_max_10min is not None:
             result_parts.append(f"桥面测点W1的10min平均风速最大值为{deck_max_10min:.2f}m/s")
         if tower_max_10min is not None:
             result_parts.append(f"塔顶测点W2的10min平均风速最大值为{tower_max_10min:.2f}m/s")
-        summary = "监测结果如表4-12所示。监测结果表明，" + "，".join(result_parts) + "，均未超过25m/s。"
+        summary = "监测结果如表 4-12所示。监测结果表明，" + "，".join(result_parts) + "，均未超过25m/s。"
+        instant_parts = []
+        if deck_max_speed is not None:
+            instant_parts.append(f"W1瞬时最大风速为{deck_max_speed:.2f}m/s")
+        if tower_max_speed is not None:
+            instant_parts.append(f"W2瞬时最大风速为{tower_max_speed:.2f}m/s")
+        if instant_parts:
+            summary += "表中“瞬时最大风速”与上述10min平均风速最大值口径不同，" + "，".join(instant_parts) + "。"
 
         if (
             deck_row
@@ -1393,6 +1414,8 @@ def build_wind_section(cfg: dict, stats_root: Path, fallback_stats_root: Path | 
         "max_10min": max_10min,
         "deck_max_10min": deck_max_10min,
         "tower_max_10min": tower_max_10min,
+        "deck_max_speed": deck_max_speed,
+        "tower_max_speed": tower_max_speed,
         "speed_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in speed_items],
         "rose_images": [{"label": item.label, "path": str(item.path) if item.path else None} for item in rose_items],
         "speed_caption": "W1桥面与W2塔顶10min平均风速时程图",
@@ -1534,6 +1557,9 @@ def update_wind_table(doc: Document, table_rows: list[dict]) -> None:
     table = find_table_by_header(doc, "平均风向")
     if table is None:
         return
+    if table.rows and len(table.rows[0].cells) >= 5:
+        table.rows[0].cells[4].text = "瞬时最大风速"
+        center_cell(table.rows[0].cells[4])
     row_map = {str(row.cells[0].text).strip(): row for row in table.rows[1:]}
     for point_id, row in row_map.items():
         if not re.fullmatch(r"W\d+", point_id, re.IGNORECASE):

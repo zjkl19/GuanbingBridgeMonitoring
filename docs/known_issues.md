@@ -9,6 +9,14 @@ chat history but not always urgent enough to fix immediately.
 
 Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not a production replacement.
 
+- Hongtang period-report pagination is now generated from Word `PAGE` and
+  `NUMPAGES` fields and no longer patches a hard-coded total. Any future
+  template replacement must retain the one-header/one-PAGE/one-NUMPAGES
+  contract or the report builder will reject the output. Rendering the bare
+  template is not an acceptance test for caption cross-references; acceptance
+  remains a fully populated report followed by Word field update and complete
+  page rendering.
+
 - The PySide6 shell currently covers project/date/module selection, local
   analysis launch, status/manifest review, task restoration, and guarded report
   handoff. The warning page now inventories `alarm_bounds`,

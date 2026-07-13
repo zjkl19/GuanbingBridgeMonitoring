@@ -430,7 +430,14 @@ class SpectrumConfigEditorWidget(QWidget):
 
     @staticmethod
     def _display(value: object | None) -> str:
-        return "" if value is None else str(value)
+        if value is None:
+            return ""
+        if isinstance(value, float):
+            # JSON decimal arithmetic can produce tails such as
+            # 1.6859999999999999. Keep the editable value precise without
+            # exposing binary floating-point noise to operators.
+            return f"{value:.12g}"
+        return str(value)
 
     def _populate_orders(self, rows: list[SpectrumPeakOrderRow]) -> None:
         self.order_table.setRowCount(0)

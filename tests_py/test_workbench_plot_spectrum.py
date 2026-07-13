@@ -101,6 +101,32 @@ class WorkbenchPlotCommonTests(unittest.TestCase):
 
 
 class WorkbenchSpectrumConfigTests(unittest.TestCase):
+    def test_hongtang_acceleration_peak_bands_match_production_config(self) -> None:
+        session = SpectrumConfigSession(ROOT / "config" / "hongtang_config.json")
+        rows = session.orders("accel_spectrum")
+        point_rows = {
+            (row.point_id, int(row.order)): (row.search_min_hz, row.search_max_hz)
+            for row in rows
+            if row.scope == "point"
+        }
+        expected = {
+            ("A1", 1): (0.748, 1.048),
+            ("A1", 2): (1.310, 1.610),
+            ("A1", 3): (2.587, 2.887),
+            ("A5", 3): (2.384, 2.684),
+            ("A9-X", 3): (2.416, 2.716),
+            ("A9-Y", 3): (2.394, 2.694),
+            ("A10-X", 1): (0.722, 1.022),
+            ("A10-X", 3): (2.587, 2.887),
+            ("A10-Y", 1): (0.748, 1.048),
+            ("A10-Y", 2): (1.386, 1.686),
+            ("A10-Y", 3): (2.296, 2.596),
+        }
+        for key, bounds in expected.items():
+            with self.subTest(point=key[0], order=key[1]):
+                self.assertAlmostEqual(point_rows[key][0], bounds[0], places=6)
+                self.assertAlmostEqual(point_rows[key][1], bounds[1], places=6)
+
     def test_all_bridge_spectrum_configs_noop_round_trip(self) -> None:
         for name in CONFIGS:
             with self.subTest(name=name):
@@ -196,6 +222,20 @@ class WorkbenchPlotSpectrumGuiTests(unittest.TestCase):
         self.assertEqual(
             widget.session.build_payload_all(coverages, orders), widget.session.payload
         )
+
+    def test_hongtang_peak_band_cells_hide_float_noise(self) -> None:
+        widget = SpectrumConfigEditorWidget()
+        widget.load_path(ROOT / "config" / "hongtang_config.json")
+        matching_rows = [
+            index
+            for index in range(widget.order_table.rowCount())
+            if widget.order_table.item(index, 2).text() == "A10-Y"
+            and widget.order_table.item(index, 3).text() == "2"
+        ]
+        self.assertEqual(len(matching_rows), 1)
+        row = matching_rows[0]
+        self.assertEqual(widget.order_table.item(row, 6).text(), "1.386")
+        self.assertEqual(widget.order_table.item(row, 7).text(), "1.686")
 
     def test_invalid_order_blocks_module_switch_without_losing_draft(self) -> None:
         widget = SpectrumConfigEditorWidget()

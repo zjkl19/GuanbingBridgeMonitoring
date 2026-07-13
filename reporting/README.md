@@ -5,6 +5,15 @@
 The report builder supports both monthly reports and period reports.
 报告生成程序同时支持月报和周期报。
 
+Hongtang period reports use real Word `PAGE` and `NUMPAGES` fields in the
+header. The generator audits that exactly one of each field is present and
+does not calculate or write a fixed total-page number. Accepted proofreading
+corrections can be reapplied idempotently with:
+
+```powershell
+python reporting/calibrate_hongtang_period_template.py
+```
+
 - `月报 / Monthly Report`
 - `周期报（含 WIM） / Period Report (with WIM)`
 

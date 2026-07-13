@@ -20,9 +20,21 @@ from build_monthly_report import (  # noqa: E402
     update_wind_table,
 )
 from build_period_report import apply_period_maintenance_log  # noqa: E402
+from build_quarterly_wim_sample import format_load_limit_text  # noqa: E402
 
 
 class TestHongtangPeriodFollowups(unittest.TestCase):
+    def test_wim_load_limit_wording_distinguishes_equal_from_exceeded(self):
+        self.assertEqual(
+            format_load_limit_text(30.0, 30.0, 40.0),
+            "达到1.5倍设计车辆荷载30t，未达到2.0倍设计车辆荷载40t",
+        )
+        self.assertEqual(
+            format_load_limit_text(30.01, 30.0, 40.0),
+            "超过1.5倍设计车辆荷载30t，未达到2.0倍设计车辆荷载40t",
+        )
+        self.assertEqual(format_load_limit_text(40.0, 30.0, 40.0), "达到2.0倍设计车辆荷载40t")
+
     def test_eq_section_maps_base_point_id_and_component_to_direction(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -96,6 +108,12 @@ class TestHongtangPeriodFollowups(unittest.TestCase):
                     "min_change": -7.42,
                     "max_change": 1.77,
                 },
+                "vibration": {
+                    "enabled": True,
+                    "available": True,
+                    "max_abs": 0.35,
+                    "max_rms": 0.04,
+                },
                 "wind": {"enabled": True, "available": True, "max_10min": 5.46},
                 "eq": {"enabled": False, "available": False},
             }
@@ -104,6 +122,7 @@ class TestHongtangPeriodFollowups(unittest.TestCase):
         items = build_overview_items(manifest)
         cable_text = items["吊索索力监测"][0]
         wind_text = items["风向风速监测"][0]
+        vibration_text = items["主梁、主塔振动监测"][0]
 
         self.assertIn("监测结果表明，吊索加速度", cable_text)
         self.assertIn("370mm/s²（0.370m/s²）", cable_text)
@@ -113,6 +132,8 @@ class TestHongtangPeriodFollowups(unittest.TestCase):
         self.assertNotIn("监测结果表明吊索加速度", cable_text)
         self.assertNotIn("与成桥索力相比变化范围在10%以内", cable_text)
         self.assertIn("桥面测点W1的10min平均风速", wind_text)
+        self.assertIn("40mm/s²（0.040m/s²）", vibration_text)
+        self.assertIn("315mm/s²（0.315m/s²）", vibration_text)
 
     def test_rms_format_preserves_mm_per_second_squared_precision(self):
         self.assertEqual(format_rms_value(0.027), "27mm/s²（0.027m/s²）")
@@ -136,6 +157,7 @@ class TestHongtangPeriodFollowups(unittest.TestCase):
             section = build_wind_section(cfg, stats, None, root, root / "assets")
 
             self.assertIn("桥面测点W1的10min平均风速最大值为5.46m/s", section["summary"])
+            self.assertIn("W1瞬时最大风速为9.25m/s", section["summary"])
             self.assertEqual(section["speed_caption"], "W1桥面与W2塔顶10min平均风速时程图")
 
     def test_wind_speed_caption_prefers_v1738_and_falls_back_to_legacy(self):
@@ -210,6 +232,7 @@ class TestHongtangPeriodFollowups(unittest.TestCase):
         )
 
         self.assertEqual(table.cell(1, 3).text, "2.74")
+        self.assertEqual(table.cell(0, 4).text, "瞬时最大风速")
         self.assertEqual([table.cell(2, idx).text for idx in range(1, 6)], ["", "", "", "", ""])
 
 

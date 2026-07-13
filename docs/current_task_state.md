@@ -6,6 +6,43 @@ Last updated: 2026-07-13
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-13 Hongtang Q2 Spectrum And Report-Template Calibration
+
+- The Hongtang structural-acceleration spectrum search uses three inclusive
+  `target_frequency +/- 0.15 Hz` bands. The default targets are
+  `0.898/1.460/2.737 Hz`; A5, A9-X, A9-Y, A10-X and A10-Y retain their
+  documented per-point overrides. A Python regression now protects every
+  resulting interval, and the existing MATLAB spectrum tests protect the
+  inclusive-band and per-point-override behavior.
+- The user-supplied Q2 proofreading report was audited for tracked changes and
+  comments. Accepted wording/numbering corrections were transferred to
+  `reports/洪塘大桥健康监测周期报模板-自动报告.docx` through the repeatable
+  `reporting/calibrate_hongtang_period_template.py` tool.
+- Period-report headers no longer contain duplicated floating page text or a
+  hard-coded total. `reporting/docx_header_fields.py` writes exactly one Word
+  `PAGE` field and one `NUMPAGES` field, widens the report-number cell so the
+  identifier stays on one line, and audits the saved DOCX package. The report
+  builder refuses a generated report that fails this field contract.
+- Monthly/period report wording now distinguishes instantaneous maximum wind
+  speed from maximum 10-minute mean wind speed, uses the same vibration
+  statistics source for overview and body, fixes the accepted figure/table
+  references and grammar, and distinguishes axle-load equality from a strict
+  exceedance.
+- A 2026-07-13 read-only check on 133 confirmed a clean remote `main` at
+  `f2531f5` and copied the current Q2 `accel_stats.xlsx` and
+  `accel_spec_stats.xlsx` for local audit without modifying the server. The
+  current maximum structural-acceleration 10-minute RMS is `0.107 m/s2`
+  (A10-Y), so generated text must round to `0.11 m/s2`; no fixed sample value
+  may remain in either the overview or body.
+- The current Python suite passes `296/296`; the focused MATLAB spectrum and
+  workbench-contract batch passes `24/24`. Word field update and rendered-page
+  checks show a single `第 PAGE 页 共 NUMPAGES 页` header and an unwrapped report
+  number.
+- Native GUI review of the frozen Hongtang spectrum page exposed binary-float
+  tails such as `1.6859999999999999`. The editor now displays concise,
+  round-trippable values such as `1.686` without changing the stored or MATLAB
+  calculation value; a Qt regression protects the A10-Y row.
+
 ## 2026-07-12 PySide6 Unified Workbench Migration (dev branch)
 
 Current local development state:
@@ -13,9 +50,10 @@ Current local development state:
 - The recurring `pyside6` high-saturation refactor automation is paused at the
   user's request because this computer is currently needed for frequent manual
   use. Do not resume it until the user explicitly asks.
-- Development is isolated on local branch `dev/pyside6-workbench`, based on
-  tagged production release `v1.7.39`. The branch has not been pushed and 133
-  has not been modified. The legacy MATLAB GUI remains the production entry.
+- Development is isolated on branch `dev/pyside6-workbench`, based on tagged
+  production release `v1.7.39`; the branch is published to `origin` while 133
+  remains on its independent production `main`. The legacy MATLAB GUI remains
+  the production entry.
 - `workbench/` now provides a four-page PySide6 workbench for project/analysis,
   explicit pre-warning-value configuration, manifest/plot review, and report
   handoff. `start_workbench.py` is the source entry; the packaged local entry is
@@ -39,7 +77,7 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `292/292`. The current joint MATLAB
+- The current Python suite passes `296/296`. The current joint MATLAB
   workbench/runner/config/plot batch baseline remains `147/147`; the latest
   report/config/update-focused MATLAB batch passes `70/70`. The earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.

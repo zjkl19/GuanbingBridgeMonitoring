@@ -11,9 +11,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 
 from build_period_report import (  # noqa: E402
     _docx_contains_broken_reference_text,
-    _parse_word_page_count,
-    _patch_hardcoded_total_pages_in_docx,
-    _patch_hardcoded_total_pages_xml,
     _patch_report_number_in_docx,
     period_report_number,
     update_fields_with_word,
@@ -23,10 +20,6 @@ from report_context import ReportBuildContext  # noqa: E402
 
 
 class TestBuildPeriodReportWordUpdate(unittest.TestCase):
-    def test_parse_word_page_count(self):
-        self.assertEqual(_parse_word_page_count("BMS_WORD_PAGE_COUNT=79\n"), 79)
-        self.assertIsNone(_parse_word_page_count("no page count"))
-
     def test_period_report_number_uses_quarter_suffix(self):
         from datetime import date
 
@@ -83,40 +76,6 @@ class TestBuildPeriodReportWordUpdate(unittest.TestCase):
             self.assertIn("BG02FQJC2600002-J2", patched_header)
             self.assertNotIn("BG02FQJC2600002-J1", patched_body + patched_header)
 
-    def test_patch_hardcoded_total_pages_xml(self):
-        xml = (
-            '<w:t xml:space="preserve">\u9875 \u5171 </w:t>'
-            '<w:r><w:t>63</w:t></w:r>'
-            '<w:t xml:space="preserve"> \u9875</w:t>'
-        )
-        patched, count = _patch_hardcoded_total_pages_xml(xml, 79)
-
-        self.assertEqual(count, 1)
-        self.assertIn("<w:t>79</w:t>", patched)
-        self.assertNotIn("<w:t>63</w:t>", patched)
-
-    def test_patch_hardcoded_total_pages_docx_headers(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            docx = Path(tmp) / "report.docx"
-            header_xml = (
-                '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-                '<w:t xml:space="preserve">\u9875 \u5171 </w:t>'
-                '<w:r><w:t>63</w:t></w:r>'
-                '<w:t xml:space="preserve"> \u9875</w:t>'
-                "</w:hdr>"
-            )
-            with zipfile.ZipFile(docx, "w") as z:
-                z.writestr("word/header2.xml", header_xml)
-                z.writestr("word/document.xml", "<w:document />")
-
-            count = _patch_hardcoded_total_pages_in_docx(docx, 79)
-
-            self.assertEqual(count, 1)
-            with zipfile.ZipFile(docx) as z:
-                patched = z.read("word/header2.xml").decode("utf-8")
-            self.assertIn("<w:t>79</w:t>", patched)
-            self.assertNotIn("<w:t>63</w:t>", patched)
-
     def test_broken_reference_detection_joins_split_runs(self):
         with tempfile.TemporaryDirectory() as tmp:
             docx = Path(tmp) / "report.docx"
@@ -149,8 +108,9 @@ class TestBuildPeriodReportWordUpdate(unittest.TestCase):
                     self.assertIn("$section.Footers", script_text)
                     self.assertIn("Update-ShapeFields", script_text)
                     self.assertIn("$header.Shapes", script_text)
-                    self.assertIn("Replace-HardcodedTotalPages", script_text)
-                    self.assertIn("ComputeStatistics(2)", script_text)
+                    self.assertNotIn("Replace-HardcodedTotalPages", script_text)
+                    self.assertNotIn("Replace-TotalPagesText", script_text)
+                    self.assertNotIn("ComputeStatistics(2)", script_text)
                     self.assertIn("KWPS.Application", script_text)
                     return SimpleNamespace(returncode=0, stdout="", stderr="")
                 return SimpleNamespace(returncode=1, stdout="", stderr="unexpected")
@@ -176,6 +136,21 @@ class TestBuildPeriodReportWordUpdate(unittest.TestCase):
 
             self.assertEqual(len(warnings), 1)
             self.assertIn("word_field_update_failed", warnings[0])
+
+    def test_relative_docx_path_is_resolved_before_word_update(self):
+        seen = []
+
+        def fake_python_update(path):
+            seen.append(path)
+            return True, ""
+
+        with patch("build_period_report._run_python_word_field_update", side_effect=fake_python_update):
+            warnings = update_fields_with_word(Path("relative-output") / "report.docx")
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(len(seen), 1)
+        self.assertTrue(seen[0].is_absolute())
+        self.assertEqual(seen[0].name, "report.docx")
 
     def test_broken_reference_update_is_rejected_and_original_restored(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -53,6 +53,7 @@ from analysis_manifest import missing_module_summary_items
 from missing_summary import write_missing_summary
 from report_build_manifest import write_report_build_manifest
 from report_context import ReportBuildContext
+from docx_header_fields import audit_header_pagination_fields, ensure_header_pagination_fields
 from report_qc import check_report, write_report_qc_report
 
 
@@ -1003,28 +1004,6 @@ def apply_health_status_to_doc(doc: Document, summary_text: str, rows: list[dict
     set_table_column_widths(table, [28, 66, 42, 24])
 
 
-def _parse_word_page_count(output: str) -> int | None:
-    match = re.search(r"BMS_WORD_PAGE_COUNT=(\d+)", output or "")
-    if not match:
-        return None
-    try:
-        value = int(match.group(1))
-    except ValueError:
-        return None
-    return value if value > 0 else None
-
-
-def _patch_hardcoded_total_pages_xml(xml_text: str, page_count: int) -> tuple[str, int]:
-    total_re = re.compile(
-        r"(<w:t(?:\s+[^>]*)?>\s*页\s*共\s*</w:t>.*?<w:t(?:\s+[^>]*)?>)"
-        r"(\d{1,4})"
-        r"(</w:t>.*?<w:t(?:\s+[^>]*)?>\s*页\s*</w:t>)",
-        re.S,
-    )
-    replacement = rf"\g<1>{page_count}\g<3>"
-    return total_re.subn(replacement, xml_text)
-
-
 def _patch_report_number_xml(xml_text: str, report_number: str) -> tuple[str, int]:
     report_no_re = re.compile(r"BG02FQJC2600002-J\d+")
     return report_no_re.subn(report_number, xml_text)
@@ -1049,44 +1028,6 @@ def _patch_report_number_in_docx(docx_path: Path, report_number: str | None) -> 
                         text = ""
                     if text:
                         text, count = _patch_report_number_xml(text, report_number)
-                        if count:
-                            patched_count += count
-                            data = text.encode("utf-8")
-                zout.writestr(info, data)
-        tmp_path.replace(docx_path)
-    except zipfile.BadZipFile:
-        return 0
-    finally:
-        if tmp_path.exists():
-            try:
-                tmp_path.unlink()
-            except OSError:
-                pass
-    return patched_count
-
-
-def _patch_hardcoded_total_pages_in_docx(docx_path: Path, page_count: int | None) -> int:
-    if page_count is None or page_count <= 0:
-        return 0
-    if not docx_path.exists():
-        return 0
-
-    patched_count = 0
-    tmp_path = docx_path.with_suffix(docx_path.suffix + ".tmp")
-    try:
-        with zipfile.ZipFile(docx_path, "r") as zin, zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zout:
-            for info in zin.infolist():
-                data = zin.read(info.filename)
-                if (
-                    info.filename.startswith(("word/header", "word/footer"))
-                    and info.filename.endswith(".xml")
-                ):
-                    try:
-                        text = data.decode("utf-8")
-                    except UnicodeDecodeError:
-                        text = ""
-                    if text:
-                        text, count = _patch_hardcoded_total_pages_xml(text, page_count)
                         if count:
                             patched_count += count
                             data = text.encode("utf-8")
@@ -1201,61 +1142,8 @@ try:
         except Exception:
             pass
 
-    def replace_total_pages_text():
-        try:
-            page_count = int(doc.ComputeStatistics(2))
-        except Exception:
-            return
-        print(f"BMS_WORD_PAGE_COUNT={{page_count}}")
-
-        pattern = chr(0x5171) + " [0-9]{1,} " + chr(0x9875)
-        replacement = chr(0x5171) + f" {{page_count}} " + chr(0x9875)
-
-        def replace_in_range(range_obj):
-            try:
-                find = range_obj.Find
-                find.ClearFormatting()
-                find.Replacement.ClearFormatting()
-                find.Text = pattern
-                find.MatchWildcards = True
-                find.Replacement.Text = replacement
-                find.Execute(Replace=2)
-            except Exception:
-                pass
-
-        for section in doc.Sections:
-            for header in section.Headers:
-                try:
-                    if header.Exists:
-                        replace_in_range(header.Range)
-                except Exception:
-                    pass
-                try:
-                    shapes = header.Shapes
-                    for idx in range(1, shapes.Count + 1):
-                        shape = shapes.Item(idx)
-                        if shape.TextFrame.HasText:
-                            replace_in_range(shape.TextFrame.TextRange)
-                except Exception:
-                    pass
-            for footer in section.Footers:
-                try:
-                    if footer.Exists:
-                        replace_in_range(footer.Range)
-                except Exception:
-                    pass
-                try:
-                    shapes = footer.Shapes
-                    for idx in range(1, shapes.Count + 1):
-                        shape = shapes.Item(idx)
-                        if shape.TextFrame.HasText:
-                            replace_in_range(shape.TextFrame.TextRange)
-                except Exception:
-                    pass
-
     update_all_fields()
     update_all_fields()
-    replace_total_pages_text()
     update_all_fields()
     doc.Save()
 finally:
@@ -1282,8 +1170,6 @@ finally:
                     errors.append(f"{py}: field update produced broken reference results")
                     docx_path.write_bytes(original_bytes)
                     continue
-                page_count = _parse_word_page_count(result.stdout)
-                _patch_hardcoded_total_pages_in_docx(docx_path, page_count)
                 return True, ""
             detail = (result.stderr or result.stdout or f"exit={result.returncode}").strip()
             errors.append(f"{py}: {detail[:300]}")
@@ -1325,31 +1211,6 @@ try {
             } catch {}
         }
     }
-    function Replace-TotalPagesText($range, $pageCount) {
-        $pattern = ([string][char]0x5171) + ' [0-9]{1,} ' + ([string][char]0x9875)
-        $replacement = ([string][char]0x5171) + " $pageCount " + ([string][char]0x9875)
-        try {
-            $find = $range.Find
-            $find.ClearFormatting() | Out-Null
-            $find.Replacement.ClearFormatting() | Out-Null
-            $find.Text = $pattern
-            $find.MatchWildcards = $true
-            $find.Replacement.Text = $replacement
-            $find.Execute(
-                [ref]$pattern,
-                [ref]$false,
-                [ref]$true,
-                [ref]$true,
-                [ref]$false,
-                [ref]$false,
-                [ref]$true,
-                [ref]1,
-                [ref]$false,
-                [ref]$replacement,
-                [ref]2
-            ) | Out-Null
-        } catch {}
-    }
     function Update-WordFields($doc) {
         try { $doc.Repaginate() | Out-Null } catch {}
         foreach ($section in @($doc.Sections)) {
@@ -1376,43 +1237,8 @@ try {
         try { $doc.TablesOfContents.Item(1).Update() | Out-Null } catch {}
         try { $doc.Fields.Update() | Out-Null } catch {}
     }
-    function Replace-HardcodedTotalPages($doc) {
-        try { $pageCount = [int]$doc.ComputeStatistics(2) } catch { return }
-        Write-Output "BMS_WORD_PAGE_COUNT=$pageCount"
-        foreach ($section in @($doc.Sections)) {
-            foreach ($header in @($section.Headers)) {
-                try {
-                    if ($header.Exists) { Replace-TotalPagesText $header.Range $pageCount }
-                } catch {}
-                try {
-                    $count = $header.Shapes.Count
-                    for ($idx = 1; $idx -le $count; $idx++) {
-                        $shape = $header.Shapes.Item($idx)
-                        if ($shape.TextFrame.HasText) {
-                            Replace-TotalPagesText $shape.TextFrame.TextRange $pageCount
-                        }
-                    }
-                } catch {}
-            }
-            foreach ($footer in @($section.Footers)) {
-                try {
-                    if ($footer.Exists) { Replace-TotalPagesText $footer.Range $pageCount }
-                } catch {}
-                try {
-                    $count = $footer.Shapes.Count
-                    for ($idx = 1; $idx -le $count; $idx++) {
-                        $shape = $footer.Shapes.Item($idx)
-                        if ($shape.TextFrame.HasText) {
-                            Replace-TotalPagesText $shape.TextFrame.TextRange $pageCount
-                        }
-                    }
-                } catch {}
-            }
-        }
-    }
     Update-WordFields $doc
     Update-WordFields $doc
-    Replace-HardcodedTotalPages $doc
     Update-WordFields $doc
     $doc.Save()
     $saved = $true
@@ -1447,8 +1273,6 @@ if (-not $saved) { exit 1 }
                         errors.append(f"{exe}: field update produced broken reference results")
                         docx_path.write_bytes(original_bytes)
                         continue
-                    page_count = _parse_word_page_count(result.stdout)
-                    _patch_hardcoded_total_pages_in_docx(docx_path, page_count)
                     return True, ""
                 detail = (result.stderr or result.stdout or f"exit={result.returncode}").strip()
                 errors.append(f"{exe}: {detail[:300]}")
@@ -1468,6 +1292,10 @@ def update_fields_with_word(docx_path: Path) -> list[str]:
     if os.environ.get("BMS_NO_WORD") == "1":
         return ["word_field_update_skipped:BMS_NO_WORD=1"]
 
+    # Word/KWPS COM resolves relative paths against the application process,
+    # not the caller's working directory. Always hand the field engine a fully
+    # qualified path so CLI output directories work exactly like GUI paths.
+    docx_path = Path(docx_path).resolve()
     ok, python_error = _run_python_word_field_update(docx_path)
     if ok:
         return []
@@ -1644,11 +1472,16 @@ def build_period_report(
     apply_wim_period_to_doc(doc, manifest["wim"])
     apply_period_toc_months(doc, start_dt, end_dt)
     convert_static_captions_to_auto_number(doc)
+    if ensure_header_pagination_fields(doc) != 1:
+        raise RuntimeError("Hongtang period template must contain exactly one report header pagination cell")
 
     output_docx = ctx.output_dir / period_report_filename(period_label, timestamp)
     doc.save(str(output_docx))
     _patch_report_number_in_docx(output_docx, report_number)
     field_update_warnings = update_fields_with_word(output_docx)
+    header_audit = audit_header_pagination_fields(output_docx)
+    if not header_audit.valid:
+        raise RuntimeError("Invalid Hongtang PAGE/NUMPAGES header fields: " + "; ".join(header_audit.details))
 
     missing = summarize_missing_images(manifest) + summarize_missing_wim_images(manifest["wim"])
     missing.extend(missing_module_summary_items(manifest.get("analysis_run_manifest")))

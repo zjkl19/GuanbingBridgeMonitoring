@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 from copy import deepcopy
 from dataclasses import dataclass
@@ -131,10 +132,14 @@ def format_ton_threshold(value_t: float) -> str:
 def format_load_limit_text(value_t: float, level_1_t: float, level_2_t: float, load_name: str = "设计车辆荷载") -> str:
     level_1_text = format_ton_threshold(level_1_t)
     level_2_text = format_ton_threshold(level_2_t)
-    if value_t >= level_2_t:
+    if value_t > level_2_t and not math.isclose(value_t, level_2_t, rel_tol=0.0, abs_tol=0.005):
         return f"超过2.0倍{load_name}{level_2_text}t"
-    if value_t >= level_1_t:
+    if math.isclose(value_t, level_2_t, rel_tol=0.0, abs_tol=0.005):
+        return f"达到2.0倍{load_name}{level_2_text}t"
+    if value_t > level_1_t and not math.isclose(value_t, level_1_t, rel_tol=0.0, abs_tol=0.005):
         return f"超过1.5倍{load_name}{level_1_text}t，未达到2.0倍{load_name}{level_2_text}t"
+    if math.isclose(value_t, level_1_t, rel_tol=0.0, abs_tol=0.005):
+        return f"达到1.5倍{load_name}{level_1_text}t，未达到2.0倍{load_name}{level_2_text}t"
     return f"未达到1.5倍{load_name}{level_1_text}t"
 
 
