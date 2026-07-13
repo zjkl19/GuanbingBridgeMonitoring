@@ -99,6 +99,27 @@ class AlarmBoundRow:
 
 
 @dataclass(frozen=True)
+class EffectiveWarningRow:
+    """One configured warning value, without collapsing different schemas.
+
+    ``source_kind`` is deliberately retained because a plot reference line,
+    a one-sided alarm level and a two-sided alarm bound do not have equivalent
+    semantics and must never be silently converted into one another.
+    """
+
+    source_kind: str
+    scope: str
+    module_key: str
+    target_key: str
+    level: str
+    value_text: str
+    unit: str
+    purpose: str
+    config_path: str
+    status: str = "configured"
+
+
+@dataclass(frozen=True)
 class CleaningThresholdRow:
     scope: str
     module_key: str
@@ -328,6 +349,370 @@ def extract_alarm_bounds(payload: dict[str, Any]) -> list[AlarmBoundRow]:
             _level_sort_key(row.level),
         ),
     )
+
+
+_WARNING_SOURCE_ORDER = {
+    "alarm_bounds": 0,
+    "force_alarm_bounds": 1,
+    "alarm_levels": 2,
+    "warn_lines": 3,
+    "rms_warn_lines": 4,
+    "group_warn_lines": 5,
+}
+
+_WARNING_UNITS = {
+    "acceleration": "mm/s²",
+    "cable_accel": "mm/s²",
+    "deflection": "mm",
+    "bearing_displacement": "mm",
+    "crack": "mm",
+    "gnss": "mm",
+    "strain": "με",
+    "dynamic_strain": "με",
+    "dynamic_strain_lowpass": "με",
+    "tilt": "°",
+    "wind": "m/s",
+    "wind_speed": "m/s",
+    "earthquake": "m/s²",
+    "eq": "m/s²",
+    "temperature": "°C",
+    "humidity": "%",
+    "rainfall": "mm/h",
+}
+
+
+def _warning_unit(module_key: str, source_kind: str) -> str:
+    if source_kind == "force_alarm_bounds":
+        return "kN"
+    return _WARNING_UNITS.get(module_key, "")
+
+
+def _warning_purpose(source_kind: str, module_key: str) -> str:
+    if source_kind == "alarm_bounds":
+        return "测点上下限；分析/绘图/报告按模块使用"
+    if source_kind == "force_alarm_bounds":
+        return "索力上下限；索力统计与报告"
+    if source_kind == "alarm_levels":
+        if module_key in {"wind", "wind_speed"}:
+            return "风速分级预警；分析/绘图/报告"
+        if module_key in {"earthquake", "eq"}:
+            return "地震动分级预警；分析/绘图/报告"
+        return "单边分级预警"
+    if source_kind == "rms_warn_lines":
+        return "RMS图上参考线"
+    if source_kind == "group_warn_lines":
+        return "组图参考线"
+    return "时程图上参考线"
+
+
+def _warning_number(value: Any) -> str | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number):
+        return None
+    return str(int(number)) if number.is_integer() else format(number, ".12g")
+
+
+def _raw_warning_text(value: Any) -> str:
+    try:
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    except (TypeError, ValueError):
+        return repr(value)
+
+
+def _configured_bounds_rows(
+    scope: str,
+    module_key: str,
+    target_key: str,
+    source_kind: str,
+    raw: Any,
+    path: str,
+) -> list[EffectiveWarningRow]:
+    unit = _warning_unit(module_key, source_kind)
+    purpose = _warning_purpose(source_kind, module_key)
+    if not isinstance(raw, dict):
+        return [
+            EffectiveWarningRow(
+                source_kind,
+                scope,
+                module_key,
+                target_key,
+                "",
+                _raw_warning_text(raw),
+                unit,
+                purpose,
+                path,
+                "invalid",
+            )
+        ]
+    if not raw:
+        return [
+            EffectiveWarningRow(
+                source_kind, scope, module_key, target_key, "", "—", unit, purpose, path, "unset"
+            )
+        ]
+    rows: list[EffectiveWarningRow] = []
+    for level, values in raw.items():
+        item_path = f"{path}.{level}"
+        if values in (None, []):
+            value_text = "—"
+            status = "unset"
+        elif isinstance(values, list) and len(values) == 2:
+            lower = _warning_number(values[0])
+            upper = _warning_number(values[1])
+            if lower is not None and upper is not None and float(upper) > float(lower):
+                value_text = f"[{lower}, {upper}]"
+                status = "configured"
+            else:
+                value_text = _raw_warning_text(values)
+                status = "invalid"
+        else:
+            value_text = _raw_warning_text(values)
+            status = "invalid"
+        rows.append(
+            EffectiveWarningRow(
+                source_kind,
+                scope,
+                module_key,
+                target_key,
+                str(level),
+                value_text,
+                unit,
+                purpose,
+                item_path,
+                status,
+            )
+        )
+    return rows
+
+
+def _configured_level_rows(
+    scope: str,
+    module_key: str,
+    target_key: str,
+    raw: Any,
+    path: str,
+) -> list[EffectiveWarningRow]:
+    unit = _warning_unit(module_key, "alarm_levels")
+    purpose = _warning_purpose("alarm_levels", module_key)
+    if raw in (None, []):
+        return [
+            EffectiveWarningRow(
+                "alarm_levels", scope, module_key, target_key, "", "—", unit, purpose, path, "unset"
+            )
+        ]
+    if not isinstance(raw, list):
+        return [
+            EffectiveWarningRow(
+                "alarm_levels",
+                scope,
+                module_key,
+                target_key,
+                "",
+                _raw_warning_text(raw),
+                unit,
+                purpose,
+                path,
+                "invalid",
+            )
+        ]
+    rows: list[EffectiveWarningRow] = []
+    previous: float | None = None
+    for index, value in enumerate(raw, 1):
+        number = _warning_number(value)
+        status = "configured"
+        if number is None or (previous is not None and float(number) <= previous):
+            status = "invalid"
+        if number is not None:
+            previous = float(number)
+        rows.append(
+            EffectiveWarningRow(
+                "alarm_levels",
+                scope,
+                module_key,
+                target_key,
+                f"level{index}",
+                f"≥ {number}" if number is not None else _raw_warning_text(value),
+                unit,
+                purpose,
+                f"{path}[{index - 1}]",
+                status,
+            )
+        )
+    return rows
+
+
+def _configured_warn_line_rows(
+    module_key: str,
+    source_kind: str,
+    raw: Any,
+    path: str,
+    target_key: str = "",
+) -> list[EffectiveWarningRow]:
+    unit = _warning_unit(module_key, source_kind)
+    purpose = _warning_purpose(source_kind, module_key)
+    if raw in (None, [], {}):
+        return [
+            EffectiveWarningRow(
+                source_kind,
+                "plot_styles",
+                module_key,
+                target_key,
+                "",
+                "—",
+                unit,
+                purpose,
+                path,
+                "unset",
+            )
+        ]
+    if isinstance(raw, dict) and "y" not in raw:
+        rows: list[EffectiveWarningRow] = []
+        for key, value in raw.items():
+            rows.extend(
+                _configured_warn_line_rows(
+                    module_key,
+                    source_kind,
+                    value,
+                    f"{path}.{key}",
+                    str(key) if not target_key else f"{target_key}/{key}",
+                )
+            )
+        return rows
+    values = raw if isinstance(raw, list) else [raw]
+    rows = []
+    for index, item in enumerate(values):
+        item_path = f"{path}[{index}]" if isinstance(raw, list) else path
+        label = ""
+        value_text = _raw_warning_text(item)
+        status = "invalid"
+        row_unit = unit
+        if isinstance(item, dict):
+            label = str(item.get("label") or f"line{index + 1}")
+            number = _warning_number(item.get("y"))
+            row_unit = str(item.get("unit") or unit)
+            if number is not None:
+                value_text = number
+                status = "configured"
+        else:
+            number = _warning_number(item)
+            if number is not None:
+                label = f"line{index + 1}"
+                value_text = number
+                status = "configured"
+        rows.append(
+            EffectiveWarningRow(
+                source_kind,
+                "plot_styles",
+                module_key,
+                target_key,
+                label,
+                value_text,
+                row_unit,
+                purpose,
+                item_path,
+                status,
+            )
+        )
+    return rows
+
+
+def extract_effective_warning_rows(payload: dict[str, Any]) -> list[EffectiveWarningRow]:
+    """Inventory every warning schema currently consumed by MATLAB/report code.
+
+    The result is an audit view.  It does not resolve inheritance or mutate the
+    payload; explicit defaults and point overrides are shown separately so the
+    operator can see their provenance.
+    """
+
+    rows: list[EffectiveWarningRow] = []
+    for scope in ("defaults", "per_point"):
+        root = payload.get(scope, {})
+        if not isinstance(root, dict):
+            continue
+        for module_key, module_block in root.items():
+            if not isinstance(module_block, dict):
+                continue
+            targets = {"": module_block} if scope == "defaults" else module_block
+            for target_key, block in targets.items():
+                if not isinstance(block, dict):
+                    continue
+                base = f"{scope}.{module_key}"
+                if target_key:
+                    base += f".{target_key}"
+                for source_kind in ("alarm_bounds", "force_alarm_bounds"):
+                    if source_kind in block:
+                        rows.extend(
+                            _configured_bounds_rows(
+                                scope,
+                                str(module_key),
+                                str(target_key),
+                                source_kind,
+                                block.get(source_kind),
+                                f"{base}.{source_kind}",
+                            )
+                        )
+                if "alarm_levels" in block:
+                    rows.extend(
+                        _configured_level_rows(
+                            scope,
+                            str(module_key),
+                            str(target_key),
+                            block.get("alarm_levels"),
+                            f"{base}.alarm_levels",
+                        )
+                    )
+
+    global_level_modules = {
+        "wind_params": "wind",
+        "eq_params": "earthquake",
+    }
+    for container_key, module_key in global_level_modules.items():
+        block = payload.get(container_key)
+        if isinstance(block, dict) and "alarm_levels" in block:
+            rows.extend(
+                _configured_level_rows(
+                    "global",
+                    module_key,
+                    "",
+                    block.get("alarm_levels"),
+                    f"{container_key}.alarm_levels",
+                )
+            )
+
+    plot_styles = payload.get("plot_styles", {})
+    if isinstance(plot_styles, dict):
+        for module_key, style in plot_styles.items():
+            if not isinstance(style, dict):
+                continue
+            for source_kind in ("warn_lines", "rms_warn_lines", "group_warn_lines"):
+                if source_kind in style:
+                    rows.extend(
+                        _configured_warn_line_rows(
+                            str(module_key),
+                            source_kind,
+                            style.get(source_kind),
+                            f"plot_styles.{module_key}.{source_kind}",
+                        )
+                    )
+
+    def sort_key(row: EffectiveWarningRow) -> tuple[Any, ...]:
+        if row.source_kind in {"warn_lines", "rms_warn_lines", "group_warn_lines"}:
+            detail: tuple[Any, ...] = (row.config_path.casefold(),)
+        else:
+            detail = (*_level_sort_key(row.level), row.config_path.casefold())
+        return (
+            _WARNING_SOURCE_ORDER.get(row.source_kind, 99),
+            row.module_key.casefold(),
+            row.target_key.casefold(),
+            *detail,
+        )
+
+    return sorted(rows, key=sort_key)
 
 
 def apply_alarm_bounds(payload: dict[str, Any], rows: Iterable[AlarmBoundRow]) -> dict[str, Any]:
@@ -1023,6 +1408,10 @@ class ConfigEditorSession:
     @property
     def rows(self) -> list[AlarmBoundRow]:
         return extract_alarm_bounds(self.payload)
+
+    @property
+    def effective_warning_rows(self) -> list[EffectiveWarningRow]:
+        return extract_effective_warning_rows(self.payload)
 
     def build_payload(self, rows: Iterable[AlarmBoundRow]) -> dict[str, Any]:
         return apply_alarm_bounds(self.payload, rows)

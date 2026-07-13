@@ -207,6 +207,18 @@ $smokeProcess = Start-Process `
 if ($smokeProcess.ExitCode -ne 0) {
     throw "Workbench EXE smoke test failed with exit code $($smokeProcess.ExitCode)"
 }
+$invalidCliProcess = Start-Process `
+    -FilePath $exePath `
+    -ArgumentList @("--definitely-invalid-workbench-option") `
+    -WindowStyle Hidden `
+    -PassThru
+if (-not $invalidCliProcess.WaitForExit(10000)) {
+    Stop-Process -Id $invalidCliProcess.Id -Force -ErrorAction SilentlyContinue
+    throw "Workbench invalid-CLI smoke timed out; a noconsole error dialog may have blocked exit"
+}
+if ($invalidCliProcess.ExitCode -ne 2) {
+    throw "Workbench invalid-CLI smoke expected exit code 2, got $($invalidCliProcess.ExitCode)"
+}
 $smoke = Get-Content -LiteralPath $smokeOutput -Raw -Encoding UTF8 | ConvertFrom-Json
 if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
         -or $smoke.config_tab_count -lt 8 -or $smoke.module_count -lt 20 `
@@ -214,6 +226,9 @@ if (-not $smoke.ok -or $smoke.profile_count -ne 6 -or $smoke.tab_count -ne 4 `
         -or -not $smoke.auto_threshold_preview_enabled `
         -or -not $smoke.update_backup_management_enabled `
         -or -not $smoke.profile_matrix_review_enabled `
+        -or $smoke.effective_warning_row_count -lt 1 `
+        -or $smoke.warning_subtab_count -ne 2 `
+        -or $smoke.invalid_warning_row_count -ne 0 `
         -or $smoke.group_plot_module_count -lt 1 `
         -or $smoke.cleaning_threshold_row_count -lt 1 `
         -or $smoke.plot_common_field_count -ne 14 `
@@ -240,7 +255,9 @@ if ($profileMatrix.status -ne "passed" -or $profileMatrix.profile_count -ne 6 `
 $screenshotOutput = Join-Path $distRoot "workbench_startup.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $screenshotOutput -ProfileId "guanbing" -TabIndex 0
 $configScreenshotOutput = Join-Path $distRoot "workbench_alarm_editor.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $configScreenshotOutput -ProfileId "hongtang" -TabIndex 1
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $configScreenshotOutput -ProfileId "hongtang" -TabIndex 1 -WarningTabIndex 1
+$warningOverviewScreenshotOutput = Join-Path $distRoot "workbench_warning_overview.png"
+& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $warningOverviewScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -WarningTabIndex 0
 $cleaningScreenshotOutput = Join-Path $distRoot "workbench_cleaning_editor.png"
 & (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $cleaningScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 1
 $postFilterScreenshotOutput = Join-Path $distRoot "workbench_post_filter_editor.png"
@@ -286,6 +303,7 @@ $releaseManifest = [ordered]@{
     report_visual_qc_smoke = -not $SkipReportBuilder
     auto_threshold_preview_runner_smoke = -not $SkipAnalysisRunner
     installed_profile_matrix_smoke = $true
+    invalid_cli_smoke = $true
     installed_profile_matrix = [ordered]@{
         profile_count = $profileMatrix.profile_count
         report_capable_count = $profileMatrix.report_capable_count
@@ -300,6 +318,7 @@ $releaseManifest = [ordered]@{
     screenshots = @(
         "workbench_startup.png",
         "workbench_alarm_editor.png",
+        "workbench_warning_overview.png",
         "workbench_cleaning_editor.png",
         "workbench_post_filter_editor.png",
         "workbench_auto_threshold.png",

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 from PySide6.QtGui import QFont
@@ -14,12 +15,45 @@ from .models import file_sha256
 from .version import app_version
 
 
+CLI_DIAGNOSTIC_LOG = Path(tempfile.gettempdir()) / "BridgeMonitoringWorkbench_cli_error.log"
+
+
+def _write_cli_diagnostic(message: str) -> None:
+    try:
+        with CLI_DIAGNOSTIC_LOG.open("a", encoding="utf-8") as stream:
+            stream.write(message.rstrip() + "\n")
+    except OSError:
+        # A malformed command line must still terminate cleanly even if the
+        # temporary directory is unavailable.
+        pass
+
+
+class WorkbenchArgumentParser(argparse.ArgumentParser):
+    """Argument parser that is safe in a PyInstaller ``--noconsole`` build."""
+
+    def _print_message(self, message: str | None, file: object | None = None) -> None:
+        if not message:
+            return
+        target = file or sys.stdout or sys.stderr
+        if target is None:
+            _write_cli_diagnostic(message)
+            return
+        target.write(message)  # type: ignore[attr-defined]
+
+    def error(self, message: str) -> None:
+        if sys.stderr is None:
+            _write_cli_diagnostic(f"{self.format_usage().rstrip()}\n{self.prog}: error: {message}")
+            raise SystemExit(2)
+        super().error(message)
+
+
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Bridge monitoring PySide6 workbench")
+    parser = WorkbenchArgumentParser(description="Bridge monitoring PySide6 workbench")
     parser.add_argument("--project-root", type=Path, default=None)
     parser.add_argument("--profile-id", default=None)
     parser.add_argument("--initial-tab", type=int, default=0)
     parser.add_argument("--initial-config-tab", type=int, default=0)
+    parser.add_argument("--initial-warning-tab", type=int, default=0)
     parser.add_argument("--job-context", type=Path, default=None)
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--smoke-output", type=Path, default=None)
@@ -56,6 +90,11 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "tab_count": window.tabs.count(),
         "module_count": len(window.module_checks),
         "alarm_bound_row_count": window.alarm_editor.table.rowCount(),
+        "effective_warning_row_count": len(window.alarm_editor.effective_rows),
+        "warning_subtab_count": window.alarm_editor.inner_tabs.count(),
+        "invalid_warning_row_count": sum(
+            row.status == "invalid" for row in window.alarm_editor.effective_rows
+        ),
         "cleaning_threshold_row_count": window.cleaning_editor.table.rowCount(),
         "config_tab_count": window.config_tabs.count(),
         "auto_threshold_module_count": window.auto_threshold_editor.module_list.count(),
@@ -124,6 +163,8 @@ def main(argv: list[str] | None = None) -> int:
         window.tabs.setCurrentIndex(args.initial_tab)
     if 0 <= args.initial_config_tab < window.config_tabs.count():
         window.config_tabs.setCurrentIndex(args.initial_config_tab)
+    if 0 <= args.initial_warning_tab < window.alarm_editor.inner_tabs.count():
+        window.alarm_editor.inner_tabs.setCurrentIndex(args.initial_warning_tab)
     if args.demo_auto_threshold_preview:
         window.auto_threshold_editor.load_preview_demo()
     if args.smoke_test:

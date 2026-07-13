@@ -92,9 +92,12 @@ def validate_profile_payload(
             payload.get("profile_count") == 6
             and payload.get("tab_count") == 4
             and payload.get("config_tab_count") == 8
+            and payload.get("warning_subtab_count") == 2
             and payload.get("module_count") == 25
             and payload.get("plot_common_field_count") == 14
             and payload.get("spectrum_module_count") == 2
+            and int(payload.get("effective_warning_row_count") or 0) > 0
+            and int(payload.get("invalid_warning_row_count") or 0) == 0
             and payload.get("report_gate_locked") is True
         ),
     }
@@ -112,6 +115,8 @@ def validate_profile_payload(
         "report_gui_type": profile.report_gui_type,
         "enabled_module_count": len(profile.enabled_modules),
         "alarm_bound_row_count": int(payload.get("alarm_bound_row_count") or 0),
+        "effective_warning_row_count": int(payload.get("effective_warning_row_count") or 0),
+        "invalid_warning_row_count": int(payload.get("invalid_warning_row_count") or 0),
         "cleaning_threshold_row_count": int(payload.get("cleaning_threshold_row_count") or 0),
         "offset_correction_row_count": int(payload.get("offset_correction_row_count") or 0),
         "group_plot_module_count": int(payload.get("group_plot_module_count") or 0),

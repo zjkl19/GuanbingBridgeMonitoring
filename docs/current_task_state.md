@@ -36,7 +36,7 @@ Current local development state:
 - Explicit historical-manifest binding rejects bridge, data-root, start-date,
   or end-date mismatches. Starting a new job clears the previous manifest and
   plot approval. These fixes prevent approval leakage across projects/months.
-- The current Python suite passes `277/277`. The current joint MATLAB
+- The current Python suite passes `283/283`. The current joint MATLAB
   workbench/runner/config/plot batch baseline remains `147/147`; the latest
   report/config/update-focused MATLAB batch passes `70/70`. The earlier focused alarm-editor,
   plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
@@ -85,7 +85,7 @@ Current local development state:
   `tmp/workbench_update_cycle/validation_final2`.
 - `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
   MATLAB Runner, six project configs/templates, and the report builder. The
-  build blocks on the workbench smoke contract, ten native screenshots,
+  build blocks on the workbench smoke contract, eleven native screenshots,
   packaged report `--job-context` smoke and embedded report-job protocol smoke.
   `release_manifest.json` records the
   EXE SHA-256, file count, total bytes, and smoke result.
@@ -100,6 +100,36 @@ Current local development state:
   loaded payload exactly; source overwrites use the same SHA-drift refusal and
   backup gate. The packaged build records a third native screenshot for this
   editor.
+- The previously narrow warning page no longer equates “no explicit
+  `alarm_bounds`” with “no warning configuration”. Its default subtab now
+  inventories `alarm_bounds`, `force_alarm_bounds`, `alarm_levels`,
+  `warn_lines`, `rms_warn_lines`, and `group_warn_lines` without converting
+  between their different semantics. Every row shows scope, module,
+  point/group, level or label, value, unit, runtime purpose, validity state and
+  exact JSON path; source/status filters and free-text search remain responsive
+  for Hongtang's 222-row inventory. Empty configured fields and malformed
+  values stay visible. The second subtab retains the guarded explicit
+  `alarm_bounds` editor.
+- Guanbing now shows 12 inventory rows: 3 wind alarm levels, 8 configured
+  deflection/tilt plot lines and one explicitly empty bearing-displacement
+  line field; 11 are configured and none are malformed. The packaged
+  six-profile gate closes at Guanbing 12, Hongtang 222, Jiulongjiang 14,
+  Shuixianhua 111, Chongyangxi 46 and Zhishan 40 rows, with zero invalid rows
+  and exact no-op payload preservation for all six configs. A MATLAB contract
+  verifies that Guanbing's displayed wind/deflection/tilt values match the
+  existing runtime resolvers. The focused MATLAB warning batch passes `17/17`.
+- A malformed direct frozen-EXE smoke command exposed a pre-existing
+  PyInstaller `--noconsole` failure path: `argparse` tried to write usage to a
+  `None` stderr and displayed a `NoneType.write` exception dialog. The parser
+  now exits with code 2 and appends the real diagnostic to
+  `%TEMP%\BridgeMonitoringWorkbench_cli_error.log`; the package build has a
+  mandatory invalid-CLI smoke so this dialog cannot regress silently.
+- The rebuilt workbench EXE SHA256 is
+  `73c91f0361fbb07ba7ff151c1ffe99792d7c9a293597e633859dae2c0b7c07df`.
+  Its schema-v2 release inventory closes at `596` files, includes both the
+  Guanbing warning-overview and Hongtang explicit-bound screenshots, and pins
+  all eleven native screenshot hashes. The six-profile matrix, invalid-CLI
+  smoke, report gates and compiled preview smoke all pass.
 - Post-filter cleanup is migrated as a third configuration subtab. It edits
   only `post_filter_thresholds`, supports scalar/array/empty and one-sided
   timed rules, preserves unrelated cleaning/offset/alarm fields, and passes
@@ -156,10 +186,11 @@ Current local development state:
   longer matches the unique release-inventory record.
 - Native screenshot QA exposed an intermittent `PrintWindow` partial-frame
   acceptance weakness: the old gate counted bright samples but did not cap
-  black samples. Capture now waits longer, retries up to 15 times and rejects
-  frames with more than 10% near-black grid samples. Five repeated startup
-  captures and the rebuilt ten-screenshot set all have `0/350` dark samples;
-  the title-bar “六桥自检” action is visible in the native evidence.
+  black samples. Capture now waits longer, retries up to 15 times, rejects
+  frames with more than 10% near-black coarse-grid samples, and independently
+  caps a dense whole-frame sample at 3%. Five repeated startup captures and the
+  rebuilt eleven-screenshot set pass both gates; the title-bar “六桥自检”
+  action is visible in the native evidence.
 - Offset correction and grouped plots are migrated as the fifth and sixth
   configuration subtabs. Offset editing covers scalar, fixed, first-day,
   daily/hourly mean or median and segmented date-window rules; overlapping
@@ -248,8 +279,8 @@ Current local development state:
   items, Jiulongjiang 11 missing items, Zhishan lacked anchors 2-5/2-6, and
   Shuixianhua still relies on a synthesized legacy manifest. Page/media deltas
   therefore remain diagnostic evidence, not production parity acceptance.
-- The Python suite now passes `277/277`; the report/config-related MATLAB batch
-  passes `70/70`. The workbench and report builder were rebuilt, all ten native
+- The Python suite now passes `283/283`; the report/config-related MATLAB batch
+  passes `70/70`. The workbench and report builder were rebuilt, all eleven native
   screenshots passed visual inspection, and the release manifest records the
   packaged report-gate contract smoke in addition to report-job and visual-QC
   smokes.

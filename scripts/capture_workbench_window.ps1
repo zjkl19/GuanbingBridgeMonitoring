@@ -4,6 +4,7 @@ param(
     [string]$ProfileId = "guanbing",
     [int]$TabIndex = 0,
     [int]$ConfigTabIndex = 0,
+    [int]$WarningTabIndex = 0,
     [switch]$DemoAutoThresholdPreview
 )
 
@@ -39,7 +40,8 @@ $before = @(Get-Process -Name "BridgeMonitoringWorkbench" -ErrorAction SilentlyC
 $arguments = @(
     "--profile-id", $ProfileId,
     "--initial-tab", "$TabIndex",
-    "--initial-config-tab", "$ConfigTabIndex"
+    "--initial-config-tab", "$ConfigTabIndex",
+    "--initial-warning-tab", "$WarningTabIndex"
 )
 if ($DemoAutoThresholdPreview) {
     $arguments += "--demo-auto-threshold-preview"
@@ -88,6 +90,8 @@ try {
     $brightSamples = 0
     $darkSamples = 0
     $totalSamples = 0
+    $denseDarkSamples = 0
+    $denseTotalSamples = 0
     for ($captureAttempt = 0; $captureAttempt -lt 15; $captureAttempt++) {
         [void][WorkbenchCaptureWin32]::UpdateWindow($handle)
         $graphics.Clear([System.Drawing.Color]::Black)
@@ -106,6 +110,8 @@ try {
         $brightSamples = 0
         $darkSamples = 0
         $totalSamples = 0
+        $denseDarkSamples = 0
+        $denseTotalSamples = 0
         if ($printOk) {
             for ($x = 20; $x -lt $width; $x += 80) {
                 for ($y = 20; $y -lt $height; $y += 80) {
@@ -117,7 +123,20 @@ try {
                 }
             }
             $maxDarkSamples = [math]::Max(3, [math]::Floor($totalSamples * 0.10))
-            if ($brightSamples -ge 150 -and $darkSamples -le $maxDarkSamples) {
+            # A coarse 80 px grid can miss wide horizontal/vertical stale
+            # PrintWindow bands. Sample the whole client frame much more
+            # densely as a second gate; normal black text occupies far below
+            # 3%, while a partial black repaint is rejected reliably.
+            for ($x = 8; $x -lt ($width - 8); $x += 16) {
+                for ($y = 8; $y -lt ($height - 8); $y += 16) {
+                    $pixel = $bitmap.GetPixel($x, $y)
+                    $denseTotalSamples++
+                    if (($pixel.R + $pixel.G + $pixel.B) -lt 30) { $denseDarkSamples++ }
+                }
+            }
+            $maxDenseDarkSamples = [math]::Max(10, [math]::Floor($denseTotalSamples * 0.03))
+            if ($brightSamples -ge 150 -and $darkSamples -le $maxDarkSamples `
+                    -and $denseDarkSamples -le $maxDenseDarkSamples) {
                 $captured = $true
                 break
             }
@@ -125,7 +144,7 @@ try {
         Start-Sleep -Milliseconds 350
     }
     if (-not $captured) {
-        throw "PrintWindow did not produce a complete workbench frame after 15 attempts (bright=$brightSamples, dark=$darkSamples, total=$totalSamples)"
+        throw "PrintWindow did not produce a complete workbench frame after 15 attempts (bright=$brightSamples, dark=$darkSamples/$totalSamples, dense_dark=$denseDarkSamples/$denseTotalSamples)"
     }
     $bitmap.Save($resolvedOutput, [System.Drawing.Imaging.ImageFormat]::Png)
 } finally {

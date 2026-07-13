@@ -11,8 +11,12 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
 
 - The PySide6 shell currently covers project/date/module selection, local
   analysis launch, status/manifest review, task restoration, and guarded report
-  handoff. Explicit `alarm_bounds` and data-cleaning threshold editing are
-  migrated with backup/hash gates. Compiled-runner-backed automatic-cleaning
+  handoff. The warning page now inventories `alarm_bounds`,
+  `force_alarm_bounds`, `alarm_levels`, `warn_lines`, `rms_warn_lines`, and
+  `group_warn_lines` with source provenance, while explicit `alarm_bounds` and
+  data-cleaning threshold editing retain backup/hash gates. The inventory
+  intentionally does not convert plot lines or one-sided levels into two-sided
+  bounds. Compiled-runner-backed automatic-cleaning
   proposals and curve previews, post-filter cleaning, offsets, grouped plots,
   common plotting and spectrum overrides are also migrated.
   Continue using the legacy MATLAB GUI for production configuration.
@@ -43,6 +47,11 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   passed frozen installation and exact fault-injected rollback. Existing configs
   are deliberately preserved, so future config-schema changes still need an
   explicit migration rather than relying on package replacement.
+- The warning inventory covers values resident in bridge JSON configuration.
+  It does not scrape threshold numbers embedded directly in legacy report
+  prose or generator code. Those constants must be centralized only after
+  their engineering/statistical meaning is reviewed; the overview must not
+  imply that a plotting reference line is an alarm-engine threshold.
 
 ## Workbench Update Backup Retention
 

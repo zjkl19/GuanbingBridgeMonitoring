@@ -5,12 +5,15 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -23,8 +26,52 @@ from .config_editor import (
     CleaningThresholdRow,
     ConfigEditorError,
     ConfigEditorSession,
+    EffectiveWarningRow,
     PostFilterConfigEditorSession,
 )
+
+
+WARNING_SOURCE_LABELS = {
+    "alarm_bounds": "测点上下限",
+    "force_alarm_bounds": "索力上下限",
+    "alarm_levels": "分级预警值",
+    "warn_lines": "时程图参考线",
+    "rms_warn_lines": "RMS图参考线",
+    "group_warn_lines": "组图参考线",
+}
+
+WARNING_STATUS_LABELS = {
+    "configured": "有效",
+    "unset": "未设置",
+    "invalid": "格式错误",
+}
+
+WARNING_SCOPE_LABELS = {
+    "defaults": "模块默认",
+    "per_point": "测点覆盖",
+    "global": "全局参数",
+    "plot_styles": "绘图参数",
+}
+
+WARNING_MODULE_LABELS = {
+    "acceleration": "主梁/主塔加速度",
+    "cable_accel": "吊索加速度/索力",
+    "deflection": "挠度",
+    "bearing_displacement": "支座/伸缩缝位移",
+    "crack": "裂缝",
+    "gnss": "GNSS位移",
+    "strain": "应变",
+    "dynamic_strain": "动应变（高通）",
+    "dynamic_strain_lowpass": "动应变（低通）",
+    "tilt": "倾角",
+    "wind": "风速",
+    "wind_speed": "风速",
+    "earthquake": "地震动",
+    "eq": "地震动",
+    "temperature": "温度",
+    "humidity": "湿度",
+    "rainfall": "雨量",
+}
 
 
 class AlarmBoundsEditorWidget(QWidget):
@@ -33,17 +80,18 @@ class AlarmBoundsEditorWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.session: ConfigEditorSession | None = None
+        self.effective_rows: list[EffectiveWarningRow] = []
         self._build_ui()
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
-        title = QLabel("测点预警值配置")
+        title = QLabel("有效预警值总览与上下限配置")
         title.setStyleSheet("font-size: 20px; font-weight: 700; color: #005eac;")
         outer.addWidget(title)
         hint = QLabel(
-            "本页编辑 defaults/per_point 下的 alarm_bounds；level 使用 level1、level2、level3…，"
-            "上下限必须是有限数值且上限大于下限。覆盖保存前会校验文件哈希并自动备份，"
-            "其它配置字段保持不变。数据清洗 thresholds 与图上参考线不在本页修改。"
+            "“有效值总览”完整列出当前配置中的测点上下限、索力上下限、风/地震分级值及各类图上参考线，"
+            "并保留各自来源和用途，绝不把不同语义的配置自动互转。“上下限编辑”只修改"
+            " defaults/per_point 下的 alarm_bounds；覆盖保存前校验文件哈希并自动备份。"
         )
         hint.setWordWrap(True)
         outer.addWidget(hint)
@@ -55,11 +103,74 @@ class AlarmBoundsEditorWidget(QWidget):
         reload_button = QPushButton("重新加载")
         reload_button.clicked.connect(self._reload)
         path_row.addWidget(reload_button)
-        validate_button = QPushButton("校验表格")
-        validate_button.clicked.connect(self._validate_dialog)
+        validate_button = QPushButton("复核全部来源")
+        validate_button.clicked.connect(self._validate_all_dialog)
         path_row.addWidget(validate_button)
         outer.addLayout(path_row)
 
+        self.inner_tabs = QTabWidget()
+        overview_page = QWidget()
+        overview_layout = QVBoxLayout(overview_page)
+        self.overview_summary_label = QLabel("尚未加载有效预警值。")
+        self.overview_summary_label.setWordWrap(True)
+        self.overview_summary_label.setStyleSheet(
+            "background: #eef6ff; border: 1px solid #b8d8f4; border-radius: 4px; padding: 7px;"
+        )
+        overview_layout.addWidget(self.overview_summary_label)
+
+        filters = QHBoxLayout()
+        filters.addWidget(QLabel("来源"))
+        self.source_filter = QComboBox()
+        self.source_filter.addItem("全部来源", "")
+        self.source_filter.currentIndexChanged.connect(self._apply_effective_filters)
+        filters.addWidget(self.source_filter)
+        filters.addWidget(QLabel("状态"))
+        self.status_filter = QComboBox()
+        self.status_filter.addItem("全部状态", "")
+        for key in ("configured", "unset", "invalid"):
+            self.status_filter.addItem(WARNING_STATUS_LABELS[key], key)
+        self.status_filter.currentIndexChanged.connect(self._apply_effective_filters)
+        filters.addWidget(self.status_filter)
+        filters.addWidget(QLabel("搜索"))
+        self.warning_search = QLineEdit()
+        self.warning_search.setPlaceholderText("模块、测点、等级、值或配置路径")
+        self.warning_search.setClearButtonEnabled(True)
+        self.warning_search.textChanged.connect(self._apply_effective_filters)
+        filters.addWidget(self.warning_search, 1)
+        self.effective_count_label = QLabel("0 条")
+        filters.addWidget(self.effective_count_label)
+        overview_layout.addLayout(filters)
+
+        self.effective_table = QTableWidget(0, 10)
+        self.effective_table.setHorizontalHeaderLabels(
+            ["来源", "范围", "模块", "测点/分组", "等级/标签", "配置值", "单位", "用途", "状态", "配置路径"]
+        )
+        self.effective_table.setAlternatingRowColors(True)
+        self.effective_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.effective_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.effective_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        effective_header = self.effective_table.horizontalHeader()
+        effective_header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        effective_header.setSectionResizeMode(3, QHeaderView.Stretch)
+        effective_header.setSectionResizeMode(7, QHeaderView.Stretch)
+        effective_header.setSectionResizeMode(9, QHeaderView.Stretch)
+        overview_layout.addWidget(self.effective_table, 1)
+        overview_hint = QLabel(
+            "说明：图上参考线只影响图件表达；alarm_levels 是单边分级值；alarm_bounds/force_alarm_bounds 才是上下限。"
+            "“未设置”表示字段存在但为空，“格式错误”必须修复后才能作为有效预警依据。"
+        )
+        overview_hint.setWordWrap(True)
+        overview_hint.setStyleSheet("color: #5f6368;")
+        overview_layout.addWidget(overview_hint)
+        self.inner_tabs.addTab(overview_page, "有效值总览")
+
+        explicit_page = QWidget()
+        explicit_layout = QVBoxLayout(explicit_page)
+        explicit_hint = QLabel(
+            "此处仅编辑显式 alarm_bounds。level 使用 level1、level2、level3…；上下限必须为有限数值且上限大于下限。"
+        )
+        explicit_hint.setWordWrap(True)
+        explicit_layout.addWidget(explicit_hint)
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(
             ["范围", "模块键", "测点配置键", "等级", "下限", "上限"]
@@ -74,9 +185,12 @@ class AlarmBoundsEditorWidget(QWidget):
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
-        outer.addWidget(self.table, 1)
+        explicit_layout.addWidget(self.table, 1)
 
         actions = QHBoxLayout()
+        validate_explicit = QPushButton("校验上下限表格")
+        validate_explicit.clicked.connect(self._validate_dialog)
+        actions.addWidget(validate_explicit)
         add_default = QPushButton("新增默认阈值")
         add_default.clicked.connect(lambda: self.add_row("defaults"))
         actions.addWidget(add_default)
@@ -96,7 +210,9 @@ class AlarmBoundsEditorWidget(QWidget):
         save_source.setStyleSheet("font-weight: 700; background: #005eac; color: white; padding: 6px 12px;")
         save_source.clicked.connect(self._save_source)
         actions.addWidget(save_source)
-        outer.addLayout(actions)
+        explicit_layout.addLayout(actions)
+        self.inner_tabs.addTab(explicit_page, "上下限编辑 (alarm_bounds)")
+        outer.addWidget(self.inner_tabs, 1)
 
         self.message_label = QLabel("尚未加载配置。")
         self.message_label.setWordWrap(True)
@@ -108,10 +224,16 @@ class AlarmBoundsEditorWidget(QWidget):
         self.session = session
         self.path_label.setText(f"配置：{session.path}")
         self._populate(session.rows)
+        self._populate_effective(session.effective_warning_rows)
+        configured = sum(row.status == "configured" for row in self.effective_rows)
+        unset = sum(row.status == "unset" for row in self.effective_rows)
+        invalid = sum(row.status == "invalid" for row in self.effective_rows)
         self.message_label.setText(
-            f"已加载；SHA256={session.loaded_sha256[:16]}…。表中只列出显式 alarm_bounds。"
+            f"已加载；SHA256={session.loaded_sha256[:16]}…。"
+            f"有效值 {configured} 条，未设置 {unset} 条，格式错误 {invalid} 条；"
+            f"显式 alarm_bounds {len(session.rows)} 条。"
         )
-        self.message_label.setStyleSheet("color: #167c35;")
+        self.message_label.setStyleSheet("color: #b42318; font-weight: 600;" if invalid else "color: #167c35;")
 
     def _reload(self) -> None:
         if self.session is None:
@@ -127,6 +249,106 @@ class AlarmBoundsEditorWidget(QWidget):
         for row in rows:
             self._append_row(row)
         self.count_label.setText(f"{len(rows)} 条显式预警配置")
+        self.inner_tabs.setTabText(1, f"上下限编辑 ({len(rows)})")
+
+    def _populate_effective(self, rows: list[EffectiveWarningRow]) -> None:
+        self.effective_rows = list(rows)
+        selected_source = self.source_filter.currentData()
+        self.source_filter.blockSignals(True)
+        self.source_filter.clear()
+        self.source_filter.addItem("全部来源", "")
+        for source_kind in sorted(
+            {row.source_kind for row in rows}, key=lambda key: WARNING_SOURCE_LABELS.get(key, key)
+        ):
+            self.source_filter.addItem(WARNING_SOURCE_LABELS.get(source_kind, source_kind), source_kind)
+        index = self.source_filter.findData(selected_source)
+        self.source_filter.setCurrentIndex(max(0, index))
+        self.source_filter.blockSignals(False)
+
+        configured = sum(row.status == "configured" for row in rows)
+        unset = sum(row.status == "unset" for row in rows)
+        invalid = sum(row.status == "invalid" for row in rows)
+        explicit = sum(row.source_kind == "alarm_bounds" for row in rows)
+        summary = (
+            f"检测到 {configured} 条有效预警/参考值；{unset} 条字段已存在但未设置；"
+            f"{invalid} 条格式错误。显式 alarm_bounds 为 {explicit} 条。"
+        )
+        if explicit == 0 and configured:
+            summary += " 当前桥梁未采用显式 alarm_bounds；其它已检测到的配置来源已在下表按来源展示。"
+        elif not rows:
+            summary = "当前配置未检测到任何受支持的预警来源；请核对配置或补充明确的预警配置。"
+        self.overview_summary_label.setText(summary)
+        self.overview_summary_label.setStyleSheet(
+            (
+                "background: #fff2f0; border: 1px solid #ffccc7; color: #b42318;"
+                if invalid
+                else "background: #eef6ff; border: 1px solid #b8d8f4; color: #174a75;"
+            )
+            + " border-radius: 4px; padding: 7px;"
+        )
+        self._apply_effective_filters()
+
+    def _apply_effective_filters(self, *_args: object) -> None:
+        source = str(self.source_filter.currentData() or "")
+        status = str(self.status_filter.currentData() or "")
+        query = self.warning_search.text().strip().casefold()
+        visible = []
+        for row in self.effective_rows:
+            if source and row.source_kind != source:
+                continue
+            if status and row.status != status:
+                continue
+            haystack = " ".join(
+                (
+                    row.source_kind,
+                    WARNING_SOURCE_LABELS.get(row.source_kind, ""),
+                    row.scope,
+                    row.module_key,
+                    row.target_key,
+                    row.level,
+                    row.value_text,
+                    row.unit,
+                    row.purpose,
+                    row.config_path,
+                    WARNING_STATUS_LABELS.get(row.status, row.status),
+                )
+            ).casefold()
+            if query and query not in haystack:
+                continue
+            visible.append(row)
+
+        self.effective_table.setRowCount(0)
+        for row in visible:
+            index = self.effective_table.rowCount()
+            self.effective_table.insertRow(index)
+            values = (
+                WARNING_SOURCE_LABELS.get(row.source_kind, row.source_kind),
+                WARNING_SCOPE_LABELS.get(row.scope, row.scope),
+                (
+                    f"{WARNING_MODULE_LABELS[row.module_key]} ({row.module_key})"
+                    if row.module_key in WARNING_MODULE_LABELS
+                    else row.module_key
+                ),
+                row.target_key or "全局/默认",
+                row.level,
+                row.value_text,
+                row.unit,
+                row.purpose,
+                WARNING_STATUS_LABELS.get(row.status, row.status),
+                row.config_path,
+            )
+            for column, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setToolTip(row.config_path)
+                if row.status == "invalid":
+                    item.setForeground(Qt.red)
+                elif row.status == "unset":
+                    item.setForeground(Qt.darkYellow)
+                self.effective_table.setItem(index, column, item)
+        configured = sum(row.status == "configured" for row in self.effective_rows)
+        self.effective_count_label.setText(
+            f"显示 {len(visible)} / {len(self.effective_rows)}；有效 {configured}"
+        )
 
     def _append_row(self, row: AlarmBoundRow) -> None:
         index = self.table.rowCount()
@@ -176,6 +398,28 @@ class AlarmBoundsEditorWidget(QWidget):
             QMessageBox.critical(self, "阈值校验失败", str(exc))
             return
         QMessageBox.information(self, "阈值校验通过", f"{len(rows)} 条显式预警配置均有效。")
+
+    def _validate_all_dialog(self) -> None:
+        if self.session is None:
+            QMessageBox.warning(self, "无法复核", "尚未加载配置文件。")
+            return
+        invalid = [row for row in self.effective_rows if row.status == "invalid"]
+        unset = [row for row in self.effective_rows if row.status == "unset"]
+        configured = [row for row in self.effective_rows if row.status == "configured"]
+        if invalid:
+            details = "\n".join(row.config_path for row in invalid[:12])
+            QMessageBox.critical(
+                self,
+                "预警来源复核失败",
+                f"发现 {len(invalid)} 条格式错误：\n{details}",
+            )
+            return
+        QMessageBox.information(
+            self,
+            "预警来源复核通过",
+            f"{len(configured)} 条有效预警/参考值格式正确；{len(unset)} 条字段明确未设置。\n"
+            "不同来源保持原有语义，未发生自动转换。",
+        )
 
     def _save_source(self) -> None:
         if self.session is None:
