@@ -54,9 +54,11 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
 - The report gate verifies manifest success, selected-module coverage,
   context identity, pinned hashes, and every manifest-declared full-plot
   provenance record. Explicit visual approval remains mandatory.
-- Remote task submission/monitoring is intentionally out of first-round scope.
-  Do not use this branch to alter 133 until local functional parity and
-  cross-bridge regression are complete.
+- Remote task submission/monitoring is not exposed as a general workbench
+  feature. The user explicitly authorized one isolated 133 RC comparison under
+  `F:\Guanbing_v1.8.0-rc1`; it uses independent task names, cache-only views,
+  logs and outputs and does not change the old production checkout. This
+  one-off validation does not expand the GUI's supported scheduling scope.
 - The local task center is intentionally a bounded recovery index, not a
   filesystem-wide scheduler database. It scans only direct job directories
   under the currently selected data root and contexts explicitly opened in the
@@ -65,9 +67,10 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
   changed configuration is shown as a warning for operator review, while an
   unknown bridge or unreadable context is blocked. Restoring a warning does not
   waive the ordinary launch/report validation gates.
-- GitHub auto-update code is present, but the repository currently has no
-  GitHub Releases. Tags alone are deliberately ignored. Before publishing the
-  first stable update, rerun the real-ZIP disposable update-cycle validator and
+- GitHub auto-update code is present, and `v1.8.0-rc1` is published only as a
+  Pre-release. Stable clients deliberately ignore prereleases and tags alone.
+  Before publishing the first stable update, rerun the real-ZIP disposable
+  update-cycle validator and
   review its native screenshot/JSON evidence. The 2026-07-13 development ZIP
   passed frozen installation, replacement of the warning/task-history managed
   screenshots, migration from the legacy English EXE to the Chinese EXE, and

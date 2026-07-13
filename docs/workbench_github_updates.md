@@ -8,9 +8,10 @@ queries GitHub's `releases/latest` API once per 24 hours after startup by defaul
 The user can disable **自动检查更新** and can always use **立即检查更新**. Source/development launches never install
 updates automatically.
 
-Git tags alone are not updates. The repository currently has tags through
-`v1.7.39` but no GitHub Release. A user will only be offered a newer published,
-non-draft, non-prerelease Release with the required assets.
+Git tags alone are not updates. `v1.8.0-rc1` is the first published GitHub
+Pre-release and is intentionally ignored by the stable updater. A user will
+only be offered a newer published, non-draft, non-prerelease Release with the
+required assets; the RC is installed manually in an isolated validation tree.
 
 ## Required Release assets
 

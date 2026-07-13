@@ -38,6 +38,23 @@ This file is the handoff point for long Codex sessions. New conversations should
   isolated `F:\Guanbing_v1.8.0-rc1`, leave `F:\Guanbing` untouched, and validate
   Hongtang Q2 analysis/report plus Guanbing analysis with independent task/log
   and output paths.
+- Commit `e237a51` is pushed on `dev/pyside6-workbench`; draft PR #1 targets
+  `main`, and tag/Pre-release `v1.8.0-rc1` is published with the verified ZIP
+  and checksum assets. The PR remains unmerged.
+- Read-only 133 preflight confirmed `DESKTOP-21RTG63\\dell`, a clean old
+  `F:\Guanbing` production checkout at `f2531f5`, no MATLAB process, the
+  expected Hongtang/Guanbing data roots, and about 1.78 TB / 845 GB free on
+  E/F. The old production tree was not modified.
+- The RC is installed only at `F:\Guanbing_v1.8.0-rc1`. All 599 packaged files
+  and the Chinese EXE hash were revalidated on 133; all catalog profiles passed
+  frozen-EXE smoke with zero configuration-load errors, packaged assets stayed
+  unchanged, and the remote native screenshot was visually reviewed.
+- Production-data comparison uses `mat_only` validation configurations. Dated
+  cache folders are exposed through candidate-only junction views; generated
+  stats, figures, logs and reports remain under the RC tree. No unzip,
+  resampling, header editing or raw-CSV processing is selected. Hongtang Q2 is
+  the current first long run; Guanbing follows after Hongtang analysis/report
+  validation so the two high-memory analyses do not overlap.
 
 ## 2026-07-13 Hongtang Q2 Spectrum And Report-Template Calibration
 
