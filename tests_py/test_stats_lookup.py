@@ -1,4 +1,5 @@
 import json
+import hashlib
 import sys
 import tempfile
 import unittest
@@ -7,9 +8,48 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 
 from stats_lookup import manifest_search_root, resolve_from_analysis_manifest, stats_key_for_filename  # noqa: E402
+from analysis_manifest import pinned_analysis_manifest_scope  # noqa: E402
 
 
 class TestStatsLookup(unittest.TestCase):
+    def test_strict_pinned_manifest_disables_latest_and_filesystem_fallback(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            stats = root / "stats"
+            stats.mkdir()
+            pinned_stats = stats / "accel_stats.xlsx"
+            fallback_stats = root / "accel_stats.xlsx"
+            pinned_stats.write_text("pinned", encoding="utf-8")
+            fallback_stats.write_text("fallback", encoding="utf-8")
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({
+                "module_results": [{
+                    "key": "acceleration",
+                    "stats_path": str(pinned_stats),
+                    "artifacts": [{
+                        "kind": "stats",
+                        "role": "stats",
+                        "path": str(pinned_stats),
+                        "exists": True,
+                        "bytes": pinned_stats.stat().st_size,
+                    }],
+                }],
+            }), encoding="utf-8")
+            manifest_hash = hashlib.sha256(manifest.read_bytes()).hexdigest().upper()
+
+            with pinned_analysis_manifest_scope(
+                manifest,
+                manifest_hash,
+                require_source_provenance=True,
+                result_root=root,
+            ):
+                self.assertEqual(
+                    resolve_from_analysis_manifest(root, root, "accel_stats.xlsx"),
+                    pinned_stats,
+                )
+                with self.assertRaisesRegex(FileNotFoundError, "pinned analysis manifest"):
+                    resolve_from_analysis_manifest(root, root, "wind_stats.xlsx")
+
     def test_stats_key_for_filename(self):
         self.assertEqual(stats_key_for_filename("accel_stats.xlsx"), "acceleration")
         self.assertIsNone(stats_key_for_filename("unknown.xlsx"))

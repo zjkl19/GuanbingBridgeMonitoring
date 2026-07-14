@@ -21,6 +21,8 @@ classdef ArtifactCollector
                     if endsWith(lower(files{j}), '.plot.json')
                         kind = 'plot_provenance';
                         role = 'plot_provenance';
+                    elseif endsWith(lower(files{j}), '_summary.txt')
+                        kind = 'summary';
                     end
                     artifacts{end+1} = bms.data.ArtifactCollector.record(kind, files{j}, role); %#ok<AGROW>
                 end
@@ -59,7 +61,12 @@ classdef ArtifactCollector
                 if any(strcmp(subdirs(k).name, {'.','..'})), continue; end
                 folders{end+1} = fullfile(subdirs(k).folder, subdirs(k).name); %#ok<AGROW>
             end
-            patterns = {'*.jpg','*.jpeg','*.png','*.emf','*.fig','*.plot.json'};
+            % Wind-rose direction statistics are written to a compact text
+            % summary beside the formal figure.  Reports use those values for
+            % mean/dominant direction and the prevailing speed class, so the
+            % summary must be covered by the same immutable analysis manifest
+            % as the figure instead of relying on filesystem fallback.
+            patterns = {'*.jpg','*.jpeg','*.png','*.emf','*.fig','*.plot.json','*_summary.txt'};
             for f = 1:numel(folders)
                 for i = 1:numel(patterns)
                     d = dir(fullfile(folders{f}, patterns{i}));
@@ -127,7 +134,9 @@ classdef ArtifactCollector
                 case 'temperature'
                     names = {'时程曲线_温度'};
                 case 'humidity'
-                    names = {'时程曲线_湿度','频率分布_湿度'};
+                    % The producer uses “频次分布”; keep the older
+                    % “频率分布” spelling as a read-compatible alias.
+                    names = {'时程曲线_湿度','频次分布_湿度','频率分布_湿度'};
                 case 'rainfall'
                     names = {'时程曲线_雨量'};
                 case 'gnss'
@@ -147,7 +156,11 @@ classdef ArtifactCollector
                         bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(struct(), spec, 'raw'), ...
                         bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(struct(), spec, 'filtered')};
                 case 'tilt'
-                    names = {'时程曲线_倾斜'};
+                    spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('tilt');
+                    names = { ...
+                        bms.analyzer.StructuralFilteredSeriesPipeline.tiltSingleOutputDir(struct(), spec), ...
+                        bms.analyzer.StructuralFilteredSeriesPipeline.tiltGroupOutputDir(struct(), spec), ...
+                        '时程曲线_倾斜','时程曲线_倾斜_组图'};
                 case 'acceleration'
                     names = {'时程曲线_加速度','时程曲线_加速度_组图','时程曲线_加速度_RMS10min','时程曲线_加速度_RMS10min_组图'};
                 case 'cable_accel'
@@ -155,15 +168,17 @@ classdef ArtifactCollector
                 case 'accel_spectrum'
                     names = {'频谱峰值曲线_加速度','频谱峰值曲线_加速度_组图','PSD_备查'};
                 case 'cable_accel_spectrum'
-                    names = {'频谱峰值曲线_索力加速度','索力时程曲线','PSD_备查_索力加速度'};
+                    names = {'频谱峰值曲线_索力加速度','索力时程图','索力时程图_组图','PSD_备查_索力加速度'};
                 case 'crack'
                     names = {'时程曲线_裂缝宽度','时程曲线_裂缝温度'};
                 case 'strain'
                     names = {'时程曲线_应变','时程曲线_应变_组图','箱线图_应变'};
                 case 'dynamic_strain_highpass'
-                    names = {'时程曲线_动应变_高通滤波','箱线图_动应变_高通滤波','动应变箱线图_高通滤波'};
+                    names = {'时程曲线_动应变_高通滤波','时程曲线_动应变_高通滤波_组图', ...
+                        '箱线图_动应变_高通滤波','动应变箱线图_高通滤波'};
                 case 'dynamic_strain_lowpass'
-                    names = {'时程曲线_动应变_低通滤波','箱线图_动应变_低通滤波','动应变箱线图_低通滤波'};
+                    names = {'时程曲线_动应变_低通滤波','时程曲线_动应变_低通滤波_组图', ...
+                        '箱线图_动应变_低通滤波','动应变箱线图_低通滤波'};
                 case 'wind'
                     names = {'风速风向结果','风速时程','风向时程','10min平均风速','风玫瑰'};
                 case {'earthquake','eq'}
@@ -197,9 +212,17 @@ classdef ArtifactCollector
                     bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(style, spec, 'filtered')};
                 return;
             end
+            if strcmp(char(key), 'tilt')
+                spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('tilt');
+                names = { ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.tiltSingleOutputDir(style, spec), ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.tiltGroupOutputDir(style, spec)};
+                return;
+            end
             fields = {'output_dir','single_output_dir','group_output_dir','rms_group_output_dir','boxplot_output_dir', ...
                 'output_dir_ts','group_output_dir_ts','output_dir_crack','output_dir_temp', ...
-                'raw_output_dir','filtered_output_dir','raw_group_output_dir','filtered_group_output_dir'};
+                'raw_output_dir','filtered_output_dir','raw_group_output_dir','filtered_group_output_dir', ...
+                'freq_group_output_dir','force_output_dir','force_group_output_dir'};
             for i = 1:numel(fields)
                 if isfield(style, fields{i}) && ~isempty(style.(fields{i}))
                     names{end+1} = style.(fields{i}); %#ok<AGROW>

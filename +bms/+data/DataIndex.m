@@ -161,15 +161,31 @@ classdef DataIndex
             dirs = bms.data.DataIndex.candidateDirs(dataSource, subfolder, startDate, endDate, cfg, sensorType);
             files = {};
             for i = 1:numel(dirs)
-                fp = bms.data.TimeSeriesLoader.findSeriesFileForPoint(dirs{i}, pointId, cfg, sensorType);
+                fp = bms.data.DataIndex.resolveSeriesFile( ...
+                    dataSource, dirs{i}, pointId, cfg, sensorType);
                 if ~isempty(fp)
                     files{end+1} = fp; %#ok<AGROW>
                 end
             end
-            if isempty(files)
+            % ``mat_only`` is an explicit fail-closed policy: an absent MAT
+            % cache must stay missing even when a matching CSV is present.
+            % The generic data-source fallback is CSV-oriented and is only
+            % valid for the automatic/prefer-MAT discovery modes.
+            if isempty(files) && ~strcmp(mode, 'mat_only')
                 files = dataSource.findPointFiles(pointId, subfolder, startDate, endDate, patterns);
             end
             files = bms.data.BaseDataSource.uniqueExistingFiles(files);
+        end
+
+        function fp = resolveSeriesFile(dataSource, dirp, pointId, cfg, sensorType)
+            %RESOLVESERIESFILE Keep indexing aligned with the runtime vendor loader.
+            if isa(dataSource, 'bms.data.JiulongjiangCsvDataSource')
+                fp = bms.data.JiulongjiangCsvDataSource.findFile( ...
+                    dirp, pointId, sensorType, cfg);
+                return;
+            end
+            fp = bms.data.TimeSeriesLoader.findSeriesFileForPoint( ...
+                dirp, pointId, cfg, sensorType);
         end
 
         function dirs = candidateDirs(dataSource, subfolder, startDate, endDate, cfg, sensorType)

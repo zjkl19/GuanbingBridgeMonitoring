@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
 import re
 import subprocess
 import tempfile
+from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -28,12 +31,17 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from analysis_manifest import analysis_manifest_context, missing_module_summary_items
 from artifact_lookup import (
     filename_has_point_token,
+    latest_file_patterns as lookup_latest_file_patterns,
     resolve_output_dirs as shared_resolve_output_dirs,
     should_skip_search_dir as shared_should_skip_search_dir,
 )
 from stats_lookup import resolve_from_analysis_manifest
-from docx_utils import set_cell_text_preserve
-from jlj_patrol import insert_docx_body_after_heading, period_label_month, resolve_patrol_report_source
+from docx_utils import prune_unused_document_image_relationships, set_cell_text_preserve
+from jlj_patrol import (
+    insert_docx_body_after_heading,
+    replace_patrol_section_with_note,
+    resolve_patrol_report_source,
+)
 from jlj_summary import clear_repeat_table_headers, is_summary_table, update_summary_table
 from excel_utils import load_sheet_rows as load_xlsx_rows
 from format_utils import (
@@ -52,6 +60,7 @@ from format_utils import (
 from missing_summary import write_missing_summary
 from report_build_manifest import write_report_build_manifest
 from report_context import ReportBuildContext
+from config_loader import load_report_config
 from report_artifact_resolver import (
     find_latest_image_patterns as lookup_latest_image_patterns,
     find_latest_point_image_patterns as lookup_latest_point_image_patterns,
@@ -85,6 +94,11 @@ JLJ_REPORT_REMOVE_SENTENCES = (
 class ImageItem:
     label: str
     path: Path | None
+
+
+_JLJ_REPORT_PERIOD: ContextVar[tuple[date, date] | None] = ContextVar(
+    "jlj_report_period", default=None
+)
 
 
 @dataclass
@@ -273,6 +287,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--wim-root", type=Path, default=None, help="Optional WIM result root.")
     parser.add_argument("--patrol-docx", type=Path, default=None, help="Optional patrol report source DOCX. Defaults to reports/九龙江大桥巡查报告.docx lookup.")
     parser.add_argument("--skip-template-precheck", action="store_true", help="Skip DOCX template anchor precheck.")
+    parser.add_argument("--no-word-update", action="store_true", help="Skip Microsoft Word field updates (test/headless use only).")
     return parser.parse_args(argv)
 
 
@@ -282,7 +297,7 @@ def ensure_dir(path: Path) -> Path:
 
 
 def load_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return load_report_config(path)
 
 
 def load_sheet_rows(path: Path, sheet: str | None = None) -> list[dict]:
@@ -316,12 +331,162 @@ def resolve_output_dirs(root: Path, configured_dir: str) -> list[Path]:
     return shared_resolve_output_dirs(root, configured_dir)
 
 
+def jlj_image_data_dates(path: Path | str) -> list[date]:
+    """Extract ordered date tokens from a Jiulongjiang result image name."""
+    values: list[date] = []
+    stem = Path(path).stem
+    pattern = re.compile(
+        r"(?<!\d)(20\d{2})(?:[-_.]?)(0[1-9]|1[0-2])(?:[-_.]?)(0[1-9]|[12]\d|3[01])(?!\d)"
+    )
+    for year, month, day in pattern.findall(stem):
+        try:
+            values.append(date(int(year), int(month), int(day)))
+        except ValueError:
+            continue
+    return values
+
+
+def jlj_image_matches_report_period(
+    path: Path | str,
+    start_date: date,
+    end_date: date,
+) -> bool:
+    """Accept full-period figures and in-period daily PSD figures only."""
+    dates = jlj_image_data_dates(path)
+    if len(dates) >= 2:
+        return dates[0] == start_date and dates[1] == end_date
+    if len(dates) == 1:
+        return start_date <= dates[0] <= end_date
+    return False
+
+
+@contextmanager
+def jlj_report_period_scope(start_date: date, end_date: date):
+    token = _JLJ_REPORT_PERIOD.set((start_date, end_date))
+    try:
+        yield
+    finally:
+        _JLJ_REPORT_PERIOD.reset(token)
+
+
+def _period_filtered_image_candidate(
+    root: Path,
+    configured_dir: str,
+    patterns: list[str],
+    *,
+    point_id: str | None = None,
+) -> Path | None:
+    lookup = (
+        lookup_latest_point_image_patterns(root, configured_dir, point_id, patterns)
+        if point_id
+        else lookup_latest_image_patterns(root, configured_dir, patterns)
+    )
+    active_period = _JLJ_REPORT_PERIOD.get()
+    if active_period is None:
+        return lookup.path
+    start_date, end_date = active_period
+    if lookup.path is not None and jlj_image_matches_report_period(
+        lookup.path, start_date, end_date
+    ):
+        return lookup.path
+
+    # A manifest-selected artifact belongs to the manifest run.  If its name
+    # cannot prove the requested period, fail closed instead of falling back to
+    # an unrecorded filesystem file.
+    if str(lookup.debug.get("source") or "") in {
+        "analysis_manifest",
+        "derived_artifact_manifest",
+        "pinned_analysis_manifest",
+    }:
+        return None
+
+    matched: list[Path] = []
+    for folder in resolve_output_dirs(root, configured_dir):
+        for pattern in patterns:
+            for candidate in folder.glob(pattern):
+                if point_id and not filename_has_point_token(candidate, point_id):
+                    continue
+                if jlj_image_matches_report_period(candidate, start_date, end_date):
+                    matched.append(candidate.resolve())
+    if not matched:
+        return None
+    return max(set(matched), key=lambda item: item.stat().st_mtime)
+
+
 def find_latest_point_image_patterns(root: Path, configured_dir: str, point_id: str, patterns: list[str]) -> Path | None:
-    return lookup_latest_point_image_patterns(root, configured_dir, point_id, patterns).path
+    return _period_filtered_image_candidate(
+        root, configured_dir, patterns, point_id=point_id
+    )
 
 
 def find_latest_image_patterns(root: Path, configured_dir: str, patterns: list[str]) -> Path | None:
-    return lookup_latest_image_patterns(root, configured_dir, patterns).path
+    return _period_filtered_image_candidate(root, configured_dir, patterns)
+
+
+def find_wind_summary_file(
+    root: Path,
+    configured_dir: str,
+    point_id: str,
+) -> Path | None:
+    """Resolve a wind-rose summary without crossing report periods.
+
+    Summary text feeds formal report statistics, so a manifest-selected file
+    is authoritative and a wrong-period manifest record must not fall back to
+    an unrelated filesystem file. Legacy filesystem lookup remains available
+    only when no manifest is binding the result root.
+    """
+    patterns = [f"{point_id}_windrose_*_summary.txt"]
+    lookup = lookup_latest_file_patterns(
+        root,
+        configured_dir,
+        patterns,
+        point_id=point_id,
+        point_token_strict=True,
+        kind="summary",
+    )
+    active_period = _JLJ_REPORT_PERIOD.get()
+    if active_period is None:
+        return lookup.path
+
+    start_date, end_date = active_period
+    if lookup.path is not None and jlj_image_matches_report_period(
+        lookup.path, start_date, end_date
+    ):
+        return lookup.path
+
+    source = str(lookup.debug.get("source") or "")
+    if source in {
+        "analysis_manifest",
+        "derived_artifact_manifest",
+        "pinned_analysis_manifest",
+    }:
+        raise ValueError(
+            "Jiulongjiang wind summary is missing from or does not match the "
+            "bound analysis manifest period: "
+            f"point_id={point_id}, report={start_date}~{end_date}, "
+            f"selected={lookup.path}, manifest={lookup.debug.get('manifest', '')}"
+        )
+
+    candidates: list[Path] = []
+    matched: list[Path] = []
+    for folder in resolve_output_dirs(root, configured_dir):
+        for pattern in patterns:
+            for candidate in folder.glob(pattern):
+                if not filename_has_point_token(candidate, point_id):
+                    continue
+                resolved = candidate.resolve()
+                candidates.append(resolved)
+                if jlj_image_matches_report_period(resolved, start_date, end_date):
+                    matched.append(resolved)
+    if matched:
+        return max(set(matched), key=lambda item: item.stat().st_mtime)
+    if candidates:
+        raise ValueError(
+            "Jiulongjiang wind summary files do not match the requested report period: "
+            f"point_id={point_id}, report={start_date}~{end_date}, "
+            f"candidates={[str(path) for path in sorted(set(candidates))]}"
+        )
+    return None
 
 
 
@@ -433,6 +598,58 @@ def resolve_jlj_monitoring_dates(monitoring_range: str, result_root: Path) -> tu
     if not days:
         raise ValueError(f"Unable to resolve monitoring dates from range: {monitoring_range}")
     return min(days), max(days)
+
+
+def validate_jlj_requested_period(
+    period_label: str,
+    start_date: date,
+    end_date: date,
+) -> None:
+    if start_date > end_date:
+        raise ValueError(f"Jiulongjiang report start date is after end date: {start_date} > {end_date}")
+    match = re.search(r"(\d{4})年\s*0?(\d{1,2})月", str(period_label or ""))
+    if match is None:
+        raise ValueError(f"Unable to resolve Jiulongjiang report month: {period_label}")
+    expected = (int(match.group(1)), int(match.group(2)))
+    actual_months = {(start_date.year, start_date.month), (end_date.year, end_date.month)}
+    if actual_months != {expected}:
+        raise ValueError(
+            "Jiulongjiang report label does not match the monitoring range: "
+            f"period_label={period_label}, start_date={start_date}, end_date={end_date}"
+        )
+
+
+def _parse_manifest_date(value: object) -> date | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.strptime(text[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def validate_jlj_analysis_period(
+    analysis_context: dict,
+    start_date: date,
+    end_date: date,
+) -> None:
+    """Reject binding a report task to an analysis run from another period."""
+    if not analysis_context.get("available"):
+        return
+    request = analysis_context.get("run_request") or {}
+    manifest_start = _parse_manifest_date(request.get("start_date"))
+    manifest_end = _parse_manifest_date(request.get("end_date"))
+    if manifest_start is None or manifest_end is None:
+        if analysis_context.get("strict_source_provenance"):
+            raise ValueError("Pinned Jiulongjiang analysis manifest does not declare start_date/end_date.")
+        return
+    if (manifest_start, manifest_end) != (start_date, end_date):
+        raise ValueError(
+            "Jiulongjiang analysis manifest period does not match the report task: "
+            f"manifest={manifest_start}~{manifest_end}, report={start_date}~{end_date}, "
+            f"manifest_path={analysis_context.get('path', '')}"
+        )
 
 
 def normalize_jlj_raw_point_id(point_id: str) -> str:
@@ -1665,10 +1882,15 @@ def image_for_point(image_root: Path, directory: str, point_id: str, patterns: l
 def images_for_point(image_root: Path, directory: str, point_id: str, patterns: list[str]) -> list[Path]:
     resolved_dirs = resolve_output_dirs(image_root, directory)
     matched: list[Path] = []
+    active_period = _JLJ_REPORT_PERIOD.get()
     for folder in resolved_dirs:
         for pattern in patterns:
             for candidate in folder.glob(pattern):
                 if filename_has_point_token(candidate, point_id):
+                    if active_period is not None and not jlj_image_matches_report_period(
+                        candidate, active_period[0], active_period[1]
+                    ):
+                        continue
                     matched.append(candidate.resolve())
     return sorted(set(matched), key=lambda p: p.stat().st_mtime, reverse=True)
 
@@ -1956,11 +2178,14 @@ def build_wind_section(cfg: dict, result_root: Path, stats_root: Path, fallback_
     summaries: list[dict[str, object]] = []
     for row in rows:
         pid = safe_text(row.get("PointID"))
-        txt = image_root / "风速风向结果" / "风玫瑰"
-        summary_files = sorted(txt.glob(f"{pid}_windrose_*_summary.txt"))
+        summary_file = find_wind_summary_file(
+            image_root,
+            "风速风向结果/风玫瑰",
+            pid,
+        )
         summary = {"PointID": pid}
-        if summary_files:
-            text = summary_files[-1].read_text(encoding="utf-8")
+        if summary_file is not None:
+            text = summary_file.read_text(encoding="utf-8")
             for line in text.splitlines():
                 line = line.strip()
                 if "平均风速" in line and "m/s" in line:
@@ -1992,7 +2217,7 @@ def build_wind_section(cfg: dict, result_root: Path, stats_root: Path, fallback_
         limit_text = f"已超过{format_number_fixed(wind_limit, 0, 'm/s')}预警阈值，需重点复核。"
     else:
         limit_text = "暂不具备预警判定条件。"
-    narrative = f"选取典型监测数据进行分析。主桥10min平均风速最大值为{format_number(max_10m, 2, 'm/s')}，{limit_text}"
+    narrative = f"选取典型监测数据进行分析。主桥桥面10min平均风速最大值为{format_number(max_10m, 2, 'm/s')}，{limit_text}"
     summary = f"主桥桥面风速监测中，桥面10min平均风速最大值为{format_number(max_10m, 2, 'm/s')}，{limit_text}"
     columns = [
         ("PointID", "测点编号", 22.0),
@@ -2921,10 +3146,44 @@ def normalize_cover_monitoring_time(period_label: str, monitoring_range: str = "
     return monitoring_range
 
 
+def _set_paragraph_text_preserve(paragraph: Paragraph, text: str) -> None:
+    if paragraph.runs:
+        for run in paragraph.runs:
+            run.text = ""
+        paragraph.runs[0].text = text
+    else:
+        paragraph.add_run(text)
+
+
+def _cover_metadata_paragraphs(doc: Document) -> Iterable[Paragraph]:
+    seen: set[int] = set()
+    collections = [doc.paragraphs]
+    for section in doc.sections:
+        collections.extend([section.header.paragraphs, section.footer.paragraphs])
+    for collection in collections:
+        for paragraph in collection:
+            marker = id(paragraph._p)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            yield paragraph
+
+
 def update_cover_metadata(doc: Document, period_label: str, report_date: str, monitoring_range: str = "") -> None:
+    monitoring_text = normalize_cover_monitoring_time(period_label, monitoring_range)
+    for paragraph in _cover_metadata_paragraphs(doc):
+        current = paragraph.text.strip()
+        if "监测时间：" in current or "监测时间:" in current:
+            prefix = "（" if current.startswith("（") else ""
+            suffix = "）" if current.endswith("）") else ""
+            _set_paragraph_text_preserve(paragraph, f"{prefix}监测时间：{monitoring_text}{suffix}")
+        elif "报告日期：" in current or "报告日期:" in current:
+            prefix = "（" if current.startswith("（") else ""
+            suffix = "）" if current.endswith("）") else ""
+            _set_paragraph_text_preserve(paragraph, f"{prefix}报告日期：{report_date}{suffix}")
     if len(doc.tables) > 1 and len(doc.tables[1].rows) > 1:
         if len(doc.tables[1].rows[1].cells) > 4:
-            set_cell_text_preserve(doc.tables[1].rows[1].cells[4], normalize_cover_monitoring_time(period_label, monitoring_range))
+            set_cell_text_preserve(doc.tables[1].rows[1].cells[4], monitoring_text)
 
 
 def stress_limit_with_strain_text(stress_mpa: float, elastic_modulus_mpa: float) -> str:
@@ -3072,6 +3331,43 @@ def collect_missing_items(section_map: dict[str, SectionContent]) -> list[dict[s
     return items
 
 
+def collect_jlj_report_image_sources(
+    section_map: dict[str, SectionContent],
+) -> list[dict[str, object]]:
+    """Record every result image that will actually be embedded in the report."""
+    records: list[dict[str, object]] = []
+    seen: set[Path] = set()
+    for section_key, content in section_map.items():
+        image_items = list(content.image_items or [])
+        for block in content.blocks or []:
+            image_items.extend(block.image_items or [])
+        for item in image_items:
+            if item.path is None or not item.path.is_file():
+                continue
+            path = item.path.resolve()
+            if path in seen:
+                continue
+            seen.add(path)
+            dates = jlj_image_data_dates(path)
+            records.append(
+                {
+                    "section": section_key,
+                    "label": item.label,
+                    "path": str(path),
+                    "bytes": path.stat().st_size,
+                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest().upper(),
+                    "data_dates": [value.isoformat() for value in dates[:2]],
+                }
+            )
+    return records
+
+
+def _jlj_period_filename_label(period_label: str) -> str:
+    text = re.sub(r"月份$", "月", str(period_label or "").strip())
+    text = re.sub(r'[\\/:*?"<>|]+', "_", text)
+    return text or "月度"
+
+
 def find_body_template_paragraph(doc: Document) -> Paragraph:
     preferred_fragments = [
         "选取典型监测数据进行分析",
@@ -3101,6 +3397,7 @@ def build_report(
     report_date: str | None = None,
     patrol_docx: Path | None = None,
     precheck_template: bool = True,
+    update_word: bool = True,
 ) -> Path:
     if report_date is None:
         report_date = datetime.now().strftime("%Y年%m月%d日")
@@ -3119,6 +3416,11 @@ def build_report(
     if precheck_template:
         raise_for_template("jlj_monthly", template)
 
+    start_date, end_date = resolve_jlj_monitoring_dates(monitoring_range, result_root)
+    validate_jlj_requested_period(period_label, start_date, end_date)
+    analysis_context = ctx.analysis_context()
+    validate_jlj_analysis_period(analysis_context, start_date, end_date)
+
     doc = Document(str(template))
     caption_templates = find_caption_templates(doc)
     body_template = capture_paragraph_template(find_body_template_paragraph(doc))
@@ -3128,20 +3430,34 @@ def build_report(
     update_cover_metadata(doc, period_label, report_date, monitoring_range)
     apply_health_status_section(doc, cfg, result_root, monitoring_range)
     apply_monthly_data_status_section(doc, cfg, result_root, monitoring_range, caption_templates)
-    start_date, end_date = resolve_jlj_monitoring_dates(monitoring_range, result_root)
     data_acquisition_summary = summarize_jlj_data_acquisition(collect_jlj_data_acquisition_rows(cfg, result_root, start_date, end_date))
-    section_map = build_section_map(cfg, result_root, None, result_root, ctx.image_root, wim_root)
+    with jlj_report_period_scope(start_date, end_date):
+        section_map = build_section_map(cfg, result_root, None, result_root, ctx.image_root, wim_root)
     for key, parent_heading, child_heading, _ in JLG_MONTHLY_SECTIONS:
         add_section_content(doc, parent_heading, child_heading, section_map[key], body_template, caption_templates, ctx.assets_dir)
     if has_patrol_anchor:
         ensure_section_break_before_heading(doc, "桥梁人工巡查结果", chapter3_section_break, 1)
-    patrol_report_docx = resolve_patrol_report_source(template, patrol_docx)
+    patrol_report_docx = resolve_patrol_report_source(
+        template,
+        patrol_docx,
+        target_year=start_date.year,
+        target_month=start_date.month,
+    )
+    patrol_missing: list[dict[str, str]] = []
     if patrol_report_docx is not None and has_patrol_anchor:
         insert_docx_body_after_heading(
             doc,
             "桥梁人工巡查结果",
             patrol_report_docx,
-            target_month=period_label_month(period_label),
+        )
+    elif has_patrol_anchor:
+        replace_patrol_section_with_note(doc, "桥梁人工巡查结果")
+        patrol_missing.append(
+            {
+                "category": "巡查资料缺失",
+                "item": f"{start_date.year:04d}-{start_date.month:02d}",
+                "detail": "未找到与报告月份一致的九龙江巡查报告，模板旧巡查内容已清除。",
+            }
         )
     update_summary_table(doc, section_map, data_acquisition_summary)
     update_jlj_warning_threshold_table(doc)
@@ -3152,15 +3468,29 @@ def build_report(
         apply_paragraph_template(ending_para, body_template)
         ending_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
+    image_sources = collect_jlj_report_image_sources(section_map)
+    dropped_image_relationships = prune_unused_document_image_relationships(doc)
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_docx = (ctx.output_dir / f"{template.stem}_{period_label}_自动生成_{timestamp}.docx").resolve()
+    output_docx = (
+        ctx.output_dir
+        / f"九龙江大桥健康监测{_jlj_period_filename_label(period_label)}月报_报告生成器_{timestamp}.docx"
+    ).resolve()
     doc.save(str(output_docx))
     clean_jlj_report_xml_text(output_docx)
-    update_fields_with_word(output_docx)
+    if update_word:
+        update_fields_with_word(output_docx)
     qc_paths: dict[str, str] = {}
     qc_warnings: list[str] = []
+    qc_errors: list[dict[str, str]] = []
+    qc_result = None
+    qc_failure: Exception | None = None
     try:
-        qc_result = check_jlj_report(output_docx)
+        qc_result = check_jlj_report(
+            output_docx,
+            expected_period_label=period_label,
+            expected_image_paths=[Path(record["path"]) for record in image_sources],
+        )
         qc_txt, qc_json = write_report_qc_report(qc_result, ctx.output_dir, timestamp=timestamp)
         qc_paths = {"report_qc_txt": str(qc_txt), "report_qc_json": str(qc_json), "report_qc_status": qc_result.status}
         qc_warnings = [
@@ -3168,10 +3498,28 @@ def build_report(
             for issue in qc_result.issues
             if issue.severity == "warning"
         ]
+        qc_errors = [
+            {
+                "category": "report_qc",
+                "item": issue.code,
+                "detail": issue.message,
+            }
+            for issue in qc_result.issues
+            if issue.severity == "error"
+        ]
     except Exception as exc:
+        qc_failure = exc
         qc_warnings = [f"report_qc_failed: {exc}"]
+        qc_errors = [
+            {
+                "category": "report_qc",
+                "item": "report_qc_failed",
+                "detail": str(exc),
+            }
+        ]
     missing_items = collect_missing_items(section_map)
-    analysis_context = ctx.analysis_context()
+    missing_items.extend(patrol_missing)
+    missing_items.extend(qc_errors)
     missing_items.extend(missing_module_summary_items(analysis_context))
     manifest_path = write_report_build_manifest(
         context=ctx,
@@ -3180,7 +3528,19 @@ def build_report(
         timestamp=timestamp,
         missing=missing_items,
         warnings=qc_warnings,
-        extra={"section_keys": list(section_map.keys()), **qc_paths},
+        extra={
+            "section_keys": list(section_map.keys()),
+            "report_period": {
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "period_label": period_label,
+            },
+            "patrol_source": str(patrol_report_docx.resolve()) if patrol_report_docx else "",
+            "report_image_source_count": len(image_sources),
+            "report_image_sources": image_sources,
+            "pruned_template_image_relationship_count": len(dropped_image_relationships),
+            **qc_paths,
+        },
         filename_prefix="jlj_report_build_manifest",
     )
     write_missing_summary(
@@ -3189,6 +3549,13 @@ def build_report(
         missing_items,
         context={"result_root": str(result_root), "image_root": str(ctx.image_root), "wim_root": str(wim_root or ""), "analysis_manifest": analysis_context.get("path", ""), "report_build_manifest": str(manifest_path)},
     )
+    if qc_failure is not None:
+        raise RuntimeError(f"Jiulongjiang report QC execution failed: {qc_failure}") from qc_failure
+    if qc_result is not None and qc_result.status == "failed":
+        raise RuntimeError(
+            "Jiulongjiang report QC failed: "
+            + "; ".join(f"{item['item']}: {item['detail']}" for item in qc_errors)
+        )
     return output_docx
 
 
@@ -3212,6 +3579,7 @@ def main() -> None:
         report_date=args.report_date,
         patrol_docx=args.patrol_docx,
         precheck_template=not args.skip_template_precheck,
+        update_word=not args.no_word_update,
     )
     print(f"Jiulongjiang monthly report generated: {output}")
 

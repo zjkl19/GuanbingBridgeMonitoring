@@ -202,11 +202,18 @@ classdef TimeSeriesLoader
 
             try
                 tmp = load(path, 'times', 'vals');
-                if isfield(tmp, 'times') && isfield(tmp, 'vals') && numel(tmp.times) == numel(tmp.vals)
+                if isfield(tmp, 'times') && isfield(tmp, 'vals') ...
+                        && ~isempty(tmp.times) && isnumeric(tmp.vals) ...
+                        && numel(tmp.times) == numel(tmp.vals)
                     times = tmp.times;
                     vals = tmp.vals;
                     if ~isdatetime(times)
                         times = bms.data.TimeSeriesLoader.toDatetime(times);
+                    end
+                    if ~isdatetime(times) || all(isnat(times))
+                        times = [];
+                        vals = [];
+                        return;
                     end
                     vals = vals(:);
                     times = times(:);
@@ -226,6 +233,9 @@ classdef TimeSeriesLoader
                     fp = bms.data.TimeSeriesLoader.findMatCacheForPoint(dirp, pointId, cfg, sensorType);
                 case 'prefer_mat'
                     fp = bms.data.TimeSeriesLoader.findMatCacheForPoint(dirp, pointId, cfg, sensorType);
+                    if ~isempty(fp) && ~bms.data.TimeSeriesLoader.isUsableMatSeries(fp, cfg)
+                        fp = '';
+                    end
                     if isempty(fp)
                         fp = bms.data.TimeSeriesLoader.findCsvForPoint(dirp, pointId, cfg, sensorType);
                     end
@@ -236,6 +246,55 @@ classdef TimeSeriesLoader
                     if isempty(fp)
                         fp = bms.data.TimeSeriesLoader.findMatCacheForPoint(dirp, pointId, cfg, sensorType);
                     end
+            end
+        end
+
+        function ok = isUsableMatSeries(path, cfg)
+            %ISUSABLEMATSERIES Lightweight validation before prefer-MAT selection.
+            ok = false;
+            if nargin < 2 || isempty(cfg), cfg = struct(); end
+            if nargin < 1 || isempty(path) || ~isfile(path)
+                return;
+            end
+            cacheVersion = bms.data.TimeSeriesLoader.seriesCacheVersion(cfg);
+            requireMetadata = bms.data.TimeSeriesLoader.seriesCacheRequireMetadata(cfg);
+            if requireMetadata && ~bms.data.CacheManager.metadataMatches( ...
+                    path, struct(), cacheVersion)
+                return;
+            end
+            try
+                warnState = warning('off', 'all');
+                warnCleanup = onCleanup(@() warning(warnState)); %#ok<NASGU>
+                info = whos('-file', path);
+                names = {info.name};
+                if ~all(ismember({'times', 'vals'}, names))
+                    return;
+                end
+                timeInfo = info(strcmp(names, 'times'));
+                valueInfo = info(strcmp(names, 'vals'));
+                if isempty(timeInfo) || isempty(valueInfo) ...
+                        || prod(timeInfo(1).size) <= 0 ...
+                        || prod(timeInfo(1).size) ~= prod(valueInfo(1).size)
+                    return;
+                end
+                timeClasses = {'datetime', 'double', 'single', 'int8', 'uint8', ...
+                    'int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64', ...
+                    'char', 'string'};
+                valueClasses = {'double', 'single', 'int8', 'uint8', 'int16', ...
+                    'uint16', 'int32', 'uint32', 'int64', 'uint64', 'logical'};
+                ok = ismember(timeInfo(1).class, timeClasses) ...
+                    && ismember(valueInfo(1).class, valueClasses);
+                if ok && strcmp(timeInfo(1).class, 'datetime') ...
+                        && prod(timeInfo(1).size) <= 4096
+                    sample = load(path, 'times');
+                    ok = any(~isnat(sample.times(:)));
+                elseif ok && ~strcmp(timeInfo(1).class, 'datetime')
+                    sample = load(path, 'times');
+                    converted = bms.data.TimeSeriesLoader.toDatetime(sample.times);
+                    ok = isdatetime(converted) && any(~isnat(converted(:)));
+                end
+            catch
+                ok = false;
             end
         end
 

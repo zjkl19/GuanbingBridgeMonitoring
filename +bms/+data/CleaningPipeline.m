@@ -29,7 +29,8 @@ classdef CleaningPipeline
         function rules = emptyRules()
             rules = struct('thresholds', [], 'zero_to_nan', false, ...
                 'outlier_window_sec', [], 'outlier_threshold_factor', [], ...
-                'offset_correction', [], 'value_scale', []);
+                'offset_correction', [], 'value_scale', [], ...
+                'exclude_ranges', []);
         end
 
         function [vals, log] = apply(vals, times, rules, opts)
@@ -43,6 +44,7 @@ classdef CleaningPipeline
             log.offset_correction = [];
             log.offset_applied = false;
             log.threshold_removed_count = 0;
+            log.excluded_range_count = 0;
             log.zero_removed_count = 0;
             log.outlier_removed_count = 0;
             log.final_count = numel(vals);
@@ -57,6 +59,15 @@ classdef CleaningPipeline
             [vals, scaleApplied, scaleValue] = bms.data.CleaningPipeline.applyValueScale(vals, rules);
             log.value_scale_applied = scaleApplied;
             log.value_scale = scaleValue;
+
+            exclusions = [];
+            if isstruct(rules) && isfield(rules, 'exclude_ranges')
+                exclusions = rules.exclude_ranges;
+            end
+            before = isnan(vals);
+            vals = bms.data.CleaningPipeline.applyExcludeRanges(vals, times, exclusions);
+            after = isnan(vals);
+            log.excluded_range_count = sum(after & ~before);
 
             thresholds = [];
             if isstruct(rules) && isfield(rules, 'thresholds')
@@ -139,6 +150,40 @@ classdef CleaningPipeline
             end
         end
 
+        function vals = applyExcludeRanges(vals, times, ranges)
+            %APPLYEXCLUDERANGES Explicitly excludes complete time intervals.
+            % This replaces the historical min>max threshold sentinel.  A
+            % range is intentionally independent from amplitude thresholds
+            % and therefore remains readable in configuration and audits.
+            if isempty(vals) || isempty(ranges), return; end
+            if iscell(ranges)
+                try
+                    ranges = [ranges{:}];
+                catch
+                    return;
+                end
+            end
+            if ~isstruct(ranges), return; end
+            ranges = ranges(:);
+            for k = 1:numel(ranges)
+                item = ranges(k);
+                startText = bms.data.CleaningPipeline.firstRangeField( ...
+                    item, {'start_time', 'start', 't_range_start'});
+                endText = bms.data.CleaningPipeline.firstRangeField( ...
+                    item, {'end_time', 'end', 't_range_end'});
+                if isempty(startText) || isempty(endText)
+                    continue;
+                end
+                t0 = bms.data.CleaningPipeline.parseRuleTime(startText);
+                t1 = bms.data.CleaningPipeline.parseRuleTime(endText);
+                if isnat(t0) || isnat(t1) || t1 < t0
+                    error('CleaningPipeline:InvalidExcludeRange', ...
+                        'exclude_ranges end_time must be greater than or equal to start_time.');
+                end
+                vals(times >= t0 & times <= t1) = NaN;
+            end
+        end
+
         function vals = applyZeroToNan(vals, rules)
             if isstruct(rules) && isfield(rules, 'zero_to_nan') && logical(rules.zero_to_nan)
                 vals(vals == 0) = NaN;
@@ -209,10 +254,12 @@ classdef CleaningPipeline
         function rules = applyRuleBlock(rules, block, appendThresholds)
             if ~isstruct(block), return; end
             if isfield(block, 'thresholds') && ~isempty(block.thresholds)
+                incomingThresholds = bms.data.CleaningPipeline.normalizeThresholds(block.thresholds);
                 if appendThresholds && ~isempty(rules.thresholds)
-                    rules.thresholds = [rules.thresholds(:); block.thresholds(:)];
+                    existingThresholds = bms.data.CleaningPipeline.normalizeThresholds(rules.thresholds);
+                    rules.thresholds = [existingThresholds(:); incomingThresholds(:)];
                 else
-                    rules.thresholds = block.thresholds;
+                    rules.thresholds = incomingThresholds;
                 end
             end
             if isfield(block, 'zero_to_nan')
@@ -232,6 +279,41 @@ classdef CleaningPipeline
             elseif isfield(block, 'scale_factor') && ~isempty(block.scale_factor)
                 scale = bms.data.CleaningPipeline.parseScaleValue(block.scale_factor);
                 if ~isempty(scale), rules.value_scale = scale; end
+            end
+            if isfield(block, 'exclude_ranges') && ~isempty(block.exclude_ranges)
+                incomingRanges = bms.data.CleaningPipeline.normalizeExcludeRanges(block.exclude_ranges);
+                if appendThresholds && ~isempty(rules.exclude_ranges)
+                    existingRanges = bms.data.CleaningPipeline.normalizeExcludeRanges(rules.exclude_ranges);
+                    rules.exclude_ranges = [existingRanges(:); incomingRanges(:)];
+                else
+                    rules.exclude_ranges = incomingRanges;
+                end
+            end
+        end
+
+        function ranges = normalizeExcludeRanges(raw)
+            ranges = [];
+            if isempty(raw), return; end
+            if iscell(raw)
+                try
+                    raw = [raw{:}];
+                catch
+                    return;
+                end
+            end
+            if isstruct(raw)
+                ranges = raw(:);
+            end
+        end
+
+        function value = firstRangeField(item, names)
+            value = '';
+            for i = 1:numel(names)
+                name = names{i};
+                if isfield(item, name) && ~isempty(item.(name))
+                    value = item.(name);
+                    return;
+                end
             end
         end
 
@@ -282,6 +364,27 @@ classdef CleaningPipeline
             end
             if isnumeric(raw) && isscalar(raw) && isfinite(raw)
                 scale = double(raw);
+            end
+        end
+
+        function out = normalizeThresholds(raw)
+            out = struct('min', {}, 'max', {}, ...
+                't_range_start', {}, 't_range_end', {});
+            if isempty(raw) || ~isstruct(raw)
+                return;
+            end
+            raw = raw(:);
+            out(numel(raw), 1) = struct('min', [], 'max', [], ...
+                't_range_start', '', 't_range_end', '');
+            for i = 1:numel(raw)
+                if isfield(raw(i), 'min'), out(i).min = raw(i).min; end
+                if isfield(raw(i), 'max'), out(i).max = raw(i).max; end
+                if isfield(raw(i), 't_range_start') && ~isempty(raw(i).t_range_start)
+                    out(i).t_range_start = raw(i).t_range_start;
+                end
+                if isfield(raw(i), 't_range_end') && ~isempty(raw(i).t_range_end)
+                    out(i).t_range_end = raw(i).t_range_end;
+                end
             end
         end
 

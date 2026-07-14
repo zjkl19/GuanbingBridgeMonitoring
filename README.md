@@ -2,10 +2,142 @@
 
 ## Overview / 概述
 
-This repository contains the MATLAB analysis workflow and the Python/packaged report builder used for bridge monitoring projects.
-本仓库包含桥梁监测项目使用的 MATLAB 分析流程，以及 Python / 打包版自动报告生成程序。
+This repository contains the MATLAB analysis engine and the unified PySide6
+workbench with its embedded report runtime for bridge-monitoring projects.
+本仓库包含桥梁监测项目使用的 MATLAB 分析内核，以及内嵌报告运行时的
+PySide6 统一工作台。
 
 ## Main Entry Points / 主要入口
+
+### PySide6 Workbench
+
+The additive PySide6 workbench unifies project selection, local MATLAB job
+launching, status/manifest review, an explicit plot-approval gate, and report
+generation. Its warning page inventories every configured warning schema used
+by the current bridges and keeps a separate guarded editor for explicit
+`alarm_bounds` values. The validated MATLAB analysis engine remains a separate
+backend process. Report generation is embedded in the same workbench runtime
+and executes as a background worker from the same EXE; the unified package no
+longer ships or opens a second `BridgeReportBuilder.exe`.
+
+PySide6 工作台以增量方式统一项目选择、本机 MATLAB 任务启动、分析结果审核、
+图件确认和报告生成。已经验证的 MATLAB 分析内核仍由独立后台进程执行；报告生成代码
+已嵌入同一个工作台运行时，并由同一个 EXE 启动后台 worker。统一安装包不再携带或弹出
+第二个 `BridgeReportBuilder.exe`。
+
+EXE 构建与运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_workbench_exe.ps1
+dist/BridgeMonitoringWorkbench/桥梁健康监测工作台.exe
+```
+
+The stable `v1.8.0` scope, safeguards and known engineering limits are recorded
+in `docs/releases/v1.8.0.md`.
+稳定版 `v1.8.0` 的功能范围、安全门槛和已知工程边界见
+`docs/releases/v1.8.0.md`。
+
+发布目录会同时包含 MATLAB 编译 Runner、配置/模板和嵌入工作台的报告运行时，
+不再复制独立 `BridgeReportBuilder.exe`。`release_manifest.json` 记录 EXE
+哈希、发布清单自身以外的文件数/总大小及启动自测结果；`workbench_startup.png`、
+`workbench_warning_overview.png`、`workbench_alarm_editor.png`、`workbench_cleaning_editor.png`、
+`workbench_warning_empty_bounds.png`、
+`workbench_post_filter_editor.png`、`workbench_auto_threshold.png`、
+`workbench_offset_editor.png`、`workbench_group_plot_editor.png`、
+`workbench_plot_common_editor.png`、`workbench_spectrum_editor.png` 与
+`workbench_review_terms.png`、`workbench_report_task.png`、`workbench_task_history.png`
+是构建时自动生成的界面证据。
+`workbench_profile_matrix.json` 还会让冻结版 EXE 逐一加载项目目录中的所有桥梁，核对桥名、配置/模板
+SHA256、日期、模块以及各项目实际声明的报告或纯分析能力，并证明全部打包配置资产在切换前后
+没有被修改；任一桥失败都会中止打包和后续 GitHub Release。项目数量、报告型数量和纯分析数量
+均从 `config/bridge_profiles.json` 动态计算，不使用固定桥梁数量。
+打包版标题栏的“所有桥梁自检”可直接查看该矩阵；读取时还会复核矩阵文件在
+`release_manifest.json` 中的唯一清单项、大小和 SHA256，防止展示被替换的旧证据。
+冻结版对错误命令行参数会以退出码 2 正常结束，并把诊断追加到系统临时目录的
+`BridgeMonitoringWorkbench_cli_error.log`，不会再因无控制台的 `stderr` 为空而弹出未处理异常。
+
+“任务历史”从当前数据根目录的 `run_logs/workbench` 直接子目录建立有界只读索引，
+并合并最新分析状态、报告状态及独立报告结果 JSON。恢复前会检查桥梁身份、数据根目录、配置 SHA256、完成态
+分析结果清单以及报告 DOCX/PDF；配置漂移等可处理问题以黄色提示，未知桥梁、损坏上下文等
+致命问题以红色标记并禁止恢复。索引不递归遍历大型数据/备份目录，也不提交远程任务。
+
+“预警值”页现在首先提供带来源、适用对象、等级、单位、用途、状态和 JSON 路径的统一总览，
+覆盖 `alarm_bounds`、`force_alarm_bounds`、`alarm_levels`、`warn_lines`、
+`rms_warn_lines` 与 `group_warn_lines`。单边等级、上下限和图上参考线保持原有语义，
+不会自动互转；空字段和格式错误会显式标记。第二个子页提供受保护的双边上下限编辑；
+当前桥梁未配置此类规则时，会明确说明“不是加载失败”并隐藏空表格。所有桥梁冻结版矩阵要求
+总览非空且不存在格式错误。
+
+“配置与预警值”页还迁移了
+`thresholds` / `zero_to_nan` / `outlier` 数据清洗字段。清洗编辑器支持默认和测点规则、
+单边阈值与成对时间窗；需要停用一段已知无效历史数据时，使用含起止时间和原因的“整段排除规则”，
+不再用反向上下限表达排除。覆盖保存前执行源文件哈希校验并自动备份，不会修改零点修正、
+滤波后二次清洗或绘图字段。
+
+工作台现已增加独立“滤波后二次清洗”和“自动清洗建议”子页。后者仍调用
+MATLAB `AutoThresholdProposalService`，由重新编译的同一
+`BridgeAnalysisRunner.exe` 在独立进程生成建议；PySide6只负责参数、状态、人工复核和受保护写入。
+建议不会自动落入配置，Runner 会在读取数据前校验请求固定的配置 SHA；只有勾选的
+`range/window_range` 在二次确认、再次校验配置 SHA 和自动备份后写入。
+Runner 同时把最多 20000 点/测点的极值保留预览写成独立 JSON，并在建议结果中固定其
+SHA256。选择或编辑建议行时，右侧会同步显示原始曲线、红色建议上下限和黄色局部时间窗，
+也可弹出大图；预览文件的请求 ID、配置 SHA、测点唯一性和点数闭环不通过时会拒绝显示，
+不会用未经验证的曲线辅助写入。
+
+“零点修正”页完整保留当前项目目录中各桥现用的纯数值、`fixed`、首日/逐日/逐小时基线和
+`segmented` 分段结构，并在写入前拒绝日期重叠。“组图配置”页直接管理
+`groups` 与 `group_labels`，分开呈现应变统计组和时程组，支持测点筛选、排序及
+历史二维数组无修改往返。两页均沿用源 SHA 漂移拒绝、自动备份和旧任务失效门禁。
+
+“绘图公共参数”页覆盖当前项目目录中各桥实际使用的全部 14 个 `plot_common` 字段，包括普通图点数、
+缺口连接方式及高频原始图的 full/capped、line/dense_band 和线宽设置。取消“显式”会删除
+该字段并回退 MATLAB 默认值；为避免产生与运行时不一致的配置，显式 `full` 不允许同时选择
+`dense_band`。“频谱覆盖与找峰”页统一管理加速度/索力加速度频谱测点及默认、逐测点
+`peak_orders`，保留采样率、阈值和未知字段；历史频率字段只在用户实际编辑后迁移。
+
+“结果与图件审核”页会从绑定的分析结果清单枚举全部正式图件核验记录，逐序列检查
+完整数据、未降采样、源点数/绘制点数和不完整日期披露；记录缺失或计数不一致时不能勾选
+正式报告审核。“报告生成”页不再打开第二个 GUI，而是由当前工作台 EXE 启动同一内嵌
+运行时的后台 worker，并显示预检、生成、质量检查和完成阶段。最终结果表展示 DOCX ZIP/主文档/媒体、可用 PDF 页数、报告内容
+清单缺失项与警告；配置、模板和分析结果清单的固定 SHA 仍会在子进程
+读取前再次校验。
+
+报告任务还会调用 LibreOffice 与 Poppler 将最终 DOCX 逐页渲染，生成页面 PNG、联系表和
+`visual_qc.json`。自动门禁标出空白页及内容触碰页面边界；这些提示用于缩小人工复核范围，
+联系表仍需人工确认。渲染输出使用短哈希目录，避免长中文报告名触发 Windows 路径上限。
+
+报告子进程会独立重放完整门禁，而不只信任 UI 保存的“已审核”布尔值：固定配置、模板和
+分析 Manifest 的 SHA256、桥梁/数据根/日期、所选模块覆盖、运行状态以及每个正式
+`.plot.json` 的 full/source/input/finite/plotted 闭环都必须再次通过。缺少任何正式图
+provenance 的旧 Manifest 不能用于嵌入式生产报告。可用
+`scripts/validate_fresh_report_profiles.py` 审计五桥候选；`--generate-fallback` 只用于隔离的
+生成器/版式回归，并会明确标为 `generator_only_fallback`，不能冒充通过正式门禁。
+
+打包版右上角默认勾选“自动检查更新”，用户可随时取消，也可点击“立即检查更新”。
+正式版启动后每天最多自动查询一次 GitHub Release；发现更高稳定版本时，可下载、双重 SHA256 校验、备份当前安装并在退出后
+更新。Release Manifest v2 会逐文件固定完整运行时的路径、大小和 SHA256；安装使用
+候选目录验证与原子目录交换，任一步失败都会恢复原安装。现有项目配置和未受管理的现场
+文件不会被覆盖或删除。发布资产命名、长路径暂存和回滚验证流程见
+`docs/workbench_github_updates.md`。
+“更新备份”按钮会列出当前安装目录旁由事务安装器生成的备份，区分原版本和更新目标。
+只有目录名、EXE 和发布清单身份均可识别的备份可参与清理；用户二次确认后仍固定保留最新
+两个，清单异常或手工目录永不自动删除。
+
+```powershell
+reporting/.venv/Scripts/python start_workbench.py
+```
+
+Headless smoke test / 无界面冒烟测试：
+
+```powershell
+reporting/.venv/Scripts/python start_workbench.py --smoke-test --smoke-output tmp/workbench_smoke.json
+```
+
+The migration design and current scope are documented in
+`docs/pyside6_workbench_migration.md`. The legacy MATLAB GUI remains the
+production entry until parity and production-cycle validation are complete.
+迁移设计与当前范围见 `docs/pyside6_workbench_migration.md`；在功能对等和生产周期
+验证完成前，旧 MATLAB GUI 仍是正式生产入口。
 
 ### MATLAB GUI
 
@@ -23,31 +155,13 @@ GUI 运行采用异步子进程。生产环境应先编译并随包复制独立 
 powershell -ExecutionPolicy Bypass -File scripts/build_analysis_runner.ps1 -Clean
 ```
 
-### Report GUI
+### Unified report runtime / 统一报告运行时
 
-Prefer the packaged executable when available.
-优先使用已打包的报告程序。
-
-```text
-reporting/dist/BridgeReportBuilder/BridgeReportBuilder.exe
-```
-
-Or run the Python GUI directly.
-也可以直接运行 Python GUI。
-
-```powershell
-reporting/.venv/Scripts/python reporting/report_gui.py
-```
-
-Build a standardized report-builder release package.
-生成标准化报告生成器发布包。
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/package_report_builder.ps1
-```
-
-The release package is written under `archive/` and includes `VERSION.txt`, templates, README files, `BridgeReportBuilder.exe`, and `_internal/`.
-发布包输出到 `archive/`，包含 `VERSION.txt`、模板、README、`BridgeReportBuilder.exe` 和 `_internal/`。
+Report generation is a background capability of `桥梁健康监测工作台.exe`.
+The retired standalone report window and its EXE build/package entrypoints have
+been removed; developers validate the same embedded runtime used by operators.
+报告生成已成为 `桥梁健康监测工作台.exe` 的后台能力。旧的独立报告窗口及其 EXE
+构建、打包入口已删除；开发自测与用户实际使用同一套内嵌报告运行时。
 
 ## Repository Layout / 仓库结构
 
@@ -62,6 +176,7 @@ The release package is written under `archive/` and includes `VERSION.txt`, temp
 - `+bms/+io/` stats output helpers / 统计输出辅助
 - `config/` project configuration files / 项目配置文件
 - `ui/` MATLAB GUI / MATLAB 图形界面
+- `workbench/` unified PySide6 workbench and job contract / 统一 PySide6 工作台与任务契约
 - `reporting/` report scripts and GUI / 报告脚本与 GUI
 - `reports/` report templates / 报告模板
 - `scripts/` deployment and utility scripts / 部署与辅助脚本
@@ -95,11 +210,19 @@ New helper packages are intentionally small and side-effect-light: `bms.config.S
 `bms.data.TimeSeriesLoader` now provides reusable CSV series loading, numeric-column detection, closed-range clipping, and basic series summaries. New analysis code should prefer this helper instead of re-implementing time/value column detection.
 `bms.data.TimeSeriesLoader` 现在提供可复用的 CSV 时程序列读取、数值列识别、闭区间裁剪和基础序列摘要。新增分析代码应优先使用该工具，避免重复实现时间列/数值列识别。
 
-For large high-frequency periods, the time-series loader can automatically use
-existing MAT caches after source CSV files have been archived. See
-`docs/mat_only_timeseries_source.md` before deleting active CSV copies.
-对于高频大数据周期，时程加载器可在原始 CSV 归档后自动使用已有 MAT 缓存。删除活动目录中的 CSV 前，先阅读
-`docs/mat_only_timeseries_source.md`。
+For ordinary GUI work, the time-series source mode defaults to `auto`: a valid
+CSV source has priority and a valid MAT cache is used only when CSV is absent.
+Users do not need to select `mat_only` merely because an archived dataset now
+contains only MAT caches. Explicit `mat_only` is an isolation/verification mode
+and must never fall back to CSV, including while `DataIndex` inventories files.
+Hongtang legacy caches and Jiulongjiang/Shuixianhua `jlj_csv_v2` caches are
+supported under this contract. See `docs/mat_only_timeseries_source.md` before
+deleting active CSV copies.
+普通 GUI 数据读取默认使用 `auto`：存在有效 CSV 时优先读取 CSV，仅在 CSV 不存在时读取
+有效 MAT 缓存。归档数据目录只剩 MAT 时，用户无需手工选择 `mat_only`。显式
+`mat_only` 仅用于隔离验证，并且包括 `DataIndex` 建索引在内都禁止回退读取 CSV。
+该口径同时兼容洪塘历史缓存及九龙江/水仙花 `jlj_csv_v2` 缓存。删除活动目录中的 CSV 前，
+先阅读 `docs/mat_only_timeseries_source.md`。
 
 `bms.data.DataIndex` can build `data_index_*.json` and `data_index_summary_*.xlsx` under `<data-root>/run_logs` when `opts.buildDataIndex=true` or `config.data_index.enabled=true`. It maps enabled modules and configured points to actual source files, file counts, source metadata, and missing points. Use `scripts/build_data_index.m` when only a source-data inventory is needed. It is intentionally optional because indexing very large raw-data roots can add startup time.
 `bms.data.DataIndex` 可在 `opts.buildDataIndex=true` 或 `config.data_index.enabled=true` 时，在 `<数据根目录>/run_logs` 生成 `data_index_*.json` 和 `data_index_summary_*.xlsx`。它把启用模块和配置测点映射到实际原始文件、文件数量、源文件元信息和缺失测点。只需要排查原始数据清单时，可单独调用 `scripts/build_data_index.m`。该功能默认保持可选，因为超大原始数据目录索引会增加启动耗时。
@@ -225,13 +348,13 @@ Common files.
 - `config/jiulongjiang_config.json`
 - `config/zhishan_config.json`
 
-Machine-specific overrides may be stored as `config/hongtang_config_<COMPUTERNAME>.json`.
-机器专用覆盖配置可保存为 `config/hongtang_config_<COMPUTERNAME>.json`。
-
-Tracked production example.
-当前已纳入版本库的生产机示例。
-
-- `config/hongtang_config_DESKTOP_21RTG63.json`
+Each bridge now has one canonical business configuration. Machine differences
+such as `D:/`, `E:/`, or `F:/` data roots are selected through
+`config/path_profiles.json`; a host name is matched automatically, while the
+workbench also supports manual profile selection and a per-task custom path.
+每座桥现在只保留一份标准业务配置。开发机、133 或后续电脑的盘符差异统一由
+`config/path_profiles.json` 的存储位置方案处理：默认按电脑名自动匹配，也可在工作台
+手动选择配置组或为当前任务指定自定义路径。
 
 Jiulongjiang GNSS and rainfall keys now use:
 九龙江 GNSS 和雨量目前使用以下配置键：
@@ -264,7 +387,7 @@ Zhishan monthly reports use the edited `0609_1652` template. The builder preserv
 ```powershell
 python reporting/build_zhishan_monthly_report.py --no-word-update
 python reporting/smoke_report_generation.py --kind zhishan --generate --keep-output
-python reporting/report_gui.py --self-test-zhishan --self-test-no-word-update
+reporting/.venv/Scripts/python -m workbench --report-runtime-smoke-test
 ```
 
 Default period-report template.
@@ -275,14 +398,16 @@ Default period-report template.
 For period reports, section `1.4 健康监测系统运行状况` only counts raw missing / no-file / no-record conditions.
 对于周期报，`1.4 健康监测系统运行状况` 只统计原始缺失、无文件、无记录。
 
-See `reporting/README.md` for report GUI details.
-报告 GUI 细节见 `reporting/README.md`。
+See `reporting/README.md` for the unified report workflow and backend details.
+统一报告流程及后端细节见 `reporting/README.md`。
 
 Current official templates are listed in `reports/README.md`; old drafts and generated reports should not be committed.
 当前正式模板清单见 `reports/README.md`；历史草稿和自动生成报告不应提交。
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.8.0`: introduces the stable unified PySide6 workbench while retaining the MATLAB analysis engine, multi-bridge catalog, machine path profiles, guarded advanced configuration, compiled-runner contracts and closed release inventory.
+- `v1.8.0`：发布稳定版 PySide6 统一工作台，保留 MATLAB 分析内核，并纳入多桥目录、机器路径配置组、受保护高级配置、编译 Runner 契约及闭合发布清单。
 - `v1.7.39`: adds the full Hongtang typhoon high-frequency analysis workflow, Q2-template incremental/quick report paths, audited acceleration RMS conclusions, and final cross-application field/page locking.
 - `v1.7.39`：新增洪塘台风高频完整数据分析流程、Q2 模板增量/快速报告路径、可审核的加速度 RMS 结论，以及跨办公软件的域与页码终稿锁定。
 - `v1.7.38`: adds a guarded WPS Writer fallback, rejects field updates that produce broken references, and provides OOXML field/TOC staticization for stable production delivery.
@@ -377,6 +502,8 @@ The report GUI now separates Hongtang monthly, Hongtang period, and Jiulongjiang
 
 Report GUI release / 报告 GUI 版本:
 
+- `v1.8.0`: embeds report generation in the unified workbench and adds fail-closed period/media/source validation for Shuixianhua and Jiulongjiang monthly reports.
+- `v1.8.0`：将报告生成内嵌到统一工作台，并为水仙花、九龙江月报增加监测期、媒体及来源的失败即阻断校验。
 - `v1.7.39`: adds the Hongtang typhoon full-data and quick-report workflows, Q2-template augmentation, audited RMS unit handling, and final caption/page-total locking.
 - `v1.7.39`：新增洪塘台风完整数据/快速报告流程、Q2 模板增补、RMS 单位审核处理及题注/总页数终稿锁定。
 - `v1.7.38`: can try WPS Writer when `Word.Application` is unavailable, but restores the original DOCX if WPS creates broken references; OOXML field/TOC staticization supports the final locked delivery path.

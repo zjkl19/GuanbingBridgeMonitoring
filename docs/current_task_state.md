@@ -1,10 +1,726 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-12
+Last updated: 2026-07-14
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-07-14 v1.8.0 Stable Release Gate
+
+- The `dev/pyside6-workbench` tree has completed the stable-release gate. The
+  full health run is
+  `outputs/health_checks/release_health_check_20260714_203651.json`: Python
+  `425/425` plus `109` subtests, MATLAB `576/576`, MSSQL-backed coverage
+  included, and the compiled
+  MATLAB GUI smoke passed with 13 tabs, 16 tables and all 6 configured machine
+  path profiles. Native PySide6 screenshots for all 15 migrated pages were
+  inspected; the warning editor contains 156 explicit two-sided bounds, the
+  application icon and organization logo are present, and no clipping,
+  mojibake or blank configuration page remains.
+- The stable schema-v3 package closes at 381 inventoried files. The user EXE is
+  `dist/BridgeMonitoringWorkbench/桥梁健康监测工作台.exe`, SHA-256
+  `7A6B3DBACC32BA382A9B2B5CEB595AA6B9A25783D9B4179544F742141C7766BC`.
+  The internal MATLAB runner SHA-256 is
+  `0BA58452CF91E730FD1EE24A6FC36DCEC181B23E0672AE52BC3C9E0C0EC7CC55`.
+  The 117,166,819-byte archive is
+  `release/workbench/BridgeMonitoringWorkbench-v1.8.0-win-x64.zip`, SHA-256
+  `87C6F0E08D25383E316F9E5F7953BAE74707AE4E07C4F363FB222A4E26A3C6ED`.
+  Its schema-v3 inventory closes at `381` files and `226,537,794` bytes
+  excluding the manifest itself.
+- A real-ZIP install, update and fault-injected rollback cycle passed at
+  `tmp/workbench_update_cycle/v180_stable_package_gate_20260714_204604/update_cycle_result.json`.
+  It preserved operator configuration and unmanaged files, removed retired
+  managed runtime files, started the installed Chinese-named EXE, and restored
+  the exact injected previous installation on rollback.
+- Jiulongjiang and Shuixianhua monthly reports now reject stale-template media
+  and period mismatches rather than emitting a report with the requested month
+  in its filename but old-month figures or narrative. Jiulongjiang additionally
+  preserves the final section properties, period-filters the wind summary,
+  binds selected image hashes, prunes unused template media and fails closed on
+  report QC. Shuixianhua QC likewise writes a structured failure manifest and
+  raises on either a QC exception or any non-`ok` result.
+- Formal report PDFs now have one explicit authority boundary. Shuixianhua uses
+  the Word PDF emitted by its builder; the other embedded report types export
+  through an isolated `Word.Application` instance that refreshes fields and
+  atomically replaces the PDF. LibreOffice output is recorded only as a layout
+  preview. When Word export is unavailable the task remains reviewable but is
+  marked `warning`, the GUI states that no authoritative PDF was generated,
+  and a preview is never promoted to the formal `pdf_path`.
+- Shuixianhua wind summaries are resolved uniquely by monitoring point plus
+  report start/end dates, preferring the analysis/derived manifest bound to the
+  task. A missing, wrong-period, duplicate same-period or point-mismatched
+  summary now fails closed instead of silently reusing another month's wind
+  result.
+- Production replacement on machine 133 is authorized only as a rollback-safe
+  switch after the stable archive is reverified there and the pending Guanbing
+  June `mat_only` cache validation passes. The current old production tree
+  `F:\Guanbing` is a clean `v1.7.39` checkout. It must be renamed and retained
+  as a timestamped rollback tree, not overwritten or deleted. Before the
+  switch, export and disable old-root scheduled tasks, audit and stop only the
+  exact completed old-root processes, and update the desktop entry to the
+  unified workbench. Retain the old tree for at least 7-14 days or 1-2 real
+  production report cycles.
+
+## 2026-07-14 Shuixianhua May Report Period Repair
+
+- The May analysis outputs were correct; the stale March x-axes came from the
+  report builder copying the March template without replacing its embedded
+  result figures. The repaired builder now resolves and embeds 47 exact
+  May-period figures, rejects an image whose filename/date does not close on
+  `2026-05-01` through `2026-05-31`, and verifies every selected source-image
+  hash is present in the generated DOCX.
+- The same repair removes two stale March statements claiming that nine
+  temperature points had no data. The temperature result table now expands
+  from its single template row to all 10 current statistics rows, and a
+  post-build check requires the report PointID list to match the statistics
+  source exactly.
+- The strict candidate is
+  `output/doc/manual_review_20260714/shuixianhua_may_fixed/水仙花大桥健康监测2026年5月月报_报告生成器_20260714_174016.docx`
+  (SHA-256
+  `FDF930F8055EBF6D9B969D2EC659278A44F9E0694B667179F9E828174D1CF7D8`).
+  Its Microsoft Word PDF has 48 pages and SHA-256
+  `E991B3A35D18AE9C562BB75E252E7A60EE0E73D368045C32F833ACCC227D9DC4`.
+  The report manifest is `shuixianhua_report_build_manifest_20260714_174016.json`
+  with status `ok`, zero missing items and zero warnings. All 47 selected May
+  figures are embedded; no March period/x-axis token or broken caption
+  reference remains. Page 2 is the template's intentional blank cover verso.
+- Visual QA now rasterizes a builder-provided Microsoft Word PDF when one is
+  available. LibreOffice remains a fallback only: it mis-evaluates this
+  template's `STYLEREF`/`SEQ` caption fields and can invent extra blank pages,
+  so it must not replace the Word PDF for caption or pagination acceptance.
+  PDF QC also rejects Chinese or English broken-reference results.
+- Focused report tests pass `38/38`; the full Python regression passes
+  `402/402`. This candidate is ready for user review but is not yet a signed
+  client deliverable.
+
+## 2026-07-14 v1.8.0-rc3 Unified Workbench Candidate
+
+- Ordinary workbench analysis requests now use time-series source mode `auto`.
+  Valid CSV remains the first choice; when CSV is absent, the loader may use a
+  valid compatible MAT cache. A user whose archived data directory contains
+  only MAT files does not need to select `mat_only`. Explicit `mat_only` remains
+  an isolation/verification option and is not the ordinary GUI default.
+- `DataIndex` has been corrected so explicit `mat_only` never falls back to CSV
+  while inventorying source files. Keep this boundary in future index changes:
+  `auto` may select CSV first and MAT second, whereas `mat_only` may select MAT
+  only.
+- Jiulongjiang and Shuixianhua daily-export loading now supports their existing
+  `jlj_csv_v2` MAT caches (`ts`, `valx`, `valy`, `valz`, internal `meta` plus
+  matching external cache metadata). In `auto`, CSV behavior remains unchanged
+  when a CSV exists; a valid MAT cache is used only when the CSV is absent.
+  The focused Jiulongjiang/Shuixianhua adapter suite passes `24/24`, and a
+  read-only real Shuixianhua May cache smoke loaded `1,782,849` finite samples
+  through ordinary `load_timeseries_range` discovery without restoring CSV.
+- Zhishan and Shuixianhua cable-acceleration raw time-history plots use automatic
+  y-limits. This change applies only to the raw time-history figure; RMS figures
+  retain their existing configured/default y-limit behavior and statistical
+  meaning.
+- Report-generation code is now embedded in the workbench application and is
+  invoked as a background worker from the same executable runtime. The unified
+  package no longer copies or pops up a separate `BridgeReportBuilder.exe`.
+  The final package contains exactly two executables: the user-facing
+  `桥梁健康监测工作台.exe` and its internal MATLAB analysis runner. Installed
+  CLI, native-GUI, embedded-report, invalid-CLI and all-profile matrix smokes
+  pass; no retired report-builder/report-GUI executable is present.
+- Read-only inspection of machine 126 established the following source facts:
+  the first real temperature/humidity timestamp is
+  `2026-06-08 09:00:02.057`, first visible in the June 9 export. Point `33` is
+  temperature; `33-2` is highly likely to be relative humidity. Within the
+  inspected export range, no independent `WS-H` channel was observed. Preserve
+  the timestamp as an inspected-range result, retain the `33-2` identity caveat,
+  and do not synthesize a channel or claim an earlier start time without new
+  source evidence.
+- Local production-data validation order is fixed as Hongtang, Guanbing,
+  Zhishan, then Shuixianhua. Hongtang's accepted RC2 analysis/report baseline
+  has passed and was not repeated. RC3 validation then completed a Guanbing
+  three-day source sample, Zhishan April source analysis and Shuixianhua May
+  source analysis in that order. These latter three are analysis-layer
+  evidence, not a claim that full-period reports have been generated or
+  approved. In particular, the available Guanbing source covers only part of
+  May 26-28 and is not a June monthly acceptance run.
+- Known source and engineering-parameter limits must be disclosed:
+  Zhishan has no `2026-04-02` partition, lacks CF-7 on `2026-04-01`, and lacks
+  the adjacent `2026-05-01` rolling source needed for the April tail.
+  Shuixianhua cable-acceleration data are absent for `2026-05-02` through
+  `2026-05-05`. No authoritative mapping of effective free length `L` and
+  linear density `rho` was found for the 34 Shuixianhua cable points, so cable
+  acceleration, RMS and frequency results remain usable, but cable-force kN
+  conversion, force plots and force conclusions must stay blocked until the
+  engineering table is supplied. None of these limits permits fabricated
+  samples or inferred structural parameters.
+- Validation evidence is stratified as follows:
+  - Hongtang: accepted full Q2 analysis/report baseline at
+    `E:\GuanbingLocalValidation\v1.8.0-rc2_20260713_2118\hongtang_q2_complete_0628_0630_20260713_2225`.
+  - Guanbing: RC3 source-sample manifests
+    `analysis_manifest_20260714_051527.json` and
+    `analysis_manifest_20260714_052106.json` under
+    `E:\GuanbingLocalValidation\v1.8.0-rc3_20260714_045654\guanbing\run_logs`.
+  - Zhishan: April manifest `analysis_manifest_20260714_055424.json` under
+    `E:\GuanbingLocalValidation\v1.8.0-rc3_20260714_045654\zhishan\run_logs`;
+    all 14 formal plot records close their counts.
+  - Shuixianhua: May manifest `analysis_manifest_20260714_091235.json` under
+    `E:\GuanbingLocalValidation\v1.8.0-rc3_20260714_045654\shuixianhua\run_logs`;
+    65/65 formal plot records close their counts and all eight statistics
+    workbooks are readable. The final wind-only compiled rerun is
+    `analysis_manifest_20260714_100143.json`; it removed the false cache-only
+    0/2 preflight warning without changing any wind statistic or JPG hash.
+- Final full health evidence is
+  `outputs/health_checks/release_health_check_20260714_095626.json`: Python
+  `388/388`, MATLAB `574/574`, MSSQL-backed tests included, plus compiled GUI
+  smoke. After the last user-facing `wind_direction` -> `风向` display fix, the
+  focused Qt suite passes `19/19`, and the rebuilt native screenshot has been
+  visually approved.
+- The schema-v3 release tree closes at 381/381 inventoried files and
+  226,562,280 bytes. Workbench SHA-256 is
+  `66368A15E0AAEDA4B5F67B629E8329DFFAAF509823F90EF1525A90D8F1F78440`;
+  runner SHA-256 is
+  `635B6886CE66252C13FB1EAD30761605BE1058190F646B9082B5C3F968005D2B`.
+  The 117,190,491-byte RC ZIP is
+  `release\workbench\BridgeMonitoringWorkbench-v1.8.0-rc3-win-x64.zip`,
+  SHA-256
+  `888E71154982891CA4C351FE9A505DD5F8E525D201D2AE35732F775590C372BF`.
+  Disposable install/update/rollback validation passed at
+  `tmp\workbench_update_cycle\rc3_final_20260714\update_cycle_result.json`.
+  This is a dev-branch release candidate; it is not authorization to merge
+  `main`, replace the legacy production installation, or invent missing source
+  data/engineering parameters.
+
+## 2026-07-14 Hongtang Q2 Supplement Recalculation (June 28-30)
+
+- The previously omitted `2026-06-28` through `2026-06-30` Hongtang folders
+  were added under the local read-only source
+  `E:\洪塘大桥数据\2026年4-6月`. Recalculation used an isolated `mat_only`
+  candidate tree at
+  `E:\GuanbingLocalValidation\v1.8.0-rc2_20260713_2118\hongtang_q2_complete_0628_0630_20260713_2225`;
+  no CSV extraction, resampling, preprocessing or WIM rerun was enabled.
+- The 9-module analysis completed in 7,090.16 seconds. The signed analysis
+  manifest is `run_logs\analysis_manifest_20260714_002903.json` with SHA-256
+  `1E1694A6CE60E717E1348A845A88053EE34376FFF2BA9A99CF6C51EC1A070A41`.
+  All 47 formal plot records close their source/input/finite/plotted counts:
+  8 wind, 3 earthquake, 12 structural acceleration and 24 cable acceleration.
+  Nine statistics workbooks contain 43 readable sheets with no formula errors.
+- The immutable coverage audit is `run_logs\data_coverage_audit.json` with
+  SHA-256
+  `CD60E3D70B87A6D3D0BBF0BC331F57E1F33FC2BE4DF6C9E2C97D03536A471587`.
+  W1/W2 each contain 4,021,058 samples for June 28-30, with an actual gap on
+  June 29 from `08:46:26.532` to `09:48:30.684` (3,724.152 seconds). Because
+  the July 1 adjacent rolling export is absent, June 30 is available only to
+  about 09:00 and must not be described as a complete day.
+- Against the earlier partial-period result, only the quarter mean wind speeds
+  changed: W1 `2.75 -> 2.74 m/s`, W2 `1.37 -> 1.36 m/s`. Maximum 10-minute
+  means remain W1 `6.892408934 m/s` at `2026-05-28 15:35` and W2
+  `6.508341430 m/s` at `2026-04-23 11:35`.
+- The maximum cable-acceleration 10-minute RMS is CS8 `2.468 m/s2` at
+  `2026-06-22 10:05`, above the stated first-level threshold of
+  `1000 mm/s2 (1.000 m/s2)`. The report generator now compares measured RMS
+  values with the threshold instead of emitting a fixed “below threshold”
+  sentence, and directs the operator to review the original time history and
+  alarm record. Structural acceleration remains below its threshold: maximum
+  10-minute RMS `0.035 m/s2` versus `315 mm/s2`.
+- The original analysis manifest omitted twelve cable-force report JPGs because
+  the producer collector did not recognize `索力时程图` and
+  `索力时程图_组图`. The current report binds those exact files plus the
+  coverage audit through
+  `run_logs\derived_report_inputs_20260714_0050.json`, SHA-256
+  `02BD4BF6D35DADFCFC322831AA60371B35C454B7CA100AA08D248E475C47FAA6`.
+  Future runs collect the corrected directories directly.
+- Strict report generation now pins the analysis manifest, the derived
+  sidecar, all selected artifact sizes/hashes and the result root; it rejects
+  filesystem fallback, unlisted coverage audits, missing/warning manifests,
+  or synthesized legacy manifests. The full Python regression passes
+  `340/340`; the final ten-file MATLAB batch, including the hidden legacy GUI
+  smoke, passes `99/99`.
+- The rebuilt `v1.8.0-rc2` workbench package validates its complete 605-file,
+  392,272,449-byte inventory. The workbench EXE SHA-256 is
+  `8A803627746C743F70E31629AC99734356AF70EEFB7B3DBA19AFF430F358C546`,
+  the report builder SHA-256 is
+  `270C30D051A44E77472BD16DF80F575D64DE289A84AA7CA43F620E1BE070E027`,
+  and the rebuilt analysis runner SHA-256 is
+  `10A93329971C43FDFE948B95BBE16C41091E5F68B6220059ACA512CB55453E0E`.
+  Compiled analysis/report protocol, strict report conditions, all-profile
+  configuration, invalid CLI, automatic-cleaning preview and fifteen native
+  GUI screenshots pass.
+- The final report is
+  `E:\GuanbingLocalValidation\v1.8.0-rc2_20260713_2118\hongtang_q2_complete_0628_0630_20260713_2225\自动报告\洪塘大桥健康监测2026年第二季度周期报_20260714_041653.docx`,
+  SHA-256
+  `4F6663ADBBDFDB44D766DDEC49CB40CC089E80FEDCC47029C66EF27D33894181`.
+  Its Microsoft Word authoritative PDF is beside it with the same stem,
+  SHA-256
+  `9E6FA907339ED92AE13D5DDF75A74E707D078A0C526F0052A556FE2C684FC603`.
+  The end-to-end report manifest is
+  `period_report_manifest_20260714_041653.json`, SHA-256
+  `1F551AB315C769BF2896FDFF866CCCC25B76281C7E89BE597B22A19D10C2F316`;
+  it records `front_matter_pages=3`, `status=ok`, zero missing/warning items
+  and all 186 bound report images.
+  Word renders 81 physical pages: page 2 is the intentional blank cover verso,
+  and the 78-page numbered body runs from `第 1 页 共 78 页` through
+  `第 78 页 共 78 页`. This exposed and fixed the prior off-by-one
+  `{ = NUMPAGES - 4 }` formula; the template and generator now use the actual
+  three unnumbered front-matter pages. All pages render without edge clipping
+  or broken cross-references, and the final `图 4-15 地震动时程图` is correct.
+  The authoritative Word-PDF audit is
+  `run_logs\workbench\hongtang_q2_complete_rc2_20260713_2225\word_qc_final_pagefix_e2e_20260714_0420\authoritative_word_pdf_qc.json`,
+  SHA-256
+  `380A6116C81359D98C5EB349F10FC5DF7EFA98BC070E6F27E4F0CF46C9E5F300`.
+- The durable delivery record is
+  `run_logs\final_delivery_qc_20260714_0425.json`, SHA-256
+  `28F7C6D9293881F14F3213B464A2B69414A1BA905AABE690E0FF0CF5FB64FF5D`.
+  The schema-v2 task context is closed as `completed/passed` and points to the
+  Word-authoritative PDF rather than the LibreOffice compatibility preview;
+  its SHA-256 is
+  `6CB2CD9C1EC02863E48A8BE3327C0CC88369FFA1C9D9F62F661CD040719A4BF8`.
+
+## 2026-07-13 v1.8.0-rc1 All-Profile Workbench Candidate
+
+- The workbench/profile/release gates no longer assume six bridges or a fixed
+  5+1 report-capability split. The installed matrix is derived from
+  `config/bridge_profiles.json`, requires exactly the catalog identities and
+  dynamically computed report/analysis-only counts, and fails when a newly
+  added bridge has not been checked by the frozen EXE.
+- User-facing “六桥自检” wording is replaced by “所有桥梁自检”. The frozen
+  native GUI shows `所有桥梁 6/6` for the current catalog, without embedding 6
+  in the code or test contract.
+- Version is `v1.8.0-rc1`. SemVer prerelease precedence is now implemented so a
+  future stable `v1.8.0` is newer than this RC; numeric prerelease identifiers
+  such as `rc.10` also sort correctly.
+- Python regression passes `297/297`. MATLAB's dynamic catalog contract passes
+  `2/2`; the legacy GUI smoke passes `4/4`.
+- The packaged Chinese EXE SHA256 is
+  `37d4c52afb8bad8d4436cf4c1e3f7ff1e714ec74e597231fa97bff279b2ffad9`.
+  Its schema-v2 release manifest closes at 599 files. All current profiles,
+  14 native screenshots, compiled proposal preview, embedded report, visual
+  quality and invalid-CLI gates pass.
+- The 210,241,987-byte RC ZIP SHA256 is
+  `0e92ed58d79448e30ee5678b92dca7e9cfbff0fa9e0494e25a3a30a445b58903`.
+  A disposable install/update cycle passed config and unmanaged-file
+  preservation, stale-runtime/legacy-EXE removal, native screenshot, backup
+  creation and exact fault-injected rollback in 37.8 seconds.
+- Real Windows UI automation opened the frozen EXE, found the
+  “所有桥梁自检” control, and verified the modal summary: current catalog 6/6,
+  report-capable 5, analysis-only 1, 12 assets unchanged.
+- Deployment plan: publish GitHub prerelease `v1.8.0-rc1`, install on 133 under
+  isolated `F:\Guanbing_v1.8.0-rc1`, leave `F:\Guanbing` untouched, and validate
+  Hongtang Q2 analysis/report plus Guanbing analysis with independent task/log
+  and output paths.
+- Commit `e237a51` is pushed on `dev/pyside6-workbench`; draft PR #1 targets
+  `main`, and tag/Pre-release `v1.8.0-rc1` is published with the verified ZIP
+  and checksum assets. The PR remains unmerged.
+- Read-only 133 preflight confirmed `DESKTOP-21RTG63\\dell`, a clean old
+  `F:\Guanbing` production checkout at `f2531f5`, no MATLAB process, the
+  expected Hongtang/Guanbing data roots, and about 1.78 TB / 845 GB free on
+  E/F. The old production tree was not modified.
+- The RC is installed only at `F:\Guanbing_v1.8.0-rc1`. All 599 packaged files
+  and the Chinese EXE hash were revalidated on 133; all catalog profiles passed
+  frozen-EXE smoke with zero configuration-load errors, packaged assets stayed
+  unchanged, and the remote native screenshot was visually reviewed.
+- Production-data comparison uses `mat_only` validation configurations. Dated
+  cache folders are exposed through candidate-only junction views; generated
+  stats, figures, logs and reports remain under the RC tree. No unzip,
+  resampling, header editing or raw-CSV processing is selected. Hongtang Q2 is
+  the current first long run; Guanbing follows after Hongtang analysis/report
+  validation so the two high-memory analyses do not overlap.
+
+## 2026-07-13 Hongtang Q2 Spectrum And Report-Template Calibration
+
+- The Hongtang structural-acceleration spectrum search uses three inclusive
+  `target_frequency +/- 0.15 Hz` bands. The default targets are
+  `0.898/1.460/2.737 Hz`; A5, A9-X, A9-Y, A10-X and A10-Y retain their
+  documented per-point overrides. A Python regression now protects every
+  resulting interval, and the existing MATLAB spectrum tests protect the
+  inclusive-band and per-point-override behavior.
+- The user-supplied Q2 proofreading report was audited for tracked changes and
+  comments. Accepted wording/numbering corrections were transferred to
+  `reports/洪塘大桥健康监测周期报模板-自动报告.docx` through the repeatable
+  `reporting/calibrate_hongtang_period_template.py` tool.
+- Period-report headers no longer contain duplicated floating page text or a
+  hard-coded total. `reporting/docx_header_fields.py` writes exactly one Word
+  `PAGE` field and one `NUMPAGES` field, widens the report-number cell so the
+  identifier stays on one line, and audits the saved DOCX package. The report
+  builder refuses a generated report that fails this field contract.
+- Monthly/period report wording now distinguishes instantaneous maximum wind
+  speed from maximum 10-minute mean wind speed, uses the same vibration
+  statistics source for overview and body, fixes the accepted figure/table
+  references and grammar, and distinguishes axle-load equality from a strict
+  exceedance.
+- A 2026-07-13 read-only check on 133 confirmed a clean remote `main` at
+  `f2531f5` and copied the current Q2 `accel_stats.xlsx` and
+  `accel_spec_stats.xlsx` for local audit without modifying the server. The
+  current maximum structural-acceleration 10-minute RMS is `0.107 m/s2`
+  (A10-Y), so generated text must round to `0.11 m/s2`; no fixed sample value
+  may remain in either the overview or body.
+- The current Python suite passes `296/296`; the focused MATLAB spectrum and
+  workbench-contract batch passes `24/24`. Word field update and rendered-page
+  checks show a single `第 PAGE 页 共 NUMPAGES 页` header and an unwrapped report
+  number.
+- Native GUI review of the frozen Hongtang spectrum page exposed binary-float
+  tails such as `1.6859999999999999`. The editor now displays concise,
+  round-trippable values such as `1.686` without changing the stored or MATLAB
+  calculation value; a Qt regression protects the A10-Y row.
+
+## 2026-07-12 PySide6 Unified Workbench Migration (dev branch)
+
+Current local development state:
+
+- The recurring `pyside6` high-saturation refactor automation is paused at the
+  user's request because this computer is currently needed for frequent manual
+  use. Do not resume it until the user explicitly asks.
+- Development is isolated on branch `dev/pyside6-workbench`, based on tagged
+  production release `v1.7.39`; the branch is published to `origin` while 133
+  remains on its independent production `main`. The legacy MATLAB GUI remains
+  the production entry.
+- `workbench/` now provides a four-page PySide6 workbench for project/analysis,
+  explicit pre-warning-value configuration, manifest/plot review, and report
+  handoff. `start_workbench.py` is the source entry; the packaged local entry is
+  `dist/BridgeMonitoringWorkbench/桥梁健康监测工作台.exe`.
+- The workbench reads every bridge profile in the shared project catalog and its Python module
+  option contract is regression-checked against
+  `bms.module.ModuleRegistry`. It writes a versioned `job_context.json` and a
+  MATLAB-compatible `run_request.json`.
+- Local analysis uses the existing execution boundary: prefer
+  `BridgeAnalysisRunner.exe`, otherwise use `matlab -batch`. Status polling,
+  progress fraction/current module/ETA, stdout/stderr logs, cooperative stop
+  files, task restoration, and terminal manifest loading are implemented.
+- Report execution is now embedded as a separate background process. The
+  existing report GUI and embedded task share one dispatcher; the latter writes
+  stage/status/result JSON and returns DOCX/PDF/report-manifest QC directly to
+  the workbench. The old `--job-context` prefill remains available as a fallback.
+- Formal-report enablement requires a successful manifest, no failed module
+  records, complete coverage of all selected modules, and an explicit plot
+  approval. Config, manifest, and report-template SHA-256 values are pinned and
+  rechecked before MATLAB launch/report handoff.
+- Explicit historical-manifest binding rejects bridge, data-root, start-date,
+  or end-date mismatches. Starting a new job clears the previous manifest and
+  plot approval. These fixes prevent approval leakage across projects/months.
+- The current Python suite passes `296/296`. The current joint MATLAB
+  workbench/runner/config/plot batch baseline remains `147/147`; the latest
+  report/config/update-focused MATLAB batch passes `70/70`. The earlier focused alarm-editor,
+  plot-settings GUI, main-GUI smoke, and run-request group passes `24/24`.
+  A direct MATLAB JSON-contract run completed and
+  produced an `ok` manifest. A second end-to-end run through the Python
+  `AnalysisLauncher` selected the compiled runner, completed in about 22.5
+  seconds wall time, wrote logs/status, and produced a context-matched manifest
+  with pinned SHA-256.
+- Native Windows visual checks passed for the project/analysis page, the
+  real-manifest review page, and the Hongtang 156-row alarm editor.
+- The packaged user-facing executable is now named
+  `桥梁健康监测工作台.exe`; the English distribution folder and GitHub ZIP
+  asset prefix remain stable for tooling. The transactional updater accepts a
+  legacy installation containing `BridgeMonitoringWorkbench.exe`, removes the
+  old executable as managed runtime, installs/restarts the Chinese executable,
+  and requires the Chinese name in every new release inventory.
+- The default UI font is raised from 9 pt to 10 pt. The title bar exposes a
+  persisted “自动检查更新” checkbox, initially enabled from policy and
+  independently switchable by the user, plus “立即检查更新”. Source and
+  development builds still never auto-install an update.
+- User-facing report-review wording no longer exposes `manifest`,
+  `provenance`, `门禁` or `QC`. The UI now says “分析结果清单”, “图件数据完整性检查”,
+  “报告生成条件” and “质量检查”; internal JSON keys and file protocols are
+  unchanged. A widget-level wording regression prevents those original terms
+  from returning to the primary workflow.
+  The focused warning/profile/provenance MATLAB contract batch passes `12/12`.
+- The 25 processing/analysis checkboxes now carry packaged-safe custom SVG
+  line icons that depict each module's real meaning. In particular, the
+  Geokon low-frequency synchronization module uses a data-acquisition
+  instrument with waveform display, ports, and synchronization arrow. No
+  `FFT`/`HP`/`LP` text fallback is used. Font-based color Emoji were rejected
+  after frozen rendering proved unstable.
+- GitHub Release update support is implemented. Packaged stable builds check at
+  most once per 24 hours and expose a manual check button. The updater requires
+  a newer stable tag, the expected Windows x64 ZIP, a GitHub asset digest or
+  `.sha256` asset, and an internal EXE SHA256 match. Installation is explicit,
+  runs after process exit, backs up the old install, and preserves existing
+  configs. `scripts/package_workbench_github_release.ps1` prepares the two
+  required assets but never publishes externally. GitHub currently has no
+  Releases, so no update is offered until the first reviewed stable Release is
+  deliberately published.
+- The updater now uses a schema-v2 release manifest with an exact inventory of
+  all 595 packaged files (relative path, bytes and SHA256), not only ZIP/EXE
+  hashes. Staging rejects traversal, absolute, duplicate-case and symbolic-link
+  members, validates every inventory file and every required smoke gate, and
+  automatically falls back to a short system-temporary root when a ZIP member
+  would approach the Windows path limit.
+- The old copy-in-place PowerShell installation path has been replaced in the
+  UI by the verified staged EXE's transaction mode. It builds and validates a
+  candidate directory, preserves existing configs and unmanaged operator files,
+  removes stale managed runtime files, then atomically swaps the live directory
+  to a timestamped backup. Faults both before activation and after activation
+  restore the exact original tree.
+- A real 200.0 MB development Release ZIP passed the complete disposable update
+  cycle in 34.3 seconds: archive/checksum/inventory verification, frozen-EXE
+  install, config and unmanaged-file preservation, stale-runtime removal,
+  installed all-profile/8-config-tab smoke, native Chinese screenshot, backup
+  creation, and fault-injected exact rollback. The run also exposed and fixed a
+  262-character extraction failure, an offscreen screenshot false alarm and a
+  native screen-grab repaint race. The final widget-rendered screenshot is
+  `2000x1075` with a `0.0` black-region ratio. Evidence is under
+  `tmp/workbench_update_cycle/validation_final2`.
+- `scripts/build_workbench_exe.ps1` produces an onedir release with the compiled
+  MATLAB Runner, six project configs/templates, and the report builder. The
+  build blocks on the workbench smoke contract, fourteen native screenshots,
+  packaged report `--job-context` smoke and embedded report-job protocol smoke.
+  `release_manifest.json` records the
+  EXE SHA-256, file count, total bytes, and smoke result.
+- Explicit `defaults/per_point` `alarm_bounds` editing is migrated with strict
+  level/bounds validation, save-as, automatic backup, source-SHA drift refusal,
+  unrelated-field preservation, and old task-approval invalidation. Cleaning
+  thresholds are now also migrated in a separate configuration subtab. It
+  supports scalar/array/empty representations, one-sided and timed rules,
+  `zero_to_nan`, moving-window outlier parameters, and explicit dated
+  `exclude_ranges` with a readable reason. The GUI no longer exposes inverted
+  thresholds as an all-data suppression mechanism. No-op round trips across every currently configured bridge preserve the
+  loaded payload exactly; source overwrites use the same SHA-drift refusal and
+  backup gate. The packaged build records a third native screenshot for this
+  editor.
+- The previously narrow warning page no longer equates “no explicit
+  `alarm_bounds`” with “no warning configuration”. Its default subtab now
+  inventories `alarm_bounds`, `force_alarm_bounds`, `alarm_levels`,
+  `warn_lines`, `rms_warn_lines`, and `group_warn_lines` without converting
+  between their different semantics. Every row shows scope, module,
+  point/group, level or label, value, unit, runtime purpose, validity state and
+  exact JSON path; source/status filters and free-text search remain responsive
+  for Hongtang's 222-row inventory. Empty configured fields and malformed
+  values stay visible. The second subtab retains the guarded explicit
+  `alarm_bounds` editor.
+- Guanbing now shows 12 inventory rows: 3 wind alarm levels, 8 configured
+  deflection/tilt plot lines and one explicitly empty bearing-displacement
+  line field; 11 are configured and none are malformed. The packaged
+  all-profile gate closes at Guanbing 12, Hongtang 222, Jiulongjiang 14,
+  Shuixianhua 111, Chongyangxi 46 and Zhishan 40 rows, with zero invalid rows
+  and exact no-op payload preservation for every catalog config. A MATLAB contract
+  verifies that Guanbing's displayed wind/deflection/tilt values match the
+  existing runtime resolvers. The focused MATLAB warning batch passes `17/17`.
+- A malformed direct frozen-EXE smoke command exposed a pre-existing
+  PyInstaller `--noconsole` failure path: `argparse` tried to write usage to a
+  `None` stderr and displayed a `NoneType.write` exception dialog. The parser
+  now exits with code 2 and appends the real diagnostic to
+  `%TEMP%\BridgeMonitoringWorkbench_cli_error.log`; the package build has a
+  mandatory invalid-CLI smoke so this dialog cannot regress silently.
+- The project page now includes a local task center rather than relying only
+  on a file picker. It indexes only direct task children under the selected
+  data root's `run_logs/workbench` plus contexts explicitly opened in the
+  current process, merges newer analysis status plus separate report
+  status/result JSON, and checks bridge
+  identity, data-root availability, config SHA drift, completed Manifest and
+  report outputs before enabling restore. Warning contexts remain visible and
+  recoverable; unknown bridges and unreadable JSON are visible but blocked.
+  Search/status filters, direct directory opening and a return-to-config path
+  are embedded without adding a fifth top-level workflow tab.
+- The task-center contract is shared through
+  `tests/fixtures/workbench_task_history_contract.json`; Python index/widget/
+  main-window tests pass, and the focused MATLAB task/context/request batch
+  passes `14/14`. Full Python regression passes `292/292`. The frozen
+  catalog-driven all-profile gate now additionally
+  requires an enabled 8-column task center, and the release/update gate records
+  `task_history_smoke=true`.
+- This milestone also fixed a pre-existing transactional-update cleanup gap:
+  the generated install script omitted the managed
+  `workbench_warning_overview.png`, so an old overview image could survive an
+  update. Both it and the new task-center image are now removed/replaced as
+  managed evidence while unrelated operator files remain preserved.
+- A fresh `v1.7.39-dev` 210,047,646-byte ZIP passed the full disposable update
+  cycle in 35.3 seconds. The frozen EXE preserved the operator config and
+  unmanaged note, removed stale runtime, replaced both old managed screenshots,
+  returned the 8-column task-center smoke, rendered a native `2000x1075`
+  screenshot with zero black-region ratio, created a backup, and restored the
+  exact old tree after an injected post-rename failure. Evidence is under
+  `tmp/workbench_task_history_update_cycle`.
+- The later Chinese-EXE/UI milestone produced a 210,204,728-byte development
+  ZIP and passed the same frozen update cycle in 38.7 seconds. The starting
+  installation contained only the legacy English EXE; the final candidate
+  contained `桥梁健康监测工作台.exe`, removed the English EXE, preserved the
+  operator config/unmanaged note, replaced all managed visual evidence,
+  reported 10 pt font and auto-update enabled, rendered at `2000x1075` with
+  zero black-region ratio, and restored the exact legacy tree under injected
+  failure. Evidence is under `tmp/workbench_chinese_exe_update_cycle_final`.
+- The rebuilt workbench EXE SHA256 is
+  `8f7b04baebca53739faa57859bdc41720c128e8f8fa8b622b906b8300753a93f`.
+  Its schema-v2 release inventory closes at `599` files, includes both the
+  Guanbing warning-overview and Hongtang explicit-bound screenshots, and pins
+  all fourteen native screenshot hashes including the empty-bounds explanation,
+  operator-friendly review wording and task center. The
+  all-profile matrix, invalid-CLI/task-history smokes, report gates and
+  compiled preview smoke all pass.
+- Post-filter cleanup is migrated as a third configuration subtab. It edits
+  only `post_filter_thresholds`, supports scalar/array/empty and one-sided
+  timed rules, preserves unrelated cleaning/offset/alarm fields, and passes
+  no-op round trips across every currently configured bridge. The packaged Zhishan visual
+  gate exercises the real one-sided low-pass rules.
+- Automatic-cleaning proposals are migrated as a fourth configuration subtab
+  without reimplementing the algorithm in Python. `run_request_cli` now
+  dispatches `auto_threshold_proposal` requests to the existing MATLAB
+  `AutoThresholdProposalService`; the same rebuilt
+  `BridgeAnalysisRunner.exe` used for analysis writes deterministic
+  request/status/result artifacts. PySide6 provides module/algorithm options,
+  polling, editable human-review rows, explicit selection, termination, and a
+  guarded apply step. Only selected `range/window_range` rows are appended;
+  `apply_key` and safe point identity come from MATLAB, the generation-time
+  config SHA256 is checked by the Runner before data loading and again before
+  applying selected rows, duplicate rows are refused, and the source is backed
+  up before replacement. A real compiled-runner smoke completed
+  with exit code 0 and closed request/status/result/config-SHA provenance.
+- Automatic-cleaning curve-preview parity is now complete. The Runner retains
+  the existing MATLAB extrema-preserving sampler, writes preview series to a
+  separate JSON artifact, and pins its SHA256 into the proposal result. PySide6
+  validates artifact/request/config identity, sample-count closure, duplicate
+  point keys and the 50000-point safety ceiling before showing the curve.
+  Selecting or editing a proposal redraws the blue source series, red proposed
+  bounds and yellow local time window; the same view can be opened in a larger
+  dialog. A deterministic packaged screenshot exercises the real view. The
+  rebuilt compiled Runner produced one proposal and one 30-point preview while
+  preserving the 100.0 source maximum under a 32-point cap. Focused MATLAB
+  proposal/Runner tests pass `14/14`. The final packaged EXE SHA256 is
+  `cdaf1bad1620d8d8b45095fd019089bae77f1de55e6e72cb42320248f07653cf`;
+  its schema-v2 release inventory closes at `595` files and records the new
+  compiled-preview smoke as passed.
+- Update-backup retention is now explicit in the packaged workbench. The new
+  “更新备份” action inventories only direct sibling transaction backups,
+  displays the original and target versions, and permits deletion only after a
+  second confirmation. Cleanup always keeps the latest two identity-closed
+  backups; malformed manifests, missing EXEs, symlinks and unrelated/manual
+  directories are excluded. A disposable regression proves that the oldest
+  eligible backup is removed while two current and all anomalous directories
+  remain.
+- Local installed-runtime comparison now covers every configured profile, not only
+  representative screenshots. The frozen EXE is launched independently for
+  Guanbing, Hongtang, Jiulongjiang, Shuixianhua, Chongyangxi and Zhishan and
+  must return the exact bridge identity, layout, default dates, enabled-module
+  set, config/template path and SHA256, report capability and 8-tab editor
+  shape. Five profiles close against the five packaged report job types and
+  Chongyangxi remains explicitly analysis-only. Hashes for the profile catalog,
+  six configs and five templates (`12` assets) are identical before and after
+  the matrix. MATLAB's `BridgeProfileRegistry` independently passes the same
+  all-profile/module/report contract (`2/2`). Evidence is packaged as
+  `workbench_profile_matrix.json` and is now a mandatory Release gate.
+  Packaged operators can review it from the “所有桥梁自检” title-bar action; the
+  reader refuses incomplete checks or a matrix whose byte size/SHA256 no
+  longer matches the unique release-inventory record.
+- Native screenshot QA exposed an intermittent `PrintWindow` partial-frame
+  acceptance weakness: the old gate counted bright samples but did not cap
+  black samples. Capture now waits longer, retries up to 15 times, rejects
+  frames with more than 10% near-black coarse-grid samples, and independently
+  caps a dense whole-frame sample at 3%. Five repeated startup captures and the
+  rebuilt eleven-screenshot set pass both gates; the title-bar “所有桥梁自检”
+  action is visible in the native evidence.
+- Offset correction and grouped plots are migrated as the fifth and sixth
+  configuration subtabs. Offset editing covers scalar, fixed, first-day,
+  daily/hourly mean or median and segmented date-window rules; overlapping
+  segments are rejected before save. Group editing exposes the actual group
+  container key, explicitly separates `strain` and `strain_timeseries`, keeps
+  point order, validates known points and group keys, and preserves legacy list
+  representation when unchanged. Both services pass exact no-op round trips
+  across every currently configured bridge and share a MATLAB/Python JSON fixture.
+- This milestone fixed a pre-existing MATLAB group-editor alias bug:
+  `readGroups(cfg,'strain')` preferred `groups.strain_timeseries`, while the old
+  save path always wrote `groups.strain`. Saving now writes the resolved source
+  key and synchronizes the canonical key only when both were identical before
+  editing; intentionally divergent statistical/time-series groups are left
+  separate.
+- Plot-common and spectrum settings are migrated as the seventh and eighth
+  configuration subtabs. The common editor covers the complete 14-field union
+  used by the current bridge catalog, including full/capped high-frequency
+  sampling, line/dense-band rendering, gap behavior and line widths. It
+  preserves unknown fields, keeps MATLAB defaults implicit, and refuses the
+  misleading explicit `full + dense_band` pair because MATLAB forces full
+  sampling to line rendering.
+- The spectrum editor manages explicit or inherited point coverage for both
+  `accel_spectrum` and `cable_accel_spectrum`, and default/per-point find-peak
+  orders. All active bridge configurations now use `peak_orders`; older external
+  target/tolerance/theoretical-frequency arrays remain importable through a
+  compatibility path and are normalized on edit. `fs`, automatic sample-rate
+  detection, thresholds and unrelated fields are retained. Invalid table edits
+  block module switching without discarding the draft.
+- A shared Python/MATLAB fixture and regression suite verifies both schemas;
+  all currently configured bridges pass exact no-op round trips. The rebuilt packaged
+  EXE passes an 8-config-tab smoke contract (`14` common fields, `2` spectrum
+  modules), packaged report-context smoke, and ten native `2020x1120` visual
+  captures. The Hongtang common-plot and Zhishan spectrum pages were inspected
+  at native resolution.
+- Report generation and plot-provenance review are embedded as the next
+  workflow milestone. All analysis-manifest `.plot.json` artifacts are listed
+  with module, series/source/plotted counts and disclosed incomplete dates.
+  Approval is disabled for capped/reduced series, missing source provenance,
+  source/input or finite/plotted mismatch, or incoherent day coverage.
+- The report child process supports all five report-capable profiles and
+  records `loading/preflight/building/qc/completed` progress. It rechecks pinned
+  config/template/analysis-manifest hashes, then returns DOCX ZIP/main-part/
+  media/hash QC, available PDF pages and report-manifest missing/warning counts.
+  The legacy report GUI was refactored to the same dispatcher. A shared
+  MATLAB/Python provenance fixture closes the output contract.
+- Frozen testing found and fixed a stale-report-EXE packaging bug: the
+  workbench packager previously rebuilt the MATLAB runner when stale but only
+  copied any existing report EXE. It now rebuilds `BridgeReportBuilder.exe`
+  whenever report Python/config inputs are newer, and the release manifest
+  records a successful embedded-report protocol smoke.
+- Page-level report QC is now part of the shared report task. It uses
+  LibreOffice and Poppler to produce a PDF, every page PNG, a contact sheet and
+  `visual_qc.json`, with automatic blank-page and raster-edge warnings. A
+  reusable sample-matrix CLI rendered five existing local reports (371 pages):
+  Guanbing 40, Hongtang 109, Jiulongjiang 107 and Zhishan 47 passed; the
+  Shuixianhua 68-page historical sample warned on confirmed blank pages 3 and
+  10. All five DOCX packages were structurally valid.
+- The first matrix run exposed and fixed another explicit bug: repeating long
+  Chinese DOCX names in the QC/profile path made LibreOffice return code 0
+  without a PDF. QC now uses short SHA-derived directories and a disposable
+  system-temporary LibreOffice profile. The packaged report builder has a
+  dedicated visual-QC contract smoke in addition to the report-job smoke.
+- The frozen report EXE independently rendered the 40-page Guanbing sample in
+  25.6 seconds with the same zero blank/edge-warning result as source mode.
+  The report page now exposes an “打开逐页渲染 QC” action bound to the pinned
+  contact-sheet directory.
+- The report approval gate is now revalidated inside the report child process,
+  not only in the PySide6 page. The child refuses missing/unpinned or changed
+  config/template/manifest files, bridge/data-root/date mismatches, unsuccessful
+  or incomplete module records, absent formal plot provenance, and any
+  source/input/finite/plotted closure failure. The UI also refuses approval when
+  a manifest contains zero formal provenance records. A frozen-EXE contract
+  smoke proves both a valid context and rejection of a provenance-free context.
+- A reusable five-profile audit/comparison CLI is available at
+  `scripts/validate_fresh_report_profiles.py`. The local audit found zero
+  production-eligible historical contexts: Guanbing's configured F: result root
+  is absent; Jiulongjiang, Shuixianhua and local Zhishan March manifests predate
+  `.plot.json`; the copied Hongtang/remote Zhishan manifests reference result
+  provenance not present on this machine. No gate was bypassed or fabricated.
+- Isolated generator-only fallback builds were nevertheless completed for the
+  four locally available result roots and compared with accepted samples.
+  Hongtang/Jiulongjiang/Zhishan rendered 108/104/46 pages without blank or edge
+  warnings; Shuixianhua rendered 67 pages and warned on blank pages 10 and 42.
+  All four report manifests remained warnings: Hongtang reported 10 missing/WIM
+  items, Jiulongjiang 11 missing items, Zhishan lacked anchors 2-5/2-6, and
+  Shuixianhua still relies on a synthesized legacy manifest. Page/media deltas
+  therefore remain diagnostic evidence, not production parity acceptance.
+- The Python suite now passes `292/292`; the report/config-related MATLAB batch
+  passes `70/70`. The workbench and report builder were rebuilt, all fourteen native
+  screenshots passed visual inspection, and the release manifest records the
+  packaged report-gate contract smoke in addition to report-job and visual-QC
+  smokes.
+- The workbench packager now rebuilds the compiled analysis runner whenever
+  included MATLAB sources are newer than the runner executable. This prevents
+  a visually current PySide6 package from silently carrying an obsolete core
+  runner.
+- Compiled-runner testing exposed UTF-8 BOM incompatibility in request JSON.
+  Python now writes request JSON as BOM-free UTF-8, and the shared MATLAB
+  `bms.io.JsonFile` reader accepts either form. Analysis and automatic-proposal
+  dispatch both use the shared reader; BOM-specific regression coverage is in
+  place.
+- Cross-language contract testing exposed and fixed a pre-existing MATLAB bug:
+  default and per-point cleaning thresholds with different optional struct
+  fields could not be concatenated. `CleaningPipeline` now normalizes the four
+  supported threshold fields before merging. This is a schema-compatibility
+  fix only; threshold comparisons and statistics remain unchanged.
+- A long-standing bracket error in `config/sample_config.json` was fixed. A
+  regression now parses all runtime configs and profile catalogs. Missing
+  report test/runtime dependencies (`matplotlib`, `numpy`, `pypdf`) are pinned.
+
+Remaining after the packaged embedded-report/provenance milestone:
+
+- make locally available (or deliberately stage from an approved production
+  bundle) complete context-matched analysis manifests and every referenced
+  formal `.plot.json`, then generate through the embedded task for all five
+  profiles and resolve the recorded report-manifest/page/media differences;
+- complete cross-bridge production-data comparison before any 133 deployment
+  or legacy-GUI retirement; the local all-profile installed-runtime matrix is
+  complete.
 
 ## 2026-07-12 Hongtang Typhoon Bavi Template Report
 

@@ -89,6 +89,22 @@ classdef test_spectrum_peak_service < matlab.unittest.TestCase
             tc.verifyEqual(peakLabels(:), {'一阶'});
         end
 
+        function explicitPipelineTargetsCanBypassGlobalPeakOrders(tc)
+            spec = bms.analyzer.SpectrumAnalysisPipeline.spec('accel_spectrum');
+            cfg.accel_spectrum_params.peak_orders = struct( ...
+                'order', 1, ...
+                'label', '配置一阶', ...
+                'theoretical_hz', 1.05, ...
+                'search_center_hz', 1.20, ...
+                'search_half_width_hz', 0.10);
+
+            [freqs, tol] = bms.analyzer.SpectrumConfigService.pointParams( ...
+                cfg, 'P-1', spec, [2.4 3.6], 0.2, [], {}, false);
+
+            tc.verifyEqual(freqs, [2.4 3.6]);
+            tc.verifyEqual(tol, 0.2);
+        end
+
         function spectrumPeakOrdersAcceptSearchMinMax(tc)
             spec = bms.analyzer.SpectrumAnalysisPipeline.spec('accel_spectrum');
             cfg = struct();
@@ -144,6 +160,30 @@ classdef test_spectrum_peak_service < matlab.unittest.TestCase
             tc.verifyEqual(spec.freqGroupKey, 'acceleration');
             tc.verifyTrue(isfield(spec, 'freqGroupOutputDir'));
             tc.verifyFalse(isempty(spec.freqGroupOutputDir));
+        end
+
+        function spectrumOutputDirsHonorSpecificFrequencyAndForceOverrides(tc)
+            rootDir = tempname;
+            mkdir(rootDir);
+            tc.addTeardown(@() rmdir(rootDir, 's'));
+            accelSpec = bms.analyzer.SpectrumAnalysisPipeline.spec('accel_spectrum');
+            accelStyle = struct( ...
+                'group_output_dir', 'legacy_freq_group', ...
+                'freq_group_output_dir', 'custom_freq_group');
+            cableSpec = bms.analyzer.SpectrumAnalysisPipeline.spec('cable_accel_spectrum');
+            cableStyle = struct( ...
+                'force_output_dir', 'custom_force', ...
+                'force_group_output_dir', 'custom_force_group');
+
+            accelDirs = bms.analyzer.SpectrumConfigService.ensureOutputDirs(rootDir, accelSpec, accelStyle);
+            cableDirs = bms.analyzer.SpectrumConfigService.ensureOutputDirs(rootDir, cableSpec, cableStyle);
+
+            tc.verifyEqual(accelDirs.freqGroupRoot, fullfile(rootDir, 'custom_freq_group'));
+            tc.verifyEqual(cableDirs.forceRoot, fullfile(rootDir, 'custom_force'));
+            tc.verifyEqual(cableDirs.forceGroupRoot, fullfile(rootDir, 'custom_force_group'));
+            tc.verifyTrue(isfolder(accelDirs.freqGroupRoot));
+            tc.verifyTrue(isfolder(cableDirs.forceRoot));
+            tc.verifyTrue(isfolder(cableDirs.forceGroupRoot));
         end
 
         function plotFrequencyGroupsWritesGroupBundle(tc)

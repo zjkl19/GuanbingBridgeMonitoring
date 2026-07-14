@@ -713,19 +713,6 @@
     },
     "accel_spectrum": {
       "AZ-1": {
-        "target_freqs": [
-          0.64
-        ],
-        "tolerance": 0.02,
-        "theor_freqs": [
-          0.593
-        ],
-        "theor_labels": [
-          "理论竖向一阶频率 0.593Hz"
-        ],
-        "peak_labels": [
-          "一阶"
-        ],
         "peak_orders": [
           {
             "order": 1,
@@ -737,19 +724,6 @@
         ]
       },
       "AZ-2": {
-        "target_freqs": [
-          0.64
-        ],
-        "tolerance": 0.02,
-        "theor_freqs": [
-          0.593
-        ],
-        "theor_labels": [
-          "理论竖向一阶频率 0.593Hz"
-        ],
-        "peak_labels": [
-          "一阶"
-        ],
         "peak_orders": [
           {
             "order": 1,
@@ -761,19 +735,6 @@
         ]
       },
       "AZ-3": {
-        "target_freqs": [
-          0.64
-        ],
-        "tolerance": 0.02,
-        "theor_freqs": [
-          0.593
-        ],
-        "theor_labels": [
-          "理论竖向一阶频率 0.593Hz"
-        ],
-        "peak_labels": [
-          "一阶"
-        ],
         "peak_orders": [
           {
             "order": 1,
@@ -785,19 +746,6 @@
         ]
       },
       "AZ-4": {
-        "target_freqs": [
-          0.64
-        ],
-        "tolerance": 0.02,
-        "theor_freqs": [
-          0.593
-        ],
-        "theor_labels": [
-          "理论竖向一阶频率 0.593Hz"
-        ],
-        "peak_labels": [
-          "一阶"
-        ],
         "peak_orders": [
           {
             "order": 1,
@@ -809,19 +757,6 @@
         ]
       },
       "AZ-5": {
-        "target_freqs": [
-          0.64
-        ],
-        "tolerance": 0.02,
-        "theor_freqs": [
-          0.593
-        ],
-        "theor_labels": [
-          "理论竖向一阶频率 0.593Hz"
-        ],
-        "peak_labels": [
-          "一阶"
-        ],
         "peak_orders": [
           {
             "order": 1,
@@ -858,13 +793,6 @@
         ],
         "rho": 57.687,
         "L": 75.61,
-        "target_freqs": [
-          1.621
-        ],
-        "tolerance": 0.08,
-        "peak_labels": [
-          "一阶"
-        ],
         "force_decimals": 2,
         "force_baseline_kN": 3466.27,
         "force_alarm_bounds": {
@@ -884,7 +812,15 @@
         "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
         "ocr_force_kN": 3466,
         "completed_force_kN": 3496,
-        "contrast_change_pct": -0.9
+        "contrast_change_pct": -0.9,
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.541,
+            "search_max_hz": 1.701
+          }
+        ]
       },
       "CF-2": {
         "file_id": "C200303004",
@@ -910,13 +846,6 @@
         ],
         "rho": 57.687,
         "L": 87.45,
-        "target_freqs": [
-          1.465
-        ],
-        "tolerance": 0.08,
-        "peak_labels": [
-          "一阶"
-        ],
         "force_decimals": 2,
         "force_baseline_kN": 3787.33,
         "force_alarm_bounds": {
@@ -936,7 +865,15 @@
         "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
         "ocr_force_kN": 3787,
         "completed_force_kN": 3694,
-        "contrast_change_pct": 2.5
+        "contrast_change_pct": 2.5,
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.385,
+            "search_max_hz": 1.545
+          }
+        ]
       },
       "CF-3": {
         "file_id": "C200303009",
@@ -962,13 +899,6 @@
         ],
         "rho": 57.687,
         "L": 87.45,
-        "target_freqs": [
-          1.4665
-        ],
-        "tolerance": 0.08,
-        "peak_labels": [
-          "一阶"
-        ],
         "force_decimals": 2,
         "force_baseline_kN": 3795.09,
         "force_reference_from_target": true,
@@ -990,7 +920,16 @@
         "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
         "ocr_force_kN": 3795,
         "completed_force_kN": 3799,
-        "contrast_change_pct": -0.1
+        "contrast_change_pct": -0.1,
+        "force_reference_freq": 1.4665,
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.3865,
+            "search_max_hz": 1.5465
+          }
+        ]
       },
       "CF-4": {
         "file_id": "C200303005",
@@ -1016,13 +955,6 @@
         ],
         "rho": 57.687,
         "L": 75.61,
-        "target_freqs": [
-          1.641
-        ],
-        "tolerance": 0.08,
-        "peak_labels": [
-          "一阶"
-        ],
         "force_decimals": 2,
         "force_baseline_kN": 3552.33,
         "force_reference_from_target": true,
@@ -1044,7 +976,16 @@
         "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
         "ocr_force_kN": 3552,
         "completed_force_kN": 3386,
-        "contrast_change_pct": 4.9
+        "contrast_change_pct": 4.9,
+        "force_reference_freq": 1.641,
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.561,
+            "search_max_hz": 1.721
+          }
+        ]
       },
       "CF-5": {
         "file_id": "C200303011",
@@ -1082,13 +1023,6 @@
         ],
         "rho": 57.687,
         "L": 79.91,
-        "target_freqs": [
-          1.564
-        ],
-        "tolerance": 0.08,
-        "peak_labels": [
-          "一阶"
-        ],
         "force_decimals": 2,
         "force_baseline_kN": 3604.24,
         "force_reference_from_target": true,
@@ -1110,7 +1044,16 @@
         "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
         "ocr_force_kN": 3604,
         "completed_force_kN": 3860,
-        "contrast_change_pct": -6.6
+        "contrast_change_pct": -6.6,
+        "force_reference_freq": 1.564,
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.484,
+            "search_max_hz": 1.644
+          }
+        ]
       },
       "CF-6": {
         "file_id": "C200303006",
@@ -1136,13 +1079,6 @@
         ],
         "rho": 57.687,
         "L": 82.99,
-        "target_freqs": [
-          1.527
-        ],
-        "tolerance": 0.08,
-        "peak_labels": [
-          "一阶"
-        ],
         "force_decimals": 2,
         "force_baseline_kN": 3705.68,
         "force_alarm_bounds": {
@@ -1162,7 +1098,15 @@
         "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
         "ocr_force_kN": 3706,
         "completed_force_kN": 3842,
-        "contrast_change_pct": -3.5
+        "contrast_change_pct": -3.5,
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.447,
+            "search_max_hz": 1.607
+          }
+        ]
       },
       "CF-7": {
         "file_id": "C200303010",
@@ -1188,13 +1132,6 @@
         ],
         "rho": 57.687,
         "L": 82.99,
-        "target_freqs": [
-          1.536
-        ],
-        "tolerance": 0.08,
-        "peak_labels": [
-          "一阶"
-        ],
         "force_decimals": 2,
         "force_baseline_kN": 3749.49,
         "force_alarm_bounds": {
@@ -1214,7 +1151,15 @@
         "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
         "ocr_force_kN": 3749,
         "completed_force_kN": 3786,
-        "contrast_change_pct": -1
+        "contrast_change_pct": -1,
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.456,
+            "search_max_hz": 1.616
+          }
+        ]
       },
       "CF-8": {
         "file_id": "C200303007",
@@ -1240,13 +1185,6 @@
         ],
         "rho": 57.687,
         "L": 79.91,
-        "target_freqs": [
-          1.565
-        ],
-        "tolerance": 0.08,
-        "peak_labels": [
-          "一阶"
-        ],
         "force_decimals": 2,
         "force_baseline_kN": 3608.85,
         "force_alarm_bounds": {
@@ -1266,7 +1204,15 @@
         "source_note": "用户提供的索力计算参数表截图OCR，供本期索力频谱换算备查。",
         "ocr_force_kN": 3609,
         "completed_force_kN": 3659,
-        "contrast_change_pct": -1.4
+        "contrast_change_pct": -1.4,
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.485,
+            "search_max_hz": 1.645
+          }
+        ]
       }
     },
     "dynamic_strain": {
@@ -1373,16 +1319,6 @@
     }
   },
   "accel_spectrum_params": {
-    "target_freqs": [
-      0.64
-    ],
-    "tolerance": 0.02,
-    "theor_freqs": [
-      0.593
-    ],
-    "theor_labels": [
-      "理论竖向一阶频率 0.593Hz"
-    ],
     "peak_orders": [
       {
         "order": 1,
@@ -1396,12 +1332,16 @@
     "auto_detect_fs": true
   },
   "cable_accel_spectrum_params": {
-    "target_freqs": [
-      1.55
-    ],
-    "tolerance": 0.08,
     "fs": 20,
-    "auto_detect_fs": true
+    "auto_detect_fs": true,
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "search_min_hz": 1.47,
+        "search_max_hz": 1.63
+      }
+    ]
   },
   "plot_styles": {
     "strain": {
@@ -1650,6 +1590,20 @@
     "append_timestamp": false,
     "lightweight_fig": true,
     "fig_max_points": 50000,
+    "dynamic_raw_modules": {
+      "acceleration": {
+        "sampling_mode": "full",
+        "line_width": 1.0,
+        "render_mode": "line",
+        "gap_mode": "connect"
+      },
+      "cable_accel": {
+        "sampling_mode": "full",
+        "line_width": 1.0,
+        "render_mode": "line",
+        "gap_mode": "connect"
+      }
+    },
     "dynamic_raw_sampling_mode": "full",
     "dynamic_raw_fig_max_points": 1200000,
     "dynamic_raw_min_points_per_day": 12000,

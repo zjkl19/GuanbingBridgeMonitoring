@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -49,10 +50,21 @@ from build_quarterly_wim_sample import (
     style_table,
 )
 from template_precheck import raise_for_template
-from analysis_manifest import missing_module_summary_items
+from analysis_manifest import (
+    active_pinned_analysis_manifest,
+    active_pinned_derived_artifact_manifest,
+    load_latest_analysis_manifest,
+    missing_module_summary_items,
+    read_verified_derived_artifact_bytes,
+)
 from missing_summary import write_missing_summary
 from report_build_manifest import write_report_build_manifest
 from report_context import ReportBuildContext
+from docx_header_fields import (
+    HONGTANG_FRONT_MATTER_PAGES,
+    audit_header_pagination_fields,
+    ensure_header_pagination_fields,
+)
 from report_qc import check_report, write_report_qc_report
 
 
@@ -753,6 +765,10 @@ def merge_health_status_summary(summary_text: str, missing_rows: list[dict[str, 
 
 
 def _pattern_for_point(cfg: dict, module: str, point_id: str, file_id: str | None = None) -> str:
+    return _patterns_for_point(cfg, module, point_id, file_id=file_id)[0]
+
+
+def _patterns_for_point(cfg: dict, module: str, point_id: str, file_id: str | None = None) -> list[str]:
     patterns = cfg.get("file_patterns", {}).get(module, {})
     per_point = patterns.get("per_point", {})
     pattern = per_point.get(point_id)
@@ -760,12 +776,14 @@ def _pattern_for_point(cfg: dict, module: str, point_id: str, file_id: str | Non
         default_patterns = patterns.get("default") or []
         if not default_patterns:
             raise KeyError(f"No file pattern configured for module={module}, point={point_id}")
-        pattern = default_patterns[0]
+        values = default_patterns if isinstance(default_patterns, list) else [default_patterns]
     elif isinstance(pattern, list):
         if not pattern:
             raise KeyError(f"Empty file pattern configured for module={module}, point={point_id}")
-        pattern = pattern[0]
-    return pattern.format(point=point_id, file_id=file_id or "")
+        values = pattern
+    else:
+        values = [pattern]
+    return [str(item).format(point=point_id, file_id=file_id or "") for item in values]
 
 
 def _csv_has_records(path: Path) -> bool:
@@ -776,6 +794,240 @@ def _csv_has_records(path: Path) -> bool:
             if line.strip():
                 return True
     return False
+
+
+def _cache_patterns(csv_pattern: str) -> list[str]:
+    """Return MAT-cache glob candidates for one configured CSV pattern."""
+    name = Path(str(csv_pattern).replace("\\", "/")).name
+    stem = Path(name).stem
+    patterns = [stem + ".mat"]
+    # Cache files are keyed by the logical point name.  A source pattern such
+    # as A1_174.csv therefore becomes A1_*.mat; the same rule also covers
+    # X_144.csv, 风速_162.csv and their timestamped cache variants.
+    logical_stem = re.sub(r"_\d+$", "_*", stem)
+    if logical_stem != stem:
+        patterns.append(logical_stem + ".mat")
+    return list(dict.fromkeys(patterns))
+
+
+def _raw_or_cache_has_records(raw_dir: Path, csv_patterns: Iterable[str]) -> bool:
+    patterns = [str(item) for item in csv_patterns]
+    for pattern in patterns:
+        if any(_csv_has_records(path) for path in raw_dir.glob(pattern)):
+            return True
+
+    cache_dir = raw_dir / "cache"
+    if not cache_dir.is_dir():
+        return False
+    for pattern in patterns:
+        for cache_pattern in _cache_patterns(pattern):
+            if any(path.is_file() and path.stat().st_size > 0 for path in cache_dir.glob(cache_pattern)):
+                return True
+    return False
+
+
+def _normalize_plot_series(value) -> list[dict]:
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    if isinstance(value, dict):
+        if "source" in value or "sampling_mode" in value:
+            return [value]
+        return [item for item in value.values() if isinstance(item, dict)]
+    return []
+
+
+def _provenance_point_id(series: dict, sidecar: Path) -> str:
+    point_id = str(series.get("point_id") or "").split(":", 1)[0].strip()
+    if point_id:
+        return point_id
+    stem = sidecar.name.removesuffix(".plot.json")
+    stem = re.sub(r"_20\d{2}-\d{2}-\d{2}_20\d{2}-\d{2}-\d{2}$", "", stem)
+    stem = re.sub(r"_20\d{6}_20\d{6}$", "", stem)
+    return stem.replace("EQ_", "EQ-")
+
+
+def collect_highfreq_provenance_events(
+    result_root: Path, start_date: date, end_date: date
+) -> list[dict]:
+    """Build natural-day completeness events from the pinned analysis artifacts.
+
+    Date-folder presence alone cannot prove a natural day is complete for the
+    rolling D+D+1 exports used by Hongtang.  The plot sidecars record that
+    reconstruction explicitly, including boundary days affected by a missing
+    adjacent export.
+    """
+    _manifest_path, manifest = load_latest_analysis_manifest(result_root)
+    if not isinstance(manifest, dict):
+        return []
+
+    module_labels = {
+        "acceleration": HIGHFREQ_MODULES["acceleration"],
+        "cable_accel": HIGHFREQ_MODULES["cable_accel"],
+        "wind": HIGHFREQ_MODULES["wind"],
+        "earthquake": HIGHFREQ_MODULES["eq"],
+    }
+    records = manifest.get("module_results") or manifest.get("module_logs") or []
+    dedup: set[tuple[str, str, date, str]] = set()
+    events: list[dict] = []
+    root_resolved = result_root.resolve()
+    coverage_audit = load_data_coverage_audit(result_root)
+    boundary = coverage_audit.get("boundary_disclosure") if isinstance(coverage_audit, dict) else None
+    explicit_boundary_day = ""
+    if isinstance(boundary, dict) and str(boundary.get("statement") or "").strip():
+        explicit_boundary_day = str(boundary.get("affected_day") or "")[:10]
+
+    for record in records if isinstance(records, list) else []:
+        if not isinstance(record, dict):
+            continue
+        module_key = str(record.get("key") or record.get("module") or "")
+        module_label = module_labels.get(module_key)
+        if module_label is None:
+            continue
+        for artifact in record.get("artifacts") or []:
+            raw_path = artifact.get("path") if isinstance(artifact, dict) else artifact
+            if not raw_path or not str(raw_path).lower().endswith(".plot.json"):
+                continue
+            sidecar = Path(str(raw_path))
+            try:
+                sidecar.resolve().relative_to(root_resolved)
+            except (OSError, ValueError):
+                continue
+            if not sidecar.is_file():
+                continue
+            try:
+                payload = json.loads(sidecar.read_text(encoding="utf-8-sig"))
+            except (OSError, ValueError):
+                continue
+            for series in _normalize_plot_series(payload.get("series")):
+                source = series.get("source") if isinstance(series.get("source"), dict) else {}
+                missing_sources = [str(item) for item in source.get("missing_required_sources") or []]
+                reason = "自然日数据不完整（缺少相邻滚动导出）" if missing_sources else "自然日数据不完整"
+                point_id = _provenance_point_id(series, sidecar)
+                for value in source.get("incomplete_days") or []:
+                    try:
+                        day = date.fromisoformat(str(value)[:10])
+                    except ValueError:
+                        continue
+                    if not (start_date <= day <= end_date):
+                        continue
+                    if day.isoformat() == explicit_boundary_day:
+                        # The independently audited boundary statement below is
+                        # more precise than the generic sidecar label.
+                        continue
+                    marker = (module_label, point_id, day, reason)
+                    if marker in dedup:
+                        continue
+                    dedup.add(marker)
+                    events.append(
+                        {
+                            "module": module_label,
+                            "points": [point_id],
+                            "range": _format_day_range(day, day),
+                            "reason": reason,
+                        }
+                    )
+    return events
+
+
+def load_data_coverage_audit(result_root: Path) -> dict:
+    conventional_path = (result_root / "run_logs" / "data_coverage_audit.json").resolve()
+    if active_pinned_analysis_manifest() is not None:
+        if active_pinned_derived_artifact_manifest() is None:
+            if conventional_path.is_file():
+                raise ValueError(
+                    "Strict source provenance forbids an unlisted data coverage audit: "
+                    f"{conventional_path}"
+                )
+            return {}
+        verified = read_verified_derived_artifact_bytes(
+            kind="coverage_audit", role="data_coverage_audit", module="run_audit"
+        )
+        if verified is None:
+            if conventional_path.is_file():
+                raise ValueError(
+                    "Strict source provenance requires data_coverage_audit.json to be "
+                    "listed in the active derived-artifact manifest."
+                )
+            return {}
+        path, raw, record = verified
+    else:
+        path = conventional_path
+        if not path.is_file():
+            return {}
+        raw = path.read_bytes()
+        record = None
+    try:
+        payload = json.loads(raw.decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise ValueError(f"Invalid data coverage audit: {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"Data coverage audit root must be an object: {path}")
+    return {
+        **payload,
+        "path": str(path),
+        "bytes": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest().upper(),
+        "source": "derived_artifact_manifest" if record is not None else "filesystem",
+    }
+
+
+def collect_declared_data_coverage_events(
+    result_root: Path, start_date: date, end_date: date
+) -> list[dict]:
+    """Read independently audited timestamp gaps for report disclosure."""
+    audit = load_data_coverage_audit(result_root)
+    raw_events = audit.get("events") if isinstance(audit, dict) else []
+    if not isinstance(raw_events, list):
+        return []
+
+    period_start = datetime.combine(start_date, datetime.min.time())
+    period_end = datetime.combine(end_date, datetime.max.time())
+    result: list[dict] = []
+    for raw in raw_events:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            event_start = datetime.fromisoformat(str(raw.get("start") or ""))
+            event_end = datetime.fromisoformat(str(raw.get("end") or ""))
+        except ValueError:
+            continue
+        if event_end < event_start or event_end < period_start or event_start > period_end:
+            continue
+        module_key = str(raw.get("module") or "").strip()
+        module_label = HIGHFREQ_MODULES.get(module_key, module_key)
+        points = raw.get("points")
+        if isinstance(points, str):
+            points = [points]
+        if not module_label or not isinstance(points, list) or not points:
+            continue
+        reason = str(raw.get("reason") or "经时间戳审计确认的数据缺口").strip()
+        result.append(
+            {
+                "module": module_label,
+                "points": [str(item) for item in points if str(item).strip()],
+                "range": _format_dt_range(max(event_start, period_start), min(event_end, period_end)),
+                "reason": reason,
+            }
+        )
+
+    boundary = audit.get("boundary_disclosure") if isinstance(audit, dict) else None
+    if isinstance(boundary, dict):
+        try:
+            affected_day = date.fromisoformat(str(boundary.get("affected_day") or "")[:10])
+        except ValueError:
+            affected_day = None
+        statement = str(boundary.get("statement") or "").strip()
+        if affected_day is not None and start_date <= affected_day <= end_date and statement:
+            for module_key in ("acceleration", "cable_accel", "wind", "eq"):
+                result.append(
+                    {
+                        "module": HIGHFREQ_MODULES[module_key],
+                        "points": ["相关测点"],
+                        "range": _format_day_range(affected_day, affected_day),
+                        "reason": statement,
+                    }
+                )
+    return result
 
 
 def collect_lowfreq_missing_events(cfg: dict, result_root: Path, start_date: date, end_date: date) -> list[dict]:
@@ -888,12 +1140,8 @@ def collect_highfreq_missing_events(cfg: dict, result_root: Path, start_date: da
                 if not raw_dir.exists():
                     day_missing.setdefault(key, []).append(current_day)
                     continue
-                pattern = _pattern_for_point(cfg, module, point)
-                matches = list(raw_dir.glob(pattern))
-                if not matches:
-                    day_missing.setdefault(key, []).append(current_day)
-                    continue
-                if not any(_csv_has_records(path) for path in matches):
+                patterns = _patterns_for_point(cfg, module, point)
+                if not _raw_or_cache_has_records(raw_dir, patterns):
                     day_missing.setdefault((point, "无原始记录"), []).append(current_day)
         for (point, reason), days in day_missing.items():
             add_events(module_label, point, days, reason)
@@ -914,12 +1162,8 @@ def collect_highfreq_missing_events(cfg: dict, result_root: Path, start_date: da
                     if not raw_dir.exists():
                         day_missing.setdefault(key, []).append(current_day)
                         continue
-                    pattern = _pattern_for_point(cfg, module_key, point, file_id=file_id)
-                    matches = list(raw_dir.glob(pattern))
-                    if not matches:
-                        day_missing.setdefault(key, []).append(current_day)
-                        continue
-                    if not any(_csv_has_records(path) for path in matches):
+                    patterns = _patterns_for_point(cfg, module_key, point, file_id=file_id)
+                    if not _raw_or_cache_has_records(raw_dir, patterns):
                         day_missing.setdefault((label, "无原始记录"), []).append(current_day)
         for (point, reason), days in day_missing.items():
             add_events(HIGHFREQ_MODULES["wind"], point, days, reason)
@@ -939,16 +1183,14 @@ def collect_highfreq_missing_events(cfg: dict, result_root: Path, start_date: da
                     day_missing.setdefault(key, []).append(current_day)
                     continue
                 module_key = point.lower().replace("-", "_")
-                pattern = _pattern_for_point(cfg, module_key, point, file_id=file_id)
-                matches = list(raw_dir.glob(pattern))
-                if not matches:
-                    day_missing.setdefault(key, []).append(current_day)
-                    continue
-                if not any(_csv_has_records(path) for path in matches):
+                patterns = _patterns_for_point(cfg, module_key, point, file_id=file_id)
+                if not _raw_or_cache_has_records(raw_dir, patterns):
                     day_missing.setdefault((point, "无原始记录"), []).append(current_day)
         for (point, reason), days in day_missing.items():
             add_events(HIGHFREQ_MODULES["eq"], point, days, reason)
 
+    events.extend(collect_highfreq_provenance_events(result_root, start_date, end_date))
+    events.extend(collect_declared_data_coverage_events(result_root, start_date, end_date))
     return events
 
 
@@ -1003,28 +1245,6 @@ def apply_health_status_to_doc(doc: Document, summary_text: str, rows: list[dict
     set_table_column_widths(table, [28, 66, 42, 24])
 
 
-def _parse_word_page_count(output: str) -> int | None:
-    match = re.search(r"BMS_WORD_PAGE_COUNT=(\d+)", output or "")
-    if not match:
-        return None
-    try:
-        value = int(match.group(1))
-    except ValueError:
-        return None
-    return value if value > 0 else None
-
-
-def _patch_hardcoded_total_pages_xml(xml_text: str, page_count: int) -> tuple[str, int]:
-    total_re = re.compile(
-        r"(<w:t(?:\s+[^>]*)?>\s*页\s*共\s*</w:t>.*?<w:t(?:\s+[^>]*)?>)"
-        r"(\d{1,4})"
-        r"(</w:t>.*?<w:t(?:\s+[^>]*)?>\s*页\s*</w:t>)",
-        re.S,
-    )
-    replacement = rf"\g<1>{page_count}\g<3>"
-    return total_re.subn(replacement, xml_text)
-
-
 def _patch_report_number_xml(xml_text: str, report_number: str) -> tuple[str, int]:
     report_no_re = re.compile(r"BG02FQJC2600002-J\d+")
     return report_no_re.subn(report_number, xml_text)
@@ -1049,44 +1269,6 @@ def _patch_report_number_in_docx(docx_path: Path, report_number: str | None) -> 
                         text = ""
                     if text:
                         text, count = _patch_report_number_xml(text, report_number)
-                        if count:
-                            patched_count += count
-                            data = text.encode("utf-8")
-                zout.writestr(info, data)
-        tmp_path.replace(docx_path)
-    except zipfile.BadZipFile:
-        return 0
-    finally:
-        if tmp_path.exists():
-            try:
-                tmp_path.unlink()
-            except OSError:
-                pass
-    return patched_count
-
-
-def _patch_hardcoded_total_pages_in_docx(docx_path: Path, page_count: int | None) -> int:
-    if page_count is None or page_count <= 0:
-        return 0
-    if not docx_path.exists():
-        return 0
-
-    patched_count = 0
-    tmp_path = docx_path.with_suffix(docx_path.suffix + ".tmp")
-    try:
-        with zipfile.ZipFile(docx_path, "r") as zin, zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zout:
-            for info in zin.infolist():
-                data = zin.read(info.filename)
-                if (
-                    info.filename.startswith(("word/header", "word/footer"))
-                    and info.filename.endswith(".xml")
-                ):
-                    try:
-                        text = data.decode("utf-8")
-                    except UnicodeDecodeError:
-                        text = ""
-                    if text:
-                        text, count = _patch_hardcoded_total_pages_xml(text, page_count)
                         if count:
                             patched_count += count
                             data = text.encode("utf-8")
@@ -1201,61 +1383,8 @@ try:
         except Exception:
             pass
 
-    def replace_total_pages_text():
-        try:
-            page_count = int(doc.ComputeStatistics(2))
-        except Exception:
-            return
-        print(f"BMS_WORD_PAGE_COUNT={{page_count}}")
-
-        pattern = chr(0x5171) + " [0-9]{1,} " + chr(0x9875)
-        replacement = chr(0x5171) + f" {{page_count}} " + chr(0x9875)
-
-        def replace_in_range(range_obj):
-            try:
-                find = range_obj.Find
-                find.ClearFormatting()
-                find.Replacement.ClearFormatting()
-                find.Text = pattern
-                find.MatchWildcards = True
-                find.Replacement.Text = replacement
-                find.Execute(Replace=2)
-            except Exception:
-                pass
-
-        for section in doc.Sections:
-            for header in section.Headers:
-                try:
-                    if header.Exists:
-                        replace_in_range(header.Range)
-                except Exception:
-                    pass
-                try:
-                    shapes = header.Shapes
-                    for idx in range(1, shapes.Count + 1):
-                        shape = shapes.Item(idx)
-                        if shape.TextFrame.HasText:
-                            replace_in_range(shape.TextFrame.TextRange)
-                except Exception:
-                    pass
-            for footer in section.Footers:
-                try:
-                    if footer.Exists:
-                        replace_in_range(footer.Range)
-                except Exception:
-                    pass
-                try:
-                    shapes = footer.Shapes
-                    for idx in range(1, shapes.Count + 1):
-                        shape = shapes.Item(idx)
-                        if shape.TextFrame.HasText:
-                            replace_in_range(shape.TextFrame.TextRange)
-                except Exception:
-                    pass
-
     update_all_fields()
     update_all_fields()
-    replace_total_pages_text()
     update_all_fields()
     doc.Save()
 finally:
@@ -1282,8 +1411,6 @@ finally:
                     errors.append(f"{py}: field update produced broken reference results")
                     docx_path.write_bytes(original_bytes)
                     continue
-                page_count = _parse_word_page_count(result.stdout)
-                _patch_hardcoded_total_pages_in_docx(docx_path, page_count)
                 return True, ""
             detail = (result.stderr or result.stdout or f"exit={result.returncode}").strip()
             errors.append(f"{py}: {detail[:300]}")
@@ -1325,31 +1452,6 @@ try {
             } catch {}
         }
     }
-    function Replace-TotalPagesText($range, $pageCount) {
-        $pattern = ([string][char]0x5171) + ' [0-9]{1,} ' + ([string][char]0x9875)
-        $replacement = ([string][char]0x5171) + " $pageCount " + ([string][char]0x9875)
-        try {
-            $find = $range.Find
-            $find.ClearFormatting() | Out-Null
-            $find.Replacement.ClearFormatting() | Out-Null
-            $find.Text = $pattern
-            $find.MatchWildcards = $true
-            $find.Replacement.Text = $replacement
-            $find.Execute(
-                [ref]$pattern,
-                [ref]$false,
-                [ref]$true,
-                [ref]$true,
-                [ref]$false,
-                [ref]$false,
-                [ref]$true,
-                [ref]1,
-                [ref]$false,
-                [ref]$replacement,
-                [ref]2
-            ) | Out-Null
-        } catch {}
-    }
     function Update-WordFields($doc) {
         try { $doc.Repaginate() | Out-Null } catch {}
         foreach ($section in @($doc.Sections)) {
@@ -1376,43 +1478,8 @@ try {
         try { $doc.TablesOfContents.Item(1).Update() | Out-Null } catch {}
         try { $doc.Fields.Update() | Out-Null } catch {}
     }
-    function Replace-HardcodedTotalPages($doc) {
-        try { $pageCount = [int]$doc.ComputeStatistics(2) } catch { return }
-        Write-Output "BMS_WORD_PAGE_COUNT=$pageCount"
-        foreach ($section in @($doc.Sections)) {
-            foreach ($header in @($section.Headers)) {
-                try {
-                    if ($header.Exists) { Replace-TotalPagesText $header.Range $pageCount }
-                } catch {}
-                try {
-                    $count = $header.Shapes.Count
-                    for ($idx = 1; $idx -le $count; $idx++) {
-                        $shape = $header.Shapes.Item($idx)
-                        if ($shape.TextFrame.HasText) {
-                            Replace-TotalPagesText $shape.TextFrame.TextRange $pageCount
-                        }
-                    }
-                } catch {}
-            }
-            foreach ($footer in @($section.Footers)) {
-                try {
-                    if ($footer.Exists) { Replace-TotalPagesText $footer.Range $pageCount }
-                } catch {}
-                try {
-                    $count = $footer.Shapes.Count
-                    for ($idx = 1; $idx -le $count; $idx++) {
-                        $shape = $footer.Shapes.Item($idx)
-                        if ($shape.TextFrame.HasText) {
-                            Replace-TotalPagesText $shape.TextFrame.TextRange $pageCount
-                        }
-                    }
-                } catch {}
-            }
-        }
-    }
     Update-WordFields $doc
     Update-WordFields $doc
-    Replace-HardcodedTotalPages $doc
     Update-WordFields $doc
     $doc.Save()
     $saved = $true
@@ -1447,8 +1514,6 @@ if (-not $saved) { exit 1 }
                         errors.append(f"{exe}: field update produced broken reference results")
                         docx_path.write_bytes(original_bytes)
                         continue
-                    page_count = _parse_word_page_count(result.stdout)
-                    _patch_hardcoded_total_pages_in_docx(docx_path, page_count)
                     return True, ""
                 detail = (result.stderr or result.stdout or f"exit={result.returncode}").strip()
                 errors.append(f"{exe}: {detail[:300]}")
@@ -1468,6 +1533,10 @@ def update_fields_with_word(docx_path: Path) -> list[str]:
     if os.environ.get("BMS_NO_WORD") == "1":
         return ["word_field_update_skipped:BMS_NO_WORD=1"]
 
+    # Word/KWPS COM resolves relative paths against the application process,
+    # not the caller's working directory. Always hand the field engine a fully
+    # qualified path so CLI output directories work exactly like GUI paths.
+    docx_path = Path(docx_path).resolve()
     ok, python_error = _run_python_word_field_update(docx_path)
     if ok:
         return []
@@ -1591,8 +1660,13 @@ def build_period_report(
     )
 
     cfg = load_json(config_path)
+    reporting_cfg = cfg.get("reporting", {}) if isinstance(cfg.get("reporting", {}), dict) else {}
+    front_matter_pages = int(reporting_cfg.get("front_matter_pages", HONGTANG_FRONT_MATTER_PAGES))
+    if front_matter_pages < 0:
+        raise ValueError("reporting.front_matter_pages must be non-negative")
     manifest = build_manifest(cfg, ctx.stats_root, ctx.fallback_stats_root, ctx.image_root, template, ctx.assets_dir, period_label, monitoring_range, report_date)
     manifest["report_number"] = report_number
+    manifest["front_matter_pages"] = front_matter_pages
     manifest["analysis_run_manifest"] = ctx.analysis_context()
     wim_months = months_between(start_dt, end_dt)
     try:
@@ -1608,6 +1682,7 @@ def build_period_report(
             "summary": "",
             "month_summaries": [],
         }
+    manifest["data_coverage_audit"] = load_data_coverage_audit(result_root)
     lowfreq_missing_events = collect_lowfreq_missing_events(cfg, result_root, start_dt, end_dt)
     highfreq_missing_events = collect_highfreq_missing_events(cfg, result_root, start_dt, end_dt)
     raw_health_summary = build_health_status_summary(
@@ -1644,11 +1719,17 @@ def build_period_report(
     apply_wim_period_to_doc(doc, manifest["wim"])
     apply_period_toc_months(doc, start_dt, end_dt)
     convert_static_captions_to_auto_number(doc)
+    if ensure_header_pagination_fields(doc, front_matter_pages=front_matter_pages) != 1:
+        raise RuntimeError("Hongtang period template must contain exactly one report header pagination cell")
 
     output_docx = ctx.output_dir / period_report_filename(period_label, timestamp)
     doc.save(str(output_docx))
     _patch_report_number_in_docx(output_docx, report_number)
     field_update_warnings = update_fields_with_word(output_docx)
+    header_audit = audit_header_pagination_fields(output_docx, front_matter_pages=front_matter_pages)
+    if not header_audit.valid:
+        detail = list(header_audit.details) + list(header_audit.formatting_errors)
+        raise RuntimeError("Invalid Hongtang PAGE/adjusted-NUMPAGES header fields: " + "; ".join(detail))
 
     missing = summarize_missing_images(manifest) + summarize_missing_wim_images(manifest["wim"])
     missing.extend(missing_module_summary_items(manifest.get("analysis_run_manifest")))
@@ -1724,7 +1805,7 @@ def main() -> None:
     print(f"Manifest written to: {manifest_path}")
     print(f"Report written to:   {report_path}")
     if args.debug_section:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
         key = args.debug_section
         if key == "wim":
             payload = manifest.get("wim", {})

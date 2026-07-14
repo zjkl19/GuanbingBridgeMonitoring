@@ -60,7 +60,17 @@ function varargout = run_gui(varargin)
     logoPath = fullfile(projRoot,'建科院标志PNG-01.png');
     uiimg = uiimage(hgl); uiimg.Layout.Row = [1 2]; uiimg.Layout.Column = 1; uiimg.ScaleMethod = 'fit';
     if exist(logoPath,'file'), uiimg.ImageSource = logoPath; end
-    versionStr = 'v1.7.39';
+    versionStr = 'v1.8.0';
+    versionPath = fullfile(projRoot, 'VERSION');
+    if exist(versionPath, 'file') == 2
+        try
+            versionCandidate = strtrim(fileread(versionPath));
+            if ~isempty(versionCandidate)
+                versionStr = versionCandidate;
+            end
+        catch
+        end
+    end
     titleLbl = uilabel(hgl,'Text',['福建建科院健康监测大数据分析 ' versionStr],'FontSize',30,'FontWeight','bold','FontColor',primaryBlue,'HorizontalAlignment','center');
     titleLbl.Layout.Row = 1; titleLbl.Layout.Column = [2 6];
     profileLbl = uilabel(hgl, 'Text', '桥梁项目:', 'HorizontalAlignment', 'right', 'FontWeight', 'bold');
@@ -72,8 +82,10 @@ function varargout = run_gui(varargin)
     profileNote.Layout.Row = 2; profileNote.Layout.Column = 4;
     configCheckBtn = uibutton(hgl, 'Text', '检查配置', 'ButtonPushedFcn', @(btn,~) check_current_config());
     configCheckBtn.Layout.Row = 2; configCheckBtn.Layout.Column = 5;
-    reportBuilderBtn = uibutton(hgl, 'Text', '打开报告生成器', 'ButtonPushedFcn', @(btn,~) open_report_builder());
-    reportBuilderBtn.Layout.Row = 2; reportBuilderBtn.Layout.Column = 6;
+    reportMigrationBtn = uibutton(hgl, 'Text', '报告已迁移到统一工作台', ...
+        'Enable', 'off', ...
+        'Tooltip', '请在“桥梁健康监测工作台”的“报告生成”页使用报告功能。');
+    reportMigrationBtn.Layout.Row = 2; reportMigrationBtn.Layout.Column = 6;
 
     lblRoot = uilabel(gl,'Text','数据根目录:','FontWeight','bold','HorizontalAlignment','right'); lblRoot.Layout.Row=2; lblRoot.Layout.Column=1;
     rootEdit = uieditfield(gl,'text','Value',defaultDataRoot); rootEdit.Layout.Row=2; rootEdit.Layout.Column=[2 3];
@@ -404,33 +416,6 @@ function varargout = run_gui(varargin)
         drawnow;
     end
 
-    function open_report_builder()
-        exePath = fullfile(projRoot, 'reporting', 'dist', 'BridgeReportBuilder', 'BridgeReportBuilder.exe');
-        pyPath = fullfile(projRoot, 'reporting', '.venv', 'Scripts', 'python.exe');
-        scriptPath = fullfile(projRoot, 'reporting', 'report_gui.py');
-        try
-            if exist(exePath, 'file') == 2
-                cmd = sprintf('start "" "%s"', exePath);
-                [status, msg] = system(cmd);
-                if status ~= 0
-                    error('%s', msg);
-                end
-                addLog(['已打开报告生成器: ' exePath]);
-            elseif exist(pyPath, 'file') == 2 && exist(scriptPath, 'file') == 2
-                cmd = sprintf('start "" "%s" "%s"', pyPath, scriptPath);
-                [status, msg] = system(cmd);
-                if status ~= 0
-                    error('%s', msg);
-                end
-                addLog(['已用 Python 打开报告生成器: ' scriptPath]);
-            else
-                uialert(f, sprintf('未找到报告生成器 exe 或 Python 入口:\n%s\n%s', exePath, scriptPath), '打开失败', 'Icon', 'warning');
-            end
-        catch ME
-            uialert(f, ME.message, '打开报告生成器失败', 'Icon', 'error');
-        end
-    end
-
     function check_current_config()
         try
             [cfg, loadedCfgPath] = bms.gui.GuiConfigBinder.loadConfig(cfgEdit.Value, defaultCfgPath);
@@ -589,7 +574,7 @@ function varargout = run_gui(varargin)
                 case 'g'
                     check_current_config();
                 case 'b'
-                    open_report_builder();
+                    addLog('报告功能已整合到“桥梁健康监测工作台”的“报告生成”页，不再启动独立报告窗口。');
                 otherwise
                     return;
             end

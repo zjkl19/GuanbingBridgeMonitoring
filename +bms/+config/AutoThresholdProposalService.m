@@ -367,6 +367,7 @@ classdef AutoThresholdProposalService
                 p(1).point_id = char(string(data{i,3}));
                 p(1).safe_id = bms.data.PointResolver.configKey(p(1).point_id);
                 p(1).sensor_type = bms.config.AutoThresholdProposalService.sensorTypeForPoint(p(1).module_key, p(1).point_id);
+                p(1).apply_key = bms.config.AutoThresholdProposalService.applyKey(p(1));
                 p(1).kind = char(string(data{i,4}));
                 p(1).algorithm = char(string(data{i,5}));
                 p(1).min = bms.config.AutoThresholdProposalService.cellNumber(data{i,6});
@@ -665,7 +666,7 @@ classdef AutoThresholdProposalService
 
         function p = emptyProposal()
             p = struct('selected', {}, 'module_key', {}, 'module_label', {}, ...
-                'point_id', {}, 'safe_id', {}, 'sensor_type', {}, ...
+                'point_id', {}, 'safe_id', {}, 'sensor_type', {}, 'apply_key', {}, ...
                 'kind', {}, 'algorithm', {}, 'min', {}, 'max', {}, ...
                 't_range_start', {}, 't_range_end', {}, 'valid_count', {}, ...
                 'removed_count', {}, 'removed_ratio', {}, 'score', {}, ...
@@ -1244,6 +1245,7 @@ classdef AutoThresholdProposalService
             p.point_id = char(string(pointId));
             p.safe_id = bms.data.PointResolver.configKey(pointId);
             p.sensor_type = char(string(sensorType));
+            p.apply_key = bms.config.AutoThresholdProposalService.applyKey(p);
             p.kind = char(string(kind));
             p.algorithm = char(string(algorithm));
             p.min = mn;

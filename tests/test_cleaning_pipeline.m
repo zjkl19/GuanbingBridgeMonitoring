@@ -217,6 +217,35 @@ classdef test_cleaning_pipeline < matlab.unittest.TestCase
             tc.verifyTrue(all(isnan(out)));
         end
 
+        function explicitTimeRangeExclusionReplacesThresholdSentinel(tc)
+            t = datetime(2025,12,14,23,59,59) + seconds(0:3)';
+            v = [1; 2; 3; 4];
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.exclude_ranges = struct( ...
+                'start_time', '2025-12-15 00:00:00', ...
+                'end_time', '2025-12-15 00:00:01', ...
+                'reason', 'invalid historical interval');
+
+            [out, log] = bms.data.CleaningPipeline.apply(v, t, rules);
+
+            tc.verifyEqual(out([1 4]), [1; 4]);
+            tc.verifyTrue(all(isnan(out(2:3))));
+            tc.verifyEqual(log.excluded_range_count, 2);
+            tc.verifyEqual(log.threshold_removed_count, 0);
+        end
+
+        function invalidExplicitTimeRangeIsRejected(tc)
+            t = datetime(2025,12,15) + seconds(0:1)';
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.exclude_ranges = struct( ...
+                'start_time', '2025-12-16 00:00:00', ...
+                'end_time', '2025-12-15 00:00:00');
+
+            tc.verifyError( ...
+                @() bms.data.CleaningPipeline.apply([1; 2], t, rules), ...
+                'CleaningPipeline:InvalidExcludeRange');
+        end
+
         function timeSeriesLoaderReadsAndClips(tc)
             path = fullfile(tc.TempDir, 'series.csv');
             T = table( ...

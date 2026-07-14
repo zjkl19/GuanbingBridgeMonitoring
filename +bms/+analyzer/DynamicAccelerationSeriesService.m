@@ -3,6 +3,7 @@ classdef DynamicAccelerationSeriesService
 
     methods (Static)
         function stats = runSequential(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, points, style, stats, spec)
+            cfg = bms.analyzer.DynamicAccelerationSeriesService.modulePlotConfig(cfg, spec);
             releaseFullSeries = bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg);
             parallelPlan = get_parallel_plan(cfg, numel(points), spec.parallelLabel);
             if parallelPlan.enabled
@@ -43,6 +44,7 @@ classdef DynamicAccelerationSeriesService
         end
 
         function stats = runWithOptionalParallel(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, points, style, stats, spec)
+            cfg = bms.analyzer.DynamicAccelerationSeriesService.modulePlotConfig(cfg, spec);
             if bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg)
                 fprintf('%s full sampling forces sequential point processing.\n', ...
                     char(string(spec.moduleKey)));
@@ -114,8 +116,21 @@ classdef DynamicAccelerationSeriesService
         end
 
         function rec = collectRecord(rootDir, subfolder, pointId, startDate, endDate, cfg, autoDetectFs, spec, keepSeries)
+            cfg = bms.analyzer.DynamicAccelerationSeriesService.modulePlotConfig(cfg, spec);
             rec = bms.analyzer.DynamicSeriesService.collectRecord( ...
                 rootDir, subfolder, pointId, startDate, endDate, cfg, spec.sensorType, autoDetectFs, keepSeries);
+        end
+
+        function cfgOut = modulePlotConfig(cfg, spec)
+            cfgOut = cfg;
+            if ~isstruct(spec) || ~isfield(spec, 'moduleKey')
+                return;
+            end
+            moduleKey = lower(strtrim(char(string(spec.moduleKey))));
+            if ~any(strcmp(moduleKey, {'acceleration', 'cable_accel'}))
+                return;
+            end
+            cfgOut = bms.analyzer.DynamicSeriesService.configForRawPlotModule(cfg, moduleKey);
         end
 
         function printSampleRate(fs, autoDetectFs, parallelEnabled)
@@ -153,6 +168,7 @@ classdef DynamicAccelerationSeriesService
             if nargin < 9
                 cachedRecords = [];
             end
+            cfg = bms.analyzer.DynamicAccelerationSeriesService.modulePlotConfig(cfg, spec);
             groupMode = bms.analyzer.DynamicAccelerationSeriesService.groupSamplingMode(cfg);
             if strcmp(groupMode, 'off')
                 fprintf('%s group plots disabled by dynamic_group_sampling_mode.\n', ...
@@ -254,8 +270,13 @@ classdef DynamicAccelerationSeriesService
             for i = 1:numel(pointIds)
                 bms.app.StopController.throwIfRequested('Stop requested before next dynamic group point');
                 pid = pointIds{i};
-                rec = bms.analyzer.DynamicAccelerationSeriesService.collectRecord( ...
-                    rootDir, subfolder, pid, startDate, endDate, cfg, autoDetectFs, spec, true);
+                % cfg already carries the explicit group sampling policy.  Do
+                % not route through collectRecord here: that wrapper reapplies
+                % the point-level acceleration/cable override (normally full)
+                % and would silently defeat a capped group-memory policy.
+                rec = bms.analyzer.DynamicSeriesService.collectRecord( ...
+                    rootDir, subfolder, pid, startDate, endDate, cfg, ...
+                    spec.sensorType, autoDetectFs, true);
                 if ~rec.has_data
                     warning('%s组图测点 %s 无数据，跳过', spec.displayName, pid);
                     continue;

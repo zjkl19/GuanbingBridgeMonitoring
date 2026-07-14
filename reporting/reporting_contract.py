@@ -26,7 +26,7 @@ def load_reporting_contract(path: Path | str | None) -> dict[str, Any] | None:
     if not p.exists():
         return None
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        return json.loads(p.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError:
         return None
 

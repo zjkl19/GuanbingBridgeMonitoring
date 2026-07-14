@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -37,6 +38,7 @@ from bridge_profiles import BridgeProfile, load_profiles, profile_by_id
 from missing_summary import missing_summary_paths
 from analysis_manifest import manifest_precheck_warnings
 from report_build_manifest import find_latest_report_build_manifest
+from report_job import ReportJobRequest, execute_report_job
 from report_module_catalog import expected_result_dirs, expected_stats_files
 from template_precheck import TemplateIssue, check_template, write_precheck_report
 
@@ -47,7 +49,16 @@ JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
 GUANBING_MONTHLY_REPORT = "管柄月报"
 SHUIXIANHUA_MONTHLY_REPORT = "水仙花月报"
 ZHISHAN_MONTHLY_REPORT = "芝山月报"
-APP_VERSION = "v1.7.39"
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+try:
+    from workbench.version import app_version as _workbench_app_version
+    from workbench.config_layers import config_dependency_sha256
+
+    APP_VERSION = _workbench_app_version(Path(__file__).resolve().parents[1])
+except (ImportError, OSError):
+    APP_VERSION = "v1.8.0"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_0508.docx"
@@ -71,6 +82,7 @@ PROFILE_REPORT_TYPES = {
     "shuixianhua_monthly": SHUIXIANHUA_MONTHLY_REPORT,
     "zhishan_monthly": ZHISHAN_MONTHLY_REPORT,
 }
+REPORT_TYPE_JOB_KEYS = {value: key for key, value in PROFILE_REPORT_TYPES.items()}
 
 
 def report_type_for_profile(profile: BridgeProfile) -> str:
@@ -137,12 +149,7 @@ def detect_default_config(report_type: str = PERIOD_REPORT) -> Path:
                 return zhishan_cfg.resolve()
         return (app_root() / "config" / "zhishan_config.json").resolve()
 
-    computer_name = os.environ.get("COMPUTERNAME", "").strip()
     for config_dir in candidate_config_roots():
-        if computer_name:
-            machine_cfg = config_dir / f"hongtang_config_{computer_name}.json"
-            if machine_cfg.exists():
-                return machine_cfg.resolve()
         default_cfg = config_dir / "hongtang_config.json"
         if default_cfg.exists():
             return default_cfg.resolve()
@@ -308,99 +315,46 @@ class ReportWorker(QObject):
                 self.log.emit(f"WIM\u7ed3\u679c\u76ee\u5f55: {self.wim_root}")
             self.log.emit("\u5f00\u59cb\u751f\u6210\u62a5\u544a...")
 
-            if self.report_type == PERIOD_REPORT:
-                manifest_path, report_path, missing = build_period_report(
-                    template=self.template,
-                    config_path=self.config_path,
-                    result_root=self.result_root,
-                    analysis_root=self.analysis_root,
-                    wim_root=self.wim_root,
-                    output_dir=self.output_dir,
-                    period_label=self.period_label,
-                    monitoring_range=self.monitoring_range,
-                    report_date=self.report_date,
-                    start_date=self.start_date,
-                    end_date=self.end_date,
-                )
-            elif self.report_type == JLJ_MONTHLY_REPORT:
-                report_path = build_jlj_monthly_report(
-                    template=self.template,
-                    config_path=self.config_path,
-                    result_root=self.result_root,
-                    image_root=self.result_root,
-                    output_dir=self.output_dir,
-                    wim_root=self.wim_root,
-                    period_label=self.period_label,
-                    monitoring_range=self.monitoring_range,
-                    report_date=self.report_date,
-                    patrol_docx=None,
-                )
-                manifest_path = find_latest_report_build_manifest(self.output_dir or (self.result_root / "自动报告"))
-                missing = []
-            elif self.report_type == GUANBING_MONTHLY_REPORT:
-                report_path, manifest_path = build_guanbing_monthly_report(
-                    template=self.template,
-                    config_path=self.config_path,
-                    result_root=self.result_root,
-                    output_dir=self.output_dir,
-                    period_label=self.period_label,
-                    monitoring_range=self.monitoring_range,
-                    report_date=self.report_date,
-                    start_date=self.start_date,
-                    end_date=self.end_date,
-                )
-                missing = []
-            elif self.report_type == SHUIXIANHUA_MONTHLY_REPORT:
-                report_path, pdf_path = build_shuixianhua_monthly_report(
-                    template=self.template,
-                    config_path=self.config_path,
-                    result_root=self.result_root,
-                    output_dir=self.output_dir,
-                    period_label=self.period_label,
-                    monitoring_range=self.monitoring_range,
-                    report_date=self.report_date,
-                )
-                manifest_path = None
-                missing = []
-                if pdf_path is not None:
-                    self.log.emit(f"PDF:      {pdf_path}")
-            elif self.report_type == ZHISHAN_MONTHLY_REPORT:
-                report_path, manifest_path = build_zhishan_monthly_report(
-                    template=self.template,
-                    config_path=self.config_path,
-                    result_root=self.result_root,
-                    output_dir=self.output_dir,
-                    period_label=self.period_label,
-                    monitoring_range=self.monitoring_range,
-                    report_date=self.report_date,
-                )
-                missing = []
-            else:
-                manifest_path, report_path, missing = build_hongtang_monthly_report(
-                    template=self.template,
-                    config_path=self.config_path,
-                    result_root=self.result_root,
-                    analysis_root=self.analysis_root,
-                    output_dir=self.output_dir,
-                    period_label=self.period_label,
-                    monitoring_range=self.monitoring_range,
-                    report_date=self.report_date,
-                )
-
-            if manifest_path is not None:
-                self.log.emit(f"Manifest: {manifest_path}")
-            self.log.emit(f"Report:   {report_path}")
-            if missing:
+            job_key = REPORT_TYPE_JOB_KEYS.get(self.report_type, "hongtang_monthly")
+            request = ReportJobRequest(
+                report_type=job_key,
+                template=self.template,
+                config_path=self.config_path,
+                result_root=self.result_root,
+                analysis_root=self.analysis_root,
+                output_dir=self.output_dir,
+                period_label=self.period_label,
+                monitoring_range=self.monitoring_range,
+                report_date=self.report_date,
+                start_date=self.start_date,
+                end_date=self.end_date,
+                wim_root=self.wim_root,
+            )
+            result = execute_report_job(
+                request,
+                lambda stage, fraction, message: self.log.emit(
+                    f"[{fraction * 100:.0f}%] {stage}: {message}"
+                ),
+            )
+            if result.manifest_path is not None:
+                self.log.emit(f"报告内容清单: {result.manifest_path}")
+            self.log.emit(f"Report:   {result.report_path}")
+            if result.pdf_path is not None:
+                self.log.emit(f"PDF:      {result.pdf_path}")
+            if result.missing:
                 self.log.emit("\u8b66\u544a/\u7f3a\u5931\u8d44\u6e90:")
-                for item in missing:
+                for item in result.missing:
                     self.log.emit(f"  - {item}")
-            summary_files = [path for path in missing_summary_paths(report_path) if path.exists()]
-            if summary_files:
+            if result.summary_files:
                 self.log.emit("\u7f3a\u5931\u5185\u5bb9\u6e05\u5355:")
-                for path in summary_files:
+                for path in result.summary_files:
                     self.log.emit(f"  - {path}")
             self.log.emit("\u5b8c\u6210")
-            self.finished.emit(str(manifest_path or ""), str(report_path), "\n".join(str(path) for path in summary_files))
+            self.finished.emit(
+                str(result.manifest_path or ""),
+                str(result.report_path),
+                "\n".join(str(path) for path in result.summary_files),
+            )
         except Exception as exc:  # noqa: BLE001
             self.log.emit("\u751f\u6210\u5931\u8d25")
             self.log.emit(str(exc))
@@ -409,7 +363,7 @@ class ReportWorker(QObject):
 
 
 class ReportGui(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, job_context_path: Path | None = None) -> None:
         super().__init__()
         self.setWindowTitle(f"\u6865\u6881\u62a5\u544a\u751f\u6210\u5668 {APP_VERSION}")
         self.resize(1040, 820)
@@ -420,6 +374,64 @@ class ReportGui(QMainWindow):
         self.profiles = load_profiles(app_root())
         self._updating_profile = False
         self._build_ui()
+        if job_context_path is not None:
+            self._apply_job_context(job_context_path)
+
+    def _apply_job_context(self, path: Path) -> None:
+        """Prefill the legacy report GUI from the unified workbench context."""
+
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        if int(payload.get("schema_version", 0)) != 1:
+            raise ValueError(f"Unsupported workbench context schema: {payload.get('schema_version')}")
+        bridge_id = str(payload.get("bridge_id") or "")
+        profile_index = self.profile_combo.findData(bridge_id)
+        if profile_index >= 0:
+            self.profile_combo.setCurrentIndex(profile_index)
+
+        report = payload.get("report") if isinstance(payload.get("report"), dict) else {}
+        analysis = payload.get("analysis") if isinstance(payload.get("analysis"), dict) else {}
+
+        def verify_pinned_file(label: str, value: object, expected_hash: object) -> None:
+            if not value or not expected_hash:
+                return
+            candidate = Path(str(value))
+            if not candidate.is_file():
+                raise FileNotFoundError(f"{label} does not exist: {candidate}")
+            digest = (
+                config_dependency_sha256(candidate)
+                if label == "config"
+                else hashlib.sha256(candidate.read_bytes()).hexdigest().upper()
+            )
+            if digest != str(expected_hash).upper():
+                raise RuntimeError(f"{label} changed after workbench approval: {candidate}")
+
+        verify_pinned_file("config", payload.get("config_path"), payload.get("config_sha256"))
+        verify_pinned_file("analysis manifest", analysis.get("manifest_path"), analysis.get("manifest_sha256"))
+        verify_pinned_file("report template", report.get("template_path"), report.get("template_sha256"))
+        values = (
+            (self.config_edit, payload.get("config_path")),
+            (self.result_root_edit, payload.get("data_root")),
+            (self.analysis_root_edit, payload.get("project_root")),
+            (self.template_edit, report.get("template_path")),
+            (self.output_dir_edit, report.get("output_dir")),
+            (self.period_edit, payload.get("period_label")),
+            (self.range_edit, payload.get("monitoring_range")),
+            (self.start_edit, payload.get("start_date")),
+            (self.end_edit, payload.get("end_date")),
+            (self.date_edit, payload.get("report_date")),
+        )
+        for edit, value in values:
+            if value is not None and str(value).strip():
+                edit.setText(str(value))
+        self._last_result_root = Path(self.result_root_edit.text()).expanduser()
+        self._sync_result_dependent_paths(force=False)
+        self._log(f"已加载工作台任务上下文: {path}")
+        manifest_path = str(analysis.get("manifest_path") or "")
+        if manifest_path:
+            self._log(f"已绑定分析结果清单: {manifest_path}")
+        if not bool(report.get("plots_approved")):
+            self.generate_btn.setEnabled(False)
+            self._log("尚不能生成报告：工作台尚未确认图件审核。")
 
     def _build_ui(self) -> None:
         central = QWidget(self)
@@ -473,7 +485,7 @@ class ReportGui(QMainWindow):
             ("桥梁项目", self.profile_combo, None, self._profile_description(self.current_profile)),
             ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, report_type_description(initial_report_type)),
             ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6d2a\u5858\u6708\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u6d2a\u5858\u5468\u671f\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\uff1b\u4e5d\u9f99\u6c5f\u6708\u62a5\uff1a\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx\uff1b管柄月报：G104线管柄大桥监测月报模板-自动报告.docx；水仙花月报：水仙花大桥健康监测月报模板.docx。"),
-            ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "\u6d2a\u5858\u4f18\u5148\u8bfb\u53d6\u673a\u5668\u4e13\u7528\u914d\u7f6e hongtang_config_<COMPUTERNAME>.json\uff1b\u4e5d\u9f99\u6c5f\u9ed8\u8ba4\u4f7f\u7528 jiulongjiang_config.json；管柄默认使用 default_config.json。"),
+            ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "每座桥只使用一份业务配置；不同电脑的数据盘符由工作台的存储位置方案切换，不再复制主机专用业务配置。"),
             ("\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55", self.result_root_edit, self._browse_result_root, "\u8fd9\u91cc\u5e94\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\u5bf9\u5468\u671f\u62a5\uff0c\u8fd9\u4e2a\u76ee\u5f55\u6700\u597d\u540c\u65f6\u5305\u542b raw \u539f\u59cb\u6570\u636e\uff0c\u5426\u5219 1.4 \u7ae0\u8282\u4f1a\u5c06\u7f3a\u5c11\u539f\u59cb\u6570\u636e\u89c6\u4e3a\u7f3a\u5931\u3002"),
             ("\u7a0b\u5e8f\u6839\u76ee\u5f55\uff08\u9ad8\u7ea7\uff09", self.analysis_root_edit, self._browse_analysis_root, "\u517c\u5bb9\u65e7\u8def\u5f84\u548c\u5c11\u91cf\u56de\u9000\u67e5\u627e\uff0c\u901a\u5e38\u4fdd\u6301\u7a0b\u5e8f\u6240\u5728\u76ee\u5f55\u5373\u53ef\u3002"),
             ("WIM\u7ed3\u679c\u76ee\u5f55", self.wim_root_edit, self._browse_wim_root, "\u5468\u671f\u62a5\u4f7f\u7528\uff0c\u9ed8\u8ba4\u662f <\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55>/WIM/results/hongtang\u3002WIM \u4ecd\u6309\u6708\u63d2\u5165\uff0c\u4e0d\u662f\u628a 1~3 \u4e2a\u6708\u76f4\u63a5\u5408\u6210\u4e00\u5f20\u8868\u3002"),
@@ -625,9 +637,6 @@ class ReportGui(QMainWindow):
             "shuixianhua_config.json",
             "zhishan_config.json",
         }
-        computer_name = os.environ.get("COMPUTERNAME", "").strip()
-        if computer_name:
-            names.add(f"hongtang_config_{computer_name}.json")
         should_replace = (not current) or (Path(current).name in names) or (not Path(current).exists())
         if should_replace:
             self.config_edit.setText(str(detect_default_config(self.report_type_combo.currentText())))
@@ -1091,7 +1100,7 @@ class ReportGui(QMainWindow):
         self._set_busy(False)
         message = f"\u62a5\u544a\u5df2\u751f\u6210:\n{report_path}"
         if manifest_path:
-            message += f"\n\nManifest:\n{manifest_path}"
+            message += f"\n\n报告内容清单:\n{manifest_path}"
         if summary_paths:
             message += f"\n\n\u7f3a\u5931\u5185\u5bb9\u6e05\u5355:\n{summary_paths}"
         QMessageBox.information(self, "\u5b8c\u6210", message)
@@ -1281,10 +1290,146 @@ def main() -> None:
     self_test_exit_code = maybe_run_self_test(sys.argv[1:])
     if self_test_exit_code is not None:
         sys.exit(self_test_exit_code)
-    app = QApplication(sys.argv)
-    win = ReportGui()
-    win.show()
-    sys.exit(app.exec())
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--job-context", type=Path, default=None)
+    parser.add_argument("--run-job-context", action="store_true")
+    parser.add_argument("--report-status", type=Path, default=None)
+    parser.add_argument("--report-result", type=Path, default=None)
+    parser.add_argument("--report-job-contract-smoke-test", action="store_true")
+    parser.add_argument("--report-gate-contract-smoke-test", action="store_true")
+    parser.add_argument("--visual-qc-contract-smoke-test", action="store_true")
+    parser.add_argument("--visual-qc-docx", type=Path, default=None)
+    parser.add_argument("--visual-qc-output", type=Path, default=None)
+    args, _unknown = parser.parse_known_args(sys.argv[1:])
+    if args.report_gate_contract_smoke_test:
+        import tempfile
+
+        from report_job_cli import request_from_context
+        from workbench.models import JobContext, file_sha256
+
+        with tempfile.TemporaryDirectory(prefix="bms_report_gate_smoke_") as folder:
+            root = Path(folder)
+            data_root = root / "data"
+            data_root.mkdir()
+            config = root / "config.json"
+            template = root / "template.docx"
+            provenance = root / "temperature.plot.json"
+            manifest = root / "analysis_manifest.json"
+            config.write_text("{}", encoding="utf-8")
+            template.write_bytes(b"frozen gate smoke")
+            provenance.write_text(json.dumps({
+                "series": [{
+                    "sampling_mode": "full",
+                    "reduction_applied": False,
+                    "input_count": 10,
+                    "finite_count": 9,
+                    "plotted_finite_count": 9,
+                    "source": {
+                        "source_sample_count": 10,
+                        "finite_source_sample_count": 9,
+                        "completeness_scope": "required_export_contribution",
+                        "internal_gap_coverage_assessed": True,
+                        "calendar_day_count_requested": 1,
+                        "complete_day_count": 1,
+                        "incomplete_day_count": 0,
+                        "incomplete_days": [],
+                        "missing_required_sources": [],
+                    },
+                }],
+            }), encoding="utf-8")
+            manifest_payload = {
+                "status": "ok",
+                "bridge_profile": {"bridge_id": "guanbing"},
+                "run_request": {
+                    "data_root": str(data_root),
+                    "start_date": "2026-01-01",
+                    "end_date": "2026-01-01",
+                    "config_path": str(config.resolve()),
+                    "config_sha256": file_sha256(config),
+                },
+                "module_results": [{
+                    "key": "temperature",
+                    "status": "ok",
+                    "artifacts": [{"kind": "plot_provenance", "path": str(provenance)}],
+                }],
+            }
+            manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+            context = JobContext.create(
+                project_root=Path.cwd(),
+                bridge_id="guanbing",
+                bridge_name="guanbing",
+                data_root=data_root,
+                start_date="2026-01-01",
+                end_date="2026-01-01",
+                config_path=config,
+                selected_modules=["temperature"],
+                options={},
+                report_type="guanbing_monthly",
+                template_path=template,
+                output_dir=root / "output",
+            )
+            context.analysis.state = "completed"
+            context.analysis.manifest_path = str(manifest)
+            context.analysis.manifest_sha256 = file_sha256(manifest)
+            context.report.plots_approved = True
+            context_path = context.write(root / "job_context.json")
+            request_from_context(context_path)
+            manifest_payload["module_results"][0]["artifacts"] = []
+            manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+            context.analysis.manifest_sha256 = file_sha256(manifest)
+            context.write(context_path)
+            try:
+                request_from_context(context_path)
+            except RuntimeError as exc:
+                if "没有正式图件的数据核验记录" not in str(exc):
+                    raise
+            else:
+                raise RuntimeError("冻结版报告生成条件错误地接受了缺少图件核验记录的分析结果")
+        return
+    if args.visual_qc_contract_smoke_test:
+        import tempfile
+        from PIL import Image
+        from report_visual_qc import analyze_page_image, create_contact_sheet
+
+        with tempfile.TemporaryDirectory(prefix="bms_visual_smoke_") as folder:
+            root = Path(folder)
+            page = root / "page-1.png"
+            Image.new("RGB", (100, 140), "white").save(page)
+            analysis = analyze_page_image(page)
+            contact = create_contact_sheet([page], root / "contact.png")
+            if not analysis["blank"] or not contact.is_file():
+                raise RuntimeError("visual QC packaged contract smoke failed")
+        return
+    if args.visual_qc_docx is not None:
+        from report_visual_qc import render_docx_visual_qc
+
+        output = args.visual_qc_output or (args.visual_qc_docx.parent / "report_visual_qc")
+        result = render_docx_visual_qc(args.visual_qc_docx, output)
+        result_path = output / "visual_qc_result.json"
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if result.get("status") == "failed":
+            raise SystemExit(1)
+        return
+    if args.report_job_contract_smoke_test:
+        from report_job import REPORT_TYPE_NAMES
+
+        print(json.dumps({
+            "ok": True,
+            "report_type_count": len(REPORT_TYPE_NAMES),
+            "stages": ["loading", "preflight", "building", "rendering", "qc", "completed"],
+        }, ensure_ascii=False))
+        return
+    if args.run_job_context:
+        if args.job_context is None or args.report_status is None or args.report_result is None:
+            parser.error("--run-job-context requires --job-context, --report-status and --report-result")
+        from report_job_cli import run_context
+
+        raise SystemExit(run_context(args.job_context, args.report_status, args.report_result))
+    raise SystemExit(
+        "The standalone report window has retired permanently. "
+        "Open 桥梁健康监测工作台 and use its 报告生成 page."
+    )
 
 
 if __name__ == "__main__":

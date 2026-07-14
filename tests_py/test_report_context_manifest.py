@@ -1,4 +1,5 @@
 import json
+import hashlib
 import sys
 import tempfile
 import unittest
@@ -10,9 +11,37 @@ from docx import Document  # noqa: E402
 
 from report_build_manifest import normalize_missing, write_report_build_manifest  # noqa: E402
 from report_context import ReportBuildContext  # noqa: E402
+from analysis_manifest import pinned_analysis_manifest_scope  # noqa: E402
 
 
 class TestReportContextManifest(unittest.TestCase):
+    def test_context_carries_active_strict_manifest_binding(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            template = root / "template.docx"
+            template.write_text("x", encoding="utf-8")
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({"status": "ok"}), encoding="utf-8")
+            manifest_hash = hashlib.sha256(manifest.read_bytes()).hexdigest().upper()
+
+            with pinned_analysis_manifest_scope(
+                manifest,
+                manifest_hash,
+                require_source_provenance=True,
+                result_root=root,
+            ):
+                ctx = ReportBuildContext.from_inputs(
+                    template=template,
+                    result_root=root,
+                    analysis_root=root / "legacy",
+                )
+
+            self.assertTrue(ctx.require_source_provenance)
+            self.assertEqual(ctx.analysis_manifest_path, manifest.resolve())
+            self.assertEqual(ctx.analysis_manifest_sha256, manifest_hash)
+            self.assertIsNone(ctx.fallback_stats_root)
+            self.assertEqual(ctx.analysis_context()["path"], str(manifest.resolve()))
+
     def test_context_defaults_to_result_root_outputs(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

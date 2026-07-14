@@ -38,5 +38,89 @@ classdef test_artifact_manifest_v2 < matlab.unittest.TestCase
             tc.verifyEqual(manifest.artifact_count, 1);
             tc.verifyEqual(manifest.module_status_counts.ok, 1);
         end
+
+        function collectorFindsCableForceSingleAndGroupFigures(tc)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() rmdir(root, 's'));
+            singleDir = fullfile(root, '索力时程图');
+            groupDir = fullfile(root, '索力时程图_组图');
+            mkdir(singleDir);
+            mkdir(groupDir);
+            singlePath = fullfile(singleDir, 'CableForce_CS4_20260401_20260630.jpg');
+            groupPath = fullfile(groupDir, 'CableForce_CS4-CX4_20260401_20260630.jpg');
+            fid = fopen(singlePath, 'w'); fwrite(fid, 'single'); fclose(fid);
+            fid = fopen(groupPath, 'w'); fwrite(fid, 'group'); fclose(fid);
+
+            artifacts = bms.data.ArtifactCollector.collectModule( ...
+                root, 'cable_accel_spectrum', '', datetime('now') - minutes(1), struct());
+            paths = cellfun(@(s) string(s.path), artifacts, 'UniformOutput', true);
+            tc.verifyTrue(any(paths == string(singlePath)));
+            tc.verifyTrue(any(paths == string(groupPath)));
+            clear cleanup;
+        end
+
+        function collectorIncludesWindRoseSummaryForStrictReports(tc)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() rmdir(root, 's'));
+            windRoot = fullfile(root, 'wind_out');
+            roseDir = fullfile(windRoot, 'rose');
+            mkdir(roseDir);
+            summaryPath = fullfile(roseDir, 'W1_windrose_2026-04-01_2026-06-30_summary.txt');
+            fid = fopen(summaryPath, 'w');
+            fwrite(fid, unicode2native('平均风向: 198.3°', 'UTF-8'), 'uint8');
+            fclose(fid);
+
+            cfg = struct();
+            cfg.plot_styles.wind.output.root_dir = windRoot;
+            artifacts = bms.data.ArtifactCollector.collectModule( ...
+                root, 'wind', '', datetime('now') - minutes(1), cfg);
+            paths = cellfun(@(s) string(s.path), artifacts, 'UniformOutput', true);
+            idx = find(paths == string(summaryPath), 1);
+
+            tc.verifyNotEmpty(idx);
+            tc.verifyEqual(artifacts{idx}.kind, 'summary');
+            tc.verifyEqual(artifacts{idx}.role, 'wind_rose');
+            clear cleanup;
+        end
+
+        function collectorIncludesReportCriticalGuanbingDirectories(tc)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() rmdir(root, 's'));
+
+            humidityDir = fullfile(root, '频次分布_湿度');
+            tiltDir = fullfile(root, '时程曲线_倾角_组图');
+            lowpassDir = fullfile(root, '时程曲线_动应变_低通滤波_组图');
+            mkdir(humidityDir);
+            mkdir(tiltDir);
+            mkdir(lowpassDir);
+            humidityPath = fullfile(humidityDir, 'GB-RHS-G05-001-03_freq_20260526_20260528.jpg');
+            tiltPath = fullfile(tiltDir, 'Tilt_X_20260526_20260528.jpg');
+            lowpassPath = fullfile(lowpassDir, 'dynstrain_lp_G05_20260526-20260528.jpg');
+            writeBytes(humidityPath, uint8([1 2 3]));
+            writeBytes(tiltPath, uint8([4 5 6]));
+            writeBytes(lowpassPath, uint8([7 8 9]));
+
+            humidity = bms.data.ArtifactCollector.collectModule( ...
+                root, 'humidity', '', datetime('now') - minutes(1), struct());
+            tilt = bms.data.ArtifactCollector.collectModule( ...
+                root, 'tilt', '', datetime('now') - minutes(1), struct());
+            lowpass = bms.data.ArtifactCollector.collectModule( ...
+                root, 'dynamic_strain_lowpass', '', datetime('now') - minutes(1), struct());
+
+            tc.verifyTrue(any(cellfun(@(s) strcmp(s.path, humidityPath), humidity)));
+            tc.verifyTrue(any(cellfun(@(s) strcmp(s.path, tiltPath), tilt)));
+            tc.verifyTrue(any(cellfun(@(s) strcmp(s.path, lowpassPath), lowpass)));
+            clear cleanup;
+        end
     end
+end
+
+function writeBytes(path, bytes)
+fid = fopen(path, 'w');
+cleanup = onCleanup(@() fclose(fid));
+fwrite(fid, bytes, 'uint8');
+clear cleanup;
 end

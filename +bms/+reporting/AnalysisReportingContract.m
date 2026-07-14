@@ -38,7 +38,8 @@ classdef AnalysisReportingContract
 
         function rec = moduleRecord(cfg, moduleSpec)
             cfgSpec = bms.config.ModuleConfigRegistry.normalize(moduleSpec.Key);
-            points = bms.config.ModuleConfigResolver.resolvePoints(cfg, cfgSpec, {});
+            [points, pointsSource] = bms.reporting.AnalysisReportingContract.resolveModulePoints( ...
+                cfg, moduleSpec, cfgSpec);
             groups = bms.config.ModuleConfigResolver.resolveGroups(cfg, cfgSpec);
             style = bms.config.ModuleConfigResolver.rawPlotStyle(cfg, cfgSpec);
             subfolder = bms.config.ModuleConfigResolver.resolveSubfolder(cfg, moduleSpec.SubfolderKey, '');
@@ -60,6 +61,7 @@ classdef AnalysisReportingContract
                 'params_key', cfgSpec.params_key);
             rec.points = points(:)';
             rec.point_count = numel(points);
+            rec.points_source = pointsSource;
             rec.groups = bms.reporting.AnalysisReportingContract.groupRecords(groups);
             rec.group_count = numel(rec.groups);
             if strcmp(moduleSpec.Key, 'deflection')
@@ -86,6 +88,20 @@ classdef AnalysisReportingContract
     end
 
     methods (Static, Access = private)
+        function [points, source] = resolveModulePoints(cfg, moduleSpec, cfgSpec)
+            if ismember(moduleSpec.Key, {'temperature', 'humidity'})
+                [points, source] = bms.app.EnvironmentStepFactory.resolveClimatePoints( ...
+                    cfg, moduleSpec.Key);
+                return;
+            end
+
+            points = bms.config.ModuleConfigResolver.resolvePoints(cfg, cfgSpec, {});
+            source = 'configured';
+            if isempty(points)
+                source = 'unresolved';
+            end
+        end
+
         function profile = profileStruct(cfg)
             profile = struct('bridge_id', '', 'bridge_name', '', 'vendor', '');
             try

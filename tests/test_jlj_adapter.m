@@ -139,6 +139,211 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             testCase.verifyTrue(exist(fullfile(meta.cache_dir, [base '.mat']), 'file') == 2);
         end
 
+        function test_standalone_jlj_cache_supports_auto_and_mat_only(testCase)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            cfg = standalone_sxh_config('auto');
+            day = datetime(2026, 1, 1);
+            pid = 'SL-UT-MAT-01';
+            expected = [11.5; 12.5; 13.5];
+            [cachePath, csvDir] = write_sxh_mat_cache( ...
+                root, day, pid, expected, cfg, true, 'jlj_csv_v2');
+
+            for mode = {'auto', 'mat_only'}
+                cfg.data_adapter.time_series.source_mode = mode{1};
+                fp = bms.data.JiulongjiangCsvDataSource.findFile( ...
+                    csvDir, pid, 'cable_accel', cfg);
+                testCase.verifyEqual(fp, cachePath);
+
+                [t, v] = load_timeseries_range( ...
+                    root, '', pid, '2026-01-01', '2026-01-01', cfg, 'cable_accel');
+                testCase.verifyEqual(numel(t), numel(expected));
+                testCase.verifyEqual(v(:), expected, 'AbsTol', 1e-10);
+            end
+        end
+
+        function test_auto_keeps_csv_priority_when_cache_also_exists(testCase)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            cfg = standalone_sxh_config('auto');
+            day = datetime(2026, 1, 1);
+            pid = 'SL-UT-CSV-01';
+            [cachePath, csvDir] = write_sxh_mat_cache( ...
+                root, day, pid, [91; 92], cfg, true, 'jlj_csv_v2');
+            write_simple_jlj_csv(csvDir, pid);
+
+            cfg.data_adapter.time_series.source_mode = 'mat_only';
+            matFp = bms.data.JiulongjiangCsvDataSource.findFile( ...
+                csvDir, pid, 'cable_accel', cfg);
+            testCase.verifyEqual(matFp, cachePath);
+            [~, matValues] = bms.data.JiulongjiangCsvDataSource.readFile( ...
+                matFp, 'cable_accel', pid, cfg);
+            testCase.verifyEqual(matValues(:), [91; 92], 'AbsTol', 1e-10);
+
+            cfg.data_adapter.time_series.source_mode = 'auto';
+            fp = bms.data.JiulongjiangCsvDataSource.findFile( ...
+                csvDir, pid, 'cable_accel', cfg);
+            testCase.verifyEqual(fp, fullfile(csvDir, [pid '.csv']));
+
+            [t, v] = load_timeseries_range( ...
+                root, '', pid, '2026-01-01', '2026-01-01', cfg, 'cable_accel');
+            testCase.verifyEqual(numel(t), 2);
+            testCase.verifyEqual(v(:), [12.5; 13.5], 'AbsTol', 1e-10);
+        end
+
+        function test_data_index_reuses_jlj_source_mode_resolver(testCase)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            cfg = standalone_sxh_config('prefer_mat');
+            day = datetime(2026, 1, 1);
+            pid = 'SL-UT-INDEX-01';
+            [cachePath, csvDir] = write_sxh_mat_cache( ...
+                root, day, pid, [31; 32], cfg, true, 'jlj_csv_v2');
+            write_simple_jlj_csv(csvDir, pid);
+            csvPath = fullfile(csvDir, [pid '.csv']);
+            adapter = bms.data.JiulongjiangCsvDataSource.adapterFromConfig(cfg);
+            bms.data.CacheManager.writeMetadata( ...
+                cachePath, {csvPath}, adapter, 'jlj_csv_v2');
+            testCase.verifyTrue(bms.data.CacheManager.metadataMatches( ...
+                cachePath, adapter, 'jlj_csv_v2'));
+            testCase.verifyTrue( ...
+                bms.data.JiulongjiangCsvDataSource.isUsableStandaloneCache( ...
+                cachePath, 'cable_accel', pid, cfg));
+            testCase.verifyEqual( ...
+                bms.data.JiulongjiangCsvDataSource.findFile( ...
+                csvDir, pid, 'cable_accel', cfg), cachePath);
+            src = bms.data.DataSourceFactory.create(root, cfg);
+            testCase.verifyClass(src, 'bms.data.JiulongjiangCsvDataSource');
+
+            patterns = {[pid '.csv']};
+            preferFiles = bms.data.DataIndex.findPointFiles( ...
+                src, pid, '', '2026-01-01', '2026-01-01', patterns, cfg, 'cable_accel');
+            testCase.verifyEqual(preferFiles, {cachePath});
+
+            cfg.data_adapter.time_series.source_mode = 'auto';
+            autoFiles = bms.data.DataIndex.findPointFiles( ...
+                src, pid, '', '2026-01-01', '2026-01-01', patterns, cfg, 'cable_accel');
+            testCase.verifyEqual(autoFiles, {csvPath});
+
+            cfg.data_adapter.time_series.source_mode = 'mat_only';
+            matFiles = bms.data.DataIndex.findPointFiles( ...
+                src, pid, '', '2026-01-01', '2026-01-01', patterns, cfg, 'cable_accel');
+            testCase.verifyEqual(matFiles, {cachePath});
+
+            delete(cachePath);
+            closedFiles = bms.data.DataIndex.findPointFiles( ...
+                src, pid, '', '2026-01-01', '2026-01-01', patterns, cfg, 'cable_accel');
+            testCase.verifyEmpty(closedFiles);
+        end
+
+        function test_prefer_mat_falls_back_to_csv_when_cache_is_invalid(testCase)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            cfg = standalone_sxh_config('prefer_mat');
+            day = datetime(2026, 1, 1);
+            pid = 'SL-UT-BAD-MAT-01';
+            [cachePath, csvDir] = write_sxh_mat_cache( ...
+                root, day, pid, [91; 92], cfg, false, 'jlj_csv_v2');
+            write_simple_jlj_csv(csvDir, pid);
+
+            fp = bms.data.JiulongjiangCsvDataSource.findFile( ...
+                csvDir, pid, 'cable_accel', cfg);
+            testCase.verifyEqual(fp, fullfile(csvDir, [pid '.csv']));
+            testCase.verifyNotEqual(fp, cachePath);
+
+            [t, v] = bms.data.JiulongjiangCsvDataSource.readFile( ...
+                fp, 'cable_accel', pid, cfg);
+            testCase.verifyEqual(numel(t), 2);
+            testCase.verifyEqual(v(:), [12.5; 13.5], 'AbsTol', 1e-10);
+        end
+
+        function test_prefer_mat_falls_back_when_cache_time_type_is_invalid(testCase)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            cfg = standalone_sxh_config('prefer_mat');
+            day = datetime(2026, 1, 1);
+            pid = 'SL-UT-BAD-TIME-01';
+            [cachePath, csvDir] = write_sxh_mat_cache( ...
+                root, day, pid, [91; 92], cfg, true, 'jlj_csv_v2');
+            S = load(cachePath);
+            ts = struct('bad', true); %#ok<NASGU>
+            valx = S.valx; valy = S.valy; valz = S.valz; meta = S.meta; %#ok<NASGU>
+            save(cachePath, 'ts', 'valx', 'valy', 'valz', 'meta');
+            write_simple_jlj_csv(csvDir, pid);
+
+            fp = bms.data.JiulongjiangCsvDataSource.findFile( ...
+                csvDir, pid, 'cable_accel', cfg);
+
+            testCase.verifyEqual(fp, fullfile(csvDir, [pid '.csv']));
+        end
+
+        function test_prefer_mat_falls_back_when_cache_time_text_is_unparseable(testCase)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            cfg = standalone_sxh_config('prefer_mat');
+            day = datetime(2026, 1, 1);
+            pid = 'SL-UT-BAD-TEXT-TIME-01';
+            [cachePath, csvDir] = write_sxh_mat_cache( ...
+                root, day, pid, [91; 92], cfg, true, 'jlj_csv_v2');
+            S = load(cachePath);
+            ts = ["bad-date"; "still-bad"]; %#ok<NASGU>
+            valx = S.valx; valy = S.valy; valz = S.valz; meta = S.meta; %#ok<NASGU>
+            save(cachePath, 'ts', 'valx', 'valy', 'valz', 'meta');
+            write_simple_jlj_csv(csvDir, pid);
+
+            fp = bms.data.JiulongjiangCsvDataSource.findFile( ...
+                csvDir, pid, 'cable_accel', cfg);
+
+            testCase.verifyEqual(fp, fullfile(csvDir, [pid '.csv']));
+        end
+
+        function test_standalone_jlj_cache_requires_matching_metadata(testCase)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            cfg = standalone_sxh_config('mat_only');
+            day = datetime(2026, 1, 1);
+            pid = 'SL-UT-META-01';
+            [cachePath, csvDir] = write_sxh_mat_cache( ...
+                root, day, pid, [21; 22], cfg, false, 'jlj_csv_v2');
+
+            fp = bms.data.JiulongjiangCsvDataSource.findFile( ...
+                csvDir, pid, 'cable_accel', cfg);
+            testCase.verifyEqual(fp, cachePath);
+            [tMissing, vMissing] = bms.data.JiulongjiangCsvDataSource.readFile( ...
+                fp, 'cable_accel', pid, cfg);
+            testCase.verifyEmpty(tMissing);
+            testCase.verifyEmpty(vMissing);
+
+            adapter = bms.data.JiulongjiangCsvDataSource.adapterFromConfig(cfg);
+            bms.data.CacheManager.writeMetadata( ...
+                cachePath, {fullfile(csvDir, [pid '.csv'])}, adapter, 'wrong_version');
+            [tWrong, vWrong] = bms.data.JiulongjiangCsvDataSource.readFile( ...
+                fp, 'cable_accel', pid, cfg);
+            testCase.verifyEmpty(tWrong);
+            testCase.verifyEmpty(vWrong);
+
+            bms.data.CacheManager.writeMetadata( ...
+                cachePath, {fullfile(csvDir, [pid '.csv'])}, adapter, 'jlj_csv_v2');
+            [t, v] = bms.data.JiulongjiangCsvDataSource.readFile( ...
+                fp, 'cable_accel', pid, cfg);
+            testCase.verifyEqual(numel(t), 2);
+            testCase.verifyEqual(v(:), [21; 22], 'AbsTol', 1e-10);
+        end
+
         function test_data_source_extracts_daily_zip(testCase)
             cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
             root = tempname;
@@ -486,6 +691,45 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
             testCase.verifyEqual(numel(figs), 1);
         end
 
+        function test_preflight_cache_only_coverage_and_mat_only_boundary(testCase)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_temp_dir(root)); %#ok<NASGU>
+
+            pid = 'SL-UT-PREFLIGHT-01';
+            cfg = standalone_sxh_config('auto');
+            cfg.bridge_id = 'shuixianhua';
+            cfg.data_layout = 'jlj_daily_export';
+            cfg.points = struct('cable_accel', {{pid}});
+            cfg.subfolders = struct('cable_accel', '');
+            cfg.file_patterns = struct('cable_accel', ...
+                struct('default', '{file_id}_*.csv'));
+            opts = struct('doCableAccel', true);
+
+            [cachePath, csvDir] = write_sxh_mat_cache( ...
+                root, datetime(2026, 1, 1), pid, [41; 42], cfg, true, 'jlj_csv_v2');
+            result = bms.app.RunPreflight.check( ...
+                root, '2026-01-01', '2026-01-01', opts, cfg);
+            coverage = bms.app.ManifestReader.recordsToCell(result.point_coverage);
+            row = coverage{1};
+            testCase.verifyEqual(row.key, 'cable_accel');
+            testCase.verifyEqual(row.found_count, 1);
+            testCase.verifyEqual(row.missing_count, 0);
+            testCase.verifyEqual(row.matched_csv_points, {pid});
+
+            % With MAT-only selected, a CSV by itself must remain missing.
+            delete(cachePath);
+            write_simple_jlj_csv(csvDir, pid);
+            cfg.data_adapter.time_series.source_mode = 'mat_only';
+            result = bms.app.RunPreflight.check( ...
+                root, '2026-01-01', '2026-01-01', opts, cfg);
+            coverage = bms.app.ManifestReader.recordsToCell(result.point_coverage);
+            row = coverage{1};
+            testCase.verifyEqual(row.found_count, 0);
+            testCase.verifyEqual(row.missing_count, 1);
+            testCase.verifyEmpty(row.matched_csv_points);
+        end
+
     end
 end
 
@@ -625,6 +869,42 @@ function write_simple_jlj_csv(csvDir, pid)
     fprintf(fid, 'ts,value_x\n');
     fprintf(fid, '"2026-01-01 00:00:00.000",12.5\n');
     fprintf(fid, '"2026-01-01 01:00:00.000",13.5\n');
+end
+
+function cfg = standalone_sxh_config(mode)
+    cfg = struct();
+    cfg.vendor = 'shuixianhua';
+    cfg.data_adapter = struct();
+    cfg.data_adapter.cache = struct( ...
+        'enabled', true, ...
+        'dir', 'cache', ...
+        'validate', 'mtime_size');
+    cfg.data_adapter.time_series = struct( ...
+        'source_mode', char(string(mode)), ...
+        'require_metadata', true);
+end
+
+function [cachePath, csvDir] = write_sxh_mat_cache( ...
+        rootDir, day, pid, values, cfg, writeMetadata, version)
+    dayText = datestr(day, 'yyyy-mm-dd');
+    csvDir = fullfile(rootDir, ['data_sxh_' dayText], 'data', 'sxh', 'csv');
+    cacheDir = fullfile(csvDir, 'cache');
+    if ~exist(cacheDir, 'dir'), mkdir(cacheDir); end
+
+    ts = day + minutes((0:numel(values)-1)'); %#ok<NASGU>
+    valx = values(:); %#ok<NASGU>
+    valy = valx + 100; %#ok<NASGU>
+    valz = valx + 200; %#ok<NASGU>
+    sourcePath = fullfile(csvDir, [pid '.csv']);
+    meta = struct('src', sourcePath, 'mtime', 0, 'size', 0); %#ok<NASGU>
+    cachePath = fullfile(cacheDir, [pid '.mat']);
+    save(cachePath, 'ts', 'valx', 'valy', 'valz', 'meta');
+
+    if writeMetadata
+        adapter = bms.data.JiulongjiangCsvDataSource.adapterFromConfig(cfg);
+        bms.data.CacheManager.writeMetadata( ...
+            cachePath, {sourcePath}, adapter, version);
+    end
 end
 
 function write_jlj_xy_csv(rootDir, day, pid, x, y)

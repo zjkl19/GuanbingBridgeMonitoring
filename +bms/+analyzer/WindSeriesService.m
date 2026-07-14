@@ -70,9 +70,10 @@ classdef WindSeriesService
                 end
 
                 if ~isempty(vSpeedDay)
-                    fs = bms.analyzer.DynamicSeriesService.sampleRate(tSpeedDay, true, 1);
+                    fs = bms.analyzer.DynamicSeriesService.binnedCoverageSampleRate( ...
+                        tSpeedDay, params.window_minutes, 1);
                     [t10Day, v10Day, dayMax, dayTMax] = bms.analyzer.DynamicSeriesService.movingMeanByTimeBins( ...
-                        tSpeedDay, vSpeedDay, params.window_minutes, 0.7, fs);
+                        tSpeedDay, vSpeedDay, params.window_minutes, 0.7, fs, true);
                     if ~isempty(v10Day)
                         t10Parts{end+1, 1} = t10Day; %#ok<AGROW>
                         v10Parts{end+1, 1} = v10Day; %#ok<AGROW>

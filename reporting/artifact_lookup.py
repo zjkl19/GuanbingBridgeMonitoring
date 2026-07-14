@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Iterable
 
 from analysis_manifest import (
+    active_pinned_derived_artifact_manifest,
+    active_pinned_analysis_manifest,
     analysis_manifest_context,
+    derived_manifest_latest_artifact,
     manifest_key_for_dir,
     manifest_latest_artifact,
     manifest_role_for_lookup,
@@ -85,7 +88,12 @@ def latest_file_patterns(
 ) -> ArtifactLookupResult:
     configured_dir_text = str(configured_dir)
     rejected_manifest_collision: Path | None = None
-    context = analysis_manifest_context(root) if use_manifest else {"available": False}
+    strict_binding = active_pinned_analysis_manifest()
+    context = (
+        analysis_manifest_context(root)
+        if use_manifest or strict_binding is not None
+        else {"available": False, "strict_source_provenance": False}
+    )
     if context.get("available"):
         tokens = [str(point_id)] if point_id else tokens_from_patterns(patterns)
         if not tokens:
@@ -119,6 +127,54 @@ def latest_file_patterns(
                             "manifest": context.get("path", ""),
                         },
                     )
+
+    derived_binding = active_pinned_derived_artifact_manifest()
+    if derived_binding is not None:
+        tokens = [str(point_id)] if point_id else tokens_from_patterns(patterns)
+        if not tokens:
+            tokens = [""]
+        for token in tokens:
+            derived_path = derived_manifest_latest_artifact(
+                root,
+                token=token or None,
+                kind=kind,
+                role=manifest_role_for_lookup(configured_dir_text, token),
+                suffixes=suffixes_from_patterns(patterns),
+                directory_hint=configured_dir_text,
+                strict_point_token=point_token_strict,
+            )
+            if derived_path is not None:
+                return ArtifactLookupResult(
+                    derived_path,
+                    {
+                        "image_root": str(root),
+                        "configured_dir": configured_dir_text,
+                        "point_id": point_id or "",
+                        "patterns": patterns,
+                        "selected_file": str(derived_path),
+                        "source": "derived_artifact_manifest",
+                        "manifest": str(derived_binding.path),
+                        "manifest_sha256": derived_binding.sha256,
+                    },
+                )
+
+    if context.get("strict_source_provenance"):
+        return ArtifactLookupResult(
+            None,
+            {
+                "image_root": str(root),
+                "configured_dir": configured_dir_text,
+                "point_id": point_id or "",
+                "patterns": patterns,
+                "selected_file": None,
+                "source": "pinned_analysis_manifest",
+                "manifest": context.get("path", ""),
+                "reason": (
+                    "No matching artifact is recorded in the pinned analysis manifest; "
+                    "filesystem fallback is disabled."
+                ),
+            },
+        )
 
     resolved_dirs = resolve_output_dirs(root, configured_dir_text, recursive=recursive)
     matched: list[Path] = []

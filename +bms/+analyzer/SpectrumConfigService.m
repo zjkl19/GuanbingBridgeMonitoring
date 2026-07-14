@@ -43,29 +43,44 @@ classdef SpectrumConfigService
 
         function [freqs, labels] = theoreticalFrequencies(cfg, spec)
             params = bms.config.ConfigReader.getStruct(cfg, spec.paramsKey, struct());
+            orders = bms.config.ConfigReader.getField(params, 'peak_orders', []);
+            [ok, ~, ~, orderFreqs, orderLabels] = ...
+                bms.analyzer.SpectrumConfigService.peakOrdersToParams( ...
+                    orders, [], [], [], {}, {});
+            if ok && ~isempty(orderFreqs)
+                freqs = orderFreqs;
+                labels = bms.analyzer.SpectrumConfigService.normalizeTheorLabels( ...
+                    orderLabels, freqs);
+                return;
+            end
             freqs = bms.config.ConfigReader.getField(params, 'theor_freqs', []);
             labels = bms.config.ConfigReader.getField(params, 'theor_labels', {});
             labels = bms.analyzer.SpectrumConfigService.normalizeTheorLabels(labels, freqs);
         end
 
-        function [freqs, tol, theorFreqs, theorLabels, peakLabels] = pointParams(cfg, pid, spec, defaultFreqs, defaultTol, defaultTheorFreqs, defaultTheorLabels)
+        function [freqs, tol, theorFreqs, theorLabels, peakLabels] = pointParams(cfg, pid, spec, defaultFreqs, defaultTol, defaultTheorFreqs, defaultTheorLabels, useGlobalPeakOrders)
+            if nargin < 8 || isempty(useGlobalPeakOrders)
+                useGlobalPeakOrders = true;
+            end
             freqs = defaultFreqs;
             tol = defaultTol;
             theorFreqs = defaultTheorFreqs;
             theorLabels = defaultTheorLabels;
             peakLabels = bms.analyzer.SpectrumConfigService.defaultPeakLabels(freqs);
 
-            params = bms.config.ConfigReader.getStruct(cfg, spec.paramsKey, struct());
-            [ok, freqs2, tol2, theorFreqs2, theorLabels2, peakLabels2] = ...
-                bms.analyzer.SpectrumConfigService.peakOrdersToParams( ...
-                    bms.config.ConfigReader.getField(params, 'peak_orders', []), ...
-                    freqs, tol, theorFreqs, theorLabels, peakLabels);
-            if ok
-                freqs = freqs2;
-                tol = tol2;
-                theorFreqs = theorFreqs2;
-                theorLabels = theorLabels2;
-                peakLabels = peakLabels2;
+            if useGlobalPeakOrders
+                params = bms.config.ConfigReader.getStruct(cfg, spec.paramsKey, struct());
+                [ok, freqs2, tol2, theorFreqs2, theorLabels2, peakLabels2] = ...
+                    bms.analyzer.SpectrumConfigService.peakOrdersToParams( ...
+                        bms.config.ConfigReader.getField(params, 'peak_orders', []), ...
+                        freqs, tol, theorFreqs, theorLabels, peakLabels);
+                if ok
+                    freqs = freqs2;
+                    tol = tol2;
+                    theorFreqs = theorFreqs2;
+                    theorLabels = theorLabels2;
+                    peakLabels = peakLabels2;
+                end
             end
 
             pt = bms.analyzer.SpectrumConfigService.pointConfig(cfg, spec.perPointKey, pid);
@@ -316,7 +331,9 @@ classdef SpectrumConfigService
 
             if isfield(spec, 'freqGroupOutputDir') && ~isempty(spec.freqGroupOutputDir)
                 groupOutputDir = spec.freqGroupOutputDir;
-                if isstruct(style) && isfield(style, 'group_output_dir') && ~isempty(style.group_output_dir)
+                if isstruct(style) && isfield(style, 'freq_group_output_dir') && ~isempty(style.freq_group_output_dir)
+                    groupOutputDir = style.freq_group_output_dir;
+                elseif isstruct(style) && isfield(style, 'group_output_dir') && ~isempty(style.group_output_dir)
                     groupOutputDir = style.group_output_dir;
                 end
                 dirs.freqGroupRoot = fullfile(rootDir, groupOutputDir);
@@ -324,8 +341,16 @@ classdef SpectrumConfigService
             end
 
             if spec.includeForce
-                dirs.forceRoot = fullfile(rootDir, spec.forceOutputDir);
-                dirs.forceGroupRoot = fullfile(rootDir, spec.forceGroupOutputDir);
+                forceOutputDir = spec.forceOutputDir;
+                forceGroupOutputDir = spec.forceGroupOutputDir;
+                if isstruct(style) && isfield(style, 'force_output_dir') && ~isempty(style.force_output_dir)
+                    forceOutputDir = style.force_output_dir;
+                end
+                if isstruct(style) && isfield(style, 'force_group_output_dir') && ~isempty(style.force_group_output_dir)
+                    forceGroupOutputDir = style.force_group_output_dir;
+                end
+                dirs.forceRoot = fullfile(rootDir, forceOutputDir);
+                dirs.forceGroupRoot = fullfile(rootDir, forceGroupOutputDir);
                 bms.core.PathResolver.ensureDir(dirs.forceRoot);
                 bms.core.PathResolver.ensureDir(dirs.forceGroupRoot);
             end

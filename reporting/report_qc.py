@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+from zipfile import ZipFile
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -132,7 +134,12 @@ def _has_summary_table(table: Table) -> bool:
     return table_has_first_cell(table, "监测结果")
 
 
-def check_jlj_report(docx_path: Path | str) -> ReportQcResult:
+def check_jlj_report(
+    docx_path: Path | str,
+    *,
+    expected_period_label: str | None = None,
+    expected_image_paths: list[Path | str] | None = None,
+) -> ReportQcResult:
     path, doc, text, issues, summary = _check_common_report(
         kind="jlj_monthly",
         docx_path=docx_path,
@@ -200,6 +207,57 @@ def check_jlj_report(docx_path: Path | str) -> ReportQcResult:
             )
         )
 
+    if expected_period_label:
+        expected = _normalized_month_label(expected_period_label)
+        found = [
+            _normalized_month_label(f"{year}年{month}月")
+            for year, month in re.findall(
+                r"监测时间[：:]\s*[（(]?(\d{4})年\s*0?(\d{1,2})月", text
+            )
+        ]
+        summary["expected_period_label"] = expected
+        summary["document_period_labels"] = found
+        if not found or expected not in found or any(value != expected for value in found):
+            issues.append(
+                ReportQcIssue(
+                    "period-mismatch",
+                    "error",
+                    f"九龙江月报期次与任务不一致，应为{expected}。",
+                    f"document_period_labels={found}",
+                )
+            )
+
+    if expected_image_paths is not None:
+        embedded_hashes = _docx_media_hashes(path)
+        expected_hashes: list[str] = []
+        for item in expected_image_paths:
+            image_path = Path(item)
+            if not image_path.is_file():
+                issues.append(
+                    ReportQcIssue(
+                        "missing-expected-image",
+                        "error",
+                        "九龙江月报指定的结果图片源文件不存在。",
+                        str(image_path),
+                    )
+                )
+                continue
+            digest = hashlib.sha256(image_path.read_bytes()).hexdigest().upper()
+            expected_hashes.append(digest)
+            if digest not in embedded_hashes:
+                issues.append(
+                    ReportQcIssue(
+                        "missing-expected-image",
+                        "error",
+                        "九龙江月报未嵌入指定的本期结果图片。",
+                        str(image_path),
+                    )
+                )
+        summary["expected_result_image_count"] = len(expected_hashes)
+        summary["matched_result_image_count"] = sum(
+            digest in embedded_hashes for digest in expected_hashes
+        )
+
     return _build_result("jlj_monthly", path, issues, summary)
 
 
@@ -227,6 +285,91 @@ def check_guanbing_report(docx_path: Path | str) -> ReportQcResult:
     return _build_result("guanbing_monthly", path, issues, summary)
 
 
+def _normalized_month_label(value: str) -> str:
+    match = re.search(r"(\d{4})年\s*0?(\d{1,2})月", str(value or ""))
+    return f"{int(match.group(1))}年{int(match.group(2))}月" if match else str(value or "").strip()
+
+
+def _docx_media_hashes(path: Path) -> set[str]:
+    with ZipFile(path) as archive:
+        return {
+            hashlib.sha256(archive.read(name)).hexdigest().upper()
+            for name in archive.namelist()
+            if name.startswith("word/media/") and not name.endswith("/")
+        }
+
+
+def check_shuixianhua_report(
+    docx_path: Path | str,
+    *,
+    expected_period_label: str | None = None,
+    expected_image_paths: list[Path | str] | None = None,
+) -> ReportQcResult:
+    path, doc, text, issues, summary = _check_common_report(
+        kind="shuixianhua_monthly", docx_path=docx_path
+    )
+    if doc is None:
+        return _build_result("shuixianhua_monthly", path, issues, summary)
+    for required in ("水仙花大桥", "监测结果"):
+        if required not in text:
+            issues.append(
+                ReportQcIssue(
+                    "missing-expected-text",
+                    "warning",
+                    f"水仙花月报未检测到关键文本: {required}",
+                )
+            )
+    if expected_period_label:
+        expected = _normalized_month_label(expected_period_label)
+        found = [
+            _normalized_month_label(f"{year}年{month}月")
+            for year, month in re.findall(r"监测时间[：:]\s*[（(]?(\d{4})年\s*0?(\d{1,2})月", text)
+        ]
+        summary["expected_period_label"] = expected
+        summary["document_period_labels"] = found
+        if not found or expected not in found or any(value != expected for value in found):
+            issues.append(
+                ReportQcIssue(
+                    "period-mismatch",
+                    "error",
+                    f"水仙花月报期次与任务不一致，应为{expected}。",
+                    f"document_period_labels={found}",
+                )
+            )
+
+    if expected_image_paths is not None:
+        embedded_hashes = _docx_media_hashes(path)
+        expected_hashes: list[str] = []
+        for item in expected_image_paths:
+            image_path = Path(item)
+            if not image_path.is_file():
+                issues.append(
+                    ReportQcIssue(
+                        "missing-expected-image",
+                        "error",
+                        "报告指定的结果图片源文件不存在。",
+                        str(image_path),
+                    )
+                )
+                continue
+            digest = hashlib.sha256(image_path.read_bytes()).hexdigest().upper()
+            expected_hashes.append(digest)
+            if digest not in embedded_hashes:
+                issues.append(
+                    ReportQcIssue(
+                        "missing-expected-image",
+                        "error",
+                        "报告未嵌入指定的本期结果图片。",
+                        str(image_path),
+                    )
+                )
+        summary["expected_result_image_count"] = len(expected_hashes)
+        summary["matched_result_image_count"] = sum(
+            digest in embedded_hashes for digest in expected_hashes
+        )
+    return _build_result("shuixianhua_monthly", path, issues, summary)
+
+
 def check_report(kind: str, docx_path: Path | str) -> ReportQcResult:
     if kind == "jlj_monthly":
         return check_jlj_report(docx_path)
@@ -234,6 +377,8 @@ def check_report(kind: str, docx_path: Path | str) -> ReportQcResult:
         return check_hongtang_report(docx_path)
     if kind == "guanbing_monthly":
         return check_guanbing_report(docx_path)
+    if kind == "shuixianhua_monthly":
+        return check_shuixianhua_report(docx_path)
     raise ValueError(f"Unsupported report kind: {kind}")
 
 
@@ -300,7 +445,11 @@ def write_report_qc_report(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run report quality checks.")
     parser.add_argument("--docx", type=Path, required=True, help="Generated report DOCX path.")
-    parser.add_argument("--kind", choices=["jlj_monthly", "hongtang_period", "guanbing_monthly"], default="jlj_monthly")
+    parser.add_argument(
+        "--kind",
+        choices=["jlj_monthly", "hongtang_period", "guanbing_monthly", "shuixianhua_monthly"],
+        default="jlj_monthly",
+    )
     parser.add_argument("--output-dir", type=Path, default=None, help="Directory for QC txt/json outputs.")
     parser.add_argument("--strict", action="store_true", help="Exit non-zero when QC status is warning/failed.")
     args = parser.parse_args()

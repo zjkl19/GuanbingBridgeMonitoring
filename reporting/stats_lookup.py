@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from analysis_manifest import analysis_manifest_context, manifest_stats_path
+from analysis_manifest import active_pinned_analysis_manifest, analysis_manifest_context, manifest_stats_path
 
 
 STATS_FILENAME_KEYS: dict[str, str] = {
@@ -37,6 +37,19 @@ def manifest_search_root(stats_root: Path | None) -> Path | None:
 
 def resolve_from_analysis_manifest(primary_root: Path | None, fallback_root: Path | None, filename: str) -> Path | None:
     key = stats_key_for_filename(filename)
+    pinned = active_pinned_analysis_manifest()
+    if pinned is not None:
+        if key is None:
+            raise FileNotFoundError(
+                f"Strict source provenance has no manifest stats mapping for: {filename}"
+            )
+        path = manifest_stats_path(pinned.payload, key, filename)
+        if path is None:
+            raise FileNotFoundError(
+                f"Required stats file is not recorded in the pinned analysis manifest: "
+                f"{filename}: {pinned.path}"
+            )
+        return path
     if key is None:
         return None
     for candidate_root in (manifest_search_root(primary_root), manifest_search_root(fallback_root)):

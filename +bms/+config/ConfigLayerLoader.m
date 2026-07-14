@@ -12,6 +12,27 @@ classdef ConfigLayerLoader
             [cfg, meta] = bms.config.ConfigLayerLoader.loadRecursive(absPath, {});
             combinedText = strjoin(meta.texts, newline);
         end
+
+        function value = dependencySha256(path)
+            entryPath = bms.config.ConfigLayerLoader.absolutePath(path, pwd);
+            [~, ~, meta] = bms.config.ConfigLayerLoader.load(entryPath);
+            files = meta.files(:);
+            if numel(files) == 1
+                value = bms.io.JsonFile.sha256(files{1});
+                return;
+            end
+            records = cell(size(files));
+            entryDir = fileparts(entryPath);
+            for i = 1:numel(files)
+                identity = bms.config.ConfigLayerLoader.relativeIdentity(files{i}, entryDir);
+                records{i} = sprintf('%s\t%s', identity, lower(bms.io.JsonFile.sha256(files{i})));
+            end
+            records = sort(records);
+            payload = sprintf('%s\n', records{:});
+            digest = java.security.MessageDigest.getInstance('SHA-256');
+            digest.update(unicode2native(payload, 'UTF-8'));
+            value = lower(reshape(dec2hex(typecast(digest.digest(), 'uint8'), 2).', 1, []));
+        end
     end
 
     methods (Static, Access = private)
@@ -181,6 +202,19 @@ classdef ConfigLayerLoader
         function tf = isAbsolute(path)
             path = char(string(path));
             tf = ~isempty(regexp(path, '^[A-Za-z]:[\\/]|^\\\\|^/', 'once'));
+        end
+
+        function identity = relativeIdentity(path, baseDir)
+            try
+                base = java.io.File(char(string(baseDir))).toPath().toAbsolutePath().normalize();
+                target = java.io.File(char(string(path))).toPath().toAbsolutePath().normalize();
+                identity = char(base.relativize(target).toString());
+            catch exc
+                error('BMS:Config:CrossVolumeDependency', ...
+                    'Config dependencies must be on the same filesystem volume as the entry config: %s', ...
+                    exc.message);
+            end
+            identity = lower(strrep(identity, '\', '/'));
         end
 
         function txt = readText(path)

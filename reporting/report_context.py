@@ -4,7 +4,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from analysis_manifest import analysis_manifest_context
+from analysis_manifest import (
+    active_pinned_analysis_manifest,
+    analysis_manifest_context,
+    pinned_analysis_manifest_scope,
+)
 from reporting_contract import reporting_contract_context
 
 
@@ -20,6 +24,9 @@ class ReportBuildContext:
     wim_root: Path | None
     output_dir: Path
     assets_dir: Path
+    analysis_manifest_path: Path | None
+    analysis_manifest_sha256: str
+    require_source_provenance: bool
 
     @classmethod
     def from_inputs(
@@ -34,12 +41,24 @@ class ReportBuildContext:
         wim_root: Path | None = None,
         assets_subdir: str = "generated_assets",
         default_output_subdir: str = "自动报告",
+        analysis_manifest_path: Path | None = None,
+        analysis_manifest_sha256: str = "",
+        require_source_provenance: bool = False,
     ) -> "ReportBuildContext":
+        pinned = active_pinned_analysis_manifest()
+        if pinned is not None:
+            analysis_manifest_path = pinned.path
+            analysis_manifest_sha256 = pinned.sha256
+            require_source_provenance = True
         analysis_root = analysis_root or Path(__file__).resolve().parents[1]
         result_root = Path(result_root) if result_root is not None else None
         analysis_root = Path(analysis_root)
         stats_root = result_root if result_root is not None else analysis_root
-        fallback_stats_root = analysis_root if result_root is not None and result_root != analysis_root else None
+        fallback_stats_root = (
+            None
+            if require_source_provenance
+            else analysis_root if result_root is not None and result_root != analysis_root else None
+        )
         image_root = Path(image_root) if image_root is not None else stats_root
         output_dir = Path(output_dir) if output_dir is not None else stats_root / default_output_subdir
         assets_dir = output_dir / assets_subdir
@@ -56,10 +75,23 @@ class ReportBuildContext:
             wim_root=Path(wim_root) if wim_root is not None else None,
             output_dir=output_dir,
             assets_dir=assets_dir,
+            analysis_manifest_path=(
+                Path(analysis_manifest_path).expanduser().resolve()
+                if analysis_manifest_path is not None
+                else None
+            ),
+            analysis_manifest_sha256=str(analysis_manifest_sha256 or "").strip().upper(),
+            require_source_provenance=bool(require_source_provenance),
         )
 
     def analysis_context(self) -> dict[str, Any]:
-        return analysis_manifest_context(self.result_root or self.stats_root)
+        with pinned_analysis_manifest_scope(
+            self.analysis_manifest_path,
+            self.analysis_manifest_sha256,
+            require_source_provenance=self.require_source_provenance,
+            result_root=self.result_root or self.stats_root,
+        ):
+            return analysis_manifest_context(self.result_root or self.stats_root)
 
     def reporting_contract_context(self, analysis_context: dict[str, Any] | None = None) -> dict[str, Any]:
         return reporting_contract_context(self.result_root or self.stats_root, analysis_context)

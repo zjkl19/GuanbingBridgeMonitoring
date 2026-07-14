@@ -2378,45 +2378,79 @@
     "fig_size_list": []
   },
   "accel_spectrum_params": {
-    "target_freqs": [
-      1.15,
-      1.48,
-      2.31
-    ],
-    "tolerance": 0.15,
-    "theor_freqs": [
-      0.975,
-      1.243,
-      1.528
-    ],
-    "theor_labels": [
-      "理论竖向一阶自振频率 0.975Hz",
-      "理论竖向二阶自振频率 1.243Hz",
-      "理论竖向三阶自振频率 1.528Hz"
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "search_min_hz": 1.0,
+        "search_max_hz": 1.3,
+        "theoretical_hz": 0.975,
+        "theor_label": "理论竖向一阶自振频率 0.975Hz"
+      },
+      {
+        "order": 2,
+        "label": "二阶",
+        "search_min_hz": 1.33,
+        "search_max_hz": 1.63,
+        "theoretical_hz": 1.243,
+        "theor_label": "理论竖向二阶自振频率 1.243Hz"
+      },
+      {
+        "order": 3,
+        "label": "三阶",
+        "search_min_hz": 2.16,
+        "search_max_hz": 2.46,
+        "theoretical_hz": 1.528,
+        "theor_label": "理论竖向三阶自振频率 1.528Hz"
+      }
     ]
   },
   "cable_accel_spectrum_params": {
-    "target_freqs": [
-      1.15,
-      1.48,
-      2.31
-    ],
-    "tolerance": 0.15,
-    "theor_freqs": [
-      0.975,
-      1.243,
-      1.528
-    ],
-    "theor_labels": [
-      "理论竖向一阶自振频率 0.975Hz",
-      "理论竖向二阶自振频率 1.243Hz",
-      "理论竖向三阶自振频率 1.528Hz"
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "search_min_hz": 1.0,
+        "search_max_hz": 1.3,
+        "theoretical_hz": 0.975,
+        "theor_label": "理论竖向一阶自振频率 0.975Hz"
+      },
+      {
+        "order": 2,
+        "label": "二阶",
+        "search_min_hz": 1.33,
+        "search_max_hz": 1.63,
+        "theoretical_hz": 1.243,
+        "theor_label": "理论竖向二阶自振频率 1.243Hz"
+      },
+      {
+        "order": 3,
+        "label": "三阶",
+        "search_min_hz": 2.16,
+        "search_max_hz": 2.46,
+        "theoretical_hz": 1.528,
+        "theor_label": "理论竖向三阶自振频率 1.528Hz"
+      }
     ]
   },
   "plot_common": {
     "save_fig": true,
     "lightweight_fig": true,
     "fig_max_points": 50000,
+    "dynamic_raw_modules": {
+      "acceleration": {
+        "sampling_mode": "full",
+        "line_width": 1.0,
+        "render_mode": "line",
+        "gap_mode": "connect"
+      },
+      "cable_accel": {
+        "sampling_mode": "full",
+        "line_width": 1.0,
+        "render_mode": "line",
+        "gap_mode": "connect"
+      }
+    },
     "append_timestamp": false,
     "gap_mode": "connect",
     "gap_break_factor": 5

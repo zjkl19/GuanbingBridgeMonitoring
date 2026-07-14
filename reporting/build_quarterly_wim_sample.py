@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 from copy import deepcopy
 from dataclasses import dataclass
@@ -28,6 +29,7 @@ from docx.shared import Mm
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
+from config_loader import load_report_config
 
 T_REPORT_MONTH = "\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5"
 T_REPORT_QUARTER = "\u5065\u5eb7\u76d1\u6d4b\u5b63\u62a5\uff08WIM\u6d4b\u8bd5\u7a3f\uff09"
@@ -131,10 +133,14 @@ def format_ton_threshold(value_t: float) -> str:
 def format_load_limit_text(value_t: float, level_1_t: float, level_2_t: float, load_name: str = "设计车辆荷载") -> str:
     level_1_text = format_ton_threshold(level_1_t)
     level_2_text = format_ton_threshold(level_2_t)
-    if value_t >= level_2_t:
+    if value_t > level_2_t and not math.isclose(value_t, level_2_t, rel_tol=0.0, abs_tol=0.005):
         return f"超过2.0倍{load_name}{level_2_text}t"
-    if value_t >= level_1_t:
+    if math.isclose(value_t, level_2_t, rel_tol=0.0, abs_tol=0.005):
+        return f"达到2.0倍{load_name}{level_2_text}t"
+    if value_t > level_1_t and not math.isclose(value_t, level_1_t, rel_tol=0.0, abs_tol=0.005):
         return f"超过1.5倍{load_name}{level_1_text}t，未达到2.0倍{load_name}{level_2_text}t"
+    if math.isclose(value_t, level_1_t, rel_tol=0.0, abs_tol=0.005):
+        return f"达到1.5倍{load_name}{level_1_text}t，未达到2.0倍{load_name}{level_2_text}t"
     return f"未达到1.5倍{load_name}{level_1_text}t"
 
 
@@ -189,7 +195,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8-sig"))
+    return load_report_config(path)
 
 
 def load_sheet_rows(path: Path, sheet: str) -> list[dict]:

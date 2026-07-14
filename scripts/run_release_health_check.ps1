@@ -17,6 +17,11 @@ $repo = Split-Path -Parent $PSScriptRoot
 Set-Location $repo
 $healthStart = Get-Date
 $stepResults = @()
+$projectPython = Join-Path $repo "reporting\.venv\Scripts\python.exe"
+if (-not (Test-Path -LiteralPath $projectPython -PathType Leaf)) {
+    $pythonCommand = Get-Command python -ErrorAction Stop
+    $projectPython = $pythonCommand.Source
+}
 
 if ($Fast) {
     $SkipMatlab = $true
@@ -169,7 +174,7 @@ Invoke-Step "Validate configs" "configs" {
 
 Invoke-Step "Python report tests" "python" {
     Invoke-External -Name "python-tests" `
-        -FilePath "python" `
+        -FilePath $projectPython `
         -Arguments @("-m", "unittest", "discover", "tests_py") `
         -TimeoutSeconds $PythonTimeoutSeconds
 }
@@ -178,7 +183,7 @@ Invoke-Step "Python compile reporting scripts" "compile" {
     $files = Get-ChildItem -Path .\reporting -Filter *.py -File
     if ($files.Count -gt 0) {
         Invoke-External -Name "python-compile" `
-            -FilePath "python" `
+            -FilePath $projectPython `
             -Arguments (@("-m", "py_compile") + @($files.FullName)) `
             -TimeoutSeconds $PythonTimeoutSeconds
     }
@@ -187,7 +192,7 @@ Invoke-Step "Python compile reporting scripts" "compile" {
 if (-not $SkipReportBuild) {
     Invoke-Step "Report template precheck smoke" "report" {
         Invoke-External -Name "report-smoke-precheck" `
-            -FilePath "python" `
+            -FilePath $projectPython `
             -Arguments @(".\reporting\smoke_report_generation.py", "--kind", "all") `
             -TimeoutSeconds $PythonTimeoutSeconds
     }

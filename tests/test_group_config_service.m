@@ -66,6 +66,35 @@ classdef test_group_config_service < matlab.unittest.TestCase
             tc.verifyTrue(any(strcmp(points, 'DX-5')));
         end
 
+        function strainSaveUpdatesResolvedTimeseriesAliasAndSyncedCanonical(tc)
+            cfg = test_group_config_service.sampleCfg();
+            cfg.points.strain = {'S-1', 'S-2', 'S-3'};
+            cfg.groups.strain = struct('OLD', {{'S-1', 'S-2'}});
+            cfg.groups.strain_timeseries = cfg.groups.strain;
+            groups = struct('NEW', {{'S-2', 'S-3'}});
+
+            cfg = bms.gui.GroupConfigService.setGroups(cfg, 'strain', groups, struct());
+
+            resolved = bms.gui.GroupConfigService.readGroups(cfg, 'strain');
+            tc.verifyEqual(resolved.NEW(:).', {'S-2', 'S-3'});
+            tc.verifyEqual(cfg.groups.strain.NEW(:).', {'S-2', 'S-3'});
+            tc.verifyEqual(cfg.groups.strain_timeseries.NEW(:).', {'S-2', 'S-3'});
+            tc.verifyFalse(isfield(cfg.groups.strain, 'OLD'));
+        end
+
+        function strainSaveDoesNotOverwriteDivergentCanonicalAlias(tc)
+            cfg = test_group_config_service.sampleCfg();
+            cfg.points.strain = {'S-1', 'S-2', 'S-3'};
+            cfg.groups.strain = struct('BOX', {{'S-1'}});
+            cfg.groups.strain_timeseries = struct('TS', {{'S-2'}});
+            groups = struct('TS_NEW', {{'S-2', 'S-3'}});
+
+            cfg = bms.gui.GroupConfigService.setGroups(cfg, 'strain', groups, struct());
+
+            tc.verifyEqual(cfg.groups.strain.BOX, {'S-1'});
+            tc.verifyEqual(cfg.groups.strain_timeseries.TS_NEW(:).', {'S-2', 'S-3'});
+        end
+
         function editableModuleKeysExposeGroupModules(tc)
             cfg = test_group_config_service.sampleCfg();
 

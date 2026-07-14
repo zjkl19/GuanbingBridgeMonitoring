@@ -180,6 +180,55 @@ classdef DynamicSeriesService
             end
         end
 
+        function fs = binnedCoverageSampleRate(times, windowMinutes, defaultFs)
+            %BINNEDCOVERAGESAMPLERATE Estimate the effective rate of bursty exports.
+            % Some vendor MAT exports contain short high-rate bursts separated by
+            % regular gaps.  A median inter-sample interval then describes the
+            % burst clock rather than the sample coverage available to a 10-minute
+            % statistic.  Estimate the typical populated-bin count instead so the
+            % coverage threshold remains meaningful for the derived statistic.
+            if nargin < 2 || isempty(windowMinutes), windowMinutes = 10; end
+            if nargin < 3 || isempty(defaultFs), defaultFs = 1; end
+            fs = double(defaultFs);
+            if ~isdatetime(times) || numel(times) < 2
+                return;
+            end
+
+            times = times(:);
+            times = times(~isnat(times));
+            windowMinutes = double(windowMinutes);
+            if numel(times) < 2 || ~isscalar(windowMinutes) ...
+                    || ~isfinite(windowMinutes) || windowMinutes <= 0
+                return;
+            end
+
+            t0 = dateshift(min(times), 'start', 'day');
+            t1 = dateshift(max(times), 'start', 'day') + days(1);
+            edges = (t0:minutes(windowMinutes):t1)';
+            if numel(edges) < 2
+                return;
+            end
+            idx = discretize(times, edges);
+            idx = idx(~isnan(idx));
+            if isempty(idx)
+                return;
+            end
+            counts = accumarray(idx, 1, [numel(edges) - 1, 1], @sum, 0);
+            counts = sort(counts(counts > 0));
+            if isempty(counts)
+                return;
+            end
+
+            % The upper quartile avoids a partially populated leading/trailing
+            % bin lowering the expected coverage while remaining robust to an
+            % isolated duplicate burst.
+            typicalCount = counts(max(1, ceil(0.75 * numel(counts))));
+            detected = double(typicalCount) / (windowMinutes * 60);
+            if isfinite(detected) && detected > 0
+                fs = detected;
+            end
+        end
+
         function maxPoints = plotMaxPoints(cfg, defaultValue)
             if nargin < 2 || isempty(defaultValue), defaultValue = 50000; end
             maxPoints = defaultValue;
@@ -239,6 +288,45 @@ classdef DynamicSeriesService
             if strcmp(opts.raw_sampling_mode, 'full')
                 opts.fig_max_points = Inf;
                 opts.raw_render_mode = 'line';
+            end
+        end
+
+        function cfgOut = configForRawPlotModule(cfg, moduleKey)
+            %CONFIGFORRAWPLOTMODULE Apply one module's raw-plot override.
+            % Module overrides materialize into the existing plot_common
+            % keys so downstream services retain one parsing contract.
+            % Callers decide which modules are eligible; wind and earthquake
+            % services intentionally do not call this method.
+            cfgOut = cfg;
+            if ~isstruct(cfgOut) || isempty(cfgOut)
+                cfgOut = struct();
+                return;
+            end
+            cfgOut = cfgOut(1);
+            moduleKey = lower(strtrim(char(string(moduleKey))));
+            if isempty(moduleKey) || ~isfield(cfgOut, 'plot_common') || ...
+                    ~isstruct(cfgOut.plot_common) || ...
+                    ~isfield(cfgOut.plot_common, 'dynamic_raw_modules') || ...
+                    ~isstruct(cfgOut.plot_common.dynamic_raw_modules) || ...
+                    ~isfield(cfgOut.plot_common.dynamic_raw_modules, moduleKey)
+                return;
+            end
+            override = cfgOut.plot_common.dynamic_raw_modules.(moduleKey);
+            if ~isstruct(override) || isempty(override)
+                return;
+            end
+            override = override(1);
+            mappings = { ...
+                'sampling_mode', 'dynamic_raw_sampling_mode'; ...
+                'line_width', 'dynamic_raw_line_width'; ...
+                'render_mode', 'dynamic_raw_render_mode'; ...
+                'gap_mode', 'gap_mode'};
+            for i = 1:size(mappings, 1)
+                sourceField = mappings{i, 1};
+                targetField = mappings{i, 2};
+                if isfield(override, sourceField) && ~isempty(override.(sourceField))
+                    cfgOut.plot_common.(targetField) = override.(sourceField);
+                end
             end
         end
 
@@ -417,6 +505,9 @@ classdef DynamicSeriesService
             end
             if isstruct(opts) && isfield(opts, 'series_id') && ~isempty(opts.series_id)
                 provenance.point_id = char(string(opts.series_id));
+            end
+            if isstruct(opts) && isfield(opts, 'plot_scope') && ~isempty(opts.plot_scope)
+                provenance.plot_scope = char(string(opts.plot_scope));
             end
             userData = get(h, 'UserData');
             if ~isstruct(userData)
@@ -692,24 +783,26 @@ classdef DynamicSeriesService
 
             [binTimes, rmsSeries, rmsMax, tMax] = ...
                 bms.analyzer.DynamicSeriesService.aggregateByTimeBins( ...
-                    times, vals, windowMinutes, minCoverage, 'rms', fs);
+                    times, vals, windowMinutes, minCoverage, 'rms', fs, false);
         end
 
-        function [binTimes, meanSeries, meanMax, tMax] = movingMeanByTimeBins(times, vals, windowMinutes, minCoverage, fs)
+        function [binTimes, meanSeries, meanMax, tMax] = movingMeanByTimeBins(times, vals, windowMinutes, minCoverage, fs, requireTemporalCoverage)
             if nargin < 3 || isempty(windowMinutes), windowMinutes = 10; end
             if nargin < 4 || isempty(minCoverage), minCoverage = 0.7; end
             if nargin < 5, fs = []; end
+            if nargin < 6 || isempty(requireTemporalCoverage), requireTemporalCoverage = false; end
 
             [binTimes, meanSeries, meanMax, tMax] = ...
                 bms.analyzer.DynamicSeriesService.aggregateByTimeBins( ...
-                    times, vals, windowMinutes, minCoverage, 'mean', fs);
+                    times, vals, windowMinutes, minCoverage, 'mean', fs, requireTemporalCoverage);
         end
 
-        function [binTimes, aggSeries, aggMax, tMax] = aggregateByTimeBins(times, vals, windowMinutes, minCoverage, mode, fs)
+        function [binTimes, aggSeries, aggMax, tMax] = aggregateByTimeBins(times, vals, windowMinutes, minCoverage, mode, fs, requireTemporalCoverage)
             if nargin < 3 || isempty(windowMinutes), windowMinutes = 10; end
             if nargin < 4 || isempty(minCoverage), minCoverage = 0.7; end
             if nargin < 5 || isempty(mode), mode = 'mean'; end
             if nargin < 6, fs = []; end
+            if nargin < 7 || isempty(requireTemporalCoverage), requireTemporalCoverage = false; end
 
             binTimes = datetime.empty(0, 1);
             aggSeries = [];
@@ -781,7 +874,27 @@ classdef DynamicSeriesService
             end
             expectedPerBin = max(1, round(windowMinutes * 60 * fs));
             minNeed = max(1, round(minCoverage * expectedPerBin));
-            aggSeries(count < minNeed) = NaN;
+            insufficientCoverage = count < minNeed;
+            if logical(requireTemporalCoverage)
+                % Wind vendor exports may contain a high-rate burst representing
+                % only seconds of a 10-minute interval.  Count coverage alone
+                % would accept that burst, so wind mean calculations additionally
+                % require observations across the configured fraction of minute-
+                % scale time slices.  RMS callers deliberately retain their
+                % established count-based statistical contract.
+                windowSeconds = windowMinutes * 60;
+                sliceCount = max(1, ceil(windowMinutes));
+                finiteTimes = times(validTime);
+                finiteTimes = finiteTimes(finite);
+                relativeSeconds = seconds(finiteTimes - edges(idx));
+                sliceIndex = floor(relativeSeconds / windowSeconds * sliceCount) + 1;
+                sliceIndex = max(1, min(sliceCount, sliceIndex));
+                occupiedPairs = unique([idx(:), sliceIndex(:)], 'rows');
+                occupiedSlices = accumarray(occupiedPairs(:, 1), 1, [nBins 1], @sum, 0);
+                minOccupiedSlices = max(1, ceil(minCoverage * sliceCount));
+                insufficientCoverage = insufficientCoverage | occupiedSlices < minOccupiedSlices;
+            end
+            aggSeries(insufficientCoverage) = NaN;
 
             [aggMax, idxMax] = max(aggSeries, [], 'omitnan');
             if isempty(idxMax) || ~isfinite(aggMax)

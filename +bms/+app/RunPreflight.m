@@ -208,7 +208,17 @@ classdef RunPreflight
                     return;
                 end
 
-                actualRecords = bms.data.ZipDailyExportAdapter.collectCsvPointIds(root, startDate, endDate, cfg);
+                sourceMode = bms.data.TimeSeriesLoader.seriesSourceMode(cfg);
+                actualRecords = {};
+                % Explicit MAT-only validation must not be satisfied merely
+                % because a same-named CSV is present.  In ordinary auto and
+                % prefer-MAT modes the legacy CSV inventory remains useful,
+                % and the runtime-consistent DataIndex below supplements it
+                % with validated standalone MAT caches.
+                if ~strcmp(sourceMode, 'mat_only')
+                    actualRecords = bms.data.ZipDailyExportAdapter.collectCsvPointIds( ...
+                        root, startDate, endDate, cfg);
+                end
                 actualIds = cell(1, numel(actualRecords));
                 actualDays = containers.Map('KeyType', 'char', 'ValueType', 'any');
                 for i = 1:numel(actualRecords)
@@ -222,6 +232,7 @@ classdef RunPreflight
                 end
 
                 specs = bms.module.ModuleRegistry.enabledFromOptions(opts);
+                dataSource = bms.data.DataSourceFactory.create(root, cfg);
                 rows = {};
                 for i = 1:numel(specs)
                     spec = specs(i);
@@ -232,11 +243,29 @@ classdef RunPreflight
                     if isempty(expected)
                         continue;
                     end
+                    indexedMap = containers.Map('KeyType', 'char', 'ValueType', 'char');
+                    indexed = bms.data.DataIndex.moduleRecord( ...
+                        dataSource, spec, root, startDate, endDate, cfg);
+                    indexedPoints = bms.app.ManifestReader.recordsToCell(indexed.points);
+                    for k = 1:numel(indexedPoints)
+                        indexedPoint = indexedPoints{k};
+                        if ~isstruct(indexedPoint) || ~isfield(indexedPoint, 'point_id') ...
+                                || ~isfield(indexedPoint, 'status') ...
+                                || ~strcmp(char(string(indexedPoint.status)), 'found')
+                            continue;
+                        end
+                        indexedId = char(string(indexedPoint.point_id));
+                        indexedMap(indexedId) = indexedId;
+                    end
                     found = {};
                     missing = {};
                     matchedIds = {};
                     for j = 1:numel(expected)
                         [tf, matched] = bms.app.RunPreflight.pointExists(actualMap, expected{j}, cfg, spec.Key);
+                        if ~tf && isKey(indexedMap, expected{j})
+                            tf = true;
+                            matched = indexedMap(expected{j});
+                        end
                         if tf
                             found{end+1} = expected{j}; %#ok<AGROW>
                             matchedIds{end+1} = matched; %#ok<AGROW>

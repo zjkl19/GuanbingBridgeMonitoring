@@ -120,6 +120,110 @@ classdef test_wind_analysis_pipeline < matlab.unittest.TestCase
             tc.verifyEqual(series.direction_source_provenance.finite_source_sample_count, 5);
         end
 
+        function accelerationModuleOverrideDoesNotChangeWindRoseSampling(tc)
+            dayRoot = fullfile(tc.Root, '2026-01-01', 'wave');
+            mkdir(dayRoot);
+            sampleCount = 2400;
+            times = datetime(2026, 1, 1, 0, 0, 0) + seconds((0:sampleCount-1)');
+            speed = 1 + mod((0:sampleCount-1)', 80) / 10;
+            direction = mod((0:sampleCount-1)' * 7, 360);
+            write_wind_csv_times(fullfile(dayRoot, 'SPEED.csv'), times, speed);
+            write_wind_csv_times(fullfile(dayRoot, 'DIR.csv'), times, direction);
+
+            baseCfg = rolling_wind_cfg();
+            baseCfg.plot_common = struct('fig_max_points', 1000);
+            moduleCfg = baseCfg;
+            moduleCfg.plot_common.dynamic_raw_modules.acceleration = struct( ...
+                'sampling_mode', 'full', 'line_width', 1.0, ...
+                'render_mode', 'line', 'gap_mode', 'connect');
+            moduleCfg.plot_common.dynamic_raw_modules.cable_accel = ...
+                moduleCfg.plot_common.dynamic_raw_modules.acceleration;
+
+            [baseRow, baseSeries] = bms.analyzer.WindSeriesService.analyzePoint( ...
+                tc.Root, 'wave', 'W1', '2026-01-01', '2026-01-01', baseCfg);
+            [moduleRow, moduleSeries] = bms.analyzer.WindSeriesService.analyzePoint( ...
+                tc.Root, 'wave', 'W1', '2026-01-01', '2026-01-01', moduleCfg);
+            [baseSpeed, baseDirection] = bms.analyzer.WindRoseService.alignForRose( ...
+                baseSeries.tSpeed, baseSeries.vSpeed, baseSeries.tDir, baseSeries.vDir);
+            [moduleSpeed, moduleDirection] = bms.analyzer.WindRoseService.alignForRose( ...
+                moduleSeries.tSpeed, moduleSeries.vSpeed, moduleSeries.tDir, moduleSeries.vDir);
+            baseRose = bms.analyzer.WindRoseService.buildMatrix( ...
+                baseDirection, baseSpeed, baseSeries.params);
+            moduleRose = bms.analyzer.WindRoseService.buildMatrix( ...
+                moduleDirection, moduleSpeed, moduleSeries.params);
+
+            tc.verifyEqual(moduleRow, baseRow);
+            tc.verifyEqual(moduleSeries.tSpeed, baseSeries.tSpeed);
+            tc.verifyEqual(moduleSeries.vSpeed, baseSeries.vSpeed);
+            tc.verifyEqual(moduleSeries.tDir, baseSeries.tDir);
+            tc.verifyEqual(moduleSeries.vDir, baseSeries.vDir);
+            tc.verifyEqual(moduleRose, baseRose, 'AbsTol', 1e-12);
+            tc.verifyLessThan(numel(moduleSeries.vSpeed), sampleCount);
+            tc.verifyEqual( ...
+                bms.analyzer.DynamicSeriesService.rawSamplingMode(moduleCfg), ...
+                'capped');
+            tc.verifyTrue( ...
+                bms.plot.PlotService.runtimeOptionsFromConfig(moduleCfg).save_emf);
+        end
+
+        function productionWindProfilesPreserveSamplingAndEmf(tc)
+            cases = { ...
+                'hongtang_config.json', 'full', false; ...
+                'jiulongjiang_config.json', 'capped', true; ...
+                'shuixianhua_config.json', 'capped', true};
+            for i = 1:size(cases, 1)
+                cfg = load_config(fullfile(tc.ProjectRoot, 'config', cases{i, 1}));
+                tc.verifyEqual( ...
+                    bms.analyzer.DynamicSeriesService.rawSamplingMode(cfg), ...
+                    cases{i, 2}, cases{i, 1});
+                opts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+                tc.verifyEqual(opts.save_emf, cases{i, 3}, cases{i, 1});
+            end
+        end
+
+        function fullWindSamplingIgnoresAccelerationModuleOverride(tc)
+            dayRoot = fullfile(tc.Root, '2026-01-01', 'wave');
+            mkdir(dayRoot);
+            sampleCount = 2400;
+            times = datetime(2026, 1, 1, 0, 0, 0) + seconds((0:sampleCount-1)');
+            speed = 1 + mod((0:sampleCount-1)', 80) / 10;
+            direction = mod((0:sampleCount-1)' * 7, 360);
+            write_wind_csv_times(fullfile(dayRoot, 'SPEED.csv'), times, speed);
+            write_wind_csv_times(fullfile(dayRoot, 'DIR.csv'), times, direction);
+
+            baseCfg = rolling_wind_cfg();
+            baseCfg.plot_common = struct( ...
+                'fig_max_points', 1000, ...
+                'dynamic_raw_sampling_mode', 'full');
+            moduleCfg = baseCfg;
+            moduleCfg.plot_common.dynamic_raw_modules.acceleration = struct( ...
+                'sampling_mode', 'full', 'line_width', 1.0, ...
+                'render_mode', 'line', 'gap_mode', 'connect');
+
+            [~, baseSeries] = bms.analyzer.WindSeriesService.analyzePoint( ...
+                tc.Root, 'wave', 'W1', '2026-01-01', '2026-01-01', baseCfg);
+            [~, moduleSeries] = bms.analyzer.WindSeriesService.analyzePoint( ...
+                tc.Root, 'wave', 'W1', '2026-01-01', '2026-01-01', moduleCfg);
+            [baseSpeed, baseDirection] = bms.analyzer.WindRoseService.alignForRose( ...
+                baseSeries.tSpeed, baseSeries.vSpeed, baseSeries.tDir, baseSeries.vDir);
+            [moduleSpeed, moduleDirection] = bms.analyzer.WindRoseService.alignForRose( ...
+                moduleSeries.tSpeed, moduleSeries.vSpeed, moduleSeries.tDir, moduleSeries.vDir);
+
+            tc.verifyEqual(numel(moduleSeries.vSpeed), sampleCount);
+            tc.verifyEqual(moduleSeries.tSpeed, baseSeries.tSpeed);
+            tc.verifyEqual(moduleSeries.vSpeed, baseSeries.vSpeed);
+            tc.verifyEqual(moduleSeries.tDir, baseSeries.tDir);
+            tc.verifyEqual(moduleSeries.vDir, baseSeries.vDir);
+            tc.verifyEqual( ...
+                bms.analyzer.WindRoseService.buildMatrix( ...
+                    moduleDirection, moduleSpeed, moduleSeries.params), ...
+                bms.analyzer.WindRoseService.buildMatrix( ...
+                    baseDirection, baseSpeed, baseSeries.params), ...
+                'AbsTol', 1e-12);
+            tc.verifyFalse( ...
+                bms.plot.PlotService.runtimeOptionsFromConfig(moduleCfg).save_emf);
+        end
+
         function hongtangWindRulesRejectNegativeSpeedAndInvalidDirection(tc)
             cfg = load_config(fullfile(tc.ProjectRoot, 'config', 'hongtang_config.json'));
             speedRules = bms.data.CleaningPipeline.resolveRules(cfg, 'wind_speed', 'W1');
@@ -175,6 +279,23 @@ classdef test_wind_analysis_pipeline < matlab.unittest.TestCase
             tc.verifyEqual(speedPayload.series(1).source.source_file_count, 1);
             tc.verifyEqual(numel(rosePayload.series), 2);
             tc.verifyTrue(all(arrayfun(@(x) x.source.source_sample_count == 5, rosePayload.series)));
+        end
+
+        function allMissingTenMinuteSeriesIsSkippedWithoutAxisFailure(tc)
+            cfg = rolling_wind_cfg();
+            cfg.plot_common = struct( ...
+                'save_jpg', false, 'save_emf', false, 'save_fig', false, ...
+                'append_timestamp', false);
+            style = bms.analyzer.WindPlotService.style(cfg);
+            style.output.speed10_dir = 'speed10';
+            times = datetime(2026, 1, 1, 0, 5, 0) + minutes((0:3) * 10)';
+
+            bms.analyzer.WindPlotService.plotSpeed10min( ...
+                times, NaN(size(times)), 'W1', ...
+                bms.analyzer.WindSeriesService.params(cfg, 'W1'), ...
+                style, tc.Root, '2026-01-01', '2026-01-01', cfg, struct());
+
+            tc.verifyFalse(isfolder(fullfile(tc.Root, 'speed10')));
         end
 
         function windRoseLabelsUseMeteorologicalCompassOrientation(tc)

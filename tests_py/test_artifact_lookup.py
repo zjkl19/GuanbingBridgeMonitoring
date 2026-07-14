@@ -1,5 +1,7 @@
 import sys
 import os
+import hashlib
+import json
 import tempfile
 import time
 import unittest
@@ -16,9 +18,178 @@ from artifact_lookup import (  # noqa: E402
     resolve_output_dirs,
 )
 from build_monthly_report import build_bearing_section  # noqa: E402
+from analysis_manifest import (  # noqa: E402
+    manifest_key_for_dir,
+    pinned_analysis_manifest_scope,
+    pinned_derived_artifact_manifest_scope,
+)
 
 
 class TestArtifactLookup(unittest.TestCase):
+    def test_strict_manifest_rejects_artifact_outside_result_root(self):
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            root = base / "result"
+            root.mkdir()
+            configured_dir = "\u65f6\u7a0b\u66f2\u7ebf_\u52a0\u901f\u5ea6"
+            outside_dir = base / configured_dir
+            outside_dir.mkdir()
+            outside = outside_dir / "A1.jpg"
+            outside.write_bytes(b"outside")
+            manifest = root / "analysis.json"
+            manifest.write_text(json.dumps({
+                "module_results": [{
+                    "key": "acceleration",
+                    "artifacts": [{
+                        "kind": "figure",
+                        "path": str(outside),
+                        "exists": True,
+                        "bytes": outside.stat().st_size,
+                    }],
+                }],
+            }), encoding="utf-8")
+            manifest_hash = hashlib.sha256(manifest.read_bytes()).hexdigest().upper()
+
+            with pinned_analysis_manifest_scope(
+                manifest, manifest_hash, require_source_provenance=True, result_root=root
+            ):
+                with self.assertRaisesRegex(ValueError, "outside result_root"):
+                    latest_file_patterns(root, configured_dir, ["A1.jpg"], kind="figure")
+
+    def test_strict_manifest_rejects_changed_artifact_size(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            configured_dir = "\u65f6\u7a0b\u66f2\u7ebf_\u52a0\u901f\u5ea6"
+            folder = root / configured_dir
+            folder.mkdir()
+            image = folder / "A1.jpg"
+            image.write_bytes(b"original")
+            manifest = root / "analysis.json"
+            manifest.write_text(json.dumps({
+                "module_results": [{
+                    "key": "acceleration",
+                    "artifacts": [{
+                        "kind": "figure",
+                        "path": str(image),
+                        "exists": True,
+                        "bytes": image.stat().st_size,
+                    }],
+                }],
+            }), encoding="utf-8")
+            manifest_hash = hashlib.sha256(manifest.read_bytes()).hexdigest().upper()
+            image.write_bytes(b"tampered-longer")
+
+            with pinned_analysis_manifest_scope(
+                manifest, manifest_hash, require_source_provenance=True, result_root=root
+            ):
+                with self.assertRaisesRegex(ValueError, "size mismatch"):
+                    latest_file_patterns(root, configured_dir, ["A1.jpg"], kind="figure")
+
+    def test_tilt_alias_maps_to_tilt_module(self):
+        self.assertEqual(manifest_key_for_dir("\u65f6\u7a0b\u66f2\u7ebf_\u503e\u659c"), "tilt")
+
+    def test_strict_lookup_accepts_only_hash_verified_derived_artifact(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            folder = root / "\u7d22\u529b\u65f6\u7a0b\u56fe"
+            folder.mkdir()
+            approved = folder / "CableForce_CS4_20260401_20260630.jpg"
+            unapproved = folder / "CableForce_CS5_20260401_20260630.jpg"
+            approved.write_bytes(b"approved")
+            unapproved.write_bytes(b"unapproved")
+            analysis = root / "analysis.json"
+            analysis.write_text(json.dumps({"module_results": []}), encoding="utf-8")
+            analysis_hash = hashlib.sha256(analysis.read_bytes()).hexdigest().upper()
+            sidecar = root / "derived.json"
+            sidecar.write_text(json.dumps({
+                "schema_version": 1,
+                "manifest_type": "derived_artifact_manifest",
+                "result_root": str(root),
+                "analysis_manifest": {"path": str(analysis), "sha256": analysis_hash},
+                "artifacts": [{
+                    "kind": "figure",
+                    "role": "cable_force",
+                    "path": str(approved),
+                    "bytes": approved.stat().st_size,
+                    "sha256": hashlib.sha256(approved.read_bytes()).hexdigest().upper(),
+                }],
+            }), encoding="utf-8")
+            sidecar_hash = hashlib.sha256(sidecar.read_bytes()).hexdigest().upper()
+
+            with pinned_analysis_manifest_scope(
+                analysis, analysis_hash, require_source_provenance=True, result_root=root
+            ):
+                with pinned_derived_artifact_manifest_scope(
+                    sidecar, sidecar_hash, require_source_provenance=True
+                ):
+                    selected = latest_file_patterns(
+                        root, "\u7d22\u529b\u65f6\u7a0b\u56fe", ["CableForce_CS4_*.jpg"], kind="figure"
+                    )
+                    blocked = latest_file_patterns(
+                        root, "\u7d22\u529b\u65f6\u7a0b\u56fe", ["CableForce_CS5_*.jpg"], kind="figure"
+                    )
+
+            self.assertEqual(selected.path, approved.resolve())
+            self.assertEqual(selected.debug["source"], "derived_artifact_manifest")
+            self.assertIsNone(blocked.path)
+            self.assertEqual(blocked.debug["source"], "pinned_analysis_manifest")
+
+    def test_strict_pinned_manifest_disables_latest_and_filesystem_fallback(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            folder = root / "时程曲线_加速度"
+            folder.mkdir()
+            pinned_image = folder / "A1_pinned.jpg"
+            unlisted_image = folder / "A2_newer.jpg"
+            pinned_image.write_text("pinned", encoding="utf-8")
+            unlisted_image.write_text("unlisted", encoding="utf-8")
+            pinned_manifest = root / "analysis_manifest_pinned.json"
+            pinned_manifest.write_text(json.dumps({
+                "module_results": [{
+                    "key": "acceleration",
+                    "artifacts": [{
+                        "kind": "figure",
+                        "path": str(pinned_image),
+                        "exists": True,
+                        "bytes": pinned_image.stat().st_size,
+                    }],
+                }],
+            }), encoding="utf-8")
+            newer_manifest = root / "run_logs" / "analysis_manifest_newer.json"
+            newer_manifest.parent.mkdir()
+            newer_manifest.write_text(json.dumps({
+                "module_results": [{
+                    "key": "acceleration",
+                    "artifacts": [{"kind": "figure", "path": str(unlisted_image)}],
+                }],
+            }), encoding="utf-8")
+            manifest_hash = hashlib.sha256(pinned_manifest.read_bytes()).hexdigest().upper()
+
+            with pinned_analysis_manifest_scope(
+                pinned_manifest,
+                manifest_hash,
+                require_source_provenance=True,
+                result_root=root,
+            ):
+                selected = latest_file_patterns(
+                    root,
+                    "时程曲线_加速度",
+                    ["A1*.jpg"],
+                    kind="figure",
+                )
+                blocked = latest_file_patterns(
+                    root,
+                    "时程曲线_加速度",
+                    ["A2*.jpg"],
+                    use_manifest=False,
+                    kind="figure",
+                )
+
+            self.assertEqual(selected.path, pinned_image)
+            self.assertEqual(selected.debug["manifest"], str(pinned_manifest.resolve()))
+            self.assertIsNone(blocked.path)
+            self.assertEqual(blocked.debug["source"], "pinned_analysis_manifest")
+
     def test_point_token_does_not_match_prefix_collision(self):
         self.assertTrue(filename_has_point_token(Path("CS1_time.jpg"), "CS1"))
         self.assertFalse(filename_has_point_token(Path("CS12_time.jpg"), "CS1"))

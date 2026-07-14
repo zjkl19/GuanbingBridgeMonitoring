@@ -117,22 +117,40 @@ classdef JiulongjiangCsvDataSource < bms.data.BaseDataSource
             candidates = bms.data.PointResolver.uniqueText({ ...
                 regexprep(fileId, '[-_][XYZxyz]$', ''), ...
                 regexprep(pointId, '[-_][XYZxyz]$', '')});
-            for i = 1:numel(candidates)
-                cand = fullfile(dirp, [candidates{i} '.csv']);
-                if exist(cand, 'file')
-                    fp = cand;
-                    return;
-                end
+            mode = bms.data.TimeSeriesLoader.seriesSourceMode(cfg);
+            switch mode
+                case 'mat_only'
+                    fp = bms.data.JiulongjiangCsvDataSource.findMatCacheFile(dirp, candidates, cfg);
+                case 'prefer_mat'
+                    fp = bms.data.JiulongjiangCsvDataSource.findMatCacheFile(dirp, candidates, cfg);
+                    if ~isempty(fp) && ~bms.data.JiulongjiangCsvDataSource.isUsableStandaloneCache( ...
+                            fp, sensorType, pointId, cfg)
+                        fp = '';
+                    end
+                    if isempty(fp)
+                        fp = bms.data.JiulongjiangCsvDataSource.findCsvFile(dirp, candidates);
+                    end
+                case 'csv_cache'
+                    fp = bms.data.JiulongjiangCsvDataSource.findCsvFile(dirp, candidates);
+                otherwise
+                    % Preserve the established contract when CSV is present;
+                    % only promote a jlj_csv_v2 MAT cache when the CSV export
+                    % itself is unavailable.
+                    fp = bms.data.JiulongjiangCsvDataSource.findCsvFile(dirp, candidates);
+                    if isempty(fp)
+                        fp = bms.data.JiulongjiangCsvDataSource.findMatCacheFile(dirp, candidates, cfg);
+                    end
             end
+        end
 
-            files = dir(fullfile(dirp, '*.csv'));
-            for i = 1:numel(candidates)
-                idx = find(arrayfun(@(f) contains(f.name, candidates{i}), files), 1);
-                if ~isempty(idx)
-                    fp = fullfile(files(idx).folder, files(idx).name);
-                    return;
-                end
-            end
+        function fp = findCsvFallback(dirp, pointId, sensorType, cfg)
+            if nargin < 3 || isempty(sensorType), sensorType = 'generic'; end
+            if nargin < 4, cfg = struct(); end
+            fileId = bms.data.TimeSeriesLoader.resolveFileId(cfg, sensorType, pointId);
+            candidates = bms.data.PointResolver.uniqueText({ ...
+                regexprep(fileId, '[-_][XYZxyz]$', ''), ...
+                regexprep(pointId, '[-_][XYZxyz]$', '')});
+            fp = bms.data.JiulongjiangCsvDataSource.findCsvFile(dirp, candidates);
         end
 
         function [t, v] = readFile(fp, sensorType, pointId, cfg, varargin)
@@ -143,6 +161,14 @@ classdef JiulongjiangCsvDataSource < bms.data.BaseDataSource
             end
 
             adapter = bms.data.JiulongjiangCsvDataSource.adapterFromConfig(cfg);
+            [~, ~, sourceExt] = fileparts(char(string(fp)));
+            if strcmpi(sourceExt, '.mat')
+                [t, v] = bms.data.JiulongjiangCsvDataSource.readStandaloneCache( ...
+                    fp, sensorType, pointId, cfg, adapter);
+                [t, v] = bms.data.JiulongjiangCsvDataSource.applyRange(t, v, varargin{:});
+                return;
+            end
+
             cacheDir = bms.data.JiulongjiangCsvDataSource.resolveCacheDirFromMeta(adapter, varargin{:});
             cachePath = '';
             if adapter.cache.enabled && ~isempty(cacheDir)
@@ -198,8 +224,137 @@ classdef JiulongjiangCsvDataSource < bms.data.BaseDataSource
                 [t, v] = bms.data.JiulongjiangCsvDataSource.pickChannelFromArrays(t, valx, valy, valz, sensorType, pointId);
             end
 
+            [t, v] = bms.data.JiulongjiangCsvDataSource.applyRange(t, v, varargin{:});
+        end
+
+        function fp = findCsvFile(dirp, candidates)
+            fp = '';
+            for i = 1:numel(candidates)
+                cand = fullfile(dirp, [candidates{i} '.csv']);
+                if exist(cand, 'file')
+                    fp = cand;
+                    return;
+                end
+            end
+
+            files = dir(fullfile(dirp, '*.csv'));
+            for i = 1:numel(candidates)
+                idx = find(arrayfun(@(f) contains(f.name, candidates{i}), files), 1);
+                if ~isempty(idx)
+                    fp = fullfile(files(idx).folder, files(idx).name);
+                    return;
+                end
+            end
+        end
+
+        function fp = findMatCacheFile(dirp, candidates, cfg)
+            fp = '';
+            adapter = bms.data.JiulongjiangCsvDataSource.adapterFromConfig(cfg);
+            cacheDir = bms.data.JiulongjiangCsvDataSource.resolveCacheDir(dirp, adapter);
+            if isempty(cacheDir) || ~exist(cacheDir, 'dir')
+                return;
+            end
+
+            for i = 1:numel(candidates)
+                cand = fullfile(cacheDir, [candidates{i} '.mat']);
+                if exist(cand, 'file')
+                    fp = cand;
+                    return;
+                end
+            end
+
+            files = dir(fullfile(cacheDir, '*.mat'));
+            for i = 1:numel(candidates)
+                idx = find(arrayfun(@(f) contains(f.name, candidates{i}), files), 1);
+                if ~isempty(idx)
+                    fp = fullfile(files(idx).folder, files(idx).name);
+                    return;
+                end
+            end
+        end
+
+        function [t, v] = readStandaloneCache(cachePath, sensorType, pointId, cfg, adapter)
+            t = [];
+            v = [];
+            requireMetadata = bms.data.TimeSeriesLoader.seriesCacheRequireMetadata(cfg);
+            if requireMetadata && ~bms.data.CacheManager.metadataMatches( ...
+                    cachePath, adapter, 'jlj_csv_v2')
+                return;
+            end
+
+            try
+                S = load(cachePath, 'ts', 'valx', 'valy', 'valz', 'meta');
+                if ~isfield(S, 'meta') || ~isstruct(S.meta)
+                    return;
+                end
+                [t, v] = bms.data.JiulongjiangCsvDataSource.pickCachedChannel( ...
+                    S, sensorType, pointId);
+                if isempty(t) || isempty(v) || numel(t) ~= numel(v)
+                    t = [];
+                    v = [];
+                    return;
+                end
+                t = t(:);
+                v = v(:);
+            catch
+                t = [];
+                v = [];
+            end
+        end
+
+        function ok = isUsableStandaloneCache(cachePath, sensorType, pointId, cfg)
+            ok = false;
+            if isempty(cachePath) || ~exist(cachePath, 'file')
+                return;
+            end
+            adapter = bms.data.JiulongjiangCsvDataSource.adapterFromConfig(cfg);
+            requireMetadata = bms.data.TimeSeriesLoader.seriesCacheRequireMetadata(cfg);
+            if requireMetadata && ~bms.data.CacheManager.metadataMatches( ...
+                    cachePath, adapter, 'jlj_csv_v2')
+                return;
+            end
+            col = bms.data.JiulongjiangCsvDataSource.resolveValueColumn(sensorType, pointId);
+            valueField = strrep(col, 'value_', 'val');
+            try
+                warnState = warning('off', 'all');
+                warnCleanup = onCleanup(@() warning(warnState)); %#ok<NASGU>
+                info = whos('-file', cachePath);
+                names = {info.name};
+                required = {'ts', 'meta', valueField};
+                if ~all(ismember(required, names))
+                    return;
+                end
+                tsInfo = info(strcmp(names, 'ts'));
+                valueInfo = info(strcmp(names, valueField));
+                if isempty(tsInfo) || isempty(valueInfo) ...
+                        || prod(valueInfo(1).size) <= 0
+                    return;
+                end
+                % MATLAB may report an empty ``whos -file`` size for saved
+                % datetime objects.  Treat that as unknown here; the actual
+                % cache reader still enforces a non-empty, equal-length pair.
+                if ~isempty(tsInfo(1).size) ...
+                        && (prod(tsInfo(1).size) <= 0 ...
+                        || prod(tsInfo(1).size) ~= prod(valueInfo(1).size))
+                    return;
+                end
+                valueClasses = {'double', 'single', 'int8', 'uint8', 'int16', ...
+                    'uint16', 'int32', 'uint32', 'int64', 'uint64', 'logical'};
+                if ~strcmp(tsInfo(1).class, 'datetime') ...
+                        || ~ismember(valueInfo(1).class, valueClasses)
+                    return;
+                end
+                S = load(cachePath, 'meta');
+                ok = isfield(S, 'meta') && isstruct(S.meta);
+            catch
+                ok = false;
+            end
+        end
+
+        function [t, v] = applyRange(t, v, varargin)
             range = bms.data.JiulongjiangCsvDataSource.extractRange(varargin{:});
-            if ~isempty(range) && isfield(range, 'start') && isfield(range, 'end')
+            if ~isempty(range) && isfield(range, 'start') && isfield(range, 'end') ...
+                    && ~isempty(t)
                 mask = t >= range.start & t <= range.end;
                 t = t(mask);
                 v = v(mask);

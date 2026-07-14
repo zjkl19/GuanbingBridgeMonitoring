@@ -6,6 +6,7 @@ import re
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.shared import Mm
 from docx.text.paragraph import Paragraph
 
@@ -22,6 +23,33 @@ def find_paragraph_contains(doc: Document, fragment: str, occurrence: int = 1) -
 
 def paragraph_has_image(paragraph: Paragraph) -> bool:
     return bool(paragraph._p.xpath(".//w:drawing") or paragraph._p.xpath(".//w:pict"))
+
+
+def prune_unused_document_image_relationships(doc: Document) -> list[str]:
+    """Drop image relationships no longer referenced by the document body.
+
+    Report templates are frequently reused after their old result paragraphs
+    have been removed.  ``python-docx`` does not automatically delete those
+    relationships, so the old result media otherwise remains packaged inside
+    the new DOCX even though it is no longer visible.
+    """
+    used_rel_ids = set(doc.element.body.xpath(".//a:blip/@r:embed"))
+    used_rel_ids.update(doc.element.body.xpath(".//a:blip/@r:link"))
+    relationship_id_attr = (
+        "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+    )
+    for element in doc.element.body.iter():
+        if str(element.tag).endswith("}imagedata"):
+            rel_id = element.get(relationship_id_attr)
+            if rel_id:
+                used_rel_ids.add(rel_id)
+
+    dropped: list[str] = []
+    for rel_id, relationship in list(doc.part.rels.items()):
+        if relationship.reltype == RT.IMAGE and rel_id not in used_rel_ids:
+            doc.part.drop_rel(rel_id)
+            dropped.append(rel_id)
+    return dropped
 
 
 def paragraph_from_element(element, parent) -> Paragraph:

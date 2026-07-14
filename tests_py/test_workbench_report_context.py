@@ -1,0 +1,109 @@
+from __future__ import annotations
+
+import json
+import hashlib
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+ROOT = Path(__file__).resolve().parents[1]
+REPORTING = ROOT / "reporting"
+if str(REPORTING) not in sys.path:
+    sys.path.insert(0, str(REPORTING))
+
+try:
+    from PySide6.QtWidgets import QApplication
+    from report_gui import ReportGui
+except ImportError:  # pragma: no cover
+    QApplication = None
+    ReportGui = None
+
+
+@unittest.skipIf(QApplication is None, "PySide6/report dependencies are not installed")
+class WorkbenchReportContextTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = QApplication.instance() or QApplication([])
+
+    def test_report_gui_prefills_approved_workbench_context(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            data = root / "data"
+            output = root / "output"
+            data.mkdir()
+            config = ROOT / "config" / "default_config.json"
+            manifest = root / "manifest.json"
+            manifest.write_text("{}", encoding="utf-8")
+            template = root / "template.docx"
+            template.write_bytes(b"test template")
+            sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest().upper()
+            payload = {
+                "schema_version": 1,
+                "bridge_id": "guanbing",
+                "project_root": str(ROOT),
+                "data_root": str(data),
+                "config_path": str(config),
+                "config_sha256": sha(config),
+                "start_date": "2026-03-26",
+                "end_date": "2026-04-26",
+                "period_label": "2026年4月",
+                "monitoring_range": "2026年3月26日至2026年4月26日",
+                "report_date": "2026年5月10日",
+                "analysis": {"manifest_path": str(manifest), "manifest_sha256": sha(manifest)},
+                "report": {
+                    "template_path": str(template),
+                    "template_sha256": sha(template),
+                    "output_dir": str(output),
+                    "plots_approved": True,
+                },
+            }
+            context_path = root / "job_context.json"
+            context_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            window = ReportGui(job_context_path=context_path)
+            try:
+                self.assertEqual(window.profile_combo.currentData(), "guanbing")
+                self.assertEqual(window.result_root_edit.text(), str(data))
+                self.assertEqual(window.output_dir_edit.text(), str(output))
+                self.assertEqual(window.period_edit.text(), "2026年4月")
+                self.assertTrue(window.generate_btn.isEnabled())
+            finally:
+                window.close()
+
+    def test_report_gui_rejects_changed_pinned_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            data = root / "data"
+            data.mkdir()
+            config = ROOT / "config" / "default_config.json"
+            manifest = root / "manifest.json"
+            manifest.write_text("{}", encoding="utf-8")
+            template = root / "template.docx"
+            template.write_bytes(b"template")
+            sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest().upper()
+            payload = {
+                "schema_version": 1,
+                "bridge_id": "guanbing",
+                "project_root": str(ROOT),
+                "data_root": str(data),
+                "config_path": str(config),
+                "config_sha256": sha(config),
+                "analysis": {"manifest_path": str(manifest), "manifest_sha256": sha(manifest)},
+                "report": {
+                    "template_path": str(template),
+                    "template_sha256": sha(template),
+                    "plots_approved": True,
+                },
+            }
+            context_path = root / "job_context.json"
+            context_path.write_text(json.dumps(payload), encoding="utf-8")
+            manifest.write_text('{"changed":true}', encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "analysis manifest changed"):
+                ReportGui(job_context_path=context_path)
+
+
+if __name__ == "__main__":
+    unittest.main()

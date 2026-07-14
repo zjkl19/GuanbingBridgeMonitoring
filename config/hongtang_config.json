@@ -82,7 +82,10 @@
       "outlier": []
     },
     "acceleration": {
-      "thresholds": [],
+      "thresholds": {
+        "min": -0.5,
+        "max": 0.5
+      },
       "zero_to_nan": false,
       "outlier": []
     },
@@ -361,236 +364,359 @@
     "accel_spectrum": {
       "A1": {
         "thresholds": [],
-        "target_freqs": [
-          0.898,
-          1.46,
-          2.737
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          0.733,
-          1.378,
-          1.965
-        ],
-        "theor_labels": [
-          "理论一阶自振频率 0.733Hz",
-          "理论二阶自振频率 1.378Hz",
-          "理论三阶自振频率 1.965Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.783,
+            "search_max_hz": 1.048,
+            "theoretical_hz": 0.733,
+            "theor_label": "理论一阶自振频率 0.733Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.428,
+            "search_max_hz": 1.61,
+            "theoretical_hz": 1.378,
+            "theor_label": "理论二阶自振频率 1.378Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.587,
+            "search_max_hz": 2.887,
+            "theoretical_hz": 1.965,
+            "theor_label": "理论三阶自振频率 1.965Hz"
+          }
         ]
       },
       "A2": {
         "thresholds": [],
-        "target_freqs": [
-          0.898,
-          1.46,
-          2.737
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          0.733,
-          1.378,
-          1.965
-        ],
-        "theor_labels": [
-          "理论一阶自振频率 0.733Hz",
-          "理论二阶自振频率 1.378Hz",
-          "理论三阶自振频率 1.965Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.783,
+            "search_max_hz": 1.048,
+            "theoretical_hz": 0.733,
+            "theor_label": "理论一阶自振频率 0.733Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.428,
+            "search_max_hz": 1.61,
+            "theoretical_hz": 1.378,
+            "theor_label": "理论二阶自振频率 1.378Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.587,
+            "search_max_hz": 2.887,
+            "theoretical_hz": 1.965,
+            "theor_label": "理论三阶自振频率 1.965Hz"
+          }
         ]
       },
       "A3": {
         "thresholds": [],
-        "target_freqs": [
-          0.898,
-          1.46,
-          2.737
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          0.733,
-          1.378,
-          1.965
-        ],
-        "theor_labels": [
-          "理论一阶自振频率 0.733Hz",
-          "理论二阶自振频率 1.378Hz",
-          "理论三阶自振频率 1.965Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.783,
+            "search_max_hz": 1.048,
+            "theoretical_hz": 0.733,
+            "theor_label": "理论一阶自振频率 0.733Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.428,
+            "search_max_hz": 1.61,
+            "theoretical_hz": 1.378,
+            "theor_label": "理论二阶自振频率 1.378Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.587,
+            "search_max_hz": 2.887,
+            "theoretical_hz": 1.965,
+            "theor_label": "理论三阶自振频率 1.965Hz"
+          }
         ]
       },
       "A4": {
         "thresholds": [],
-        "target_freqs": [
-          0.898,
-          1.46,
-          2.737
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          0.733,
-          1.378,
-          1.965
-        ],
-        "theor_labels": [
-          "理论一阶自振频率 0.733Hz",
-          "理论二阶自振频率 1.378Hz",
-          "理论三阶自振频率 1.965Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.783,
+            "search_max_hz": 1.048,
+            "theoretical_hz": 0.733,
+            "theor_label": "理论一阶自振频率 0.733Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.428,
+            "search_max_hz": 1.61,
+            "theoretical_hz": 1.378,
+            "theor_label": "理论二阶自振频率 1.378Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.587,
+            "search_max_hz": 2.887,
+            "theoretical_hz": 1.965,
+            "theor_label": "理论三阶自振频率 1.965Hz"
+          }
         ]
       },
       "A5": {
         "thresholds": [],
-        "target_freqs": [
-          0.898,
-          1.46,
-          2.534
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          0.733,
-          1.378,
-          1.965
-        ],
-        "theor_labels": [
-          "理论一阶自振频率 0.733Hz",
-          "理论二阶自振频率 1.378Hz",
-          "理论三阶自振频率 1.965Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.783,
+            "search_max_hz": 1.048,
+            "theoretical_hz": 0.733,
+            "theor_label": "理论一阶自振频率 0.733Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.428,
+            "search_max_hz": 1.61,
+            "theoretical_hz": 1.378,
+            "theor_label": "理论二阶自振频率 1.378Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.384,
+            "search_max_hz": 2.684,
+            "theoretical_hz": 1.965,
+            "theor_label": "理论三阶自振频率 1.965Hz"
+          }
         ]
       },
       "A6": {
         "thresholds": [],
-        "target_freqs": [
-          0.898,
-          1.46,
-          2.737
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          0.733,
-          1.378,
-          1.965
-        ],
-        "theor_labels": [
-          "理论一阶自振频率 0.733Hz",
-          "理论二阶自振频率 1.378Hz",
-          "理论三阶自振频率 1.965Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.783,
+            "search_max_hz": 1.048,
+            "theoretical_hz": 0.733,
+            "theor_label": "理论一阶自振频率 0.733Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.428,
+            "search_max_hz": 1.61,
+            "theoretical_hz": 1.378,
+            "theor_label": "理论二阶自振频率 1.378Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.587,
+            "search_max_hz": 2.887,
+            "theoretical_hz": 1.965,
+            "theor_label": "理论三阶自振频率 1.965Hz"
+          }
         ]
       },
       "A7": {
         "thresholds": [],
-        "target_freqs": [
-          0.898,
-          1.46,
-          2.737
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          0.733,
-          1.378,
-          1.965
-        ],
-        "theor_labels": [
-          "理论一阶自振频率 0.733Hz",
-          "理论二阶自振频率 1.378Hz",
-          "理论三阶自振频率 1.965Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.783,
+            "search_max_hz": 1.048,
+            "theoretical_hz": 0.733,
+            "theor_label": "理论一阶自振频率 0.733Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.428,
+            "search_max_hz": 1.61,
+            "theoretical_hz": 1.378,
+            "theor_label": "理论二阶自振频率 1.378Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.587,
+            "search_max_hz": 2.887,
+            "theoretical_hz": 1.965,
+            "theor_label": "理论三阶自振频率 1.965Hz"
+          }
         ]
       },
       "A8": {
         "thresholds": [],
-        "target_freqs": [
-          0.898,
-          1.46,
-          2.737
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          0.733,
-          1.378,
-          1.965
-        ],
-        "theor_labels": [
-          "理论一阶自振频率 0.733Hz",
-          "理论二阶自振频率 1.378Hz",
-          "理论三阶自振频率 1.965Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.783,
+            "search_max_hz": 1.048,
+            "theoretical_hz": 0.733,
+            "theor_label": "理论一阶自振频率 0.733Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.428,
+            "search_max_hz": 1.61,
+            "theoretical_hz": 1.378,
+            "theor_label": "理论二阶自振频率 1.378Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.587,
+            "search_max_hz": 2.887,
+            "theoretical_hz": 1.965,
+            "theor_label": "理论三阶自振频率 1.965Hz"
+          }
         ]
       },
       "A9-X": {
         "thresholds": [],
-        "target_freqs": [
-          0.898,
-          1.46,
-          2.566
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          0.733,
-          1.378,
-          1.965
-        ],
-        "theor_labels": [
-          "理论一阶自振频率 0.733Hz",
-          "理论二阶自振频率 1.378Hz",
-          "理论三阶自振频率 1.965Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.783,
+            "search_max_hz": 1.048,
+            "theoretical_hz": 0.733,
+            "theor_label": "理论一阶自振频率 0.733Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.428,
+            "search_max_hz": 1.61,
+            "theoretical_hz": 1.378,
+            "theor_label": "理论二阶自振频率 1.378Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.416,
+            "search_max_hz": 2.716,
+            "theoretical_hz": 1.965,
+            "theor_label": "理论三阶自振频率 1.965Hz"
+          }
         ]
       },
       "A9-Y": {
         "thresholds": [],
-        "target_freqs": [
-          0.898,
-          1.46,
-          2.544
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          0.733,
-          1.378,
-          1.965
-        ],
-        "theor_labels": [
-          "理论一阶自振频率 0.733Hz",
-          "理论二阶自振频率 1.378Hz",
-          "理论三阶自振频率 1.965Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.783,
+            "search_max_hz": 1.048,
+            "theoretical_hz": 0.733,
+            "theor_label": "理论一阶自振频率 0.733Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.428,
+            "search_max_hz": 1.61,
+            "theoretical_hz": 1.378,
+            "theor_label": "理论二阶自振频率 1.378Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.394,
+            "search_max_hz": 2.694,
+            "theoretical_hz": 1.965,
+            "theor_label": "理论三阶自振频率 1.965Hz"
+          }
         ]
       },
       "A10-X": {
         "thresholds": [],
-        "target_freqs": [
-          0.872,
-          1.46,
-          2.737
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          0.733,
-          1.378,
-          1.965
-        ],
-        "theor_labels": [
-          "理论一阶自振频率 0.733Hz",
-          "理论二阶自振频率 1.378Hz",
-          "理论三阶自振频率 1.965Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.783,
+            "search_max_hz": 1.022,
+            "theoretical_hz": 0.733,
+            "theor_label": "理论一阶自振频率 0.733Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.428,
+            "search_max_hz": 1.61,
+            "theoretical_hz": 1.378,
+            "theor_label": "理论二阶自振频率 1.378Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.587,
+            "search_max_hz": 2.887,
+            "theoretical_hz": 1.965,
+            "theor_label": "理论三阶自振频率 1.965Hz"
+          }
         ]
       },
       "A10-Y": {
         "thresholds": [],
-        "target_freqs": [
-          0.898,
-          1.536,
-          2.446
-        ],
-        "tolerance": 0.15,
-        "theor_freqs": [
-          0.733,
-          1.378,
-          1.965
-        ],
-        "theor_labels": [
-          "理论一阶自振频率 0.733Hz",
-          "理论二阶自振频率 1.378Hz",
-          "理论三阶自振频率 1.965Hz"
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.783,
+            "search_max_hz": 1.048,
+            "theoretical_hz": 0.733,
+            "theor_label": "理论一阶自振频率 0.733Hz"
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.428,
+            "search_max_hz": 1.686,
+            "theoretical_hz": 1.378,
+            "theor_label": "理论二阶自振频率 1.378Hz"
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.296,
+            "search_max_hz": 2.596,
+            "theoretical_hz": 1.965,
+            "theor_label": "理论三阶自振频率 1.965Hz"
+          }
         ]
       }
     },
     "cable_accel": {
       "CS1": {
-        "thresholds": [],
+        "thresholds": {
+          "min": -1.0,
+          "max": 1.0
+        },
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
@@ -598,16 +724,30 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [],
           "level3": []
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
+        ]
       },
       "CS2": {
         "thresholds": [],
@@ -618,16 +758,30 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [],
           "level3": []
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
+        ]
       },
       "CS3": {
         "thresholds": [],
@@ -638,16 +792,30 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [],
           "level3": []
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
+        ]
       },
       "CS4": {
         "thresholds": [],
@@ -658,12 +826,6 @@
           1600,
           2500
         ],
-        "target_freqs": [
-          9.502,
-          11,
-          12
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1877.74,
@@ -673,7 +835,27 @@
             1773.42,
             2399.34
           ]
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 9.352,
+            "search_max_hz": 9.652
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 10.85,
+            "search_max_hz": 11.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 11.85,
+            "search_max_hz": 12.15
+          }
+        ]
       },
       "CS5": {
         "thresholds": [],
@@ -684,12 +866,6 @@
           1100,
           1800
         ],
-        "target_freqs": [
-          4.209,
-          6,
-          7
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1298.05,
@@ -699,10 +875,33 @@
             1225.94,
             1658.62
           ]
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 4.059,
+            "search_max_hz": 4.359
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 5.85,
+            "search_max_hz": 6.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 6.85,
+            "search_max_hz": 7.15
+          }
+        ]
       },
       "CS6": {
-        "thresholds": [],
+        "thresholds": {
+          "min": -6.0,
+          "max": 6.0
+        },
         "rho": 27.7,
         "L": 48.756,
         "force_decimals": 2,
@@ -710,12 +909,6 @@
           900,
           1600
         ],
-        "target_freqs": [
-          2.139,
-          4,
-          6
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1114.18,
@@ -725,7 +918,27 @@
             1052.28,
             1423.68
           ]
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.989,
+            "search_max_hz": 2.289
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 3.85,
+            "search_max_hz": 4.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 5.85,
+            "search_max_hz": 6.15
+          }
+        ]
       },
       "CS7": {
         "thresholds": [],
@@ -736,12 +949,6 @@
           900,
           1500
         ],
-        "target_freqs": [
-          2.07,
-          4,
-          6
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1093.73,
@@ -751,14 +958,32 @@
             1032.96,
             1397.54
           ]
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.92,
+            "search_max_hz": 2.22
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 3.85,
+            "search_max_hz": 4.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 5.85,
+            "search_max_hz": 6.15
+          }
+        ]
       },
       "CS8": {
         "thresholds": {
-          "min": -3,
-          "max": 3,
-          "t_range_start": "",
-          "t_range_end": ""
+          "min": -2.6,
+          "max": 2.6
         },
         "rho": 23.9,
         "L": 29.113,
@@ -767,12 +992,6 @@
           900,
           1500
         ],
-        "target_freqs": [
-          3.799,
-          5,
-          8
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1084.86,
@@ -782,10 +1001,33 @@
             1024.59,
             1386.21
           ]
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 3.649,
+            "search_max_hz": 3.949
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 4.85,
+            "search_max_hz": 5.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 7.85,
+            "search_max_hz": 8.15
+          }
+        ]
       },
       "CS9": {
-        "thresholds": [],
+        "thresholds": {
+          "min": -1.0,
+          "max": 1.0
+        },
         "rho": 23.9,
         "L": 14.963,
         "force_decimals": 2,
@@ -793,12 +1035,6 @@
           1600,
           2500
         ],
-        "target_freqs": [
-          9.814,
-          13,
-          15
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1855.37,
@@ -808,7 +1044,27 @@
             1752.29,
             2370.75
           ]
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 9.664,
+            "search_max_hz": 9.964
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 12.85,
+            "search_max_hz": 13.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 14.85,
+            "search_max_hz": 15.15
+          }
+        ]
       },
       "CS10": {
         "thresholds": [],
@@ -819,19 +1075,36 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [],
           "level3": []
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
+        ]
       },
       "CS11": {
-        "thresholds": [],
+        "thresholds": {
+          "min": -1.0,
+          "max": 1.0
+        },
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
@@ -839,19 +1112,36 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [],
           "level3": []
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
+        ]
       },
       "CS12": {
-        "thresholds": [],
+        "thresholds": {
+          "min": -2.0,
+          "max": 2.0
+        },
         "rho": 1,
         "L": 1,
         "force_decimals": 2,
@@ -859,16 +1149,30 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [],
           "level3": []
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
+        ]
       },
       "CX1": {
         "thresholds": {
@@ -884,16 +1188,30 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [],
           "level3": []
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
+        ]
       },
       "CX2": {
         "thresholds": {
@@ -909,16 +1227,30 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [],
           "level3": []
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
+        ]
       },
       "CX3": {
         "thresholds": {
@@ -934,16 +1266,30 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [],
           "level3": []
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
+        ]
       },
       "CX4": {
         "thresholds": {
@@ -959,12 +1305,6 @@
           1400,
           2200
         ],
-        "target_freqs": [
-          9.229,
-          11,
-          13
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1616.33,
@@ -974,7 +1314,27 @@
             1526.53,
             2065.31
           ]
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 9.079,
+            "search_max_hz": 9.379
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 10.85,
+            "search_max_hz": 11.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 12.85,
+            "search_max_hz": 13.15
+          }
+        ]
       },
       "CX5": {
         "thresholds": {
@@ -990,12 +1350,6 @@
           1100,
           1800
         ],
-        "target_freqs": [
-          4.209,
-          6,
-          8
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1291.91,
@@ -1005,23 +1359,35 @@
             1220.14,
             1650.78
           ]
-        }
-      },
-      "CX6": {
-        "thresholds": [
+        },
+        "peak_orders": [
           {
-            "min": -3,
-            "max": 3,
-            "t_range_start": "",
-            "t_range_end": ""
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 4.059,
+            "search_max_hz": 4.359
           },
           {
-            "min": 1000,
-            "max": -1000,
-            "t_range_start": "2025-12-15 00:00:00",
-            "t_range_end": "2025-12-31 23:59:59"
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 5.85,
+            "search_max_hz": 6.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 7.85,
+            "search_max_hz": 8.15
           }
-        ],
+        ]
+      },
+      "CX6": {
+        "thresholds": {
+          "min": -3,
+          "max": 3,
+          "t_range_start": "",
+          "t_range_end": ""
+        },
         "rho": 27.7,
         "L": 48.756,
         "force_decimals": 2,
@@ -1029,12 +1395,6 @@
           900,
           1600
         ],
-        "target_freqs": [
-          2.178,
-          4,
-          6
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1124.49,
@@ -1044,7 +1404,34 @@
             1062.02,
             1436.84
           ]
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 2.028,
+            "search_max_hz": 2.328
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 3.85,
+            "search_max_hz": 4.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 5.85,
+            "search_max_hz": 6.15
+          }
+        ],
+        "exclude_ranges": [
+          {
+            "start_time": "2025-12-15 00:00:00",
+            "end_time": "2025-12-31 23:59:59",
+            "reason": "该时段测点历史数据整体无效，全部排除"
+          }
+        ]
       },
       "CX7": {
         "thresholds": {
@@ -1060,12 +1447,6 @@
           800,
           1500
         ],
-        "target_freqs": [
-          2.08,
-          4,
-          6
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1045.39,
@@ -1075,7 +1456,27 @@
             987.31,
             1335.77
           ]
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 1.93,
+            "search_max_hz": 2.23
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 3.85,
+            "search_max_hz": 4.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 5.85,
+            "search_max_hz": 6.15
+          }
+        ]
       },
       "CX8": {
         "thresholds": {
@@ -1091,12 +1492,6 @@
           1100,
           1800
         ],
-        "target_freqs": [
-          4.219,
-          6,
-          8
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1304.22,
@@ -1106,7 +1501,27 @@
             1231.76,
             1666.5
           ]
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 4.069,
+            "search_max_hz": 4.369
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 5.85,
+            "search_max_hz": 6.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 7.85,
+            "search_max_hz": 8.15
+          }
+        ]
       },
       "CX9": {
         "thresholds": [],
@@ -1117,12 +1532,6 @@
           1500,
           2400
         ],
-        "target_freqs": [
-          9.512,
-          12,
-          14
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [
             1735.61,
@@ -1132,7 +1541,27 @@
             1639.19,
             2217.73
           ]
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 9.362,
+            "search_max_hz": 9.662
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 11.85,
+            "search_max_hz": 12.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 13.85,
+            "search_max_hz": 14.15
+          }
+        ]
       },
       "CX10": {
         "thresholds": [],
@@ -1143,16 +1572,30 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [],
           "level3": []
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
+        ]
       },
       "CX11": {
         "thresholds": [],
@@ -1163,16 +1606,30 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [],
           "level3": []
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
+        ]
       },
       "CX12": {
         "thresholds": [],
@@ -1183,16 +1640,30 @@
           1000,
           2200
         ],
-        "target_freqs": [
-          1,
-          2,
-          3
-        ],
-        "tolerance": 0.15,
         "force_alarm_bounds": {
           "level2": [],
           "level3": []
-        }
+        },
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 0.85,
+            "search_max_hz": 1.15
+          },
+          {
+            "order": 2,
+            "label": "二阶",
+            "search_min_hz": 1.85,
+            "search_max_hz": 2.15
+          },
+          {
+            "order": 3,
+            "label": "三阶",
+            "search_min_hz": 2.85,
+            "search_max_hz": 3.15
+          }
+        ]
       }
     },
     "wind": {
@@ -3310,10 +3781,7 @@
     "cable_accel": {
       "ylabel": "振动加速度 (m/s^2)",
       "title_prefix": "加速度时程",
-      "ylim": [
-        -3,
-        3
-      ],
+      "ylim": [],
       "colors": [
         [
           0,
@@ -3329,53 +3797,17 @@
       "rms": {
         "ylabel": "10 min RMS (m/s^2)",
         "title_prefix": "10 min RMS 时程",
-        "ylim": [
-          0,
-          1
-        ],
-        "ylims": [
-          {
-            "name": "A9-X",
-            "ylim": [
-              0,
-              0.05
-            ]
-          },
-          {
-            "name": "A9-Y",
-            "ylim": [
-              0,
-              0.05
-            ]
-          },
-          {
-            "name": "A10-X",
-            "ylim": [
-              0,
-              0.05
-            ]
-          },
-          {
-            "name": "A10-Y",
-            "ylim": [
-              0,
-              0.05
-            ]
-          }
-        ],
+        "ylim": [],
+        "ylims": [],
         "color": [
           0,
           0.447,
           0.741
-        ]
+        ],
+        "ylim_auto": true
       },
-      "ylims": {
-        "name": "CS5",
-        "ylim": [
-          -4,
-          4
-        ]
-      }
+      "ylims": [],
+      "ylim_auto": true
     },
     "cable_accel_spectrum": {
       "psd_ylabel": "PSD (dB)",
@@ -3735,30 +4167,54 @@
     "fig_size_list": []
   },
   "accel_spectrum_params": {
-    "target_freqs": [
-      0.898,
-      1.46,
-      2.737
-    ],
-    "tolerance": 0.15,
-    "theor_freqs": [
-      0.733,
-      1.378,
-      1.965
-    ],
-    "theor_labels": [
-      "理论一阶自振频率 0.733Hz",
-      "理论二阶自振频率 1.378Hz",
-      "理论三阶自振频率 1.965Hz"
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "search_min_hz": 0.783,
+        "search_max_hz": 1.048,
+        "theoretical_hz": 0.733,
+        "theor_label": "理论一阶自振频率 0.733Hz"
+      },
+      {
+        "order": 2,
+        "label": "二阶",
+        "search_min_hz": 1.428,
+        "search_max_hz": 1.61,
+        "theoretical_hz": 1.378,
+        "theor_label": "理论二阶自振频率 1.378Hz"
+      },
+      {
+        "order": 3,
+        "label": "三阶",
+        "search_min_hz": 2.587,
+        "search_max_hz": 2.887,
+        "theoretical_hz": 1.965,
+        "theor_label": "理论三阶自振频率 1.965Hz"
+      }
     ]
   },
   "cable_accel_spectrum_params": {
-    "target_freqs": [
-      1,
-      2,
-      3
-    ],
-    "tolerance": 0.15
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "search_min_hz": 0.85,
+        "search_max_hz": 1.15
+      },
+      {
+        "order": 2,
+        "label": "二阶",
+        "search_min_hz": 1.85,
+        "search_max_hz": 2.15
+      },
+      {
+        "order": 3,
+        "label": "三阶",
+        "search_min_hz": 2.85,
+        "search_max_hz": 3.15
+      }
+    ]
   },
   "reporting": {
     "strain": {
@@ -3917,6 +4373,20 @@
     "save_fig": true,
     "lightweight_fig": true,
     "fig_max_points": 50000,
+    "dynamic_raw_modules": {
+      "acceleration": {
+        "sampling_mode": "full",
+        "line_width": 1.0,
+        "render_mode": "line",
+        "gap_mode": "connect"
+      },
+      "cable_accel": {
+        "sampling_mode": "full",
+        "line_width": 1.0,
+        "render_mode": "line",
+        "gap_mode": "connect"
+      }
+    },
     "dynamic_raw_sampling_mode": "full",
     "dynamic_raw_fig_max_points": 1200000,
     "dynamic_raw_min_points_per_day": 12000,

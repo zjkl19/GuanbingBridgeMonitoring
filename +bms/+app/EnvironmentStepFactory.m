@@ -12,8 +12,7 @@ classdef EnvironmentStepFactory
             D = @bms.app.StepDefinition.fromKey;
 
             if L('temperature')
-                fallback = {'GB-RTS-G05-001-01','GB-RTS-G05-001-02','GB-RTS-G05-001-03'};
-                pts = bms.app.LegacyStepFunctions.getSensorPoints(cfg, 'temperature', fallback);
+                pts = bms.app.EnvironmentStepFactory.resolveClimatePoints(cfg, 'temperature');
                 if isempty(pts)
                     plan = plan.addSkip(D('temperature'), 'No temperature points configured');
                 else
@@ -23,8 +22,7 @@ classdef EnvironmentStepFactory
             end
 
             if L('humidity')
-                fallback = {'GB-RHS-G05-001-01','GB-RHS-G05-001-02','GB-RHS-G05-001-03'};
-                pts = bms.app.LegacyStepFunctions.getSensorPoints(cfg, 'humidity', fallback);
+                pts = bms.app.EnvironmentStepFactory.resolveClimatePoints(cfg, 'humidity');
                 if isempty(pts)
                     plan = plan.addSkip(D('humidity'), 'No humidity points configured');
                 else
@@ -55,6 +53,34 @@ classdef EnvironmentStepFactory
             if L('earthquake')
                 analyzer = bms.analyzer.AnalyzerFactory.create('earthquake', root, startDate, endDate, statsDir, sub, cfg, {});
                 plan = plan.addRun(D('earthquake'), @() analyzer.run());
+            end
+        end
+
+        function [points, source] = resolveClimatePoints(cfg, key)
+            key = lower(char(string(key)));
+            switch key
+                case 'temperature'
+                    fallback = {'GB-RTS-G05-001-01','GB-RTS-G05-001-02','GB-RTS-G05-001-03'};
+                case 'humidity'
+                    fallback = {'GB-RHS-G05-001-01','GB-RHS-G05-001-02','GB-RHS-G05-001-03'};
+                otherwise
+                    error('EnvironmentStepFactory:UnsupportedClimateKey', ...
+                        'Unsupported climate module key: %s', key);
+            end
+
+            configured = bms.config.ModuleConfigResolver.resolvePoints(cfg, key, {});
+            points = bms.app.LegacyStepFunctions.getSensorPoints(cfg, key, fallback);
+            if isempty(points)
+                if isstruct(cfg) && isfield(cfg, 'points') && isstruct(cfg.points) && ...
+                        isfield(cfg.points, key)
+                    source = 'explicit_empty';
+                else
+                    source = 'unresolved';
+                end
+            elseif isequal(points(:), configured(:))
+                source = 'configured';
+            else
+                source = 'runtime_default';
             end
         end
     end

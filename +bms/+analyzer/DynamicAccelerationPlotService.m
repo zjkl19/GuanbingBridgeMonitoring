@@ -6,6 +6,7 @@ classdef DynamicAccelerationPlotService
             fig = figure('Position', [100 100 1000 469]);
             plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
             plotOpts.series_id = char(string(pointId));
+            plotOpts.plot_scope = 'point_time_history';
             if nargin >= 10 && isstruct(sourceProvenance)
                 plotOpts.source_provenance = sourceProvenance;
             end
@@ -224,6 +225,7 @@ classdef DynamicAccelerationPlotService
             opts.raw_band_line_width = rawOpts.raw_band_line_width;
             opts.raw_trace_points = rawOpts.raw_trace_points;
             opts.raw_sampling_mode = rawOpts.raw_sampling_mode;
+            opts.plot_scope = 'group_overview';
             opts.series_provenance = arrayfun( ...
                 @(record) record.source_provenance, records, 'UniformOutput', false);
 
@@ -292,6 +294,11 @@ classdef DynamicAccelerationPlotService
         end
 
         function applyRmsYLim(style, pointId)
+            if isfield(style, 'rms_ylim_auto') ...
+                    && bms.config.ConfigReader.boolValue(style.rms_ylim_auto, false)
+                ylim auto;
+                return;
+            end
             yl = bms.plot.PlotService.resolveNamedYLim(style.rms_ylims, pointId, style.rms_ylim);
             if bms.plot.PlotService.isValidYLim(yl)
                 ylim(yl);
@@ -524,6 +531,11 @@ classdef DynamicAccelerationPlotService
         end
 
         function yl = resolveRmsYLim(style, groupName)
+            if isfield(style, 'rms_ylim_auto') ...
+                    && bms.config.ConfigReader.boolValue(style.rms_ylim_auto, false)
+                yl = [];
+                return;
+            end
             yl = bms.plot.PlotService.resolveNamedYLim(style.rms_ylims, groupName, style.rms_ylim);
             if ~bms.plot.PlotService.isValidYLim(yl)
                 yl = [];

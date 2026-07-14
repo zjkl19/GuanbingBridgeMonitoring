@@ -1,0 +1,71 @@
+{
+  "bridge_name": "workbench plot/spectrum contract",
+  "points": {
+    "acceleration": ["A-1", "A-2", "A-3"],
+    "accel_spectrum": ["A-1", "A-2"],
+    "cable_accel": ["C-1", "C-2"],
+    "cable_accel_spectrum": ["C-1"]
+  },
+  "plot_common": {
+    "save_fig": true,
+    "lightweight_fig": true,
+    "fig_max_points": 50000,
+    "append_timestamp": false,
+    "gap_mode": "connect",
+    "gap_break_factor": 5,
+    "dynamic_raw_sampling_mode": "full",
+    "dynamic_raw_fig_max_points": 1200000,
+    "dynamic_raw_min_points_per_day": 12000,
+    "dynamic_raw_line_width": 1.0,
+    "dynamic_raw_render_mode": "line",
+    "dynamic_raw_band_bins": 48000,
+    "dynamic_raw_band_line_width": 0.45,
+    "dynamic_raw_trace_points": 0,
+    "future_plot_option": "preserve"
+  },
+  "accel_spectrum_params": {
+    "fs": 20,
+    "auto_detect_fs": true,
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "theoretical_hz": 0.59,
+        "search_center_hz": 0.64,
+        "search_half_width_hz": 0.02
+      }
+    ]
+  },
+  "cable_accel_spectrum_params": {
+    "fs": 20,
+    "target_freqs": [1.5],
+    "tolerance": 0.1,
+    "peak_labels": ["索一阶"]
+  },
+  "per_point": {
+    "accel_spectrum": {
+      "A_1": {
+        "thresholds": [],
+        "target_freqs": [0.65],
+        "tolerance": 0.03,
+        "theor_freqs": [0.59],
+        "theor_labels": ["A1理论一阶"]
+      },
+      "A_2": {
+        "thresholds": {"min": -10, "max": 10},
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "A2一阶",
+            "theoretical_hz": 0.60,
+            "search_min_hz": 0.55,
+            "search_max_hz": 0.75,
+            "theor_label": "A2理论"
+          }
+        ]
+      }
+    }
+  },
+  "name_map_global": {"A_1": "A-1", "A_2": "A-2"},
+  "unrelated_marker": {"keep": true}
+}

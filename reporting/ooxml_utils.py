@@ -67,6 +67,14 @@ def rewrite_paragraphs_containing(root, contains: str, replacement: str, *, star
 
 def fill_table(table, rows: Sequence[dict[str, Any]], value_builder: Callable[[int, dict[str, Any]], Sequence[Any]]) -> None:
     table_rows = table.findall(qn("w:tr"))
+    data_rows = table_rows[1:]
+    if rows and not data_rows:
+        raise ValueError("Cannot fill a table that has no reusable data row")
+    if len(rows) > len(data_rows):
+        prototype = data_rows[-1]
+        for _ in range(len(rows) - len(data_rows)):
+            table.append(deepcopy(prototype))
+        table_rows = table.findall(qn("w:tr"))
     for data_idx, tr in enumerate(table_rows[1:]):
         cells = tr.findall(qn("w:tc"))
         values = value_builder(data_idx + 1, rows[data_idx]) if data_idx < len(rows) else [""] * len(cells)

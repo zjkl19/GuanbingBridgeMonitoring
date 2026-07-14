@@ -15,7 +15,8 @@ classdef ConfigLinter
                 bms.config.ConfigLinter.checkGroupLabelReferences(cfg), ...
                 bms.config.ConfigLinter.checkSingleOutputDirs(cfg), ...
                 bms.config.ConfigLinter.checkPlotWarningPreviews(cfg), ...
-                bms.config.ConfigLinter.checkDynamicRawSamplingMode(cfg)];
+                bms.config.ConfigLinter.checkDynamicRawSamplingMode(cfg), ...
+                bms.config.ConfigLinter.checkDynamicRawModuleOverrides(cfg)];
             result.issues = [result.issues, bms.config.ConfigLinter.issueDetails(extraWarnings, 'config')];
 
             result.warnings = bms.config.ConfigLinter.messagesBySeverity(result.issues, {'warning', 'error'});
@@ -192,6 +193,10 @@ classdef ConfigLinter
                 severity = 'warning';
                 category = 'dynamic_raw_sampling_mode';
                 action = '将 plot_common.dynamic_raw_sampling_mode 设为 capped 或 full。';
+            elseif contains(msg, 'plot_common.dynamic_raw_modules')
+                severity = 'warning';
+                category = 'dynamic_raw_module_override';
+                action = 'Check the acceleration/cable_accel high-frequency plot override fields.';
             elseif contains(msg, 'default_data_root not found')
                 severity = 'warning';
                 category = 'profile_data_root';
@@ -289,6 +294,82 @@ classdef ConfigLinter
             if ~any(strcmp(candidate, {'capped', 'full'}))
                 warnings{end+1} = ...
                     'plot_common.dynamic_raw_sampling_mode must be capped or full';
+            end
+        end
+
+        function warnings = checkDynamicRawModuleOverrides(cfg)
+            warnings = {};
+            if ~isstruct(cfg) || ~isfield(cfg, 'plot_common') || ...
+                    ~isstruct(cfg.plot_common) || ...
+                    ~isfield(cfg.plot_common, 'dynamic_raw_modules')
+                return;
+            end
+            modules = cfg.plot_common.dynamic_raw_modules;
+            if ~isstruct(modules)
+                warnings{end+1} = 'plot_common.dynamic_raw_modules must be an object';
+                return;
+            end
+            allowedModules = {'acceleration', 'cable_accel'};
+            allowedFields = {'sampling_mode', 'line_width', 'render_mode', 'gap_mode'};
+            moduleNames = fieldnames(modules);
+            for i = 1:numel(moduleNames)
+                moduleName = moduleNames{i};
+                prefix = ['plot_common.dynamic_raw_modules.' moduleName];
+                if ~any(strcmp(moduleName, allowedModules))
+                    warnings{end+1} = [prefix ' is not a supported high-frequency module override']; %#ok<AGROW>
+                    continue;
+                end
+                override = modules.(moduleName);
+                if ~isstruct(override) || isempty(override)
+                    warnings{end+1} = [prefix ' must be an object']; %#ok<AGROW>
+                    continue;
+                end
+                override = override(1);
+                names = fieldnames(override);
+                unknown = setdiff(names, allowedFields, 'stable');
+                for j = 1:numel(unknown)
+                    warnings{end+1} = [prefix '.' unknown{j} ' is not supported']; %#ok<AGROW>
+                end
+
+                samplingMode = bms.config.ConfigLinter.scalarTextField(override, 'sampling_mode');
+                renderMode = bms.config.ConfigLinter.scalarTextField(override, 'render_mode');
+                gapMode = bms.config.ConfigLinter.scalarTextField(override, 'gap_mode');
+                if isfield(override, 'sampling_mode') && ...
+                        ~any(strcmp(samplingMode, {'capped', 'full'}))
+                    warnings{end+1} = [prefix '.sampling_mode must be capped or full']; %#ok<AGROW>
+                end
+                if isfield(override, 'render_mode') && ...
+                        ~any(strcmp(renderMode, {'line', 'dense_band'}))
+                    warnings{end+1} = [prefix '.render_mode must be line or dense_band']; %#ok<AGROW>
+                end
+                if isfield(override, 'gap_mode') && ...
+                        ~any(strcmp(gapMode, {'connect', 'break'}))
+                    warnings{end+1} = [prefix '.gap_mode must be connect or break']; %#ok<AGROW>
+                end
+                if strcmp(samplingMode, 'full') && isfield(override, 'render_mode') && ...
+                        ~strcmp(renderMode, 'line')
+                    warnings{end+1} = [prefix '.render_mode must be line when sampling_mode is full']; %#ok<AGROW>
+                end
+                if isfield(override, 'line_width')
+                    lineWidth = override.line_width;
+                    if ~isnumeric(lineWidth) || ~isscalar(lineWidth) || ...
+                            ~isfinite(lineWidth) || lineWidth < 0.5 || lineWidth > 3.0
+                        warnings{end+1} = [prefix '.line_width must be a finite number from 0.5 to 3.0']; %#ok<AGROW>
+                    end
+                end
+            end
+        end
+
+        function value = scalarTextField(s, fieldName)
+            value = '';
+            if ~isstruct(s) || ~isfield(s, fieldName)
+                return;
+            end
+            raw = s.(fieldName);
+            if ischar(raw) && isrow(raw)
+                value = lower(strtrim(raw));
+            elseif isstring(raw) && isscalar(raw)
+                value = lower(strtrim(char(raw)));
             end
         end
 

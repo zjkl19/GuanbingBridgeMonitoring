@@ -1,0 +1,60 @@
+{
+  "defaults": {
+    "deflection": {
+      "thresholds": [
+        {
+          "min": -5,
+          "max": 5,
+          "t_range_start": "",
+          "t_range_end": ""
+        }
+      ],
+      "zero_to_nan": true,
+      "outlier": {
+        "window_sec": 15,
+        "threshold_factor": 3
+      },
+      "post_filter_thresholds": []
+    },
+    "temperature": {
+      "thresholds": {
+        "max": 50
+      }
+    }
+  },
+  "per_point": {
+    "deflection": {
+      "PT_1": {
+        "thresholds": {
+          "min": -10,
+          "max": 10
+        },
+        "exclude_ranges": [
+          {
+            "start_time": "2026-01-10 00:00:00",
+            "end_time": "2026-01-10 23:59:59",
+            "reason": "测试夹具中的明确整段排除规则"
+          }
+        ],
+        "zero_to_nan": false,
+        "offset_correction": 12,
+        "alarm_bounds": {
+          "level2": [
+            -20,
+            20
+          ]
+        },
+        "post_filter_thresholds": [
+          {
+            "max": 4,
+            "t_range_start": "2026-01-01 00:00:00",
+            "t_range_end": "2026-01-31 23:59:59"
+          }
+        ]
+      }
+    }
+  },
+  "plot_common": {
+    "gap_mode": "connect"
+  }
+}

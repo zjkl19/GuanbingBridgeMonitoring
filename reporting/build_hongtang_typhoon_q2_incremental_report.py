@@ -451,7 +451,7 @@ def _finite_number(value: object, label: str) -> float:
 
 
 def load_manifest(path: Path) -> dict[str, object]:
-    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest = json.loads(path.read_text(encoding="utf-8-sig"))
     if not isinstance(manifest, dict):
         raise ValueError("manifest root must be an object")
     missing_entries = manifest.get("missing_entries", [])

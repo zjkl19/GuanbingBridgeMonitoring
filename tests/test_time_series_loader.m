@@ -9,6 +9,7 @@ classdef test_time_series_loader < matlab.unittest.TestCase
             mkdir(tc.TempDir);
             proj = fileparts(fileparts(mfilename('fullpath')));
             addpath(proj);
+            addpath(fullfile(proj, 'pipeline'));
         end
     end
 
@@ -251,7 +252,7 @@ classdef test_time_series_loader < matlab.unittest.TestCase
             tc.verifyTrue(endsWith(meta2.files{1}, fullfile('cache', 'SPEED.mat')));
         end
 
-        function matOnlyDoesNotFallbackToCsv(tc)
+        function rangeLoaderMatOnlyDoesNotFallbackToCsv(tc)
             mkdir(fullfile(tc.TempDir, 'lowfreq'));
             waveDir = fullfile(tc.TempDir, '2026-01-01', 'wave');
             mkdir(waveDir);
@@ -260,11 +261,12 @@ classdef test_time_series_loader < matlab.unittest.TestCase
 
             cfg = local_hongtang_wind_cfg('mat_only');
 
-            [t, v] = load_timeseries_range( ...
+            [t, v, meta] = load_timeseries_range( ...
                 tc.TempDir, 'wave', 'W1', '2026-01-01', '2026-01-01', cfg, 'wind_speed');
 
             tc.verifyEmpty(t);
             tc.verifyEmpty(v);
+            tc.verifyEmpty(meta.files);
         end
 
         function matOnlyRequiresCacheMetadata(tc)
@@ -308,6 +310,144 @@ classdef test_time_series_loader < matlab.unittest.TestCase
 
             tc.verifyEqual(numel(files), 1);
             tc.verifyTrue(endsWith(files{1}, fullfile('cache', 'SPEED.mat')));
+        end
+
+        function dataIndexMatOnlyDoesNotFallbackToCsv(tc)
+            mkdir(fullfile(tc.TempDir, 'lowfreq'));
+            waveDir = fullfile(tc.TempDir, '2026-01-01', 'wave');
+            mkdir(waveDir);
+            write_text(fullfile(waveDir, 'SPEED.csv'), sprintf(['ignored header\n' ...
+                '2026-01-01 00:00:00.000,51.00\n']));
+            cfg = local_hongtang_wind_cfg('mat_only');
+
+            src = bms.data.DataSourceFactory.create(tc.TempDir, cfg);
+            files = bms.data.DataIndex.findPointFiles(src, 'W1', 'wave', ...
+                '2026-01-01', '2026-01-01', {'SPEED.csv'}, cfg, 'wind');
+
+            tc.verifyEmpty(files);
+        end
+
+        function dataIndexPreferMatStillFallsBackToCsv(tc)
+            mkdir(fullfile(tc.TempDir, 'lowfreq'));
+            waveDir = fullfile(tc.TempDir, '2026-01-01', 'wave');
+            mkdir(waveDir);
+            csvPath = fullfile(waveDir, 'SPEED.csv');
+            write_text(csvPath, sprintf(['ignored header\n' ...
+                '2026-01-01 00:00:00.000,61.00\n']));
+            cfg = local_hongtang_wind_cfg('prefer_mat');
+
+            src = bms.data.DataSourceFactory.create(tc.TempDir, cfg);
+            files = bms.data.DataIndex.findPointFiles(src, 'W1', 'wave', ...
+                '2026-01-01', '2026-01-01', {'SPEED.csv'}, cfg, 'wind');
+
+            tc.verifyEqual(numel(files), 1);
+            tc.verifyEqual(files{1}, char(java.io.File(csvPath).getCanonicalPath()));
+        end
+
+        function preferMatRejectsExistingInvalidCachesAndFallsBackToCsv(tc)
+            invalidKinds = {'metadata', 'missing_variables', 'corrupt', 'wrong_types', ...
+                'unparseable_text', 'all_nat', 'invalid_numeric_time'};
+            for i = 1:numel(invalidKinds)
+                caseDir = fullfile(tc.TempDir, sprintf('case_%d', i));
+                waveDir = fullfile(caseDir, 'wave');
+                cacheDir = fullfile(waveDir, 'cache');
+                mkdir(cacheDir);
+                csvPath = fullfile(waveDir, 'SPEED.csv');
+                write_text(csvPath, sprintf(['ignored header\n' ...
+                    '2026-01-01 00:00:00.000,71.00\n']));
+                cachePath = fullfile(cacheDir, 'SPEED.mat');
+                switch invalidKinds{i}
+                    case 'metadata'
+                        times = datetime(2026, 1, 1); %#ok<NASGU>
+                        vals = 1; %#ok<NASGU>
+                        save(cachePath, 'times', 'vals');
+                    case 'missing_variables'
+                        unrelated = 1; %#ok<NASGU>
+                        save(cachePath, 'unrelated');
+                        bms.data.CacheManager.writeMetadata( ...
+                            cachePath, {}, struct(), 'csv_timeseries_v2');
+                    case 'corrupt'
+                        write_text(cachePath, 'not a mat file');
+                        bms.data.CacheManager.writeMetadata( ...
+                            cachePath, {}, struct(), 'csv_timeseries_v2');
+                    case 'wrong_types'
+                        times = struct('bad', true); %#ok<NASGU>
+                        vals = 'not numeric'; %#ok<NASGU>
+                        save(cachePath, 'times', 'vals');
+                        bms.data.CacheManager.writeMetadata( ...
+                            cachePath, {}, struct(), 'csv_timeseries_v2');
+                    case 'unparseable_text'
+                        times = ["bad-date"; "still-bad"]; %#ok<NASGU>
+                        vals = [1; 2]; %#ok<NASGU>
+                        save(cachePath, 'times', 'vals');
+                        bms.data.CacheManager.writeMetadata( ...
+                            cachePath, {}, struct(), 'csv_timeseries_v2');
+                    case 'all_nat'
+                        times = [NaT; NaT]; %#ok<NASGU>
+                        vals = [1; 2]; %#ok<NASGU>
+                        save(cachePath, 'times', 'vals');
+                        bms.data.CacheManager.writeMetadata( ...
+                            cachePath, {}, struct(), 'csv_timeseries_v2');
+                    case 'invalid_numeric_time'
+                        times = [NaN; NaN]; %#ok<NASGU>
+                        vals = [1; 2]; %#ok<NASGU>
+                        save(cachePath, 'times', 'vals');
+                        bms.data.CacheManager.writeMetadata( ...
+                            cachePath, {}, struct(), 'csv_timeseries_v2');
+                end
+                cfg = local_hongtang_wind_cfg('prefer_mat');
+
+                selected = bms.data.TimeSeriesLoader.findSeriesFileForPoint( ...
+                    waveDir, 'W1', cfg, 'wind_speed');
+                tc.verifyEqual(selected, csvPath, sprintf('case=%s', invalidKinds{i}));
+            end
+        end
+
+        function preferMatFallsBackAfterSelectedCacheFailsActualRead(tc)
+            waveDir = fullfile(tc.TempDir, '2026-01-01', 'wave');
+            cacheDir = fullfile(waveDir, 'cache');
+            mkdir(cacheDir);
+            csvPath = fullfile(waveDir, 'SPEED.csv');
+            write_text(csvPath, sprintf(['ignored header\n' ...
+                '2026-01-01 00:00:00.000,91.00\n' ...
+                '2026-01-01 00:00:01.000,92.00\n']));
+            cachePath = fullfile(cacheDir, 'SPEED.mat');
+            write_text(cachePath, 'not a readable MAT cache');
+            cfg = local_hongtang_wind_cfg('prefer_mat');
+
+            loader = bms.data.TimeSeriesRangeLoader.donghuaLoader(cfg);
+            loader.find_file = @(varargin) cachePath;
+            loader.find_fallback_file = @(varargin) csvPath;
+            range = struct( ...
+                'start', datetime(2026, 1, 1), ...
+                'end', datetime(2026, 1, 1, 23, 59, 59));
+            meta0 = struct('files', {{}});
+            [t, v, meta] = bms.data.TimeSeriesRangeLoader.readByDay( ...
+                loader, tc.TempDir, 'wave', 'W1', 'wind_speed', range, ...
+                {'2026-01-01'}, meta0);
+
+            tc.verifyEqual(numel(t), 2);
+            tc.verifyEqual(v(:), [91; 92], 'AbsTol', 1e-12);
+            tc.verifyTrue(any(strcmp(meta.rejected_cache_files, cachePath)));
+            tc.verifyTrue(any(strcmp(meta.files, csvPath)));
+        end
+
+        function matOnlyKeepsInvalidCacheFailClosed(tc)
+            waveDir = fullfile(tc.TempDir, 'wave');
+            cacheDir = fullfile(waveDir, 'cache');
+            mkdir(cacheDir);
+            csvPath = fullfile(waveDir, 'SPEED.csv');
+            write_text(csvPath, sprintf(['ignored header\n' ...
+                '2026-01-01 00:00:00.000,81.00\n']));
+            cachePath = fullfile(cacheDir, 'SPEED.mat');
+            write_text(cachePath, 'not a mat file');
+            cfg = local_hongtang_wind_cfg('mat_only');
+
+            selected = bms.data.TimeSeriesLoader.findSeriesFileForPoint( ...
+                waveDir, 'W1', cfg, 'wind_speed');
+
+            tc.verifyEqual(selected, cachePath);
+            tc.verifyNotEqual(selected, csvPath);
         end
 
         function cachedCsvSeriesAllowsMojibakeSourcePathWhenFingerprintMatches(tc)

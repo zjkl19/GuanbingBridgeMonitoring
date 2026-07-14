@@ -77,6 +77,20 @@
     "save_fig": true,
     "lightweight_fig": true,
     "fig_max_points": 50000,
+    "dynamic_raw_modules": {
+      "acceleration": {
+        "sampling_mode": "full",
+        "line_width": 1.0,
+        "render_mode": "line",
+        "gap_mode": "connect"
+      },
+      "cable_accel": {
+        "sampling_mode": "full",
+        "line_width": 1.0,
+        "render_mode": "line",
+        "gap_mode": "connect"
+      }
+    },
     "append_timestamp": false,
     "gap_mode": "connect"
   },
@@ -904,34 +918,28 @@
     },
     "accel_spectrum": {
       "CYX-VIB-G05-005-01": {
-        "target_freqs": [
-          3.2
-        ],
-        "peak_labels": [
-          "一阶"
-        ],
-        "theor_freqs": [
-          2.83
-        ],
-        "theor_labels": [
-          "理论竖向一阶自振频率 2.83Hz"
-        ],
-        "tolerance": 0.15
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 3.05,
+            "search_max_hz": 3.35,
+            "theoretical_hz": 2.83,
+            "theor_label": "理论竖向一阶自振频率 2.83Hz"
+          }
+        ]
       },
       "CYX-VIB-G02-012-01": {
-        "target_freqs": [
-          3.2
-        ],
-        "peak_labels": [
-          "一阶"
-        ],
-        "theor_freqs": [
-          2.83
-        ],
-        "theor_labels": [
-          "理论竖向一阶自振频率 2.83Hz"
-        ],
-        "tolerance": 0.15
+        "peak_orders": [
+          {
+            "order": 1,
+            "label": "一阶",
+            "search_min_hz": 3.05,
+            "search_max_hz": 3.35,
+            "theoretical_hz": 2.83,
+            "theor_label": "理论竖向一阶自振频率 2.83Hz"
+          }
+        ]
       }
     }
   },
@@ -1155,32 +1163,17 @@
       "ylabel": "动应变 (με)"
     }
   },
-  "spectra": {
-    "acceleration": {
-      "target_freqs": [
-        3.2
-      ],
-      "peak_labels": [
-        "一阶"
-      ],
-      "tolerance_hz": 0.15,
-      "note": "崇阳溪主梁振动按一阶搜索频率 3.2Hz 搜索峰值；理论竖向一阶自振频率 2.83Hz 用于参考线。"
-    }
-  },
   "accel_spectrum_params": {
-    "target_freqs": [
-      3.2
-    ],
-    "peak_labels": [
-      "一阶"
-    ],
-    "theor_freqs": [
-      2.83
-    ],
-    "theor_labels": [
-      "理论竖向一阶自振频率 2.83Hz"
-    ],
-    "tolerance": 0.15
+    "peak_orders": [
+      {
+        "order": 1,
+        "label": "一阶",
+        "search_min_hz": 3.05,
+        "search_max_hz": 3.35,
+        "theoretical_hz": 2.83,
+        "theor_label": "理论竖向一阶自振频率 2.83Hz"
+      }
+    ]
   },
   "dynamic_strain": {
     "fc": 2.3148148148148147e-05,
