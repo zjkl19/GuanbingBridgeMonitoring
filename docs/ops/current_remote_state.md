@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-12 09:45 CST
+Last updated: 2026-07-14 23:10 CST
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -16,6 +16,44 @@ state and keep algorithm/report decisions in the normal project docs.
   `Administrator@192.168.254.34:2222` through `ProxyJump gb-133`; direct SSH
   from this workstation is not routable.
 - 126 storage target: `\\192.168.100.126\H$\Guanbingwork`
+
+## gb-133 v1.8.0 Production Cutover
+
+- Cutover completed on 2026-07-14. The production application root is now
+  `F:\Guanbing`, a frozen v1.8.0 packaged installation without `.git`. Its
+  381-file release inventory and the hashes of
+  `桥梁健康监测工作台.exe` and the internal MATLAB runner match the stable
+  GitHub release. Do not service this root with `git pull`; use a verified
+  formal release/update transaction.
+- The previous clean v1.7.39 checkout is preserved at
+  `F:\Guanbing_legacy_pre_v1.8.0_20260714_2252`. Retain it through both a
+  14-day observation window and two successful real production report cycles,
+  using whichever completes later. Do not delete it or re-enable its historical
+  one-shot tasks unless an explicit rollback decision is made.
+- Switch evidence is stored at
+  `F:\Guanbing_v1.8.0_stable_stage_20260714\production_switch_backup\switch_20260714_224954`.
+  It includes 43 scheduled-task XML exports, shortcut backup, package/config
+  hashes and process/task state snapshots. All inspected
+  `Guanbing*`/`Codex_Hongtang*` tasks are disabled; final verification found no
+  running MATLAB, runner, workbench or report-builder process.
+- The active desktop shortcut is
+  `C:\Users\dell\Desktop\桥梁健康监测工作台.lnk` ->
+  `F:\Guanbing\桥梁健康监测工作台.exe`. The standalone report shortcut is
+  retired because reports run inside the workbench.
+- Production-root smoke passed all six configured bridge profiles, native GUI,
+  invalid-CLI handling and the embedded report worker. Evidence is under
+  `F:\Guanbing_v1.8.0_stable_stage_20260714\run_logs\production_smoke_20260714_2300`.
+- The final Guanbing cache validation is under
+  `F:\Guanbing_v1.8.0_stable_stage_20260714\validation_outputs\guanbing_cache_v180_stable_20260714_01`.
+  It used `mat_only` without CSV, extraction, resampling, preprocessing or WIM,
+  completed 10 modules, produced 10 readable statistics workbooks and 149
+  decodable figures, and left the 988-file source tree unchanged. Its actual
+  coverage is only 2026-05-26 through 2026-05-28; the missing 2026-05-29
+  adjacent rolling file is disclosed. This is not a full June acceptance run.
+- Historical paths below that begin `F:\Guanbing\run_logs\...` describe the
+  former checkout at the time those jobs ran. After cutover, their retained
+  on-disk location is beneath
+  `F:\Guanbing_legacy_pre_v1.8.0_20260714_2252\run_logs\...`.
 
 ## gb-126/gb-133 Hongtang Typhoon Template Report
 
@@ -89,10 +127,11 @@ state and keep algorithm/report decisions in the normal project docs.
   Hongtang candidate exposed a report-only `CS1`/`CS12` and `CX1`/`CX12`
   manifest-prefix collision. Do not accept that candidate or continue locked
   media replacement until the v1.7.27 exact-token fix is pulled on 133.
-- The 2-hour production-monitor automation remains active. After the corrected
-  Zhishan April/Hongtang Q2 reports pass rendered QA, continue sequentially
-  with Zhishan May and June full reruns. June must disclose the missing
-  `2026-07-01` lookahead and incomplete June 30 tail.
+- Historical note: the former 2-hour production monitor and its sequential
+  Zhishan reruns completed and are no longer active. The final switch audit
+  confirmed all inspected historical Guanbing/Codex tasks are disabled. The
+  June report disclosure for the missing `2026-07-01` lookahead and incomplete
+  June 30 tail remains part of the accepted historical evidence.
 
 ## gb-133 Guanbing G05-006 High-Pass Boxplot Rerun
 
@@ -389,7 +428,7 @@ state and keep algorithm/report decisions in the normal project docs.
 - Use this machine for office file cleanup and light remote-control tasks only;
   avoid heavy MATLAB/report jobs unless explicitly requested.
 
-## Active Remote Tasks On 133
+## Historical Remote Tasks On 133 (Completed/Disabled)
 
 ### Hongtang Bridge Q2 SL-8 Negative Strain Cleaning
 

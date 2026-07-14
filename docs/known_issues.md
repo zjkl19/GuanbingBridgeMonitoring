@@ -36,9 +36,9 @@ items still require engineering review.
 
 ## v1.8.0 Stable Source And Validation Boundaries
 
-Status: stable package and local release gates complete with the bridge-specific
-limits below; the 133 production switch remains conditional on the final
-Guanbing June cache validation and rollback-safe task/process migration.
+Status: stable package gates and the rollback-safe 133 production switch are
+complete. The bridge-specific source, engineering and report-acceptance limits
+below remain in force.
 
 - Ordinary GUI runs should remain on source mode `auto`: CSV has priority and a
   valid MAT cache is used when CSV is absent. Do not instruct ordinary users to
@@ -67,10 +67,12 @@ Guanbing June cache validation and rollback-safe task/process migration.
   source-identification caveat until authoritative channel documentation is
   obtained and must not be generalized to uninspected historical partitions.
 - Local validation order is Hongtang -> Guanbing -> Zhishan -> Shuixianhua.
-  Hongtang has an accepted RC2 analysis/report baseline. Guanbing's three-day
-  RC3 source sample and Zhishan April RC3 source analysis are complete but do
-  not constitute full-period report acceptance; Guanbing covers only part of
-  May 26-28. A fresh Shuixianhua May candidate report has now been generated
+  Hongtang has an accepted RC2 analysis/report baseline. Guanbing's local RC3
+  source sample plus the final 133 v1.8.0 validation and Zhishan April RC3
+  source analysis are complete but do not constitute full-period report
+  acceptance; Guanbing covers only May 26-28 and lacks the May 29 adjacent
+  rolling file needed to close the final day. A fresh Shuixianhua May candidate
+  report has now been generated
   with 47/47 locked May figures and a complete 10-point temperature table, but
   it remains pending user review and must not be described as a signed client
   deliverable.
@@ -108,22 +110,21 @@ Guanbing June cache validation and rollback-safe task/process migration.
 
 ## PySide6 Workbench Production Migration Boundaries
 
-Status: stable local release gate passed; eligible for a staged, rollback-safe
-production switch after the remaining 133 validation below, but not for an
-in-place overwrite or deletion of the legacy tree.
+Status: staged rollback-safe production switch completed on 2026-07-14. The
+legacy tree is retained for rollback and must not yet be deleted.
 
 - The mutable `F:\Guanbing_v1.8.0-rc1` candidate has a report-builder hash that
   no longer matches its original release manifest and must never be promoted
-  as the stable installation. Deploy the immutable v1.8.0 archive to a fresh
-  staging directory, verify every inventoried file and run the final Guanbing
-  June cache comparison before switching the production path.
-- A production switch must preserve the clean v1.7.39 `F:\Guanbing` directory
-  under a timestamped legacy name, freshly enumerate and export every
-  scheduled-task XML whose action targets the old root, disable those tasks,
-  audit and stop only confirmed completed
-  old-root processes, and update the desktop shortcut. Keep the rollback tree
-  for at least 7-14 days or 1-2 real report cycles; do not re-enable historical
-  one-shot tasks wholesale.
+  as the stable installation. It remains historical candidate evidence only.
+  The immutable v1.8.0 archive was instead verified and installed at
+  `F:\Guanbing`.
+- The former clean v1.7.39 checkout is retained at
+  `F:\Guanbing_legacy_pre_v1.8.0_20260714_2252`. Forty-three historical task
+  definitions were exported before cutover; all inspected
+  `Guanbing*`/`Codex_Hongtang*` tasks remain disabled and no related process was
+  running after final smoke. Retain the rollback tree through both a 14-day
+  observation window and two successful real report cycles, using whichever
+  completes later; do not re-enable historical one-shot tasks wholesale.
 - Candidate production-data validation must keep task names, logs and outputs
   separate. Hongtang Q2 analysis/report and Guanbing analysis may not overwrite
   the accepted old-version statistics, figures or reports during comparison.
@@ -152,7 +153,10 @@ in-place overwrite or deletion of the legacy tree.
   bounds. Compiled-runner-backed automatic-cleaning
   proposals and curve previews, post-filter cleaning, offsets, grouped plots,
   common plotting and spectrum overrides are also migrated.
-  Continue using the legacy MATLAB GUI for production configuration.
+  The unified PySide6 workbench is now the production entry on 133. Keep the
+  retained MATLAB-GUI checkout only as the bounded rollback path during the
+  observation window; do not operate both interfaces against the same live
+  output tree concurrently.
 - The Python module key/option mapping mirrors MATLAB and is protected by a
   source-contract test against `bms.module.ModuleRegistry`; future module
   additions must update both sides or the test will fail.
@@ -162,7 +166,8 @@ in-place overwrite or deletion of the legacy tree.
   installed-runtime verification, but the bridge-by-bridge evidence is still
   stratified: only Hongtang has an accepted full analysis/report baseline;
   Guanbing, Zhishan and Shuixianhua currently have the source-analysis evidence
-  described above. The legacy production path therefore remains the fallback.
+  described above. The retained legacy tree is an emergency rollback copy, not
+  the ordinary production entry and not evidence of full-period report parity.
 - The frozen shell itself now passes a catalog-driven all-profile matrix: every
   configured project loads, each report/analysis-only capability matches the
   shared catalog, and all packaged catalog/config/template assets retain
@@ -177,9 +182,10 @@ in-place overwrite or deletion of the legacy tree.
   provenance record. Explicit visual approval remains mandatory.
 - Remote task submission/monitoring is not exposed as a general workbench
   feature. The user explicitly authorized one isolated 133 RC comparison under
-  `F:\Guanbing_v1.8.0-rc1`; it uses independent task names, cache-only views,
-  logs and outputs and does not change the old production checkout. This
-  one-off validation does not expand the GUI's supported scheduling scope.
+  `F:\Guanbing_v1.8.0-rc1`; it used independent task names, cache-only views,
+  logs and outputs and did not change the then-current production checkout.
+  That RC comparison is superseded by the stable cutover. The one-off
+  validation does not expand the GUI's supported scheduling scope.
 - The local task center is intentionally a bounded recovery index, not a
   filesystem-wide scheduler database. It scans only direct job directories
   under the currently selected data root and contexts explicitly opened in the
@@ -188,11 +194,11 @@ in-place overwrite or deletion of the legacy tree.
   changed configuration is shown as a warning for operator review, while an
   unknown bridge or unreadable context is blocked. Restoring a warning does not
   waive the ordinary launch/report validation gates.
-- GitHub auto-update code is present, and `v1.8.0-rc1` is published only as a
-  Pre-release. Stable clients deliberately ignore prereleases and tags alone.
-  Before publishing the first stable update, rerun the real-ZIP disposable
-  update-cycle validator and
-  review its native screenshot/JSON evidence. The 2026-07-13 development ZIP
+- GitHub auto-update code is present. Stable `v1.8.0` is published as a formal
+  GitHub Release; stable clients deliberately ignore prereleases and tags
+  without an eligible release asset. The real-ZIP disposable update-cycle
+  validator and native screenshot/JSON evidence passed before publication and
+  production cutover. The 2026-07-13 development ZIP
   passed frozen installation, replacement of the warning/task-history managed
   screenshots, migration from the legacy English EXE to the Chinese EXE, and
   exact fault-injected rollback. Existing configs
@@ -212,7 +218,8 @@ in-place overwrite or deletion of the legacy tree.
 
 ## Workbench Update Backup Retention
 
-Status: explicit operator-controlled retention implemented locally; production rollout still pending.
+Status: explicit operator-controlled retention implemented and initial 133
+production cutover completed; rollback retention window is active.
 
 Successful updates retain a timestamped sibling backup of the full previous
 installation so rollback remains possible after restart. The packaged
@@ -223,13 +230,16 @@ non-symlink sibling with the transaction naming pattern, a workbench EXE and a
 readable semantic-version release manifest. Malformed, incomplete and manual
 directories are displayed as retained or ignored and are never removed by the
 cleanup function. Failed transactions still restore the exact old tree and
-delete their pending candidate. This behavior must be exercised once more on
-the actual installation layout before the first stable GitHub Release rollout.
+delete their pending candidate. This behavior passed the stable-package
+disposable update/rollback gate. The manually retained pre-v1.8.0 production
+tree on 133 remains outside automatic cleanup until the stated observation
+window closes.
 
 ## Embedded Report QC Boundary
 
-Status: implemented locally; packaged protocol/gate/visual smokes and five-profile
-historical visual matrix covered; production-eligible fresh embedded inputs remain pending.
+Status: embedded report runtime is deployed and its production-root smoke
+passes. Full-period bridge-specific report acceptance remains stratified and is
+not implied by the application cutover.
 
 The workbench now runs the same report dispatch service used by the legacy
 report GUI in a background process and records stage/status/result JSON. QC
@@ -240,13 +250,14 @@ flags blank pages or raster-boundary contact. Five historical samples totaling
 371 pages were rendered; four passed automatically. The Shuixianhua sample has
 two genuinely blank pages (3 and 10), retained as a warning rather than silently
 accepted. Contact-sheet/manual page review remains the acceptance step; newly
-generated embedded reports still need profile-by-profile comparison before the
-legacy production workflow can retire.
+generated embedded reports still need profile-by-profile comparison before a
+specific bridge/period is accepted as a deliverable.
 
-Installed-runtime visual execution has been verified on the 40-page Guanbing
-sample: the packaged report EXE completed in 25.6 seconds and matched source
-mode with no blank-page or edge warnings. The other four profiles have source
-render evidence but still need fresh packaged embedded-build comparison.
+Installed-runtime visual execution was verified on the 40-page Guanbing sample:
+the embedded report worker completed in 25.6 seconds and matched source mode
+with no blank-page or edge warnings. Production-root smoke now also verifies
+the embedded worker in the unified EXE; this still does not replace fresh,
+full-period report comparison for each bridge.
 
 Do not treat an old successful analysis manifest as report-ready merely because
 its module status is `ok`. The child process now requires non-empty formal
@@ -258,8 +269,10 @@ Generator-only fallback builds are explicitly labelled and are not an approval
 substitute. Their current deltas are: Hongtang 108 pages/182 media (10 missing,
 4 warnings), Jiulongjiang 104/147 (11 missing, 1 warning), Shuixianhua 67/85
 (blank pages 10 and 42, synthesized legacy manifest), and Zhishan 46/57
-(missing figure anchors 2-5 and 2-6). These must be resolved against complete
-context-matched results before the legacy report workflow can retire.
+(missing figure anchors 2-5 and 2-6). These historical samples must be resolved
+against complete context-matched results before they can be cited as current
+bridge-specific acceptance; they do not block the completed v1.8.0 application
+deployment.
 
 Historical RC1/RC2 packaging rebuilt `BridgeReportBuilder.exe` whenever report
 Python/config inputs were newer; that guard prevented a stale copied report EXE

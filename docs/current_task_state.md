@@ -6,6 +6,42 @@ Last updated: 2026-07-14
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-14 v1.8.0 Production Cutover On gb-133
+
+- The rollback-safe production switch is complete. `F:\Guanbing` is now the
+  frozen v1.8.0 packaged installation, not a git checkout. Its 381-file
+  schema-v3 inventory, Chinese-named workbench EXE and internal MATLAB runner
+  match the stable release hashes recorded below. Future production upgrades
+  must use a verified formal release/update transaction rather than `git pull`
+  in this directory.
+- The former clean v1.7.39 checkout is retained intact at
+  `F:\Guanbing_legacy_pre_v1.8.0_20260714_2252`. Retain it through both a
+  14-day observation window and two successful real production report cycles;
+  use whichever completes later. The switch evidence, 43 exported
+  scheduled-task XML files, shortcut backup and state snapshots are under
+  `F:\Guanbing_v1.8.0_stable_stage_20260714\production_switch_backup\switch_20260714_224954`.
+- All historical `Guanbing*`/`Codex_Hongtang*` scheduled tasks inspected for
+  the switch are disabled and none is running. Sixteen completed orphaned
+  old-root launcher processes were audited and removed; the final read-only
+  check found no MATLAB, analysis-runner, workbench or report-builder process.
+  Do not re-enable the historical one-shot tasks wholesale.
+- The desktop entry is now
+  `C:\Users\dell\Desktop\桥梁健康监测工作台.lnk`, targeting
+  `F:\Guanbing\桥梁健康监测工作台.exe` with `F:\Guanbing` as its working
+  directory. The retired standalone report shortcut was backed up and removed;
+  report generation remains embedded in the unified workbench.
+- Production-root CLI/GUI smokes passed for Guanbing, Hongtang, Jiulongjiang,
+  Shuixianhua, Chongyangxi and Zhishan. The embedded headless report worker,
+  invalid-CLI handling and native Hongtang report-page screenshot also passed;
+  configuration paths resolve through the `prod_133` machine profile.
+- The final Guanbing cache validation used only the source actually present on
+  133, `2026-05-26` through `2026-05-28`; it is not a full June acceptance
+  run. It completed all 10 requested modules, produced 10 readable statistics
+  workbooks and 149 decodable figures, and closed all eight formal acceleration
+  plot count records. The 988-file source inventory was unchanged. The missing
+  `2026-05-29` adjacent rolling file is disclosed, so the May 28 tail was not
+  fabricated.
+
 ## 2026-07-14 v1.8.0 Stable Release Gate
 
 - The `dev/pyside6-workbench` tree has completed the stable-release gate. The
@@ -52,15 +88,11 @@ This file is the handoff point for long Codex sessions. New conversations should
   task. A missing, wrong-period, duplicate same-period or point-mismatched
   summary now fails closed instead of silently reusing another month's wind
   result.
-- Production replacement on machine 133 is authorized only as a rollback-safe
-  switch after the stable archive is reverified there and the pending Guanbing
-  June `mat_only` cache validation passes. The current old production tree
-  `F:\Guanbing` is a clean `v1.7.39` checkout. It must be renamed and retained
-  as a timestamped rollback tree, not overwritten or deleted. Before the
-  switch, export and disable old-root scheduled tasks, audit and stop only the
-  exact completed old-root processes, and update the desktop entry to the
-  unified workbench. Retain the old tree for at least 7-14 days or 1-2 real
-  production report cycles.
+- The machine-133 production replacement described above has completed using
+  the verified stable archive and a retained timestamped rollback tree. The
+  available Guanbing validation scope is explicitly the May 26-28 cache sample,
+  not a full June run; a later full-period production run remains a separate
+  data/report acceptance activity.
 
 ## 2026-07-14 Shuixianhua May Report Period Repair
 
@@ -273,6 +305,9 @@ This file is the handoff point for long Codex sessions. New conversations should
 
 ## 2026-07-13 v1.8.0-rc1 All-Profile Workbench Candidate
 
+Historical prerelease snapshot; superseded by the stable v1.8.0 production
+cutover recorded at the top of this file.
+
 - The workbench/profile/release gates no longer assume six bridges or a fixed
   5+1 report-capability split. The installed matrix is derived from
   `config/bridge_profiles.json`, requires exactly the catalog identities and
@@ -358,17 +393,19 @@ This file is the handoff point for long Codex sessions. New conversations should
   round-trippable values such as `1.686` without changing the stored or MATLAB
   calculation value; a Qt regression protects the A10-Y row.
 
-## 2026-07-12 PySide6 Unified Workbench Migration (dev branch)
+## 2026-07-12 PySide6 Unified Workbench Migration (historical dev phase)
 
-Current local development state:
+Historical migration state, superseded by the v1.8.0 merge, release and 133
+production cutover recorded above:
 
 - The recurring `pyside6` high-saturation refactor automation is paused at the
   user's request because this computer is currently needed for frequent manual
   use. Do not resume it until the user explicitly asks.
-- Development is isolated on branch `dev/pyside6-workbench`, based on tagged
-  production release `v1.7.39`; the branch is published to `origin` while 133
-  remains on its independent production `main`. The legacy MATLAB GUI remains
-  the production entry.
+- Development was isolated on branch `dev/pyside6-workbench`, based on tagged
+  production release `v1.7.39`. The completed branch was merged to `main` and
+  released as v1.8.0. On 133 the unified Chinese-named workbench is now the
+  production entry; the legacy MATLAB GUI exists only in the retained rollback
+  checkout during the observation window.
 - `workbench/` now provides a four-page PySide6 workbench for project/analysis,
   explicit pre-warning-value configuration, manifest/plot review, and report
   handoff. `start_workbench.py` is the source entry; the packaged local entry is
@@ -712,15 +749,17 @@ Current local development state:
   regression now parses all runtime configs and profile catalogs. Missing
   report test/runtime dependencies (`matplotlib`, `numpy`, `pypdf`) are pinned.
 
-Remaining after the packaged embedded-report/provenance milestone:
+Remaining bridge/period acceptance work after the application cutover:
 
 - make locally available (or deliberately stage from an approved production
   bundle) complete context-matched analysis manifests and every referenced
   formal `.plot.json`, then generate through the embedded task for all five
   profiles and resolve the recorded report-manifest/page/media differences;
-- complete cross-bridge production-data comparison before any 133 deployment
-  or legacy-GUI retirement; the local all-profile installed-runtime matrix is
-  complete.
+- complete the outstanding context-matched, full-period bridge/report
+  comparisons before citing those periods as accepted deliverables. Application
+  deployment and the ordinary legacy-GUI retirement are complete, but the
+  May 26-28 Guanbing sample must not be generalized to a full June or all-bridge
+  report acceptance.
 
 ## 2026-07-12 Hongtang Typhoon Bavi Template Report
 
@@ -831,9 +870,10 @@ Current verified implementation state:
   report-GUI Zhishan source self-test reports `ok=true`, `version=v1.7.27`;
   MATLAB main-GUI and plot-settings smoke tests pass `8/8`; Python compileall
   and `git diff --check` pass.
-- Production report regeneration remains pending until v1.7.27 is published
-  and pulled on 133. Final reports must use locked-media bindings with
-  `require_source_provenance=true`, then be rendered and checked page by page.
+- Historical pre-publication note: report regeneration was pending at this
+  point. It was subsequently completed and superseded by later validated
+  releases and the stable cutover. Future final reports must still use locked
+  media bindings and be rendered and checked page by page.
 
 ## 2026-07-10 Guanbing G05-006 Dynamic-Strain Boxplot Restore
 

@@ -1,6 +1,6 @@
 # Remote Machine Inventory
 
-Last updated: 2026-07-04
+Last updated: 2026-07-14
 
 ## Principles
 
@@ -15,7 +15,7 @@ Last updated: 2026-07-04
 
 | Alias | Host | Role | Preferred access | Current status | Notes |
 |---|---:|---|---|---|---|
-| `gb-133` | `192.168.100.133` | Main compute worker and MATLAB runner | SSH `dell@192.168.100.133:2222` | Active | Guanbing root `F:\Guanbing`; Zhishan data under `F:\芝山大桥数据`; Hongtang data under `E:\洪塘大桥数据`. |
+| `gb-133` | `192.168.100.133` | Main compute worker and MATLAB runner | SSH `dell@192.168.100.133:2222` | Active | Frozen v1.8.0 app root `F:\Guanbing`; rollback checkout `F:\Guanbing_legacy_pre_v1.8.0_20260714_2252`; Zhishan data under `F:\芝山大桥数据`; Hongtang data under `E:\洪塘大桥数据`. |
 | `gb-126` | `192.168.100.126` | Large storage server and data source | WinRM as `Administrator`; SMB admin share | Active | Storage target `H:\Guanbingwork`; source exports under `H:\DHtest\定时导出`; RDP currently available through VPN; SSH port 22 timed out from this workstation on 2026-07-01, so keep SSH disabled until repaired. |
 | `gb-office` | `192.168.254.34` via `gb-133` | User office workstation, light-duty remote control only | SSH `Administrator@192.168.254.34:2222` with `ProxyJump gb-133` | Active | Device name `DESKTOP-500FVB6`; CPU Hygon C86-3G, RAM 16 GB, GPU Glenfly Arise1020 2 GB. Direct SSH from this workstation is not routable; use 133 as the jump host. Windows `sshd` service is running on TCP 2222 and starts automatically. The earlier fallback task `Guanbing-OpenSSH-2222-OfficePC-Fallback` is left as a manual recovery path only and is not running. Do not schedule heavy MATLAB/report workloads here unless explicitly requested. |
 | `site-ipc-*` | TBD | Site industrial PCs | Reverse tunnel or VPN preferred | Planned | If ISP NAT prevents inbound ports, use VPN/overlay or VPS reverse tunnel. |
@@ -35,9 +35,14 @@ Current expected behavior:
   `F:\芝山大桥数据`, and `F:\水仙花大桥数据`;
 - if a production host is renamed, the resolver can fall back to an existing
   path match when hostname matching fails;
-- the MATLAB GUI shows the active path-profile decision on the run page so the
-  user can see whether a path came from profile resolution, a preset, or manual
-  input.
+- the unified PySide6 workbench shows the active path-profile decision on the
+  run page so the user can see whether a path came from profile resolution, a
+  preset, or manual input.
+
+`F:\Guanbing` on `gb-133` is a packaged production installation, not a git
+checkout. Upgrade it through a verified GitHub release/update transaction. Keep
+the timestamped rollback checkout through both a 14-day observation window and
+two successful real production report cycles, using whichever completes later.
 
 ## Known Commands
 
