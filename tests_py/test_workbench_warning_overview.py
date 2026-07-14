@@ -13,6 +13,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from workbench.config_editor import ConfigEditorSession, extract_effective_warning_rows
 
 try:
+    from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication, QMessageBox
 
     from workbench.config_tab import AlarmBoundsEditorWidget
@@ -183,7 +184,7 @@ class WorkbenchWarningOverviewGuiTests(unittest.TestCase):
                     row_index = next(
                         index
                         for index in range(widget.effective_table.rowCount())
-                        if widget.effective_table.item(index, 9).text() == config_path
+                        if widget.effective_table.item(index, 9).data(Qt.UserRole) == config_path
                     )
                     widget.effective_table.setCurrentCell(row_index, 0)
                     with patch("workbench.config_tab.QInputDialog.getText", return_value=(value, True)):

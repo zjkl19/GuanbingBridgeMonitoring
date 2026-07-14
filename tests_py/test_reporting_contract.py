@@ -83,6 +83,43 @@ class TestReportingContract(unittest.TestCase):
         self.assertEqual(context["source"], "analysis_manifest")
         self.assertEqual(context["module_count"], 2)
 
+    def test_climate_point_resolution_metadata_survives_manifest_context(self):
+        climate_modules = [
+            {
+                "key": "temperature",
+                "points": ["T-1", "T-2", "T-3"],
+                "point_count": 3,
+                "points_source": "runtime_default",
+            },
+            {
+                "key": "humidity",
+                "points": ["H-1", "H-2", "H-3"],
+                "point_count": 3,
+                "points_source": "runtime_default",
+            },
+        ]
+        context = reporting_contract_context(None, {
+            "manifest": {
+                "run_preflight": {
+                    "reporting_contract": {
+                        "schema_version": 1,
+                        "summary": {"module_count": 2, "point_count": 6},
+                        "modules": climate_modules,
+                    }
+                }
+            }
+        })
+
+        self.assertEqual(context["summary"]["point_count"], 6)
+        self.assertEqual(
+            [item["points_source"] for item in context["contract"]["modules"]],
+            ["runtime_default", "runtime_default"],
+        )
+        self.assertEqual(
+            [item["point_count"] for item in context["contract"]["modules"]],
+            [3, 3],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

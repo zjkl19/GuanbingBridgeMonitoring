@@ -20,6 +20,7 @@ from .updater import (
     launch_staged_installer,
     stage_verified_update,
 )
+from .operator_text import operator_friendly_text
 from .version import app_version
 
 
@@ -262,15 +263,20 @@ class UpdateController:
         try:
             launch_staged_installer(staged, self.project_root, os.getpid())
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self.window, "无法启动更新安装", str(exc))
+            QMessageBox.critical(
+                self.window,
+                "无法启动更新安装",
+                operator_friendly_text(exc),
+            )
             return
         QApplication.quit()
 
     def _operation_failed(self, message: str) -> None:
+        display_message = operator_friendly_text(message)
         if "尚未发布正式 Release" in message:
             self.settings.setValue("updates/last_check_epoch", time.time())
         if self.manual:
             if "尚未发布正式 Release" in message:
-                QMessageBox.information(self.window, "暂无正式更新", message)
+                QMessageBox.information(self.window, "暂无正式更新", display_message)
             else:
-                QMessageBox.warning(self.window, "更新检查失败", message)
+                QMessageBox.warning(self.window, "更新检查失败", display_message)

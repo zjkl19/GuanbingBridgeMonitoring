@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from .task_history import TaskHistoryEntry, TaskHistoryIndex
+from .operator_text import operator_state_label
 
 
 HEALTH_LABELS = {"ready": "可恢复", "warning": "需注意", "invalid": "不可恢复"}
@@ -60,7 +61,7 @@ class TaskHistoryWidget(QWidget):
         self.state_filter = QComboBox()
         self.state_filter.addItem("全部状态", "")
         for state in ("running", "completed", "failed", "stopped", "draft", "warning", "invalid"):
-            self.state_filter.addItem(state, state)
+            self.state_filter.addItem(operator_state_label(state), state)
         self.state_filter.currentIndexChanged.connect(self._apply_filters)
         filters.addWidget(self.state_filter)
         filters.addWidget(QLabel("搜索"))
@@ -123,8 +124,8 @@ class TaskHistoryWidget(QWidget):
         base = Path("C:/BridgeMonitoring/demo")
         self.entries = (
             TaskHistoryEntry(base / "running/job_context.json", "hongtang_q2", "hongtang", "洪塘大桥", "2026-04-01 至 2026-06-30", "2026-07-13T08:12:00+08:00", "running", "索力加速度 7/11；64%", "blocked", "", "ready", (), True),
-            TaskHistoryEntry(base / "done/job_context.json", "zhishan_april", "zhishan", "芝山大桥", "2026-04-01 至 2026-04-30", "2026-07-13T07:50:00+08:00", "completed", "11/11；100%", "completed", "QC=passed", "ready", (), True),
-            TaskHistoryEntry(base / "drift/job_context.json", "guanbing_june", "guanbing", "管柄大桥", "2026-06-01 至 2026-06-30", "2026-07-12T23:10:00+08:00", "completed", "10/10；100%", "blocked", "", "warning", ("配置SHA256已变化",), True),
+            TaskHistoryEntry(base / "done/job_context.json", "zhishan_april", "zhishan", "芝山大桥", "2026-04-01 至 2026-04-30", "2026-07-13T07:50:00+08:00", "completed", "11/11；100%", "completed", "质量检查：通过", "ready", (), True),
+            TaskHistoryEntry(base / "drift/job_context.json", "guanbing_june", "guanbing", "管柄大桥", "2026-06-01 至 2026-06-30", "2026-07-12T23:10:00+08:00", "completed", "10/10；100%", "blocked", "", "warning", ("配置内容已变化",), True),
             TaskHistoryEntry(base / "bad/job_context.json", "broken_context", "", "不可读取", "", "2026-07-12T20:00:00+08:00", "invalid", "", "invalid", "", "invalid", ("任务方案不可读：JSON格式错误",), False),
         )
         self._apply_filters()
@@ -170,8 +171,12 @@ class TaskHistoryWidget(QWidget):
         for entry in rows:
             row = self.table.rowCount()
             self.table.insertRow(row)
-            analysis = entry.analysis_state + (f"；{entry.analysis_detail}" if entry.analysis_detail else "")
-            report = entry.report_state + (f"；{entry.report_detail}" if entry.report_detail else "")
+            analysis = operator_state_label(entry.analysis_state) + (
+                f"；{entry.analysis_detail}" if entry.analysis_detail else ""
+            )
+            report = operator_state_label(entry.report_state) + (
+                f"；{entry.report_detail}" if entry.report_detail else ""
+            )
             detail = "；".join(entry.issues) if entry.issues else str(entry.context_path)
             values = (
                 entry.updated_at.replace("T", " ")[:19],

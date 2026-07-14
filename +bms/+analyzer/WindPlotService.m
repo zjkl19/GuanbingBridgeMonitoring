@@ -105,6 +105,14 @@ classdef WindPlotService
             if isempty(times) || isempty(v10) || numel(times) ~= numel(v10)
                 return;
             end
+            if isdatetime(times)
+                validTime = ~isnat(times(:));
+            else
+                validTime = isfinite(times(:));
+            end
+            if ~any(validTime & isfinite(v10(:)))
+                return;
+            end
             fig = figure('Position', [100 100 1100 500]);
             plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
             [timesPlot, v10Plot] = prepare_plot_series(times, v10, plotOpts);

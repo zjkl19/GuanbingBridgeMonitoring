@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .config_layers import load_layered_config
 from .models import file_sha256
 from .profiles import load_profiles
 
@@ -80,7 +81,21 @@ def load_installed_profile_matrix(project_root: Path) -> InstalledProfileMatrix:
     for profile in profiles:
         report_capable = bool(profile.report_template and profile.report_gui_type)
         expected_report_capable += int(report_capable)
-        asset_paths.add(profile.config_path(project_root))
+        config_path = profile.config_path(project_root)
+        try:
+            _config, dependencies = load_layered_config(config_path)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise ProfileAuditError(
+                f"桥梁配置及其依赖无法读取：{profile.bridge_id}: {exc}"
+            ) from exc
+        for dependency in dependencies:
+            try:
+                dependency.resolve().relative_to(project_root)
+            except ValueError as exc:
+                raise ProfileAuditError(
+                    f"桥梁配置依赖超出安装目录：{profile.bridge_id}: {dependency}"
+                ) from exc
+            asset_paths.add(dependency.resolve())
         if profile.report_template:
             asset_paths.add(profile.template_path(project_root))
         if bool(rows_by_id[profile.bridge_id].get("report_capable")) is not report_capable:

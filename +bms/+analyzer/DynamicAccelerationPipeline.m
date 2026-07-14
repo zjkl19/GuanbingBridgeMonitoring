@@ -16,6 +16,7 @@ classdef DynamicAccelerationPipeline
             if nargin < 6 || isempty(subfolder)
                 subfolder = bms.config.ConfigReader.getSubfolder(cfg, spec.subfolderKey, spec.defaultSubfolder);
             end
+            cfg = bms.analyzer.DynamicAccelerationSeriesService.modulePlotConfig(cfg, spec);
 
             timeStart = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
             fprintf('开始时间: %s\n', char(timeStart));

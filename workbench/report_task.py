@@ -29,27 +29,18 @@ def report_job_command(
     status_path: Path,
     result_path: Path,
 ) -> tuple[str, ...]:
-    script = project_root / "reporting" / "report_job_cli.py"
-    packaged = project_root / "reporting" / "dist" / "BridgeReportBuilder" / "BridgeReportBuilder.exe"
     venv_python = project_root / "reporting" / ".venv" / "Scripts" / "python.exe"
     common = (
+        "--run-report-job",
+        "--project-root", str(project_root),
         "--job-context", str(context_path),
-        "--status", str(status_path),
-        "--result", str(result_path),
+        "--report-status", str(status_path),
+        "--report-result", str(result_path),
     )
-    if venv_python.is_file() and script.is_file():
-        return (str(venv_python), str(script), *common)
-    if not getattr(sys, "frozen", False) and script.is_file():
-        return (sys.executable, str(script), *common)
-    if packaged.is_file():
-        return (
-            str(packaged),
-            "--run-job-context",
-            "--job-context", str(context_path),
-            "--report-status", str(status_path),
-            "--report-result", str(result_path),
-        )
-    raise FileNotFoundError("No compatible embedded report runtime is available")
+    if getattr(sys, "frozen", False):
+        return (sys.executable, *common)
+    python = venv_python if venv_python.is_file() else Path(sys.executable)
+    return (str(python), "-m", "workbench", *common)
 
 
 def launch_report_job(context: JobContext, context_path: Path | None = None) -> ReportLaunchResult:
@@ -62,7 +53,9 @@ def launch_report_job(context: JobContext, context_path: Path | None = None) -> 
     for stale in (status_path, result_path):
         stale.unlink(missing_ok=True)
     command = report_job_command(Path(context.project_root), path, status_path, result_path)
-    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+    creationflags = 0
+    if os.name == "nt":
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
     with stdout_path.open("ab") as stdout, stderr_path.open("ab") as stderr:
         process = subprocess.Popen(
             command,

@@ -32,6 +32,7 @@ from report_artifact_resolver import (
 )
 from report_build_manifest import write_report_build_manifest
 from report_context import ReportBuildContext
+from config_loader import load_report_config
 
 
 @dataclass
@@ -89,7 +90,7 @@ def load_json(path: Path) -> dict:
     # Windows PowerShell 5 writes UTF-8 text with a BOM by default.  Accepting
     # utf-8-sig keeps CLI/GUI generated configs interoperable while remaining
     # fully compatible with ordinary BOM-less UTF-8 JSON.
-    return json.loads(path.read_text(encoding="utf-8-sig"))
+    return load_report_config(path)
 
 
 def load_sheet_rows(path: Path) -> list[dict]:

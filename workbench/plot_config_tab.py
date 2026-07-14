@@ -35,6 +35,83 @@ from .plot_config import (
 )
 
 
+PLOT_FIELD_LABELS = {
+    "save_fig": "保存可编辑图文件",
+    "lightweight_fig": "可编辑图使用轻量数据",
+    "fig_max_points": "普通图最大绘制点数",
+    "append_timestamp": "输出文件名追加时间戳",
+    "gap_mode": "数据缺口连接方式",
+    "gap_break_factor": "断线判定间隔倍数",
+    "dynamic_raw_sampling_mode": "高频原始图采样方式",
+    "dynamic_raw_fig_max_points": "高频原始图最大绘制点数",
+    "dynamic_raw_min_points_per_day": "高频原始图每日最低点数",
+    "dynamic_raw_line_width": "高频原始曲线线宽",
+    "dynamic_raw_render_mode": "高频原始图绘制方式",
+    "dynamic_raw_band_bins": "密集带状图分箱数",
+    "dynamic_raw_band_line_width": "密集带状图边线宽度",
+    "dynamic_raw_trace_points": "密集带状图叠加轨迹点数",
+}
+
+PLOT_TYPE_LABELS = {
+    "bool": "开关（是/否）",
+    "int": "整数",
+    "float": "数值",
+    "enum:connect|break": "连续连接 / 按缺口断开",
+    "enum:capped|full": "限量采样 / 完整数据",
+    "enum:line|dense_band": "普通曲线 / 密集带状",
+}
+
+PLOT_VALUE_LABELS = {
+    "gap_mode": {"connect": "连续连接", "break": "按数据缺口断开"},
+    "dynamic_raw_sampling_mode": {"capped": "限量采样", "full": "完整数据"},
+    "dynamic_raw_render_mode": {"line": "普通曲线", "dense_band": "密集带状"},
+}
+
+PLOT_DESCRIPTION_LABELS = {
+    "save_fig": "同时保存后续可继续编辑的图文件",
+    "lightweight_fig": "可编辑图文件仅保留展示所需数据，以减小文件体积",
+    "fig_max_points": "普通图允许绘制的最大点数",
+    "append_timestamp": "在输出文件名末尾增加生成时间",
+    "gap_mode": "数据缺口处连续连接或按缺口断开",
+    "gap_break_factor": "当相邻采样间隔超过该倍数时判定为缺口",
+    "dynamic_raw_sampling_mode": "高频原始图使用限量采样或完整数据",
+    "dynamic_raw_fig_max_points": "限量采样时，高频原始图允许绘制的总点数",
+    "dynamic_raw_min_points_per_day": "限量采样时，每个自然日至少保留的点数",
+    "dynamic_raw_line_width": "高频原始曲线的线宽",
+    "dynamic_raw_render_mode": "高频原始图使用普通曲线或密集带状图",
+    "dynamic_raw_band_bins": "密集带状图沿时间轴划分的区间数量",
+    "dynamic_raw_band_line_width": "密集带状图边界线宽",
+    "dynamic_raw_trace_points": "密集带状图叠加曲线的点数；0 表示不叠加",
+}
+
+SPECTRUM_MODULE_LABELS = {
+    "accel_spectrum": "加速度频谱",
+    "cable_accel_spectrum": "索力加速度频谱",
+}
+SPECTRUM_SCOPE_LABELS = {"default": "模块默认", "point": "测点专用"}
+SPECTRUM_SCOPE_KEYS = {label: key for key, label in SPECTRUM_SCOPE_LABELS.items()}
+SPECTRUM_SOURCE_LABELS = {
+    "params": "模块默认配置",
+    "params_legacy": "旧版模块默认配置",
+    "per_point": "测点专用配置",
+    "兼容配置": "旧版兼容配置",
+    "new": "本次新建",
+}
+
+
+def _plot_value_label(field: str, value: object) -> str:
+    if isinstance(value, bool):
+        return "是" if value else "否"
+    text = str(value)
+    return PLOT_VALUE_LABELS.get(field, {}).get(text, text)
+
+
+def _plot_value_key(field: str, value: str) -> str:
+    labels = PLOT_VALUE_LABELS.get(field, {})
+    reverse = {label: key for key, label in labels.items()}
+    return reverse.get(value, value)
+
+
 class PlotCommonEditorWidget(QWidget):
     config_saved = Signal(str, str, str)
 
@@ -49,10 +126,14 @@ class PlotCommonEditorWidget(QWidget):
         title.setStyleSheet("font-size: 20px; font-weight: 700; color: #005eac;")
         outer.addWidget(title)
         hint = QLabel(
-            "管理 plot_common 中普通绘图、高频原始时程采样与渲染参数。取消“显式”表示删除该字段并使用 MATLAB 默认值。"
-            "full 模式不会抽点，并强制 line 渲染；这些选项只改变图件表达和文件体积，不改变统计值。"
+            "管理普通绘图、高频原始时程的采样与绘制参数。取消“单独设置”后，"
+            "该项会使用分析程序默认值。完整数据模式不会抽点，并强制使用普通曲线绘制；"
+            "这些选项只改变图件表达和文件体积，不改变统计值。"
         )
         hint.setWordWrap(True)
+        hint.setToolTip(
+            "完整数据模式保留全部有效点；普通曲线模式按时间顺序连接数据"
+        )
         outer.addWidget(hint)
 
         path_row = QHBoxLayout()
@@ -68,7 +149,8 @@ class PlotCommonEditorWidget(QWidget):
         outer.addLayout(path_row)
 
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["显式", "字段", "类型/可选值", "值", "作用"])
+        self.table.setHorizontalHeaderLabels(["单独设置", "参数名称", "可填写内容", "当前值", "作用"])
+        self.table.horizontalHeaderItem(1).setToolTip("面向图件输出的可管理参数")
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         header = self.table.horizontalHeader()
@@ -99,8 +181,8 @@ class PlotCommonEditorWidget(QWidget):
         self._populate(self.session.rows)
         explicit = sum(row.explicit for row in self.session.rows)
         self.summary_label.setText(
-            f"已加载 {len(self.session.rows)} 个受管参数，其中 {explicit} 个显式配置；"
-            f"SHA256={self.session.loaded_sha256[:16]}…"
+            f"已加载 {len(self.session.rows)} 个可管理参数，其中 {explicit} 个单独设置；"
+            f"配置版本校验码={self.session.loaded_sha256[:16]}…"
         )
 
     def _reload(self) -> None:
@@ -112,12 +194,6 @@ class PlotCommonEditorWidget(QWidget):
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "重新加载失败", str(exc))
 
-    @staticmethod
-    def _display(value: object) -> str:
-        if isinstance(value, bool):
-            return "true" if value else "false"
-        return str(value)
-
     def _populate(self, rows: list[PlotCommonRow]) -> None:
         self.table.setRowCount(0)
         for row in rows:
@@ -127,10 +203,18 @@ class PlotCommonEditorWidget(QWidget):
             explicit.setFlags(explicit.flags() | Qt.ItemIsUserCheckable)
             explicit.setCheckState(Qt.Checked if row.explicit else Qt.Unchecked)
             self.table.setItem(index, 0, explicit)
-            for column, value in enumerate(
-                (row.field, row.value_type, self._display(row.value), row.description), 1
-            ):
+            values = (
+                PLOT_FIELD_LABELS.get(row.field, row.field),
+                PLOT_TYPE_LABELS.get(row.value_type, row.value_type),
+                _plot_value_label(row.field, row.value),
+                PLOT_DESCRIPTION_LABELS.get(row.field, row.description),
+            )
+            for column, value in enumerate(values, 1):
                 item = QTableWidgetItem(value)
+                if column == 1:
+                    item.setToolTip(PLOT_DESCRIPTION_LABELS.get(row.field, row.description))
+                elif column == 3:
+                    item.setToolTip(f"当前显示值：{_plot_value_label(row.field, row.value)}")
                 if column in {1, 2, 4}:
                     item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 self.table.setItem(index, column, item)
@@ -143,7 +227,7 @@ class PlotCommonEditorWidget(QWidget):
                     schema[0],
                     schema[1],
                     self.table.item(index, 0).checkState() == Qt.Checked,
-                    self.table.item(index, 3).text().strip(),
+                    _plot_value_key(schema[0], self.table.item(index, 3).text().strip()),
                     schema[3],
                 ).validated()
             )
@@ -159,7 +243,7 @@ class PlotCommonEditorWidget(QWidget):
             return
         explicit = sum(row.explicit for row in rows)
         QMessageBox.information(
-            self, "绘图参数校验通过", f"{len(rows)} 个字段有效，其中 {explicit} 个显式写入。"
+            self, "绘图参数校验通过", f"{len(rows)} 个参数有效，其中 {explicit} 个单独设置。"
         )
 
     def _save_source(self) -> None:
@@ -183,7 +267,7 @@ class PlotCommonEditorWidget(QWidget):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "保存绘图参数副本",
-            str(self.session.path.with_name(f"{self.session.path.stem}_plot_common_workbench.json")),
+            str(self.session.path.with_name(f"{self.session.path.stem}_绘图参数副本.json")),
             "JSON files (*.json)",
         )
         if path:
@@ -198,7 +282,7 @@ class PlotCommonEditorWidget(QWidget):
             return
         backup = str(result.backup_path) if result.backup_path else "无"
         self.summary_label.setText(
-            f"保存完成：{result.path}；SHA256={result.sha256[:16]}…；备份={backup}"
+            f"保存完成：{result.path}；配置版本校验码={result.sha256[:16]}…；备份={backup}"
         )
         self.config_saved.emit(str(result.path), result.sha256, backup)
         QMessageBox.information(self, "保存完成", self.summary_label.text())
@@ -222,17 +306,26 @@ class SpectrumConfigEditorWidget(QWidget):
         title.setStyleSheet("font-size: 20px; font-weight: 700; color: #005eac;")
         outer.addWidget(title)
         hint = QLabel(
-            "统一管理 points.accel_spectrum / points.cable_accel_spectrum 和默认/逐测点 peak_orders。"
-            "未勾选显式清单时沿用加速度、索力加速度或分组测点；只有实际编辑后才把旧 target_freqs/tolerance/theor_freqs 迁移为 peak_orders。"
+            "统一管理结构加速度与索力加速度频谱的测点清单，以及模块默认或测点专用的各阶找峰范围。"
+            "未勾选“单独指定频谱测点清单”时，会沿用加速度、索力加速度或分组测点；"
+            "只有实际编辑后，旧版频率配置才会转换为当前的各阶找峰配置。"
         )
         hint.setWordWrap(True)
+        hint.setToolTip(
+            "可分别设置结构加速度和索力加速度频谱的测点清单及各阶找峰范围"
+        )
         outer.addWidget(hint)
 
         header = QHBoxLayout()
         header.addWidget(QLabel("频谱模块"))
         self.module_combo = QComboBox()
-        self.module_combo.addItem("加速度频谱 (accel_spectrum)", "accel_spectrum")
-        self.module_combo.addItem("索力加速度频谱 (cable_accel_spectrum)", "cable_accel_spectrum")
+        for module, label in SPECTRUM_MODULE_LABELS.items():
+            self.module_combo.addItem(label, module)
+            self.module_combo.setItemData(
+                self.module_combo.count() - 1,
+                f"编辑{label}的测点清单和找峰范围",
+                Qt.ToolTipRole,
+            )
         self.module_combo.currentIndexChanged.connect(self._module_changed)
         header.addWidget(self.module_combo)
         self.path_label = QLabel("配置：尚未加载")
@@ -249,7 +342,8 @@ class SpectrumConfigEditorWidget(QWidget):
         splitter = QSplitter(Qt.Horizontal)
         coverage_box = QGroupBox("频谱测点覆盖")
         coverage_layout = QVBoxLayout(coverage_box)
-        self.explicit_check = QCheckBox("使用显式频谱测点清单")
+        self.explicit_check = QCheckBox("单独指定频谱测点清单")
+        self.explicit_check.setToolTip("勾选后只分析下方指定测点；不勾选时自动沿用项目测点清单")
         self.explicit_check.toggled.connect(self._coverage_edited)
         coverage_layout.addWidget(self.explicit_check)
         lists = QSplitter(Qt.Horizontal)
@@ -265,14 +359,15 @@ class SpectrumConfigEditorWidget(QWidget):
         available_box = QGroupBox("可用原始测点")
         available_layout = QVBoxLayout(available_box)
         self.filter_edit = QLineEdit()
-        self.filter_edit.setPlaceholderText("过滤 point_id…")
+        self.filter_edit.setPlaceholderText("按测点编号筛选…")
+        self.filter_edit.setToolTip("输入部分测点编号可快速筛选")
         self.filter_edit.textChanged.connect(self._refresh_available)
         available_layout.addWidget(self.filter_edit)
         self.available_points = QListWidget()
         self.available_points.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.available_points.itemDoubleClicked.connect(lambda _item: self._add_points())
         available_layout.addWidget(self.available_points)
-        add_button = QPushButton("← 加入显式清单")
+        add_button = QPushButton("← 加入指定清单")
         add_button.clicked.connect(self._add_points)
         available_layout.addWidget(add_button)
         lists.addWidget(available_box)
@@ -285,17 +380,29 @@ class SpectrumConfigEditorWidget(QWidget):
         self.order_table.setHorizontalHeaderLabels(
             [
                 "启用",
-                "scope",
-                "point_id",
-                "order",
+                "适用范围",
+                "测点编号",
+                "阶次",
                 "峰名称",
-                "理论Hz",
-                "搜索min",
-                "搜索max",
-                "理论标签",
-                "来源",
+                "理论频率（Hz）",
+                "搜索下限（Hz）",
+                "搜索上限（Hz）",
+                "理论频率标签",
+                "配置来源",
             ]
         )
+        order_header_tooltips = {
+            1: "模块默认范围作用于全部测点；测点专用范围只作用于指定测点",
+            2: "测点专用阶次必须填写测点编号",
+            3: "同一测点的振型或频率阶次",
+            5: "设计或理论参考频率",
+            6: "找峰搜索区间的起点",
+            7: "找峰搜索区间的终点",
+            8: "报告和图件中显示的理论频率说明",
+            9: "说明该阶次来自模块默认、测点专用、旧版兼容或本次新建配置",
+        }
+        for column, tooltip in order_header_tooltips.items():
+            self.order_table.horizontalHeaderItem(column).setToolTip(tooltip)
         self.order_table.setAlternatingRowColors(True)
         self.order_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         header_view = self.order_table.horizontalHeader()
@@ -452,7 +559,7 @@ class SpectrumConfigEditorWidget(QWidget):
         enabled.setCheckState(Qt.Checked if row.enabled else Qt.Unchecked)
         self.order_table.setItem(index, 0, enabled)
         values = (
-            row.scope,
+            SPECTRUM_SCOPE_LABELS.get(row.scope, row.scope),
             row.point_id,
             row.order,
             row.label,
@@ -460,10 +567,15 @@ class SpectrumConfigEditorWidget(QWidget):
             row.search_min_hz,
             row.search_max_hz,
             row.theor_label,
-            row.source,
+            SPECTRUM_SOURCE_LABELS.get(row.source, row.source),
         )
         for column, value in enumerate(values, 1):
             item = QTableWidgetItem(self._display(value))
+            if column == 1:
+                item.setToolTip("模块默认" if row.scope == "default" else "仅当前测点")
+            elif column == 9:
+                item.setData(Qt.UserRole, row.source)
+                item.setToolTip(SPECTRUM_SOURCE_LABELS.get(row.source, row.source))
             if column == 9:
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
             self.order_table.setItem(index, column, item)
@@ -482,6 +594,9 @@ class SpectrumConfigEditorWidget(QWidget):
                 for column in range(1, 10)
             ]
             try:
+                values[0] = SPECTRUM_SCOPE_KEYS.get(values[0], values[0])
+                source_item = self.order_table.item(index, 9)
+                source = str(source_item.data(Qt.UserRole) or values[8])
                 rows.append(
                     SpectrumPeakOrderRow(
                         module,
@@ -494,7 +609,7 @@ class SpectrumConfigEditorWidget(QWidget):
                         float(values[6]),
                         values[7],
                         self.order_table.item(index, 0).checkState() == Qt.Checked,
-                        values[8],
+                        source,
                     ).validated()
                 )
             except (ValueError, ConfigEditorError) as exc:
@@ -542,9 +657,10 @@ class SpectrumConfigEditorWidget(QWidget):
 
     def _update_summary(self) -> None:
         module = str(self.module_combo.currentData() or "")
-        mode = "显式" if self.explicit_check.isChecked() else "继承/回退"
+        mode = "单独指定" if self.explicit_check.isChecked() else "自动继承"
         self.summary_label.setText(
-            f"{module}：{mode}测点 {self.selected_points.count()} 个；找峰阶次 {self.order_table.rowCount()} 行。"
+            f"{SPECTRUM_MODULE_LABELS.get(module, module)}：{mode}测点 "
+            f"{self.selected_points.count()} 个；找峰阶次 {self.order_table.rowCount()} 行。"
         )
 
     def _drafts(self) -> tuple[dict[str, SpectrumCoverage], dict[str, list[SpectrumPeakOrderRow]]]:
@@ -575,7 +691,8 @@ class SpectrumConfigEditorWidget(QWidget):
         answer = QMessageBox.question(
             self,
             "确认保存频谱配置",
-            f"将覆盖：\n{self.session.path}\n\n发生编辑的旧频率字段会迁移为 peak_orders，保存前自动备份。是否继续？",
+            f"将覆盖：\n{self.session.path}\n\n发生编辑的旧版频率配置会转换为当前的各阶找峰配置，"
+            "保存前会自动备份。是否继续？",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -605,7 +722,7 @@ class SpectrumConfigEditorWidget(QWidget):
             return
         backup = str(result.backup_path) if result.backup_path else "无"
         self.summary_label.setText(
-            f"保存完成：{result.path}；SHA256={result.sha256[:16]}…；备份={backup}"
+            f"保存完成：{result.path}；配置版本校验码={result.sha256[:16]}…；备份={backup}"
         )
         self.config_saved.emit(str(result.path), result.sha256, backup)
         QMessageBox.information(self, "保存完成", self.summary_label.text())

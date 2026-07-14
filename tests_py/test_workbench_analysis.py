@@ -43,6 +43,7 @@ class WorkbenchAnalysisTests(unittest.TestCase):
             self.assertTrue(payload["options"]["doAccel"])
             self.assertEqual(payload["config"]["plot_common"]["gap_mode"], "connect")
             self.assertEqual(payload["config"]["source"], context.config_path)
+            self.assertEqual(payload["config_sha256"], context.config_sha256)
 
     def test_request_rejects_config_changed_after_job_creation(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

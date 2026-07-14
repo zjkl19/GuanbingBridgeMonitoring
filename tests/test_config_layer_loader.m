@@ -1,5 +1,19 @@
 classdef test_config_layer_loader < matlab.unittest.TestCase
     methods (Test)
+        function sharedFixtureFingerprintMatchesPythonContract(tc)
+            fixture = fullfile(project_root(), 'tests', 'config', 'fingerprint', 'project.json');
+            tc.verifyEqual( ...
+                upper(bms.config.ConfigLayerLoader.dependencySha256(fixture)), ...
+                '01A68C332F2E2ACD36D3DCBE6C179C1D616BBCC841B89E28499D405EA99B17A6');
+        end
+
+        function unicodeFixtureFingerprintMatchesPythonContract(tc)
+            fixture = fullfile(project_root(), 'tests', 'config', 'fingerprint', 'unicode_project.json');
+            tc.verifyEqual( ...
+                upper(bms.config.ConfigLayerLoader.dependencySha256(fixture)), ...
+                'CFE34E9BFA1BBD3359A621450AB61EB557E5081FECFFC44A58CBFFAE96CA90C5');
+        end
+
         function layeredConfigMergesBaseIncludesAndOverlay(tc)
             root = tempname;
             mkdir(root);
@@ -54,6 +68,46 @@ classdef test_config_layer_loader < matlab.unittest.TestCase
 
             tc.verifyEqual([lines.ZG.y], [31.5 50], 'AbsTol', 1e-12);
             tc.verifyEqual([lines.ZL.y], [31.5 50], 'AbsTol', 1e-12);
+        end
+
+        function dependencyHashTracksIncludedFileChanges(tc)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_dir(root)); %#ok<NASGU>
+            entryPath = fullfile(root, 'project.json');
+            includePath = fullfile(root, 'per_point.json');
+            write_text(entryPath, '{"includes":{"per_point":"per_point.json"}}');
+            write_text(includePath, '{"P1":{"limit":1}}');
+
+            entryHash = bms.io.JsonFile.sha256(entryPath);
+            first = bms.config.ConfigLayerLoader.dependencySha256(entryPath);
+            write_text(includePath, '{"P1":{"limit":2}}');
+            second = bms.config.ConfigLayerLoader.dependencySha256(entryPath);
+
+            tc.verifyEqual(bms.io.JsonFile.sha256(entryPath), entryHash);
+            tc.verifyNotEqual(second, first);
+        end
+
+        function dependencyHashKeepsFileIdentityWhenLayerContentsSwap(tc)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() cleanup_dir(root)); %#ok<NASGU>
+            entryPath = fullfile(root, 'project.json');
+            firstPath = fullfile(root, 'a.json');
+            secondPath = fullfile(root, 'b.json');
+            write_text(entryPath, '{"layers":["a.json","b.json"]}');
+            write_text(firstPath, '{"value":1}');
+            write_text(secondPath, '{"value":2}');
+            [beforeCfg, ~] = bms.config.ConfigLayerLoader.load(entryPath);
+            beforeHash = bms.config.ConfigLayerLoader.dependencySha256(entryPath);
+
+            write_text(firstPath, '{"value":2}');
+            write_text(secondPath, '{"value":1}');
+            [afterCfg, ~] = bms.config.ConfigLayerLoader.load(entryPath);
+
+            tc.verifyEqual(beforeCfg.value, 2);
+            tc.verifyEqual(afterCfg.value, 1);
+            tc.verifyNotEqual(bms.config.ConfigLayerLoader.dependencySha256(entryPath), beforeHash);
         end
     end
 end

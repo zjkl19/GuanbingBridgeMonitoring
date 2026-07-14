@@ -160,6 +160,7 @@ classdef TimeSeriesRangeLoader
             meta.contributing_export_dates = {};
             meta.ambiguous_export_dates = {};
             meta.resolved_source_roots = {};
+            meta.rejected_cache_files = {};
             meta.duplicate_file_count = 0;
             for i = 1:numel(dateList)
                 day = dateList{i};
@@ -201,6 +202,26 @@ classdef TimeSeriesRangeLoader
                 seenFiles(fileKey) = true;
 
                 [t, v] = loader.read_file(fp, sensorType, pointId, day, dayMeta);
+                if isempty(v) && isfield(loader, 'find_fallback_file') ...
+                        && isa(loader.find_fallback_file, 'function_handle')
+                    fallback = loader.find_fallback_file(dirp, pointId, sensorType, day, dayMeta);
+                    if ~isempty(fallback) && ~strcmpi(fallback, fp)
+                        fallbackKey = bms.data.TimeSeriesRangeLoader.canonicalFileKey(fallback);
+                        if ~isKey(seenFiles, fallbackKey)
+                            [fallbackT, fallbackV] = loader.read_file( ...
+                                fallback, sensorType, pointId, day, dayMeta);
+                            if ~isempty(fallbackV)
+                                meta.rejected_cache_files = ...
+                                    bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
+                                    meta.rejected_cache_files, fp);
+                                seenFiles(fallbackKey) = true;
+                                fp = fallback;
+                                t = fallbackT;
+                                v = fallbackV;
+                            end
+                        end
+                    end
+                end
                 if isempty(v)
                     meta.empty_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
                         meta.empty_export_dates, day);
@@ -363,6 +384,10 @@ classdef TimeSeriesRangeLoader
                     bms.data.TimeSeriesRangeLoader.defaultHeaderMarker(cfg), ...
                     struct('cache_version', bms.data.TimeSeriesLoader.seriesCacheVersion(cfg), ...
                     'require_metadata', bms.data.TimeSeriesLoader.seriesCacheRequireMetadata(cfg))); %#ok<NASGU>
+            if strcmp(bms.data.TimeSeriesLoader.seriesSourceMode(cfg), 'prefer_mat')
+                loader.find_fallback_file = @(dirp, pointId, sensorType, varargin) ...
+                    bms.data.TimeSeriesLoader.findCsvForPoint(dirp, pointId, cfg, sensorType);
+            end
         end
 
         function loader = chongyangxiLoader(cfg)
@@ -387,6 +412,11 @@ classdef TimeSeriesRangeLoader
                 bms.data.JiulongjiangCsvDataSource.findFile(dirp, pointId, sensorType, cfg);
             loader.read_file = @(fp, sensorType, pointId, varargin) ...
                 bms.data.JiulongjiangCsvDataSource.readFile(fp, sensorType, pointId, cfg, varargin{:});
+            if strcmp(bms.data.TimeSeriesLoader.seriesSourceMode(cfg), 'prefer_mat')
+                loader.find_fallback_file = @(dirp, pointId, sensorType, varargin) ...
+                    bms.data.JiulongjiangCsvDataSource.findCsvFallback( ...
+                    dirp, pointId, sensorType, cfg);
+            end
         end
 
         function marker = defaultHeaderMarker(cfg)
@@ -454,6 +484,10 @@ classdef TimeSeriesRangeLoader
             files = {};
             used = true;
             folders = bms.data.TimeSeriesRangeLoader.chongyangxiCandidateDirs(rootDir, subfolder, range.start, range.end, cfg);
+            readOptions = struct( ...
+                'cache_version', bms.data.TimeSeriesLoader.seriesCacheVersion(cfg), ...
+                'require_metadata', bms.data.TimeSeriesLoader.seriesCacheRequireMetadata(cfg));
+            sourceMode = bms.data.TimeSeriesLoader.seriesSourceMode(cfg);
             for i = 1:numel(folders)
                 fp = bms.data.TimeSeriesLoader.findSeriesFileForPoint(folders{i}, pointId, cfg, sensorType);
                 if isempty(fp)
@@ -461,8 +495,21 @@ classdef TimeSeriesRangeLoader
                 end
                 [ti, vi] = bms.data.TimeSeriesLoader.readSeriesFile( ...
                     fp, bms.data.TimeSeriesRangeLoader.defaultHeaderMarker(cfg), ...
-                    struct('cache_version', bms.data.TimeSeriesLoader.seriesCacheVersion(cfg), ...
-                    'require_metadata', bms.data.TimeSeriesLoader.seriesCacheRequireMetadata(cfg)));
+                    readOptions);
+                if isempty(vi) && strcmp(sourceMode, 'prefer_mat')
+                    fallback = bms.data.TimeSeriesLoader.findCsvForPoint( ...
+                        folders{i}, pointId, cfg, sensorType);
+                    if ~isempty(fallback) && ~strcmpi(fallback, fp)
+                        [fallbackT, fallbackV] = bms.data.TimeSeriesLoader.readSeriesFile( ...
+                            fallback, bms.data.TimeSeriesRangeLoader.defaultHeaderMarker(cfg), ...
+                            readOptions);
+                        if ~isempty(fallbackV)
+                            fp = fallback;
+                            ti = fallbackT;
+                            vi = fallbackV;
+                        end
+                    end
+                end
                 if isempty(vi)
                     continue;
                 end

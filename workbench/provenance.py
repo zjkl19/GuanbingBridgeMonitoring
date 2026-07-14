@@ -7,6 +7,12 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
+_FULL_RAW_MODULES = {"acceleration", "cable_accel"}
+_RAW_RENDER_MODES = {"line", "dense_band", "band"}
+_DERIVED_RENDER_MODES = {"derived_10min_mean", "wind_rose_aggregate"}
+_SAMPLING_MODES = {"full", "capped"}
+
+
 @dataclass(frozen=True)
 class PlotProvenanceRow:
     module_key: str
@@ -82,7 +88,11 @@ def _nonnegative(value: Any) -> float:
     return number
 
 
-def _validate_series_counts(index: int, item: dict[str, Any]) -> tuple[float, float, float]:
+def _validate_series_counts(
+    index: int,
+    item: dict[str, Any],
+    module_key: str,
+) -> tuple[float, float, float, str, str]:
     """Validate plot-domain counts without conflating them with raw-source counts.
 
     A raw time-history line has a one-to-one relationship with its source
@@ -95,17 +105,55 @@ def _validate_series_counts(index: int, item: dict[str, Any]) -> tuple[float, fl
     finite = _nonnegative(item.get("finite_count"))
     plotted = _nonnegative(item.get("plotted_finite_count"))
     render_mode = str(item.get("render_mode") or "line").strip().lower()
+    sampling_mode = str(item.get("sampling_mode") or "").strip().lower()
+    plot_scope = str(item.get("plot_scope") or "").strip().lower()
+    reduction_applied = item.get("reduction_applied")
+    if sampling_mode not in _SAMPLING_MODES:
+        raise ValueError(f"series {index} has unsupported sampling_mode={sampling_mode or '<missing>'}")
+    if not isinstance(reduction_applied, bool):
+        raise ValueError(f"series {index} reduction_applied must be boolean")
     if render_mode == "wind_rose_aggregate":
+        if sampling_mode != "full" or reduction_applied:
+            raise ValueError(f"series {index} aggregate must use full sampling without reduction")
         if not (input_count >= finite >= plotted):
             raise ValueError(f"series {index} aggregate input/finite/plotted counts do not close")
     elif render_mode == "derived_10min_mean":
+        if sampling_mode != "full" or reduction_applied:
+            raise ValueError(f"series {index} derived series must use full sampling without reduction")
         if not (input_count >= finite == plotted):
             raise ValueError(f"series {index} derived input/finite/plotted counts do not close")
-    elif not (input_count >= finite == plotted):
-        raise ValueError(f"series {index} input/finite/plotted counts do not close")
+    elif render_mode in _RAW_RENDER_MODES:
+        normalized_module = module_key.strip().lower()
+        if plot_scope and plot_scope not in {"point_time_history", "group_overview"}:
+            raise ValueError(f"series {index} has unsupported plot_scope={plot_scope}")
+        full_required = (
+            normalized_module in _FULL_RAW_MODULES
+            and plot_scope != "group_overview"
+        )
+        if full_required and sampling_mode != "full":
+            raise ValueError(
+                f"series {index} {normalized_module} raw time history requires full sampling"
+            )
+        if sampling_mode == "full":
+            if reduction_applied:
+                raise ValueError(f"series {index} full raw series reports reduction_applied=true")
+            if not (input_count >= finite == plotted):
+                raise ValueError(f"series {index} full raw input/finite/plotted counts do not close")
+        else:
+            if not normalized_module:
+                raise ValueError(f"series {index} capped raw series lacks a manifest module key")
+            if not (input_count >= finite >= plotted):
+                raise ValueError(f"series {index} capped raw input/finite/plotted counts do not close")
+            expected_reduction = plotted < finite
+            if reduction_applied != expected_reduction:
+                raise ValueError(
+                    f"series {index} capped raw reduction flag does not match finite/plotted counts"
+                )
+    else:
+        raise ValueError(f"series {index} has unsupported render_mode={render_mode or '<missing>'}")
     if plotted <= 0:
         raise ValueError(f"series {index} contains no plotted finite values")
-    return input_count, finite, plotted
+    return input_count, finite, plotted, render_mode, sampling_mode
 
 
 def inspect_plot_provenance(module_key: str, path: Path) -> PlotProvenanceRow:
@@ -124,11 +172,9 @@ def inspect_plot_provenance(module_key: str, path: Path) -> PlotProvenanceRow:
         incomplete_days: list[str] = []
         has_source = True
         for index, item in enumerate(series, start=1):
-            if str(item.get("sampling_mode") or "").lower() != "full":
-                raise ValueError(f"series {index} is not full sampling")
-            if item.get("reduction_applied") is not False:
-                raise ValueError(f"series {index} reports reduction_applied != false")
-            input_count, finite, plotted = _validate_series_counts(index, item)
+            input_count, finite, plotted, render_mode, sampling_mode = _validate_series_counts(
+                index, item, module_key
+            )
             plotted_total += plotted
             source = item.get("source")
             if not isinstance(source, dict):
@@ -137,10 +183,11 @@ def inspect_plot_provenance(module_key: str, path: Path) -> PlotProvenanceRow:
                 continue
             source_count = _nonnegative(source.get("source_sample_count"))
             finite_source = _nonnegative(source.get("finite_source_sample_count"))
-            render_mode = str(item.get("render_mode") or "line").strip().lower()
-            if render_mode in {"derived_10min_mean", "wind_rose_aggregate"}:
+            if finite_source > source_count:
+                raise ValueError(f"series {index} finite source count exceeds source count")
+            if render_mode in _DERIVED_RENDER_MODES or sampling_mode == "capped":
                 if source_count < input_count or finite_source < finite:
-                    raise ValueError(f"series {index} derived source/input/finite counts do not close")
+                    raise ValueError(f"series {index} source/input/finite counts do not close")
             elif source_count != input_count or finite_source != finite:
                 raise ValueError(f"series {index} raw source/input/finite counts do not close")
             if str(source.get("completeness_scope") or "") != "required_export_contribution":

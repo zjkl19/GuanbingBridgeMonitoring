@@ -170,6 +170,47 @@ classdef test_chongyangxi_config < matlab.unittest.TestCase
             tc.verifyTrue(contains(meta.files{1}, 'uuid-001'));
         end
 
+        function rangeLoaderPreferMatFallsBackAfterActualCacheReadFailure(tc)
+            cfg = local_prefer_mat_config('prefer_mat');
+            exportDir = fullfile(tc.TempDir, '2025-05-21', '特征值', 'uuid-001');
+            cacheDir = fullfile(exportDir, 'cache');
+            mkdir(cacheDir);
+            times = NaT(5000, 1); %#ok<NASGU>
+            vals = ones(5000, 1); %#ok<NASGU>
+            save(fullfile(cacheDir, 'PT-1_invalid.mat'), 'times', 'vals');
+            csvPath = fullfile(exportDir, 'PT-1_峰值_原始数据_1-1.csv');
+            local_write_donghua_csv(csvPath, ...
+                {'2025-05-20 08:00:00.000', '2025-05-20 12:00:00.000'}, ...
+                [71, 72]);
+
+            [t, v, meta] = load_timeseries_range(tc.TempDir, '特征值', 'PT-1', ...
+                '2025-05-20', '2025-05-20', cfg, 'strain');
+
+            tc.verifyEqual(v(:).', [71, 72]);
+            tc.verifyEqual(t(1), datetime(2025, 5, 20, 8, 0, 0));
+            tc.verifyEqual(meta.files, {csvPath});
+        end
+
+        function rangeLoaderMatOnlyKeepsFailedCacheReadClosed(tc)
+            cfg = local_prefer_mat_config('mat_only');
+            exportDir = fullfile(tc.TempDir, '2025-05-21', '特征值', 'uuid-001');
+            cacheDir = fullfile(exportDir, 'cache');
+            mkdir(cacheDir);
+            times = NaT(5000, 1); %#ok<NASGU>
+            vals = ones(5000, 1); %#ok<NASGU>
+            save(fullfile(cacheDir, 'PT-1_invalid.mat'), 'times', 'vals');
+            local_write_donghua_csv( ...
+                fullfile(exportDir, 'PT-1_峰值_原始数据_1-1.csv'), ...
+                {'2025-05-20 08:00:00.000'}, 81);
+
+            [t, v, meta] = load_timeseries_range(tc.TempDir, '特征值', 'PT-1', ...
+                '2025-05-20', '2025-05-20', cfg, 'strain');
+
+            tc.verifyEmpty(t);
+            tc.verifyEmpty(v);
+            tc.verifyEmpty(meta.files);
+        end
+
         function calendarDayLoaderReadsOnlyRequiredRollingExportFolders(tc)
             cfg = struct();
             cfg.vendor = 'chongyangxi';
@@ -234,6 +275,22 @@ classdef test_chongyangxi_config < matlab.unittest.TestCase
             tc.verifyFalse(contains(meta.files{1}, '波形'));
         end
     end
+end
+
+function cfg = local_prefer_mat_config(sourceMode)
+cfg = struct();
+cfg.vendor = 'chongyangxi';
+cfg.defaults = struct('header_marker', '[绝对时间]');
+cfg.subfolders = struct('strain', '特征值');
+cfg.file_patterns = struct('strain', struct('default', '{file_id}_*.csv'));
+cfg.per_point = struct('strain', struct('PT_1', struct('file_id', 'PT-1')));
+cfg.points = struct('strain', {{'PT-1'}});
+cfg.groups = struct();
+cfg.plot_styles = struct();
+cfg.data_adapter = struct('time_series', struct( ...
+    'source_mode', sourceMode, ...
+    'require_metadata', false, ...
+    'cache_version', 'csv_timeseries_v2'));
 end
 
 function local_write_donghua_csv(path, times, values)

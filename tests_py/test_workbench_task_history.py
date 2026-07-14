@@ -88,6 +88,35 @@ class TaskHistoryIndexTests(unittest.TestCase):
             self.assertTrue(entry.can_restore)
             self.assertIn("配置SHA256已变化", entry.issues)
 
+    def test_layer_change_is_detected_by_same_history_index_instance(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            data_root = root / "data"
+            data_root.mkdir()
+            layer = root / "layer.json"
+            layer.write_text('{"value":1}', encoding="utf-8")
+            config = root / "project.json"
+            config.write_text('{"layers":["layer.json"]}', encoding="utf-8")
+            context = JobContext.create(
+                project_root=ROOT,
+                bridge_id="guanbing",
+                bridge_name="管柄大桥",
+                data_root=data_root,
+                start_date="2026-06-01",
+                end_date="2026-06-30",
+                config_path=config,
+                selected_modules=["acceleration"],
+                options={"run_acceleration": True},
+                job_id="layered_history",
+            )
+            context.write()
+            index = TaskHistoryIndex(("guanbing",))
+            self.assertNotIn("配置SHA256已变化", index.inspect(context.context_path).issues)
+
+            layer.write_text('{"value":2}', encoding="utf-8")
+
+            self.assertIn("配置SHA256已变化", index.inspect(context.context_path).issues)
+
     def test_unknown_bridge_and_invalid_json_are_not_restorable(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -131,7 +160,7 @@ class TaskHistoryIndexTests(unittest.TestCase):
             self.assertEqual(_analysis_detail(analysis), "索力加速度；7/11；64%")
             merged = dict(report_result)
             merged.update(report)
-            self.assertEqual(_report_detail(merged, context), "qc；QC=passed")
+            self.assertEqual(_report_detail(merged, context), "质量检查：通过")
 
 
 class TaskHistoryWidgetTests(unittest.TestCase):

@@ -46,6 +46,56 @@ MODULE_LABELS = {
     "cable_accel": "索力加速度",
     "crack": "裂缝宽度",
 }
+MODULE_KEYS_BY_LABEL = {label: key for key, label in MODULE_LABELS.items()}
+
+OFFSET_MODE_LABELS = {
+    "scalar": "固定数值（简写）",
+    "fixed": "固定数值",
+    "constant": "固定常数",
+    "first_day_mean": "首日均值",
+    "earliest_day_mean": "最早有效日均值",
+    "daily_mean": "逐日均值",
+    "day_mean": "逐日均值",
+    "daily_median": "逐日中位数",
+    "day_median": "逐日中位数",
+    "hourly_mean": "逐小时均值",
+    "hour_mean": "逐小时均值",
+    "hourly_median": "逐小时中位数",
+    "hour_median": "逐小时中位数",
+}
+OFFSET_MODE_KEYS = {label: key for key, label in OFFSET_MODE_LABELS.items()}
+
+OFFSET_NOTE_LABELS = {
+    "Raw CF cable acceleration is in mm/s^2; apply daily median baseline removal first, then per-point March 2026 filtering.":
+        "CF 吊索加速度原始单位为 mm/s²；先按日中位数消除基线，再执行 2026 年 3 月测点专用滤波。",
+    "Keep the validated April fixed baseline; use hourly median baseline removal for May-June because the CF-5 raw baseline drifts within rolling exports.":
+        "保留已验证的 4 月固定基线；CF-5 滚动导出存在基线漂移，5—6 月按小时中位数消除基线。",
+}
+
+CONFIG_SCOPE_LABELS = {
+    "defaults": "模块默认",
+    "per_point": "测点专用",
+}
+CONFIG_SCOPE_KEYS = {label: key for key, label in CONFIG_SCOPE_LABELS.items()}
+
+
+def _config_scope_label(value: str) -> str:
+    return CONFIG_SCOPE_LABELS.get(value, value)
+
+
+def _config_scope_key(value: str) -> str:
+    return CONFIG_SCOPE_KEYS.get(value, value)
+
+
+def _stored_or_edited(item: QTableWidgetItem | None, labels: dict[str, str]) -> str:
+    if item is None:
+        return ""
+    text = item.text().strip()
+    stored = item.data(Qt.UserRole)
+    if stored is not None and text == labels.get(str(stored), str(stored)):
+        return str(stored)
+    reverse = {label: key for key, label in labels.items()}
+    return reverse.get(text, text)
 
 
 class OffsetCorrectionEditorWidget(QWidget):
@@ -62,11 +112,14 @@ class OffsetCorrectionEditorWidget(QWidget):
         title.setStyleSheet("font-size: 20px; font-weight: 700; color: #005eac;")
         outer.addWidget(title)
         hint = QLabel(
-            "编辑 defaults/per_point 下的 offset_correction；计算语义保持为 vals = vals + correction。"
-            "支持纯数值、fixed、首日/逐日/逐小时均值或中位数，以及不重叠的 segmented 分段。"
+            "编辑模块默认或测点专用的零点修正；修正值会加到原始测值上。"
+            "支持固定数值、首日/逐日/逐小时均值或中位数，以及互不重叠的分段修正。"
             "只替换零点修正字段，不修改清洗阈值、缩放、绘图或报警配置。"
         )
         hint.setWordWrap(True)
+        hint.setToolTip(
+            "模块默认规则作用于该类型全部测点；测点专用规则只作用于指定测点。修正值与原始测值相加。"
+        )
         outer.addWidget(hint)
 
         path_row = QHBoxLayout()
@@ -84,18 +137,28 @@ class OffsetCorrectionEditorWidget(QWidget):
         self.table = QTableWidget(0, 10)
         self.table.setHorizontalHeaderLabels(
             [
-                "范围",
-                "模块键",
-                "测点配置键",
+                "适用范围",
+                "分析类型",
+                "测点编号",
                 "模式",
-                "value",
+                "修正值",
                 "开始日期",
                 "结束日期",
-                "分段",
+                "是否分段",
                 "序号",
                 "备注",
             ]
         )
+        header_tooltips = {
+            0: "选择修正规则作用于全部同类测点，或仅作用于指定测点",
+            1: "需要进行零点修正的数据类型",
+            2: "测点专用规则必须填写测点编号",
+            3: "选择固定值、均值或中位数等基线修正方式",
+            4: "固定数值模式必须填写；统计基线模式留空",
+            7: "分段规则只在指定日期范围内生效",
+        }
+        for column, tooltip in header_tooltips.items():
+            self.table.horizontalHeaderItem(column).setToolTip(tooltip)
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -144,7 +207,7 @@ class OffsetCorrectionEditorWidget(QWidget):
         self._populate(self.session.rows)
         structured = sum(row.mode != "scalar" for row in self.session.rows)
         self.message_label.setText(
-            f"已加载；SHA256={self.session.loaded_sha256[:16]}…；"
+            f"已加载；配置版本校验码={self.session.loaded_sha256[:16]}…；"
             f"结构化/分段行 {structured} 条。"
         )
         self.message_label.setStyleSheet("color: #167c35;")
@@ -163,7 +226,7 @@ class OffsetCorrectionEditorWidget(QWidget):
         if value is None:
             return ""
         if isinstance(value, bool):
-            return "true" if value else "false"
+            return "是" if value else "否"
         return str(value)
 
     def _populate(self, rows: list[OffsetCorrectionRow]) -> None:
@@ -176,19 +239,28 @@ class OffsetCorrectionEditorWidget(QWidget):
         index = self.table.rowCount()
         self.table.insertRow(index)
         values = (
-            row.scope,
-            row.module_key,
+            _config_scope_label(row.scope),
+            MODULE_LABELS.get(row.module_key, row.module_key),
             row.point_key,
-            row.mode,
+            OFFSET_MODE_LABELS.get(row.mode, row.mode),
             row.value,
             row.start_date,
             row.end_date,
             row.segmented,
             row.segment_index,
-            row.note,
+            OFFSET_NOTE_LABELS.get(row.note, row.note),
         )
         for column, value in enumerate(values):
-            self.table.setItem(index, column, QTableWidgetItem(self._text(value)))
+            item = QTableWidgetItem(self._text(value))
+            if column == 0:
+                item.setData(Qt.UserRole, row.scope)
+            elif column == 1:
+                item.setData(Qt.UserRole, row.module_key)
+            elif column == 3:
+                item.setData(Qt.UserRole, row.mode)
+            elif column == 9:
+                item.setData(Qt.UserRole, row.note)
+            self.table.setItem(index, column, item)
         self.count_label.setText(f"{self.table.rowCount()} 条零点修正规则")
 
     def _selected_context(self) -> tuple[str, str]:
@@ -196,7 +268,7 @@ class OffsetCorrectionEditorWidget(QWidget):
         module = "strain"
         point = "POINT_ID"
         if row >= 0:
-            module = self.table.item(row, 1).text().strip() or module
+            module = _stored_or_edited(self.table.item(row, 1), MODULE_LABELS) or module
             point = self.table.item(row, 2).text().strip() or point
         return module, point
 
@@ -253,6 +325,13 @@ class OffsetCorrectionEditorWidget(QWidget):
                 for column in range(10)
             ]
             try:
+                values[0] = _stored_or_edited(self.table.item(index, 0), CONFIG_SCOPE_LABELS)
+                values[1] = _stored_or_edited(self.table.item(index, 1), MODULE_LABELS)
+                values[3] = _stored_or_edited(self.table.item(index, 3), OFFSET_MODE_LABELS)
+                note_item = self.table.item(index, 9)
+                original_note = str(note_item.data(Qt.UserRole) or "") if note_item else ""
+                if original_note and values[9] == OFFSET_NOTE_LABELS.get(original_note, original_note):
+                    values[9] = original_note
                 row = OffsetCorrectionRow(
                     values[0],
                     values[1],
@@ -280,7 +359,10 @@ class OffsetCorrectionEditorWidget(QWidget):
             return
         modes = sorted({row.mode for row in rows})
         QMessageBox.information(
-            self, "零点修正校验通过", f"{len(rows)} 行均有效；模式：{', '.join(modes)}。"
+            self,
+            "零点修正校验通过",
+            f"{len(rows)} 行均有效；修正方式："
+            f"{', '.join(OFFSET_MODE_LABELS.get(mode, mode) for mode in modes)}。",
         )
 
     def _save_source(self) -> None:
@@ -319,7 +401,7 @@ class OffsetCorrectionEditorWidget(QWidget):
             return
         backup = str(result.backup_path) if result.backup_path else "无"
         self.message_label.setText(
-            f"保存完成：{result.path}；SHA256={result.sha256[:16]}…；备份={backup}"
+            f"保存完成：{result.path}；配置版本校验码={result.sha256[:16]}…；备份={backup}"
         )
         self.message_label.setStyleSheet("color: #167c35; font-weight: 600;")
         self.config_saved.emit(str(result.path), result.sha256, backup)
@@ -345,11 +427,14 @@ class GroupPlotConfigEditorWidget(QWidget):
         title.setStyleSheet("font-size: 20px; font-weight: 700; color: #005eac;")
         outer.addWidget(title)
         hint = QLabel(
-            "直接编辑 groups.<模块键> 与对应 plot_styles.<样式键>.group_labels。"
-            "应变统计组 strain 和时程组 strain_timeseries 分开显示；历史二维数组表示在未改变结构时原样保留。"
-            "group_key 只能使用英文字母、数字和下划线。"
+            "按分析类型编辑图件分组和报告显示名称。应变统计组与应变时程组分开显示；"
+            "历史二维数组在未改变结构时会原样保留。每个分组需要唯一的分组编号，"
+            "编号只允许英文字母、数字和下划线。"
         )
         hint.setWordWrap(True)
+        hint.setToolTip(
+            "分组编号用于唯一识别图组；报告显示名称用于图题和报告正文"
+        )
         outer.addWidget(hint)
 
         header = QHBoxLayout()
@@ -372,7 +457,10 @@ class GroupPlotConfigEditorWidget(QWidget):
         group_box = QGroupBox("分组")
         group_layout = QVBoxLayout(group_box)
         self.group_table = QTableWidget(0, 3)
-        self.group_table.setHorizontalHeaderLabels(["group_key", "显示名称", "点数"])
+        self.group_table.setHorizontalHeaderLabels(["分组编号", "报告显示名称", "测点数量"])
+        self.group_table.horizontalHeaderItem(0).setToolTip(
+            "分组的唯一编号，仅支持英文字母、数字和下划线"
+        )
         self.group_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.group_table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.group_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
@@ -411,7 +499,8 @@ class GroupPlotConfigEditorWidget(QWidget):
         available_box = QGroupBox("可选测点")
         available_layout = QVBoxLayout(available_box)
         self.filter_edit = QLineEdit()
-        self.filter_edit.setPlaceholderText("过滤 point_id（包含）…")
+        self.filter_edit.setPlaceholderText("按测点编号筛选…")
+        self.filter_edit.setToolTip("输入部分测点编号可快速筛选")
         self.filter_edit.textChanged.connect(self._refresh_available)
         available_layout.addWidget(self.filter_edit)
         self.available_list = QListWidget()
@@ -448,13 +537,18 @@ class GroupPlotConfigEditorWidget(QWidget):
         self._switching = True
         self.module_combo.clear()
         for module in self.session.modules:
-            self.module_combo.addItem(f"{MODULE_LABELS.get(module, module)} ({module})", module)
+            self.module_combo.addItem(MODULE_LABELS.get(module, module), module)
+            self.module_combo.setItemData(
+                self.module_combo.count() - 1,
+                f"编辑{MODULE_LABELS.get(module, module)}的图件分组",
+                Qt.ToolTipRole,
+            )
         self._switching = False
         if self.module_combo.count():
             self.module_combo.setCurrentIndex(0)
             self._load_module(str(self.module_combo.currentData()))
         self.summary_label.setText(
-            f"已加载 {len(self.session.modules)} 个可编辑模块；SHA256="
+            f"已加载 {len(self.session.modules)} 个可编辑模块；配置版本校验码="
             f"{self.session.loaded_sha256[:16]}…"
         )
 
@@ -627,7 +721,10 @@ class GroupPlotConfigEditorWidget(QWidget):
         module = self._current_module()
         count = self.group_table.rowCount()
         points = sum(len(item) for item in self.group_points)
-        self.summary_label.setText(f"当前模块 {module or '—'}：{count} 组、{points} 个组内测点。")
+        self.summary_label.setText(
+            f"当前分析类型 {MODULE_LABELS.get(module, module) or '—'}："
+            f"{count} 组、{points} 个组内测点。"
+        )
 
     def _draft_payload(self) -> dict[str, list[GroupPlotRow]]:
         self._persist_module()
@@ -683,7 +780,7 @@ class GroupPlotConfigEditorWidget(QWidget):
             return
         backup = str(result.backup_path) if result.backup_path else "无"
         self.summary_label.setText(
-            f"保存完成：{result.path}；SHA256={result.sha256[:16]}…；备份={backup}"
+            f"保存完成：{result.path}；配置版本校验码={result.sha256[:16]}…；备份={backup}"
         )
         self.config_saved.emit(str(result.path), result.sha256, backup)
         QMessageBox.information(self, "保存完成", self.summary_label.text())

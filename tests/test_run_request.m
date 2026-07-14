@@ -76,6 +76,58 @@ classdef test_run_request < matlab.unittest.TestCase
             tc.verifyEqual(loaded.StopFile, fullfile(tc.TempDir, 'stop.flag'));
             tc.verifyEqual(loaded.AsyncStatusFile, fullfile(tc.TempDir, 'status.json'));
             tc.verifyEqual(loaded.AsyncRunId, 'test_run');
+            tc.verifyEqual(loaded.ConfigSha256, req.ConfigSha256);
+            tc.verifyEqual(loaded.toStruct().config_sha256, req.ConfigSha256);
+        end
+
+        function requestRejectsChangedPinnedConfig(tc)
+            configPath = fullfile(tc.TempDir, 'config.json');
+            fid = fopen(configPath, 'wt');
+            fprintf(fid, '{"bridge":{"id":"guanbing"}}');
+            fclose(fid);
+            hash = bms.io.JsonFile.sha256(configPath);
+            fid = fopen(configPath, 'wt');
+            fprintf(fid, '{"bridge":{"id":"hongtang"}}');
+            fclose(fid);
+
+            tc.verifyError(@() bms.app.RunRequest(tc.TempDir, '2026-01-01', '2026-01-01', ...
+                emptyOpts(), struct(), 'ConfigPath', configPath, 'ConfigSha256', hash), ...
+                'BMS:RunRequest:ConfigHashMismatch');
+        end
+
+        function requestRejectsChangedPinnedConfigDependency(tc)
+            configPath = fullfile(tc.TempDir, 'project.json');
+            layerPath = fullfile(tc.TempDir, 'base.json');
+            writeUtf8(configPath, '{"extends":"base.json","bridge":{"id":"guanbing"}}');
+            writeUtf8(layerPath, '{"plot_common":{"gap_mode":"connect"}}');
+            hash = bms.config.ConfigLayerLoader.dependencySha256(configPath);
+            writeUtf8(layerPath, '{"plot_common":{"gap_mode":"break"}}');
+
+            tc.verifyError(@() bms.app.RunRequest(tc.TempDir, '2026-01-01', '2026-01-01', ...
+                emptyOpts(), struct(), 'ConfigPath', configPath, 'ConfigSha256', hash), ...
+                'BMS:RunRequest:ConfigHashMismatch');
+        end
+
+        function plotSamplingReportsEffectiveModuleOverrides(tc)
+            cfg = struct('plot_common', struct( ...
+                'gap_mode', 'break', ...
+                'dynamic_raw_sampling_mode', 'capped', ...
+                'dynamic_raw_line_width', 0.7, ...
+                'dynamic_raw_modules', struct( ...
+                    'acceleration', struct('sampling_mode', 'full', 'line_width', 1.0, 'gap_mode', 'connect'), ...
+                    'cable_accel', struct('sampling_mode', 'full', 'line_width', 1.2, 'gap_mode', 'connect'))));
+            req = bms.app.RunRequest(tc.TempDir, '2026-01-01', '2026-01-01', emptyOpts(), cfg);
+            sampling = req.toStruct().plot_sampling;
+
+            tc.verifyEqual(sampling.modules.wind.sampling_mode, 'capped');
+            tc.verifyEqual(sampling.modules.wind.line_width, 0.7);
+            tc.verifyEqual(sampling.modules.wind.gap_mode, 'break');
+            tc.verifyEqual(sampling.modules.acceleration.sampling_mode, 'full');
+            tc.verifyEqual(sampling.modules.acceleration.line_width, 1.0);
+            tc.verifyEqual(sampling.modules.acceleration.gap_mode, 'connect');
+            tc.verifyTrue(sampling.modules.acceleration.raw_emf_disabled);
+            tc.verifyEqual(sampling.modules.cable_accel.sampling_mode, 'full');
+            tc.verifyEqual(sampling.modules.cable_accel.line_width, 1.2);
         end
 
         function asyncRunServicePreparesStatusAndStopFiles(tc)
@@ -227,4 +279,13 @@ function bytes = readBinary(path)
     end
     cleanup = onCleanup(@() fclose(fid)); %#ok<NASGU>
     bytes = fread(fid, Inf, '*uint8')';
+end
+
+function writeUtf8(path, text)
+    fid = fopen(path, 'wt', 'n', 'UTF-8');
+    if fid < 0
+        error('test_run_request:WriteFailed', 'Unable to write %s', path);
+    end
+    cleanup = onCleanup(@() fclose(fid)); %#ok<NASGU>
+    fprintf(fid, '%s', text);
 end

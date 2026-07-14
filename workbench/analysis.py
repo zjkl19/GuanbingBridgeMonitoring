@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from .models import JobContext, file_sha256
+from .models import JobContext
+from .config_layers import config_dependency_sha256, load_layered_config
 
 
 @dataclass(frozen=True)
@@ -65,12 +66,12 @@ class AnalysisRequestBuilder:
         config_path = Path(context.config_path)
         if not config_path.is_file():
             raise FileNotFoundError(f"Config file does not exist: {config_path}")
-        actual_hash = file_sha256(config_path)
+        actual_hash = config_dependency_sha256(config_path)
         if actual_hash != context.config_sha256:
             raise RuntimeError(
                 f"Config changed after job creation: expected={context.config_sha256}, actual={actual_hash}"
             )
-        config = _read_json(config_path)
+        config, _ = load_layered_config(config_path)
         config["source"] = str(config_path)
         return {
             "project_root": context.project_root,
@@ -78,6 +79,7 @@ class AnalysisRequestBuilder:
             "start_date": context.start_date,
             "end_date": context.end_date,
             "config_path": context.config_path,
+            "config_sha256": actual_hash,
             "options": context.options,
             "config": config,
             "async_run_id": context.job_id,

@@ -48,7 +48,7 @@ def package_bytes(version: str = "v1.8.0") -> tuple[bytes, str]:
     executable = b"fake-workbench-executable"
     exe_hash = hashlib.sha256(executable).hexdigest()
     manifest = {
-        "schema_version": 2,
+        "schema_version": 3,
         "version": version,
         "executable": EXECUTABLE_FILENAME,
         "executable_sha256": exe_hash,
@@ -57,8 +57,11 @@ def package_bytes(version: str = "v1.8.0") -> tuple[bytes, str]:
         "installed_profile_matrix_smoke": True,
         "invalid_cli_smoke": True,
         "task_history_smoke": True,
+        "report_runtime": "embedded_headless_worker",
+        "standalone_report_builder_included": False,
         "includes_report_builder": True,
         "report_builder_context_smoke": True,
+        "embedded_report_runtime_smoke": True,
         "embedded_report_job_smoke": True,
         "report_gate_contract_smoke": True,
         "report_visual_qc_smoke": True,
@@ -96,7 +99,7 @@ def write_release_package(root: Path, version: str, files: dict[str, bytes]) -> 
         })
     executable = files[EXECUTABLE_FILENAME]
     manifest = {
-        "schema_version": 2,
+        "schema_version": 3,
         "version": version,
         "executable": EXECUTABLE_FILENAME,
         "executable_sha256": hashlib.sha256(executable).hexdigest(),
@@ -105,8 +108,11 @@ def write_release_package(root: Path, version: str, files: dict[str, bytes]) -> 
         "installed_profile_matrix_smoke": True,
         "invalid_cli_smoke": True,
         "task_history_smoke": True,
+        "report_runtime": "embedded_headless_worker",
+        "standalone_report_builder_included": False,
         "includes_report_builder": True,
         "report_builder_context_smoke": True,
+        "embedded_report_runtime_smoke": True,
         "embedded_report_job_smoke": True,
         "report_gate_contract_smoke": True,
         "report_visual_qc_smoke": True,

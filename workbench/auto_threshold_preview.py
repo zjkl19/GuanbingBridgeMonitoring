@@ -11,6 +11,54 @@ from PySide6.QtWidgets import QWidget
 from .auto_threshold import PreviewSeries
 
 
+MODULE_LABELS = {
+    "temperature": "温度",
+    "humidity": "湿度",
+    "rainfall": "雨量",
+    "wind_speed": "风速",
+    "earthquake": "地震动",
+    "deflection": "挠度",
+    "bearing_displacement": "支座位移",
+    "tilt": "倾角",
+    "gnss": "GNSS",
+    "acceleration": "加速度",
+    "cable_accel": "索力加速度",
+    "strain": "应变",
+    "dynamic_strain": "动应变高通",
+    "dynamic_strain_lowpass": "动应变低通",
+    "crack": "裂缝",
+}
+
+PROPOSAL_KIND_LABELS = {
+    "range": "全时段阈值",
+    "window_range": "局部时段阈值",
+}
+
+ALGORITHM_LABELS = {
+    "auto_cut": "智能切线",
+    "quantile": "分位数范围",
+    "mad": "MAD 稳健范围",
+    "iqr": "IQR 稳健范围",
+    "spike_window": "局部尖峰时间窗",
+    "zero_or_flat": "零值或固定值检查",
+}
+
+
+def module_label(value: object) -> str:
+    key = str(value or "").strip()
+    return MODULE_LABELS.get(key, key)
+
+
+def proposal_kind_label(value: object) -> str:
+    key = str(value or "").strip()
+    return PROPOSAL_KIND_LABELS.get(key, key)
+
+
+def algorithm_label(value: object) -> str:
+    key = str(value or "").strip()
+    return ALGORITHM_LABELS.get(key, key)
+
+
 def _timestamp(value: str) -> float | None:
     text = value.strip().replace("Z", "+00:00")
     try:
@@ -43,14 +91,19 @@ class AutoThresholdCurvePreview(QWidget):
         if not proposal:
             return "选择一条建议后显示曲线、建议阈值和局部时间窗。"
         if series is None:
-            return f"{proposal.get('module_key', '')}/{proposal.get('point_id', '')} 没有可用预览序列。"
+            return (
+                f"{module_label(proposal.get('module_key'))}/"
+                f"{proposal.get('point_id', '')} 没有可用预览序列。"
+            )
         bounds = f"{self._number(proposal.get('min'))} ～ {self._number(proposal.get('max'))}"
         time_range = "全时段"
         if proposal.get("t_range_start") and proposal.get("t_range_end"):
             time_range = f"{proposal['t_range_start']} ～ {proposal['t_range_end']}"
         return (
-            f"{series.module_key} / {series.point_id}　算法：{proposal.get('algorithm', '')}　"
-            f"类型：{proposal.get('kind', '')}\n建议范围：{bounds}　时间范围：{time_range}　"
+            f"{module_label(series.module_key)} / {series.point_id}　"
+            f"算法：{algorithm_label(proposal.get('algorithm'))}　"
+            f"类型：{proposal_kind_label(proposal.get('kind'))}\n"
+            f"建议范围：{bounds}　时间范围：{time_range}　"
             f"预览点数：{len(series.values)}\n原因：{proposal.get('reason', '')}"
         )
 
@@ -148,5 +201,8 @@ class AutoThresholdCurvePreview(QWidget):
         last = series.times[-1] if use_time else str(len(series.values))
         painter.drawText(QRectF(frame.left(), frame.bottom() + 7, frame.width() / 2, 20), Qt.AlignLeft, metrics.elidedText(first, Qt.ElideRight, int(frame.width() / 2 - 8)))
         painter.drawText(QRectF(frame.center().x(), frame.bottom() + 7, frame.width() / 2, 20), Qt.AlignRight, metrics.elidedText(last, Qt.ElideLeft, int(frame.width() / 2 - 8)))
-        title = f"{series.module_key} | {series.point_id} | {self._proposal.get('algorithm', '')}"
+        title = (
+            f"{module_label(series.module_key)} | {series.point_id} | "
+            f"{algorithm_label(self._proposal.get('algorithm'))}"
+        )
         painter.drawText(QRectF(frame.left(), 4, frame.width(), 20), Qt.AlignCenter, metrics.elidedText(title, Qt.ElideMiddle, int(frame.width())))

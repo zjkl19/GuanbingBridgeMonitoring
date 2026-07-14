@@ -6,6 +6,98 @@ Last updated: 2026-07-14
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-14 v1.8.0-rc3 Unified Workbench Candidate
+
+- Ordinary workbench analysis requests now use time-series source mode `auto`.
+  Valid CSV remains the first choice; when CSV is absent, the loader may use a
+  valid compatible MAT cache. A user whose archived data directory contains
+  only MAT files does not need to select `mat_only`. Explicit `mat_only` remains
+  an isolation/verification option and is not the ordinary GUI default.
+- `DataIndex` has been corrected so explicit `mat_only` never falls back to CSV
+  while inventorying source files. Keep this boundary in future index changes:
+  `auto` may select CSV first and MAT second, whereas `mat_only` may select MAT
+  only.
+- Jiulongjiang and Shuixianhua daily-export loading now supports their existing
+  `jlj_csv_v2` MAT caches (`ts`, `valx`, `valy`, `valz`, internal `meta` plus
+  matching external cache metadata). In `auto`, CSV behavior remains unchanged
+  when a CSV exists; a valid MAT cache is used only when the CSV is absent.
+  The focused Jiulongjiang/Shuixianhua adapter suite passes `24/24`, and a
+  read-only real Shuixianhua May cache smoke loaded `1,782,849` finite samples
+  through ordinary `load_timeseries_range` discovery without restoring CSV.
+- Zhishan and Shuixianhua cable-acceleration raw time-history plots use automatic
+  y-limits. This change applies only to the raw time-history figure; RMS figures
+  retain their existing configured/default y-limit behavior and statistical
+  meaning.
+- Report-generation code is now embedded in the workbench application and is
+  invoked as a background worker from the same executable runtime. The unified
+  package no longer copies or pops up a separate `BridgeReportBuilder.exe`.
+  The final package contains exactly two executables: the user-facing
+  `桥梁健康监测工作台.exe` and its internal MATLAB analysis runner. Installed
+  CLI, native-GUI, embedded-report, invalid-CLI and all-profile matrix smokes
+  pass; no retired report-builder/report-GUI executable is present.
+- Read-only inspection of machine 126 established the following source facts:
+  the first real temperature/humidity timestamp is
+  `2026-06-08 09:00:02.057`, first visible in the June 9 export. Point `33` is
+  temperature; `33-2` is highly likely to be relative humidity. Within the
+  inspected export range, no independent `WS-H` channel was observed. Preserve
+  the timestamp as an inspected-range result, retain the `33-2` identity caveat,
+  and do not synthesize a channel or claim an earlier start time without new
+  source evidence.
+- Local production-data validation order is fixed as Hongtang, Guanbing,
+  Zhishan, then Shuixianhua. Hongtang's accepted RC2 analysis/report baseline
+  has passed and was not repeated. RC3 validation then completed a Guanbing
+  three-day source sample, Zhishan April source analysis and Shuixianhua May
+  source analysis in that order. These latter three are analysis-layer
+  evidence, not a claim that full-period reports have been generated or
+  approved. In particular, the available Guanbing source covers only part of
+  May 26-28 and is not a June monthly acceptance run.
+- Known source and engineering-parameter limits must be disclosed:
+  Zhishan has no `2026-04-02` partition, lacks CF-7 on `2026-04-01`, and lacks
+  the adjacent `2026-05-01` rolling source needed for the April tail.
+  Shuixianhua cable-acceleration data are absent for `2026-05-02` through
+  `2026-05-05`. No authoritative mapping of effective free length `L` and
+  linear density `rho` was found for the 34 Shuixianhua cable points, so cable
+  acceleration, RMS and frequency results remain usable, but cable-force kN
+  conversion, force plots and force conclusions must stay blocked until the
+  engineering table is supplied. None of these limits permits fabricated
+  samples or inferred structural parameters.
+- Validation evidence is stratified as follows:
+  - Hongtang: accepted full Q2 analysis/report baseline at
+    `E:\GuanbingLocalValidation\v1.8.0-rc2_20260713_2118\hongtang_q2_complete_0628_0630_20260713_2225`.
+  - Guanbing: RC3 source-sample manifests
+    `analysis_manifest_20260714_051527.json` and
+    `analysis_manifest_20260714_052106.json` under
+    `E:\GuanbingLocalValidation\v1.8.0-rc3_20260714_045654\guanbing\run_logs`.
+  - Zhishan: April manifest `analysis_manifest_20260714_055424.json` under
+    `E:\GuanbingLocalValidation\v1.8.0-rc3_20260714_045654\zhishan\run_logs`;
+    all 14 formal plot records close their counts.
+  - Shuixianhua: May manifest `analysis_manifest_20260714_091235.json` under
+    `E:\GuanbingLocalValidation\v1.8.0-rc3_20260714_045654\shuixianhua\run_logs`;
+    65/65 formal plot records close their counts and all eight statistics
+    workbooks are readable. The final wind-only compiled rerun is
+    `analysis_manifest_20260714_100143.json`; it removed the false cache-only
+    0/2 preflight warning without changing any wind statistic or JPG hash.
+- Final full health evidence is
+  `outputs/health_checks/release_health_check_20260714_095626.json`: Python
+  `388/388`, MATLAB `574/574`, MSSQL-backed tests included, plus compiled GUI
+  smoke. After the last user-facing `wind_direction` -> `风向` display fix, the
+  focused Qt suite passes `19/19`, and the rebuilt native screenshot has been
+  visually approved.
+- The schema-v3 release tree closes at 381/381 inventoried files and
+  226,562,280 bytes. Workbench SHA-256 is
+  `66368A15E0AAEDA4B5F67B629E8329DFFAAF509823F90EF1525A90D8F1F78440`;
+  runner SHA-256 is
+  `635B6886CE66252C13FB1EAD30761605BE1058190F646B9082B5C3F968005D2B`.
+  The 117,190,491-byte RC ZIP is
+  `release\workbench\BridgeMonitoringWorkbench-v1.8.0-rc3-win-x64.zip`,
+  SHA-256
+  `888E71154982891CA4C351FE9A505DD5F8E525D201D2AE35732F775590C372BF`.
+  Disposable install/update/rollback validation passed at
+  `tmp\workbench_update_cycle\rc3_final_20260714\update_cycle_result.json`.
+  This is a dev-branch release candidate; it is not authorization to merge
+  `main`, replace the legacy production installation, or invent missing source
+  data/engineering parameters.
+
 ## 2026-07-14 Hongtang Q2 Supplement Recalculation (June 28-30)
 
 - The previously omitted `2026-06-28` through `2026-06-30` Hongtang folders

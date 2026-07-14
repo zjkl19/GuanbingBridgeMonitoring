@@ -11,6 +11,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from .branding import application_icon, set_windows_app_user_model_id
+from .config_layers import config_dependency_sha256
 from .main_window import WorkbenchWindow
 from .models import file_sha256
 from .version import EXECUTABLE_FILENAME, app_version, project_root as default_project_root
@@ -57,6 +58,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--initial-warning-tab", type=int, default=0)
     parser.add_argument("--initial-cleaning-tab", type=int, default=0)
     parser.add_argument("--job-context", type=Path, default=None)
+    parser.add_argument("--run-report-job", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--report-status", type=Path, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--report-result", type=Path, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--report-runtime-smoke-test", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--smoke-output", type=Path, default=None)
     parser.add_argument("--screenshot-output", type=Path, default=None)
@@ -138,11 +143,12 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "selected_report_gui_type": profile.report_gui_type,
         "selected_report_capable": bool(profile.report_template and profile.report_gui_type),
         "selected_data_root": window.data_root_edit.text().strip(),
+        "data_source_mode_summary": window.data_source_mode_label.text(),
         "selected_start_date": window.start_date_edit.date().toString("yyyy-MM-dd"),
         "selected_end_date": window.end_date_edit.date().toString("yyyy-MM-dd"),
         "selected_modules": window._selected_modules(),
         "selected_config_path": str(config_path.resolve()),
-        "selected_config_sha256": file_sha256(config_path) if config_path.is_file() else "",
+        "selected_config_sha256": config_dependency_sha256(config_path) if config_path.is_file() else "",
         "selected_template_path": str(template_path.resolve()) if template_path else "",
         "selected_template_sha256": file_sha256(template_path) if template_path and template_path.is_file() else "",
         "configuration_load_errors": [
@@ -153,6 +159,16 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.report_runtime_smoke_test:
+        from .embedded_report import write_report_runtime_smoke
+
+        return write_report_runtime_smoke(args.smoke_output)
+    if args.run_report_job:
+        if args.job_context is None or args.report_status is None or args.report_result is None:
+            raise SystemExit("report worker mode requires job context, status and result paths")
+        from .embedded_report import run_embedded_report_job
+
+        return run_embedded_report_job(args.job_context, args.report_status, args.report_result)
     if args.install_staged_update:
         if args.install_source is None or args.install_root is None or not args.install_version:
             raise SystemExit("install mode requires source, root and version")

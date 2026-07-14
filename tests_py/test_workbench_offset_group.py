@@ -241,7 +241,8 @@ class WorkbenchOffsetGroupGuiTests(unittest.TestCase):
         widget.load_path(ROOT / "config" / "zhishan_config.json")
         self.assertEqual(widget.table.rowCount(), 24)
         modes = {widget.table.item(row, 3).text() for row in range(widget.table.rowCount())}
-        self.assertIn("hourly_median", modes)
+        self.assertIn("逐小时中位数", modes)
+        self.assertIn("hourly_median", {row.mode for row in widget.rows()})
         self.assertEqual(widget.rows(), widget.session.rows)
 
     def test_group_widget_loads_modules_and_preserves_current_draft(self) -> None:

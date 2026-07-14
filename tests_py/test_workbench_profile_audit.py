@@ -77,6 +77,12 @@ def _write_catalog(root: Path, profile_ids: tuple[str, ...] = PROFILE_IDS) -> No
         json.dumps(_catalog_payload(profile_ids)), encoding="utf-8"
     )
     (config / "path_profiles.json").write_text('{"profiles": []}', encoding="utf-8")
+    reports = root / "reports"
+    reports.mkdir(parents=True, exist_ok=True)
+    for bridge_id in profile_ids:
+        (config / f"{bridge_id}.json").write_text("{}", encoding="utf-8")
+        if bridge_id != "chongyangxi":
+            (reports / f"{bridge_id}.docx").write_bytes(b"template")
     assets = root / "workbench" / "assets"
     assets.mkdir(parents=True)
     for name in ("app_icon.svg", "app_icon.png", "app_icon.ico", "organization_logo.png"):
@@ -132,6 +138,33 @@ class WorkbenchProfileAuditTests(unittest.TestCase):
                 json.dumps(_matrix_payload(PROFILE_IDS)), encoding="utf-8"
             )
             with self.assertRaisesRegex(ProfileAuditError, "项目目录完全一致"):
+                load_installed_profile_matrix(root)
+
+    def test_matrix_asset_count_includes_layered_config_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            _write_catalog(root)
+            config = root / "config"
+            (config / "future_bridge.json").write_text(
+                '{"extends":"future_bridge_base.json"}', encoding="utf-8"
+            )
+            (config / "future_bridge_base.json").write_text(
+                '{"defaults":{"temperature":{"thresholds":[]}}}', encoding="utf-8"
+            )
+            payload = _matrix_payload()
+            payload["asset_count"] = int(payload["asset_count"]) + 1
+            (root / "workbench_profile_matrix.json").write_text(
+                json.dumps(payload), encoding="utf-8"
+            )
+
+            matrix = load_installed_profile_matrix(root)
+            self.assertEqual(matrix.asset_count, 2 * len(PROFILE_IDS) + 6)
+
+            payload["asset_count"] = int(payload["asset_count"]) - 1
+            (root / "workbench_profile_matrix.json").write_text(
+                json.dumps(payload), encoding="utf-8"
+            )
+            with self.assertRaisesRegex(ProfileAuditError, "配置资产闭环"):
                 load_installed_profile_matrix(root)
 
 

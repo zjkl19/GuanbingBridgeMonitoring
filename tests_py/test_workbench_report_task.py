@@ -19,6 +19,7 @@ from analysis_manifest import active_pinned_analysis_manifest
 from workbench.models import JobContext, file_sha256
 from workbench.profiles import load_profiles
 from workbench.report_task import read_report_status, report_job_command
+from workbench.embedded_report import report_runtime_contract
 
 
 class WorkbenchReportTaskTests(unittest.TestCase):
@@ -29,6 +30,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
         *,
         bridge_id: str = "guanbing",
         module: str = "temperature",
+        config_path: Path | None = None,
     ) -> Path:
         provenance = root / f"{module}.plot.json"
         provenance.write_bytes((ROOT / "tests" / "fixtures" / "workbench_provenance_contract.json").read_bytes())
@@ -40,6 +42,8 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                 "data_root": str(data_root),
                 "start_date": "2026-04-01",
                 "end_date": "2026-04-30",
+                "config_path": str(config_path.resolve()) if config_path else "",
+                "config_sha256": file_sha256(config_path) if config_path else "",
             },
             "module_results": [{
                 "key": module,
@@ -61,17 +65,64 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             reporting = root / "reporting"
             (reporting / ".venv" / "Scripts").mkdir(parents=True)
             (reporting / ".venv" / "Scripts" / "python.exe").write_bytes(b"x")
-            (reporting / "report_job_cli.py").write_text("", encoding="utf-8")
             command = report_job_command(root, root / "job.json", root / "status.json", root / "result.json")
             self.assertTrue(command[0].endswith("python.exe"))
-            self.assertIn("--status", command)
-            self.assertIn("--result", command)
+            self.assertEqual(command[1:3], ("-m", "workbench"))
+            self.assertIn("--run-report-job", command)
+            self.assertIn("--report-status", command)
+            self.assertIn("--report-result", command)
+            self.assertNotIn("report_gui.py", command)
+            self.assertFalse(any("BridgeReportBuilder" in value for value in command))
 
-    def test_source_report_gate_contract_smoke_runs_from_reporting_script(self) -> None:
+    def test_frozen_command_reuses_workbench_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as folder, patch(
+            "workbench.report_task.sys.frozen", True, create=True
+        ), patch("workbench.report_task.sys.executable", r"C:\\app\\bridge.exe"):
+            root = Path(folder)
+            command = report_job_command(
+                root, root / "job.json", root / "status.json", root / "result.json"
+            )
+            self.assertEqual(command[0], r"C:\\app\\bridge.exe")
+            self.assertEqual(command[1], "--run-report-job")
+            self.assertFalse(any("BridgeReportBuilder" in value for value in command))
+
+    def test_embedded_runtime_has_no_standalone_window(self) -> None:
+        contract = report_runtime_contract()
+        self.assertTrue(contract["ok"])
+        self.assertEqual(contract["runtime"], "embedded_headless_worker")
+        self.assertFalse(contract["standalone_report_window"])
+        self.assertEqual(contract["report_type_count"], len(REPORT_TYPE_NAMES))
+
+    def test_embedded_runtime_smoke_runs_worker_and_real_docx_build(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / "runtime_smoke.json"
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "workbench",
+                    "--report-runtime-smoke-test",
+                    "--smoke-output",
+                    str(output),
+                ],
+                cwd=ROOT,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=90,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            payload = json.loads(output.read_text(encoding="utf-8-sig"))
+            self.assertTrue(payload["embedded_report_job"])
+            self.assertTrue(payload["report_gate_contract"])
+            self.assertTrue(payload["visual_qc_contract"])
+
+    def test_source_report_gate_contract_smoke_runs_from_unified_workbench(self) -> None:
         environment = dict(os.environ)
         environment.setdefault("QT_QPA_PLATFORM", "offscreen")
         completed = subprocess.run(
-            [sys.executable, str(ROOT / "reporting" / "report_gui.py"), "--report-gate-contract-smoke-test"],
+            [sys.executable, "-m", "workbench", "--report-runtime-smoke-test"],
             cwd=ROOT,
             env=environment,
             stdout=subprocess.PIPE,
@@ -82,6 +133,22 @@ class WorkbenchReportTaskTests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
 
+    def test_retired_report_window_refuses_default_launch(self) -> None:
+        environment = dict(os.environ)
+        environment.setdefault("QT_QPA_PLATFORM", "offscreen")
+        completed = subprocess.run(
+            [sys.executable, str(ROOT / "reporting" / "report_gui.py")],
+            cwd=ROOT,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("retired", (completed.stdout + completed.stderr).lower())
+
     def test_context_request_requires_approval_and_pinned_files(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -91,7 +158,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             template = root / "template.docx"
             config.write_text("{}", encoding="utf-8")
             template.write_bytes(b"template")
-            manifest = self._write_closed_manifest(root, data)
+            manifest = self._write_closed_manifest(root, data, config_path=config)
             context = JobContext.create(
                 project_root=ROOT,
                 bridge_id="guanbing", bridge_name="管柄大桥", data_root=data,
@@ -133,7 +200,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             template = root / "template.docx"
             config.write_text("{}", encoding="utf-8")
             template.write_bytes(b"template")
-            manifest = self._write_closed_manifest(root, data)
+            manifest = self._write_closed_manifest(root, data, config_path=config)
             context = JobContext.create(
                 project_root=ROOT,
                 bridge_id="guanbing", bridge_name="guanbing", data_root=data,
@@ -163,6 +230,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                 "bridge_profile": {"bridge_id": "guanbing"},
                 "run_request": {
                     "data_root": str(data), "start_date": "2026-04-01", "end_date": "2026-04-30",
+                    "config_path": str(config.resolve()), "config_sha256": file_sha256(config),
                 },
                 "module_results": [{"key": "temperature", "status": "ok", "artifacts": []}],
             }), encoding="utf-8")

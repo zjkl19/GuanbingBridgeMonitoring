@@ -57,10 +57,7 @@ try {
             Write-Host "[regression][SKIP] Guanbing report smoke: missing data/template/config"
         }
 
-        $hongtangTemplate = Join-Path $repo "reporting\dist\BridgeReportBuilder\reports\洪塘大桥健康监测2026年第一季季报-改4.docx"
-        if (!(Test-Path $hongtangTemplate)) {
-            $hongtangTemplate = Join-Path $repo "reports\洪塘大桥健康监测周期报模板-自动报告.docx"
-        }
+        $hongtangTemplate = Join-Path $repo "reports\洪塘大桥健康监测周期报模板-自动报告.docx"
         $hongtangCfg = Join-Path $repo "config\hongtang_config.json"
         if ((Test-Path $HongtangRoot) -and (Test-Path $hongtangTemplate) -and (Test-Path $hongtangCfg)) {
             Invoke-Optional "Hongtang period report smoke" {

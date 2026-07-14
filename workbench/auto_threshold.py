@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import file_sha256
+from .config_layers import config_dependency_sha256
 
 
 class AutoThresholdError(RuntimeError):
@@ -92,7 +93,7 @@ def resolve_runner(project_root: Path) -> Path:
             if candidate.is_file():
                 return candidate.resolve()
     raise AutoThresholdError(
-        "未找到支持自动清洗建议的 BridgeAnalysisRunner；请先重新构建核心 Runner"
+        "未找到自动清洗建议所需的后台分析程序；请重新安装或修复核心分析组件"
     )
 
 
@@ -124,7 +125,7 @@ def prepare_request(
         stdout=root / "auto_threshold_stdout.log",
         stderr=root / "auto_threshold_stderr.log",
     )
-    config_hash = file_sha256(config_path)
+    config_hash = config_dependency_sha256(config_path)
     payload = {
         "schema_version": 1,
         "request_type": "auto_threshold_proposal",
@@ -210,7 +211,7 @@ def load_preview_artifact(
     if not path.is_file():
         raise AutoThresholdError(f"自动清洗预览文件不存在：{path}")
     if expected_sha256 and file_sha256(path).lower() != expected_sha256.lower():
-        raise AutoThresholdError("自动清洗预览文件 SHA256 与 Runner 结果不一致")
+        raise AutoThresholdError("自动清洗预览文件完整性校验码与后台分析结果不一致")
     try:
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -222,7 +223,7 @@ def load_preview_artifact(
     if expected_request_id and str(payload.get("request_id") or "") != expected_request_id:
         raise AutoThresholdError("自动清洗预览 request_id 与建议结果不一致")
     if expected_config_sha256 and str(payload.get("config_sha256") or "").lower() != expected_config_sha256.lower():
-        raise AutoThresholdError("自动清洗预览配置 SHA256 与建议结果不一致")
+        raise AutoThresholdError("自动清洗预览所用配置版本与建议结果不一致")
 
     result: dict[tuple[str, str], PreviewSeries] = {}
     for row in _series_rows(payload.get("preview_series")):
@@ -258,6 +259,6 @@ def load_preview_artifact(
         result[series.key] = series
     if expected_series_count is not None and len(result) != expected_series_count:
         raise AutoThresholdError(
-            f"自动清洗预览序列数与 Runner 结果不一致：{len(result)} != {expected_series_count}"
+            f"自动清洗预览序列数与后台分析结果不一致：{len(result)} != {expected_series_count}"
         )
     return result

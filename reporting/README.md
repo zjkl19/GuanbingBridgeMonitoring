@@ -61,51 +61,40 @@ The generator also removes a redundant empty section-break paragraph before
 the result chapter to prevent a blank page after the alarm-threshold table.
 Always update Word fields/TOC and render every page before delivery.
 
-## Packaged GUI / 打包 GUI
+## Unified Workbench / 统一工作台
 
-The packaged directory should contain at least the following files.
-打包目录至少应包含以下文件。
+Starting with v1.8, operators generate reports from the `报告生成` tab of
+`桥梁健康监测工作台.exe`.  The report engine runs as a hidden worker of
+the same application, so no second report-builder window or standalone report
+executable is part of the production package.
 
-```text
-BridgeReportBuilder/
-  BridgeReportBuilder.exe
-  _internal/
-  reports/
-    洪塘大桥健康监测月报模板.docx
-    洪塘大桥健康监测2026年第一季季报-改4.docx
-    九龙江大桥健康监测2026年3月份月报_修订5.docx
-  README.md
-  REPORTING_LOGIC.md
-  VERSION.txt
-```
+从 v1.8 开始，用户统一在 `桥梁健康监测工作台.exe` 的“报告生成”页生成报告。
+报告内核以同一应用程序的隐藏后台任务运行，生产包不再包含第二个报告窗口或独立报告 EXE。
 
-Keep `BridgeReportBuilder.exe` and `_internal/` together.
-`BridgeReportBuilder.exe` 和 `_internal/` 必须一起保留。
+The schema-v3 `release_manifest.json` must declare:
 
-Build a standardized release package from the repository root.
-在仓库根目录执行以下命令生成标准发布包。
+- `report_runtime = embedded_headless_worker`
+- `standalone_report_builder_included = false`
+- successful embedded report job, report-condition, and visual-QA checks
+
+The compatibility field `includes_report_builder = true` means that report
+capability is embedded in the workbench; it does **not** authorize packaging a
+standalone `BridgeReportBuilder.exe`.
+
+Build and verify the unified application from the repository root:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\package_report_builder.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\build_workbench_exe.ps1
 ```
 
-The package script runs Python unit tests, report smoke precheck, exe packaging, required-file validation, and writes `VERSION.txt`.
-该脚本会运行 Python 单元测试、报告冒烟预检、exe 打包、必需文件校验，并写入 `VERSION.txt`。
+The build and GitHub-release scripts scan both the distribution tree and the
+final ZIP and fail if a retired standalone report entry is present.  Historical
+developer-only entrypoints under `reporting/` remain available for isolated
+backend diagnostics and template regression; they are not operator or release
+entrypoints and must not be copied to a production package.
 
-Production update procedure.
-生产机更新流程。
-
-1. Extract the generated `BridgeReportBuilder_vX.Y.Z_YYYYMMDD_HHMMSS.zip`.
-2. Replace the old `BridgeReportBuilder` directory as a whole.
-3. Do not overwrite production `config/` files unless explicitly intended.
-4. Keep data and generated reports under the data/result root.
-5. Start the GUI and click `检查模板/目录` before generation.
-
-1. 解压生成的 `BridgeReportBuilder_vX.Y.Z_YYYYMMDD_HHMMSS.zip`。
-2. 整体替换旧的 `BridgeReportBuilder` 目录。
-3. 不要覆盖生产机 `config/`，除非明确要同步配置。
-4. 数据和生成报告仍放在数据/结果根目录。
-5. 打开 GUI 后先点击 `检查模板/目录`。
+生产机更新时，应整体替换统一工作台目录，保留现场的 `config/` 和数据根目录，
+再由工作台内置的配置检查、分析结果检查和逐页版面检查完成报告交付。
 
 ## Data Root / 数据根目录
 
@@ -236,7 +225,20 @@ The GUI performs a preflight check before generating a period report and warns w
 - 部分月份缺少 WIM 月结果目录
 
 
-## Report GUI Workflow / 报告 GUI 使用步骤
+## Embedded report runtime / 内嵌报告运行时
+
+The only operator entry is the **报告生成** page in `桥梁健康监测工作台.exe`.
+`report_gui.py` retains headless report contracts and developer self-tests, but
+it cannot open a standalone window. The separate EXE build and package scripts
+have been removed and must not be restored into the unified release.
+
+用户唯一入口是 `桥梁健康监测工作台.exe` 的“报告生成”页。`report_gui.py` 仅保留
+后台报告契约和开发自测，不能再打开独立窗口；独立 EXE 构建和打包脚本已经删除，
+不得重新放回统一发布包。
+
+生产入口统一为 `桥梁健康监测工作台.exe` 内的“报告生成”页面。以下内容只作为历史实现
+和隔离兼容测试资料保留；旧界面、旧 EXE 构建和旧打包脚本默认拒绝运行，且不得进入统一
+发布包。
 
 Version `v1.7.39` adds the Hongtang typhoon full-data and quick-report workflows, Q2-template augmentation, audited acceleration RMS unit handling, and final caption/page-total locking. Version `v1.7.38` adds a guarded WPS Writer fallback that restores the original DOCX when field refresh creates broken references, plus OOXML reference-field and TOC-page staticization for stable locked delivery. Version `v1.7.37` adds the Hongtang W1/W2 wind diagnostic memo builder and lets legacy period templates pass precheck on their original deck-wind caption before the generator replaces it with the location-aware W1/W2 caption. Version `v1.7.36` reserves wind-rose title clearance above north and gives radial percentage labels a readable background. Version `v1.7.35` moves wind-rose radial percentage labels into the north-east interior so they do not overlap the east compass label. Version `v1.7.34` corrects wind-rose compass labels to the meteorological north-up/east-right orientation. Version `v1.7.33` rebuilds Hongtang wind calendar days from rolling D+D1 exports, rejects negative wind speed, carries source provenance into all report-facing wind plots, distinguishes bridge-deck W1 from tower-top W2, and clears stale template wind rows when a point is absent. Version `v1.7.32` adds configuration-backed Zhishan low-pass strain alarm wording, replacing fixed no-abnormality text with measured excursions and a raw-data/sensor/site-review qualification when a configured point boundary is exceeded; strict locked-media behavior is unchanged. Version `v1.7.31` adds an audited Zhishan source-quality note that is inserted into data coverage and monitoring summary text and recorded in the build manifest. Version `v1.7.30` keeps the report GUI/package version aligned with the Zhishan SX-5 low-pass retention correction. Version `v1.7.29` keeps the report GUI/package version aligned with the dynamic-strain source-retention correction. Version `v1.7.28` keeps the report GUI/package version aligned with the Zhishan CF-5 processing correction; report-generation behavior remains the strict v1.7.27 implementation. Version `v1.7.27` makes manifest-backed point-image lookup enforce exact point-token boundaries. This prevents prefix collisions such as `CS1` selecting the newer `CS12` figure (and `CX1` selecting `CX12`) in Hongtang period reports.
 

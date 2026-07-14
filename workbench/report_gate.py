@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .manifest import ManifestSummary, load_manifest_summary, manifest_context_issues
 from .models import JobContext, file_sha256
+from .config_layers import config_dependency_sha256
 from .provenance import PlotProvenanceSummary, inspect_manifest_plot_provenance
 
 
@@ -49,7 +50,12 @@ def inspect_report_gate(context: JobContext) -> ReportGateAudit:
     if not context.selected_modules:
         issues.append("报告任务尚未绑定任何分析项目")
 
-    _, config_issues = _pinned_file_issues("配置文件", context.config_path, context.config_sha256)
+    config_path = Path(context.config_path).expanduser()
+    config_issues: list[str] = []
+    if not config_path.is_file():
+        config_issues.append(f"配置文件不存在：{config_path}")
+    elif config_dependency_sha256(config_path) != context.config_sha256.upper():
+        config_issues.append(f"配置文件或其分层依赖在任务建立后发生变化：{config_path}")
     _, template_issues = _pinned_file_issues(
         "报告模板", context.report.template_path, context.report.template_sha256
     )
@@ -70,6 +76,8 @@ def inspect_report_gate(context: JobContext) -> ReportGateAudit:
                     data_root=Path(context.data_root),
                     start_date=context.start_date,
                     end_date=context.end_date,
+                    config_path=Path(context.config_path),
+                    config_sha256=context.config_sha256,
                 )
             )
             if manifest.status.lower() not in SUCCESS_STATES:

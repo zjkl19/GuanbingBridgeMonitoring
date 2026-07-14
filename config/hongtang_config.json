@@ -4373,6 +4373,20 @@
     "save_fig": true,
     "lightweight_fig": true,
     "fig_max_points": 50000,
+    "dynamic_raw_modules": {
+      "acceleration": {
+        "sampling_mode": "full",
+        "line_width": 1.0,
+        "render_mode": "line",
+        "gap_mode": "connect"
+      },
+      "cable_accel": {
+        "sampling_mode": "full",
+        "line_width": 1.0,
+        "render_mode": "line",
+        "gap_mode": "connect"
+      }
+    },
     "dynamic_raw_sampling_mode": "full",
     "dynamic_raw_fig_max_points": 1200000,
     "dynamic_raw_min_points_per_day": 12000,

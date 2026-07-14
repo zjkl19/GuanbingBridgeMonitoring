@@ -6,6 +6,10 @@
 
 $ErrorActionPreference = "Stop"
 
+if ($IncludeReportBuilderDist) {
+    throw "The standalone report builder has retired. Use the unified PySide6 workbench report page."
+}
+
 function Write-Step($Message) {
     Write-Host "[package] $Message" -ForegroundColor Cyan
 }
@@ -65,9 +69,7 @@ $excludeDirNames = @(
     "outputs",
     "release"
 )
-if (!$IncludeReportBuilderDist) {
-    $excludeDirNames += "dist"
-}
+$excludeDirNames += "dist"
 
 function Copy-FilteredDir($RelativePath) {
     $src = Join-Path $repo $RelativePath
@@ -87,6 +89,9 @@ function Copy-FilteredDir($RelativePath) {
             New-Item -ItemType Directory -Force -Path $target | Out-Null
         } else {
             if ($_.Name -match "(_backup_|backup_\d|\.spec$|\.pyc$|~$)") {
+                return
+            }
+            if ($_.Name -ieq "BridgeReportBuilder.exe" -or $_.Name -ieq "MonthlyReportBuilder.exe" -or $_.Name -ieq "report_gui.py") {
                 return
             }
             New-Item -ItemType Directory -Force -Path (Split-Path $target -Parent) | Out-Null
@@ -130,7 +135,7 @@ $manifest = [ordered]@{
     excluded_dir_names = $excludeDirNames
     file_count = $stageSummary.file_count
     total_bytes = $stageSummary.total_bytes
-    include_report_builder_dist = [bool]$IncludeReportBuilderDist
+    include_report_builder_dist = $false
     note = "Data directories are excluded. Copy this package over source code only."
 }
 $manifestPath = Join-Path $stage "package_manifest.json"

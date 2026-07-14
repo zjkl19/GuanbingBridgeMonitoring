@@ -22,7 +22,7 @@ classdef AutoThresholdRequestRunner
             try
                 configPath = char(string(request.config_path));
                 expectedConfigHash = lower(char(string(request.config_sha256)));
-                actualConfigHash = bms.io.JsonFile.sha256(configPath);
+                actualConfigHash = bms.config.ConfigLayerLoader.dependencySha256(configPath);
                 if ~strcmp(actualConfigHash, expectedConfigHash)
                     error('BMS:AutoThresholdRequest:ConfigChanged', ...
                         'Configuration changed after request creation: %s', configPath);

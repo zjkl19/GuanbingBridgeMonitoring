@@ -29,6 +29,7 @@ from docx.shared import Mm
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
+from config_loader import load_report_config
 
 T_REPORT_MONTH = "\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5"
 T_REPORT_QUARTER = "\u5065\u5eb7\u76d1\u6d4b\u5b63\u62a5\uff08WIM\u6d4b\u8bd5\u7a3f\uff09"
@@ -194,7 +195,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8-sig"))
+    return load_report_config(path)
 
 
 def load_sheet_rows(path: Path, sheet: str) -> list[dict]:

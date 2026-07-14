@@ -136,8 +136,7 @@ REQUIRED_RELEASE_GATES = (
     "installed_profile_matrix_smoke",
     "invalid_cli_smoke",
     "task_history_smoke",
-    "includes_report_builder",
-    "report_builder_context_smoke",
+    "embedded_report_runtime_smoke",
     "embedded_report_job_smoke",
     "report_gate_contract_smoke",
     "report_visual_qc_smoke",
@@ -462,8 +461,8 @@ def _safe_relative_path(value: object) -> Path:
 
 
 def _release_inventory(payload: dict[str, Any]) -> tuple[tuple[Path, int, str], ...]:
-    if int(payload.get("schema_version") or 0) < 2:
-        raise UpdateSecurityError("release manifest schema_version must be at least 2")
+    if int(payload.get("schema_version") or 0) < 3:
+        raise UpdateSecurityError("release manifest schema_version must be at least 3")
     raw_inventory = payload.get("file_inventory")
     if not isinstance(raw_inventory, list) or not raw_inventory:
         raise UpdateSecurityError("release manifest is missing the complete file inventory")
@@ -516,6 +515,10 @@ def validate_release_package(
     for gate in REQUIRED_RELEASE_GATES:
         if payload.get(gate) is not True:
             raise UpdateSecurityError(f"update package did not pass required release gate: {gate}")
+    if payload.get("report_runtime") != "embedded_headless_worker":
+        raise UpdateSecurityError("update package report runtime is not embedded")
+    if payload.get("standalone_report_builder_included") is not False:
+        raise UpdateSecurityError("update package still includes the standalone report builder")
     smoke = payload.get("smoke")
     if not isinstance(smoke, dict) or smoke.get("ok") is not True:
         raise UpdateSecurityError("update package workbench smoke gate is not successful")

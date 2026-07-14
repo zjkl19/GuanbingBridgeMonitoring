@@ -34,6 +34,64 @@ items still require engineering review.
   bridge, not permission for ordinary filesystem fallback. Future analysis
   manifests should carry those images directly.
 
+## v1.8.0-rc3 Source And Validation Boundaries
+
+Status: RC3 source analysis and rebuilt-package validation complete with the
+bridge-specific limits below; full report acceptance is not complete for every
+bridge.
+
+- Ordinary GUI runs should remain on source mode `auto`: CSV has priority and a
+  valid MAT cache is used when CSV is absent. Do not instruct ordinary users to
+  select `mat_only` simply because an archived period contains only MAT files.
+  Explicit `mat_only` is reserved for isolated verification and must never
+  fall back to CSV. `DataIndex` now enforces the same rule; a future index
+  refactor must not reintroduce CSV fallback in `mat_only`.
+- Jiulongjiang/Shuixianhua cache-only operation requires a valid
+  `jlj_csv_v2` MAT payload and matching metadata. A malformed, stale or
+  metadata-less cache fails closed; it must not be accepted merely because the
+  `.mat` filename matches a point. When both valid CSV and MAT are present in
+  `auto`, CSV remains authoritative.
+- Automatic y-limits for Zhishan and Shuixianhua cable acceleration apply only
+  to raw time-history figures. Do not infer that the RMS figure axis, RMS
+  aggregation or alarm/statistical threshold changed.
+- The unified-workbench report implementation is embedded in the workbench
+  application as a background worker for the same EXE runtime. RC3 must not
+  ship or open a second `BridgeReportBuilder.exe`. The final 381-file package,
+  native GUI, embedded-report worker, CLI and disposable update/rollback cycle
+  pass; the inventory contains only the workbench and internal analysis-runner
+  executables.
+- Read-only inspection of 126 found the first real temperature/humidity sample
+  at `2026-06-08 09:00:02.057`, first included by the June 9 export. Point `33`
+  is temperature and `33-2` is highly likely humidity. Within the inspected
+  export range, no independent `WS-H` channel was observed. This remains a
+  source-identification caveat until authoritative channel documentation is
+  obtained and must not be generalized to uninspected historical partitions.
+- Local validation order is Hongtang -> Guanbing -> Zhishan -> Shuixianhua.
+  Hongtang has an accepted RC2 analysis/report baseline. Guanbing's three-day
+  RC3 source sample, Zhishan April RC3 source analysis and Shuixianhua May RC3
+  source analysis are complete. They do not constitute full-period report
+  acceptance: Guanbing covers only part of May 26-28, while no fresh Zhishan or
+  Shuixianhua report was generated in this validation. Do not promote an
+  analysis layer to a broader completion claim.
+- Zhishan source gaps: all of `2026-04-02`, CF-7 on `2026-04-01`, and the
+  adjacent `2026-05-01` rolling source required for the April tail are absent.
+  Shuixianhua cable-acceleration source is absent from `2026-05-02` through
+  `2026-05-05`. Reports and validation summaries must disclose these gaps and
+  must not fabricate continuity.
+- The repository and inspected source contain no authoritative Shuixianhua
+  34-point mapping for cable effective free length `L` and linear density
+  `rho`. Cable acceleration, RMS and identified frequencies can be reviewed;
+  cable-force kN conversion, force figures and force conclusions must remain
+  unavailable. Do not copy nominal section data or another bridge's parameters.
+  Required evidence is an approved table mapping point -> physical cable ->
+  cable type -> effective `L` -> `rho` -> baseline force, with drawing/version
+  and date.
+- Shuixianhua's final compiled wind-only rerun closes 8/8 source records and
+  reproduces the prior wind workbook and all eight JPG hashes exactly. The
+  corrected preflight no longer reports a false “0/2 points found” warning for
+  a valid cache-only source. Preserve this regression when changing cache
+  discovery.
+
 ## PySide6 Workbench Migration Boundaries
 
 Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not a production replacement.
@@ -73,10 +131,13 @@ Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not
 - The Python module key/option mapping mirrors MATLAB and is protected by a
   source-contract test against `bms.module.ModuleRegistry`; future module
   additions must update both sides or the test will fail.
-- The local package includes a rebuilt report generator and its
-  `--job-context` smoke passes. It has not yet had complete real-report
-  production comparison for all bridge profiles, so the legacy GUI remains the
-  production fallback.
+- Historical RC packages included a separate rebuilt report generator. RC3
+  instead embeds report execution in the workbench runtime and must not copy or
+  launch `BridgeReportBuilder.exe`. The rebuilt unified package has completed
+  installed-runtime verification, but the bridge-by-bridge evidence is still
+  stratified: only Hongtang has an accepted full analysis/report baseline;
+  Guanbing, Zhishan and Shuixianhua currently have the source-analysis evidence
+  described above. The legacy production path therefore remains the fallback.
 - The frozen shell itself now passes a catalog-driven all-profile matrix: every
   configured project loads, each report/analysis-only capability matches the
   shared catalog, and all packaged catalog/config/template assets retain
@@ -175,10 +236,12 @@ substitute. Their current deltas are: Hongtang 108 pages/182 media (10 missing,
 (missing figure anchors 2-5 and 2-6). These must be resolved against complete
 context-matched results before the legacy report workflow can retire.
 
-The workbench packager now rebuilds `BridgeReportBuilder.exe` whenever report
-Python/config inputs are newer. This guard was added after the first embedded
-protocol smoke exposed a stale copied report EXE that opened the old GUI and
-never returned from the new contract check.
+Historical RC1/RC2 packaging rebuilt `BridgeReportBuilder.exe` whenever report
+Python/config inputs were newer; that guard prevented a stale copied report EXE
+from opening the old GUI. RC3 supersedes this layout by freezing the report
+modules into the workbench executable and launching an internal background
+worker. Keep the historical note for diagnosis, but do not restore the separate
+EXE to the unified package.
 
 The first five-profile render also exposed a Windows long-path defect: the QC
 folder repeated the full Chinese DOCX name and LibreOffice returned success

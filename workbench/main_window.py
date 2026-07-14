@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+import re
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -44,10 +46,12 @@ from .config_tab import (
     CleaningThresholdEditorWidget,
     PostFilterThresholdEditorWidget,
 )
+from .config_layers import config_dependency_sha256, load_layered_config
 from .manifest import ManifestSummary, find_latest_manifest, load_manifest_summary, manifest_context_issues
 from .module_icons import module_icon
 from .models import JobContext, file_sha256
 from .modules import MODULE_SPECS, options_for_modules
+from .operator_text import operator_friendly_text, operator_stage_label, operator_state_label
 from .profiles import PathProfileResolver, WorkbenchProfile, load_profiles, profile_by_id
 from .plot_config_tab import PlotCommonEditorWidget, SpectrumConfigEditorWidget
 from .profile_audit import ProfileAuditError, load_installed_profile_matrix
@@ -81,6 +85,8 @@ class WorkbenchWindow(QMainWindow):
         self.current_manifest_missing_selected: tuple[str, ...] = ()
         self.known_context_paths: set[Path] = set()
         self.module_checks: dict[str, QCheckBox] = {}
+        self._report_auto_values: dict[str, str] = {}
+        self._suspend_report_autofill = False
         self.setFont(QFont("Microsoft YaHei UI", 10))
         self.setWindowTitle(f"{APP_DISPLAY_NAME} {app_version(self.project_root)}")
         self.setWindowIcon(application_icon(self.project_root))
@@ -241,10 +247,22 @@ class WorkbenchWindow(QMainWindow):
 
         self.data_root_edit = QLineEdit()
         self.data_root_edit.textEdited.connect(self._on_data_root_edited)
+        self.data_root_edit.textChanged.connect(self._refresh_report_defaults)
+        self.data_root_edit.textChanged.connect(self._on_task_inputs_changed)
         form.addRow("数据根目录", self._path_row(self.data_root_edit, self._browse_data_root, directory=True))
         self.config_edit = QLineEdit()
+        self.config_edit.textChanged.connect(self._refresh_data_source_summary)
+        self.config_edit.textChanged.connect(self._on_task_inputs_changed)
         self.config_edit.setToolTip("桥梁业务配置保持单一；机器配置组只切换数据路径，不复制业务参数")
         form.addRow("配置文件", self._path_row(self.config_edit, self._browse_config))
+
+        self.data_source_mode_label = QLabel()
+        self.data_source_mode_label.setWordWrap(True)
+        self.data_source_mode_label.setStyleSheet("color: #174a75;")
+        self.data_source_mode_label.setToolTip(
+            "保持推荐的自动识别即可：有 CSV 时读取 CSV；没有 CSV 时读取有效的 MAT 缓存。"
+        )
+        form.addRow("数据读取方式", self.data_source_mode_label)
 
         date_row = QWidget()
         date_layout = QHBoxLayout(date_row)
@@ -253,6 +271,10 @@ class WorkbenchWindow(QMainWindow):
         self.start_date_edit.setDisplayFormat("yyyy-MM-dd")
         self.end_date_edit = QDateEdit(calendarPopup=True)
         self.end_date_edit.setDisplayFormat("yyyy-MM-dd")
+        self.start_date_edit.dateChanged.connect(self._refresh_report_defaults)
+        self.end_date_edit.dateChanged.connect(self._refresh_report_defaults)
+        self.start_date_edit.dateChanged.connect(self._on_task_inputs_changed)
+        self.end_date_edit.dateChanged.connect(self._on_task_inputs_changed)
         date_layout.addWidget(QLabel("开始"))
         date_layout.addWidget(self.start_date_edit)
         date_layout.addSpacing(16)
@@ -270,6 +292,7 @@ class WorkbenchWindow(QMainWindow):
             checkbox.setToolTip(f"{spec.label}（{spec.key}）")
             checkbox.setIcon(module_icon(self.project_root, spec.icon_asset))
             checkbox.setIconSize(QSize(22, 22))
+            checkbox.stateChanged.connect(self._on_task_inputs_changed)
             self.module_checks[spec.key] = checkbox
             module_layout.addWidget(checkbox, index // 4, index % 4)
         outer.addWidget(module_group)
@@ -361,8 +384,8 @@ class WorkbenchWindow(QMainWindow):
 
         self.manifest_summary_label = QLabel("等待分析完成。")
         outer.addWidget(self.manifest_summary_label)
-        self.module_table = QTableWidget(0, 6)
-        self.module_table.setHorizontalHeaderLabels(["模块", "状态", "耗时", "统计文件", "消息", "内部标识"])
+        self.module_table = QTableWidget(0, 5)
+        self.module_table.setHorizontalHeaderLabels(["分析项目", "状态", "耗时", "统计文件", "消息"])
         self.module_table.setAlternatingRowColors(True)
         self.module_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.module_table.horizontalHeader().setStretchLastSection(False)
@@ -372,7 +395,6 @@ class WorkbenchWindow(QMainWindow):
         header_view.setSectionResizeMode(2, QHeaderView.ResizeToContents)
         header_view.setSectionResizeMode(3, QHeaderView.Interactive)
         header_view.setSectionResizeMode(4, QHeaderView.Stretch)
-        header_view.setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.module_table.setColumnWidth(3, 300)
         outer.addWidget(self.module_table, 1)
 
@@ -518,8 +540,124 @@ class WorkbenchWindow(QMainWindow):
             self.path_profile_combo.setCurrentIndex(custom_index)
 
     def _update_default_output_dir(self, data_root: str) -> None:
-        output = Path(data_root) / "自动报告" if data_root else self.project_root / "output" / "doc"
-        _set_line_edit_path(self.output_dir_edit, output)
+        self._refresh_report_defaults(data_root=data_root)
+
+    @staticmethod
+    def _period_label_for_dates(profile: WorkbenchProfile, start: QDate, end: QDate) -> str:
+        if profile.report_type == "period":
+            if start.year() == end.year():
+                if start.month() == end.month():
+                    return f"{end.year()}年{end.month()}月"
+                return f"{start.year()}年{start.month()}-{end.month()}月"
+            return f"{start.year()}年{start.month()}月-{end.year()}年{end.month()}月"
+
+        default = profile.default_period_label
+        suffix = "月份" if "月份" in default else "月"
+        zero_padded = re.search(r"年0\d月", default) is not None
+        month = f"{end.month():02d}" if zero_padded else str(end.month())
+        return f"{end.year()}年{month}{suffix}"
+
+    @staticmethod
+    def _monitoring_range_for_dates(profile: WorkbenchProfile, start: QDate, end: QDate) -> str:
+        default = profile.default_monitoring_range
+        zero_padded = re.search(r"年0\d月|月0\d日", default) is not None
+        separator = "～" if "～" in default else ("至" if "至" in default else "~")
+
+        def format_date(value: QDate) -> str:
+            if zero_padded:
+                return f"{value.year():04d}年{value.month():02d}月{value.day():02d}日"
+            return f"{value.year()}年{value.month()}月{value.day()}日"
+
+        return f"{format_date(start)}{separator}{format_date(end)}"
+
+    def _derived_report_values(
+        self,
+        *,
+        profile: WorkbenchProfile | None = None,
+        data_root: str | None = None,
+    ) -> dict[str, str]:
+        active_profile = profile or self.current_profile
+        root = self.data_root_edit.text().strip() if data_root is None else str(data_root).strip()
+        output = Path(root) / "自动报告" if root else self.project_root / "output" / "doc"
+        return {
+            "output_dir": str(output),
+            "period_label": self._period_label_for_dates(
+                active_profile, self.start_date_edit.date(), self.end_date_edit.date()
+            ),
+            "monitoring_range": self._monitoring_range_for_dates(
+                active_profile, self.start_date_edit.date(), self.end_date_edit.date()
+            ),
+        }
+
+    def _refresh_report_defaults(
+        self,
+        *_args: object,
+        profile: WorkbenchProfile | None = None,
+        data_root: str | None = None,
+        force: bool = False,
+    ) -> None:
+        if self._suspend_report_autofill or not hasattr(self, "output_dir_edit"):
+            return
+        values = self._derived_report_values(profile=profile, data_root=data_root)
+        edits = {
+            "output_dir": self.output_dir_edit,
+            "period_label": self.period_label_edit,
+            "monitoring_range": self.monitoring_range_edit,
+        }
+        for key, edit in edits.items():
+            current = edit.text().strip()
+            previous_auto = self._report_auto_values.get(key, "")
+            still_auto = current == previous_auto
+            if key == "output_dir" and current and previous_auto:
+                still_auto = os.path.normcase(os.path.normpath(current)) == os.path.normcase(
+                    os.path.normpath(previous_auto)
+                )
+            if force or not current or still_auto:
+                if key == "output_dir":
+                    _set_line_edit_path(edit, values[key])
+                else:
+                    edit.setText(values[key])
+            self._report_auto_values[key] = values[key]
+
+    def _establish_report_defaults_baseline(self, profile: WorkbenchProfile) -> None:
+        values = self._derived_report_values(profile=profile)
+        edits = {
+            "output_dir": self.output_dir_edit,
+            "period_label": self.period_label_edit,
+            "monitoring_range": self.monitoring_range_edit,
+        }
+        for key, edit in edits.items():
+            if not edit.text().strip():
+                if key == "output_dir":
+                    _set_line_edit_path(edit, values[key])
+                else:
+                    edit.setText(values[key])
+        self._report_auto_values = values
+
+    def _refresh_data_source_summary(self, *_args: object) -> None:
+        if not hasattr(self, "data_source_mode_label"):
+            return
+        path = Path(self.config_edit.text().strip()).expanduser()
+        mode = "auto"
+        if path.is_file():
+            try:
+                payload, _dependencies = load_layered_config(path)
+                adapter = payload.get("data_adapter") if isinstance(payload, dict) else None
+                series = adapter.get("time_series") if isinstance(adapter, dict) else None
+                configured = series.get("source_mode") if isinstance(series, dict) else None
+                mode = str(configured or "auto").strip().lower()
+            except (OSError, ValueError, json.JSONDecodeError):
+                self.data_source_mode_label.setText("配置文件暂时无法读取；请先执行“检查配置与路径”。")
+                self.data_source_mode_label.setStyleSheet("color: #a33;")
+                return
+        descriptions = {
+            "auto": "自动识别（推荐）：有 CSV 时读取 CSV；没有 CSV 时读取有效的 MAT 缓存。",
+            "prefer_mat": "优先读取 MAT 缓存；缓存不可用时再读取 CSV。",
+            "mat_only": "仅读取 MAT 缓存（高级验证模式，不会回退读取 CSV）。",
+            "csv_cache": "仅从 CSV 构建或复用缓存（高级兼容模式）。",
+        }
+        self.data_source_mode_label.setText(descriptions.get(mode, f"配置的数据读取方式：{mode}"))
+        self.data_source_mode_label.setStyleSheet("color: #174a75;")
 
     def _auto_threshold_context(self) -> dict[str, str]:
         return {
@@ -530,57 +668,61 @@ class WorkbenchWindow(QMainWindow):
         }
 
     def _apply_profile(self, profile: WorkbenchProfile) -> None:
+        previous_suspend = self._suspend_report_autofill
+        self._suspend_report_autofill = True
         self.current_profile = profile
-        selection = str(self.path_profile_combo.currentData() or PathProfileResolver.AUTO_ID)
-        if selection == PathProfileResolver.CUSTOM_ID:
-            data_root = self.custom_data_roots.get(profile.bridge_id, profile.default_data_root)
-            self.active_path_profile = None
-            self.path_profile_status_label.setText(
-                "当前配置组：自定义路径（只影响本任务；任务方案会保存该路径）"
-            )
-        else:
-            self.active_path_profile = self.path_resolver.select(selection)
-            data_root = self.path_resolver.resolve_data_root(
-                profile.bridge_id, profile.default_data_root, self.active_path_profile
-            )
-            self.path_profile_status_label.setText(
-                self.path_resolver.describe(self.active_path_profile)
-            )
-        _set_line_edit_path(self.data_root_edit, data_root)
-        _set_line_edit_path(self.config_edit, profile.config_path(self.project_root))
         try:
-            self.alarm_editor.load_path(profile.config_path(self.project_root))
-            self.cleaning_editor.load_path(profile.config_path(self.project_root))
-            self.post_filter_editor.load_path(profile.config_path(self.project_root))
-            self.offset_editor.load_path(profile.config_path(self.project_root))
-            self.group_plot_editor.load_path(profile.config_path(self.project_root))
-            self.plot_common_editor.load_path(profile.config_path(self.project_root))
-            self.spectrum_editor.load_path(profile.config_path(self.project_root))
-        except Exception as exc:  # noqa: BLE001
-            self.alarm_editor.message_label.setText(f"配置加载失败：{exc}")
-            self.alarm_editor.message_label.setStyleSheet("color: #a33;")
-            self.cleaning_editor.message_label.setText(f"配置加载失败：{exc}")
-            self.cleaning_editor.message_label.setStyleSheet("color: #a33;")
-            self.post_filter_editor.message_label.setText(f"配置加载失败：{exc}")
-            self.post_filter_editor.message_label.setStyleSheet("color: #a33;")
-            self.offset_editor.message_label.setText(f"配置加载失败：{exc}")
-            self.offset_editor.message_label.setStyleSheet("color: #a33;")
-            self.group_plot_editor.summary_label.setText(f"配置加载失败：{exc}")
-            self.group_plot_editor.summary_label.setStyleSheet("color: #a33;")
-            self.plot_common_editor.summary_label.setText(f"配置加载失败：{exc}")
-            self.plot_common_editor.summary_label.setStyleSheet("color: #a33;")
-            self.spectrum_editor.summary_label.setText(f"配置加载失败：{exc}")
-            self.spectrum_editor.summary_label.setStyleSheet("color: #a33;")
-        _set_line_edit_path(self.template_edit, profile.template_path(self.project_root) if profile.report_template else "")
-        self._update_default_output_dir(data_root)
-        self.period_label_edit.setText(profile.default_period_label)
-        self.monitoring_range_edit.setText(profile.default_monitoring_range)
-        self.report_date_edit.setText(profile.default_report_date or datetime.now().strftime("%Y年%m月%d日"))
-        self._set_date(self.start_date_edit, profile.default_start_date)
-        self._set_date(self.end_date_edit, profile.default_end_date)
-        enabled = set(profile.enabled_modules)
-        for key, checkbox in self.module_checks.items():
-            checkbox.setChecked(key in enabled)
+            selection = str(self.path_profile_combo.currentData() or PathProfileResolver.AUTO_ID)
+            if selection == PathProfileResolver.CUSTOM_ID:
+                data_root = self.custom_data_roots.get(profile.bridge_id, profile.default_data_root)
+                self.active_path_profile = None
+                self.path_profile_status_label.setText(
+                    "当前配置组：自定义路径（只影响本任务；任务方案会保存该路径）"
+                )
+            else:
+                self.active_path_profile = self.path_resolver.select(selection)
+                data_root = self.path_resolver.resolve_data_root(
+                    profile.bridge_id, profile.default_data_root, self.active_path_profile
+                )
+                self.path_profile_status_label.setText(
+                    self.path_resolver.describe(self.active_path_profile)
+                )
+            _set_line_edit_path(self.data_root_edit, data_root)
+            _set_line_edit_path(self.config_edit, profile.config_path(self.project_root))
+            try:
+                self.alarm_editor.load_path(profile.config_path(self.project_root))
+                self.cleaning_editor.load_path(profile.config_path(self.project_root))
+                self.post_filter_editor.load_path(profile.config_path(self.project_root))
+                self.offset_editor.load_path(profile.config_path(self.project_root))
+                self.group_plot_editor.load_path(profile.config_path(self.project_root))
+                self.plot_common_editor.load_path(profile.config_path(self.project_root))
+                self.spectrum_editor.load_path(profile.config_path(self.project_root))
+            except Exception as exc:  # noqa: BLE001
+                self.alarm_editor.message_label.setText(f"配置加载失败：{exc}")
+                self.alarm_editor.message_label.setStyleSheet("color: #a33;")
+                self.cleaning_editor.message_label.setText(f"配置加载失败：{exc}")
+                self.cleaning_editor.message_label.setStyleSheet("color: #a33;")
+                self.post_filter_editor.message_label.setText(f"配置加载失败：{exc}")
+                self.post_filter_editor.message_label.setStyleSheet("color: #a33;")
+                self.offset_editor.message_label.setText(f"配置加载失败：{exc}")
+                self.offset_editor.message_label.setStyleSheet("color: #a33;")
+                self.group_plot_editor.summary_label.setText(f"配置加载失败：{exc}")
+                self.group_plot_editor.summary_label.setStyleSheet("color: #a33;")
+                self.plot_common_editor.summary_label.setText(f"配置加载失败：{exc}")
+                self.plot_common_editor.summary_label.setStyleSheet("color: #a33;")
+                self.spectrum_editor.summary_label.setText(f"配置加载失败：{exc}")
+                self.spectrum_editor.summary_label.setStyleSheet("color: #a33;")
+            _set_line_edit_path(self.template_edit, profile.template_path(self.project_root) if profile.report_template else "")
+            self._set_date(self.start_date_edit, profile.default_start_date)
+            self._set_date(self.end_date_edit, profile.default_end_date)
+            self.report_date_edit.setText(profile.default_report_date or datetime.now().strftime("%Y年%m月%d日"))
+            enabled = set(profile.enabled_modules)
+            for key, checkbox in self.module_checks.items():
+                checkbox.setChecked(key in enabled)
+        finally:
+            self._suspend_report_autofill = previous_suspend
+        if not previous_suspend:
+            self._refresh_report_defaults(profile=profile, data_root=data_root, force=True)
         self._append_log(f"已切换项目：{profile.bridge_name}")
 
     @staticmethod
@@ -590,6 +732,43 @@ class WorkbenchWindow(QMainWindow):
 
     def _selected_modules(self) -> list[str]:
         return [key for key, checkbox in self.module_checks.items() if checkbox.isChecked()]
+
+    def _on_task_inputs_changed(self, *_: object) -> None:
+        context = self.current_context
+        if context is None or self._context_matches_current_inputs(context):
+            return
+        if (
+            self.current_manifest is not None
+            or self.current_provenance is not None
+            or self.approval_check.isChecked()
+            or self.approval_check.isEnabled()
+        ):
+            self._reset_review_state()
+
+    def _context_matches_current_inputs(self, context: JobContext) -> bool:
+        try:
+            same_root = os.path.normcase(str(Path(context.data_root).resolve())) == os.path.normcase(
+                str(Path(self.data_root_edit.text().strip()).expanduser().resolve())
+            )
+            current_config = Path(self.config_edit.text().strip()).expanduser().resolve()
+            same_config = os.path.normcase(str(Path(context.config_path).resolve())) == os.path.normcase(
+                str(current_config)
+            )
+            same_config_hash = (
+                current_config.is_file()
+                and config_dependency_sha256(current_config) == context.config_sha256.upper()
+            )
+        except (OSError, ValueError, json.JSONDecodeError):
+            return False
+        return (
+            context.bridge_id == self.current_profile.bridge_id
+            and same_root
+            and same_config
+            and same_config_hash
+            and context.start_date == self.start_date_edit.date().toString("yyyy-MM-dd")
+            and context.end_date == self.end_date_edit.date().toString("yyyy-MM-dd")
+            and tuple(context.selected_modules) == tuple(self._selected_modules())
+        )
 
     def _validate_inputs(self) -> list[str]:
         errors: list[str] = []
@@ -691,37 +870,43 @@ class WorkbenchWindow(QMainWindow):
     def load_context(self, path: Path) -> None:
         context = JobContext.read(path.expanduser().resolve())
         profile = profile_by_id(self.profiles, context.bridge_id)
-        index = self.profile_combo.findData(profile.bridge_id)
-        if index >= 0:
-            self.profile_combo.setCurrentIndex(index)
-        restored_root = str(Path(context.data_root))
-        auto_profile = self.path_resolver.select(PathProfileResolver.AUTO_ID)
-        automatic_root = self.path_resolver.resolve_data_root(
-            profile.bridge_id, profile.default_data_root, auto_profile
-        )
-        if os.path.normcase(os.path.normpath(restored_root)) != os.path.normcase(
-            os.path.normpath(automatic_root)
-        ):
-            self.custom_data_roots[profile.bridge_id] = restored_root
-            custom_index = self.path_profile_combo.findData(PathProfileResolver.CUSTOM_ID)
-            if custom_index >= 0:
-                self.path_profile_combo.setCurrentIndex(custom_index)
-        _set_line_edit_path(self.data_root_edit, restored_root)
-        _set_line_edit_path(self.config_edit, context.config_path)
-        self._set_date(self.start_date_edit, context.start_date)
-        self._set_date(self.end_date_edit, context.end_date)
-        selected = set(context.selected_modules)
-        for key, checkbox in self.module_checks.items():
-            checkbox.setChecked(key in selected)
-        _set_line_edit_path(self.template_edit, context.report.template_path)
-        _set_line_edit_path(self.output_dir_edit, context.report.output_dir)
-        self.period_label_edit.setText(context.period_label)
-        self.monitoring_range_edit.setText(context.monitoring_range)
-        self.report_date_edit.setText(context.report_date)
+        previous_suspend = self._suspend_report_autofill
+        self._suspend_report_autofill = True
+        try:
+            index = self.profile_combo.findData(profile.bridge_id)
+            if index >= 0:
+                self.profile_combo.setCurrentIndex(index)
+            restored_root = str(Path(context.data_root))
+            auto_profile = self.path_resolver.select(PathProfileResolver.AUTO_ID)
+            automatic_root = self.path_resolver.resolve_data_root(
+                profile.bridge_id, profile.default_data_root, auto_profile
+            )
+            if os.path.normcase(os.path.normpath(restored_root)) != os.path.normcase(
+                os.path.normpath(automatic_root)
+            ):
+                self.custom_data_roots[profile.bridge_id] = restored_root
+                custom_index = self.path_profile_combo.findData(PathProfileResolver.CUSTOM_ID)
+                if custom_index >= 0:
+                    self.path_profile_combo.setCurrentIndex(custom_index)
+            _set_line_edit_path(self.data_root_edit, restored_root)
+            _set_line_edit_path(self.config_edit, context.config_path)
+            self._set_date(self.start_date_edit, context.start_date)
+            self._set_date(self.end_date_edit, context.end_date)
+            selected = set(context.selected_modules)
+            for key, checkbox in self.module_checks.items():
+                checkbox.setChecked(key in selected)
+            _set_line_edit_path(self.template_edit, context.report.template_path)
+            _set_line_edit_path(self.output_dir_edit, context.report.output_dir)
+            self.period_label_edit.setText(context.period_label)
+            self.monitoring_range_edit.setText(context.monitoring_range)
+            self.report_date_edit.setText(context.report_date)
+        finally:
+            self._suspend_report_autofill = previous_suspend
+        self._establish_report_defaults_baseline(profile)
         self.current_context = context
         self.current_context_path = path.resolve()
         self.known_context_paths.add(self.current_context_path)
-        self._reset_review_state()
+        self._reset_review_state(clear_context_approval=False)
         if context.analysis.manifest_path and Path(context.analysis.manifest_path).is_file():
             self._load_manifest(Path(context.analysis.manifest_path))
             if context.report.plots_approved and self.approval_check.isEnabled():
@@ -834,18 +1019,27 @@ class WorkbenchWindow(QMainWindow):
         state = str(status.get("state") or context.report.state or "blocked").lower()
         stage = str(status.get("stage") or state)
         message = str(status.get("message") or "")
+        display_state = operator_state_label(state)
+        display_stage = operator_stage_label(stage)
+        display_message = operator_friendly_text(message)
         try:
             value = max(0, min(1000, round(float(status.get("progress_fraction", 0)) * 1000)))
         except (TypeError, ValueError, OverflowError):
             value = self.report_progress.value()
         self.report_progress.setValue(value)
-        self.report_progress_label.setText(f"{state} / {stage}" + (f"；{message}" if message else ""))
+        self.report_progress_label.setText(
+            f"{display_state} / {display_stage}"
+            + (f"；{display_message}" if display_message else "")
+        )
         terminal = state in {"completed", "failed", "stopped", "launch_failed"}
         self.stop_report_btn.setEnabled(not terminal and state in {"launched", "running"})
         if context.report.state != state:
             context.report.state = state
             context.write(self.current_context_path)
-            self.report_log.appendPlainText(f"[{datetime.now():%H:%M:%S}] 报告状态：{state} / {stage}；{message}")
+            self.report_log.appendPlainText(
+                f"[{datetime.now():%H:%M:%S}] 报告状态："
+                f"{display_state} / {display_stage}；{display_message}"
+            )
         if state == "completed" and status.get("qc"):
             output_docx = str(status.get("report_path") or "")
             output_pdf = str(status.get("pdf_path") or "")
@@ -877,8 +1071,9 @@ class WorkbenchWindow(QMainWindow):
             context.report.qc_state = "failed"
             context.write(self.current_context_path)
             error = str(status.get("error") or message)
-            if error and error not in self.report_log.toPlainText():
-                self.report_log.appendPlainText(f"[{datetime.now():%H:%M:%S}] 失败：{error}")
+            display_error = operator_friendly_text(error)
+            if display_error and display_error not in self.report_log.toPlainText():
+                self.report_log.appendPlainText(f"[{datetime.now():%H:%M:%S}] 失败：{display_error}")
 
     def _show_report_qc(self, result: dict[str, object]) -> None:
         qc = result.get("qc") if isinstance(result.get("qc"), dict) else {}
@@ -903,17 +1098,17 @@ class WorkbenchWindow(QMainWindow):
             ),
             (
                 "报告内容清单",
-                str(manifest.get("status") or "missing"),
+                operator_state_label(manifest.get("status") or "missing"),
                 "",
                 f"缺失 {manifest.get('missing_count', 0)} / 警告 {manifest.get('warning_count', 0)}",
                 str(manifest.get("path") or ""),
             ),
             (
                 "逐页渲染",
-                str(visual.get("status") or "unavailable"),
+                operator_state_label(visual.get("status") or "unavailable"),
                 f"{visual.get('page_count', 0)} 页",
                 f"空白页 {len(visual.get('blank_pages') or [])} / 边界告警 {len(visual.get('edge_touch_pages') or [])}",
-                str(visual.get("contact_sheet") or visual.get("message") or ""),
+                operator_friendly_text(visual.get("contact_sheet") or visual.get("message") or ""),
             ),
         )
         self.report_qc_table.setRowCount(len(rows))
@@ -928,24 +1123,40 @@ class WorkbenchWindow(QMainWindow):
 
     def _load_latest_manifest(self) -> None:
         data_root = Path(self.data_root_edit.text().strip()).expanduser()
-        path = find_latest_manifest(data_root)
+        errors = self._validate_inputs()
+        if errors:
+            QMessageBox.critical(self, "无法建立任务", "\n".join(f"- {item}" for item in errors))
+            return
+        if self.current_context is None or not self._context_matches_current_inputs(
+            self.current_context
+        ):
+            self.current_context = self._build_context()
+        path = find_latest_manifest(
+            data_root,
+            bridge_id=self.current_context.bridge_id,
+            start_date=self.current_context.start_date,
+            end_date=self.current_context.end_date,
+            config_path=Path(self.current_context.config_path),
+            config_sha256=self.current_context.config_sha256,
+            selected_modules=self.current_context.selected_modules,
+            successful_only=True,
+        )
         if path is None:
-            QMessageBox.warning(self, "未找到", f"未在 {data_root / 'run_logs'} 找到分析结果清单。")
+            QMessageBox.warning(
+                self,
+                "未找到",
+                "未找到与当前桥梁、日期和所选分析模块完整匹配的成功结果清单。\n\n"
+                f"请检查：{data_root / 'run_logs'}",
+            )
             return
         answer = QMessageBox.question(
             self,
-            "使用最新分析结果",
-            "这会把数据目录中最新的分析结果清单绑定到当前任务。请确认它与当前桥梁和监测周期一致。\n\n"
+            "使用匹配的最新完整结果",
+            "已按当前桥梁、监测日期和所选分析模块筛选成功的完整结果清单。\n\n"
             f"{path}",
         )
         if answer != QMessageBox.Yes:
             return
-        if self.current_context is None:
-            errors = self._validate_inputs()
-            if errors:
-                QMessageBox.critical(self, "无法建立任务", "\n".join(f"- {item}" for item in errors))
-                return
-            self.current_context = self._build_context()
         self.current_context.analysis.manifest_path = str(path.resolve())
         summary = load_manifest_summary(path)
         issues = manifest_context_issues(
@@ -954,6 +1165,8 @@ class WorkbenchWindow(QMainWindow):
             data_root=Path(self.current_context.data_root),
             start_date=self.current_context.start_date,
             end_date=self.current_context.end_date,
+            config_path=Path(self.current_context.config_path),
+            config_sha256=self.current_context.config_sha256,
         )
         if issues:
             QMessageBox.critical(self, "分析结果与任务不一致", "\n".join(f"- {item}" for item in issues))
@@ -976,6 +1189,8 @@ class WorkbenchWindow(QMainWindow):
                 data_root=Path(self.current_context.data_root),
                 start_date=self.current_context.start_date,
                 end_date=self.current_context.end_date,
+                config_path=Path(self.current_context.config_path),
+                config_sha256=self.current_context.config_sha256,
             )
             if issues:
                 self._reset_review_state()
@@ -998,23 +1213,33 @@ class WorkbenchWindow(QMainWindow):
         self.manifest_label.setText(f"分析结果清单：{summary.path}")
         failed = len(summary.failed_modules)
         self.manifest_summary_label.setText(
-            f"运行状态：{summary.status}；模块记录：{len(summary.modules)}；失败/异常：{failed}；"
+            f"运行状态：{operator_state_label(summary.status)}；分析项目：{len(summary.modules)}；失败/异常：{failed}；"
             f"所选模块未记录：{len(self.current_manifest_missing_selected)}；产物：{summary.artifact_count}"
         )
         self.module_table.setRowCount(len(summary.modules))
         for row, item in enumerate(summary.modules):
-            values = (item.label, item.status, item.elapsed_sec, item.stats_path, item.message, item.key)
+            values = (
+                item.label,
+                operator_state_label(item.status),
+                item.elapsed_sec,
+                item.stats_path,
+                operator_friendly_text(item.message),
+            )
             for column, value in enumerate(values):
-                self.module_table.setItem(row, column, QTableWidgetItem(value))
+                table_item = QTableWidgetItem(str(value))
+                if column == 0:
+                    table_item.setData(Qt.UserRole, item.key)
+                self.module_table.setItem(row, column, table_item)
         self.module_table.resizeColumnsToContents()
         self.module_table.setColumnWidth(3, 300)
         try:
             self.current_provenance = inspect_manifest_plot_provenance(path)
             provenance = self.current_provenance
             self.provenance_table.setRowCount(len(provenance.rows))
+            module_labels = {spec.key: spec.label for spec in MODULE_SPECS}
             for row_index, item in enumerate(provenance.rows):
                 values = (
-                    item.module_key,
+                    module_labels.get(item.module_key, item.module_key),
                     {
                         "closed": "通过",
                         "closed_incomplete_source": "通过（有已说明的数据缺口）",
@@ -1027,7 +1252,10 @@ class WorkbenchWindow(QMainWindow):
                     f"{item.path}" + (f"；{item.message}" if item.message else ""),
                 )
                 for column, value in enumerate(values):
-                    self.provenance_table.setItem(row_index, column, QTableWidgetItem(str(value)))
+                    table_item = QTableWidgetItem(str(value))
+                    if column == 0:
+                        table_item.setData(Qt.UserRole, item.module_key)
+                    self.provenance_table.setItem(row_index, column, table_item)
             self.provenance_summary_label.setText(
                 f"正式图件核验记录：{len(provenance.rows)}；"
                 f"通过：{provenance.closed_count}；未通过：{provenance.failed_count}；"
@@ -1056,7 +1284,20 @@ class WorkbenchWindow(QMainWindow):
             self.approval_check.setChecked(False)
         self._update_report_gate()
 
-    def _reset_review_state(self) -> None:
+    def _reset_review_state(self, *, clear_context_approval: bool = True) -> None:
+        if clear_context_approval and self.current_context is not None:
+            context = self.current_context
+            changed = context.report.plots_approved
+            context.report.plots_approved = False
+            if context.report.state.lower() not in {"launched", "running"}:
+                changed = changed or context.report.state.lower() != "blocked"
+                context.report.state = "blocked"
+            persisted_path = self.current_context_path or context.context_path
+            if changed and persisted_path.is_file():
+                try:
+                    context.write(persisted_path)
+                except OSError as exc:
+                    self._append_log(f"无法保存已失效的图件审核状态：{exc}")
         self.current_manifest = None
         self.current_provenance = None
         self.current_manifest_missing_selected = ()
@@ -1101,6 +1342,8 @@ class WorkbenchWindow(QMainWindow):
         ui_ready = bool(
             self.current_context
             and self.current_context.report_ready
+            and self.approval_check.isChecked()
+            and self._context_matches_current_inputs(self.current_context)
             and self.current_manifest is not None
             and self.current_manifest.status.lower() in SUCCESS_STATES
             and not self.current_manifest.failed_modules
@@ -1120,7 +1363,7 @@ class WorkbenchWindow(QMainWindow):
             config_path = Path(context.config_path)
             if not config_path.is_file():
                 raise FileNotFoundError(f"任务配置不存在：{config_path}")
-            if file_sha256(config_path) != context.config_sha256:
+            if config_dependency_sha256(config_path) != context.config_sha256.upper():
                 raise RuntimeError("任务配置在分析后发生变化，不能继续生成报告")
             context.report.template_path = self.template_edit.text().strip()
             template_path = Path(context.report.template_path)

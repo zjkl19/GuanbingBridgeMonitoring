@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 from zipfile import ZIP_DEFLATED, ZipFile
+from config_loader import load_report_config
 
 from docx.oxml.ns import qn
 from lxml import etree
@@ -49,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 def load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8-sig"))
+    return load_report_config(path)
 
 def load_rows(path: Path, sheet: str | None = None) -> list[dict[str, Any]]:
     if not path.exists():

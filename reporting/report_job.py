@@ -308,7 +308,7 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
     visual_pdf = str(visual.get("pdf_path") or "")
     if visual_pdf and Path(visual_pdf).is_file():
         pdf_path = Path(visual_pdf).resolve()
-    emit("qc", 0.93, "正在执行 DOCX/PDF、页面渲染与报告 Manifest QC")
+    emit("qc", 0.93, "正在执行 DOCX/PDF、页面渲染与报告内容清单质量检查")
     qc = build_qc(
         report_path,
         manifest_path,

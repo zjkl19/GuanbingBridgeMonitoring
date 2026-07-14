@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
+from .config_layers import config_dependency_sha256, load_layered_config
 from .models import file_sha256
 
 
@@ -1663,10 +1664,31 @@ class ConfigEditorSession:
         self.path = path.expanduser().resolve()
         if not self.path.is_file():
             raise FileNotFoundError(f"配置文件不存在：{self.path}")
-        self.payload = json.loads(self.path.read_text(encoding="utf-8-sig"))
-        if not isinstance(self.payload, dict):
+        source_payload = json.loads(self.path.read_text(encoding="utf-8-sig"))
+        if not isinstance(source_payload, dict):
             raise ConfigEditorError("配置文件根节点必须是 JSON 对象")
-        self.loaded_sha256 = file_sha256(self.path)
+        self.is_layered = any(
+            field in source_payload for field in ("extends", "layers", "includes")
+        )
+        if self.is_layered:
+            self.payload, self.dependencies = load_layered_config(self.path)
+            self.loaded_sha256 = config_dependency_sha256(self.path)
+        else:
+            self.payload = source_payload
+            self.dependencies = (self.path,)
+            self.loaded_sha256 = file_sha256(self.path)
+
+    def _current_source_sha256(self) -> str:
+        try:
+            return (
+                config_dependency_sha256(self.path)
+                if self.is_layered
+                else file_sha256(self.path)
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise ConfigChangedError(
+                "配置文件或其分层依赖已变化，请重新加载后再保存"
+            ) from exc
 
     @property
     def rows(self) -> list[AlarmBoundRow]:
@@ -1692,10 +1714,22 @@ class ConfigEditorSession:
     ) -> ConfigSaveResult:
         target_path = (target or self.path).expanduser().resolve()
         overwriting_source = target_path == self.path
-        if overwriting_source and file_sha256(self.path) != self.loaded_sha256:
+        if target_path in self.dependencies and not overwriting_source:
+            raise ConfigEditorError(
+                "保存副本不能覆盖当前分层配置的依赖文件；请选择一个新路径"
+            )
+        if (overwriting_source or self.is_layered) and (
+            self._current_source_sha256() != self.loaded_sha256
+        ):
             raise ConfigChangedError("配置文件已被其它程序修改，请重新加载后再保存")
         if overwriting_source and updated == self.payload:
             return ConfigSaveResult(self.path, self.loaded_sha256, False)
+        if overwriting_source and self.is_layered:
+            raise ConfigEditorError(
+                "当前配置由 extends/layers/includes 分层组合，"
+                "禁止用合并后的结果覆盖源文件；请使用“保存副本”"
+                "生成扁平化配置，或分别编辑各层文件"
+            )
         encoded = _encoded_config(updated)
         if target_path.is_file():
             try:
@@ -1827,7 +1861,10 @@ class CleaningConfigEditorSession(ConfigEditorSession):
         expected_sha256: str,
     ) -> ConfigSaveResult:
         expected = expected_sha256.strip().lower()
-        if self.loaded_sha256.lower() != expected or file_sha256(self.path).lower() != expected:
+        if (
+            self.loaded_sha256.lower() != expected
+            or self._current_source_sha256().lower() != expected
+        ):
             raise ConfigChangedError("建议生成后配置文件已变化，请重新生成建议")
         return self._save_updated(self.build_payload_with_proposals(proposals))
 

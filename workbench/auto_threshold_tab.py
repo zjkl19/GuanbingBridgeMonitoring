@@ -40,28 +40,13 @@ from .auto_threshold import (
     read_status,
 )
 from .auto_threshold_preview import (
+    MODULE_LABELS,
     AutoThresholdCurvePreview,
+    algorithm_label,
+    module_label,
+    proposal_kind_label,
 )
 from .config_editor import CleaningConfigEditorSession, ConfigEditorError
-
-
-MODULE_LABELS = {
-    "temperature": "温度",
-    "humidity": "湿度",
-    "rainfall": "雨量",
-    "wind_speed": "风速",
-    "earthquake": "地震动",
-    "deflection": "挠度",
-    "bearing_displacement": "支座位移",
-    "tilt": "倾角",
-    "gnss": "GNSS",
-    "acceleration": "加速度",
-    "cable_accel": "索力加速度",
-    "strain": "应变",
-    "dynamic_strain": "动应变高通",
-    "dynamic_strain_lowpass": "动应变低通",
-    "crack": "裂缝",
-}
 
 
 class AutoThresholdProposalWidget(QWidget):
@@ -90,10 +75,14 @@ class AutoThresholdProposalWidget(QWidget):
         title.setStyleSheet("font-size: 20px; font-weight: 700; color: #005eac;")
         outer.addWidget(title)
         hint = QLabel(
-            "由现有 MATLAB AutoThresholdProposalService 读取当前数据生成草稿；不会自动改配置。"
-            "仅勾选的 range/window_range 会在二次确认后写入，并校验生成时配置 SHA256。"
+            "由内置数据分析服务读取当前数据生成草稿；不会自动修改配置。"
+            "仅勾选的全时段阈值或局部时段阈值会在二次确认后写入，并核对生成时的配置版本。"
         )
         hint.setWordWrap(True)
+        hint.setToolTip(
+            "内部服务：MATLAB AutoThresholdProposalService；"
+            "建议类型：range / window_range；配置版本使用 SHA256 校验。"
+        )
         outer.addWidget(hint)
 
         settings_row = QHBoxLayout()
@@ -102,8 +91,9 @@ class AutoThresholdProposalWidget(QWidget):
         self.module_list = QListWidget()
         self.module_list.setMaximumHeight(150)
         for key in DEFAULT_MODULE_KEYS:
-            item = QListWidgetItem(f"{MODULE_LABELS.get(key, key)}  ({key})")
+            item = QListWidgetItem(MODULE_LABELS.get(key, key))
             item.setData(Qt.UserRole, key)
+            item.setToolTip(f"内部模块键：{key}")
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Checked)
             self.module_list.addItem(item)
@@ -168,8 +158,8 @@ class AutoThresholdProposalWidget(QWidget):
                 "测点",
                 "类型",
                 "算法",
-                "min",
-                "max",
+                "下限",
+                "上限",
                 "开始时间",
                 "结束时间",
                 "有效点",
@@ -179,6 +169,16 @@ class AutoThresholdProposalWidget(QWidget):
                 "原因",
             ]
         )
+        header_tooltips = {
+            1: "内部字段：module_key",
+            2: "内部字段：point_id",
+            3: "内部字段：kind（range / window_range）",
+            4: "内部字段：algorithm",
+            5: "内部字段：min",
+            6: "内部字段：max",
+        }
+        for column, tooltip in header_tooltips.items():
+            self.table.horizontalHeaderItem(column).setToolTip(tooltip)
         self.table.setAlternatingRowColors(True)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -208,7 +208,8 @@ class AutoThresholdProposalWidget(QWidget):
         outer.addWidget(splitter, 1)
 
         actions = QHBoxLayout()
-        self.generate_button = QPushButton("生成建议（独立Runner）")
+        self.generate_button = QPushButton("生成建议（后台分析）")
+        self.generate_button.setToolTip("使用独立分析进程生成建议，不会阻塞主界面")
         self.generate_button.setStyleSheet(
             "font-weight: 700; background: #005eac; color: white; padding: 6px 12px;"
         )
@@ -330,7 +331,7 @@ class AutoThresholdProposalWidget(QWidget):
                 preview_path_text = str(self.result.get("preview_path") or "")
                 preview_hash = str(self.result.get("preview_sha256") or "")
                 if not preview_path_text or len(preview_hash) != 64:
-                    raise ConfigEditorError("Runner 结果缺少固定的自动清洗预览路径或 SHA256")
+                    raise ConfigEditorError("后台分析结果缺少固定的预览文件位置或完整性校验码")
                 preview_path = Path(preview_path_text)
                 self.preview_series = load_preview_artifact(
                     preview_path,
@@ -389,8 +390,18 @@ class AutoThresholdProposalWidget(QWidget):
                 self.table.setItem(row, 0, selected)
                 for column, key in enumerate(columns, 1):
                     value = proposal.get(key)
-                    text = "" if value is None else str(value)
+                    raw_text = "" if value is None else str(value)
+                    if key == "module_key":
+                        text = module_label(value)
+                    elif key == "kind":
+                        text = proposal_kind_label(value)
+                    elif key == "algorithm":
+                        text = algorithm_label(value)
+                    else:
+                        text = raw_text
                     item = QTableWidgetItem(text)
+                    if key in {"module_key", "kind", "algorithm"} and raw_text:
+                        item.setToolTip(f"内部值：{raw_text}")
                     if key not in {"min", "max", "t_range_start", "t_range_end", "reason"}:
                         item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                     self.table.setItem(row, column, item)
@@ -512,7 +523,7 @@ class AutoThresholdProposalWidget(QWidget):
                 if item.get("selected") and item.get("kind") in {"range", "window_range"}
             ]
             if not selected:
-                raise ConfigEditorError("没有勾选可写入的 range/window_range 建议")
+                raise ConfigEditorError("没有勾选可写入的全时段阈值或局部时段阈值建议")
             config_path = Path(str(self.result.get("config_path") or ""))
             expected = str(self.result.get("config_sha256") or "")
             answer = QMessageBox.question(
@@ -533,7 +544,7 @@ class AutoThresholdProposalWidget(QWidget):
             return
         backup = str(result.backup_path) if result.backup_path else "无"
         self.status_label.setText(
-            f"建议已写入；SHA256={result.sha256[:16]}…；备份={backup}"
+            f"建议已写入；配置版本校验码={result.sha256[:16]}…；备份={backup}"
         )
         self.config_saved.emit(str(result.path), result.sha256, backup)
         QMessageBox.information(self, "建议写入完成", self.status_label.text())
@@ -545,7 +556,7 @@ class AutoThresholdProposalWidget(QWidget):
         answer = QMessageBox.question(
             self,
             "终止建议任务",
-            "确认终止当前自动建议 Runner？已生成的完整结果文件不会被伪造或补写。",
+            "确认终止当前自动建议后台分析任务？已生成的完整结果文件不会被伪造或补写。",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )

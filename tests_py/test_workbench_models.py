@@ -16,7 +16,7 @@ from workbench.version import app_version
 class WorkbenchModelTests(unittest.TestCase):
     def test_version_uses_single_project_file(self) -> None:
         root = Path(__file__).resolve().parents[1]
-        self.assertEqual(app_version(root), "v1.8.0-rc2")
+        self.assertEqual(app_version(root), "v1.8.0-rc3")
 
     def test_profile_catalog_matches_shared_json(self) -> None:
         root = Path(__file__).resolve().parents[1]

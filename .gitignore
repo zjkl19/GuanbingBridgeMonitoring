@@ -8,6 +8,7 @@ release_packages/
 release/
 /build/
 /dist/
+/.codex_tmp/
 local_notes/
 ops_local/
 %SystemDrive%/

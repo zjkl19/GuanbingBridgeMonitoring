@@ -52,6 +52,7 @@ from format_utils import (
 from missing_summary import write_missing_summary
 from report_build_manifest import write_report_build_manifest
 from report_context import ReportBuildContext
+from config_loader import load_report_config
 from report_artifact_resolver import (
     find_latest_image_patterns as lookup_latest_image_patterns,
     find_latest_point_image_patterns as lookup_latest_point_image_patterns,
@@ -282,7 +283,7 @@ def ensure_dir(path: Path) -> Path:
 
 
 def load_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8-sig"))
+    return load_report_config(path)
 
 
 def load_sheet_rows(path: Path, sheet: str | None = None) -> list[dict]:

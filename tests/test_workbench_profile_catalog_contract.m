@@ -30,6 +30,22 @@ classdef test_workbench_profile_catalog_contract < matlab.unittest.TestCase
             tc.verifyEqual(sort(validation.profile_ids(:)), sort(expectedIds(:)));
         end
 
+        function fallbackCatalogKeepsAllConfiguredBridgeIds(tc)
+            raw = jsondecode(fileread(fullfile(tc.ProjectRoot, 'config', 'bridge_profiles.json')));
+            if iscell(raw.profiles)
+                expectedIds = cellfun(@(item) char(string(item.bridge_id)), ...
+                    raw.profiles, 'UniformOutput', false);
+            else
+                expectedIds = arrayfun(@(item) char(string(item.bridge_id)), ...
+                    raw.profiles, 'UniformOutput', false);
+            end
+            fallback = bms.profile.BridgeProfileRegistry.fallback(tc.ProjectRoot);
+            actualIds = arrayfun(@(profile) profile.BridgeId, fallback, ...
+                'UniformOutput', false);
+
+            tc.verifyEqual(sort(actualIds(:)), sort(expectedIds(:)));
+        end
+
         function moduleAndReportCapabilityMatrixMatchesRuntime(tc)
             profiles = bms.profile.BridgeProfileRegistry.catalog(tc.ProjectRoot);
             specs = bms.module.ModuleRegistry.catalog();

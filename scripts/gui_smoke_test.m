@@ -36,7 +36,8 @@ function gui_smoke_test()
     assert(~isempty(textAreas), 'GUI smoke failed: log/status text area was not created.');
     assert(summaryTableHasRows(tables), 'GUI smoke failed: result summary table was empty.');
     assert(hasButton(buttons, '检查配置'), 'GUI smoke failed: config check button was not created.');
-    assert(hasButton(buttons, '打开报告生成器'), 'GUI smoke failed: report builder button was not created.');
+    assert(hasDisabledButton(buttons, '报告已迁移到统一工作台'), ...
+        'GUI smoke failed: retired report-builder entry was not disabled.');
     profileCount = bridgeProfileCount(dropdowns);
     assert(profileCount >= 4, 'GUI smoke failed: bridge profile dropdown missing expected profiles.');
 
@@ -53,6 +54,19 @@ function tf = hasButton(buttons, text)
     for i = 1:numel(buttons)
         try
             if strcmp(char(string(buttons(i).Text)), text)
+                tf = true;
+                return;
+            end
+        catch
+        end
+    end
+end
+
+function tf = hasDisabledButton(buttons, text)
+    tf = false;
+    for i = 1:numel(buttons)
+        try
+            if strcmp(char(string(buttons(i).Text)), text) && strcmpi(buttons(i).Enable, 'off')
                 tf = true;
                 return;
             end

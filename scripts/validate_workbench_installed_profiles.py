@@ -13,6 +13,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from workbench.models import file_sha256  # noqa: E402
+from workbench.config_layers import config_dependency_sha256, load_layered_config  # noqa: E402
 from workbench.config_editor import CleaningConfigEditorSession  # noqa: E402
 from workbench.profiles import PathProfileResolver, WorkbenchProfile, load_profiles  # noqa: E402
 from workbench.version import EXECUTABLE_FILENAME  # noqa: E402
@@ -46,7 +47,16 @@ def _asset_paths(package_root: Path, profiles: list[WorkbenchProfile]) -> tuple[
         package_root / "workbench" / "assets" / "organization_logo.png",
     }
     for profile in profiles:
-        assets.add(profile.config_path(package_root))
+        config_path = profile.config_path(package_root)
+        _config, dependencies = load_layered_config(config_path)
+        for dependency in dependencies:
+            try:
+                dependency.resolve().relative_to(package_root.resolve())
+            except ValueError as exc:
+                raise RuntimeError(
+                    f"packaged config dependency escapes package root: {dependency}"
+                ) from exc
+            assets.add(dependency.resolve())
         if profile.report_template:
             assets.add(profile.template_path(package_root))
     return tuple(sorted((path.resolve() for path in assets), key=lambda path: str(path).casefold()))
@@ -93,7 +103,7 @@ def validate_profile_payload(
             and len(payload.get("selected_modules") or []) == len(profile.enabled_modules)
         ),
         "config_path": Path(str(payload.get("selected_config_path") or "")).resolve() == expected_config,
-        "config_sha256": payload.get("selected_config_sha256") == file_sha256(expected_config),
+        "config_sha256": payload.get("selected_config_sha256") == config_dependency_sha256(expected_config),
         "template_path": (
             Path(str(payload.get("selected_template_path") or "")).resolve() == expected_template
             if expected_template

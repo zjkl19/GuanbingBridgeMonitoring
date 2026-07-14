@@ -6,7 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
-from .models import JobContext, file_sha256
+from .models import JobContext
+from .config_layers import config_dependency_sha256
+from .operator_text import operator_stage_label, operator_state_label
 
 
 @dataclass(frozen=True)
@@ -73,7 +75,11 @@ def _report_detail(payload: dict[str, Any] | None, context: JobContext) -> str:
         or (qc_payload.get("status") if isinstance(qc_payload, dict) else "")
         or ""
     ).strip()
-    return "；".join(bit for bit in (stage, f"QC={qc}" if qc else "") if bit)
+    stage_label = operator_stage_label(stage) if stage else ""
+    quality_label = f"质量检查：{operator_state_label(qc)}" if qc else ""
+    if stage.casefold() == "qc" and quality_label:
+        return quality_label
+    return "；".join(bit for bit in (stage_label, quality_label) if bit)
 
 
 def _sort_timestamp(entry: TaskHistoryEntry) -> float:
@@ -92,7 +98,6 @@ def _sort_timestamp(entry: TaskHistoryEntry) -> float:
 class TaskHistoryIndex:
     def __init__(self, known_bridge_ids: Iterable[str] = ()) -> None:
         self.known_bridge_ids = {str(value) for value in known_bridge_ids}
-        self._hash_cache: dict[Path, str] = {}
 
     @staticmethod
     def _candidate_paths(data_roots: Iterable[Path], extra_paths: Iterable[Path]) -> tuple[Path, ...]:
@@ -163,15 +168,11 @@ class TaskHistoryIndex:
         if not config_path.is_file():
             issues.append("配置文件不存在")
         elif context.config_sha256:
-            actual = self._hash_cache.get(config_path)
-            if actual is None:
-                try:
-                    actual = file_sha256(config_path)
-                except OSError as exc:
-                    issues.append(f"配置文件无法读取：{exc}")
-                    actual = ""
-                else:
-                    self._hash_cache[config_path] = actual
+            try:
+                actual = config_dependency_sha256(config_path)
+            except (OSError, ValueError) as exc:
+                issues.append(f"配置文件无法读取：{exc}")
+                actual = ""
             if actual and actual != context.config_sha256:
                 issues.append("配置SHA256已变化")
 

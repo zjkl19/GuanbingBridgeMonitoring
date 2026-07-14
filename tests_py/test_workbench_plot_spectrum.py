@@ -250,9 +250,17 @@ class WorkbenchPlotSpectrumGuiTests(unittest.TestCase):
         widget.load_path(ROOT / "config" / "hongtang_config.json")
         self.assertEqual(widget.table.rowCount(), 14)
         self.assertEqual(widget.rows(), widget.session.rows)
-        fields = {widget.table.item(row, 1).text() for row in range(widget.table.rowCount())}
+        fields = {row.field for row in widget.rows()}
         self.assertIn("dynamic_raw_line_width", fields)
         self.assertIn("dynamic_raw_render_mode", fields)
+        labels = {widget.table.item(row, 1).text() for row in range(widget.table.rowCount())}
+        self.assertIn("高频原始曲线线宽", labels)
+        self.assertIn("高频原始图绘制方式", labels)
+        tooltips = {
+            widget.table.item(row, 1).toolTip()
+            for row in range(widget.table.rowCount())
+        }
+        self.assertIn("高频原始曲线的线宽", tooltips)
 
     def test_spectrum_widget_loads_zhishan_coverage_and_orders(self) -> None:
         widget = SpectrumConfigEditorWidget()

@@ -3,22 +3,26 @@ from __future__ import annotations
 import os
 import json
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 import tempfile
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtCore import QSettings, QThread
+    from PySide6.QtCore import QDate, QSettings, QThread
     from PySide6.QtWidgets import (
-        QAbstractButton, QApplication, QCheckBox, QGroupBox, QLabel, QMainWindow, QPushButton
+        QAbstractButton, QApplication, QCheckBox, QGroupBox, QLabel, QMainWindow, QMessageBox, QPushButton
     )
 
     from workbench.main_window import WorkbenchWindow
     from workbench.__main__ import smoke_payload
+    from workbench.manifest import ManifestSummary
     from workbench.models import file_sha256
     from workbench.models import JobContext
     from workbench.modules import options_for_modules
+    from workbench.operator_text import operator_friendly_text, operator_stage_label, operator_state_label
+    from workbench.provenance import PlotProvenanceRow, PlotProvenanceSummary
     from workbench.update_ui import UpdateController
     from scripts.validate_workbench_installed_profiles import validate_profile_payload
 except ImportError:  # pragma: no cover - dependency gate
@@ -36,7 +40,7 @@ class WorkbenchGuiTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         window = WorkbenchWindow(root)
         try:
-            self.assertIn("v1.8.0-rc2", window.windowTitle())
+            self.assertIn("v1.8.0-rc3", window.windowTitle())
             self.assertEqual(window.tabs.count(), 4)
             self.assertGreaterEqual(len(window.module_checks), 20)
             self.assertIsNotNone(window.alarm_editor.session)
@@ -47,6 +51,12 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertTrue(window.profile_matrix_btn.isEnabled())
             self.assertEqual(window.profile_matrix_btn.text(), "所有桥梁自检")
             self.assertGreater(window.cleaning_editor.table.rowCount(), 0)
+            cleaning_modules = {
+                window.cleaning_editor.table.item(row, 1).text()
+                for row in range(window.cleaning_editor.table.rowCount())
+            }
+            self.assertIn("风向", cleaning_modules)
+            self.assertNotIn("wind_direction", cleaning_modules)
             self.assertIsNotNone(window.offset_editor.session)
             self.assertIsNotNone(window.group_plot_editor.session)
             self.assertGreater(window.group_plot_editor.module_combo.count(), 0)
@@ -55,6 +65,14 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertEqual(window.plot_common_editor.table.rowCount(), 14)
             self.assertEqual(window.spectrum_editor.module_combo.count(), 2)
             self.assertEqual(window.provenance_table.columnCount(), 7)
+            self.assertEqual(window.module_table.columnCount(), 5)
+            self.assertNotIn(
+                "内部标识",
+                [
+                    window.module_table.horizontalHeaderItem(column).text()
+                    for column in range(window.module_table.columnCount())
+                ],
+            )
             self.assertEqual(window.report_qc_table.columnCount(), 5)
             self.assertEqual(window.open_report_btn.text(), "生成报告并执行质量检查")
             self.assertEqual(window.update_btn.text(), "立即检查更新")
@@ -66,6 +84,8 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertFalse(window.organization_logo_label.isHidden())
             self.assertIsNotNone(window.organization_logo_label.pixmap())
             self.assertEqual(window.path_profile_combo.currentData(), "__auto__")
+            self.assertIn("自动识别", window.data_source_mode_label.text())
+            self.assertIn("MAT", window.data_source_mode_label.text())
             self.assertIn("开发机", window.path_profile_status_label.text())
             self.assertEqual(window.validate_btn.text(), "检查配置与路径（不运行）")
             self.assertEqual(window.open_context_btn.text(), "打开已保存任务方案")
@@ -83,6 +103,149 @@ class WorkbenchGuiTests(unittest.TestCase):
         finally:
             window.poll_timer.stop()
             window.close()
+
+    def test_changing_task_inputs_discards_loaded_review_state(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            data_root = Path(folder) / "data"
+            data_root.mkdir()
+            context = JobContext.create(
+                project_root=root,
+                bridge_id="guanbing",
+                bridge_name="管柄大桥",
+                data_root=data_root,
+                start_date="2026-06-01",
+                end_date="2026-06-30",
+                config_path=root / "config" / "default_config.json",
+                selected_modules=["temperature"],
+                options=options_for_modules(["temperature"]),
+                job_id="review_invalidation_unit",
+            )
+            window = WorkbenchWindow(root)
+            try:
+                window.load_context(context.write())
+                window.current_manifest = object()
+                window.current_provenance = object()
+                window.approval_check.setEnabled(True)
+                window.approval_check.blockSignals(True)
+                window.approval_check.setChecked(True)
+                window.approval_check.blockSignals(False)
+                window.current_context.report.plots_approved = True
+                window.current_context.report.state = "ready"
+                window.current_context.write(window.current_context_path)
+
+                window.end_date_edit.setDate(QDate(2026, 6, 29))
+                self.app.processEvents()
+
+                self.assertIsNone(window.current_manifest)
+                self.assertIsNone(window.current_provenance)
+                self.assertFalse(window.approval_check.isChecked())
+                self.assertFalse(window.approval_check.isEnabled())
+                self.assertFalse(window.open_report_btn.isEnabled())
+                self.assertFalse(window.current_context.report.plots_approved)
+
+                window.end_date_edit.setDate(QDate(2026, 6, 30))
+                window.current_manifest = object()
+                window.current_provenance = object()
+                window.approval_check.setEnabled(True)
+                self.assertFalse(window._report_gate_ready())
+                restored = JobContext.read(window.current_context_path)
+                self.assertFalse(restored.report.plots_approved)
+            finally:
+                window.poll_timer.stop()
+                window.close()
+
+    def test_data_source_summary_reads_effective_layered_config(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            config_root = Path(folder)
+            base = config_root / "base.json"
+            base.write_text(
+                '{"data_adapter":{"time_series":{"source_mode":"prefer_mat"}}}',
+                encoding="utf-8",
+            )
+            config = config_root / "project.json"
+            config.write_text('{"extends":"base.json"}', encoding="utf-8")
+
+            window = WorkbenchWindow(root)
+            try:
+                window.config_edit.setText(str(config))
+                window._refresh_data_source_summary()
+                self.assertIn("优先读取 MAT", window.data_source_mode_label.text())
+
+                base.write_text(
+                    '{"data_adapter":{"time_series":{"source_mode":"mat_only"}}}',
+                    encoding="utf-8",
+                )
+                window._refresh_data_source_summary()
+                self.assertIn("高级验证模式", window.data_source_mode_label.text())
+                self.assertIn("不会回退读取 CSV", window.data_source_mode_label.text())
+            finally:
+                window.poll_timer.stop()
+                window.close()
+
+    def test_layered_config_dependency_change_blocks_report_without_ui_edit(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            task_root = Path(folder)
+            data_root = task_root / "data"
+            data_root.mkdir()
+            layer = task_root / "base.json"
+            layer.write_text('{"plot_common":{"gap_mode":"connect"}}', encoding="utf-8")
+            config = task_root / "project.json"
+            config.write_text(
+                '{"extends":"base.json","bridge":{"id":"guanbing"}}', encoding="utf-8"
+            )
+            context = JobContext.create(
+                project_root=root,
+                bridge_id="guanbing",
+                bridge_name="管柄大桥",
+                data_root=data_root,
+                start_date="2026-06-01",
+                end_date="2026-06-30",
+                config_path=config,
+                selected_modules=["temperature"],
+                options=options_for_modules(["temperature"]),
+                job_id="layered_gate_unit",
+            )
+            context.analysis.state = "completed"
+            context.analysis.manifest_path = str(task_root / "analysis_manifest.json")
+            context.report.plots_approved = True
+            window = WorkbenchWindow(root)
+            try:
+                window.load_context(context.write())
+                window.current_manifest = ManifestSummary(
+                    path=Path(context.analysis.manifest_path),
+                    status="ok",
+                    artifact_count=1,
+                    modules=(),
+                )
+                window.current_manifest_missing_selected = ()
+                window.current_provenance = PlotProvenanceSummary(rows=(
+                    PlotProvenanceRow(
+                        module_key="temperature",
+                        path=task_root / "temperature.plot.json",
+                        status="closed",
+                        series_count=1,
+                        source_count=1,
+                        plotted_count=1,
+                        incomplete_days=(),
+                    ),
+                ))
+                window.approval_check.blockSignals(True)
+                window.approval_check.setEnabled(True)
+                window.approval_check.setChecked(True)
+                window.approval_check.blockSignals(False)
+                self.assertTrue(window._context_matches_current_inputs(context))
+                self.assertTrue(window._report_gate_ready())
+
+                layer.write_text('{"plot_common":{"gap_mode":"break"}}', encoding="utf-8")
+
+                self.assertFalse(window._context_matches_current_inputs(context))
+                self.assertFalse(window._report_gate_ready())
+            finally:
+                window.poll_timer.stop()
+                window.close()
 
     def test_primary_workflow_uses_operator_friendly_terms(self) -> None:
         root = Path(__file__).resolve().parents[1]
@@ -103,6 +266,54 @@ class WorkbenchGuiTests(unittest.TestCase):
         finally:
             window.poll_timer.stop()
             window.close()
+
+    def test_dynamic_report_status_translates_internal_terms(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            data_root = Path(folder) / "data"
+            data_root.mkdir()
+            context = JobContext.create(
+                project_root=root,
+                bridge_id="guanbing",
+                bridge_name="管柄大桥",
+                data_root=data_root,
+                start_date="2026-06-01",
+                end_date="2026-06-30",
+                config_path=root / "config" / "default_config.json",
+                selected_modules=["temperature"],
+                options=options_for_modules(["temperature"]),
+                period_label="2026年6月",
+                job_id="operator_terms_unit",
+            )
+            context_path = context.write()
+            window = WorkbenchWindow(root)
+            try:
+                window.current_context = context
+                window.current_context_path = context_path
+                status = {
+                    "state": "running",
+                    "stage": "qc",
+                    "progress_fraction": 0.9,
+                    "message": "Manifest QC checks source provenance and legacy fallback",
+                }
+                with patch("workbench.main_window.read_report_status", return_value=status):
+                    window._poll_report_status()
+                visible = (window.report_progress_label.text() + "\n" + window.report_log.toPlainText()).casefold()
+                for jargon in ("manifest", "provenance", "legacy", " qc", "running"):
+                    self.assertNotIn(jargon, visible)
+                self.assertIn("正在处理", visible)
+                self.assertIn("质量检查", visible)
+                self.assertIn("数据来源记录", visible)
+            finally:
+                window.poll_timer.stop()
+                window.close()
+
+    def test_operator_term_mapping_is_centralized(self) -> None:
+        self.assertEqual("正在处理", operator_state_label("running"))
+        self.assertEqual("质量检查", operator_stage_label("qc"))
+        message = operator_friendly_text("release manifest provenance legacy QC gate")
+        for jargon in ("manifest", "provenance", "legacy", "qc", "gate"):
+            self.assertNotIn(jargon, message.casefold())
 
     def test_all_catalog_profiles_load_without_mutating_assets(self) -> None:
         root = Path(__file__).resolve().parents[1]
@@ -179,6 +390,153 @@ class WorkbenchGuiTests(unittest.TestCase):
                 window.poll_timer.stop()
                 window.close()
 
+    def test_latest_result_selection_ignores_newer_partial_repair_manifest(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            data_root = Path(folder) / "data"
+            logs = data_root / "run_logs"
+            logs.mkdir(parents=True)
+            complete = logs / "analysis_manifest_complete.json"
+            repair = logs / "analysis_manifest_repair.json"
+
+            def write_manifest(path: Path, modules: list[str]) -> None:
+                config_path = root / "config" / "default_config.json"
+                path.write_text(json.dumps({
+                    "status": "ok",
+                    "bridge_profile": {"bridge_id": "guanbing"},
+                    "run_request": {
+                        "data_root": str(data_root),
+                        "start_date": "2026-05-26",
+                        "end_date": "2026-05-28",
+                        "config_path": str(config_path.resolve()),
+                        "config_sha256": file_sha256(config_path),
+                    },
+                    "module_results": [
+                        {"key": key, "label": key, "status": "ok"}
+                        for key in modules
+                    ],
+                }), encoding="utf-8")
+
+            selected = ["temperature", "acceleration"]
+            write_manifest(complete, selected)
+            write_manifest(repair, ["acceleration"])
+            os.utime(complete, (1, 1))
+            os.utime(repair, (2, 2))
+            context = JobContext.create(
+                project_root=root,
+                bridge_id="guanbing",
+                bridge_name="管柄大桥",
+                data_root=data_root,
+                start_date="2026-05-26",
+                end_date="2026-05-28",
+                config_path=root / "config" / "default_config.json",
+                selected_modules=selected,
+                options=options_for_modules(selected),
+                job_id="manifest_selection_unit",
+            )
+            window = WorkbenchWindow(root)
+            try:
+                window.load_context(context.write())
+                with patch(
+                    "workbench.main_window.QMessageBox.question",
+                    return_value=QMessageBox.Yes,
+                ), patch("workbench.main_window.QMessageBox.warning") as warning:
+                    window._load_latest_manifest()
+                warning.assert_not_called()
+                self.assertEqual(
+                    window.current_context.analysis.manifest_path,
+                    str(complete.resolve()),
+                )
+            finally:
+                window.poll_timer.stop()
+                window.close()
+
+    def test_shuixianhua_custom_root_and_may_dates_refresh_auto_report_fields(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        window = WorkbenchWindow(root)
+        try:
+            window.profile_combo.setCurrentIndex(window.profile_combo.findData("shuixianhua"))
+            data_root = r"E:\水仙花大桥数据\2026年5月"
+            window.data_root_edit.setText(data_root)
+            window.start_date_edit.setDate(QDate(2026, 5, 1))
+            window.end_date_edit.setDate(QDate(2026, 5, 31))
+
+            self.assertEqual(
+                Path(window.output_dir_edit.text()), Path(data_root) / "自动报告"
+            )
+            self.assertEqual(window.period_label_edit.text(), "2026年5月份")
+            self.assertEqual(
+                window.monitoring_range_edit.text(), "2026年05月01日~2026年05月31日"
+            )
+        finally:
+            window.poll_timer.stop()
+            window.close()
+
+    def test_report_autofill_preserves_manual_overrides_but_profile_change_resets_them(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        window = WorkbenchWindow(root)
+        try:
+            window.profile_combo.setCurrentIndex(window.profile_combo.findData("shuixianhua"))
+            manual_output = root / "manual-report-output"
+            window.output_dir_edit.setText(str(manual_output))
+            window.period_label_edit.setText("业主专项期")
+            window.monitoring_range_edit.setText("人工填写的监测时间")
+
+            window.data_root_edit.setText(r"E:\水仙花大桥数据\2026年6月")
+            window.start_date_edit.setDate(QDate(2026, 6, 1))
+            window.end_date_edit.setDate(QDate(2026, 6, 30))
+            self.assertEqual(Path(window.output_dir_edit.text()), manual_output)
+            self.assertEqual(window.period_label_edit.text(), "业主专项期")
+            self.assertEqual(window.monitoring_range_edit.text(), "人工填写的监测时间")
+
+            window.profile_combo.setCurrentIndex(window.profile_combo.findData("zhishan"))
+            self.assertNotEqual(window.period_label_edit.text(), "业主专项期")
+            self.assertNotEqual(window.monitoring_range_edit.text(), "人工填写的监测时间")
+            self.assertNotEqual(Path(window.output_dir_edit.text()), manual_output)
+        finally:
+            window.poll_timer.stop()
+            window.close()
+
+    def test_loaded_context_establishes_auto_report_field_baseline(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            task_root = Path(folder)
+            may_root = task_root / "水仙花" / "2026年5月"
+            june_root = task_root / "水仙花" / "2026年6月"
+            context = JobContext.create(
+                project_root=root,
+                bridge_id="shuixianhua",
+                bridge_name="水仙花大桥",
+                data_root=may_root,
+                start_date="2026-05-01",
+                end_date="2026-05-31",
+                config_path=root / "config" / "shuixianhua_config.json",
+                selected_modules=["temperature"],
+                options=options_for_modules(["temperature"]),
+                report_type="shuixianhua_monthly",
+                output_dir=may_root / "自动报告",
+                period_label="2026年5月份",
+                monitoring_range="2026年05月01日~2026年05月31日",
+            )
+            context_path = context.write(task_root / "job_context.json")
+            window = WorkbenchWindow(root)
+            try:
+                window.load_context(context_path)
+                window.data_root_edit.setText(str(june_root))
+                window.start_date_edit.setDate(QDate(2026, 6, 1))
+                window.end_date_edit.setDate(QDate(2026, 6, 30))
+                self.assertEqual(
+                    Path(window.output_dir_edit.text()), june_root / "自动报告"
+                )
+                self.assertEqual(window.period_label_edit.text(), "2026年6月份")
+                self.assertEqual(
+                    window.monitoring_range_edit.text(),
+                    "2026年06月01日~2026年06月30日",
+                )
+            finally:
+                window.poll_timer.stop()
+                window.close()
+
     def test_task_history_demo_is_embedded_without_changing_top_level_tabs(self) -> None:
         root = Path(__file__).resolve().parents[1]
         window = WorkbenchWindow(root)
@@ -187,6 +545,14 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertEqual(window.tabs.count(), 4)
             self.assertEqual(window.analysis_stack.currentIndex(), 1)
             self.assertEqual(window.task_history_page.table.rowCount(), 4)
+            visible = "\n".join(
+                window.task_history_page.table.item(row, column).text()
+                for row in range(window.task_history_page.table.rowCount())
+                for column in (3, 4)
+                if window.task_history_page.table.item(row, column) is not None
+            ).casefold()
+            for jargon in ("running", "completed", "blocked", "qc=", "sha256"):
+                self.assertNotIn(jargon, visible)
             window.task_history_page.back_requested.emit()
             self.assertEqual(window.analysis_stack.currentIndex(), 0)
         finally:
@@ -230,6 +596,7 @@ class WorkbenchGuiTests(unittest.TestCase):
             provenance = data_root / "A1.plot.json"
             provenance.write_bytes(fixture.read_bytes())
             manifest = data_root / "analysis_manifest.json"
+            config_path = root / "config" / "default_config.json"
             manifest.write_text(json.dumps({
                 "status": "ok",
                 "bridge_profile": {"bridge_id": "guanbing"},
@@ -237,6 +604,8 @@ class WorkbenchGuiTests(unittest.TestCase):
                     "data_root": str(data_root),
                     "start_date": "2026-04-01",
                     "end_date": "2026-04-30",
+                    "config_path": str(config_path.resolve()),
+                    "config_sha256": file_sha256(config_path),
                 },
                 "module_results": [{
                     "key": "acceleration", "label": "加速度", "status": "ok",
@@ -246,7 +615,7 @@ class WorkbenchGuiTests(unittest.TestCase):
             context = JobContext.create(
                 project_root=root, bridge_id="guanbing", bridge_name="管柄大桥",
                 data_root=data_root, start_date="2026-04-01", end_date="2026-04-30",
-                config_path=root / "config" / "default_config.json",
+                config_path=config_path,
                 selected_modules=["acceleration"], options=options_for_modules(["acceleration"]),
             )
             context.analysis.state = "completed"

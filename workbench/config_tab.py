@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -75,12 +76,75 @@ WARNING_MODULE_LABELS = {
     "tilt": "倾角",
     "wind": "风速",
     "wind_speed": "风速",
+    "wind_direction": "风向",
     "earthquake": "地震动",
     "eq": "地震动",
     "temperature": "温度",
     "humidity": "湿度",
     "rainfall": "雨量",
 }
+
+CONFIG_SCOPE_LABELS = {
+    "defaults": "模块默认",
+    "per_point": "测点专用",
+}
+CONFIG_SCOPE_KEYS = {label: key for key, label in CONFIG_SCOPE_LABELS.items()}
+
+_LEVEL_LABELS = {
+    "level1": "一级",
+    "level2": "二级",
+    "level3": "三级",
+    "level4": "四级",
+    "level5": "五级",
+}
+_LEVEL_KEYS = {label: key for key, label in _LEVEL_LABELS.items()}
+_MODULE_KEYS_BY_LABEL: dict[str, str] = {}
+for _module_key, _module_label_text in WARNING_MODULE_LABELS.items():
+    _MODULE_KEYS_BY_LABEL.setdefault(_module_label_text, _module_key)
+
+
+def _config_scope_label(value: str) -> str:
+    return CONFIG_SCOPE_LABELS.get(value, value)
+
+
+def _config_scope_key(value: str) -> str:
+    return CONFIG_SCOPE_KEYS.get(value, value)
+
+
+def _module_label(value: str) -> str:
+    return WARNING_MODULE_LABELS.get(value, value)
+
+
+def _level_label(value: str) -> str:
+    if value in _LEVEL_LABELS:
+        return _LEVEL_LABELS[value]
+    if value.startswith("line") and value[4:].isdigit():
+        return f"参考线{value[4:]}"
+    return value
+
+
+def _stored_or_edited_value(
+    item: QTableWidgetItem | None,
+    *,
+    labeler: Callable[[str], str],
+    reverse: dict[str, str] | None = None,
+) -> str:
+    if item is None:
+        return ""
+    text = item.text().strip()
+    stored = item.data(Qt.UserRole)
+    if stored is not None and text == labeler(str(stored)):
+        return str(stored)
+    return (reverse or {}).get(text, text)
+
+
+def _warning_location_label(row: EffectiveWarningRow) -> str:
+    module = _module_label(row.module_key)
+    target = row.target_key or WARNING_SCOPE_LABELS.get(row.scope, "默认")
+    detail = _level_label(row.level) if row.level else WARNING_SOURCE_LABELS.get(
+        row.source_kind, "预警配置"
+    )
+    return f"{module} / {target} / {detail}"
 
 
 class AlarmBoundsEditorWidget(QWidget):
@@ -143,7 +207,7 @@ class AlarmBoundsEditorWidget(QWidget):
         filters.addWidget(self.status_filter)
         filters.addWidget(QLabel("搜索"))
         self.warning_search = QLineEdit()
-        self.warning_search.setPlaceholderText("模块、测点、等级、值或配置路径")
+        self.warning_search.setPlaceholderText("分析类型、测点、等级、数值或来源")
         self.warning_search.setClearButtonEnabled(True)
         self.warning_search.textChanged.connect(self._apply_effective_filters)
         filters.addWidget(self.warning_search, 1)
@@ -153,7 +217,10 @@ class AlarmBoundsEditorWidget(QWidget):
 
         self.effective_table = QTableWidget(0, 10)
         self.effective_table.setHorizontalHeaderLabels(
-            ["来源", "范围", "模块", "测点/分组", "等级/标签", "配置值", "单位", "用途", "状态", "编辑位置（JSON路径）"]
+            ["来源", "范围", "分析类型", "测点/分组", "等级/标签", "配置值", "单位", "用途", "状态", "来源说明"]
+        )
+        self.effective_table.horizontalHeaderItem(9).setToolTip(
+            "按分析类型、测点和等级说明该预警值来自哪里"
         )
         self.effective_table.setAlternatingRowColors(True)
         self.effective_table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -203,7 +270,7 @@ class AlarmBoundsEditorWidget(QWidget):
         explicit_layout = QVBoxLayout(explicit_page)
         explicit_hint = QLabel(
             "本页只编辑成对的下限/上限规则；未配置时不代表项目没有预警值。"
-            "规则可作用于整个分析类型或单个测点，等级使用 level1、level2、level3…；"
+            "规则可作用于整个分析类型或单个测点，等级使用一级、二级、三级等；"
             "上下限必须为有限数值且上限大于下限。"
         )
         explicit_hint.setWordWrap(True)
@@ -277,7 +344,7 @@ class AlarmBoundsEditorWidget(QWidget):
         unset = sum(row.status == "unset" for row in self.effective_rows)
         invalid = sum(row.status == "invalid" for row in self.effective_rows)
         self.message_label.setText(
-            f"已加载；SHA256={session.loaded_sha256[:16]}…。"
+            f"已加载；配置版本校验码={session.loaded_sha256[:16]}…。"
             f"有效值 {configured} 条，未设置 {unset} 条，格式错误 {invalid} 条；"
             f"双边上下限 {len(session.rows)} 条。"
         )
@@ -360,7 +427,7 @@ class AlarmBoundsEditorWidget(QWidget):
         if selected < 0:
             raise ConfigEditorError("请先在有效值总览中选择一行")
         path_item = self.effective_table.item(selected, 9)
-        config_path = path_item.text().strip() if path_item else ""
+        config_path = str(path_item.data(Qt.UserRole) or "") if path_item else ""
         matches = [row for row in self.effective_rows if row.config_path == config_path]
         if len(matches) != 1:
             raise ConfigEditorError("无法唯一定位选中的配置值，请重新加载后再试")
@@ -392,8 +459,9 @@ class AlarmBoundsEditorWidget(QWidget):
         value, accepted = QInputDialog.getText(
             self,
             f"编辑{WARNING_SOURCE_LABELS.get(row.source_kind, row.source_kind)}",
-            f"{row.module_key} / {row.target_key or '默认'} / {row.level or '当前值'}\n"
-            f"{prompt}\n配置位置：{row.config_path}",
+            f"{_module_label(row.module_key)} / {row.target_key or '默认'} / "
+            f"{_level_label(row.level) or '当前值'}\n{prompt}\n"
+            f"来源：{_warning_location_label(row)}",
             text=current,
         )
         if not accepted:
@@ -456,22 +524,20 @@ class AlarmBoundsEditorWidget(QWidget):
             values = (
                 WARNING_SOURCE_LABELS.get(row.source_kind, row.source_kind),
                 WARNING_SCOPE_LABELS.get(row.scope, row.scope),
-                (
-                    f"{WARNING_MODULE_LABELS[row.module_key]} ({row.module_key})"
-                    if row.module_key in WARNING_MODULE_LABELS
-                    else row.module_key
-                ),
+                _module_label(row.module_key),
                 row.target_key or "全局/默认",
-                row.level,
+                _level_label(row.level),
                 row.value_text,
                 row.unit,
                 row.purpose,
                 WARNING_STATUS_LABELS.get(row.status, row.status),
-                row.config_path,
+                _warning_location_label(row),
             )
             for column, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
-                item.setToolTip(row.config_path)
+                item.setToolTip(_warning_location_label(row))
+                if column == 9:
+                    item.setData(Qt.UserRole, row.config_path)
                 if row.status == "invalid":
                     item.setForeground(Qt.red)
                 elif row.status == "unset":
@@ -485,15 +551,33 @@ class AlarmBoundsEditorWidget(QWidget):
     def _append_row(self, row: AlarmBoundRow) -> None:
         index = self.table.rowCount()
         self.table.insertRow(index)
-        values = (row.scope, row.module_key, row.point_key, row.level, row.lower, row.upper)
+        values = (
+            _config_scope_label(row.scope),
+            _module_label(row.module_key),
+            row.point_key,
+            _level_label(row.level),
+            row.lower,
+            row.upper,
+        )
         for column, value in enumerate(values):
-            self.table.setItem(index, column, QTableWidgetItem(str(value)))
+            item = QTableWidgetItem(str(value))
+            if column == 0:
+                item.setData(Qt.UserRole, row.scope)
+            elif column == 1:
+                item.setData(Qt.UserRole, row.module_key)
+            elif column == 3:
+                item.setData(Qt.UserRole, row.level)
+            self.table.setItem(index, column, item)
 
     def add_row(self, scope: str) -> None:
         module_key = "acceleration"
         selected = self.table.currentRow()
         if selected >= 0 and self.table.item(selected, 1):
-            module_key = self.table.item(selected, 1).text().strip() or module_key
+            module_key = _stored_or_edited_value(
+                self.table.item(selected, 1),
+                labeler=_module_label,
+                reverse=_MODULE_KEYS_BY_LABEL,
+            ) or module_key
         point_key = "POINT_ID" if scope == "per_point" else ""
         self._append_row(AlarmBoundRow(scope, module_key, point_key, "level1", 0.0, 1.0))
         row = self.table.rowCount() - 1
@@ -513,6 +597,21 @@ class AlarmBoundsEditorWidget(QWidget):
             values = [self.table.item(index, column).text().strip() if self.table.item(index, column) else ""
                       for column in range(6)]
             try:
+                values[0] = _stored_or_edited_value(
+                    self.table.item(index, 0),
+                    labeler=_config_scope_label,
+                    reverse=CONFIG_SCOPE_KEYS,
+                )
+                values[1] = _stored_or_edited_value(
+                    self.table.item(index, 1),
+                    labeler=_module_label,
+                    reverse=_MODULE_KEYS_BY_LABEL,
+                )
+                values[3] = _stored_or_edited_value(
+                    self.table.item(index, 3),
+                    labeler=_level_label,
+                    reverse=_LEVEL_KEYS,
+                )
                 row = AlarmBoundRow(
                     values[0], values[1], values[2], values[3], float(values[4]), float(values[5])
                 ).validated()
@@ -539,7 +638,7 @@ class AlarmBoundsEditorWidget(QWidget):
         unset = [row for row in self.effective_rows if row.status == "unset"]
         configured = [row for row in self.effective_rows if row.status == "configured"]
         if invalid:
-            details = "\n".join(row.config_path for row in invalid[:12])
+            details = "\n".join(_warning_location_label(row) for row in invalid[:12])
             QMessageBox.critical(
                 self,
                 "预警来源复核失败",
@@ -591,7 +690,7 @@ class AlarmBoundsEditorWidget(QWidget):
             return
         backup = str(result.backup_path) if result.backup_path else "无（目标内容未变化或为新文件）"
         self.message_label.setText(
-            f"保存完成：{result.path}；SHA256={result.sha256[:16]}…；备份={backup}"
+            f"保存完成：{result.path}；配置版本校验码={result.sha256[:16]}…；备份={backup}"
         )
         self.message_label.setStyleSheet("color: #167c35; font-weight: 600;")
         if target is None:
@@ -624,11 +723,15 @@ class CleaningThresholdEditorWidget(QWidget):
         self.title_label.setStyleSheet("font-size: 20px; font-weight: 700; color: #005eac;")
         outer.addWidget(self.title_label)
         self.hint_label = QLabel(
-            "编辑 defaults/per_point 下的 thresholds、zero_to_nan 和 outlier。min/max 可单边填写；"
+            "编辑模块默认或测点专用的数值清洗规则，包括上下限、零值转为空值和滑动窗口异常值剔除。"
+            "下限或上限可单边填写；"
             "时间窗必须成对填写。需要将某个测点在一段时间内全部排除时，请使用“整段排除规则”页，"
             "明确填写起止时间和原因。保存不修改预警值、零点修正和其它配置。"
         )
         self.hint_label.setWordWrap(True)
+        self.hint_label.setToolTip(
+            "模块默认规则作用于该类全部测点；测点专用规则只作用于指定测点"
+        )
         outer.addWidget(self.hint_label)
 
         path_row = QHBoxLayout()
@@ -646,18 +749,30 @@ class CleaningThresholdEditorWidget(QWidget):
         self.table = QTableWidget(0, 10)
         self.table.setHorizontalHeaderLabels(
             [
-                "范围",
-                "模块键",
-                "测点配置键",
-                "min",
-                "max",
+                "适用范围",
+                "分析类型",
+                "测点编号",
+                "下限",
+                "上限",
                 "开始时间",
                 "结束时间",
-                "zero_to_nan",
-                "异常窗(s)",
-                "异常系数",
+                "零值转为空值",
+                "异常检测窗口（秒）",
+                "异常判定系数",
             ]
         )
+        header_tooltips = {
+            0: "选择规则作用于该分析类型全部测点，或仅作用于指定测点",
+            1: "需要清洗的数据类型",
+            2: "测点专用规则必须填写测点编号",
+            3: "低于该值的数据将被清洗；留空表示不设置下限",
+            4: "高于该值的数据将被清洗；留空表示不设置上限",
+            7: "启用后，数值零将按无效值处理",
+            8: "滑动异常检测使用的时间窗口，单位为秒",
+            9: "数值越小，异常检测越敏感",
+        }
+        for column, tooltip in header_tooltips.items():
+            self.table.horizontalHeaderItem(column).setToolTip(tooltip)
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -746,7 +861,7 @@ class CleaningThresholdEditorWidget(QWidget):
         else:
             detail = f"仅列出{self.managed_field_text}；未显示的其它配置保持不变。"
         self.message_label.setText(
-            f"已加载；SHA256={session.loaded_sha256[:16]}…。{detail}"
+            f"已加载；配置版本校验码={session.loaded_sha256[:16]}…。{detail}"
         )
         self.message_label.setStyleSheet("color: #167c35;")
 
@@ -764,7 +879,7 @@ class CleaningThresholdEditorWidget(QWidget):
         if value is None:
             return ""
         if isinstance(value, bool):
-            return "true" if value else "false"
+            return "是" if value else "否"
         return str(value)
 
     def _populate(self, rows: list[CleaningThresholdRow]) -> None:
@@ -777,8 +892,8 @@ class CleaningThresholdEditorWidget(QWidget):
         index = self.table.rowCount()
         self.table.insertRow(index)
         values = (
-            row.scope,
-            row.module_key,
+            _config_scope_label(row.scope),
+            _module_label(row.module_key),
             row.point_key,
             row.minimum,
             row.maximum,
@@ -789,13 +904,22 @@ class CleaningThresholdEditorWidget(QWidget):
             row.outlier_threshold_factor,
         )
         for column, value in enumerate(values):
-            self.table.setItem(index, column, QTableWidgetItem(self._display(value)))
+            item = QTableWidgetItem(self._display(value))
+            if column == 0:
+                item.setData(Qt.UserRole, row.scope)
+            elif column == 1:
+                item.setData(Qt.UserRole, row.module_key)
+            self.table.setItem(index, column, item)
 
     def add_row(self, scope: str) -> None:
         module_key = "acceleration"
         selected = self.table.currentRow()
         if selected >= 0 and self.table.item(selected, 1):
-            module_key = self.table.item(selected, 1).text().strip() or module_key
+            module_key = _stored_or_edited_value(
+                self.table.item(selected, 1),
+                labeler=_module_label,
+                reverse=_MODULE_KEYS_BY_LABEL,
+            ) or module_key
         point_key = "POINT_ID" if scope == "per_point" else ""
         self._append_row(CleaningThresholdRow(scope, module_key, point_key, -1, 1))
         row = self.table.rowCount() - 1
@@ -816,15 +940,20 @@ class CleaningThresholdEditorWidget(QWidget):
             self.exclude_table.insertRow(index)
             for column, value in enumerate(
                 (
-                    row.scope,
-                    row.module_key,
+                    _config_scope_label(row.scope),
+                    _module_label(row.module_key),
                     row.point_key,
                     row.start_time,
                     row.end_time,
                     row.reason,
                 )
             ):
-                self.exclude_table.setItem(index, column, QTableWidgetItem(str(value)))
+                item = QTableWidgetItem(str(value))
+                if column == 0:
+                    item.setData(Qt.UserRole, row.scope)
+                elif column == 1:
+                    item.setData(Qt.UserRole, row.module_key)
+                self.exclude_table.setItem(index, column, item)
         self.exclude_count_label.setText(f"{len(rows)} 条整段排除规则")
         self.cleaning_tabs.setTabText(1, f"整段排除规则（{len(rows)} 条）")
 
@@ -841,9 +970,21 @@ class CleaningThresholdEditorWidget(QWidget):
         index = self.exclude_table.rowCount()
         self.exclude_table.insertRow(index)
         for column, value in enumerate(
-            (row.scope, row.module_key, row.point_key, row.start_time, row.end_time, row.reason)
+            (
+                _config_scope_label(row.scope),
+                _module_label(row.module_key),
+                row.point_key,
+                row.start_time,
+                row.end_time,
+                row.reason,
+            )
         ):
-            self.exclude_table.setItem(index, column, QTableWidgetItem(str(value)))
+            item = QTableWidgetItem(str(value))
+            if column == 0:
+                item.setData(Qt.UserRole, row.scope)
+            elif column == 1:
+                item.setData(Qt.UserRole, row.module_key)
+            self.exclude_table.setItem(index, column, item)
         self.exclude_table.selectRow(index)
         self.exclude_count_label.setText(f"{self.exclude_table.rowCount()} 条整段排除规则")
         self.cleaning_tabs.setTabText(1, f"整段排除规则（{self.exclude_table.rowCount()} 条）")
@@ -870,6 +1011,16 @@ class CleaningThresholdEditorWidget(QWidget):
                 for column in range(6)
             ]
             try:
+                values[0] = _stored_or_edited_value(
+                    self.exclude_table.item(index, 0),
+                    labeler=_config_scope_label,
+                    reverse=CONFIG_SCOPE_KEYS,
+                )
+                values[1] = _stored_or_edited_value(
+                    self.exclude_table.item(index, 1),
+                    labeler=_module_label,
+                    reverse=_MODULE_KEYS_BY_LABEL,
+                )
                 rows.append(ExcludeRangeRow(*values).validated())
             except ConfigEditorError as exc:
                 raise ConfigEditorError(f"整段排除规则第 {index + 1} 行无效：{exc}") from exc
@@ -888,7 +1039,7 @@ class CleaningThresholdEditorWidget(QWidget):
             return True
         if value in {"false", "0", "no", "否"}:
             return False
-        raise ConfigEditorError(f"zero_to_nan 无法识别：{text!r}")
+        raise ConfigEditorError(f"“零值转为空值”只能填写是、否或留空：{text!r}")
 
     def rows(self) -> list[CleaningThresholdRow]:
         rows: list[CleaningThresholdRow] = []
@@ -900,6 +1051,16 @@ class CleaningThresholdEditorWidget(QWidget):
                 for column in range(10)
             ]
             try:
+                values[0] = _stored_or_edited_value(
+                    self.table.item(index, 0),
+                    labeler=_config_scope_label,
+                    reverse=CONFIG_SCOPE_KEYS,
+                )
+                values[1] = _stored_or_edited_value(
+                    self.table.item(index, 1),
+                    labeler=_module_label,
+                    reverse=_MODULE_KEYS_BY_LABEL,
+                )
                 row = CleaningThresholdRow(
                     values[0],
                     values[1],
@@ -972,7 +1133,7 @@ class CleaningThresholdEditorWidget(QWidget):
             return
         backup = str(result.backup_path) if result.backup_path else "无（内容未变化或为新文件）"
         self.message_label.setText(
-            f"保存完成：{result.path}；SHA256={result.sha256[:16]}…；备份={backup}"
+            f"保存完成：{result.path}；配置版本校验码={result.sha256[:16]}…；备份={backup}"
         )
         self.message_label.setStyleSheet("color: #167c35; font-weight: 600;")
         self.config_saved.emit(str(result.path), result.sha256, backup)
@@ -984,7 +1145,7 @@ class PostFilterThresholdEditorWidget(CleaningThresholdEditorWidget):
     row_label = "滤波后二次清洗行"
     copy_suffix = "post_filter_workbench"
     editor_label = "滤波后二次清洗配置"
-    managed_field_text = "显式 post_filter_thresholds"
+    managed_field_text = "已明确配置的滤波后二次清洗规则"
     add_default_text = "新增默认滤波后规则"
     add_point_text = "新增测点滤波后规则"
     supports_exclude_ranges = False
@@ -993,8 +1154,11 @@ class PostFilterThresholdEditorWidget(CleaningThresholdEditorWidget):
         super().__init__(parent)
         self.title_label.setText("滤波后二次清洗配置")
         self.hint_label.setText(
-            "编辑 defaults/per_point 下的 post_filter_thresholds，仅在滤波完成后按顺序执行。"
+            "编辑模块默认或测点专用的滤波后二次清洗规则；这些规则仅在滤波完成后按顺序执行。"
             "支持单边上下限和成对时间窗；不修改原始清洗、零点修正或报警边界。"
+        )
+        self.hint_label.setToolTip(
+            "这些规则在滤波完成后执行；模块默认与测点专用规则的作用范围不同"
         )
         for column in (7, 8, 9):
             self.table.setColumnHidden(column, True)

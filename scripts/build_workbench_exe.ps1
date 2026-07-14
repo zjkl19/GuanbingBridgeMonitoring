@@ -1,6 +1,5 @@
 param(
     [string]$PythonExe = "reporting\.venv\Scripts\python.exe",
-    [switch]$SkipReportBuilder,
     [switch]$SkipAnalysisRunner
 )
 
@@ -8,29 +7,66 @@ $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $repo
 
+function Invoke-NativeChecked {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+
+        [string[]]$ArgumentList = @(),
+
+        [Parameter(Mandatory = $true)]
+        [string]$StepName
+    )
+
+    & $FilePath @ArgumentList | Out-Host
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        throw "$StepName failed with exit code $exitCode"
+    }
+}
+
 if (-not (Test-Path -LiteralPath $PythonExe -PathType Leaf)) {
     throw "Python executable not found: $PythonExe"
 }
 
-& $PythonExe -c "import PySide6, PyInstaller" | Out-Host
+Invoke-NativeChecked `
+    -FilePath $PythonExe `
+    -ArgumentList @("-m", "pip", "install", "pyinstaller", "-r", "reporting\requirements.txt") `
+    -StepName "Workbench Python dependency installation"
+Invoke-NativeChecked `
+    -FilePath $PythonExe `
+    -ArgumentList @("-c", "import PySide6, PyInstaller, docx, openpyxl, PIL, lxml, matplotlib, numpy, pypdf, win32com.client") `
+    -StepName "Workbench Python dependency import check"
 
 $distParent = Join-Path $repo "dist"
 $buildRoot = Join-Path $repo "build\workbench"
 # Keep this PowerShell 5.1 script ASCII-safe while constructing the canonical
 # Chinese display name from its Unicode code points.
 $bundleName = -join (26725, 26753, 20581, 24247, 30417, 27979, 24037, 20316, 21488 | ForEach-Object { [char]$_ })
-& $PythonExe -m PyInstaller `
-    --noconfirm `
-    --clean `
-    --noconsole `
-    --icon "workbench\assets\app_icon.ico" `
-    --name $bundleName `
-    --distpath $distParent `
-    --workpath $buildRoot `
-    "start_workbench.py" | Out-Host
-
+$operatorGuideName = (-join (20351, 29992, 35828, 26126 | ForEach-Object { [char]$_ })) + ".md"
 $generatedRoot = Join-Path $distParent $bundleName
 $distRoot = Join-Path $distParent "BridgeMonitoringWorkbench"
+if (Test-Path -LiteralPath $generatedRoot) {
+    Remove-Item -LiteralPath $generatedRoot -Recurse -Force
+}
+Invoke-NativeChecked `
+    -FilePath $PythonExe `
+    -ArgumentList @(
+        "-m", "PyInstaller",
+        "--noconfirm",
+        "--clean",
+        "--noconsole",
+        "--paths", "reporting",
+        "--hidden-import", "report_job",
+        "--hidden-import", "report_job_cli",
+        "--icon", "workbench\assets\app_icon.ico",
+        "--name", $bundleName,
+        "--distpath", $distParent,
+        "--workpath", $buildRoot,
+        "start_workbench.py"
+    ) `
+    -StepName "PyInstaller workbench build"
+
 if (-not (Test-Path -LiteralPath $generatedRoot -PathType Container)) {
     throw "PyInstaller output directory was not produced: $generatedRoot"
 }
@@ -44,16 +80,22 @@ if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
 }
 
 Copy-Item -LiteralPath (Join-Path $repo "VERSION") -Destination (Join-Path $distRoot "VERSION") -Force
-Copy-Item -LiteralPath (Join-Path $repo "README.md") -Destination (Join-Path $distRoot "README.md") -Force
+Copy-Item -LiteralPath (Join-Path $repo "docs\OPERATOR_GUIDE.md") -Destination (Join-Path $distRoot $operatorGuideName) -Force
 
 $copyAssets = @'
 from __future__ import annotations
 
 import json
 import shutil
+import sys
 from pathlib import Path
 
 repo = Path.cwd()
+if str(repo) not in sys.path:
+    sys.path.insert(0, str(repo))
+
+from workbench.config_layers import load_layered_config
+
 dest = repo / "dist" / "BridgeMonitoringWorkbench"
 profile_path = repo / "config" / "bridge_profiles.json"
 payload = json.loads(profile_path.read_text(encoding="utf-8-sig"))
@@ -67,8 +109,18 @@ for profile in payload.get("profiles", []):
         value = str(profile.get(key) or "").strip()
         if value:
             candidate = Path(value)
-            if not candidate.is_absolute():
-                relative_files.add(candidate)
+            if candidate.is_absolute():
+                raise RuntimeError(f"Packaged profile asset must be project-relative: {candidate}")
+            relative_files.add(candidate)
+            if key == "default_config":
+                _config, dependencies = load_layered_config(repo / candidate)
+                for dependency in dependencies:
+                    try:
+                        relative_files.add(dependency.resolve().relative_to(repo.resolve()))
+                    except ValueError as exc:
+                        raise RuntimeError(
+                            f"Packaged config dependency must stay inside the project: {dependency}"
+                        ) from exc
 
 for relative in sorted(relative_files, key=lambda item: str(item).casefold()):
     source = repo / relative
@@ -83,10 +135,20 @@ icon_target = dest / "workbench" / "assets"
 if icon_target.exists():
     shutil.rmtree(icon_target)
 shutil.copytree(icon_source, icon_target)
+
+report_asset_source = repo / "reports" / "assets"
+report_asset_target = dest / "reports" / "assets"
+if report_asset_source.exists():
+    if report_asset_target.exists():
+        shutil.rmtree(report_asset_target)
+    shutil.copytree(report_asset_source, report_asset_target)
 '@
 $copyScript = Join-Path $buildRoot "copy_workbench_assets.py"
 Set-Content -LiteralPath $copyScript -Value $copyAssets -Encoding UTF8
-& $PythonExe $copyScript | Out-Host
+Invoke-NativeChecked `
+    -FilePath $PythonExe `
+    -ArgumentList @($copyScript) `
+    -StepName "Workbench asset copy"
 
 if (-not $SkipAnalysisRunner) {
     $runnerSource = Join-Path $repo "bin\BridgeAnalysisRunner"
@@ -109,11 +171,15 @@ if (-not $SkipAnalysisRunner) {
         throw "Analysis runner is missing: $runnerSource"
     }
     $previewSmokeRoot = Join-Path $buildRoot "auto_threshold_preview_smoke"
-    & $PythonExe (Join-Path $repo "scripts\validate_auto_threshold_preview_runner.py") `
-        --project-root $repo --output-root $previewSmokeRoot --replace | Out-Host
-    if ($LASTEXITCODE -ne 0) {
-        throw "Compiled automatic-cleaning preview contract smoke failed with exit code $LASTEXITCODE"
-    }
+    Invoke-NativeChecked `
+        -FilePath $PythonExe `
+        -ArgumentList @(
+            (Join-Path $repo "scripts\validate_auto_threshold_preview_runner.py"),
+            "--project-root", $repo,
+            "--output-root", $previewSmokeRoot,
+            "--replace"
+        ) `
+        -StepName "Compiled automatic-cleaning preview contract smoke"
     $runnerTarget = Join-Path $distRoot "bin\BridgeAnalysisRunner"
     if (Test-Path -LiteralPath $runnerTarget) {
         Remove-Item -LiteralPath $runnerTarget -Recurse -Force
@@ -122,87 +188,23 @@ if (-not $SkipAnalysisRunner) {
     Copy-Item -LiteralPath $runnerSource -Destination $runnerTarget -Recurse -Force
 }
 
-if (-not $SkipReportBuilder) {
-    $reportSource = Join-Path $repo "reporting\dist\BridgeReportBuilder"
-    $reportExe = Join-Path $reportSource "BridgeReportBuilder.exe"
-    $reportInputs = @(
-        Get-ChildItem -LiteralPath (Join-Path $repo "reporting") -File -Filter "*.py"
-        Get-ChildItem -LiteralPath (Join-Path $repo "workbench") -File -Filter "*.py"
-        Get-Item -LiteralPath (Join-Path $repo "reporting\requirements.txt")
-        Get-Item -LiteralPath (Join-Path $repo "config\bridge_profiles.json")
-    )
-    $latestReportInput = ($reportInputs | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
-    if (-not (Test-Path -LiteralPath $reportExe -PathType Leaf) `
-            -or (Get-Item -LiteralPath $reportExe).LastWriteTimeUtc -lt $latestReportInput) {
-        Write-Host "Report builder is stale; rebuilding before workbench packaging."
-        & (Join-Path $repo "reporting\build_gui_exe.ps1") -PythonExe $PythonExe
-    }
-    if (-not (Test-Path -LiteralPath $reportExe -PathType Leaf)) {
-        throw "Packaged report builder is missing after rebuild: $reportExe"
-    }
-    $reportTarget = Join-Path $distRoot "reporting\dist\BridgeReportBuilder"
-    if (Test-Path -LiteralPath $reportTarget) {
-        Remove-Item -LiteralPath $reportTarget -Recurse -Force
-    }
-    New-Item -ItemType Directory -Path (Split-Path $reportTarget) -Force | Out-Null
-    Copy-Item -LiteralPath $reportSource -Destination $reportTarget -Recurse -Force
-
-    $reportSmokeContext = Join-Path $buildRoot "report_builder_smoke_context.json"
-    $reportSmokePayload = [ordered]@{
-        schema_version = 1
-        bridge_id = "guanbing"
-        project_root = $distRoot
-        data_root = $distRoot
-        config_path = (Join-Path $distRoot "config\default_config.json")
-        start_date = "2026-01-01"
-        end_date = "2026-01-01"
-        period_label = "EXE smoke"
-        monitoring_range = "EXE smoke"
-        report_date = "2026-01-01"
-        analysis = @{}
-        report = [ordered]@{
-            plots_approved = $false
-            output_dir = (Join-Path $distRoot "output\doc")
-        }
-    }
-    $reportSmokePayload | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $reportSmokeContext -Encoding UTF8
-    $packagedReportExe = Join-Path $reportTarget "BridgeReportBuilder.exe"
-    $reportSmokeProcess = Start-Process `
-        -FilePath $packagedReportExe `
-        -ArgumentList @("--job-context", $reportSmokeContext, "--job-context-smoke-test") `
-        -WindowStyle Hidden `
-        -Wait `
-        -PassThru
-    if ($reportSmokeProcess.ExitCode -ne 0) {
-        throw "Packaged report builder context smoke test failed with exit code $($reportSmokeProcess.ExitCode)"
-    }
-    $reportJobSmokeProcess = Start-Process `
-        -FilePath $packagedReportExe `
-        -ArgumentList @("--report-job-contract-smoke-test") `
-        -WindowStyle Hidden `
-        -Wait `
-        -PassThru
-    if ($reportJobSmokeProcess.ExitCode -ne 0) {
-        throw "Packaged embedded report-job smoke test failed with exit code $($reportJobSmokeProcess.ExitCode)"
-    }
-    $reportGateSmokeProcess = Start-Process `
-        -FilePath $packagedReportExe `
-        -ArgumentList @("--report-gate-contract-smoke-test") `
-        -WindowStyle Hidden `
-        -Wait `
-        -PassThru
-    if ($reportGateSmokeProcess.ExitCode -ne 0) {
-        throw "Packaged report gate contract smoke test failed with exit code $($reportGateSmokeProcess.ExitCode)"
-    }
-    $visualQcSmokeProcess = Start-Process `
-        -FilePath $packagedReportExe `
-        -ArgumentList @("--visual-qc-contract-smoke-test") `
-        -WindowStyle Hidden `
-        -Wait `
-        -PassThru
-    if ($visualQcSmokeProcess.ExitCode -ne 0) {
-        throw "Packaged report visual-QC smoke test failed with exit code $($visualQcSmokeProcess.ExitCode)"
-    }
+$reportRuntimeSmokeOutput = Join-Path $buildRoot "embedded_report_runtime_smoke.json"
+$reportRuntimeSmokeProcess = Start-Process `
+    -FilePath $exePath `
+    -ArgumentList @("--report-runtime-smoke-test", "--smoke-output", $reportRuntimeSmokeOutput) `
+    -WindowStyle Hidden `
+    -Wait `
+    -PassThru
+if ($reportRuntimeSmokeProcess.ExitCode -ne 0) {
+    throw "Embedded report runtime smoke failed with exit code $($reportRuntimeSmokeProcess.ExitCode)"
+}
+$reportRuntimeSmoke = Get-Content -LiteralPath $reportRuntimeSmokeOutput -Raw -Encoding UTF8 | ConvertFrom-Json
+if (-not $reportRuntimeSmoke.ok -or $reportRuntimeSmoke.runtime -ne "embedded_headless_worker" `
+        -or $reportRuntimeSmoke.standalone_report_window `
+        -or -not $reportRuntimeSmoke.report_gate_contract `
+        -or -not $reportRuntimeSmoke.embedded_report_job `
+        -or -not $reportRuntimeSmoke.visual_qc_contract) {
+    throw "Embedded report runtime contract failed: $($reportRuntimeSmoke | ConvertTo-Json -Compress)"
 }
 
 $smokeOutput = Join-Path $distRoot "workbench_smoke.json"
@@ -260,12 +262,15 @@ if (-not $smoke.ok -or $smoke.profile_count -ne $expectedProfileCount -or $smoke
 }
 
 $profileMatrixOutput = Join-Path $distRoot "workbench_profile_matrix.json"
-& $PythonExe (Join-Path $repo "scripts\validate_workbench_installed_profiles.py") `
-    --package-root $distRoot --output $profileMatrixOutput `
-    --evidence-root (Join-Path $buildRoot "profile_matrix_evidence") | Out-Host
-if ($LASTEXITCODE -ne 0) {
-    throw "Frozen all-profile matrix failed with exit code $LASTEXITCODE"
-}
+Invoke-NativeChecked `
+    -FilePath $PythonExe `
+    -ArgumentList @(
+        (Join-Path $repo "scripts\validate_workbench_installed_profiles.py"),
+        "--package-root", $distRoot,
+        "--output", $profileMatrixOutput,
+        "--evidence-root", (Join-Path $buildRoot "profile_matrix_evidence")
+    ) `
+    -StepName "Frozen all-profile matrix"
 $profileMatrix = Get-Content -LiteralPath $profileMatrixOutput -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($profileMatrix.status -ne "passed" -or $profileMatrix.profile_count -ne $expectedProfileCount `
         -or ($profileMatrix.report_capable_count + $profileMatrix.analysis_only_count) -ne $expectedProfileCount `
@@ -307,6 +312,15 @@ $taskHistoryScreenshotOutput = Join-Path $distRoot "workbench_task_history.png"
 $files = Get-ChildItem -LiteralPath $distRoot -Recurse -File | Where-Object {
     $_.FullName -ne (Join-Path $distRoot "release_manifest.json")
 }
+$forbiddenStandaloneReportFiles = @($files | Where-Object {
+    $_.Name -ieq "BridgeReportBuilder.exe" -or
+    $_.Name -ieq "MonthlyReportBuilder.exe" -or
+    $_.FullName.Replace('\', '/') -match '/reporting/report_gui\.py$'
+})
+if ($forbiddenStandaloneReportFiles.Count -gt 0) {
+    $paths = ($forbiddenStandaloneReportFiles | ForEach-Object FullName) -join "; "
+    throw "Workbench distribution contains retired standalone report entrypoints: $paths"
+}
 $fileInventory = @($files | ForEach-Object {
     $relative = $_.FullName.Substring($distRoot.Length).TrimStart([char[]]@('\', '/')).Replace('\', '/')
     [ordered]@{
@@ -317,7 +331,7 @@ $fileInventory = @($files | ForEach-Object {
 })
 $updatePolicy = Get-Content -LiteralPath (Join-Path $distRoot "config\workbench_update.json") -Raw -Encoding UTF8 | ConvertFrom-Json
 $releaseManifest = [ordered]@{
-    schema_version = 2
+    schema_version = 3
     built_at = (Get-Date).ToString("o")
     version = (Get-Content -LiteralPath (Join-Path $distRoot "VERSION") -Raw -Encoding UTF8).Trim()
     executable = "${bundleName}.exe"
@@ -325,15 +339,22 @@ $releaseManifest = [ordered]@{
     update_repository = $updatePolicy.repository
     update_channel = $updatePolicy.channel
     includes_analysis_runner = -not $SkipAnalysisRunner
-    includes_report_builder = -not $SkipReportBuilder
-    report_builder_context_smoke = -not $SkipReportBuilder
-    embedded_report_job_smoke = -not $SkipReportBuilder
-    report_gate_contract_smoke = -not $SkipReportBuilder
-    report_visual_qc_smoke = -not $SkipReportBuilder
+    report_runtime = "embedded_headless_worker"
+    standalone_report_builder_included = $false
+    # Compatibility gates retained for the v1.8.0-rc2 updater.  They now mean
+    # that report-building capability and context checks are included in the
+    # workbench, not that a second executable is packaged.
+    includes_report_builder = $true
+    report_builder_context_smoke = [bool]$reportRuntimeSmoke.report_gate_contract
+    embedded_report_runtime_smoke = $true
+    embedded_report_job_smoke = [bool]$reportRuntimeSmoke.embedded_report_job
+    report_gate_contract_smoke = [bool]$reportRuntimeSmoke.report_gate_contract
+    report_visual_qc_smoke = [bool]$reportRuntimeSmoke.visual_qc_contract
     auto_threshold_preview_runner_smoke = -not $SkipAnalysisRunner
     installed_profile_matrix_smoke = $true
     invalid_cli_smoke = $true
     task_history_smoke = $true
+    embedded_report_runtime = $reportRuntimeSmoke
     installed_profile_matrix = [ordered]@{
         profile_count = $profileMatrix.profile_count
         report_capable_count = $profileMatrix.report_capable_count

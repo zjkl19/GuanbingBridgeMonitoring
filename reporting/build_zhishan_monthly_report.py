@@ -27,6 +27,7 @@ from docx_utils import (
 from image_block_utils import count_docx_images
 from report_build_manifest import write_report_build_manifest
 from report_context import ReportBuildContext
+from config_loader import load_report_config
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -255,7 +256,7 @@ def _format_frequency_values(values: list[float], fallback: float) -> tuple[str,
 
 def load_accel_frequency_note(config_path: Path) -> str:
     try:
-        config = json.loads(config_path.read_text(encoding="utf-8-sig"))
+        config = load_report_config(config_path)
     except Exception:
         config = {}
     params = config.get("accel_spectrum_params", {}) if isinstance(config, dict) else {}
@@ -440,7 +441,7 @@ def load_point_stats_from_group_workbook(path: Path) -> dict[str, RangeStats]:
 def load_strain_alarm_bounds(config_path: Path) -> dict[str, tuple[float, float]]:
     if not config_path.exists():
         return {}
-    payload = json.loads(config_path.read_text(encoding="utf-8-sig"))
+    payload = load_report_config(config_path)
     points = ((payload.get("per_point") or {}).get("strain") or {})
     result: dict[str, tuple[float, float]] = {}
     for point, block in points.items():

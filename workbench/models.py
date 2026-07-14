@@ -134,12 +134,14 @@ class JobContext:
             template_path=str(template_path.resolve()) if template_path else "",
             template_sha256=file_sha256(template_path.resolve()) if template_path and template_path.is_file() else "",
             output_dir=str((output_dir or (data_root / "自动报告")).resolve()),
-            stdout_log=str(job_dir / "report_gui_stdout.log"),
-            stderr_log=str(job_dir / "report_gui_stderr.log"),
+            stdout_log=str(job_dir / "report_stdout.log"),
+            stderr_log=str(job_dir / "report_stderr.log"),
             status_path=str(job_dir / "report_status.json"),
             result_path=str(job_dir / "report_result.json"),
         )
         stamp = now.isoformat(timespec="seconds")
+        from .config_layers import config_dependency_sha256
+
         return cls(
             schema_version=SCHEMA_VERSION,
             job_id=run_id,
@@ -153,7 +155,7 @@ class JobContext:
             start_date=start,
             end_date=end,
             config_path=str(config_path),
-            config_sha256=file_sha256(config_path),
+            config_sha256=config_dependency_sha256(config_path),
             selected_modules=list(dict.fromkeys(selected_modules)),
             options=dict(options),
             period_label=period_label,

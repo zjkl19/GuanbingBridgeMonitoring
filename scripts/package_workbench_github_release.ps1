@@ -40,18 +40,32 @@ $actualExeHash = (Get-FileHash -LiteralPath $exePath -Algorithm SHA256).Hash.ToL
 if ($actualExeHash -ne ([string]$manifest.executable_sha256).ToLowerInvariant()) {
     throw "Workbench EXE hash differs from release manifest"
 }
-if ($manifest.schema_version -lt 2 -or $manifest.file_inventory_count -ne $manifest.file_count_excluding_manifest) {
+if ($manifest.schema_version -lt 3 -or $manifest.file_inventory_count -ne $manifest.file_count_excluding_manifest) {
     throw "Workbench distribution has no closed file inventory"
 }
 if (-not $manifest.auto_threshold_preview_runner_smoke `
         -or -not $manifest.installed_profile_matrix_smoke `
         -or -not $manifest.task_history_smoke `
+        -or $manifest.report_runtime -ne "embedded_headless_worker" `
+        -or $manifest.standalone_report_builder_included `
+        -or -not $manifest.includes_report_builder `
         -or -not $manifest.report_builder_context_smoke `
+        -or -not $manifest.embedded_report_runtime_smoke `
         -or -not $manifest.embedded_report_job_smoke `
         -or -not $manifest.report_gate_contract_smoke `
         -or -not $manifest.report_visual_qc_smoke `
         -or -not $manifest.smoke.ok) {
     throw "Workbench distribution did not pass release smoke gates"
+}
+
+$forbiddenStandaloneReportFiles = @(Get-ChildItem -LiteralPath $distRoot -Recurse -File | Where-Object {
+    $_.Name -ieq "BridgeReportBuilder.exe" -or
+    $_.Name -ieq "MonthlyReportBuilder.exe" -or
+    $_.FullName.Replace('\', '/') -match '/reporting/report_gui\.py$'
+})
+if ($forbiddenStandaloneReportFiles.Count -gt 0) {
+    $paths = ($forbiddenStandaloneReportFiles | ForEach-Object FullName) -join "; "
+    throw "Workbench distribution contains retired standalone report entrypoints: $paths"
 }
 
 $resolvedOutput = Join-Path $repo $OutputDir
@@ -63,6 +77,23 @@ if (Test-Path -LiteralPath $archivePath) {
     Remove-Item -LiteralPath $archivePath -Force
 }
 Compress-Archive -LiteralPath $distRoot -DestinationPath $archivePath -CompressionLevel Optimal
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archive = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
+try {
+    $forbiddenArchiveEntries = @($archive.Entries | Where-Object {
+        $normalizedEntryName = $_.FullName.Replace('\', '/')
+        $normalizedEntryName -match '(^|/)BridgeReportBuilder\.exe$' -or
+        $normalizedEntryName -match '(^|/)MonthlyReportBuilder\.exe$' -or
+        $normalizedEntryName -match '(^|/)reporting/report_gui\.py$'
+    })
+    if ($forbiddenArchiveEntries.Count -gt 0) {
+        $entryNames = ($forbiddenArchiveEntries | ForEach-Object FullName) -join "; "
+        throw "Release archive contains retired standalone report entrypoints: $entryNames"
+    }
+}
+finally {
+    $archive.Dispose()
+}
 $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
 "$archiveHash  $assetName" | Set-Content -LiteralPath $checksumPath -Encoding ASCII
 

@@ -49,8 +49,12 @@ JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
 GUANBING_MONTHLY_REPORT = "管柄月报"
 SHUIXIANHUA_MONTHLY_REPORT = "水仙花月报"
 ZHISHAN_MONTHLY_REPORT = "芝山月报"
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 try:
     from workbench.version import app_version as _workbench_app_version
+    from workbench.config_layers import config_dependency_sha256
 
     APP_VERSION = _workbench_app_version(Path(__file__).resolve().parents[1])
 except (ImportError, OSError):
@@ -333,7 +337,7 @@ class ReportWorker(QObject):
                 ),
             )
             if result.manifest_path is not None:
-                self.log.emit(f"Manifest: {result.manifest_path}")
+                self.log.emit(f"报告内容清单: {result.manifest_path}")
             self.log.emit(f"Report:   {result.report_path}")
             if result.pdf_path is not None:
                 self.log.emit(f"PDF:      {result.pdf_path}")
@@ -393,7 +397,11 @@ class ReportGui(QMainWindow):
             candidate = Path(str(value))
             if not candidate.is_file():
                 raise FileNotFoundError(f"{label} does not exist: {candidate}")
-            digest = hashlib.sha256(candidate.read_bytes()).hexdigest().upper()
+            digest = (
+                config_dependency_sha256(candidate)
+                if label == "config"
+                else hashlib.sha256(candidate.read_bytes()).hexdigest().upper()
+            )
             if digest != str(expected_hash).upper():
                 raise RuntimeError(f"{label} changed after workbench approval: {candidate}")
 
@@ -420,10 +428,10 @@ class ReportGui(QMainWindow):
         self._log(f"已加载工作台任务上下文: {path}")
         manifest_path = str(analysis.get("manifest_path") or "")
         if manifest_path:
-            self._log(f"已绑定分析 Manifest: {manifest_path}")
+            self._log(f"已绑定分析结果清单: {manifest_path}")
         if not bool(report.get("plots_approved")):
             self.generate_btn.setEnabled(False)
-            self._log("报告门禁未通过：工作台尚未确认图件审核。")
+            self._log("尚不能生成报告：工作台尚未确认图件审核。")
 
     def _build_ui(self) -> None:
         central = QWidget(self)
@@ -1092,7 +1100,7 @@ class ReportGui(QMainWindow):
         self._set_busy(False)
         message = f"\u62a5\u544a\u5df2\u751f\u6210:\n{report_path}"
         if manifest_path:
-            message += f"\n\nManifest:\n{manifest_path}"
+            message += f"\n\n报告内容清单:\n{manifest_path}"
         if summary_paths:
             message += f"\n\n\u7f3a\u5931\u5185\u5bb9\u6e05\u5355:\n{summary_paths}"
         QMessageBox.information(self, "\u5b8c\u6210", message)
@@ -1284,7 +1292,6 @@ def main() -> None:
         sys.exit(self_test_exit_code)
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--job-context", type=Path, default=None)
-    parser.add_argument("--job-context-smoke-test", action="store_true")
     parser.add_argument("--run-job-context", action="store_true")
     parser.add_argument("--report-status", type=Path, default=None)
     parser.add_argument("--report-result", type=Path, default=None)
@@ -1293,7 +1300,7 @@ def main() -> None:
     parser.add_argument("--visual-qc-contract-smoke-test", action="store_true")
     parser.add_argument("--visual-qc-docx", type=Path, default=None)
     parser.add_argument("--visual-qc-output", type=Path, default=None)
-    args, qt_args = parser.parse_known_args(sys.argv[1:])
+    args, _unknown = parser.parse_known_args(sys.argv[1:])
     if args.report_gate_contract_smoke_test:
         import tempfile
 
@@ -1337,6 +1344,8 @@ def main() -> None:
                     "data_root": str(data_root),
                     "start_date": "2026-01-01",
                     "end_date": "2026-01-01",
+                    "config_path": str(config.resolve()),
+                    "config_sha256": file_sha256(config),
                 },
                 "module_results": [{
                     "key": "temperature",
@@ -1417,21 +1426,10 @@ def main() -> None:
         from report_job_cli import run_context
 
         raise SystemExit(run_context(args.job_context, args.report_status, args.report_result))
-    app = QApplication([sys.argv[0], *qt_args])
-    win = ReportGui(job_context_path=args.job_context)
-    if args.job_context_smoke_test:
-        print(json.dumps({
-            "ok": True,
-            "version": APP_VERSION,
-            "bridge_id": win.profile_combo.currentData(),
-            "result_root": win.result_root_edit.text(),
-            "output_dir": win.output_dir_edit.text(),
-            "generate_enabled": win.generate_btn.isEnabled(),
-        }, ensure_ascii=False, indent=2))
-        win.close()
-        return
-    win.show()
-    sys.exit(app.exec())
+    raise SystemExit(
+        "The standalone report window has retired permanently. "
+        "Open 桥梁健康监测工作台 and use its 报告生成 page."
+    )
 
 
 if __name__ == "__main__":

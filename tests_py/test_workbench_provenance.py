@@ -94,7 +94,169 @@ class WorkbenchProvenanceTests(unittest.TestCase):
             }), encoding="utf-8")
             summary = inspect_manifest_plot_provenance(manifest)
             self.assertEqual(summary.failed_count, 1)
-            self.assertIn("not full", summary.rows[0].message)
+            self.assertIn("requires full sampling", summary.rows[0].message)
+
+    def test_capped_raw_wind_and_earthquake_close_with_explicit_module_context(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            artifacts = []
+            module_results = []
+            for module in ("wind", "earthquake"):
+                provenance = root / f"{module}.plot.json"
+                provenance.write_text(json.dumps({
+                    "series": [{
+                        "sampling_mode": "capped",
+                        "render_mode": "line",
+                        "reduction_applied": True,
+                        "input_count": 8,
+                        "finite_count": 7,
+                        "plotted_finite_count": 5,
+                        "source": source(),
+                    }],
+                }), encoding="utf-8")
+                artifacts.append(provenance)
+                module_results.append({"key": module, "artifacts": [str(provenance)]})
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({"module_results": module_results}), encoding="utf-8")
+
+            summary = inspect_manifest_plot_provenance(manifest)
+
+            self.assertEqual(summary.closed_count, 2)
+            self.assertEqual(summary.failed_count, 0)
+            self.assertEqual([row.module_key for row in summary.rows], ["wind", "earthquake"])
+
+    def test_capped_raw_series_rejects_missing_module_or_inconsistent_reduction(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            missing_module = root / "missing_module.plot.json"
+            bad_reduction = root / "bad_reduction.plot.json"
+            base = {
+                "sampling_mode": "capped",
+                "render_mode": "line",
+                "reduction_applied": True,
+                "input_count": 8,
+                "finite_count": 7,
+                "plotted_finite_count": 5,
+                "source": source(),
+            }
+            missing_module.write_text(json.dumps({"series": [base]}), encoding="utf-8")
+            mismatch = dict(base)
+            mismatch["reduction_applied"] = False
+            bad_reduction.write_text(json.dumps({"series": [mismatch]}), encoding="utf-8")
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({
+                "module_results": [{"key": "wind", "artifacts": [str(bad_reduction)]}],
+                "artifacts": [str(missing_module)],
+            }), encoding="utf-8")
+
+            summary = inspect_manifest_plot_provenance(manifest)
+
+            self.assertEqual(summary.failed_count, 2)
+            messages = "\n".join(row.message for row in summary.rows)
+            self.assertIn("reduction flag", messages)
+            self.assertIn("lacks a manifest module key", messages)
+
+    def test_capped_acceleration_group_overview_is_explicitly_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            provenance = root / "acceleration_group.plot.json"
+            provenance.write_text(json.dumps({
+                "series": [{
+                    "sampling_mode": "capped",
+                    "render_mode": "line",
+                    "plot_scope": "group_overview",
+                    "reduction_applied": True,
+                    "input_count": 10,
+                    "finite_count": 9,
+                    "plotted_finite_count": 5,
+                    "source": source(),
+                }],
+            }), encoding="utf-8")
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({
+                "module_results": [{"key": "acceleration", "artifacts": [str(provenance)]}],
+            }), encoding="utf-8")
+
+            summary = inspect_manifest_plot_provenance(manifest)
+
+            self.assertEqual(summary.closed_count, 1)
+            self.assertEqual(summary.failed_count, 0)
+
+    def test_unknown_group_scope_does_not_bypass_full_acceleration_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            provenance = root / "acceleration_unknown_scope.plot.json"
+            provenance.write_text(json.dumps({
+                "series": [{
+                    "sampling_mode": "capped",
+                    "render_mode": "line",
+                    "plot_scope": "overview_typo",
+                    "reduction_applied": True,
+                    "input_count": 10,
+                    "finite_count": 9,
+                    "plotted_finite_count": 5,
+                    "source": source(),
+                }],
+            }), encoding="utf-8")
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({
+                "module_results": [{"key": "acceleration", "artifacts": [str(provenance)]}],
+            }), encoding="utf-8")
+
+            summary = inspect_manifest_plot_provenance(manifest)
+
+            self.assertEqual(summary.failed_count, 1)
+            self.assertIn("unsupported plot_scope", summary.rows[0].message)
+
+    def test_derived_series_rejects_capped_sampling_even_when_counts_close(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            provenance = root / "W1_10min.plot.json"
+            provenance.write_text(json.dumps({
+                "series": [{
+                    "sampling_mode": "capped",
+                    "render_mode": "derived_10min_mean",
+                    "reduction_applied": False,
+                    "input_count": 10,
+                    "finite_count": 9,
+                    "plotted_finite_count": 9,
+                    "source": source(),
+                }],
+            }), encoding="utf-8")
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({
+                "module_results": [{"key": "wind", "artifacts": [str(provenance)]}],
+            }), encoding="utf-8")
+
+            summary = inspect_manifest_plot_provenance(manifest)
+
+            self.assertEqual(summary.failed_count, 1)
+            self.assertIn("must use full sampling", summary.rows[0].message)
+
+    def test_unknown_render_mode_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            provenance = root / "unknown.plot.json"
+            provenance.write_text(json.dumps({
+                "series": [{
+                    "sampling_mode": "full",
+                    "render_mode": "mystery_aggregate",
+                    "reduction_applied": False,
+                    "input_count": 10,
+                    "finite_count": 9,
+                    "plotted_finite_count": 9,
+                    "source": source(),
+                }],
+            }), encoding="utf-8")
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({
+                "module_results": [{"key": "wind", "artifacts": [str(provenance)]}],
+            }), encoding="utf-8")
+
+            summary = inspect_manifest_plot_provenance(manifest)
+
+            self.assertEqual(summary.failed_count, 1)
+            self.assertIn("unsupported render_mode", summary.rows[0].message)
 
     def test_derived_series_close_against_larger_raw_sources(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
@@ -160,7 +322,7 @@ class WorkbenchProvenanceTests(unittest.TestCase):
             summary = inspect_manifest_plot_provenance(manifest)
 
             self.assertEqual(summary.failed_count, 1)
-            self.assertIn("derived source/input/finite", summary.rows[0].message)
+            self.assertIn("source/input/finite", summary.rows[0].message)
 
     def test_duplicate_manifest_artifact_is_listed_once(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

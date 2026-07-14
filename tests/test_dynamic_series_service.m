@@ -28,6 +28,84 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.sampleRate(times, true, 100), 1);
         end
 
+        function binnedCoverageRateHandlesBurstyRollingExports(tc)
+            base = datetime(2026, 1, 1, 0, 0, 0);
+            times = datetime.empty(0, 1);
+            for minuteIndex = 0:59
+                burst = base + minutes(minuteIndex) + seconds((0:1199)' / 250);
+                times = [times; burst]; %#ok<AGROW>
+            end
+            vals = 3 * ones(size(times));
+
+            tc.verifyEqual( ...
+                bms.analyzer.DynamicSeriesService.sampleRate(times, true, 1), ...
+                250, 'RelTol', 1e-9);
+            coverageFs = bms.analyzer.DynamicSeriesService.binnedCoverageSampleRate( ...
+                times, 10, 1);
+            tc.verifyEqual(coverageFs, 20, 'RelTol', 1e-12);
+
+            [~, means, meanMax] = bms.analyzer.DynamicSeriesService.movingMeanByTimeBins( ...
+                times, vals, 10, 0.7, coverageFs, true);
+            tc.verifyEqual(nnz(isfinite(means)), 6);
+            tc.verifyEqual(meanMax, 3, 'AbsTol', 1e-12);
+        end
+
+        function isolatedHighRateBurstDoesNotQualifyAsTenMinuteMean(tc)
+            base = datetime(2026, 1, 1, 0, 0, 0);
+            times = base + seconds((0:1199)' / 250);
+            vals = 9 * ones(size(times));
+
+            coverageFs = bms.analyzer.DynamicSeriesService.binnedCoverageSampleRate( ...
+                times, 10, 1);
+            tc.verifyEqual(coverageFs, 2, 'RelTol', 1e-12);
+
+            [~, means, meanMax, meanTime] = ...
+                bms.analyzer.DynamicSeriesService.movingMeanByTimeBins( ...
+                    times, vals, 10, 0.7, coverageFs, true);
+            tc.verifyEqual(nnz(isfinite(means)), 0);
+            tc.verifyTrue(isnan(meanMax));
+            tc.verifyTrue(isnat(meanTime));
+        end
+
+        function windTemporalCoverageRequiresSevenOfTenSlices(tc)
+            base = datetime(2026, 1, 1, 0, 0, 0);
+            sixSlices = base + minutes((0:5)') + seconds(1);
+            sevenSlices = base + minutes((0:6)') + seconds(1);
+            [~, sixMeans] = bms.analyzer.DynamicSeriesService.movingMeanByTimeBins( ...
+                sixSlices, ones(size(sixSlices)), 10, 0.7, 1/60, true);
+            [~, sevenMeans] = bms.analyzer.DynamicSeriesService.movingMeanByTimeBins( ...
+                sevenSlices, ones(size(sevenSlices)), 10, 0.7, 1/60, true);
+
+            tc.verifyEqual(nnz(isfinite(sixMeans)), 0);
+            tc.verifyEqual(nnz(isfinite(sevenMeans)), 1);
+        end
+
+        function temporalCoverageIgnoresNaNOnlySlicesAndHandlesWindowBoundary(tc)
+            base = datetime(2026, 1, 1, 0, 0, 0);
+            times = base + minutes((0:7)') + seconds(1);
+            vals = ones(size(times));
+            vals(4) = NaN;
+            times(end) = base + minutes(10); % belongs to the next window
+            [~, means] = bms.analyzer.DynamicSeriesService.movingMeanByTimeBins( ...
+                times, vals, 10, 0.7, 1/60, true);
+
+            tc.verifyEqual(nnz(isfinite(means)), 0);
+        end
+
+        function rmsKeepsEstablishedCountCoverageWithoutTemporalSlicing(tc)
+            base = datetime(2026, 1, 1, 0, 0, 0);
+            times = base + seconds((0:1199)' / 250);
+            vals = 3 * ones(size(times));
+            coverageFs = bms.analyzer.DynamicSeriesService.binnedCoverageSampleRate( ...
+                times, 10, 1);
+
+            [~, rmsValues, rmsMax] = bms.analyzer.DynamicSeriesService.rmsByTimeBins( ...
+                times, vals, 10, 0.7, coverageFs);
+
+            tc.verifyEqual(nnz(isfinite(rmsValues)), 1);
+            tc.verifyEqual(rmsMax, 3, 'AbsTol', 1e-12);
+        end
+
         function rmsSeriesUsesCoverageThreshold(tc)
             times = datetime(2026, 1, 1, 0, 0, 0) + seconds(0:5)';
             vals = [1; NaN; NaN; 1; 1; 1];
@@ -156,6 +234,45 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(opts.raw_sampling_mode, 'full');
         end
 
+        function moduleOverrideChangesPlotRetentionButNotDynamicStatistics(tc)
+            values = sin((1:4000)' / 17);
+            values(123) = -3.5;
+            values(3210) = 4.25;
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'MODULE.csv'), values);
+
+            cappedCfg = dynamic_cfg();
+            cappedCfg.plot_common = struct('fig_max_points', 1000);
+            moduleCfg = cappedCfg;
+            moduleCfg.plot_common.dynamic_raw_modules.acceleration = struct( ...
+                'sampling_mode', 'full', ...
+                'line_width', 1.0, ...
+                'render_mode', 'line', ...
+                'gap_mode', 'connect');
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('acceleration');
+
+            capped = bms.analyzer.DynamicSeriesService.collectRecord( ...
+                tc.Root, 'wave', 'MODULE', '2026-01-01', '2026-01-01', ...
+                cappedCfg, 'acceleration', true, true);
+            full = bms.analyzer.DynamicAccelerationSeriesService.collectRecord( ...
+                tc.Root, 'wave', 'MODULE', '2026-01-01', '2026-01-01', ...
+                moduleCfg, true, spec, true);
+            effective = bms.analyzer.DynamicAccelerationSeriesService.modulePlotConfig(moduleCfg, spec);
+
+            tc.verifyLessThan(numel(capped.vals), numel(values));
+            tc.verifyEqual(numel(full.vals), numel(values));
+            tc.verifyEqual([full.mn full.mx full.av full.rms_max], ...
+                [capped.mn capped.mx capped.av capped.rms_max], 'AbsTol', 1e-12);
+            tc.verifyEqual(full.rms_times, capped.rms_times);
+            tc.verifyEqual(full.rms_vals, capped.rms_vals, 'AbsTol', 1e-12);
+            tc.verifyEqual(effective.plot_common.dynamic_raw_sampling_mode, 'full');
+            tc.verifyEqual(effective.plot_common.dynamic_raw_line_width, 1.0);
+            tc.verifyEqual(effective.plot_common.dynamic_raw_render_mode, 'line');
+            tc.verifyEqual(effective.plot_common.gap_mode, 'connect');
+            tc.verifyEqual( ...
+                bms.analyzer.DynamicSeriesService.rawSamplingMode(moduleCfg), ...
+                'capped');
+        end
+
         function fullRawLinePlotsEveryFiniteSample(tc)
             fig = figure('Visible', 'off');
             cleaner = onCleanup(@() close(fig)); %#ok<NASGU>
@@ -169,6 +286,7 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
                 'gap_mode', 'connect');
 
             opts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 10);
+            opts.plot_scope = 'point_time_history';
             opts.source_provenance = struct( ...
                 'source_sample_count', 2000, ...
                 'incomplete_day_count', 0, ...
@@ -181,6 +299,7 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(h.UserData.plot_provenance.finite_count, nnz(isfinite(vals)));
             tc.verifyEqual(h.UserData.plot_provenance.plotted_finite_count, nnz(isfinite(vals)));
             tc.verifyFalse(h.UserData.plot_provenance.reduction_applied);
+            tc.verifyEqual(h.UserData.plot_provenance.plot_scope, 'point_time_history');
             tc.verifyEqual(h.UserData.plot_provenance.source.source_sample_count, 2000);
             tc.verifyEqual(h.UserData.plot_provenance.source.completeness_scope, ...
                 'required_export_contribution');
@@ -394,6 +513,38 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
                 bms.analyzer.DynamicAccelerationSeriesService.groupSamplingMode(cfg), 'capped');
             cfg2 = bms.analyzer.DynamicAccelerationSeriesService.configForSamplingMode(cfg, 'capped');
             tc.verifyEqual(cfg2.plot_common.dynamic_raw_sampling_mode, 'capped');
+        end
+
+        function cappedGroupReloadDoesNotReapplyFullPointOverride(tc)
+            values = sin((1:4000)' / 17);
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'GROUP.csv'), values);
+            cfg = dynamic_cfg();
+            cfg.plot_common = struct( ...
+                'fig_max_points', 1000, ...
+                'dynamic_group_sampling_mode', 'capped');
+            cfg.plot_common.dynamic_raw_modules.acceleration = struct( ...
+                'sampling_mode', 'full', ...
+                'line_width', 1.0, ...
+                'render_mode', 'line', ...
+                'gap_mode', 'connect');
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('acceleration');
+            pointCfg = bms.analyzer.DynamicAccelerationSeriesService.modulePlotConfig(cfg, spec);
+            groupCfg = bms.analyzer.DynamicAccelerationSeriesService.configForSamplingMode( ...
+                pointCfg, bms.analyzer.DynamicAccelerationSeriesService.groupSamplingMode(pointCfg));
+
+            pointRecord = bms.analyzer.DynamicAccelerationSeriesService.collectRecord( ...
+                tc.Root, 'wave', 'GROUP', '2026-01-01', '2026-01-01', ...
+                cfg, true, spec, true);
+            groupRecords = bms.analyzer.DynamicAccelerationSeriesService.collectGroupRecords( ...
+                tc.Root, 'wave', {'GROUP'}, '2026-01-01', '2026-01-01', ...
+                groupCfg, true, spec);
+
+            tc.verifyEqual(numel(pointRecord.vals), numel(values));
+            tc.verifyEqual(numel(groupRecords), 1);
+            tc.verifyLessThan(numel(groupRecords(1).vals), numel(values));
+            tc.verifyLessThanOrEqual(numel(groupRecords(1).vals), 1000);
+            tc.verifyEqual(groupRecords(1).mn, pointRecord.mn, 'AbsTol', 1e-12);
+            tc.verifyEqual(groupRecords(1).mx, pointRecord.mx, 'AbsTol', 1e-12);
         end
 
         function structuralDateRangeIncludesFinalDay(tc)

@@ -15,6 +15,7 @@ from workbench.config_editor import (
     extract_effective_warning_rows,
     update_effective_warning_value,
 )
+from workbench.config_layers import config_dependency_sha256
 
 
 def sample_config() -> dict:
@@ -33,6 +34,51 @@ def sample_config() -> dict:
 
 
 class WorkbenchConfigEditorTests(unittest.TestCase):
+    @staticmethod
+    def _write_layered_config(root: Path) -> tuple[Path, Path, Path]:
+        base = root / "base.json"
+        points = root / "points.json"
+        entry = root / "entry.json"
+        base.write_text(
+            json.dumps(
+                {
+                    "meta": {"base": True},
+                    "defaults": {
+                        "wind": {
+                            "unit": "m/s",
+                            "alarm_bounds": {"level1": [-10, 10]},
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        points.write_text(
+            json.dumps(
+                {
+                    "wind": {
+                        "W2": {
+                            "gain": 3,
+                            "alarm_bounds": {"level1": [0, 30]},
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        entry.write_text(
+            json.dumps(
+                {
+                    "extends": "base.json",
+                    "includes": {"per_point": "points.json"},
+                    "meta": {"entry": True},
+                },
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
+        return entry, base, points
+
     def test_extracts_defaults_and_per_point_in_level_order(self) -> None:
         rows = extract_alarm_bounds(sample_config())
         self.assertEqual([(row.scope, row.point_key, row.level) for row in rows], [
@@ -142,6 +188,92 @@ class WorkbenchConfigEditorTests(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaises(ConfigChangedError):
                 session.save(session.rows)
+
+    def test_layered_session_exposes_effective_config_and_dependency_fingerprint(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            entry, base, points = self._write_layered_config(Path(folder))
+            session = ConfigEditorSession(entry)
+
+            self.assertTrue(session.is_layered)
+            self.assertEqual(session.loaded_sha256, config_dependency_sha256(entry))
+            self.assertEqual(set(session.dependencies), {entry, base, points})
+            self.assertEqual(session.payload["meta"], {"base": True, "entry": True})
+            self.assertEqual(session.payload["defaults"]["wind"]["unit"], "m/s")
+            self.assertEqual(session.payload["per_point"]["wind"]["W2"]["gain"], 3)
+            self.assertNotIn("extends", session.payload)
+            self.assertNotIn("includes", session.payload)
+
+    def test_layered_noop_does_not_rewrite_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            entry, _, _ = self._write_layered_config(Path(folder))
+            original = entry.read_bytes()
+            session = ConfigEditorSession(entry)
+
+            result = session.save_payload(session.payload)
+
+            self.assertFalse(result.changed)
+            self.assertEqual(result.sha256, session.loaded_sha256)
+            self.assertEqual(entry.read_bytes(), original)
+
+    def test_layered_changed_source_requires_flattened_save_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            entry, _, _ = self._write_layered_config(root)
+            original = entry.read_bytes()
+            session = ConfigEditorSession(entry)
+            updated = session.build_payload(
+                [AlarmBoundRow("defaults", "wind", "", "level1", -12, 12)]
+            )
+
+            with self.assertRaisesRegex(ConfigEditorError, "分层组合"):
+                session.save_payload(updated)
+
+            self.assertEqual(entry.read_bytes(), original)
+            self.assertEqual(list(root.glob("entry_backup_workbench_*.json")), [])
+
+    def test_layered_save_copy_writes_flattened_effective_config(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            entry, _, _ = self._write_layered_config(root)
+            original = entry.read_bytes()
+            target = root / "flattened.json"
+            session = ConfigEditorSession(entry)
+            updated = session.build_payload(
+                [AlarmBoundRow("defaults", "wind", "", "level1", -12, 12)]
+            )
+
+            result = session.save_payload(updated, target=target)
+
+            self.assertTrue(result.changed)
+            self.assertEqual(entry.read_bytes(), original)
+            flattened = json.loads(target.read_text(encoding="utf-8"))
+            self.assertEqual(flattened, updated)
+            self.assertNotIn("extends", flattened)
+            self.assertNotIn("includes", flattened)
+            self.assertFalse(ConfigEditorSession(target).is_layered)
+
+    def test_layered_dependency_drift_blocks_save_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            entry, base, _ = self._write_layered_config(root)
+            session = ConfigEditorSession(entry)
+            base_payload = json.loads(base.read_text(encoding="utf-8"))
+            base_payload["external"] = True
+            base.write_text(json.dumps(base_payload), encoding="utf-8")
+
+            with self.assertRaises(ConfigChangedError):
+                session.save_payload(session.payload, target=root / "flattened.json")
+
+    def test_layered_save_copy_cannot_overwrite_a_dependency(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            entry, base, _ = self._write_layered_config(Path(folder))
+            original_base = base.read_bytes()
+            session = ConfigEditorSession(entry)
+
+            with self.assertRaisesRegex(ConfigEditorError, "依赖文件"):
+                session.save_payload(session.payload, target=base)
+
+            self.assertEqual(base.read_bytes(), original_base)
 
 
 if __name__ == "__main__":
