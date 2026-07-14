@@ -33,7 +33,8 @@ None of these milestones writes to production machines.
 - Build with `scripts/build_workbench_exe.ps1`.
 - Run `dist/BridgeMonitoringWorkbench/桥梁健康监测工作台.exe`.
 - The onedir release includes the compiled MATLAB analysis runner, all profile
-  configs/templates, and a freshly packaged report builder.
+  configs/templates, and the report runtime embedded in the workbench. It does
+  not include a standalone report-builder executable.
 - The build blocks unless the workbench EXE smoke contract, fourteen native Qt
   screenshots, packaged report `--job-context` smoke, and the embedded
   report-job protocol smoke pass.
@@ -93,7 +94,7 @@ preserving unrelated plot settings. All currently configured bridge configs
 pass exact no-op round trips through both services.
 
 The plot-common editor covers the complete 14-field union present across the
-six production bridge configs and preserves unknown future fields. It keeps
+  configured bridge profiles and preserves unknown future fields. It keeps
 MATLAB defaults implicit when a checkbox is cleared and refuses an explicit
 `full + dense_band` combination because the MATLAB runtime forces full raw
 sampling to line rendering. The spectrum editor manages explicit/fallback
@@ -131,7 +132,7 @@ invented.
 The packaged shell also includes a stable-channel GitHub Release updater. It
 checks no more than once per day, supports a manual check, requires a newer
 semantic version and a runnable Windows x64 ZIP, verifies the archive SHA256
-and schema-v2 whole-package inventory, stages outside the installation,
+  and schema-v3 whole-package inventory, stages outside the installation,
 preserves configs and unmanaged operator files, validates a complete candidate,
 then atomically swaps the old installation to a backup only after user
 confirmation and process exit. Fault-injected pre/post-activation rollback and

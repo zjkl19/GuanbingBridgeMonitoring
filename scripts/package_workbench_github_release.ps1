@@ -18,6 +18,10 @@ if ($Version -notmatch '^v\d+\.\d+\.\d+([+-].+)?$') {
 if (-not $AllowDevelopmentVersion -and $Version -match '-') {
     throw "Development versions cannot be published as stable updates: $Version"
 }
+$releaseNotesPath = Join-Path $repo ("docs\releases\{0}.md" -f $Version)
+if (-not (Test-Path -LiteralPath $releaseNotesPath -PathType Leaf)) {
+    throw "Release notes are missing: $releaseNotesPath"
+}
 
 if (-not $SkipBuild) {
     & (Join-Path $repo "scripts\build_workbench_exe.ps1")
@@ -104,7 +108,8 @@ $publication = [ordered]@{
     archive = $archivePath
     archive_sha256 = $archiveHash
     checksum = $checksumPath
-    publish_command = "gh release create $Version `"$archivePath`" `"$checksumPath`" --verify-tag --title `"$Version`" --notes-file RELEASE_NOTES.md"
+    release_notes = $releaseNotesPath
+    publish_command = "gh release create $Version `"$archivePath`" `"$checksumPath`" --verify-tag --title `"$Version`" --notes-file `"$releaseNotesPath`""
 }
 $publicationPath = Join-Path $resolvedOutput "publish_$Version.json"
 $publication | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $publicationPath -Encoding UTF8

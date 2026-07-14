@@ -1081,6 +1081,11 @@ class WorkbenchWindow(QMainWindow):
         pdf = qc.get("pdf") if isinstance(qc.get("pdf"), dict) else {}
         manifest = qc.get("manifest") if isinstance(qc.get("manifest"), dict) else {}
         visual = qc.get("visual") if isinstance(qc.get("visual"), dict) else {}
+        preview_pdf_path = str(visual.get("preview_pdf_path") or "")
+        pdf_authoritative = bool(pdf.get("authoritative"))
+        pdf_passed = bool(
+            pdf_authoritative and pdf.get("exists") and pdf.get("page_count")
+        )
         rows = (
             (
                 "DOCX",
@@ -1091,10 +1096,10 @@ class WorkbenchWindow(QMainWindow):
             ),
             (
                 "PDF",
-                "通过" if pdf.get("exists") and pdf.get("page_count") else "未生成/未校验",
+                "通过" if pdf_passed else ("仅版面预览" if preview_pdf_path else "未生成权威 PDF"),
                 f"{pdf.get('size_bytes', 0)} bytes / {pdf.get('page_count', 0)} 页",
-                "",
-                str(pdf.get("path") or ""),
+                "Microsoft Word 权威导出" if pdf_passed else "LibreOffice 结果不作为交付 PDF",
+                str(pdf.get("path") or preview_pdf_path),
             ),
             (
                 "报告内容清单",
@@ -1117,7 +1122,10 @@ class WorkbenchWindow(QMainWindow):
                 self.report_qc_table.setItem(row_index, column, QTableWidgetItem(str(value)))
         report_path = str(result.get("report_path") or "")
         pdf_path = str(result.get("pdf_path") or "")
-        self.report_output_label.setText(f"DOCX：{report_path or '未生成'}\nPDF：{pdf_path or '未生成'}")
+        pdf_text = pdf_path or "未生成权威 Word PDF"
+        if not pdf_path and preview_pdf_path:
+            pdf_text += f"（LibreOffice 仅版面预览：{preview_pdf_path}）"
+        self.report_output_label.setText(f"DOCX：{report_path or '未生成'}\nPDF：{pdf_text}")
         contact_sheet = str(visual.get("contact_sheet") or "")
         self.open_report_qc_btn.setEnabled(bool(contact_sheet and Path(contact_sheet).is_file()))
 

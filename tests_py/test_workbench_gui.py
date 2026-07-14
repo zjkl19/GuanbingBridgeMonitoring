@@ -40,7 +40,7 @@ class WorkbenchGuiTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         window = WorkbenchWindow(root)
         try:
-            self.assertIn("v1.8.0-rc3", window.windowTitle())
+            self.assertIn("v1.8.0", window.windowTitle())
             self.assertEqual(window.tabs.count(), 4)
             self.assertGreaterEqual(len(window.module_checks), 20)
             self.assertIsNotNone(window.alarm_editor.session)

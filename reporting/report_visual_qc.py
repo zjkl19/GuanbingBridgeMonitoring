@@ -86,16 +86,31 @@ def create_contact_sheet(page_paths: list[Path], output: Path, *, columns: int =
     return output
 
 
-def render_docx_visual_qc(docx_path: Path, output_root: Path) -> dict[str, Any]:
+def render_docx_visual_qc(
+    docx_path: Path,
+    output_root: Path,
+    *,
+    preferred_pdf_path: Path | None = None,
+) -> dict[str, Any]:
     docx = docx_path.expanduser().resolve()
     if not docx.is_file():
         raise FileNotFoundError(f"DOCX does not exist: {docx}")
-    soffice = _renderer("soffice")
+    preferred_pdf = (
+        preferred_pdf_path.expanduser().resolve()
+        if preferred_pdf_path is not None
+        else None
+    )
+    if preferred_pdf is not None and not preferred_pdf.is_file():
+        preferred_pdf = None
     pdftoppm = _renderer("pdftoppm")
-    if not soffice or not pdftoppm:
+    soffice = None if preferred_pdf is not None else _renderer("soffice")
+    if not pdftoppm or (preferred_pdf is None and not soffice):
         return {
             "status": "unavailable",
-            "message": "LibreOffice or pdftoppm is unavailable",
+            "message": "No authoritative PDF/LibreOffice renderer or pdftoppm is available",
+            "renderer": "unavailable",
+            "pdf_authoritative": False,
+            "preview_pdf_path": "",
             "soffice": soffice or "",
             "pdftoppm": pdftoppm or "",
             "page_count": 0,
@@ -105,34 +120,41 @@ def render_docx_visual_qc(docx_path: Path, output_root: Path) -> dict[str, Any]:
     source_key = hashlib.sha256(str(docx).encode("utf-8")).hexdigest()[:10]
     output_dir = output_root.expanduser().resolve() / f"{stamp}_{source_key}"
     output_dir.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="bms_lo_") as profile_folder:
-        profile_uri = Path(profile_folder).resolve().as_uri()
-        convert = subprocess.run(
-            [
-                soffice,
-                f"-env:UserInstallation={profile_uri}",
-                "--headless", "--convert-to", "pdf", "--outdir", str(output_dir), str(docx),
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=240,
-            check=False,
-        )
-    pdf_path = output_dir / f"{docx.stem}.pdf"
-    if not pdf_path.is_file():
-        converted_pdfs = list(output_dir.glob("*.pdf"))
-        if len(converted_pdfs) == 1:
-            pdf_path = converted_pdfs[0]
-    if convert.returncode != 0 or not pdf_path.is_file():
-        return {
-            "status": "failed",
-            "message": f"LibreOffice conversion failed ({convert.returncode}): {convert.stderr or convert.stdout}",
-            "output_dir": str(output_dir),
-            "page_count": 0,
-            "pages": [],
-        }
+    renderer_kind = "authoritative_pdf" if preferred_pdf is not None else "libreoffice_preview"
+    if preferred_pdf is not None:
+        pdf_path = preferred_pdf
+    else:
+        with tempfile.TemporaryDirectory(prefix="bms_lo_") as profile_folder:
+            profile_uri = Path(profile_folder).resolve().as_uri()
+            convert = subprocess.run(
+                [
+                    soffice,
+                    f"-env:UserInstallation={profile_uri}",
+                    "--headless", "--convert-to", "pdf", "--outdir", str(output_dir), str(docx),
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=240,
+                check=False,
+            )
+        pdf_path = output_dir / f"{docx.stem}.pdf"
+        if not pdf_path.is_file():
+            converted_pdfs = list(output_dir.glob("*.pdf"))
+            if len(converted_pdfs) == 1:
+                pdf_path = converted_pdfs[0]
+        if convert.returncode != 0 or not pdf_path.is_file():
+            return {
+                "status": "failed",
+                "message": f"LibreOffice conversion failed ({convert.returncode}): {convert.stderr or convert.stdout}",
+                "renderer": "libreoffice_preview",
+                "pdf_authoritative": False,
+                "preview_pdf_path": "",
+                "output_dir": str(output_dir),
+                "page_count": 0,
+                "pages": [],
+            }
     prefix = output_dir / "page"
     raster = subprocess.run(
         [pdftoppm, "-png", "-r", "110", str(pdf_path), str(prefix)],
@@ -148,6 +170,9 @@ def render_docx_visual_qc(docx_path: Path, output_root: Path) -> dict[str, Any]:
         return {
             "status": "failed",
             "message": f"PDF rasterization failed ({raster.returncode}): {raster.stderr or raster.stdout}",
+            "renderer": renderer_kind,
+            "pdf_authoritative": preferred_pdf is not None,
+            "preview_pdf_path": "" if preferred_pdf is not None else str(pdf_path),
             "output_dir": str(output_dir),
             "pdf_path": str(pdf_path),
             "page_count": 0,
@@ -162,6 +187,9 @@ def render_docx_visual_qc(docx_path: Path, output_root: Path) -> dict[str, Any]:
         "status": status,
         "message": "" if status == "passed" else "存在空白页或页面边界触碰，请人工复核联系表和单页图",
         "docx_path": str(docx),
+        "renderer": renderer_kind,
+        "pdf_authoritative": preferred_pdf is not None,
+        "preview_pdf_path": "" if preferred_pdf is not None else str(pdf_path),
         "output_dir": str(output_dir),
         "pdf_path": str(pdf_path),
         "contact_sheet": str(contact_sheet),

@@ -19,6 +19,7 @@ from build_monthly_report import (  # noqa: E402
     format_rms_value,
     rms_threshold_assessment,
     normalize_eq_peak_key,
+    parse_wind_summary,
     replace_wind_speed_caption,
     update_wind_table,
 )
@@ -35,6 +36,30 @@ from build_quarterly_wim_sample import format_load_limit_text  # noqa: E402
 
 
 class TestHongtangPeriodFollowups(unittest.TestCase):
+    def test_wind_summary_parser_reads_all_report_table_fields(self):
+        with tempfile.TemporaryDirectory() as td:
+            summary = Path(td) / "W1_windrose_summary.txt"
+            summary.write_text(
+                "风玫瑰简要结论（W1）\n"
+                "平均风向: 198.3°\n"
+                "主导风向: 180.0°-202.5°，占比 10.2%\n"
+                "平均风速: 2.75 m/s\n"
+                "最大风速: 12.25 m/s\n"
+                "主要风速等级: 2-4 m/s（依据：全样本风速分级占比最高）\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                parse_wind_summary(summary),
+                {
+                    "mean_dir": "198.3°",
+                    "dominant_dir": "180.0°-202.5°，占比 10.2%",
+                    "mean_speed": "2.75",
+                    "max_speed": "12.25",
+                    "main_grade": "2-4 m/s",
+                },
+            )
+
     def test_strict_mode_rejects_unlisted_data_coverage_audit(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

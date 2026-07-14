@@ -47,7 +47,11 @@ def clear_section_between(start_paragraph: Paragraph, end_paragraph: Paragraph |
     end = end_paragraph._p if end_paragraph is not None else None
     while current is not None and current is not end:
         nxt = current.getnext()
-        parent.remove(current)
+        # The final patrol chapter normally runs to the end of document.xml.
+        # Its body-level sectPr is not chapter content: it carries the final
+        # section page setup and must remain the last child of w:body.
+        if current.tag != qn("w:sectPr"):
+            parent.remove(current)
         current = nxt
 
 
@@ -174,7 +178,16 @@ def insert_docx_body_after_heading(
     heading_text: str,
     source_docx: Path,
     target_month: int = 3,
+    *,
+    rewrite_source_dates: bool = False,
 ) -> bool:
+    """Replace the patrol chapter with a verified source document.
+
+    Patrol records are factual field records.  Their dates must not be edited
+    merely to make an older attachment look current, so date rewriting is off
+    by default.  ``rewrite_source_dates`` remains only for explicit legacy
+    tooling and is never enabled by the monthly report builder.
+    """
     if not source_docx.exists():
         return False
     heading_idx, heading_para = find_heading(target_doc, heading_text, 1)
@@ -190,7 +203,8 @@ def insert_docx_body_after_heading(
         if should_skip_patrol_source_element(child):
             continue
         new_child = deepcopy(child)
-        replace_text_nodes_in_element(new_child, target_month)
+        if rewrite_source_dates:
+            replace_text_nodes_in_element(new_child, target_month)
         patrol_form_count = ensure_subsequent_patrol_form_page_break(new_child, patrol_form_count)
         ensure_patrol_attachment_page_break(new_child)
         remap_copied_image_relationships(new_child, source_doc.part, target_doc.part)
@@ -200,33 +214,107 @@ def insert_docx_body_after_heading(
     return True
 
 
-def resolve_jlj_patrol_report_docx(template: Path) -> Path | None:
+def replace_patrol_section_with_note(
+    target_doc: Document,
+    heading_text: str,
+    note: str = "本期巡查资料未提供。",
+) -> None:
+    """Clear template patrol content and leave an explicit current-period note."""
+    heading_idx, heading_para = find_heading(target_doc, heading_text, 1)
+    next_heading = next_heading_at_or_above(target_doc, heading_idx, 1)
+    clear_section_between(heading_para, next_heading[1] if next_heading is not None else None)
+    paragraph = target_doc.add_paragraph(note)
+    heading_para._p.addnext(paragraph._p)
+
+
+def patrol_report_periods(source_docx: Path) -> set[tuple[int, int]]:
+    """Return every explicit year/month mentioned by a patrol source."""
+    source = Document(str(source_docx))
+    texts = [paragraph.text for paragraph in source.paragraphs]
+    texts.extend(
+        cell.text
+        for table in source.tables
+        for row in table.rows
+        for cell in row.cells
+    )
+    joined = "\n".join(texts)
+    periods = {
+        (int(year), int(month))
+        for year, month in re.findall(r"(\d{4})年\s*0?(\d{1,2})月", joined)
+    }
+    periods.update(
+        (int(year), int(month))
+        for year, month in re.findall(r"(\d{4})[-/.]0?(\d{1,2})[-/.]\d{1,2}", joined)
+    )
+    return {(year, month) for year, month in periods if 1 <= month <= 12}
+
+
+def patrol_report_matches_period(source_docx: Path, target_year: int, target_month: int) -> bool:
+    periods = patrol_report_periods(source_docx)
+    return bool(periods) and periods == {(int(target_year), int(target_month))}
+
+
+def resolve_jlj_patrol_report_docx(
+    template: Path,
+    *,
+    target_year: int | None = None,
+    target_month: int | None = None,
+) -> Path | None:
     names = ["九龙江大桥巡查报告-2026年03月.docx", "九龙江大桥巡查报告.docx"]
     candidates: list[Path] = []
+    search_dirs = [
+        template.parent,
+        Path.cwd() / "reports",
+        Path(__file__).resolve().parents[1] / "reports",
+    ]
     for name in names:
-        candidates.extend(
-            [
-                template.parent / name,
-                Path.cwd() / "reports" / name,
-                Path(__file__).resolve().parents[1] / "reports" / name,
-            ]
-        )
+        candidates.extend(folder / name for folder in search_dirs)
+    for folder in search_dirs:
+        if folder.is_dir():
+            candidates.extend(sorted(folder.glob("九龙江大桥巡查报告*.docx")))
     bundle_root = getattr(sys, "_MEIPASS", None)
     if bundle_root:
+        bundle_reports = Path(bundle_root) / "reports"
         for name in names:
-            candidates.append(Path(bundle_root) / "reports" / name)
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
+            candidates.append(bundle_reports / name)
+        if bundle_reports.is_dir():
+            candidates.extend(sorted(bundle_reports.glob("九龙江大桥巡查报告*.docx")))
+    for candidate in dict.fromkeys(candidates):
+        if not candidate.exists():
+            continue
+        if target_year is not None and target_month is not None and not patrol_report_matches_period(
+            candidate, target_year, target_month
+        ):
+            continue
+        return candidate
     return None
 
 
-def resolve_patrol_report_source(template: Path, patrol_docx: Path | None = None) -> Path | None:
+def resolve_patrol_report_source(
+    template: Path,
+    patrol_docx: Path | None = None,
+    *,
+    target_year: int | None = None,
+    target_month: int | None = None,
+) -> Path | None:
     if patrol_docx is not None:
         if not patrol_docx.exists():
             raise FileNotFoundError(f"Patrol report source docx not found: {patrol_docx}")
+        if target_year is not None and target_month is not None and not patrol_report_matches_period(
+            patrol_docx, target_year, target_month
+        ):
+            periods = sorted(patrol_report_periods(patrol_docx))
+            raise ValueError(
+                "Patrol report period does not match the report period: "
+                f"expected={target_year:04d}-{target_month:02d}, source_periods={periods}, "
+                f"source={patrol_docx}"
+            )
         return patrol_docx
-    return resolve_jlj_patrol_report_docx(template)
+    return resolve_jlj_patrol_report_docx(
+        template,
+        target_year=target_year,
+        target_month=target_month,
+    )
 
 
 def period_label_month(period_label: str, default_month: int = 3) -> int:

@@ -25,6 +25,7 @@ _make_reporting_importable()
 # headless report runtime into the workbench executable.
 from report_job import REPORT_TYPE_NAMES  # noqa: E402
 from report_job_cli import request_from_context, run_context  # noqa: E402
+from word_pdf_export import WordPdfExportResult  # noqa: E402
 
 
 def run_embedded_report_job(
@@ -254,7 +255,16 @@ def _embedded_report_job_smoke() -> None:
             }), encoding="utf-8")
             return report_path, report_manifest
 
-        with patch("report_job.build_guanbing_monthly_report", side_effect=build_smoke_report):
+        with patch(
+            "report_job.build_guanbing_monthly_report", side_effect=build_smoke_report
+        ), patch(
+            "report_job.export_authoritative_word_pdf",
+            return_value=WordPdfExportResult(
+                None,
+                "skipped",
+                "embedded runtime smoke uses LibreOffice preview only",
+            ),
+        ):
             exit_code = run_context(context_path, status_path, result_path)
         if exit_code != 0:
             detail = result_path.read_text(encoding="utf-8-sig") if result_path.is_file() else ""

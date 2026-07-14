@@ -8,10 +8,10 @@ queries GitHub's `releases/latest` API once per 24 hours after startup by defaul
 The user can disable **自动检查更新** and can always use **立即检查更新**. Source/development launches never install
 updates automatically.
 
-Git tags alone are not updates. `v1.8.0-rc1` is the first published GitHub
-Pre-release and is intentionally ignored by the stable updater. A user will
-only be offered a newer published, non-draft, non-prerelease Release with the
-required assets; the RC is installed manually in an isolated validation tree.
+Git tags alone are not updates. `v1.8.0-rc1` was the first published GitHub
+Pre-release and is intentionally ignored by the stable updater; `v1.8.0` is the
+first stable unified-workbench update. A user is offered only a newer published,
+non-draft, non-prerelease Release with all required assets.
 
 ## Required Release assets
 
@@ -21,7 +21,7 @@ For tag `vX.Y.Z`, publish both files with exactly these names:
 - `BridgeMonitoringWorkbench-vX.Y.Z-win-x64.zip.sha256`
 
 The ZIP must contain one `桥梁健康监测工作台.exe` and its adjacent
-schema-v2 `release_manifest.json`. The manifest inventories every packaged file
+schema-v3 `release_manifest.json`. The manifest inventories every packaged file
 except itself with relative path, byte count and SHA256, and pins all required
 analysis/report/gate/visual smoke results. Use the source repository ZIP only
 for source review; it is not a runnable workbench update.
@@ -61,7 +61,7 @@ and [release-integrity guidance](https://docs.github.com/en/code-security/how-to
    gh release create vX.Y.Z `
      release/workbench/BridgeMonitoringWorkbench-vX.Y.Z-win-x64.zip `
      release/workbench/BridgeMonitoringWorkbench-vX.Y.Z-win-x64.zip.sha256 `
-     --verify-tag --title "vX.Y.Z" --notes-file RELEASE_NOTES.md
+      --verify-tag --title "vX.Y.Z" --notes-file docs/releases/vX.Y.Z.md
    ```
 
 Publishing a Release is an external action and is not performed automatically

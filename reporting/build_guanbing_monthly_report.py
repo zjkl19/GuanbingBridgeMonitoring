@@ -162,6 +162,59 @@ def replace_all_by_prefix(doc: Document, prefix: str, text: str, limit: int | No
     return count
 
 
+def iter_all_paragraphs(doc: Document):
+    """Yield unique body, table, header and footer paragraphs."""
+    # Keep the XML elements themselves alive in the set.  Using id(element)
+    # is unsafe here because python-docx creates short-lived wrappers while
+    # walking a large document, allowing CPython to reuse an id and silently
+    # skip unrelated table paragraphs.
+    seen: set[object] = set()
+
+    def emit(paragraphs):
+        for paragraph in paragraphs:
+            marker = paragraph._p
+            if marker not in seen:
+                seen.add(marker)
+                yield paragraph
+
+    yield from emit(doc.paragraphs)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                yield from emit(cell.paragraphs)
+    for section in doc.sections:
+        for part in (section.header, section.footer):
+            yield from emit(part.paragraphs)
+            for table in part.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        yield from emit(cell.paragraphs)
+
+
+def normalize_acceleration_units(doc: Document) -> int:
+    """Use a real squared symbol even when a legacy template splits the 2 into a run."""
+    changed = 0
+    for paragraph in iter_all_paragraphs(doc):
+        prefix = ""
+        for run in paragraph.runs:
+            original = run.text
+            output: list[str] = []
+            replaced_in_run = False
+            for char in original:
+                preceding = prefix + "".join(output)
+                if char == "2" and (preceding.endswith("m/s") or preceding.endswith("cm/s")):
+                    output.append("²")
+                    replaced_in_run = True
+                    changed += 1
+                else:
+                    output.append(char)
+            if replaced_in_run:
+                run.text = "".join(output)
+                run.font.superscript = False
+            prefix += "".join(output)
+    return changed
+
+
 def find_latest_file(root: Path, configured_dir: str, pattern: str) -> Path | None:
     """Find the newest result file with the same lookup rules used by reports."""
     return resolve_latest_file(root, configured_dir, pattern).path
@@ -448,12 +501,12 @@ def apply_image_updates(doc: Document, result_root: Path, asset_dir: Path) -> tu
         ("第3跨3/4跨", find_latest_image(result_root, "时程曲线_挠度_组图_原始", "Defl_G6_Orig"), 1, 145.0),
         ("图 13 第2跨主梁位移变化趋势", find_latest_image(result_root, "时程曲线_挠度_组图_滤波", "Defl_G2_Filt"), 1, 145.0),
         ("图 14 第3跨主梁位移变化趋势", find_latest_image(result_root, "时程曲线_挠度_组图_滤波", "Defl_G5_Filt"), 1, 145.0),
-        ("（a）纵桥向X", find_latest_image(result_root, "时程曲线_倾角", "Tilt_X"), 1, 145.0),
-        ("（b）横桥向Y", find_latest_image(result_root, "时程曲线_倾角", "Tilt_Y"), 1, 145.0),
+        ("（a）纵桥向X", find_latest_image(result_root, "时程曲线_倾角_组图", "Tilt_X"), 1, 145.0),
+        ("（b）横桥向Y", find_latest_image(result_root, "时程曲线_倾角_组图", "Tilt_Y"), 1, 145.0),
         ("（a）第2跨", find_latest_image(result_root, "动应变箱线图_高通滤波", "boxplot_G05"), 1, 145.0),
         ("（b）第3跨", find_latest_image(result_root, "动应变箱线图_高通滤波", "boxplot_G06"), 1, 145.0),
-        ("（a）第2跨", find_latest_image(result_root, "时程曲线_动应变_低通滤波", "dynstrain_lp_G05"), 2, 145.0),
-        ("（b）第3跨", find_latest_image(result_root, "时程曲线_动应变_低通滤波", "dynstrain_lp_G06"), 2, 145.0),
+        ("（a）第2跨", find_latest_image(result_root, "时程曲线_动应变_低通滤波_组图", "dynstrain_lp_G05"), 2, 145.0),
+        ("（b）第3跨", find_latest_image(result_root, "时程曲线_动应变_低通滤波_组图", "dynstrain_lp_G06"), 2, 145.0),
         ("（a）GB-VIB-G04-001-01", accel_combined["GB-VIB-G04-001-01"], 1, 145.0),
         ("（b）GB-VIB-G05-002-01", accel_combined["GB-VIB-G05-002-01"], 1, 145.0),
         ("（c）GB-VIB-G06-002-01", accel_combined["GB-VIB-G06-002-01"], 1, 145.0),
@@ -507,6 +560,7 @@ def build_report(
     missing_images: list[str] = []
     if not skip_image_replace:
         replaced_images, missing_images = apply_image_updates(doc, result_root, ctx.assets_dir)
+    normalized_unit_count = normalize_acceleration_units(doc)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = ctx.output_dir / f"G104线管柄大桥监测月报_{period_label}_自动生成_{timestamp}.docx"
@@ -526,6 +580,7 @@ def build_report(
         "replaced_image_count": len(replaced_images),
         "replaced_images": replaced_images,
         "missing_images": missing_images,
+        "normalized_acceleration_unit_count": normalized_unit_count,
         "analysis_run_manifest": analysis_manifest_context(result_root),
         "image_count_before": image_count_before,
         "image_count_after": count_docx_images(output_path),

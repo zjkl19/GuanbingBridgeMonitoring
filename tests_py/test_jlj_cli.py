@@ -22,6 +22,7 @@ class TestJljCli(unittest.TestCase):
             "--wim-root", "E:/data/WIM/results",
             "--patrol-docx", "reports/patrol.docx",
             "--skip-template-precheck",
+            "--no-word-update",
         ])
 
         self.assertEqual(args.template, Path("reports/template.docx"))
@@ -35,6 +36,7 @@ class TestJljCli(unittest.TestCase):
         self.assertEqual(args.wim_root, Path("E:/data/WIM/results"))
         self.assertEqual(args.patrol_docx, Path("reports/patrol.docx"))
         self.assertTrue(args.skip_template_precheck)
+        self.assertTrue(args.no_word_update)
 
     def test_parse_args_requires_result_root(self):
         with self.assertRaises(SystemExit):

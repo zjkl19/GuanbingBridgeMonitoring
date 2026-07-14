@@ -6,6 +6,94 @@ Last updated: 2026-07-14
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-14 v1.8.0 Stable Release Gate
+
+- The `dev/pyside6-workbench` tree has completed the stable-release gate. The
+  full health run is
+  `outputs/health_checks/release_health_check_20260714_203651.json`: Python
+  `425/425` plus `109` subtests, MATLAB `576/576`, MSSQL-backed coverage
+  included, and the compiled
+  MATLAB GUI smoke passed with 13 tabs, 16 tables and all 6 configured machine
+  path profiles. Native PySide6 screenshots for all 15 migrated pages were
+  inspected; the warning editor contains 156 explicit two-sided bounds, the
+  application icon and organization logo are present, and no clipping,
+  mojibake or blank configuration page remains.
+- The stable schema-v3 package closes at 381 inventoried files. The user EXE is
+  `dist/BridgeMonitoringWorkbench/桥梁健康监测工作台.exe`, SHA-256
+  `7A6B3DBACC32BA382A9B2B5CEB595AA6B9A25783D9B4179544F742141C7766BC`.
+  The internal MATLAB runner SHA-256 is
+  `0BA58452CF91E730FD1EE24A6FC36DCEC181B23E0672AE52BC3C9E0C0EC7CC55`.
+  The 117,166,819-byte archive is
+  `release/workbench/BridgeMonitoringWorkbench-v1.8.0-win-x64.zip`, SHA-256
+  `87C6F0E08D25383E316F9E5F7953BAE74707AE4E07C4F363FB222A4E26A3C6ED`.
+  Its schema-v3 inventory closes at `381` files and `226,537,794` bytes
+  excluding the manifest itself.
+- A real-ZIP install, update and fault-injected rollback cycle passed at
+  `tmp/workbench_update_cycle/v180_stable_package_gate_20260714_204604/update_cycle_result.json`.
+  It preserved operator configuration and unmanaged files, removed retired
+  managed runtime files, started the installed Chinese-named EXE, and restored
+  the exact injected previous installation on rollback.
+- Jiulongjiang and Shuixianhua monthly reports now reject stale-template media
+  and period mismatches rather than emitting a report with the requested month
+  in its filename but old-month figures or narrative. Jiulongjiang additionally
+  preserves the final section properties, period-filters the wind summary,
+  binds selected image hashes, prunes unused template media and fails closed on
+  report QC. Shuixianhua QC likewise writes a structured failure manifest and
+  raises on either a QC exception or any non-`ok` result.
+- Formal report PDFs now have one explicit authority boundary. Shuixianhua uses
+  the Word PDF emitted by its builder; the other embedded report types export
+  through an isolated `Word.Application` instance that refreshes fields and
+  atomically replaces the PDF. LibreOffice output is recorded only as a layout
+  preview. When Word export is unavailable the task remains reviewable but is
+  marked `warning`, the GUI states that no authoritative PDF was generated,
+  and a preview is never promoted to the formal `pdf_path`.
+- Shuixianhua wind summaries are resolved uniquely by monitoring point plus
+  report start/end dates, preferring the analysis/derived manifest bound to the
+  task. A missing, wrong-period, duplicate same-period or point-mismatched
+  summary now fails closed instead of silently reusing another month's wind
+  result.
+- Production replacement on machine 133 is authorized only as a rollback-safe
+  switch after the stable archive is reverified there and the pending Guanbing
+  June `mat_only` cache validation passes. The current old production tree
+  `F:\Guanbing` is a clean `v1.7.39` checkout. It must be renamed and retained
+  as a timestamped rollback tree, not overwritten or deleted. Before the
+  switch, export and disable old-root scheduled tasks, audit and stop only the
+  exact completed old-root processes, and update the desktop entry to the
+  unified workbench. Retain the old tree for at least 7-14 days or 1-2 real
+  production report cycles.
+
+## 2026-07-14 Shuixianhua May Report Period Repair
+
+- The May analysis outputs were correct; the stale March x-axes came from the
+  report builder copying the March template without replacing its embedded
+  result figures. The repaired builder now resolves and embeds 47 exact
+  May-period figures, rejects an image whose filename/date does not close on
+  `2026-05-01` through `2026-05-31`, and verifies every selected source-image
+  hash is present in the generated DOCX.
+- The same repair removes two stale March statements claiming that nine
+  temperature points had no data. The temperature result table now expands
+  from its single template row to all 10 current statistics rows, and a
+  post-build check requires the report PointID list to match the statistics
+  source exactly.
+- The strict candidate is
+  `output/doc/manual_review_20260714/shuixianhua_may_fixed/水仙花大桥健康监测2026年5月月报_报告生成器_20260714_174016.docx`
+  (SHA-256
+  `FDF930F8055EBF6D9B969D2EC659278A44F9E0694B667179F9E828174D1CF7D8`).
+  Its Microsoft Word PDF has 48 pages and SHA-256
+  `E991B3A35D18AE9C562BB75E252E7A60EE0E73D368045C32F833ACCC227D9DC4`.
+  The report manifest is `shuixianhua_report_build_manifest_20260714_174016.json`
+  with status `ok`, zero missing items and zero warnings. All 47 selected May
+  figures are embedded; no March period/x-axis token or broken caption
+  reference remains. Page 2 is the template's intentional blank cover verso.
+- Visual QA now rasterizes a builder-provided Microsoft Word PDF when one is
+  available. LibreOffice remains a fallback only: it mis-evaluates this
+  template's `STYLEREF`/`SEQ` caption fields and can invent extra blank pages,
+  so it must not replace the Word PDF for caption or pagination acceptance.
+  PDF QC also rejects Chinese or English broken-reference results.
+- Focused report tests pass `38/38`; the full Python regression passes
+  `402/402`. This candidate is ready for user review but is not yet a signed
+  client deliverable.
+
 ## 2026-07-14 v1.8.0-rc3 Unified Workbench Candidate
 
 - Ordinary workbench analysis requests now use time-series source mode `auto`.

@@ -34,11 +34,11 @@ items still require engineering review.
   bridge, not permission for ordinary filesystem fallback. Future analysis
   manifests should carry those images directly.
 
-## v1.8.0-rc3 Source And Validation Boundaries
+## v1.8.0 Stable Source And Validation Boundaries
 
-Status: RC3 source analysis and rebuilt-package validation complete with the
-bridge-specific limits below; full report acceptance is not complete for every
-bridge.
+Status: stable package and local release gates complete with the bridge-specific
+limits below; the 133 production switch remains conditional on the final
+Guanbing June cache validation and rollback-safe task/process migration.
 
 - Ordinary GUI runs should remain on source mode `auto`: CSV has priority and a
   valid MAT cache is used when CSV is absent. Do not instruct ordinary users to
@@ -55,7 +55,7 @@ bridge.
   to raw time-history figures. Do not infer that the RMS figure axis, RMS
   aggregation or alarm/statistical threshold changed.
 - The unified-workbench report implementation is embedded in the workbench
-  application as a background worker for the same EXE runtime. RC3 must not
+  application as a background worker for the same EXE runtime. v1.8.0 must not
   ship or open a second `BridgeReportBuilder.exe`. The final 381-file package,
   native GUI, embedded-report worker, CLI and disposable update/rollback cycle
   pass; the inventory contains only the workbench and internal analysis-runner
@@ -68,16 +68,30 @@ bridge.
   obtained and must not be generalized to uninspected historical partitions.
 - Local validation order is Hongtang -> Guanbing -> Zhishan -> Shuixianhua.
   Hongtang has an accepted RC2 analysis/report baseline. Guanbing's three-day
-  RC3 source sample, Zhishan April RC3 source analysis and Shuixianhua May RC3
-  source analysis are complete. They do not constitute full-period report
-  acceptance: Guanbing covers only part of May 26-28, while no fresh Zhishan or
-  Shuixianhua report was generated in this validation. Do not promote an
-  analysis layer to a broader completion claim.
+  RC3 source sample and Zhishan April RC3 source analysis are complete but do
+  not constitute full-period report acceptance; Guanbing covers only part of
+  May 26-28. A fresh Shuixianhua May candidate report has now been generated
+  with 47/47 locked May figures and a complete 10-point temperature table, but
+  it remains pending user review and must not be described as a signed client
+  deliverable.
 - Zhishan source gaps: all of `2026-04-02`, CF-7 on `2026-04-01`, and the
   adjacent `2026-05-01` rolling source required for the April tail are absent.
   Shuixianhua cable-acceleration source is absent from `2026-05-02` through
   `2026-05-05`. Reports and validation summaries must disclose these gaps and
   must not fabricate continuity.
+- Shuixianhua temperature point `WD-04-11-15#横梁` reports a May range of
+  `-200.0 C` to `149.3 C`, unlike the other temperature points. The value is
+  retained and disclosed in the candidate report; it requires source/sensor
+  quality review and must not be silently cleaned or interpreted as a physical
+  bridge-temperature excursion without evidence.
+- Shuixianhua captions use Word `STYLEREF` plus `SEQ` fields. Microsoft Word
+  renders and numbers them correctly, while the current LibreOffice fallback
+  may show broken-reference text and extra blank pages. Formal acceptance must
+  use either the builder-provided Word PDF (Shuixianhua) or the PDF created by
+  the unified isolated Word exporter (other embedded report types). The QC path
+  rejects broken-reference text. If Word export is unavailable, LibreOffice is
+  a layout preview only: the task is a warning and no formal `pdf_path` may be
+  reported.
 - The repository and inspected source contain no authoritative Shuixianhua
   34-point mapping for cable effective free length `L` and linear density
   `rho`. Cable acceleration, RMS and identified frequencies can be reviewed;
@@ -92,13 +106,24 @@ bridge.
   a valid cache-only source. Preserve this regression when changing cache
   discovery.
 
-## PySide6 Workbench Migration Boundaries
+## PySide6 Workbench Production Migration Boundaries
 
-Status: local packaged dev milestone implemented on `dev/pyside6-workbench`; not a production replacement.
+Status: stable local release gate passed; eligible for a staged, rollback-safe
+production switch after the remaining 133 validation below, but not for an
+in-place overwrite or deletion of the legacy tree.
 
-- `v1.8.0-rc1` is a parallel-validation candidate, not authorization to remove
-  the legacy MATLAB GUI. The 133 deployment must remain in
-  `F:\Guanbing_v1.8.0-rc1`; do not replace or auto-update `F:\Guanbing`.
+- The mutable `F:\Guanbing_v1.8.0-rc1` candidate has a report-builder hash that
+  no longer matches its original release manifest and must never be promoted
+  as the stable installation. Deploy the immutable v1.8.0 archive to a fresh
+  staging directory, verify every inventoried file and run the final Guanbing
+  June cache comparison before switching the production path.
+- A production switch must preserve the clean v1.7.39 `F:\Guanbing` directory
+  under a timestamped legacy name, freshly enumerate and export every
+  scheduled-task XML whose action targets the old root, disable those tasks,
+  audit and stop only confirmed completed
+  old-root processes, and update the desktop shortcut. Keep the rollback tree
+  for at least 7-14 days or 1-2 real report cycles; do not re-enable historical
+  one-shot tasks wholesale.
 - Candidate production-data validation must keep task names, logs and outputs
   separate. Hongtang Q2 analysis/report and Guanbing analysis may not overwrite
   the accepted old-version statistics, figures or reports during comparison.

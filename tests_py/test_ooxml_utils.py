@@ -48,6 +48,29 @@ class TestOoxmlUtils(unittest.TestCase):
         cells = root.findall(".//w:tc", NS)
         self.assertEqual(xml_text(cells[1]), "filled")
 
+    def test_fill_table_expands_from_last_template_row(self):
+        root = parse_xml(
+            f"""
+            <w:tbl xmlns:w="{W}">
+              <w:tr><w:tc><w:p><w:r><w:t>h</w:t></w:r></w:p></w:tc></w:tr>
+              <w:tr><w:tc><w:p><w:r><w:t>template</w:t></w:r></w:p></w:tc></w:tr>
+            </w:tbl>
+            """
+        )
+
+        fill_table(
+            root,
+            [{"value": "first"}, {"value": "second"}, {"value": "third"}],
+            lambda _idx, row: [row["value"]],
+        )
+
+        table_rows = root.findall("w:tr", NS)
+        self.assertEqual(len(table_rows), 4)
+        self.assertEqual(
+            [xml_text(row) for row in table_rows[1:]],
+            ["first", "second", "third"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

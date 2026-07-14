@@ -81,6 +81,18 @@ The compatibility field `includes_report_builder = true` means that report
 capability is embedded in the workbench; it does **not** authorize packaging a
 standalone `BridgeReportBuilder.exe`.
 
+Version `v1.8.0` makes the embedded runtime the only production report entry.
+Shuixianhua and Jiulongjiang monthly generation now rejects stale-period text,
+figures and source summaries, clears unmatched template patrol material,
+removes unused template media, and fails closed when report QC cannot complete.
+Microsoft Word remains the authoritative renderer for combined
+`STYLEREF`/`SEQ` caption fields.
+
+版本 `v1.8.0` 将内嵌运行时作为唯一生产报告入口；水仙花和九龙江月报会拒绝
+旧月份文字、图件及来源摘要，清除不匹配的模板巡检资料，移除未使用的模板媒体，
+且报告质检无法完成时直接阻断。组合 `STYLEREF`/`SEQ` 题注域以 Microsoft Word
+渲染结果为准。
+
 Build and verify the unified application from the repository root:
 
 ```powershell

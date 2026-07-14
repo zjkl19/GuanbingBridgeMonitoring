@@ -6,23 +6,48 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
+
+from pypdf import PdfWriter
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "reporting"))
 
 from tests_py.locked_docx_media_test_utils import create_minimal_docx
-from report_job import REPORT_TYPE_NAMES, ReportJobRequest, build_qc, execute_report_job
+from report_job import (
+    REPORT_TYPE_NAMES,
+    ReportJobRequest,
+    _broken_reference_hits,
+    build_qc,
+    execute_report_job,
+)
 from report_job_cli import request_from_context
 from analysis_manifest import active_pinned_analysis_manifest
 from workbench.models import JobContext, file_sha256
 from workbench.profiles import load_profiles
 from workbench.report_task import read_report_status, report_job_command
 from workbench.embedded_report import report_runtime_contract
+from word_pdf_export import WordPdfExportResult
 
 
 class WorkbenchReportTaskTests(unittest.TestCase):
+    @staticmethod
+    def _write_valid_pdf(path: Path) -> Path:
+        writer = PdfWriter()
+        writer.add_blank_page(width=612, height=792)
+        with path.open("wb") as stream:
+            writer.write(stream)
+        return path
+
+    def test_broken_reference_gate_detects_word_and_english_results(self) -> None:
+        self.assertEqual(_broken_reference_hits("表 错误: 引用源未找到-13"), ["引用源未找到"])
+        self.assertEqual(
+            _broken_reference_hits("Error! Reference source not found."),
+            ["Error! Reference source not found"],
+        )
+
     def _write_closed_manifest(
         self,
         root: Path,
@@ -257,14 +282,168 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                 "2026-04-01", "2026-04-30",
             )
             stages: list[str] = []
-            visual = {"status": "passed", "page_count": 1, "pages": [], "contact_sheet": "contact.png"}
+            pdf = self._write_valid_pdf(output / "report.pdf")
+            visual = {
+                "status": "passed", "page_count": 1, "pages": [],
+                "contact_sheet": "contact.png", "renderer": "authoritative_pdf",
+                "pdf_authoritative": True, "pdf_path": str(pdf),
+            }
             with patch("report_job.build_guanbing_monthly_report", return_value=(report, manifest)), patch(
                 "report_job.render_docx_visual_qc", return_value=visual
+            ), patch(
+                "report_job.export_authoritative_word_pdf",
+                return_value=WordPdfExportResult(pdf, "passed", authoritative=True),
             ):
                 result = execute_report_job(request, lambda stage, _fraction, _message: stages.append(stage))
             self.assertEqual(result.qc["status"], "passed")
             self.assertEqual(stages, ["preflight", "building", "rendering", "qc", "completed"])
             self.assertEqual(result.qc["docx"]["media_count"], 1)
+
+    def test_real_report_entries_share_authoritative_word_pdf_export(self) -> None:
+        cases = (
+            ("guanbing_monthly", "report_job.build_guanbing_monthly_report", "docx_manifest"),
+            ("zhishan_monthly", "report_job.build_zhishan_monthly_report", "docx_manifest"),
+            ("jlj_monthly", "report_job.build_jlj_monthly_report", "docx_only"),
+            ("hongtang_monthly", "report_job.build_hongtang_monthly_report", "manifest_docx_missing"),
+            ("hongtang_period_wim", "report_job.build_period_report", "manifest_docx_missing"),
+        )
+        for report_type, builder_target, return_kind in cases:
+            with self.subTest(report_type=report_type), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                template = create_minimal_docx(root / "template.docx")
+                config = root / "config.json"
+                config.write_text("{}", encoding="utf-8")
+                output = root / "output"
+                output.mkdir()
+                report = create_minimal_docx(output / "report.docx", color="blue")
+                manifest = output / "report_build_manifest.json"
+                manifest.write_text(
+                    json.dumps({"status": "ok", "missing_count": 0, "warnings": []}),
+                    encoding="utf-8",
+                )
+                pdf = self._write_valid_pdf(output / "report.pdf")
+                request = ReportJobRequest(
+                    report_type, template, config, root, ROOT, output,
+                    "2026年4月", "2026年4月1日至2026年4月30日", "2026年5月1日",
+                    "2026-04-01", "2026-04-30", wim_root=root / "wim",
+                )
+                builder_result = {
+                    "docx_manifest": (report, manifest),
+                    "docx_only": report,
+                    "manifest_docx_missing": (manifest, report, []),
+                }[return_kind]
+                export_result = WordPdfExportResult(pdf, "passed", authoritative=True)
+                observed: dict[str, Path | None] = {}
+
+                def visual_qc(_report, _output, *, preferred_pdf_path=None):
+                    observed["preferred_pdf_path"] = preferred_pdf_path
+                    return {
+                        "status": "passed",
+                        "page_count": 1,
+                        "pages": [],
+                        "renderer": "authoritative_pdf",
+                        "pdf_authoritative": True,
+                        "pdf_path": str(pdf),
+                    }
+
+                with ExitStack() as stack:
+                    stack.enter_context(patch(builder_target, return_value=builder_result))
+                    stack.enter_context(
+                        patch("report_job.find_latest_report_build_manifest", return_value=manifest)
+                    )
+                    export_mock = stack.enter_context(
+                        patch("report_job.export_authoritative_word_pdf", return_value=export_result)
+                    )
+                    stack.enter_context(
+                        patch("report_job.render_docx_visual_qc", side_effect=visual_qc)
+                    )
+                    result = execute_report_job(request)
+
+                export_mock.assert_called_once_with(report.resolve())
+                self.assertEqual(observed["preferred_pdf_path"], pdf.resolve())
+                self.assertEqual(result.pdf_path, pdf.resolve())
+                self.assertTrue(result.qc["pdf"]["authoritative"])
+                self.assertEqual(result.qc["status"], "passed")
+
+    def test_shuixianhua_builder_pdf_is_not_exported_twice(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            template = create_minimal_docx(root / "template.docx")
+            config = root / "config.json"
+            config.write_text("{}", encoding="utf-8")
+            output = root / "output"
+            output.mkdir()
+            report = create_minimal_docx(output / "report.docx", color="blue")
+            pdf = self._write_valid_pdf(output / "report.pdf")
+            manifest = output / "report_build_manifest.json"
+            manifest.write_text(
+                json.dumps({"status": "ok", "missing_count": 0, "warnings": []}),
+                encoding="utf-8",
+            )
+            request = ReportJobRequest(
+                "shuixianhua_monthly", template, config, root, ROOT, output,
+                "2026年4月", "2026年4月1日至2026年4月30日", "2026年5月1日",
+                "2026-04-01", "2026-04-30",
+            )
+            visual = {
+                "status": "passed", "page_count": 1, "pages": [],
+                "renderer": "authoritative_pdf", "pdf_authoritative": True,
+                "pdf_path": str(pdf),
+            }
+            with patch(
+                "report_job.build_shuixianhua_monthly_report", return_value=(report, pdf)
+            ), patch(
+                "report_job.find_latest_report_build_manifest", return_value=manifest
+            ), patch(
+                "report_job.export_authoritative_word_pdf"
+            ) as export_mock, patch(
+                "report_job.render_docx_visual_qc", return_value=visual
+            ):
+                result = execute_report_job(request)
+
+            export_mock.assert_not_called()
+            self.assertEqual(result.pdf_path, pdf.resolve())
+            self.assertEqual(result.qc["pdf"]["export"]["source"], "builder_word_pdf")
+
+    def test_libreoffice_fallback_remains_preview_only(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            template = create_minimal_docx(root / "template.docx")
+            config = root / "config.json"
+            config.write_text("{}", encoding="utf-8")
+            output = root / "output"
+            output.mkdir()
+            report = create_minimal_docx(output / "report.docx", color="blue")
+            preview = self._write_valid_pdf(output / "libreoffice-preview.pdf")
+            manifest = output / "report_build_manifest.json"
+            manifest.write_text(
+                json.dumps({"status": "ok", "missing_count": 0, "warnings": []}),
+                encoding="utf-8",
+            )
+            request = ReportJobRequest(
+                "guanbing_monthly", template, config, root, ROOT, output,
+                "2026年4月", "2026年4月1日至2026年4月30日", "2026年5月1日",
+                "2026-04-01", "2026-04-30",
+            )
+            visual = {
+                "status": "passed", "page_count": 1, "pages": [],
+                "renderer": "libreoffice_preview", "pdf_authoritative": False,
+                "pdf_path": str(preview), "preview_pdf_path": str(preview),
+            }
+            with patch(
+                "report_job.build_guanbing_monthly_report", return_value=(report, manifest)
+            ), patch(
+                "report_job.export_authoritative_word_pdf",
+                return_value=WordPdfExportResult(None, "failed", "Word unavailable"),
+            ), patch(
+                "report_job.render_docx_visual_qc", return_value=visual
+            ):
+                result = execute_report_job(request)
+
+            self.assertIsNone(result.pdf_path)
+            self.assertFalse(result.qc["pdf"]["authoritative"])
+            self.assertEqual(result.qc["status"], "warning")
+            self.assertEqual(result.qc["visual"]["preview_pdf_path"], str(preview))
 
     def test_execute_job_binds_exact_manifest_for_strict_builder_scope(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
@@ -292,6 +471,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                 require_source_provenance=True,
             )
             observed: dict[str, str] = {}
+            pdf = self._write_valid_pdf(output / "report.pdf")
 
             def strict_builder(**_kwargs):
                 binding = active_pinned_analysis_manifest()
@@ -300,9 +480,16 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                 observed["sha256"] = binding.sha256
                 return report, report_manifest
 
-            visual = {"status": "passed", "page_count": 1, "pages": [], "contact_sheet": "contact.png"}
+            visual = {
+                "status": "passed", "page_count": 1, "pages": [],
+                "contact_sheet": "contact.png", "renderer": "authoritative_pdf",
+                "pdf_authoritative": True, "pdf_path": str(pdf),
+            }
             with patch("report_job.build_guanbing_monthly_report", side_effect=strict_builder), patch(
                 "report_job.render_docx_visual_qc", return_value=visual
+            ), patch(
+                "report_job.export_authoritative_word_pdf",
+                return_value=WordPdfExportResult(pdf, "passed", authoritative=True),
             ):
                 execute_report_job(request)
 
@@ -330,6 +517,34 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                 visual,
                 require_source_provenance=True,
             )
+
+            self.assertEqual(qc["status"], "failed")
+
+    def test_qc_rejects_pdf_with_broken_caption_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            report = create_minimal_docx(root / "report.docx")
+            pdf = root / "report.pdf"
+            pdf.write_bytes(b"placeholder")
+            manifest = root / "report_manifest.json"
+            manifest.write_text(
+                json.dumps({"status": "ok", "missing_count": 0, "warnings": []}),
+                encoding="utf-8",
+            )
+            visual = {"status": "passed", "page_count": 1, "pages": []}
+            with patch(
+                "report_job._pdf_qc",
+                return_value={
+                    "path": str(pdf),
+                    "exists": True,
+                    "size_bytes": pdf.stat().st_size,
+                    "sha256": "TEST",
+                    "page_count": 1,
+                    "broken_reference": True,
+                    "broken_reference_hits": ["引用源未找到"],
+                },
+            ):
+                qc = build_qc(report, manifest, pdf, visual)
 
             self.assertEqual(qc["status"], "failed")
 

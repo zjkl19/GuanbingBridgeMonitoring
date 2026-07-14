@@ -141,6 +141,16 @@ exit 0
             r"-or -not \$manifest\.report_builder_context_smoke\s*`",
         )
 
+    def test_release_package_uses_versioned_release_notes(self) -> None:
+        self.assertIn(
+            '$releaseNotesPath = Join-Path $repo ("docs\\releases\\{0}.md" -f $Version)',
+            self.package_script,
+        )
+        self.assertIn("Release notes are missing", self.package_script)
+        self.assertIn("release_notes = $releaseNotesPath", self.package_script)
+        self.assertIn('--notes-file `"$releaseNotesPath`"', self.package_script)
+        self.assertNotIn("--notes-file RELEASE_NOTES.md", self.package_script)
+
     def test_release_gates_come_from_real_embedded_report_smoke(self) -> None:
         self.assertIn(
             "-or -not $reportRuntimeSmoke.embedded_report_job",

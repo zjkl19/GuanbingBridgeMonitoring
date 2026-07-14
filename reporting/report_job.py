@@ -18,6 +18,7 @@ from analysis_manifest import pinned_analysis_manifest_scope, pinned_derived_art
 from missing_summary import missing_summary_paths
 from report_build_manifest import find_latest_report_build_manifest
 from report_visual_qc import render_docx_visual_qc
+from word_pdf_export import export_authoritative_word_pdf
 
 
 REPORT_TYPE_NAMES = {
@@ -70,6 +71,16 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest().upper()
 
 
+def _broken_reference_hits(text: str) -> list[str]:
+    phrases = (
+        "引用源未找到",
+        "Error! Reference source not found",
+        "Error: Reference source not found",
+    )
+    folded = str(text or "").casefold()
+    return [phrase for phrase in phrases if phrase.casefold() in folded]
+
+
 def _docx_qc(path: Path) -> dict[str, Any]:
     result: dict[str, Any] = {
         "path": str(path),
@@ -109,7 +120,11 @@ def _pdf_qc(path: Path | None) -> dict[str, Any]:
         try:
             from pypdf import PdfReader
 
-            result["page_count"] = len(PdfReader(str(path)).pages)
+            reader = PdfReader(str(path))
+            result["page_count"] = len(reader.pages)
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            result["broken_reference_hits"] = _broken_reference_hits(text)
+            result["broken_reference"] = bool(result["broken_reference_hits"])
         except Exception as exc:  # noqa: BLE001
             result["error"] = str(exc)
     return result
@@ -139,10 +154,20 @@ def build_qc(
     visual: dict[str, Any] | None = None,
     *,
     require_source_provenance: bool = False,
+    require_authoritative_pdf: bool = False,
+    pdf_export: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     docx = _docx_qc(report_path)
     manifest = _manifest_qc(manifest_path)
     pdf = _pdf_qc(pdf_path)
+    export_record = dict(pdf_export or {})
+    pdf_authoritative = bool(
+        export_record.get("authoritative")
+        if "authoritative" in export_record
+        else pdf_path is not None
+    )
+    pdf["authoritative"] = pdf_authoritative
+    pdf["export"] = export_record
     manifest_passed = bool(
         manifest.get("status") == "ok"
         and int(manifest.get("missing_count") or 0) == 0
@@ -153,16 +178,28 @@ def build_qc(
     )
     if not require_source_provenance:
         manifest_passed = manifest.get("status") in {"ok", "warning"}
+    authoritative_pdf_invalid = bool(
+        pdf_authoritative
+        and (
+            not pdf.get("exists")
+            or int(pdf.get("page_count") or 0) <= 0
+            or bool(pdf.get("error"))
+        )
+    )
     structural_passed = bool(
         docx["exists"]
         and docx["size_bytes"] > 0
         and docx["zip_integrity"]
         and docx["document_xml"]
         and manifest_passed
+        and not pdf.get("broken_reference", False)
+        and not authoritative_pdf_invalid
     )
     visual = visual or {"status": "unavailable", "page_count": 0, "pages": []}
     if not structural_passed or visual.get("status") == "failed":
         status = "failed"
+    elif require_authoritative_pdf and not pdf_authoritative:
+        status = "warning"
     elif visual.get("status") in {"warning", "unavailable"}:
         status = "warning"
     else:
@@ -268,7 +305,8 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
             template=request.template, config_path=request.config_path,
             result_root=request.result_root, output_dir=request.output_dir,
             period_label=request.period_label, monitoring_range=request.monitoring_range,
-            report_date=request.report_date,
+            report_date=request.report_date, start_date=request.start_date,
+            end_date=request.end_date,
         )
         manifest_path = find_latest_report_build_manifest(request.output_dir)
     elif report_type == "zhishan_monthly":
@@ -288,9 +326,16 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
     report_path = Path(report_path).resolve()
     manifest_path = Path(manifest_path).resolve() if manifest_path else None
     pdf_path = Path(pdf_path).resolve() if pdf_path else None
-    if pdf_path is None:
-        candidate_pdf = report_path.with_suffix(".pdf")
-        pdf_path = candidate_pdf.resolve() if candidate_pdf.is_file() else None
+    pdf_export: dict[str, Any] = {}
+    if pdf_path is not None and pdf_path.is_file():
+        pdf_export = {
+            "status": "passed",
+            "authoritative": True,
+            "source": "builder_word_pdf",
+            "path": str(pdf_path),
+        }
+    else:
+        pdf_path = None
     if request.require_source_provenance and missing:
         raise RuntimeError(
             "Strict report build has missing or warning items: "
@@ -303,11 +348,22 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
         report_type,
         require_source_provenance=request.require_source_provenance,
     )
-    emit("rendering", 0.82, "正在逐页渲染报告并生成联系表")
-    visual = render_docx_visual_qc(report_path, request.output_dir / "report_visual_qc")
-    visual_pdf = str(visual.get("pdf_path") or "")
-    if visual_pdf and Path(visual_pdf).is_file():
-        pdf_path = Path(visual_pdf).resolve()
+    emit("rendering", 0.82, "正在通过独立 Word 实例生成权威 PDF 并逐页检查")
+    if pdf_path is None:
+        word_export = export_authoritative_word_pdf(report_path)
+        pdf_export = word_export.to_dict()
+        if word_export.authoritative and word_export.path is not None:
+            pdf_path = word_export.path.resolve()
+    visual = render_docx_visual_qc(
+        report_path,
+        request.output_dir / "report_visual_qc",
+        preferred_pdf_path=pdf_path,
+    )
+    if pdf_path is None:
+        preview_pdf = str(visual.get("preview_pdf_path") or visual.get("pdf_path") or "")
+        if preview_pdf:
+            visual["preview_pdf_path"] = preview_pdf
+        visual["pdf_authoritative"] = False
     emit("qc", 0.93, "正在执行 DOCX/PDF、页面渲染与报告内容清单质量检查")
     qc = build_qc(
         report_path,
@@ -315,6 +371,8 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
         pdf_path,
         visual,
         require_source_provenance=request.require_source_provenance,
+        require_authoritative_pdf=True,
+        pdf_export=pdf_export,
     )
     if qc["status"] == "failed":
         raise RuntimeError(f"report QC failed: {qc}")
