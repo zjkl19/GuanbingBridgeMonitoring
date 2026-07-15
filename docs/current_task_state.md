@@ -6,6 +6,39 @@ Last updated: 2026-07-15
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-15 v1.8.1-rc3 Isolated Deployment And Jiulongjiang Acceptance
+
+- The reviewed rc3 package is now deployed only under the isolated
+  `F:\Guanbing_v1.8.1-rc1\app` candidate tree on machine 133. The stable
+  `F:\Guanbing` installation and `F:\九龙江数据\2026年5月` source tree remain
+  untouched. The retained rollback tree is
+  `F:\Guanbing_v1.8.1-rc1\app_before_rc3_20260715_231823`, and the deployment
+  receipt is
+  `F:\Guanbing_v1.8.1-rc1\deployment_receipt_rc3_20260715_231823.json`.
+- The deployed ZIP SHA-256 remains
+  `60358c2f643b82d144580bba4562f7ca5fd7ee642c98d5a1398e6c6246f4e650`;
+  the workbench and Runner hashes remain the reviewed rc3 hashes below.
+- The first four-worker cache build completed with `eligible=5325`,
+  `created=3764`, `reused=1561`, `failed=0`. A pre-repeat inventory closes
+  5,325 MAT files and 5,325 metadata files. The immediate
+  `force_rebuild=false` reuse task is currently running; zero-write reuse has
+  not yet been accepted and must not be recorded as complete.
+- Source review found Guanbing `GB-*` strain/crack groups and G05/G06 y-limits
+  accidentally retained in `jiulongjiang_config.json`. The working-tree fix
+  removes those foreign groups and y-limits without inventing a Jiulongjiang
+  grouping: all 50 explicit strain points and 22 explicit crack points remain.
+  `ConfigLinter` now reports no `group_point_reference` issue for this config.
+- Post-fix source regression passes Python `592 passed, 1 skipped` plus
+  `180 subtests`, and MATLAB `676/676`.
+- This configuration correction was made after the immutable rc3 ZIP was built.
+  The current Jiulongjiang analysis must use the reviewed task-specific fixed
+  configuration snapshot. A later candidate rebuild is required before claiming
+  that the packaged default configuration contains this correction.
+- Remaining acceptance gates are: finish and validate the zero-write reuse run,
+  run all 15 applicable modules from MAT cache, validate statistics/figures and
+  their source records, generate the May report, then update fields and export
+  the authoritative PDF with Microsoft Word and inspect every page.
+
 ## 2026-07-15 Curve Threshold Interaction Correction
 
 - The cleaning editor no longer presents the two one-sided actions as drag-line
@@ -113,10 +146,11 @@ This file is the handoff point for long Codex sessions. New conversations should
   limit. The offscreen-only detector now permits 20% while retaining its bright
   frame requirement; native PrintWindow thresholds remain strict and separate.
   The build-script regression is `20/20` and the complete package rerun passed.
-- rc3 remains a development-branch candidate and is not deployed to 133. Do
-  not replace any production tree while the isolated Jiulongjiang acceptance
-  workflow is incomplete. The final rebuilt package, inventory, native Windows
-  screenshots and focus/DPI/icon evidence have passed locally.
+- rc3 remains a development-branch candidate and is now deployed only to the
+  isolated 133 candidate tree. It has not replaced stable `F:\Guanbing`.
+  Jiulongjiang full-period analysis/report acceptance remains incomplete. The
+  final rebuilt package, inventory, native Windows screenshots and
+  focus/DPI/icon evidence have passed locally.
 
 ## 2026-07-15 Jiulongjiang May W4 Cache Completion
 
@@ -126,11 +160,10 @@ This file is the handoff point for long Codex sessions. New conversations should
   tree remained untouched.
 - Final summary: `created=3764`, `reused=1561`, `eligible=5325`, `failed=0`,
   elapsed `6h50m27s`; cache size `57.50 GiB`, F: free space `539.33 GiB`.
-- Remaining work is deliberately fail-closed: validate all MAT/metadata pairs
-  and summary counts, rerun with `force_rebuild=false` and require all 5,325
-  pairs to be reused with zero cache writes, then run the 15 applicable modules
-  from cache and generate/review the May report with Microsoft Word PDF and
-  every-page checks. None of those remaining gates is recorded as complete yet.
+- A pre-repeat inventory found 5,325 MAT/metadata pairs. The immediate
+  `force_rebuild=false` reuse rerun is in progress; its summary and the
+  byte-for-byte zero-write comparison remain pending. The 15-module analysis
+  and May report/Word-PDF review have not started.
 
 ## 2026-07-15 360 Cloud Transfer Pilot And V2Ray Diagnosis
 

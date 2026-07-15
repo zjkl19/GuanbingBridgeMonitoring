@@ -1428,24 +1428,7 @@
   "groups": {
     "deflection": [],
     "bearing_displacement": [],
-    "strain": {
-      "G05": [
-        "GB-RSG-G05-001-01",
-        "GB-RSG-G05-001-02",
-        "GB-RSG-G05-001-03",
-        "GB-RSG-G05-001-04",
-        "GB-RSG-G05-001-05",
-        "GB-RSG-G05-001-06"
-      ],
-      "G06": [
-        "GB-RSG-G06-001-01",
-        "GB-RSG-G06-001-02",
-        "GB-RSG-G06-001-03",
-        "GB-RSG-G06-001-04",
-        "GB-RSG-G06-001-05",
-        "GB-RSG-G06-001-06"
-      ]
-    },
+    "strain": {},
     "tilt": {
       "X": [
         "QJJ-01-CZD-PC20-X",
@@ -1464,20 +1447,7 @@
         "QJJ-06-BZD-B6-Y"
       ]
     },
-    "crack": {
-      "G05": [
-        "GB-CRK-G05-001-01",
-        "GB-CRK-G05-001-02",
-        "GB-CRK-G05-001-03",
-        "GB-CRK-G05-001-04"
-      ],
-      "G06": [
-        "GB-CRK-G06-001-01",
-        "GB-CRK-G06-001-02",
-        "GB-CRK-G06-001-03",
-        "GB-CRK-G06-001-04"
-      ]
-    }
+    "crack": {}
   },
   "plot_styles": {
     "acceleration": {
@@ -1694,16 +1664,7 @@
           0
         ]
       ],
-      "ylims": {
-        "G05": [
-          -200,
-          200
-        ],
-        "G06": [
-          -350,
-          200
-        ]
-      },
+      "ylims": {},
       "ylabel": "主梁应变 (με)",
       "title_prefix": "应变时程曲线",
       "show_boxplot_outliers": false
@@ -1881,16 +1842,7 @@
           0
         ]
       ],
-      "ylims": {
-        "G05": [
-          -0.25,
-          0.25
-        ],
-        "G06": [
-          -0.3,
-          0.3
-        ]
-      },
+      "ylims": {},
       "ylabel_crack": "裂缝宽度 (mm)",
       "ylabel_temp": "裂缝温度 (°C)",
       "title_prefix_crack": "裂缝宽度",

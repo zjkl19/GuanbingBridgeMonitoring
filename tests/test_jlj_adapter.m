@@ -16,6 +16,32 @@ classdef test_jlj_adapter < matlab.unittest.TestCase
     end
 
     methods (Test)
+        function test_project_config_has_no_cross_bridge_group_references(testCase)
+            cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
+
+            testCase.verifyEmpty(fieldnames(cfg.groups.strain));
+            testCase.verifyEmpty(fieldnames(cfg.groups.crack));
+            testCase.verifyEmpty(fieldnames(cfg.plot_styles.strain.ylims));
+            testCase.verifyEmpty(fieldnames(cfg.plot_styles.crack.ylims));
+
+            strainContext = bms.analyzer.StrainConfigService.context(cfg);
+            testCase.verifyTrue(strainContext.explicit_points);
+            testCase.verifyFalse(strainContext.explicit_groups);
+            testCase.verifyFalse(strainContext.explicit_ts_groups);
+            testCase.verifyNumElements(strainContext.points, 50);
+
+            crackOptions = bms.analyzer.CrackAnalysisPipeline.options( ...
+                bms.analyzer.CrackAnalysisPipeline.style(cfg));
+            crackGroups = bms.analyzer.CrackAnalysisPipeline.resolveGroups(cfg, crackOptions);
+            crackPoints = bms.analyzer.CrackAnalysisPipeline.resolvePoints(cfg, crackGroups);
+            testCase.verifyEmpty(fieldnames(crackGroups));
+            testCase.verifyNumElements(crackPoints, 22);
+
+            lintResult = bms.config.ConfigLinter.lint(cfg);
+            testCase.verifyFalse(any(strcmp({lintResult.issues.category}, ...
+                'group_point_reference')));
+        end
+
         function test_temperature_single_channel(testCase)
             cfg = load_config(fullfile(testCase.ProjectRoot, 'config', 'jiulongjiang_config.json'));
             pid = 'WDCGQ-01-K16-X4-G20';

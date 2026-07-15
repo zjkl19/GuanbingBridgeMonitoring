@@ -10,9 +10,10 @@ chat history but not always urgent enough to fix immediately.
 Status: implementation and local regression are complete. The full
 Jiulongjiang May W4 cache run on 133 completed with `created=3764`,
 `reused=1561`, `eligible=5325`, `failed=0` in `6h50m27s`; cache size was
-`57.50 GiB` and F: free space was `539.33 GiB`. Strict pair acceptance, the
-zero-write reuse repeat, 15-module analysis and May report review remain open,
-so this result does not authorize a stable production upgrade by itself.
+`57.50 GiB` and F: free space was `539.33 GiB`. The immediate zero-write reuse
+repeat is currently running. Its result, the 15-module analysis and the May
+report review remain open, so this does not authorize a stable production
+upgrade by itself.
 
 - “预生成分析缓存” is an optional capability for all installed bridge
   profiles and remains unchecked by default. `jlj_daily_export` uses the
@@ -66,9 +67,10 @@ so this result does not authorize a stable production upgrade by itself.
 ## v1.8.1-rc2 Local Operator-Control And Coverage Boundary
 
 Status: rc3 now supersedes the earlier rc2 candidate and has passed complete
-source regression, compiled-package and native-GUI checks. It remains
-intentionally undeployed to machine 133 while the isolated Jiulongjiang
-acceptance sequence is incomplete.
+source regression, compiled-package and native-GUI checks. It is deployed only
+in the isolated `F:\Guanbing_v1.8.1-rc1` candidate tree for acceptance. Stable
+`F:\Guanbing` remains unchanged, and full Jiulongjiang analysis/report
+acceptance is still incomplete.
 
 - Configurable extraction concurrency is available only for future runs. A
   running extraction/cache task keeps the worker count captured in its request;
@@ -123,8 +125,9 @@ tests successfully (`596` passed, `1` conditionally skipped), and MATLAB passed
 `675/675` with no failure or incomplete test. The final rebuilt rc3 workbench
 passed native foreground, keyboard focus and icon ownership at 120 DPI with
 per-monitor awareness and a 2018 x 1122 physical window. The `384/384` file
-inventory and formal release archive gate passed; rc3 is not deployed to
-machine 133.
+inventory and formal release archive gate passed. rc3 is deployed only in the
+isolated `F:\Guanbing_v1.8.1-rc1` candidate tree; stable production is unchanged
+and the Jiulongjiang acceptance sequence is incomplete.
 
 - ZIP safety now assumes an immutable snapshot from planning through atomic
   publication and verifies that assumption. Keep the same-path/same-length
@@ -147,6 +150,27 @@ machine 133.
   descendant PIDs/identities read-only; do not fall back to PID-unsafe
   `taskkill /T`. A true tree-level guarantee requires a Windows Job Object or
   cooperative child-process supervision in a later architecture change.
+
+## Jiulongjiang Cross-Bridge Group Configuration Contamination
+
+Status: fixed in the working tree and covered by regression; not yet baked into
+the immutable rc3 package.
+
+- `jiulongjiang_config.json` incorrectly retained Guanbing `GB-RSG-*` and
+  `GB-CRK-*` G05/G06 group definitions and their fixed y-limits.
+- These ids do not belong to Jiulongjiang. The valid Jiulongjiang config still
+  contains 50 explicit strain points and 22 explicit crack points.
+- The correction clears only the unverified foreign group mappings and group
+  y-limits. It does not remove points, alter cleaning/statistics, or invent a
+  replacement engineering grouping.
+- `test_project_config_has_no_cross_bridge_group_references` verifies the point
+  counts, empty unverified groups/y-limits and absence of
+  `group_point_reference` linter findings.
+- Post-fix regression: Python `592 passed, 1 skipped` plus `180 subtests`;
+  MATLAB `676/676`.
+- The already deployed rc3 archive predates this source correction. Use the
+  reviewed task-specific fixed config for the current isolated run, and rebuild
+  a subsequent candidate before promotion.
 
 ## Hongtang Q2 Supplement Coverage And Review Items
 
