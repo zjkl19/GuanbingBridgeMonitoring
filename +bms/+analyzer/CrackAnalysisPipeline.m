@@ -268,6 +268,7 @@ classdef CrackAnalysisPipeline
             opts.ylimRange = ylimRange;
             opts.colorField = 'colors_4';
             opts.defaultColors = [0 0 0; 1 0 0; 0 0 1; 0 0.7 0];
+            opts.moduleKey = 'crack';
             bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
                 '', timesCell, valsCell, labels, startDate, endDate, opts, cfg);
         end

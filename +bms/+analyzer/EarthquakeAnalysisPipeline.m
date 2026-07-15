@@ -279,7 +279,8 @@ classdef EarthquakeAnalysisPipeline
             end
 
             fig = figure('Position', [100 100 1100 500]);
-            plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
+            plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions( ...
+                cfg, 50000, 'eq', pointId);
             plotOpts.series_id = pointId;
             if isstruct(sourceProvenance) && ~isempty(fieldnames(sourceProvenance))
                 plotOpts.source_provenance = sourceProvenance;

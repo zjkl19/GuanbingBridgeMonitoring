@@ -34,7 +34,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .analysis import AnalysisLauncher, ExecutorResolver, read_analysis_status
+from .analysis import (
+    AnalysisLauncher,
+    ExecutorResolver,
+    bind_analysis_manifest,
+    persist_analysis_state,
+    read_analysis_status,
+)
 from .branding import application_icon, organization_logo_path
 from .advanced_config_tab import (
     GroupPlotConfigEditorWidget,
@@ -54,9 +60,15 @@ from .modules import MODULE_SPECS, options_for_modules
 from .operator_text import operator_friendly_text, operator_stage_label, operator_state_label
 from .profiles import PathProfileResolver, WorkbenchProfile, load_profiles, profile_by_id
 from .plot_config_tab import PlotCommonEditorWidget, SpectrumConfigEditorWidget
+from .preprocess_config_tab import UnzipSettingsEditorWidget
 from .profile_audit import ProfileAuditError, load_installed_profile_matrix
 from .provenance import PlotProvenanceSummary, inspect_manifest_plot_provenance
-from .report_task import launch_report_job, read_report_status, terminate_report_job
+from .report_task import (
+    launch_report_job,
+    persist_report_state,
+    read_report_status,
+    terminate_report_job,
+)
 from .task_history_tab import TaskHistoryWidget
 from .update_ui import UpdateController
 from .version import APP_DISPLAY_NAME, app_version, project_root as default_project_root
@@ -79,6 +91,8 @@ class WorkbenchWindow(QMainWindow):
         self.active_path_profile = self.path_resolver.active()
         self.custom_data_roots: dict[str, str] = {}
         self.current_context: JobContext | None = None
+        self._analysis_context_superseded = False
+        self._report_context_superseded = False
         self.current_context_path: Path | None = None
         self.current_manifest: ManifestSummary | None = None
         self.current_provenance: PlotProvenanceSummary | None = None
@@ -162,6 +176,12 @@ class WorkbenchWindow(QMainWindow):
                 "频谱覆盖与找峰", path, sha256, backup
             )
         )
+        self.unzip_settings_editor = UnzipSettingsEditorWidget()
+        self.unzip_settings_editor.config_saved.connect(
+            lambda path, sha256, backup: self._on_config_saved(
+                "ZIP 解压并发", path, sha256, backup
+            )
+        )
         config_tabs.addTab(self.alarm_editor, "预警值")
         config_tabs.addTab(self.cleaning_editor, "数据清洗阈值")
         config_tabs.addTab(self.post_filter_editor, "滤波后二次清洗")
@@ -170,6 +190,7 @@ class WorkbenchWindow(QMainWindow):
         config_tabs.addTab(self.group_plot_editor, "组图配置")
         config_tabs.addTab(self.plot_common_editor, "绘图公共参数")
         config_tabs.addTab(self.spectrum_editor, "频谱覆盖与找峰")
+        config_tabs.addTab(self.unzip_settings_editor, "解压并发")
         self.config_tabs = config_tabs
         tabs.addTab(config_tabs, "配置与预警值")
         tabs.addTab(self._build_review_tab(), "结果与图件审核")
@@ -289,7 +310,8 @@ class WorkbenchWindow(QMainWindow):
         for index, spec in enumerate(MODULE_SPECS):
             checkbox = QCheckBox(spec.label)
             checkbox.setProperty("module_key", spec.key)
-            checkbox.setToolTip(f"{spec.label}（{spec.key}）")
+            tooltip = spec.description or spec.label
+            checkbox.setToolTip(tooltip)
             checkbox.setIcon(module_icon(self.project_root, spec.icon_asset))
             checkbox.setIconSize(QSize(22, 22))
             checkbox.stateChanged.connect(self._on_task_inputs_changed)
@@ -697,6 +719,7 @@ class WorkbenchWindow(QMainWindow):
                 self.group_plot_editor.load_path(profile.config_path(self.project_root))
                 self.plot_common_editor.load_path(profile.config_path(self.project_root))
                 self.spectrum_editor.load_path(profile.config_path(self.project_root))
+                self.unzip_settings_editor.load_path(profile.config_path(self.project_root))
             except Exception as exc:  # noqa: BLE001
                 self.alarm_editor.message_label.setText(f"配置加载失败：{exc}")
                 self.alarm_editor.message_label.setStyleSheet("color: #a33;")
@@ -712,13 +735,18 @@ class WorkbenchWindow(QMainWindow):
                 self.plot_common_editor.summary_label.setStyleSheet("color: #a33;")
                 self.spectrum_editor.summary_label.setText(f"配置加载失败：{exc}")
                 self.spectrum_editor.summary_label.setStyleSheet("color: #a33;")
+                self.unzip_settings_editor.message_label.setText(f"配置加载失败：{exc}")
+                self.unzip_settings_editor.message_label.setStyleSheet("color: #a33;")
             _set_line_edit_path(self.template_edit, profile.template_path(self.project_root) if profile.report_template else "")
             self._set_date(self.start_date_edit, profile.default_start_date)
             self._set_date(self.end_date_edit, profile.default_end_date)
             self.report_date_edit.setText(profile.default_report_date or datetime.now().strftime("%Y年%m月%d日"))
             enabled = set(profile.enabled_modules)
+            optional = set(profile.optional_modules)
             for key, checkbox in self.module_checks.items():
-                checkbox.setChecked(key in enabled)
+                supported = key != "cache_prebuild" or key in enabled or key in optional
+                checkbox.setEnabled(supported)
+                checkbox.setChecked(supported and key in enabled)
         finally:
             self._suspend_report_autofill = previous_suspend
         if not previous_suspend:
@@ -837,6 +865,8 @@ class WorkbenchWindow(QMainWindow):
             report_date=self.report_date_edit.text().strip(),
         )
         self.current_context = context
+        self._analysis_context_superseded = False
+        self._report_context_superseded = False
         return context
 
     def _save_context(self) -> None:
@@ -904,6 +934,8 @@ class WorkbenchWindow(QMainWindow):
             self._suspend_report_autofill = previous_suspend
         self._establish_report_defaults_baseline(profile)
         self.current_context = context
+        self._analysis_context_superseded = False
+        self._report_context_superseded = False
         self.current_context_path = path.resolve()
         self.known_context_paths.add(self.current_context_path)
         self._reset_review_state(clear_context_approval=False)
@@ -975,10 +1007,19 @@ class WorkbenchWindow(QMainWindow):
             return
         status = read_analysis_status(context)
         state = str(status.get("status") or "unknown").lower()
-        changed = context.analysis.state != state
-        context.analysis.state = state
+        superseded = bool(status.get("context_superseded"))
+        self._analysis_context_superseded = superseded
+        cleanup_pending = bool(status.get("process_cleanup_pending"))
+        changed = False
+        if not superseded and not cleanup_pending:
+            changed = context.analysis.state != state
+            context.analysis.state = state
         manifest_path = str(status.get("manifest_path") or "")
-        if manifest_path and context.analysis.manifest_path != manifest_path:
+        if (
+            not superseded
+            and manifest_path
+            and context.analysis.manifest_path != manifest_path
+        ):
             context.analysis.manifest_path = manifest_path
             changed = True
         self.analysis_status_label.setText(f"状态：{state}；任务 {context.job_id}")
@@ -999,10 +1040,28 @@ class WorkbenchWindow(QMainWindow):
             progress_bits.append(f"预计剩余 {remaining}")
         self.analysis_progress_label.setText("；".join(progress_bits))
         terminal = state in {"completed", "failed", "stopped", "launch_failed"}
-        self.start_btn.setEnabled(terminal or state in {"draft", "unknown", "status_read_failed"})
-        self.stop_btn.setEnabled(not terminal and state not in {"draft", "prepared", "unknown"})
-        if changed:
-            context.write()
+        if superseded:
+            self.start_btn.setEnabled(False)
+            self.stop_btn.setEnabled(False)
+            self.analysis_progress_label.setText(
+                "此窗口显示的是旧轮次；请重新打开最新任务后再操作。"
+            )
+        elif cleanup_pending:
+            self.start_btn.setEnabled(False)
+            self.stop_btn.setEnabled(False)
+            self.analysis_progress_label.setText(
+                "结果已生成，后台进程正在退出清理，请稍候。"
+            )
+        else:
+            self.start_btn.setEnabled(
+                terminal or state in {"draft", "unknown", "status_read_failed"}
+            )
+            self.stop_btn.setEnabled(
+                not terminal
+                and state not in {"draft", "prepared", "stopping", "unknown"}
+            )
+        if changed and not superseded and not cleanup_pending:
+            persist_analysis_state(context)
             self._append_log(f"分析状态更新：{state}")
         if context.analysis.manifest_path:
             path = Path(context.analysis.manifest_path)
@@ -1017,6 +1076,9 @@ class WorkbenchWindow(QMainWindow):
             return
         status = read_report_status(context)
         state = str(status.get("state") or context.report.state or "blocked").lower()
+        superseded = bool(status.get("context_superseded"))
+        self._report_context_superseded = superseded
+        cleanup_pending = bool(status.get("process_cleanup_pending"))
         stage = str(status.get("stage") or state)
         message = str(status.get("message") or "")
         display_state = operator_state_label(state)
@@ -1032,10 +1094,35 @@ class WorkbenchWindow(QMainWindow):
             + (f"；{display_message}" if display_message else "")
         )
         terminal = state in {"completed", "failed", "stopped", "launch_failed"}
-        self.stop_report_btn.setEnabled(not terminal and state in {"launched", "running"})
-        if context.report.state != state:
+        safe_stop_identity = bool(
+            context.report.launch_id
+            and context.report.process_creation_time_100ns
+            and context.report.process_executable
+        )
+        self.stop_report_btn.setEnabled(
+            not superseded
+            and not cleanup_pending
+            and not terminal
+            and state in {"launched", "running"}
+            and safe_stop_identity
+        )
+        if state in {"launched", "running"} and not safe_stop_identity:
+            self.stop_report_btn.setToolTip(
+                "这是旧版任务，缺少安全进程身份记录；为避免误停其他程序，不能从工作台强制停止。"
+            )
+        else:
+            self.stop_report_btn.setToolTip("安全停止当前报告后台任务")
+        if superseded:
+            self.stop_report_btn.setToolTip(
+                "此窗口显示的是旧轮次；请重新打开最新任务后再操作。"
+            )
+        elif cleanup_pending:
+            self.stop_report_btn.setToolTip(
+                "报告结果已生成，后台进程正在退出清理，请稍候。"
+            )
+        if not superseded and not cleanup_pending and context.report.state != state:
             context.report.state = state
-            context.write(self.current_context_path)
+            persist_report_state(context)
             self.report_log.appendPlainText(
                 f"[{datetime.now():%H:%M:%S}] 报告状态："
                 f"{display_state} / {display_stage}；{display_message}"
@@ -1048,7 +1135,7 @@ class WorkbenchWindow(QMainWindow):
             visual = status.get("qc", {}).get("visual", {}) if isinstance(status.get("qc"), dict) else {}
             visual_qc_dir = str(visual.get("output_dir") or "") if isinstance(visual, dict) else ""
             visual_contact_sheet = str(visual.get("contact_sheet") or "") if isinstance(visual, dict) else ""
-            if (
+            if not cleanup_pending and (
                 context.report.output_docx != output_docx
                 or context.report.output_pdf != output_pdf
                 or context.report.manifest_path != report_manifest
@@ -1064,12 +1151,12 @@ class WorkbenchWindow(QMainWindow):
                 context.report.visual_qc_dir = visual_qc_dir
                 context.report.visual_contact_sheet = visual_contact_sheet
                 context.report.pid = None
-                context.write(self.current_context_path)
+                persist_report_state(context)
             self._show_report_qc(status)
-        elif state == "failed":
+        elif state == "failed" and not cleanup_pending:
             context.report.pid = None
             context.report.qc_state = "failed"
-            context.write(self.current_context_path)
+            persist_report_state(context)
             error = str(status.get("error") or message)
             display_error = operator_friendly_text(error)
             if display_error and display_error not in self.report_log.toPlainText():
@@ -1165,31 +1252,15 @@ class WorkbenchWindow(QMainWindow):
         )
         if answer != QMessageBox.Yes:
             return
-        self.current_context.analysis.manifest_path = str(path.resolve())
-        summary = load_manifest_summary(path)
-        issues = manifest_context_issues(
-            summary,
-            bridge_id=self.current_context.bridge_id,
-            data_root=Path(self.current_context.data_root),
-            start_date=self.current_context.start_date,
-            end_date=self.current_context.end_date,
-            config_path=Path(self.current_context.config_path),
-            config_sha256=self.current_context.config_sha256,
-        )
-        if issues:
-            QMessageBox.critical(self, "分析结果与任务不一致", "\n".join(f"- {item}" for item in issues))
-            self.current_context.analysis.manifest_path = ""
-            return
-        self.current_context.analysis.state = "completed" if summary.status.lower() in SUCCESS_STATES else summary.status.lower()
-        self.current_context_path = self.current_context.write()
-        self._load_manifest(path)
+        if self._load_manifest(path, allow_rebind=True):
+            self.current_context_path = self.current_context.context_path
 
-    def _load_manifest(self, path: Path) -> None:
+    def _load_manifest(self, path: Path, *, allow_rebind: bool = False) -> bool:
         try:
             summary = load_manifest_summary(path)
         except Exception as exc:  # noqa: BLE001
             self._show_exception("读取分析结果清单失败", exc)
-            return
+            return False
         if self.current_context is not None:
             issues = manifest_context_issues(
                 summary,
@@ -1203,18 +1274,45 @@ class WorkbenchWindow(QMainWindow):
             if issues:
                 self._reset_review_state()
                 self._append_log("分析结果与当前任务不一致：" + "; ".join(issues))
-                return
+                return False
             actual_hash = file_sha256(path)
             pinned_hash = self.current_context.analysis.manifest_sha256
-            if pinned_hash and pinned_hash != actual_hash:
+            if pinned_hash and pinned_hash != actual_hash and not allow_rebind:
                 self._reset_review_state()
                 self._append_log(
                     f"分析结果清单已发生变化，需重新审核：expected={pinned_hash}, actual={actual_hash}"
                 )
-                return
-            self.current_context.analysis.manifest_path = str(path.resolve())
-            self.current_context.analysis.manifest_sha256 = actual_hash
-            self.current_context.write()
+                return False
+            stored_path = str(self.current_context.analysis.manifest_path or "")
+            binding_changed = (
+                not pinned_hash
+                or pinned_hash != actual_hash
+                or not stored_path
+                or Path(stored_path).expanduser().resolve() != path.resolve()
+            )
+            invalidate_approval = bool(binding_changed)
+            if binding_changed:
+                state = (
+                    "completed"
+                    if summary.status.lower() in SUCCESS_STATES
+                    else summary.status.lower()
+                )
+                if not bind_analysis_manifest(
+                    self.current_context,
+                    path,
+                    actual_hash,
+                    analysis_state=state,
+                    invalidate_report_approval=invalidate_approval,
+                ):
+                    self._reset_review_state(clear_context_approval=False)
+                    self._append_log(
+                        "任务方案已被其他窗口更新，未采用新的分析结果；请重新打开任务后再试。"
+                    )
+                    return False
+                if invalidate_approval:
+                    self._append_log(
+                        "已绑定新的分析结果指纹；原有图件审核已失效，请重新审核。"
+                    )
         self.current_manifest = summary
         selected = self.current_context.selected_modules if self.current_context is not None else []
         self.current_manifest_missing_selected = summary.missing_selected_modules(selected)
@@ -1291,6 +1389,7 @@ class WorkbenchWindow(QMainWindow):
         ):
             self.approval_check.setChecked(False)
         self._update_report_gate()
+        return True
 
     def _reset_review_state(self, *, clear_context_approval: bool = True) -> None:
         if clear_context_approval and self.current_context is not None:
@@ -1302,10 +1401,10 @@ class WorkbenchWindow(QMainWindow):
                 context.report.state = "blocked"
             persisted_path = self.current_context_path or context.context_path
             if changed and persisted_path.is_file():
-                try:
-                    context.write(persisted_path)
-                except OSError as exc:
-                    self._append_log(f"无法保存已失效的图件审核状态：{exc}")
+                if not persist_report_state(context):
+                    self._append_log(
+                        "任务方案已被其他窗口更新，未覆盖其图件审核状态；请重新打开任务。"
+                    )
         self.current_manifest = None
         self.current_provenance = None
         self.current_manifest_missing_selected = ()
@@ -1327,14 +1426,26 @@ class WorkbenchWindow(QMainWindow):
             return
         self.current_context.report.plots_approved = self.approval_check.isChecked()
         self.current_context.report.state = "ready" if self.current_context.report_ready else "blocked"
-        self.current_context.write()
+        if not persist_report_state(self.current_context):
+            self.approval_check.blockSignals(True)
+            self.approval_check.setChecked(
+                bool(self.current_context.report.plots_approved)
+            )
+            self.approval_check.blockSignals(False)
+            self._append_log(
+                "任务方案已被其他窗口更新，本次审核状态未保存；请重新打开任务。"
+            )
         self._update_report_gate()
 
     def _update_report_gate(self) -> None:
         ready = self._report_gate_ready()
         running = bool(
             self.current_context
-            and self.current_context.report.state.lower() in {"launched", "running"}
+            and (
+                self.current_context.report.pid is not None
+                or self.current_context.report.state.lower()
+                in {"launching", "launched", "running", "stopping"}
+            )
         )
         self.open_report_btn.setEnabled(ready and not running)
         if ready:
@@ -1349,6 +1460,9 @@ class WorkbenchWindow(QMainWindow):
     def _report_gate_ready(self) -> bool:
         ui_ready = bool(
             self.current_context
+            and not self._analysis_context_superseded
+            and not self._report_context_superseded
+            and self.current_context.report.pid is None
             and self.current_context.report_ready
             and self.approval_check.isChecked()
             and self._context_matches_current_inputs(self.current_context)
@@ -1388,8 +1502,12 @@ class WorkbenchWindow(QMainWindow):
             actual_manifest_hash = file_sha256(manifest_path)
             if context.analysis.manifest_sha256 != actual_manifest_hash:
                 raise RuntimeError("分析结果清单在图件审核后发生变化，必须重新审核")
-            self.current_context_path = context.write()
-            launch = launch_report_job(context, self.current_context_path)
+            self.current_context_path = context.context_path
+            launch = launch_report_job(
+                context,
+                self.current_context_path,
+                runtime_root=self.project_root,
+            )
             self.report_progress.setValue(0)
             self.report_progress_label.setText(f"launched；PID {launch.pid}")
             self.report_qc_table.setRowCount(0)
@@ -1409,10 +1527,23 @@ class WorkbenchWindow(QMainWindow):
         if self.current_context is None:
             return
         try:
-            terminate_report_job(self.current_context)
+            outcome = terminate_report_job(self.current_context)
             self.stop_report_btn.setEnabled(False)
-            self.report_progress_label.setText("stopped；已终止报告子进程")
-            self.report_log.appendPlainText(f"[{datetime.now():%H:%M:%S}] 已终止报告任务")
+            if outcome == "stopped":
+                self.report_progress_label.setText("已停止；报告后台主任务已退出")
+                message = "已停止报告后台主任务"
+            elif outcome.endswith("_cleanup_pending"):
+                state = outcome.removesuffix("_cleanup_pending")
+                self.report_progress_label.setText(
+                    f"{operator_state_label(state)}；结果已发布，后台正在退出清理"
+                )
+                message = "报告结果已先完成，正在等待后台退出清理"
+            else:
+                self.report_progress_label.setText(operator_state_label(outcome))
+                message = f"报告任务已是{operator_state_label(outcome)}状态"
+            self.report_log.appendPlainText(
+                f"[{datetime.now():%H:%M:%S}] {message}"
+            )
         except Exception as exc:  # noqa: BLE001
             self._show_exception("停止报告任务失败", exc)
 
@@ -1472,6 +1603,7 @@ class WorkbenchWindow(QMainWindow):
                 self.group_plot_editor.load_path(path)
                 self.plot_common_editor.load_path(path)
                 self.spectrum_editor.load_path(path)
+                self.unzip_settings_editor.load_path(path)
             except Exception as exc:  # noqa: BLE001
                 self._show_exception("加载高级配置失败", exc)
 
@@ -1495,6 +1627,7 @@ class WorkbenchWindow(QMainWindow):
                 self.group_plot_editor,
                 self.plot_common_editor,
                 self.spectrum_editor,
+                self.unzip_settings_editor,
             ):
                 try:
                     editor.load_path(saved_path)

@@ -85,11 +85,13 @@ classdef SpectrumAnalysisPipeline
                 bms.analyzer.SpectrumAnalysisPipeline.writePointSheet( ...
                     datesAll, freqDay, ampDay, forceSeries, targetFreqsPt, excelFile, spec.moduleKey, pid);
                 bms.analyzer.SpectrumAnalysisPipeline.plotFrequencyTimeseries( ...
-                    datesAll, freqDay, pid, targetFreqsPt, dirs.freqRoot, style, theorFreqsPt, theorLabelsPt, cfg, peakLabelsPt);
+                    datesAll, freqDay, pid, targetFreqsPt, dirs.freqRoot, style, ...
+                    theorFreqsPt, theorLabelsPt, cfg, peakLabelsPt, spec.moduleKey);
 
                 if spec.includeForce
                     bms.analyzer.SpectrumAnalysisPipeline.plotForceTimeseries( ...
-                        {datesAll}, {forceSeries}, {pid}, pid, dirs.forceRoot, style, forceYLim, {forceWarnLines}, cfg);
+                        {datesAll}, {forceSeries}, {pid}, pid, dirs.forceRoot, style, ...
+                        forceYLim, {forceWarnLines}, cfg, spec.moduleKey);
                 end
             end
 
@@ -98,13 +100,15 @@ classdef SpectrumAnalysisPipeline
                 bms.app.StopController.throwIfRequested('Stop requested before spectrum frequency groups');
                 bms.analyzer.SpectrumAnalysisPipeline.plotFrequencyGroups( ...
                     cfg, pointIds, datesAll, freqSeriesAll, freqValidAll, dirs.freqGroupRoot, style, ...
-                    spec.freqGroupKey, targetFreqsAll, peakLabelsAll, theorFreqsAll, theorLabelsAll);
+                    spec.freqGroupKey, targetFreqsAll, peakLabelsAll, theorFreqsAll, ...
+                    theorLabelsAll, spec.moduleKey);
             end
 
             if spec.includeForce
                 bms.app.StopController.throwIfRequested('Stop requested before spectrum force groups');
                 bms.analyzer.SpectrumAnalysisPipeline.plotCableForceGroups( ...
-                    cfg, pointIds, datesAll, forceSeriesAll, forceValidAll, dirs.forceGroupRoot, style);
+                    cfg, pointIds, datesAll, forceSeriesAll, forceValidAll, ...
+                    dirs.forceGroupRoot, style, spec.moduleKey);
             end
 
             fprintf('✓ 已输出 Excel -> %s\n', excelFile);

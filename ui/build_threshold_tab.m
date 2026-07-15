@@ -245,7 +245,8 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
             '- zero_to_nan: 勾选表示把数值为 0 视为缺失(NaN)。\n', ...
             '- outlier_window_sec: 移动窗长度(秒)，配合 threshold_factor 做 isoutlier(movmedian)；留空表示不启用。\n', ...
             '- outlier_threshold_factor: 异常阈值系数，越大越宽松；留空表示不启用。\n', ...
-            '- thresholds: 每行 min/max 为必填，时间窗可选，超限将置 NaN。\n', ...
+            '- thresholds: 每行 min/max 至少填写一个；只填 min 表示删除低于下限的数据，只填 max 表示删除高于上限的数据。\n', ...
+            '- 时间窗可选；填写时必须同时给出开始和结束，阈值仅在时间窗内生效。\n', ...
             '保存会先校验格式并自动备份。']);
         uialert(f, msg, '阈值配置说明');
     end
@@ -275,7 +276,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
         for i = 1:size(dData,1)
             mn = str2num_safe(dData{i,1});
             mx = str2num_safe(dData{i,2});
-            if isempty(mn) || isempty(mx), continue; end
+            if isempty(mn) && isempty(mx), continue; end
             t0 = strtrim(dData{i,3});
             t1 = strtrim(dData{i,4});
             ths(end+1) = make_threshold(mn, mx, t0, t1); %#ok<AGROW>
@@ -324,7 +325,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
             pidSafe = bms.data.PointResolver.configKey(pidOrig);
             mn = str2num_safe(pData{i,2});
             mx = str2num_safe(pData{i,3});
-            if isempty(mn) || isempty(mx), continue; end
+            if isempty(mn) && isempty(mx), continue; end
             t0 = strtrim(pData{i,4});
             t1 = strtrim(pData{i,5});
             th = make_threshold(mn, mx, t0, t1);
@@ -409,5 +410,7 @@ function th = build_threshold_tab(tabCfg, f, cfgCache, cfgPath, cfgEdit, addLog,
         end
     end
 
-    th = struct('grid', cfgGrid, 'perTable', perTable, 'onShow', @onShow, 'applyToCfg', @applyToCfg);
+    th = struct('grid', cfgGrid, 'sensorDrop', sensorDrop, ...
+        'defaultsTable', defaultsTable, 'perTable', perTable, ...
+        'onShow', @onShow, 'applyToCfg', @applyToCfg);
 end

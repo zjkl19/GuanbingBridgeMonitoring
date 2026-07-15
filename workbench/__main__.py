@@ -61,6 +61,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-report-job", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--report-status", type=Path, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--report-result", type=Path, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--report-launch-id", default="", help=argparse.SUPPRESS)
     parser.add_argument("--report-runtime-smoke-test", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--smoke-output", type=Path, default=None)
@@ -91,12 +92,17 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         window.group_plot_editor.summary_label.text(),
         window.plot_common_editor.summary_label.text(),
         window.spectrum_editor.summary_label.text(),
+        window.unzip_settings_editor.message_label.text(),
     )
     organization_logo = window.organization_logo_label.pixmap()
+    screen = window.screen() or QApplication.primaryScreen()
     return {
         "ok": True,
         "executable_filename": EXECUTABLE_FILENAME,
         "ui_font_point_size": window.font().pointSize(),
+        "ui_font_family": window.font().family(),
+        "screen_logical_dpi": screen.logicalDotsPerInch() if screen is not None else 0.0,
+        "device_pixel_ratio": window.devicePixelRatioF(),
         "version": app_version(window.project_root),
         "profile_count": len(window.profiles),
         "tab_count": window.tabs.count(),
@@ -110,6 +116,10 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "cleaning_threshold_row_count": window.cleaning_editor.table.rowCount(),
         "cleaning_exclude_editor_available": window.cleaning_editor.cleaning_tabs.count() == 2,
         "cleaning_exclude_range_count": window.cleaning_editor.exclude_table.rowCount(),
+        "manual_threshold_controls_available": (
+            window.cleaning_editor.lower_threshold_button.isEnabled()
+            and window.cleaning_editor.upper_threshold_button.isEnabled()
+        ),
         "config_tab_count": window.config_tabs.count(),
         "auto_threshold_module_count": window.auto_threshold_editor.module_list.count(),
         "auto_threshold_preview_enabled": bool(
@@ -122,9 +132,18 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "task_history_enabled": window.history_btn.isEnabled(),
         "task_history_column_count": window.task_history_page.table.columnCount(),
         "offset_correction_row_count": window.offset_editor.table.rowCount(),
+        "offset_correction_column_count": window.offset_editor.table.columnCount(),
+        "offset_effective_range_seconds_available": (
+            window.offset_editor.table.horizontalHeaderItem(5).text() == "生效开始时间"
+            and window.offset_editor.table.horizontalHeaderItem(6).text() == "生效结束时间"
+            and window.offset_editor.edit_effective_range_button.isEnabled()
+        ),
         "group_plot_module_count": window.group_plot_editor.module_combo.count(),
         "plot_common_field_count": window.plot_common_editor.table.rowCount(),
+        "gap_override_column_count": window.plot_common_editor.gap_table.columnCount(),
         "spectrum_module_count": window.spectrum_editor.module_combo.count(),
+        "unzip_worker_setting": window.unzip_settings_editor.requested_value(),
+        "unzip_settings_available": window.unzip_settings_editor.isEnabled(),
         "provenance_column_count": window.provenance_table.columnCount(),
         "report_qc_column_count": window.report_qc_table.columnCount(),
         "report_gate_locked": not window.open_report_btn.isEnabled(),
@@ -168,7 +187,12 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit("report worker mode requires job context, status and result paths")
         from .embedded_report import run_embedded_report_job
 
-        return run_embedded_report_job(args.job_context, args.report_status, args.report_result)
+        return run_embedded_report_job(
+            args.job_context,
+            args.report_status,
+            args.report_result,
+            args.report_launch_id,
+        )
     if args.install_staged_update:
         if args.install_source is None or args.install_root is None or not args.install_version:
             raise SystemExit("install mode requires source, root and version")

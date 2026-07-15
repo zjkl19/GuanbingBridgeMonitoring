@@ -20,6 +20,8 @@ from report_job import (
     REPORT_TYPE_NAMES,
     ReportJobRequest,
     _broken_reference_hits,
+    _report_manifest_snapshot,
+    _select_new_report_build_manifest,
     build_qc,
     execute_report_job,
 )
@@ -348,9 +350,10 @@ class WorkbenchReportTaskTests(unittest.TestCase):
 
                 with ExitStack() as stack:
                     stack.enter_context(patch(builder_target, return_value=builder_result))
-                    stack.enter_context(
-                        patch("report_job.find_latest_report_build_manifest", return_value=manifest)
-                    )
+                    if report_type == "jlj_monthly":
+                        stack.enter_context(
+                            patch("report_job._select_new_report_build_manifest", return_value=manifest)
+                        )
                     export_mock = stack.enter_context(
                         patch("report_job.export_authoritative_word_pdf", return_value=export_result)
                     )
@@ -393,7 +396,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             with patch(
                 "report_job.build_shuixianhua_monthly_report", return_value=(report, pdf)
             ), patch(
-                "report_job.find_latest_report_build_manifest", return_value=manifest
+                "report_job._select_new_report_build_manifest", return_value=manifest
             ), patch(
                 "report_job.export_authoritative_word_pdf"
             ) as export_mock, patch(
@@ -404,6 +407,102 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             export_mock.assert_not_called()
             self.assertEqual(result.pdf_path, pdf.resolve())
             self.assertEqual(result.qc["pdf"]["export"]["source"], "builder_word_pdf")
+
+    def test_docx_only_builders_bind_manifest_created_by_current_run(self) -> None:
+        cases = (
+            ("jlj_monthly", "report_job.build_jlj_monthly_report", False),
+            ("shuixianhua_monthly", "report_job.build_shuixianhua_monthly_report", True),
+        )
+        for report_type, builder_target, builder_returns_pdf in cases:
+            with self.subTest(report_type=report_type), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                template = create_minimal_docx(root / "template.docx")
+                config = root / "config.json"
+                config.write_text("{}", encoding="utf-8")
+                output = root / "output"
+                output.mkdir()
+                report = create_minimal_docx(output / "current.docx", color="blue")
+                stale_report = create_minimal_docx(output / "stale.docx", color="red")
+                pdf = self._write_valid_pdf(output / "current.pdf")
+                stale_manifest = output / "jlj_report_build_manifest_20991231_235959.json"
+                stale_manifest.write_text(
+                    json.dumps({
+                        "manifest_type": "report_build",
+                        "status": "ok",
+                        "missing_count": 0,
+                        "warnings": [],
+                        "output_docx": str(stale_report),
+                    }),
+                    encoding="utf-8",
+                )
+                future = 4_102_444_799
+                os.utime(stale_manifest, (future, future))
+                current_manifest = output / f"{report_type}_report_build_manifest_20260715_120000.json"
+                if builder_returns_pdf:
+                    # Cover the same-second filename collision too: the
+                    # current build may overwrite a manifest path that was
+                    # already present in the reused output directory.
+                    current_manifest.write_text(
+                        json.dumps({
+                            "manifest_type": "report_build",
+                            "status": "ok",
+                            "missing_count": 0,
+                            "warnings": [],
+                            "output_docx": str(stale_report),
+                        }),
+                        encoding="utf-8",
+                    )
+
+                def builder(**_kwargs):
+                    current_manifest.write_text(
+                        json.dumps({
+                            "manifest_type": "report_build",
+                            "status": "ok",
+                            "missing_count": 0,
+                            "warnings": [],
+                            "output_docx": str(report),
+                            "output_docx_sha256": file_sha256(report),
+                        }),
+                        encoding="utf-8",
+                    )
+                    return (report, pdf) if builder_returns_pdf else report
+
+                request = ReportJobRequest(
+                    report_type, template, config, root, ROOT, output,
+                    "2026年5月", "2026年5月1日至2026年5月31日", "2026年6月1日",
+                    "2026-05-01", "2026-05-31",
+                )
+                visual = {
+                    "status": "passed", "page_count": 1, "pages": [],
+                    "renderer": "authoritative_pdf", "pdf_authoritative": True,
+                    "pdf_path": str(pdf),
+                }
+                with patch(builder_target, side_effect=builder), patch(
+                    "report_job.export_authoritative_word_pdf",
+                    return_value=WordPdfExportResult(pdf, "passed", authoritative=True),
+                ), patch("report_job.render_docx_visual_qc", return_value=visual):
+                    result = execute_report_job(request)
+
+                self.assertEqual(result.manifest_path, current_manifest.resolve())
+                self.assertGreater(stale_manifest.stat().st_mtime_ns, current_manifest.stat().st_mtime_ns)
+
+    def test_current_run_manifest_rejects_wrong_output_sha256(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)
+            report = create_minimal_docx(output / "current.docx", color="blue")
+            before = _report_manifest_snapshot(output)
+            manifest = output / "jlj_report_build_manifest_20260715_120000.json"
+            manifest.write_text(
+                json.dumps({
+                    "manifest_type": "report_build",
+                    "output_docx": str(report),
+                    "output_docx_sha256": "0" * 64,
+                }),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(FileNotFoundError, "output SHA-256 mismatch"):
+                _select_new_report_build_manifest(output, report, before)
 
     def test_libreoffice_fallback_remains_preview_only(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
@@ -485,7 +584,9 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                 "contact_sheet": "contact.png", "renderer": "authoritative_pdf",
                 "pdf_authoritative": True, "pdf_path": str(pdf),
             }
-            with patch("report_job.build_guanbing_monthly_report", side_effect=strict_builder), patch(
+            with patch("report_job.raise_for_template"), patch(
+                "report_job.build_guanbing_monthly_report", side_effect=strict_builder
+            ), patch(
                 "report_job.render_docx_visual_qc", return_value=visual
             ), patch(
                 "report_job.export_authoritative_word_pdf",
@@ -569,7 +670,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             )
             visual = {"status": "passed", "page_count": 1, "pages": []}
 
-            with patch(
+            with patch("report_job.raise_for_template"), patch(
                 "report_job.build_guanbing_monthly_report", return_value=(report, None)
             ), patch("report_job.render_docx_visual_qc", return_value=visual):
                 with self.assertRaisesRegex(FileNotFoundError, "real report build manifest"):

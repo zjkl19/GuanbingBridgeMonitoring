@@ -16,7 +16,17 @@ from workbench.version import app_version
 class WorkbenchModelTests(unittest.TestCase):
     def test_version_uses_single_project_file(self) -> None:
         root = Path(__file__).resolve().parents[1]
-        self.assertEqual(app_version(root), "v1.8.0")
+        expected = (root / "VERSION").read_text(encoding="utf-8-sig").strip()
+        self.assertEqual(app_version(root), expected)
+
+    def test_version_fallback_covers_missing_and_empty_version_file(self) -> None:
+        from workbench.version import DEFAULT_VERSION
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self.assertEqual(app_version(root), DEFAULT_VERSION)
+            (root / "VERSION").write_text("\ufeff\n", encoding="utf-8")
+            self.assertEqual(app_version(root), DEFAULT_VERSION)
 
     def test_profile_catalog_matches_shared_json(self) -> None:
         root = Path(__file__).resolve().parents[1]
@@ -24,6 +34,7 @@ class WorkbenchModelTests(unittest.TestCase):
         raw = json.loads((root / "config" / "bridge_profiles.json").read_text(encoding="utf-8"))
         self.assertEqual([item.bridge_id for item in profiles], [item["bridge_id"] for item in raw["profiles"]])
         self.assertEqual(next(item for item in profiles if item.bridge_id == "zhishan").enabled_modules[0], "strain")
+        self.assertTrue(all(item.optional_modules == ("cache_prebuild",) for item in profiles))
 
     def test_module_options_are_complete_and_reject_unknown_keys(self) -> None:
         options = options_for_modules(["temperature", "acceleration"])
@@ -31,6 +42,9 @@ class WorkbenchModelTests(unittest.TestCase):
         self.assertTrue(options["doTemp"])
         self.assertTrue(options["doAccel"])
         self.assertFalse(options["doWind"])
+        self.assertFalse(options["doCachePrebuild"])
+        cache_options = options_for_modules(["cache_prebuild"])
+        self.assertTrue(cache_options["doCachePrebuild"])
         with self.assertRaisesRegex(ValueError, "Unknown analysis modules"):
             options_for_modules(["not-a-module"])
 
@@ -39,6 +53,7 @@ class WorkbenchModelTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1] / "workbench" / "assets" / "module_icons"
         self.assertTrue(all((root / spec.icon_asset).is_file() for spec in MODULE_SPECS))
         expected = {
+            "cache_prebuild": "cache-prebuild.svg",
             "lowfreq_sync": "acquisition-sync.svg",
             "temperature": "thermometer.svg",
             "rainfall": "rainfall.svg",
@@ -133,9 +148,59 @@ class WorkbenchModelTests(unittest.TestCase):
 
             migrated = JobContext.from_dict(payload)
 
-            self.assertEqual(migrated.schema_version, 2)
+            self.assertEqual(migrated.schema_version, 3)
             self.assertEqual(migrated.report.derived_artifact_manifest_path, "")
             self.assertEqual(migrated.report.derived_artifact_manifest_sha256, "")
+
+    def test_job_context_follows_opened_and_save_as_paths_without_serializing_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            config = root / "config.json"
+            config.write_text("{}", encoding="utf-8")
+            context = JobContext.create(
+                project_root=root,
+                bridge_id="unit",
+                bridge_name="unit",
+                data_root=root / "data",
+                start_date="2026-01-01",
+                end_date="2026-01-01",
+                config_path=config,
+                selected_modules=["temperature"],
+                options=options_for_modules(["temperature"]),
+            )
+            original = context.write()
+            original_payload = json.loads(original.read_text(encoding="utf-8"))
+            self.assertNotIn("_persistence_path", original_payload)
+
+            opened_copy = root / "opened_elsewhere" / "renamed_context.json"
+            opened_copy.parent.mkdir()
+            opened_copy.write_text(
+                json.dumps(original_payload, ensure_ascii=False), encoding="utf-8"
+            )
+            loaded = JobContext.read(opened_copy)
+            loaded.analysis.state = "completed"
+            self.assertEqual(loaded.write(), opened_copy.resolve())
+            self.assertEqual(
+                json.loads(opened_copy.read_text(encoding="utf-8"))["analysis"]["state"],
+                "completed",
+            )
+            self.assertEqual(
+                json.loads(original.read_text(encoding="utf-8"))["analysis"]["state"],
+                "draft",
+            )
+
+            saved_as = root / "saved_as" / "job.json"
+            loaded.analysis.state = "stopped"
+            self.assertEqual(loaded.write(saved_as), saved_as.resolve())
+            loaded.analysis.state = "failed"
+            self.assertEqual(loaded.write(), saved_as.resolve())
+            saved_payload = json.loads(saved_as.read_text(encoding="utf-8"))
+            self.assertEqual(saved_payload["analysis"]["state"], "failed")
+            self.assertNotIn("_persistence_path", saved_payload)
+            self.assertEqual(
+                json.loads(opened_copy.read_text(encoding="utf-8"))["analysis"]["state"],
+                "completed",
+            )
 
     def test_job_context_rejects_reversed_date_range(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

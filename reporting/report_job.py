@@ -16,8 +16,8 @@ from build_shuixianhua_monthly_report import build_report as build_shuixianhua_m
 from build_zhishan_monthly_report import build_report as build_zhishan_monthly_report
 from analysis_manifest import pinned_analysis_manifest_scope, pinned_derived_artifact_manifest_scope
 from missing_summary import missing_summary_paths
-from report_build_manifest import find_latest_report_build_manifest
 from report_visual_qc import render_docx_visual_qc
+from template_precheck import raise_for_template
 from word_pdf_export import export_authoritative_word_pdf
 
 
@@ -28,6 +28,17 @@ REPORT_TYPE_NAMES = {
     "guanbing_monthly": "管柄月报",
     "shuixianhua_monthly": "水仙花月报",
     "zhishan_monthly": "芝山月报",
+}
+
+# The period and Jiulongjiang builders already perform their own conditional
+# prechecks because their required anchors depend on the generated section
+# manifest.  These three legacy monthly builders did not, so the unified strict
+# worker must fail before writing a report when their template contract is not
+# satisfied.
+STRICT_TEMPLATE_PRECHECK_KINDS = {
+    "guanbing_monthly": "guanbing_monthly",
+    "shuixianhua_monthly": "shuixianhua_monthly",
+    "zhishan_monthly": "zhishan_monthly",
 }
 ProgressCallback = Callable[[str, float, str], None]
 
@@ -239,6 +250,141 @@ def _ensure_report_manifest(
     return path
 
 
+def _require_builder_output(
+    path: Path | str,
+    output_dir: Path,
+    *,
+    label: str,
+    strict_containment: bool,
+) -> Path:
+    """Reject a missing or stale builder result before export/rendering.
+
+    Strict workbench jobs must only consume artifacts published into their
+    dedicated output directory.  This prevents a buggy builder from returning
+    a still-valid report from an earlier month elsewhere on disk.
+    """
+
+    resolved = Path(path).expanduser().resolve()
+    if not resolved.is_file():
+        raise FileNotFoundError(f"{label} does not exist: {resolved}")
+    if strict_containment:
+        allowed = output_dir.expanduser().resolve()
+        try:
+            resolved.relative_to(allowed)
+        except ValueError as exc:
+            raise ValueError(f"{label} is outside output_dir: {resolved}") from exc
+    return resolved
+
+
+def _report_manifest_candidates(output_dir: Path) -> tuple[Path, ...]:
+    """Return the manifest filenames used by the legacy monthly builders."""
+
+    candidates = {
+        path.resolve()
+        for pattern in ("*report_build_manifest_*.json", "*_manifest_*.json")
+        for path in output_dir.glob(pattern)
+        if path.is_file()
+    }
+    return tuple(sorted(candidates, key=lambda path: str(path).casefold()))
+
+
+def _report_manifest_snapshot(output_dir: Path) -> dict[Path, tuple[int, int, str]]:
+    """Fingerprint manifests so a reused output directory cannot leak an old one."""
+
+    snapshot: dict[Path, tuple[int, int, str]] = {}
+    for path in _report_manifest_candidates(output_dir):
+        stat = path.stat()
+        snapshot[path] = (stat.st_mtime_ns, stat.st_size, _sha256(path))
+    return snapshot
+
+
+def _manifest_output_paths(value: Any, manifest_path: Path) -> tuple[Path, ...]:
+    raw = str(value or "").strip()
+    if not raw:
+        raise ValueError(f"report build manifest has no output_docx: {manifest_path}")
+    output = Path(raw).expanduser()
+    if output.is_absolute():
+        return (output.resolve(),)
+    # Existing builders serialize ``str(output_docx)``.  With a relative
+    # output_dir that value is relative to the worker cwd; a basename-only
+    # legacy manifest is relative to the manifest directory.  Accept exactly
+    # those two interpretations and still require one to equal report_path.
+    return tuple(dict.fromkeys((output.resolve(), (manifest_path.parent / output).resolve())))
+
+
+def _manifest_output_sha256(payload: dict[str, Any]) -> str:
+    for key in ("output_docx_sha256", "output_sha256", "docx_sha256"):
+        value = str(payload.get(key) or "").strip()
+        if value:
+            return value.upper()
+    return ""
+
+
+def _select_new_report_build_manifest(
+    output_dir: Path,
+    report_path: Path,
+    before: dict[Path, tuple[int, int, str]],
+) -> Path:
+    """Bind a docx-only builder to the manifest written by this invocation.
+
+    Jiulongjiang and Shuixianhua do not return their manifest path.  Selecting
+    the newest file is unsafe when an output directory is reused, because an
+    old manifest may have a later timestamp.  Only files created or modified
+    after the pre-build snapshot are eligible, and their declared output must
+    be the exact report returned by the builder.
+    """
+
+    expected_report = report_path.expanduser().resolve()
+    actual_report_sha256 = ""
+    matching: list[Path] = []
+    changed: list[Path] = []
+    mismatches: list[str] = []
+    for candidate in _report_manifest_candidates(output_dir):
+        stat = candidate.stat()
+        fingerprint = (stat.st_mtime_ns, stat.st_size, _sha256(candidate))
+        if before.get(candidate) == fingerprint:
+            continue
+        changed.append(candidate)
+        try:
+            payload = json.loads(candidate.read_text(encoding="utf-8-sig"))
+            if not isinstance(payload, dict):
+                raise ValueError("manifest root is not an object")
+            manifest_type = str(payload.get("manifest_type") or "").strip()
+            if manifest_type and manifest_type != "report_build":
+                raise ValueError(f"unexpected manifest_type={manifest_type!r}")
+            declared_reports = _manifest_output_paths(payload.get("output_docx"), candidate)
+            if expected_report not in declared_reports:
+                declared_text = ", ".join(str(path) for path in declared_reports)
+                mismatches.append(f"{candidate.name} -> {declared_text}")
+                continue
+            expected_sha256 = _manifest_output_sha256(payload)
+            if expected_sha256:
+                if not actual_report_sha256:
+                    actual_report_sha256 = _sha256(expected_report)
+                if expected_sha256 != actual_report_sha256:
+                    raise ValueError(
+                        "report build manifest output SHA-256 mismatch: "
+                        f"{candidate}; expected {expected_sha256}, got {actual_report_sha256}"
+                    )
+            matching.append(candidate)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            mismatches.append(f"{candidate.name}: {exc}")
+
+    if len(matching) == 1:
+        return matching[0]
+    if len(matching) > 1:
+        names = ", ".join(path.name for path in matching)
+        raise RuntimeError(
+            "builder wrote multiple report manifests for the same DOCX; "
+            f"cannot bind unambiguously: {names}"
+        )
+    detail = "; ".join(mismatches[:10]) or "no new or modified manifest was found"
+    raise FileNotFoundError(
+        "builder did not publish a new report manifest bound to its DOCX "
+        f"({expected_report}); changed={len(changed)}; {detail}"
+    )
+
+
 def execute_report_job(request: ReportJobRequest, progress: ProgressCallback | None = None) -> ReportJobResult:
     with pinned_analysis_manifest_scope(
         request.analysis_manifest_path,
@@ -266,8 +412,16 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
     report_type = request.report_type
     if report_type not in REPORT_TYPE_NAMES:
         raise ValueError(f"unsupported report type: {report_type or '<empty>'}")
+    template_kind = STRICT_TEMPLATE_PRECHECK_KINDS.get(report_type)
+    if request.require_source_provenance and template_kind:
+        raise_for_template(template_kind, request.template)
     emit("building", 0.15, f"正在生成{REPORT_TYPE_NAMES[report_type]}")
     manifest_path: Path | None = None
+    manifest_snapshot = (
+        _report_manifest_snapshot(request.output_dir)
+        if report_type in {"jlj_monthly", "shuixianhua_monthly"}
+        else {}
+    )
     pdf_path: Path | None = None
     missing: list[Any] = []
     if report_type == "hongtang_period_wim":
@@ -292,7 +446,11 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
             period_label=request.period_label, monitoring_range=request.monitoring_range,
             report_date=request.report_date, patrol_docx=None,
         )
-        manifest_path = find_latest_report_build_manifest(request.output_dir)
+        manifest_path = _select_new_report_build_manifest(
+            request.output_dir,
+            Path(report_path),
+            manifest_snapshot,
+        )
     elif report_type == "guanbing_monthly":
         report_path, manifest_path = build_guanbing_monthly_report(
             template=request.template, config_path=request.config_path,
@@ -308,7 +466,11 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
             report_date=request.report_date, start_date=request.start_date,
             end_date=request.end_date,
         )
-        manifest_path = find_latest_report_build_manifest(request.output_dir)
+        manifest_path = _select_new_report_build_manifest(
+            request.output_dir,
+            Path(report_path),
+            manifest_snapshot,
+        )
     elif report_type == "zhishan_monthly":
         report_path, manifest_path = build_zhishan_monthly_report(
             template=request.template, config_path=request.config_path,
@@ -323,9 +485,32 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
             output_dir=request.output_dir, period_label=request.period_label,
             monitoring_range=request.monitoring_range, report_date=request.report_date,
         )
-    report_path = Path(report_path).resolve()
-    manifest_path = Path(manifest_path).resolve() if manifest_path else None
-    pdf_path = Path(pdf_path).resolve() if pdf_path else None
+    report_path = _require_builder_output(
+        report_path,
+        request.output_dir,
+        label="report DOCX",
+        strict_containment=request.require_source_provenance,
+    )
+    manifest_path = (
+        _require_builder_output(
+            manifest_path,
+            request.output_dir,
+            label="report build manifest",
+            strict_containment=request.require_source_provenance,
+        )
+        if manifest_path
+        else None
+    )
+    pdf_path = (
+        _require_builder_output(
+            pdf_path,
+            request.output_dir,
+            label="report PDF",
+            strict_containment=request.require_source_provenance,
+        )
+        if pdf_path
+        else None
+    )
     pdf_export: dict[str, Any] = {}
     if pdf_path is not None and pdf_path.is_file():
         pdf_export = {

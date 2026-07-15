@@ -276,9 +276,11 @@ classdef DynamicSeriesService
             perDayMax = max(100, round(perDayMax));
         end
 
-        function opts = rawPlotOptions(cfg, defaultValue)
+        function opts = rawPlotOptions(cfg, defaultValue, moduleKey, pointId)
             if nargin < 2 || isempty(defaultValue), defaultValue = 50000; end
-            opts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            if nargin < 3, moduleKey = ''; end
+            if nargin < 4, pointId = ''; end
+            opts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg, moduleKey, pointId);
             opts.fig_max_points = bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, defaultValue);
             opts.raw_render_mode = bms.analyzer.DynamicSeriesService.rawPlotRenderMode(cfg, 'line');
             opts.raw_band_bins = bms.analyzer.DynamicSeriesService.rawPlotBandBins(cfg, 24000);

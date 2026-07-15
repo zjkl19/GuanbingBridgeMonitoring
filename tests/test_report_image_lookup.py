@@ -2,6 +2,7 @@ from pathlib import Path
 import sys
 import tempfile
 import time
+import unittest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +50,16 @@ def test_guanbing_deflection_split_dirs_are_looked_up_directly():
 
         assert find_guanbing_image(root, "时程曲线_挠度_组图_原始", "Defl_G1_Orig") == raw
         assert find_guanbing_image(root, "时程曲线_挠度_组图_滤波", "Defl_G1_Filt") == filt
+
+
+def load_tests(loader, tests, pattern):
+    del loader, tests, pattern
+    return unittest.TestSuite(
+        [
+            unittest.FunctionTestCase(test_stable_image_name_is_accepted_by_report_finders),
+            unittest.FunctionTestCase(test_guanbing_deflection_split_dirs_are_looked_up_directly),
+        ]
+    )
 
 
 if __name__ == "__main__":

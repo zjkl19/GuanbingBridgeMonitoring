@@ -10,14 +10,30 @@ class ModuleSpec:
     label: str
     category: str = "analysis"
     icon_asset: str = ""
+    description: str = ""
 
 
 MODULE_SPECS: tuple[ModuleSpec, ...] = (
     ModuleSpec("zip_precheck", "precheck_zip_count", "预检查压缩包数量", "preprocess", "archive-check.svg"),
-    ModuleSpec("unzip", "doUnzip", "批量解压", "preprocess", "archive-extract.svg"),
+    ModuleSpec(
+        "unzip",
+        "doUnzip",
+        "批量解压",
+        "preprocess",
+        "archive-extract.svg",
+        "安全解压并校验 ZIP；并发数量可在“配置与预警值 → 解压并发”中设置。",
+    ),
     ModuleSpec("rename_csv", "doRenameCsv", "批量重命名CSV", "preprocess", "document-rename.svg"),
     ModuleSpec("remove_header", "doRemoveHeader", "批量去除表头", "preprocess", "table-header-remove.svg"),
     ModuleSpec("resample", "doResample", "批量重采样", "preprocess", "resample.svg"),
+    ModuleSpec(
+        "cache_prebuild",
+        "doCachePrebuild",
+        "预生成分析缓存",
+        "preprocess",
+        "cache-prebuild.svg",
+        "按桥梁数据格式选择缓存方式；只读取配置中分析模块实际使用的已解压 CSV，生成或复用 MAT 分析缓存，不删除源数据。",
+    ),
     ModuleSpec("lowfreq_sync", "doLowfreqSync", "基康低频同步", "preprocess", "acquisition-sync.svg"),
     ModuleSpec("temperature", "doTemp", "温度分析", icon_asset="thermometer.svg"),
     ModuleSpec("humidity", "doHumidity", "湿度分析", icon_asset="droplet.svg"),

@@ -32,6 +32,7 @@ classdef test_bridge_profile < matlab.unittest.TestCase
             tc.verifyTrue(ismember('cable_accel_spectrum', z.EnabledModuleHints));
             tc.verifyTrue(ismember('dynamic_strain_lowpass', z.EnabledModuleHints));
             tc.verifyFalse(ismember('cable_force', z.EnabledModuleHints));
+            tc.verifyEqual(z.OptionalModuleHints, {'cache_prebuild'});
         end
 
         function registryInfersFromConfigSource(tc)
@@ -42,6 +43,12 @@ classdef test_bridge_profile < matlab.unittest.TestCase
             cfg = struct('vendor', 'zhishan');
             p = bms.profile.BridgeProfileRegistry.infer(cfg, 'D:\芝山大桥数据\2026年3月');
             tc.verifyEqual(p.BridgeId, 'zhishan');
+        end
+
+        function registryInfersJiulongjiangFromVendor(tc)
+            cfg = struct('vendor', 'jiulongjiang');
+            p = bms.profile.BridgeProfileRegistry.infer(cfg, 'E:\isolated-candidate');
+            tc.verifyEqual(p.BridgeId, 'jiulongjiang');
         end
 
         function legacyMachineConfigPatternCannotOverrideCanonicalConfig(tc)

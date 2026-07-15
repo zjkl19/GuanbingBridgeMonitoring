@@ -642,20 +642,20 @@ classdef CleaningPipeline
             if nargin < 2
                 isStart = true;
             end
+            dateOnly = false;
             if isdatetime(value)
                 t = value;
             else
-                txt = char(string(value));
+                txt = strtrim(char(string(value)));
+                dateOnly = ~isempty(regexp(txt, '^\d{4}-\d{2}-\d{2}$', 'once'));
                 try
                     t = datetime(txt, 'InputFormat', 'yyyy-MM-dd HH:mm:ss');
                 catch
                     t = datetime(txt, 'InputFormat', 'yyyy-MM-dd');
                 end
             end
-            if ~isStart
-                if hour(t) == 0 && minute(t) == 0 && second(t) == 0
-                    t = dateshift(t, 'start', 'day') + days(1) - seconds(1);
-                end
+            if ~isStart && dateOnly
+                t = dateshift(t, 'start', 'day') + days(1) - seconds(1);
             end
         end
 

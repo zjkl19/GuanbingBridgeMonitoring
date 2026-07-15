@@ -144,6 +144,52 @@ classdef test_cleaning_pipeline < matlab.unittest.TestCase
             tc.verifyEqual(log.offset_correction, 5, 'AbsTol', 1e-12);
         end
 
+        function appliesFixedOffsetWithinSecondPrecisionRange(tc)
+            t = datetime(2026,5,1,12,0,0) + seconds(0:4)';
+            v = 10 * ones(5, 1);
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.offset_correction = struct( ...
+                'mode', 'fixed', ...
+                'value', 5, ...
+                'start_date', '2026-05-01 12:00:02', ...
+                'end_date', '2026-05-01 12:00:03');
+
+            [out, log] = bms.data.CleaningPipeline.apply(v, t, rules);
+
+            tc.verifyEqual(out, [10; 10; 15; 15; 10], 'AbsTol', 1e-12);
+            tc.verifyTrue(log.offset_applied);
+        end
+
+        function explicitMidnightOffsetEndRemainsExact(tc)
+            t = datetime(2026,5,1,0,0,0) + seconds(0:2)';
+            v = 10 * ones(3, 1);
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.offset_correction = struct( ...
+                'mode', 'fixed', ...
+                'value', 5, ...
+                'start_date', '2026-05-01 00:00:00', ...
+                'end_date', '2026-05-01 00:00:00');
+
+            out = bms.data.CleaningPipeline.apply(v, t, rules);
+
+            tc.verifyEqual(out, [15; 10; 10], 'AbsTol', 1e-12);
+        end
+
+        function dateOnlyOffsetEndStillIncludesWholeDay(tc)
+            t = datetime(2026,5,1,0,0,0) + hours([0; 12; 24]);
+            v = 10 * ones(3, 1);
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.offset_correction = struct( ...
+                'mode', 'fixed', ...
+                'value', 5, ...
+                'start_date', '2026-05-01', ...
+                'end_date', '2026-05-01');
+
+            out = bms.data.CleaningPipeline.apply(v, t, rules);
+
+            tc.verifyEqual(out, [15; 15; 10], 'AbsTol', 1e-12);
+        end
+
         function dailyMedianOffsetKeepsInputShape(tc)
             t = datetime(2026,3,3,0,0,0) + minutes(0:2);
             v = [100 102 104];

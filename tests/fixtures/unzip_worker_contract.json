@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "default_workers": 1,
+  "auto_token": "auto",
+  "auto_max_workers": 2,
+  "max_custom_workers": 64,
+  "preset_workers": [1, 2, 4],
+  "summary_fields": [
+    "worker_mode",
+    "requested_workers",
+    "resolved_workers",
+    "effective_workers",
+    "parallel_fallback",
+    "parallel_fallback_reason"
+  ]
+}

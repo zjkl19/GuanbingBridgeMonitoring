@@ -49,6 +49,32 @@ classdef test_precheck_zip_count < matlab.unittest.TestCase
             end
             tc.verifyTrue(didThrow);
         end
+
+        function rootDailyZipIsActuallyChecked(tc)
+            day = '2026-05-29';
+            tc.createZip(fullfile(tc.TempRoot, ['data_jlj_' day '.zip']));
+            cfg = struct('vendor', 'jiulongjiang');
+            result = precheck_zip_count(tc.TempRoot, day, day, cfg);
+            tc.verifyEqual(result.archive_count, 1);
+            tc.verifyEqual(result.layout, 'daily_export');
+        end
+
+        function rootDailyZipMissingDateFails(tc)
+            tc.createZip(fullfile(tc.TempRoot, 'data_jlj_2026-05-30.zip'));
+            cfg = struct('vendor', 'jiulongjiang');
+            tc.verifyError(@() precheck_zip_count( ...
+                tc.TempRoot, '2026-05-30', '2026-05-31', cfg), ...
+                'BMS:ArchiveExtract:DailyArchiveCount');
+        end
+
+        function donghuaMissingWholeDateFails(tc)
+            day = '2026-06-01';
+            tc.createZip(fullfile(tc.TempRoot, day, tc.waveName(), 'wave.zip'));
+            tc.createZip(fullfile(tc.TempRoot, day, tc.featureName(), 'feature.zip'));
+            tc.verifyError(@() precheck_zip_count( ...
+                tc.TempRoot, day, '2026-06-02'), ...
+                'BMS:ArchiveExtract:DonghuaArchiveCount');
+        end
     end
 
     methods (Access = private)

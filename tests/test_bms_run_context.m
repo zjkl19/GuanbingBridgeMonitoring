@@ -26,7 +26,7 @@ classdef test_bms_run_context < matlab.unittest.TestCase
             tc.verifyTrue(isfile(manifestPath));
             manifest = jsondecode(fileread(manifestPath));
             tc.verifyEqual(manifest.status, 'ok');
-            tc.verifyEqual(manifest.schema_version, 2);
+            tc.verifyEqual(manifest.schema_version, 3);
             tc.verifyEqual(manifest.manifest_type, 'analysis_run');
             tc.verifyEqual(manifest.data_root, tc.TempDir);
             tc.verifyTrue(isfile(manifest.latest_log));
@@ -52,7 +52,7 @@ end
 
 function opts = emptyOpts()
     opts = struct();
-    keys = {'precheck_zip_count','doUnzip','doRenameCsv','doRemoveHeader','doResample', ...
+    keys = {'precheck_zip_count','doUnzip','doRenameCsv','doRemoveHeader','doResample','doCachePrebuild', ...
         'doTemp','doHumidity','doRainfall','doGNSS','doWind','doEq','doWIM', ...
         'doDeflect','doBearingDisplacement','doTilt','doAccel','doAccelSpectrum', ...
         'doCableAccel','doCableAccelSpectrum','doRenameCrk','doCrack','doStrain', ...

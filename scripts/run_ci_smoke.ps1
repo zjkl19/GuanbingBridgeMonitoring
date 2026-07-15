@@ -4,15 +4,19 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
+$projectPython = Join-Path $repo "reporting\.venv\Scripts\python.exe"
+if (-not (Test-Path -LiteralPath $projectPython -PathType Leaf)) {
+    $projectPython = (Get-Command python -ErrorAction Stop).Source
+}
 Push-Location $repo
 try {
     Write-Host "[CI-SMOKE] Python unit tests" -ForegroundColor Cyan
-    python -m unittest discover tests_py
+    & $projectPython .\scripts\run_python_tests.py
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host "[CI-SMOKE] Python compile check" -ForegroundColor Cyan
     $reportingFiles = Get-ChildItem -Path .\reporting -Filter *.py -File | ForEach-Object { $_.FullName }
-    python -m py_compile @reportingFiles
+    & $projectPython -m py_compile @reportingFiles
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host "[CI-SMOKE] Config validation" -ForegroundColor Cyan

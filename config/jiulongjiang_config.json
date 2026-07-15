@@ -2105,6 +2105,16 @@
       2.55
     ]
   },
+  "reporting": {
+    "traffic": {
+      "required": false,
+      "note": "九龙江当前常规月报分析模块不含WIM；未显式提供本期WIM结果时，车辆荷载章节按不适用处理。"
+    },
+    "patrol": {
+      "required": false,
+      "note": "未提供与报告月份一致的人工巡查资料时，清除模板旧内容并明确标记本期资料未提供。"
+    }
+  },
   "wim": {
     "vendor": "jiulongjiang",
     "bridge": "jiulongjiang",

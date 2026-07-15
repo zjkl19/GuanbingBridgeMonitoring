@@ -25,6 +25,7 @@ classdef StructuralFilteredPlotService
             opts.baseName = sprintf('%s_%s_%s_%s_%s', spec.filePrefix, char(string(suffix)), ...
                 datestr(dt0, 'yyyymmdd'), datestr(dt1, 'yyyymmdd'), datestr(now, 'yyyymmdd_HHMMSS'));
             opts.warnLines = warnLines;
+            opts.moduleKey = spec.moduleKey;
             opts.ylimRange = bms.analyzer.StructuralTimeSeriesPlotService.resolveStyleYLim(style, pid);
             if numel(dataList) == 3
                 opts.colorField = 'colors_3';
@@ -77,6 +78,7 @@ classdef StructuralFilteredPlotService
             opts.baseName = bms.analyzer.StructuralFilteredPlotService.baseName( ...
                 spec, fileNameTag, suffixTag, dt0, dt1, titleSuffix);
             opts.warnLines = warnLines;
+            opts.moduleKey = spec.moduleKey;
             pointId = '';
             if numel(records) == 1
                 pointId = records(1).pid;

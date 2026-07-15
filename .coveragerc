@@ -1,0 +1,27 @@
+[run]
+branch = True
+source =
+    workbench
+    reporting
+relative_files = True
+data_file = outputs/coverage/.coverage
+
+[report]
+precision = 1
+show_missing = True
+skip_covered = False
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    if __name__ == .__main__.:
+    raise NotImplementedError
+
+[html]
+directory = outputs/coverage/python-html
+
+[xml]
+output = outputs/coverage/python-cobertura.xml
+
+[json]
+output = outputs/coverage/python-coverage.json
+pretty_print = True

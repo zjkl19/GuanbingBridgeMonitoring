@@ -2,7 +2,7 @@ classdef ManifestWriter
     %MANIFESTWRITER Writes versioned analysis manifest JSON files.
 
     properties (Constant)
-        SchemaVersion = 2
+        SchemaVersion = 3
     end
 
     methods (Static)

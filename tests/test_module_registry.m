@@ -29,6 +29,21 @@ classdef test_module_registry < matlab.unittest.TestCase
             tc.verifyTrue(any(endsWith(expected, fullfile('stats_unit', 'accel_stats.xlsx'))));
         end
 
+        function cachePrebuildContractIsExplicitAndSafe(tc)
+            spec = bms.module.ModuleRegistry.fromKey('cache_prebuild');
+            tc.verifyEqual(spec.OptField, 'doCachePrebuild');
+            tc.verifyEqual(spec.Label, '预生成分析缓存');
+            tc.verifyEqual(spec.Category, 'preprocess');
+            tc.verifyFalse(spec.BridgeScoped);
+            tc.verifyTrue(contains(string(spec.Description), "已解压 CSV"));
+            tc.verifyTrue(contains(string(spec.Description), "不删除源数据"));
+
+            enabled = bms.module.ModuleRegistry.enabledKeys(struct('doCachePrebuild', true));
+            tc.verifyEqual(enabled, {'cache_prebuild'});
+            row = spec.toStruct('');
+            tc.verifyEqual(row.description, spec.Description);
+        end
+
         function manifestPreflightReportsMissingStats(tc)
             tmp = tempname;
             mkdir(tmp);
@@ -85,6 +100,7 @@ classdef test_module_registry < matlab.unittest.TestCase
                 'unzip', '批量解压'
                 'rename_csv', '批量重命名CSV'
                 'remove_header', '批量去除表头'
+                'cache_prebuild', '预生成分析缓存'
                 'dynamic_strain_lowpass', '动应变分析（低通+箱线图）'
                 'rename_crk', '裂缝重命名'
             };

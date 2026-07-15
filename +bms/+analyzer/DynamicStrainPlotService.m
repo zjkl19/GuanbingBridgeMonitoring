@@ -41,13 +41,19 @@ classdef DynamicStrainPlotService
             plotLabels = {};
             n = numel(tsList);
             labels = labels(:);
-            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
             for i = 1:n
                 times = tsList(i).times;
                 values = tsList(i).vals;
                 if isempty(times) || isempty(values)
                     continue;
                 end
+                if i <= numel(labels)
+                    pointId = char(string(labels{i}));
+                else
+                    pointId = sprintf('S%d', i);
+                end
+                plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig( ...
+                    cfg, spec.moduleKey, pointId);
                 [timesPlot, valuesPlot] = prepare_plot_series(times, values, plotOpts);
                 if isempty(timesPlot) || isempty(valuesPlot) || ~any(isfinite(valuesPlot))
                     continue;
@@ -74,6 +80,7 @@ classdef DynamicStrainPlotService
             opts.legendLocation = 'northeast';
             opts.legendBox = 'off';
             opts.legendInterpreter = 'none';
+            opts.moduleKey = spec.moduleKey;
             opts.defaultColors = bms.analyzer.StructuralPlotConfigService.distinctColors(max(1, numel(timesList)));
             if ~isempty(ylimGroup)
                 opts.ylimRange = ylimGroup;
@@ -113,7 +120,8 @@ classdef DynamicStrainPlotService
                 return;
             end
 
-            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig( ...
+                cfg, spec.moduleKey, pointId);
             [timesPlot, valuesPlot] = prepare_plot_series(ts.times, ts.vals, plotOpts);
             if isempty(timesPlot) || isempty(valuesPlot) || ~any(isfinite(valuesPlot))
                 return;

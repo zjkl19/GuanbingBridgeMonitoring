@@ -8,7 +8,8 @@ classdef StrainPlotService
             end
             fig = figure('Position', [100 100 1000 469]);
             hold on;
-            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig( ...
+                cfg, 'strain', pointId);
             [timesPlot, valsPlot] = prepare_plot_series(times, vals, plotOpts);
             plot(timesPlot, valsPlot, 'LineWidth', 1.0, 'Color', [0 0.447 0.741]);
 
@@ -76,6 +77,7 @@ classdef StrainPlotService
             opts.defaultColors = bms.analyzer.StrainConfigService.groupColors(style, nSeries);
             opts.legendInterpreter = 'none';
             opts.titleInterpreter = 'none';
+            opts.moduleKey = 'strain';
             if bms.analyzer.StrainConfigService.truthy( ...
                     bms.analyzer.StrainConfigService.styleField(style, 'show_warn_lines_group', false))
                 opts.warnLines = bms.analyzer.StrainPlotService.resolveGroupWarnLines(dataList, style, cfg);

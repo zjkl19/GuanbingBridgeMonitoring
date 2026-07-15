@@ -32,12 +32,14 @@ def run_embedded_report_job(
     context_path: Path,
     status_path: Path,
     result_path: Path,
+    launch_id: str = "",
 ) -> int:
     """Run one report in the workbench's hidden worker process."""
     return run_context(
         context_path.expanduser().resolve(),
         status_path.expanduser().resolve(),
         result_path.expanduser().resolve(),
+        launch_id,
     )
 
 
@@ -257,6 +259,8 @@ def _embedded_report_job_smoke() -> None:
 
         with patch(
             "report_job.build_guanbing_monthly_report", side_effect=build_smoke_report
+        ), patch(
+            "report_job.raise_for_template"
         ), patch(
             "report_job.export_authoritative_word_pdf",
             return_value=WordPdfExportResult(

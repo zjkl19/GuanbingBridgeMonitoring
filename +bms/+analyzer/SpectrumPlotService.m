@@ -2,17 +2,18 @@ classdef SpectrumPlotService
     %SPECTRUMPLOTSERVICE Plot helpers for spectrum and cable force outputs.
 
     methods (Static)
-        function plotFrequencyTimeseries(datesAll, freqDay, pid, targetFreqs, outDir, style, theorFreqs, theorLabels, cfg, peakLabels)
+        function plotFrequencyTimeseries(datesAll, freqDay, pid, targetFreqs, outDir, style, theorFreqs, theorLabels, cfg, peakLabels, moduleKey)
             if nargin < 10 || isempty(peakLabels)
                 peakLabels = bms.analyzer.SpectrumConfigService.defaultPeakLabels(targetFreqs);
             end
+            if nargin < 11, moduleKey = ''; end
             peakLabels = bms.analyzer.SpectrumConfigService.normalizePeakLabels(peakLabels, targetFreqs);
             fig = figure('Visible', 'off', 'Position', [100 100 1000 470]);
             hold on;
             colors = bms.analyzer.SpectrumPlotService.normalizeColors(style.colors);
             h = gobjects(numel(targetFreqs), 1);
             hasLine = false(numel(targetFreqs), 1);
-            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg, moduleKey, pid);
             for k = 1:numel(targetFreqs)
                 [datesPlot, freqPlot] = prepare_plot_series(datesAll, freqDay(:, k), plotOpts);
                 if isempty(datesPlot) || isempty(freqPlot) || ~any(isfinite(freqPlot))
@@ -93,7 +94,8 @@ classdef SpectrumPlotService
             end
         end
 
-        function plotForceTimeseries(timesList, forceList, labels, nameTag, outDir, style, forceYLim, warnLineSets, cfg)
+        function plotForceTimeseries(timesList, forceList, labels, nameTag, outDir, style, forceYLim, warnLineSets, cfg, moduleKey)
+            if nargin < 10, moduleKey = ''; end
             valid = false(numel(forceList), 1);
             for i = 1:numel(forceList)
                 valid(i) = ~isempty(forceList{i}) && any(isfinite(forceList{i}));
@@ -107,7 +109,6 @@ classdef SpectrumPlotService
             hold on;
             colors = bms.analyzer.SpectrumPlotService.normalizeColors(style.colors);
             h = gobjects(numel(forceList), 1);
-            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
             for i = 1:numel(forceList)
                 if ~valid(i)
                     continue;
@@ -120,7 +121,14 @@ classdef SpectrumPlotService
                     cmap = lines(numel(forceList));
                     c = cmap(i, :);
                 end
-                [timesPlot, forcePlot] = prepare_plot_series(timesList{i}, forceList{i}, plotOpts);
+                pointId = '';
+                if i <= numel(labels)
+                    pointId = labels{i};
+                end
+                plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig( ...
+                    cfg, moduleKey, pointId);
+                [timesPlot, forcePlot] = prepare_plot_series( ...
+                    timesList{i}, forceList{i}, plotOpts);
                 if isempty(timesPlot) || isempty(forcePlot) || ~any(isfinite(forcePlot))
                     continue;
                 end
@@ -157,13 +165,14 @@ classdef SpectrumPlotService
             bms.plot.PlotService.saveModuleBundle(fig, outDir, baseName, cfg);
         end
 
-        function plotFrequencyGroups(cfg, pointIds, datesAll, freqSeriesAll, freqValidAll, outDir, style, groupKey, targetFreqsAll, peakLabelsAll, theorFreqsAll, theorLabelsAll)
+        function plotFrequencyGroups(cfg, pointIds, datesAll, freqSeriesAll, freqValidAll, outDir, style, groupKey, targetFreqsAll, peakLabelsAll, theorFreqsAll, theorLabelsAll, moduleKey)
             if nargin < 11 || isempty(theorFreqsAll)
                 theorFreqsAll = cell(size(freqSeriesAll));
             end
             if nargin < 12 || isempty(theorLabelsAll)
                 theorLabelsAll = cell(size(freqSeriesAll));
             end
+            if nargin < 13, moduleKey = ''; end
             groups = bms.analyzer.SpectrumPlotService.resolveFrequencyGroups(cfg, style, groupKey);
             groupNames = fieldnames(groups);
             for gi = 1:numel(groupNames)
@@ -208,12 +217,13 @@ classdef SpectrumPlotService
                     groupDisplayName = bms.analyzer.SpectrumPlotService.styledGroupDisplayName(style, groupName, labels);
                     bms.analyzer.SpectrumPlotService.plotFrequencyGroupTimeseries( ...
                         repmat({datesAll}, numel(labels), 1), freqList, labels, groupDisplayName, ...
-                        outDir, style, cfg, peakIdx, peakLabel, theorFreq, theorLabel);
+                        outDir, style, cfg, peakIdx, peakLabel, theorFreq, theorLabel, moduleKey);
                 end
             end
         end
 
-        function plotFrequencyGroupTimeseries(timesList, freqList, labels, nameTag, outDir, style, cfg, peakIdx, peakLabel, theorFreq, theorLabel)
+        function plotFrequencyGroupTimeseries(timesList, freqList, labels, nameTag, outDir, style, cfg, peakIdx, peakLabel, theorFreq, theorLabel, moduleKey)
+            if nargin < 12, moduleKey = ''; end
             valid = false(numel(freqList), 1);
             for i = 1:numel(freqList)
                 valid(i) = ~isempty(freqList{i}) && any(isfinite(freqList{i}));
@@ -226,12 +236,18 @@ classdef SpectrumPlotService
             hold on;
             colors = bms.analyzer.StructuralPlotConfigService.distinctColors(max(1, numel(freqList)));
             h = gobjects(numel(freqList), 1);
-            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
             for i = 1:numel(freqList)
                 if ~valid(i)
                     continue;
                 end
-                [timesPlot, freqPlot] = prepare_plot_series(timesList{i}, freqList{i}, plotOpts);
+                pointId = '';
+                if i <= numel(labels)
+                    pointId = labels{i};
+                end
+                plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig( ...
+                    cfg, moduleKey, pointId);
+                [timesPlot, freqPlot] = prepare_plot_series( ...
+                    timesList{i}, freqList{i}, plotOpts);
                 if isempty(timesPlot) || isempty(freqPlot) || ~any(isfinite(freqPlot))
                     continue;
                 end
@@ -351,7 +367,8 @@ classdef SpectrumPlotService
             end
         end
 
-        function plotCableForceGroups(cfg, pointIds, datesAll, forceSeriesAll, forceValidAll, outDir, style)
+        function plotCableForceGroups(cfg, pointIds, datesAll, forceSeriesAll, forceValidAll, outDir, style, moduleKey)
+            if nargin < 8, moduleKey = ''; end
             groupsCfg = bms.analyzer.StructuralPlotConfigService.getGroups(cfg, 'cable_force', struct());
             groups = bms.analyzer.StructuralPlotConfigService.normalizeGroupMap(groupsCfg);
             groupNames = fieldnames(groups);
@@ -382,7 +399,8 @@ classdef SpectrumPlotService
                 end
                 groupDisplayName = bms.analyzer.SpectrumPlotService.groupDisplayName(groupName, labels);
                 bms.analyzer.SpectrumPlotService.plotForceTimeseries( ...
-                    repmat({datesAll}, numel(labels), 1), forceList, labels, groupDisplayName, outDir, style, [], warnLineSets, cfg);
+                    repmat({datesAll}, numel(labels), 1), forceList, labels, groupDisplayName, ...
+                    outDir, style, [], warnLineSets, cfg, moduleKey);
             end
         end
 

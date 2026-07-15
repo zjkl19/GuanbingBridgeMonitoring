@@ -1,6 +1,6 @@
 # Current Remote State
 
-Last updated: 2026-07-14 23:10 CST
+Last updated: 2026-07-15 (Jiulongjiang W4 completion confirmed; monitor remains paused)
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
@@ -14,8 +14,74 @@ state and keep algorithm/report decisions in the normal project docs.
 - `gb-office`: `ssh gb-office "hostname; whoami"` after installing
   `docs/ops/ssh_config.template`. The actual path is
   `Administrator@192.168.254.34:2222` through `ProxyJump gb-133`; direct SSH
-  from this workstation is not routable.
+  from this workstation is not routable. This host remains in the operations
+  inventory for light remote maintenance only and has been removed from the
+  workbench storage-location profiles.
 - 126 storage target: `\\192.168.100.126\H$\Guanbingwork`
+
+## gb-133 v1.8.1-rc1 Jiulongjiang May Isolated Trial
+
+- The four-worker task
+  `Guanbing_v181rc1_Jiulongjiang_May_CachePrebuild_W4_20260715` completed
+  successfully in the isolated RC tree. Its final summary records
+  `created=3764`, `reused=1561`, `eligible=5325`, `failed=0`, elapsed
+  `6h50m27s`; cache size is `57.50 GiB` and F: free space was `539.33 GiB`.
+- A fresh read-only check at `2026-07-15 20:30:44` confirmed the task is
+  disabled with `LastTaskResult=0`, `analysis_status=completed`, runner exit
+  code `0`, no Runner/MATLAB worker process and a zero-byte stderr. The final
+  summary is
+  `F:\Guanbing_v1.8.1-rc1\run_logs\jiulongjiang_may_cache_prebuild_w4_20260715_1205\cache_prebuild_summary.json`.
+- A portable 360 CLI runtime was installed only at
+  `F:\Guanbing_v1.8.1-rc1\tools\360disk-portable`; Node is `v24.14.0` and CLI
+  is `0.8.37`. The hardened wrapper is
+  `F:\Guanbing_v1.8.1-rc1\tools\invoke_360disk_transfer.ps1`, whose SHA256
+  matched the local source at deployment. No API key was saved on 133; it was
+  injected through standard input for the one-shot test and the scratch auth
+  directory was removed.
+- Transfer evidence is staged under
+  `F:\Guanbing_v1.8.1-rc1\transfer\360_test_20260715_1430`. The cloud-to-133
+  random 8 MiB file downloaded at `3.148 MiB/s` and matched SHA256; the new 133
+  random file uploaded at `0.285 MiB/s`, and its local download also matched
+  SHA256. See `docs/ops/360disk_transfer.md` for full measurements and safety
+  rules.
+
+- The Codex monitor automation remains paused. Before any new remote write,
+  first confirm the completed task is disabled and no Runner/worker remains.
+  Do not restart the old two-worker task.
+
+- Source `F:\九龙江数据\2026年5月` is read-only. It contains 31 daily ZIPs,
+  61,754,011,511 compressed bytes, 600,036,038,109 indexed uncompressed bytes
+  and 5,387 file entries. Candidate writes are restricted to
+  `F:\Guanbing_v1.8.1-rc1`; stable production `F:\Guanbing` remains untouched.
+- The final candidate was atomically deployed only in the isolated RC tree.
+  Receipt:
+  `F:\Guanbing_v1.8.1-rc1\deployment_receipt_summary_runner_exitfix_20260715_034040.json`;
+  rollback copy:
+  `F:\Guanbing_v1.8.1-rc1\app_before_summary_runner_exitfix_20260715_034040`.
+  The deployed package is the 117,198,340-byte local artifact with SHA256
+  `BA2ED5DCA711F69B2932B3B067DD7B0E2EC5EC19FBBB1A918D6CEECB4F114B23`.
+  Its remote compiled failure smoke returned exit code `249`, retained the
+  failed manifest path and recorded `unzip=fail`; production remained untouched.
+- May 1 extraction reuse-v3 passed after derived caches were present. The
+  two-worker cache transaction built 139 eligible MAT/meta pairs while skipping
+  the two explicitly classified WIM/DTCZ CSVs; the immediate idempotency repeat
+  reused all 139 pairs without publishing replacements. Evidence remains under
+  `F:\Guanbing_v1.8.1-rc1\run_logs\jiulongjiang_may_pilot` and
+  `F:\Guanbing_v1.8.1-rc1\run_logs\jiulongjiang_may01_cache_txn`.
+- Full extraction later completed and passed the 31-day/source-ZIP immutability
+  checks. Cache prebuild was first run with two workers, then cleanly stopped
+  with 1,561 closed MAT/meta pairs and restarted with four workers while reusing
+  the valid cache. The four-worker build has now completed with the counts above.
+  Strict inspection of every MAT/metadata pair, the zero-write reuse repeat,
+  15-module analysis and report regression are still pending and must not be
+  inferred from task completion alone.
+- F-volume capacity is 4,000,768,323,584 bytes. Continue fresh capacity checks
+  and live free-space monitoring before the remaining acceptance stages.
+- Two broad `Win32_Process` queries that enumerated every process command line
+  caused their PowerShell hosts to consume excessive memory. Both orphaned
+  query processes were safely ended; the analysis Runner and production were
+  unaffected. Future monitoring must query by exact process name and known PID,
+  and must not repeat full CommandLine enumeration.
 
 ## gb-133 v1.8.0 Production Cutover
 

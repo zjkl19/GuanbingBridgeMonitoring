@@ -1,5 +1,7 @@
 from pathlib import Path
 import sys
+import tempfile
+import unittest
 
 from docx import Document
 from docx.oxml import OxmlElement
@@ -69,8 +71,22 @@ def test_normalize_caption_fields_removes_stale_ref_field():
     assert not paragraph._p.xpath(".//w:instrText")
 
 
+def _test_assets_with_temporary_path():
+    with tempfile.TemporaryDirectory() as tmp:
+        test_zhishan_report_uses_program_output_images(Path(tmp))
+
+
+def load_tests(loader, tests, pattern):
+    del loader, tests, pattern
+    return unittest.TestSuite(
+        [
+            unittest.FunctionTestCase(_test_assets_with_temporary_path),
+            unittest.FunctionTestCase(test_normalize_caption_fields_removes_stale_ref_field),
+        ]
+    )
+
+
 if __name__ == "__main__":
-    import tempfile
 
     with tempfile.TemporaryDirectory() as tmp:
         test_zhishan_report_uses_program_output_images(Path(tmp))

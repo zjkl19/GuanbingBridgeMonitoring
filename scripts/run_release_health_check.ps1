@@ -175,7 +175,7 @@ Invoke-Step "Validate configs" "configs" {
 Invoke-Step "Python report tests" "python" {
     Invoke-External -Name "python-tests" `
         -FilePath $projectPython `
-        -Arguments @("-m", "unittest", "discover", "tests_py") `
+        -Arguments @(".\scripts\run_python_tests.py") `
         -TimeoutSeconds $PythonTimeoutSeconds
 }
 

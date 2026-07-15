@@ -13,9 +13,10 @@ Generated reports, temporary drafts, old revisions, reference spreadsheets, and 
     and Q1 reference.
 - `洪塘大桥健康监测月报模板.docx`
   - Current Hongtang monthly report template.
-- `九龙江大桥健康监测2026年3月份月报_修订5.docx`
+- `九龙江大桥健康监测2026年3月份月报_0508.docx`
   - Current Jiulongjiang monthly report template.
-  - Used by `reporting/build_jlj_monthly_report.py`.
+  - Used by the bridge profile, `reporting/build_jlj_monthly_report.py`, and
+    the unified workbench report runtime.
 - `水仙花大桥健康监测月报模板.docx`
   - Current Shuixianhua monthly report template.
   - Used by `reporting/build_shuixianhua_monthly_report.py` and the report GUI.

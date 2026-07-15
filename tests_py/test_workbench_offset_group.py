@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -22,15 +23,17 @@ from workbench.config_editor import (
 )
 
 try:
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QDialog
 
     from workbench.advanced_config_tab import (
         GroupPlotConfigEditorWidget,
+        OffsetEffectiveRangeDialog,
         OffsetCorrectionEditorWidget,
     )
 except ImportError:  # pragma: no cover
     QApplication = None
     GroupPlotConfigEditorWidget = None
+    OffsetEffectiveRangeDialog = None
     OffsetCorrectionEditorWidget = None
 
 
@@ -244,6 +247,27 @@ class WorkbenchOffsetGroupGuiTests(unittest.TestCase):
         self.assertIn("逐小时中位数", modes)
         self.assertIn("hourly_median", {row.mode for row in widget.rows()})
         self.assertEqual(widget.rows(), widget.session.rows)
+        self.assertEqual(widget.table.horizontalHeaderItem(5).text(), "生效开始时间")
+        self.assertEqual(widget.table.horizontalHeaderItem(6).text(), "生效结束时间")
+
+    def test_offset_widget_applies_second_precision_effective_range(self) -> None:
+        widget = OffsetCorrectionEditorWidget()
+        widget.load_path(ROOT / "config" / "zhishan_config.json")
+        widget.table.selectRow(0)
+        with (
+            patch.object(OffsetEffectiveRangeDialog, "exec", return_value=QDialog.Accepted),
+            patch.object(
+                OffsetEffectiveRangeDialog,
+                "values",
+                return_value=("2026-05-03 01:02:03", "2026-05-04 04:05:06"),
+            ),
+        ):
+            self.assertTrue(widget._edit_selected_time_range())
+        self.assertEqual(widget.table.item(0, 5).text(), "2026-05-03 01:02:03")
+        self.assertEqual(widget.table.item(0, 6).text(), "2026-05-04 04:05:06")
+        row = widget.rows()[0]
+        self.assertEqual(row.start_date, "2026-05-03 01:02:03")
+        self.assertEqual(row.end_date, "2026-05-04 04:05:06")
 
     def test_group_widget_loads_modules_and_preserves_current_draft(self) -> None:
         widget = GroupPlotConfigEditorWidget()

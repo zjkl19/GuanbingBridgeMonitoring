@@ -1,0 +1,4 @@
+# Cross-language fingerprint fixtures have fixed byte identities.  Keep their
+# line endings stable on Windows so Python and MATLAB compute the documented
+# SHA-256 values after every checkout.
+tests/config/fingerprint/*.json text eol=lf

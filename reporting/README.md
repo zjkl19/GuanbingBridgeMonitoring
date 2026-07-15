@@ -75,6 +75,7 @@ The schema-v3 `release_manifest.json` must declare:
 
 - `report_runtime = embedded_headless_worker`
 - `standalone_report_builder_included = false`
+- `analysis_runner_failure_exit_smoke = true`
 - successful embedded report job, report-condition, and visual-QA checks
 
 The compatibility field `includes_report_builder = true` means that report
@@ -87,6 +88,16 @@ figures and source summaries, clears unmatched template patrol material,
 removes unused template media, and fails closed when report QC cannot complete.
 Microsoft Word remains the authoritative renderer for combined
 `STYLEREF`/`SEQ` caption fields.
+
+Jiulongjiang patrol sources remain month-bound. `reporting.patrol.required`
+defaults to `true`; a bridge configuration may set it to `false` when patrol
+attachments are not a mandatory monthly-report input. In that case, a missing
+period-matched source clears stale template content and inserts
+`本期巡查资料未提供。`, while the report manifest records the source as
+`not_available` without treating it as a blocking omission. An explicitly
+supplied source from another month is always rejected.
+The standard Jiulongjiang profile explicitly uses `required=false`; this does
+not relax any period, statistics, figure, configuration or source-data gate.
 
 版本 `v1.8.0` 将内嵌运行时作为唯一生产报告入口；水仙花和九龙江月报会拒绝
 旧月份文字、图件及来源摘要，清除不匹配的模板巡检资料，移除未使用的模板媒体，

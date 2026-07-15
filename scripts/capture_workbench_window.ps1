@@ -8,7 +8,9 @@ param(
     [int]$CleaningTabIndex = 0,
     [switch]$DemoAutoThresholdPreview,
     [switch]$ShowTaskHistory,
-    [switch]$DemoTaskHistory
+    [switch]$DemoTaskHistory,
+    [switch]$Offscreen,
+    [string]$EvidencePath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,6 +18,11 @@ $resolvedExe = (Resolve-Path -LiteralPath $ExePath).Path
 $resolvedOutput = [System.IO.Path]::GetFullPath($OutputPath)
 $outputParent = Split-Path $resolvedOutput
 New-Item -ItemType Directory -Path $outputParent -Force | Out-Null
+$resolvedEvidence = ""
+if (-not [string]::IsNullOrWhiteSpace($EvidencePath)) {
+    $resolvedEvidence = [System.IO.Path]::GetFullPath($EvidencePath)
+    New-Item -ItemType Directory -Path (Split-Path $resolvedEvidence) -Force | Out-Null
+}
 
 if (-not ("WorkbenchCaptureWin32" -as [type])) {
     Add-Type @'
@@ -23,10 +30,28 @@ using System;
 using System.Runtime.InteropServices;
 public static class WorkbenchCaptureWin32 {
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+  [StructLayout(LayoutKind.Sequential)] public struct GUITHREADINFO {
+    public int cbSize;
+    public uint flags;
+    public IntPtr hwndActive;
+    public IntPtr hwndFocus;
+    public IntPtr hwndCapture;
+    public IntPtr hwndMenuOwner;
+    public IntPtr hwndMoveSize;
+    public IntPtr hwndCaret;
+    public RECT rcCaret;
+  }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+  [DllImport("user32.dll")] public static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO info);
+  [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern IntPtr GetWindowDpiAwarenessContext(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern int GetAwarenessFromDpiAwarenessContext(IntPtr value);
+  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint flags);
   [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr dpiContext);
   [DllImport("user32.dll")] public static extern bool UpdateWindow(IntPtr hWnd);
@@ -57,6 +82,82 @@ if ($ShowTaskHistory) {
 if ($DemoTaskHistory) {
     $arguments += "--demo-task-history"
 }
+
+if ($Offscreen) {
+    # The normal release capture deliberately brings the native window to the
+    # foreground so PrintWindow can validate real Windows rendering. During an
+    # operator's work session that is disruptive, so provide an explicit Qt
+    # offscreen audit mode. The build manifest keeps this distinct from the
+    # final native screenshot release gate.
+    $arguments += @(
+        "--screenshot-output", $resolvedOutput,
+        "--screenshot-tab", "$TabIndex"
+    )
+    $previousQtPlatform = [Environment]::GetEnvironmentVariable(
+        "QT_QPA_PLATFORM",
+        [EnvironmentVariableTarget]::Process
+    )
+    try {
+        $env:QT_QPA_PLATFORM = "offscreen"
+        $offscreenProcess = Start-Process `
+            -FilePath $resolvedExe `
+            -ArgumentList $arguments `
+            -WindowStyle Hidden `
+            -Wait `
+            -PassThru
+    }
+    finally {
+        if ($null -eq $previousQtPlatform) {
+            Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:QT_QPA_PLATFORM = $previousQtPlatform
+        }
+    }
+    if ($offscreenProcess.ExitCode -ne 0) {
+        throw "Offscreen workbench capture failed with exit code $($offscreenProcess.ExitCode)"
+    }
+    if (-not (Test-Path -LiteralPath $resolvedOutput -PathType Leaf)) {
+        throw "Offscreen workbench capture did not create: $resolvedOutput"
+    }
+
+    $offscreenBitmap = [System.Drawing.Bitmap]::FromFile($resolvedOutput)
+    try {
+        if ($offscreenBitmap.Width -lt 1000 -or $offscreenBitmap.Height -lt 700) {
+            throw "Unexpected offscreen workbench size: $($offscreenBitmap.Width) x $($offscreenBitmap.Height)"
+        }
+        $brightSamples = 0
+        $darkSamples = 0
+        $totalSamples = 0
+        for ($x = 8; $x -lt $offscreenBitmap.Width; $x += 24) {
+            for ($y = 8; $y -lt $offscreenBitmap.Height; $y += 24) {
+                $pixel = $offscreenBitmap.GetPixel($x, $y)
+                $sum = $pixel.R + $pixel.G + $pixel.B
+                $totalSamples++
+                if ($sum -gt 180) { $brightSamples++ }
+                if ($sum -lt 30) { $darkSamples++ }
+            }
+        }
+        # Qt's offscreen platform does not load the normal Windows CJK font
+        # fallback.  Chinese glyphs are therefore rendered as dense black
+        # tofu boxes and legitimate table-heavy pages can exceed the 5%
+        # near-black ratio used by the native PrintWindow gate.  Keep the
+        # bright-pixel requirement (which rejects blank/black captures) and
+        # allow up to 20% near-black samples for offscreen audit evidence.
+        # Native release screenshots retain their stricter, independent gate
+        # below and offscreen evidence can never satisfy that release gate.
+        $maxDarkSamples = [math]::Max(10, [math]::Floor($totalSamples * 0.20))
+        if ($brightSamples -lt 300 -or $darkSamples -gt $maxDarkSamples) {
+            throw "Offscreen workbench capture is incomplete (bright=$brightSamples, dark=$darkSamples/$totalSamples)"
+        }
+    }
+    finally {
+        $offscreenBitmap.Dispose()
+    }
+    Write-Host "Captured offscreen workbench window: $resolvedOutput"
+    return
+}
+
 $started = Start-Process -FilePath $resolvedExe -ArgumentList $arguments -PassThru
 $process = $null
 for ($attempt = 0; $attempt -lt 40; $attempt++) {
@@ -79,24 +180,101 @@ if ($null -eq $process) {
     throw "Workbench window was not found for capture"
 }
 
-$handle = $process.MainWindowHandle
-[void][WorkbenchCaptureWin32]::ShowWindow($handle, 9)
-[void][WorkbenchCaptureWin32]::BringWindowToTop($handle)
-[void][WorkbenchCaptureWin32]::SetForegroundWindow($handle)
-Start-Sleep -Milliseconds 1000
-
-$rect = New-Object WorkbenchCaptureWin32+RECT
-if (-not [WorkbenchCaptureWin32]::GetWindowRect($handle, [ref]$rect)) {
-    throw "GetWindowRect failed"
-}
-$width = $rect.Right - $rect.Left
-$height = $rect.Bottom - $rect.Top
-if ($width -lt 1000 -or $height -lt 700) {
-    throw "Unexpected workbench size: $width x $height"
-}
-$bitmap = New-Object System.Drawing.Bitmap($width, $height)
-$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+$bitmap = $null
+$graphics = $null
 try {
+    $handle = $process.MainWindowHandle
+    [void][WorkbenchCaptureWin32]::ShowWindow($handle, 9)
+    [void][WorkbenchCaptureWin32]::BringWindowToTop($handle)
+    [void][WorkbenchCaptureWin32]::SetForegroundWindow($handle)
+
+# A native screenshot is also the release focus gate: the launched workbench
+# must actually own both the foreground window and the keyboard-focus HWND.
+# Merely calling SetForegroundWindow is not evidence because Windows is allowed
+# to reject that request. Qt child widgets are normally alien widgets, so their
+# focus HWND belongs to the same workbench process even when it is the top-level
+# HWND rather than a separate native child.
+    $foregroundOwned = $false
+    $focusOwned = $false
+    $foregroundHandle = [IntPtr]::Zero
+    $focusHandle = [IntPtr]::Zero
+    for ($focusAttempt = 0; $focusAttempt -lt 20; $focusAttempt++) {
+        [void][WorkbenchCaptureWin32]::BringWindowToTop($handle)
+        [void][WorkbenchCaptureWin32]::SetForegroundWindow($handle)
+        Start-Sleep -Milliseconds 100
+
+        $foregroundHandle = [WorkbenchCaptureWin32]::GetForegroundWindow()
+        [uint32]$foregroundPid = 0
+        if ($foregroundHandle -ne [IntPtr]::Zero) {
+            [void][WorkbenchCaptureWin32]::GetWindowThreadProcessId(
+                $foregroundHandle,
+                [ref]$foregroundPid
+            )
+        }
+        $foregroundOwned = ($foregroundPid -eq [uint32]$process.Id)
+
+        $guiInfo = New-Object WorkbenchCaptureWin32+GUITHREADINFO
+        $guiInfo.cbSize = [Runtime.InteropServices.Marshal]::SizeOf($guiInfo)
+        if ([WorkbenchCaptureWin32]::GetGUIThreadInfo(0, [ref]$guiInfo) `
+                -and $guiInfo.hwndFocus -ne [IntPtr]::Zero) {
+            $focusHandle = $guiInfo.hwndFocus
+            [uint32]$focusPid = 0
+            [void][WorkbenchCaptureWin32]::GetWindowThreadProcessId(
+                $focusHandle,
+                [ref]$focusPid
+            )
+            $focusOwned = ($focusPid -eq [uint32]$process.Id)
+        }
+        if ($foregroundOwned -and $focusOwned) {
+            break
+        }
+    }
+    if (-not $foregroundOwned) {
+        throw "Workbench did not become the native foreground window"
+    }
+    if (-not $focusOwned) {
+        throw "Workbench did not receive native keyboard focus"
+    }
+
+    $windowDpi = [WorkbenchCaptureWin32]::GetDpiForWindow($handle)
+    if ($windowDpi -lt 96 -or $windowDpi -gt 768) {
+        throw "Unexpected native workbench DPI: $windowDpi"
+    }
+    $dpiContext = [WorkbenchCaptureWin32]::GetWindowDpiAwarenessContext($handle)
+    $dpiAwareness = [WorkbenchCaptureWin32]::GetAwarenessFromDpiAwarenessContext($dpiContext)
+    if ($dpiAwareness -ne 2) {
+        throw "Workbench is not per-monitor DPI aware: awareness=$dpiAwareness"
+    }
+
+    # WM_GETICON: ICON_SMALL2, ICON_SMALL, then ICON_BIG. A nonzero handle is
+    # native evidence that the Windows window/taskbar icon is installed, not
+    # merely that a Qt QIcon object exists in memory.
+    $windowIconHandle = [WorkbenchCaptureWin32]::SendMessage(
+        $handle, 0x007F, [IntPtr]2, [IntPtr]::Zero)
+    if ($windowIconHandle -eq [IntPtr]::Zero) {
+        $windowIconHandle = [WorkbenchCaptureWin32]::SendMessage(
+            $handle, 0x007F, [IntPtr]0, [IntPtr]::Zero)
+    }
+    if ($windowIconHandle -eq [IntPtr]::Zero) {
+        $windowIconHandle = [WorkbenchCaptureWin32]::SendMessage(
+            $handle, 0x007F, [IntPtr]1, [IntPtr]::Zero)
+    }
+    if ($windowIconHandle -eq [IntPtr]::Zero) {
+        throw "Workbench native window icon is missing"
+    }
+    Start-Sleep -Milliseconds 500
+
+    $rect = New-Object WorkbenchCaptureWin32+RECT
+    if (-not [WorkbenchCaptureWin32]::GetWindowRect($handle, [ref]$rect)) {
+        throw "GetWindowRect failed"
+    }
+    $width = $rect.Right - $rect.Left
+    $height = $rect.Bottom - $rect.Top
+    if ($width -lt 1000 -or $height -lt 700) {
+        throw "Unexpected workbench size: $width x $height"
+    }
+    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     $captured = $false
     $brightSamples = 0
     $darkSamples = 0
@@ -158,11 +336,38 @@ try {
         throw "PrintWindow did not produce a complete workbench frame after 15 attempts (bright=$brightSamples, dark=$darkSamples/$totalSamples, dense_dark=$denseDarkSamples/$denseTotalSamples)"
     }
     $bitmap.Save($resolvedOutput, [System.Drawing.Imaging.ImageFormat]::Png)
+
+    if ($resolvedEvidence) {
+        $evidence = [ordered]@{
+            schema_version = 1
+            captured_at = (Get-Date).ToString("o")
+            executable = [System.IO.Path]::GetFileName($resolvedExe)
+            process_id = [int]$process.Id
+            foreground_window_matches = [bool]$foregroundOwned
+            focus_owned_by_process = [bool]$focusOwned
+            foreground_hwnd = [long]$foregroundHandle.ToInt64()
+            focus_hwnd = [long]$focusHandle.ToInt64()
+            window_dpi = [int]$windowDpi
+            dpi_awareness = "per_monitor"
+            dpi_awareness_code = [int]$dpiAwareness
+            native_window_icon = ($windowIconHandle -ne [IntPtr]::Zero)
+            physical_width = [int]$width
+            physical_height = [int]$height
+            screenshot = [System.IO.Path]::GetFileName($resolvedOutput)
+        }
+        $evidence | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $resolvedEvidence -Encoding UTF8
+    }
 } finally {
-    $graphics.Dispose()
-    $bitmap.Dispose()
-    [void]$process.CloseMainWindow()
-    if (-not $process.WaitForExit(3000)) { $process.Kill() }
+    if ($null -ne $graphics) { $graphics.Dispose() }
+    if ($null -ne $bitmap) { $bitmap.Dispose() }
+    try {
+        if (-not $process.HasExited) {
+            [void]$process.CloseMainWindow()
+            if (-not $process.WaitForExit(3000)) { $process.Kill() }
+        }
+    } catch {
+        try { $process.Kill() } catch {}
+    }
 }
 
 Write-Host "Captured workbench window: $resolvedOutput"

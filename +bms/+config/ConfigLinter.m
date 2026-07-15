@@ -16,7 +16,8 @@ classdef ConfigLinter
                 bms.config.ConfigLinter.checkSingleOutputDirs(cfg), ...
                 bms.config.ConfigLinter.checkPlotWarningPreviews(cfg), ...
                 bms.config.ConfigLinter.checkDynamicRawSamplingMode(cfg), ...
-                bms.config.ConfigLinter.checkDynamicRawModuleOverrides(cfg)];
+                bms.config.ConfigLinter.checkDynamicRawModuleOverrides(cfg), ...
+                bms.config.ConfigLinter.checkGapOverrides(cfg)];
             result.issues = [result.issues, bms.config.ConfigLinter.issueDetails(extraWarnings, 'config')];
 
             result.warnings = bms.config.ConfigLinter.messagesBySeverity(result.issues, {'warning', 'error'});
@@ -356,6 +357,64 @@ classdef ConfigLinter
                             ~isfinite(lineWidth) || lineWidth < 0.5 || lineWidth > 3.0
                         warnings{end+1} = [prefix '.line_width must be a finite number from 0.5 to 3.0']; %#ok<AGROW>
                     end
+                end
+            end
+        end
+
+        function warnings = checkGapOverrides(cfg)
+            warnings = {};
+            if ~isstruct(cfg)
+                return;
+            end
+            if isfield(cfg, 'plot_styles') && isstruct(cfg.plot_styles)
+                modules = fieldnames(cfg.plot_styles);
+                for i = 1:numel(modules)
+                    moduleKey = modules{i};
+                    warnings = [warnings, bms.config.ConfigLinter.gapBlockWarnings( ...
+                        cfg.plot_styles.(moduleKey), ['plot_styles.' moduleKey])]; %#ok<AGROW>
+                end
+            end
+            if ~isfield(cfg, 'per_point') || ~isstruct(cfg.per_point)
+                return;
+            end
+            modules = fieldnames(cfg.per_point);
+            for i = 1:numel(modules)
+                moduleKey = modules{i};
+                points = cfg.per_point.(moduleKey);
+                if ~isstruct(points), continue; end
+                pointKeys = fieldnames(points);
+                for j = 1:numel(pointKeys)
+                    pointCfg = points.(pointKeys{j});
+                    if ~isstruct(pointCfg) || ~isfield(pointCfg, 'plot')
+                        continue;
+                    end
+                    prefix = sprintf('per_point.%s.%s.plot', moduleKey, pointKeys{j});
+                    if ~isstruct(pointCfg.plot)
+                        warnings{end+1} = [prefix ' must be an object']; %#ok<AGROW>
+                        continue;
+                    end
+                    warnings = [warnings, bms.config.ConfigLinter.gapBlockWarnings( ...
+                        pointCfg.plot, prefix)]; %#ok<AGROW>
+                end
+            end
+        end
+
+        function warnings = gapBlockWarnings(block, prefix)
+            warnings = {};
+            if ~isstruct(block) || isempty(block)
+                return;
+            end
+            block = block(1);
+            if isfield(block, 'gap_mode')
+                mode = bms.config.ConfigLinter.scalarTextField(block, 'gap_mode');
+                if ~any(strcmp(mode, {'connect', 'break'}))
+                    warnings{end+1} = [prefix '.gap_mode must be connect or break']; %#ok<AGROW>
+                end
+            end
+            if isfield(block, 'gap_break_factor')
+                factor = block.gap_break_factor;
+                if ~(isnumeric(factor) && isscalar(factor) && isfinite(factor) && factor >= 1.1)
+                    warnings{end+1} = [prefix '.gap_break_factor must be a finite number >= 1.1']; %#ok<AGROW>
                 end
             end
         end

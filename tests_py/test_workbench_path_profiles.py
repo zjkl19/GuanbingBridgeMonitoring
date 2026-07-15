@@ -12,6 +12,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class WorkbenchPathProfileTests(unittest.TestCase):
+    def test_shared_catalog_excludes_retired_office_profile(self) -> None:
+        resolver = PathProfileResolver(ROOT, {"COMPUTERNAME": "DESKTOP-500FVB6"})
+        self.assertIsNone(resolver.by_id("office_pc"))
+        self.assertNotIn("办公室电脑", [item.display_name for item in resolver.profiles])
+        self.assertEqual(
+            {item.profile_id for item in resolver.profiles},
+            {"dev_desktop_674s83o", "prod_133", "storage_126"},
+        )
+
     def test_environment_override_precedes_computer_name(self) -> None:
         resolver = PathProfileResolver(
             ROOT,

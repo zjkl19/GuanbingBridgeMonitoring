@@ -32,6 +32,7 @@ class TestStatsLookup(unittest.TestCase):
                         "path": str(pinned_stats),
                         "exists": True,
                         "bytes": pinned_stats.stat().st_size,
+                        "sha256": hashlib.sha256(pinned_stats.read_bytes()).hexdigest().upper(),
                     }],
                 }],
             }), encoding="utf-8")

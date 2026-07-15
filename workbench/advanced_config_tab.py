@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QDate, QDateTime, QTime, Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QDateTimeEdit,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
+    QFormLayout,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -98,6 +103,75 @@ def _stored_or_edited(item: QTableWidgetItem | None, labels: dict[str, str]) -> 
     return reverse.get(text, text)
 
 
+class OffsetEffectiveRangeDialog(QDialog):
+    """Calendar-backed editor for the period in which a correction is applied."""
+
+    def __init__(
+        self,
+        start_text: str = "",
+        end_text: str = "",
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("设置零点修正生效时间")
+        self.setMinimumWidth(460)
+        layout = QVBoxLayout(self)
+        note = QLabel(
+            "该时间段是“修正结果应用到哪些数据”的生效范围。"
+            "首日、逐日或逐小时基线仍按所选修正方式计算，并不是另设一段参考样本。"
+        )
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        form = QFormLayout()
+        self.start_edit = self._date_time_edit(start_text, end=False)
+        self.end_edit = self._date_time_edit(end_text, end=True)
+        form.addRow("生效开始时间", self.start_edit)
+        form.addRow("生效结束时间", self.end_edit)
+        layout.addLayout(form)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._accept_if_valid)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    @staticmethod
+    def _parse(text: str, *, end: bool) -> QDateTime:
+        text = str(text or "").strip()
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+            try:
+                parsed = datetime.strptime(text, fmt)
+                if fmt == "%Y-%m-%d" and end:
+                    parsed = parsed.replace(hour=23, minute=59, second=59)
+                return QDateTime(
+                    QDate(parsed.year, parsed.month, parsed.day),
+                    QTime(parsed.hour, parsed.minute, parsed.second),
+                )
+            except ValueError:
+                continue
+        now = QDateTime.currentDateTime()
+        if end:
+            return QDateTime(now.date(), now.time()).addSecs(3600)
+        return now
+
+    @classmethod
+    def _date_time_edit(cls, text: str, *, end: bool) -> QDateTimeEdit:
+        editor = QDateTimeEdit(cls._parse(text, end=end))
+        editor.setCalendarPopup(True)
+        editor.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        return editor
+
+    def _accept_if_valid(self) -> None:
+        if self.end_edit.dateTime() < self.start_edit.dateTime():
+            QMessageBox.warning(self, "时间范围无效", "生效结束时间不能早于开始时间。")
+            return
+        self.accept()
+
+    def values(self) -> tuple[str, str]:
+        return (
+            self.start_edit.dateTime().toString("yyyy-MM-dd HH:mm:ss"),
+            self.end_edit.dateTime().toString("yyyy-MM-dd HH:mm:ss"),
+        )
+
+
 class OffsetCorrectionEditorWidget(QWidget):
     config_saved = Signal(str, str, str)
 
@@ -114,6 +188,7 @@ class OffsetCorrectionEditorWidget(QWidget):
         hint = QLabel(
             "编辑模块默认或测点专用的零点修正；修正值会加到原始测值上。"
             "支持固定数值、首日/逐日/逐小时均值或中位数，以及互不重叠的分段修正。"
+            "“生效开始/结束时间”限定修正应用范围，可精确到秒；它不是另一个基线参考样本范围。"
             "只替换零点修正字段，不修改清洗阈值、缩放、绘图或报警配置。"
         )
         hint.setWordWrap(True)
@@ -142,8 +217,8 @@ class OffsetCorrectionEditorWidget(QWidget):
                 "测点编号",
                 "模式",
                 "修正值",
-                "开始日期",
-                "结束日期",
+                "生效开始时间",
+                "生效结束时间",
                 "是否分段",
                 "序号",
                 "备注",
@@ -155,7 +230,9 @@ class OffsetCorrectionEditorWidget(QWidget):
             2: "测点专用规则必须填写测点编号",
             3: "选择固定值、均值或中位数等基线修正方式",
             4: "固定数值模式必须填写；统计基线模式留空",
-            7: "分段规则只在指定日期范围内生效",
+            5: "零点修正开始生效的时刻；留空表示不限制开始时间",
+            6: "零点修正停止生效的时刻；留空表示不限制结束时间",
+            7: "分段规则必须填写完整且互不重叠的生效时间范围",
         }
         for column, tooltip in header_tooltips.items():
             self.table.horizontalHeaderItem(column).setToolTip(tooltip)
@@ -179,6 +256,12 @@ class OffsetCorrectionEditorWidget(QWidget):
         add_segment = QPushButton("新增分段")
         add_segment.clicked.connect(self._add_segment)
         actions.addWidget(add_segment)
+        self.edit_effective_range_button = QPushButton("设置选中行生效时间…")
+        self.edit_effective_range_button.clicked.connect(self._edit_selected_time_range)
+        actions.addWidget(self.edit_effective_range_button)
+        self.clear_effective_range_button = QPushButton("清除选中行时间限制")
+        self.clear_effective_range_button.clicked.connect(self._clear_selected_time_range)
+        actions.addWidget(self.clear_effective_range_button)
         delete_button = QPushButton("删除选中行")
         delete_button.clicked.connect(self._delete)
         actions.addWidget(delete_button)
@@ -287,6 +370,7 @@ class OffsetCorrectionEditorWidget(QWidget):
             for row in self.rows(validate_groups=False)
             if row.scope == "per_point" and row.module_key == module and row.point_key == point
         ]
+        new_index = self.table.rowCount()
         self._append(
             OffsetCorrectionRow(
                 "per_point",
@@ -294,12 +378,60 @@ class OffsetCorrectionEditorWidget(QWidget):
                 point,
                 "fixed",
                 0,
-                "2026-01-01",
-                "2026-01-31",
+                "",
+                "",
                 True,
                 max(indexes or [0]) + 1,
             )
         )
+        self.table.selectRow(new_index)
+        if not self._edit_selected_time_range():
+            self.table.removeRow(new_index)
+            self.count_label.setText(f"{self.table.rowCount()} 条零点修正规则")
+
+    def _selected_rows(self) -> list[int]:
+        selected = sorted({item.row() for item in self.table.selectedIndexes()})
+        if not selected and self.table.currentRow() >= 0:
+            selected = [self.table.currentRow()]
+        return selected
+
+    def _edit_selected_time_range(self) -> bool:
+        selected = self._selected_rows()
+        if not selected:
+            QMessageBox.warning(self, "未选择规则", "请先选择一行或多行零点修正规则。")
+            return False
+        first = selected[0]
+        start = self.table.item(first, 5).text().strip() if self.table.item(first, 5) else ""
+        end = self.table.item(first, 6).text().strip() if self.table.item(first, 6) else ""
+        dialog = OffsetEffectiveRangeDialog(start, end, self)
+        if dialog.exec() != QDialog.Accepted:
+            return False
+        start, end = dialog.values()
+        for row in selected:
+            self.table.item(row, 5).setText(start)
+            self.table.item(row, 6).setText(end)
+        return True
+
+    def _clear_selected_time_range(self) -> None:
+        selected = self._selected_rows()
+        if not selected:
+            QMessageBox.warning(self, "未选择规则", "请先选择一行或多行零点修正规则。")
+            return
+        segmented = [
+            row
+            for row in selected
+            if self._bool(self.table.item(row, 7).text() if self.table.item(row, 7) else "")
+        ]
+        if segmented:
+            QMessageBox.warning(
+                self,
+                "分段规则不能清空时间",
+                "分段零点修正必须保留完整生效时间。请改用“设置选中行生效时间”。",
+            )
+            return
+        for row in selected:
+            self.table.item(row, 5).setText("")
+            self.table.item(row, 6).setText("")
 
     def _delete(self) -> None:
         selected = sorted({item.row() for item in self.table.selectedIndexes()}, reverse=True)

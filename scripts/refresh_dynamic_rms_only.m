@@ -1,8 +1,11 @@
-function result = refresh_dynamic_rms_only(rootDir, startDate, endDate, cfgOrPath, kinds)
+function result = refresh_dynamic_rms_only(rootDir, startDate, endDate, cfgOrPath, kinds, options)
 %REFRESH_DYNAMIC_RMS_ONLY Refresh RMS10min artifacts for dynamic modules only.
 %   This is intended for report repair after RMS plot logic changes. It
 %   recomputes per-point RMS series from the raw time-series data, refreshes
 %   RMS plots/group plots, and rewrites the corresponding stats workbook.
+%   By default, a module that refreshes zero points fails before its stats
+%   workbook is written.  Pass struct('allow_empty_output', true) as OPTIONS
+%   only when an intentionally empty replacement workbook is required.
 
     if nargin < 5 || isempty(kinds)
         kinds = {'acceleration', 'cable_accel'};
@@ -10,6 +13,11 @@ function result = refresh_dynamic_rms_only(rootDir, startDate, endDate, cfgOrPat
     if ischar(kinds) || isstring(kinds)
         kinds = cellstr(string(kinds));
     end
+    if nargin < 6 || isempty(options)
+        options = struct();
+    end
+    allowEmptyOutput = bms.config.ConfigReader.boolValue( ...
+        localOption(options, 'allow_empty_output', false), false);
 
     rootDir = char(string(rootDir));
     startDate = char(string(startDate));
@@ -25,7 +33,8 @@ function result = refresh_dynamic_rms_only(rootDir, startDate, endDate, cfgOrPat
     for k = 1:numel(kinds)
         kind = char(string(kinds{k}));
         fprintf('Refreshing RMS artifacts for %s\n', kind);
-        moduleResult = refreshOneKind(rootDir, startDate, endDate, cfg, kind);
+        moduleResult = refreshOneKind( ...
+            rootDir, startDate, endDate, cfg, kind, allowEmptyOutput);
         safeKind = matlab.lang.makeValidName(kind);
         result.modules.(safeKind) = moduleResult;
     end
@@ -41,7 +50,7 @@ function cfg = localConfig(cfgOrPath)
     end
 end
 
-function moduleResult = refreshOneKind(rootDir, startDate, endDate, cfg, kind)
+function moduleResult = refreshOneKind(rootDir, startDate, endDate, cfg, kind, allowEmptyOutput)
     spec = bms.analyzer.DynamicAccelerationPipeline.spec(kind);
     subfolder = bms.config.ConfigReader.getSubfolder(cfg, spec.subfolderKey, spec.defaultSubfolder);
     points = bms.analyzer.DynamicAccelerationPipeline.resolvePoints(cfg, spec);
@@ -55,7 +64,11 @@ function moduleResult = refreshOneKind(rootDir, startDate, endDate, cfg, kind)
     for i = 1:numel(points)
         pid = char(string(points{i}));
         fprintf('RMS refresh %s point %s (%d/%d)\n', kind, pid, i, numel(points));
-        rec = collectRecordExplicitDays(rootDir, subfolder, pid, startDate, endDate, cfg, spec);
+        % Use the same vendor-aware, MAT-alias-aware calendar-day loader as
+        % the main acceleration analyzers.  The former CSV-pattern precheck
+        % rejected valid MAT-only caches before this loader could see them.
+        rec = bms.analyzer.DynamicAccelerationSeriesService.collectRecord( ...
+            rootDir, subfolder, pid, startDate, endDate, cfg, true, spec, false);
         if ~rec.has_data || isempty(rec.rms_vals)
             warning('refresh_dynamic_rms_only:NoRmsData', ...
                 'No RMS data for %s point %s', kind, pid);
@@ -73,20 +86,24 @@ function moduleResult = refreshOneKind(rootDir, startDate, endDate, cfg, kind)
             continue;
         end
 
-        plotVals = zeros(size(rmsVals));
         bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve( ...
-            rootDir, rec.pid, rmsTimes, plotVals, rec.fs, style, cfg, spec, rmsTimes, rmsVals);
+            rootDir, rec.pid, rmsTimes, rmsVals, rec.fs, style, cfg, spec, rmsTimes, rmsVals);
 
         rec.rms_times = rmsTimes;
         rec.rms_vals = rmsVals;
-        rec.times = rmsTimes;
-        rec.vals = plotVals;
         records(i) = rec;
         stats(i, :) = {rec.pid, rec.mn, rec.mx, rec.av, rec.rms_max, rec.rms_time};
         refreshed = refreshed + 1;
     end
 
-    bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroups( ...
+    if refreshed == 0 && ~allowEmptyOutput
+        error('refresh_dynamic_rms_only:NoPointsRefreshed', ...
+            ['Refusing to replace %s stats because zero of %d configured ' ...
+             'points produced finite RMS data. Existing artifacts were left unchanged.'], ...
+            kind, numel(points));
+    end
+
+    bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredRmsGroups( ...
         rootDir, subfolder, startDate, endDate, cfg, true, style, spec, records);
 
     statsFile = resolve_data_output_path(rootDir, spec.defaultStatsFile, 'stats');
@@ -101,159 +118,11 @@ function moduleResult = refreshOneKind(rootDir, startDate, endDate, cfg, kind)
     moduleResult.stats_file = statsFile;
 end
 
-function rec = collectRecordExplicitDays(rootDir, subfolder, pointId, startDate, endDate, cfg, spec)
-    rec = bms.analyzer.DynamicSeriesService.initRecord();
-    rec.pid = char(string(pointId));
-
-    dateList = bms.data.TimeSeriesRangeLoader.buildDateList(startDate, endDate);
-    totalCount = 0;
-    totalSum = 0;
-    mn = Inf;
-    mx = -Inf;
-    bestRms = NaN;
-    bestTime = NaT;
-    fsValues = [];
-    keptRmsTimes = {};
-    keptRmsVals = {};
-
-    for i = 1:numel(dateList)
-        day = dateList{i};
-        if i == 1 || i == numel(dateList) || mod(i, 10) == 0
-            fprintf('RMS explicit %s %s checking %s (%d/%d)\n', ...
-                char(string(spec.sensorType)), rec.pid, day, i, numel(dateList));
-        end
-
-        if ~hasExplicitDayFile(rootDir, subfolder, rec.pid, day, cfg, spec.sensorType)
-            continue;
-        end
-
-        [times, vals] = load_timeseries_range(rootDir, subfolder, rec.pid, day, day, cfg, spec.sensorType);
-        if isempty(vals)
-            continue;
-        end
-
-        fsDay = bms.analyzer.DynamicSeriesService.sampleRate(times, true, 100);
-        if isfinite(fsDay) && fsDay > 0
-            fsValues(end+1, 1) = fsDay; %#ok<AGROW>
-        end
-
-        finite = isfinite(vals);
-        if any(finite)
-            dayVals = vals(finite);
-            totalCount = totalCount + numel(dayVals);
-            totalSum = totalSum + sum(dayVals);
-            mn = min(mn, min(dayVals));
-            mx = max(mx, max(dayVals));
-        end
-
-        [rmsTimesDay, rmsSeriesDay, rmsDay, tDay] = ...
-            bms.analyzer.DynamicSeriesService.rmsByTimeBins(times, vals, 10, 0.7, fsDay);
-        if isfinite(rmsDay) && (~isfinite(bestRms) || rmsDay > bestRms)
-            bestRms = rmsDay;
-            bestTime = tDay;
-        end
-        if ~isempty(rmsSeriesDay)
-            keptRmsTimes{end+1, 1} = rmsTimesDay; %#ok<AGROW>
-            keptRmsVals{end+1, 1} = rmsSeriesDay; %#ok<AGROW>
-        end
+function value = localOption(options, name, defaultValue)
+    value = defaultValue;
+    if isstruct(options) && isfield(options, name) && ~isempty(options.(name))
+        value = options.(name);
     end
-
-    if totalCount <= 0
-        return;
-    end
-
-    rec.fs = median(fsValues, 'omitnan');
-    if isempty(fsValues) || ~isfinite(rec.fs)
-        rec.fs = 100;
-    end
-    rec.mn = round(mn, 3);
-    rec.mx = round(mx, 3);
-    rec.av = round(totalSum / totalCount, 3);
-    if isfinite(bestRms)
-        rec.rms_max = round(bestRms, 3);
-        rec.rms_time = bestTime;
-    end
-    rec.has_data = true;
-
-    if ~isempty(keptRmsVals)
-        rec.rms_times = vertcat(keptRmsTimes{:});
-        rec.rms_vals = vertcat(keptRmsVals{:});
-        [rec.rms_times, order] = sort(rec.rms_times);
-        rec.rms_vals = rec.rms_vals(order);
-    end
-    fprintf('RMS explicit %s %s collected rms=%.6g\n', ...
-        char(string(spec.sensorType)), rec.pid, rec.rms_max);
-end
-
-function tf = hasExplicitDayFile(rootDir, subfolder, pointId, day, cfg, sensorType)
-    tf = false;
-    dirs = dayCandidateDirs(rootDir, subfolder, day);
-    if isempty(dirs)
-        return;
-    end
-    patterns = explicitPatterns(cfg, sensorType, pointId);
-    if isempty(patterns)
-        tf = true;
-        return;
-    end
-    fileId = bms.data.TimeSeriesLoader.resolveFileId(cfg, sensorType, pointId);
-    for i = 1:numel(dirs)
-        for j = 1:numel(patterns)
-            pat = char(string(patterns{j}));
-            pat = strrep(pat, '{point}', char(string(pointId)));
-            pat = strrep(pat, '{file_id}', char(string(fileId)));
-            hits = dir(fullfile(dirs{i}, pat));
-            hits = hits(~[hits.isdir]);
-            if ~isempty(hits)
-                tf = true;
-                return;
-            end
-        end
-    end
-end
-
-function dirs = dayCandidateDirs(rootDir, subfolder, day)
-    dirs = bms.data.DatedFolderAdapter.candidateDirs(rootDir, subfolder, day, day);
-    if ~isempty(dirs)
-        return;
-    end
-
-    dirs = {};
-    dayFolders = bms.data.DatedFolderAdapter.dateFolderCandidates(rootDir, day);
-    subfolder = char(string(subfolder));
-    for i = 1:numel(dayFolders)
-        if ~isfolder(dayFolders{i})
-            continue;
-        end
-        candidates = {fullfile(dayFolders{i}, subfolder), dayFolders{i}};
-        for j = 1:numel(candidates)
-            if isfolder(candidates{j})
-                dirs{end+1, 1} = candidates{j}; %#ok<AGROW>
-                break;
-            end
-        end
-    end
-    dirs = bms.data.BaseDataSource.uniqueExistingFolders(dirs);
-end
-
-function patterns = explicitPatterns(cfg, sensorType, pointId)
-    patterns = {};
-    sensorType = char(string(sensorType));
-    if ~isstruct(cfg) || ~isfield(cfg, 'file_patterns') || ~isstruct(cfg.file_patterns) ...
-            || ~isfield(cfg.file_patterns, sensorType)
-        return;
-    end
-    ft = cfg.file_patterns.(sensorType);
-    if isstruct(ft) && isfield(ft, 'per_point') && isstruct(ft.per_point)
-        [ok, pointPatterns] = bms.data.PointResolver.getPointConfig(ft.per_point, pointId, cfg);
-        if ok
-            patterns = [patterns; bms.data.TimeSeriesLoader.normalizePatterns(pointPatterns)];
-        end
-    end
-    if isstruct(ft) && isfield(ft, 'default')
-        patterns = [patterns; bms.data.TimeSeriesLoader.normalizePatterns(ft.default)];
-    end
-    patterns = unique(patterns, 'stable');
 end
 
 function [timesOut, valsOut] = finiteRms(timesIn, valsIn)

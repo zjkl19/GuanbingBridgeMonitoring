@@ -95,11 +95,19 @@ classdef ArtifactCollector
             rec.exists = isfile(path);
             rec.bytes = 0;
             rec.modified_at = '';
+            rec.sha256 = '';
             if rec.exists
-                d = dir(path);
-                if ~isempty(d)
-                    rec.bytes = d.bytes;
-                    rec.modified_at = datestr(d.datenum, 'yyyy-mm-dd HH:MM:ss');
+                before = dir(path);
+                if ~isempty(before)
+                    rec.sha256 = bms.io.JsonFile.sha256(path);
+                    after = dir(path);
+                    if isempty(after) || after.bytes ~= before.bytes ...
+                            || abs(after.datenum - before.datenum) > eps(before.datenum)
+                        error('BMS:ArtifactCollector:ChangedWhileHashing', ...
+                            'Artifact changed while its SHA-256 was being recorded: %s', path);
+                    end
+                    rec.bytes = after.bytes;
+                    rec.modified_at = datestr(after.datenum, 'yyyy-mm-dd HH:MM:ss');
                 end
             end
         end

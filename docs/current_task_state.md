@@ -1,10 +1,270 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-14
+Last updated: 2026-07-15
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-07-15 Local Machine-Profile And Cross-Bridge Cache Capability
+
+- The implementation changes in this batch were local-only. A separate
+  read-only status check inspected machine 133, but no task was stopped, no
+  runtime was upgraded and no remote file was written. No cleaning, filtering,
+  statistics or report calculation rule changed.
+- The shared storage-location catalog no longer exposes the retired empty
+  `office_pc` / “办公室电脑” entry. The shared choices remain the development
+  machine, 133 analysis machine and 126 data machine. Future or one-off machines
+  continue to use `config/path_profiles.local.json` or the GUI custom path; the
+  host-name/environment/path auto-selection priority is unchanged.
+- `bridge_profiles.json` now distinguishes default modules from optional
+  capabilities. All six installed bridge profiles advertise
+  `cache_prebuild` as available but do not select it by default, so an ordinary
+  analysis request is unchanged until the operator explicitly enables it.
+- Cache generation now routes through `bms.data.CachePrebuildService`:
+  - `jlj_daily_export` keeps the existing multi-channel `jlj_csv_v2` builder;
+  - `dated_folders` and `hongtang_period` use the existing two-column
+    `csv_timeseries_v2` parser/metadata contract with capacity checks, whole-run
+    and per-target leases, transactional replacement and reusable-cache checks.
+- The standard backend discovers only CSV files reached from configured
+  analysis modules and point mappings. It includes both wind speed/direction
+  sources and enabled crack-temperature companion sources. WIM, Hongtang
+  low-frequency Excel, ZIP archives, unconfigured CSV and non-CSV sources are
+  explicitly excluded.
+- Focused regressions pass: Python `37/37`; MATLAB `73/73`. The MATLAB set
+  exercises real cache creation and loading for `dated_folders`,
+  `hongtang_period` and `jlj_daily_export`, plus reuse, source-change rebuild,
+  wind direction and crack-temperature coverage. The complete Python suite ran
+  `582` tests successfully (`581` passed and `1` was conditionally skipped),
+  including the updated release-packaging fixtures.
+
+## 2026-07-15 Local v1.8.1-rc3 Release Review
+
+- The review began with CLI, MATLAB batch and Qt-offscreen execution while the
+  desktop was in active office use. After explicit authorization, the final
+  release gate briefly launched the native Windows GUI for focus/DPI/icon
+  checks. No Computer Use, Word/WPS automation or machine-133 write was used.
+- Release review fixed terminal analysis/report status races, strict report
+  artifact acceptance without SHA-256, and RMS-only refresh overwriting raw
+  grouped plots with zero-valued support lines.
+- Analysis and report launches now use launch-specific immutable request
+  snapshots and same-directory atomic status/result publication. Process
+  ownership binds the job, launch, PID, creation time and executable; canonical
+  task/data-root and report-output locks prevent duplicate or cross-task writes.
+  Moved task files use their actual directory and the current runtime root.
+- A report can only adopt the exact manifest created or modified by its current
+  build and matching the returned DOCX path/hash. Analysis-manifest selection
+  atomically binds path, SHA-256 and state while invalidating an older approval;
+  stale windows, persistence failures and cleanup-pending processes keep the
+  GUI report gate closed.
+- Archive extraction now revalidates the ZIP snapshot after capacity planning,
+  binds the exact path/size/CRC entry set to the opened archive, rechecks before
+  publication, and uses a host/PID/UUID directory lease. Live same-host tasks
+  cannot be reclaimed by age and old cleanup tokens cannot delete a new lock.
+- The build has an explicit Qt-offscreen audit mode. Its manifest is marked
+  non-native and the formal package script rejects it. A subsequent native
+  Windows probe passed foreground and keyboard-focus ownership, native icon,
+  120 DPI, per-monitor awareness and a 2018 x 1122 physical window. The final
+  rebuilt rc3 package reproduced the same evidence in its release manifest.
+- Packaging now rehashes the complete frozen distribution immediately before
+  compression and requires root/dist/manifest/smoke version records to agree.
+- The final Python regression ran `582` tests successfully (`581` passed and
+  `1` was conditionally skipped). The final MATLAB regression passed `673/673`
+  with no failure or incomplete test. Earlier coverage artifacts remain
+  diagnostic rather than substitutes for these release gates.
+- The analysis Runner and unified workbench were rebuilt locally. Runner SHA-256
+  is `92ae777bc8395f6dad6968a5c0465ea958a623a2d771c38d9150bca79b819754`;
+  workbench EXE SHA-256 is
+  `7e2f3dc6ba13433a27c73d949dc805f19ac5cc4e9ba5e28250437dd19682e5bc`.
+  The candidate manifest closes `384/384` files and all `16/16` native Windows
+  screenshots, six installed bridge profiles, embedded-report contracts,
+  compiled failure-exit and automatic-threshold-preview smoke tests. The
+  release ZIP SHA-256 is
+  `61793bda8d1b905e254256d8e72914cd6ea376a26c224a25be24a64e5418bf62`.
+- The first offscreen audit correctly exposed a false-negative screenshot gate:
+  dense CJK fallback boxes on a valid table page exceeded the old 5% dark-pixel
+  limit. The offscreen-only detector now permits 20% while retaining its bright
+  frame requirement; native PrintWindow thresholds remain strict and separate.
+  The build-script regression is `20/20` and the complete package rerun passed.
+- rc3 remains a development-branch candidate and is not deployed to 133. Do
+  not replace any production tree while the isolated Jiulongjiang acceptance
+  workflow is incomplete. The final rebuilt package, inventory, native Windows
+  screenshots and focus/DPI/icon evidence have passed locally.
+
+## 2026-07-15 Jiulongjiang May W4 Cache Completion
+
+- Machine 133 completed
+  `Guanbing_v181rc1_Jiulongjiang_May_CachePrebuild_W4_20260715` inside the
+  isolated `F:\Guanbing_v1.8.1-rc1` tree. Stable production and the source ZIP
+  tree remained untouched.
+- Final summary: `created=3764`, `reused=1561`, `eligible=5325`, `failed=0`,
+  elapsed `6h50m27s`; cache size `57.50 GiB`, F: free space `539.33 GiB`.
+- Remaining work is deliberately fail-closed: validate all MAT/metadata pairs
+  and summary counts, rerun with `force_rebuild=false` and require all 5,325
+  pairs to be reused with zero cache writes, then run the 15 applicable modules
+  from cache and generate/review the May report with Microsoft Word PDF and
+  every-page checks. None of those remaining gates is recorded as complete yet.
+
+## 2026-07-15 360 Cloud Transfer Pilot And V2Ray Diagnosis
+
+- The local P0 hardening batch remains complete and uncommitted. The Codex
+  monitor automation remains paused. The isolated Jiulongjiang W4 cache task
+  on 133 has completed; its downstream acceptance steps remain pending.
+- The official `360disk` CLI `0.8.37` was validated in both directions using
+  new random payloads and end-to-end SHA256 checks. A portable Node/CLI runtime
+  and the credential-safe wrapper now exist only under the 133 RC tree; stable
+  production was not modified.
+- V2Ray is not in TUN mode and the CLI normally connects directly. Explicitly
+  forcing V2Ray did not explain the slow uploads: direct 8 MiB runs varied from
+  `0.066` to `0.319 MiB/s`, while forced-proxy runs were `0.123` and
+  `0.197 MiB/s`. The actual fault boundary is severe 360 endpoint jitter,
+  intermittent `fetch`/connect failures, and weak CLI retry behavior.
+- 360-to-133 download reached `3.148 MiB/s`; 133 upload reached `0.285 MiB/s`.
+  Local download required retry/proxy fallback and verified at `0.169` to
+  `0.558 MiB/s`. All accepted payloads had matching SHA256.
+- `scripts/invoke_360disk_transfer.ps1` now applies asymmetric direct/proxy
+  fallback, outer retries, raw-output suppression and SHA256 reporting without
+  storing credentials. Full instructions and evidence are in
+  `docs/ops/360disk_transfer.md`.
+- Three wrapper regressions were added and the complete Python suite now passes
+  `511/511`. They cover credential-literal rejection, the single-mode array
+  defect found by real upload smoke, and automatic proxy-first download hashing.
+- Do not select 360 as the default multi-gigabyte route from these small-file
+  measurements alone. After Jiulongjiang cache work ends, repeat with a 1-2 GiB
+  random artifact and compare against SSH/SMB and the official desktop client.
+
+## 2026-07-15 Local P0 Test Hardening After rc2 Build
+
+- The Codex monitor automation was paused at the user's request so the local
+  machine can be used interactively. This did **not** stop or modify the
+  isolated Jiulongjiang cache task on machine 133. That four-worker build later
+  completed successfully; before the remaining acceptance work, the next
+  session must still begin with a read-only process/task and disk check rather
+  than assuming no residual worker exists.
+- Targeted failure-path tests found and fixed concrete defects in four safety
+  areas:
+  - Jiulongjiang cache prebuild now has whole-run and per-target locks, can
+    reclaim a same-host dead-PID lock, and recovers MAT/meta half-pairs and
+    interrupted transaction directories. A metadata-only half-pair is now
+    correctly counted as `rebuilt`, not `created`.
+  - `refresh_dynamic_rms_only` now discovers MAT-only alias caches through the
+    same loader as the main analysis path. A zero-point refresh fails before
+    replacing statistics or group figures unless an explicit legacy
+    `allow_empty_output=true` override is supplied.
+  - Strict report generation now rechecks every pinned artifact's byte count
+    and SHA256, performs template preflight for all supported bridge report
+    types, and rejects missing or outside-output stale builder results before
+    Word/PDF processing.
+  - Workbench analysis/report launch failures and unexpectedly exited child
+    processes now leave a durable `launch_failed` state. Stop requests cannot
+    regress to a stale `running` heartbeat; report termination verifies process
+    exit before atomically publishing `stopped`. Stale stop flags are removed
+    before relaunch, transient status-read failures keep live tasks
+    non-restartable, and packaged-runner/MATLAB selection, stopping, and native
+    offscreen Qt button flows have direct lifecycle tests. MATLAB status JSON
+    and Python task contexts now use same-directory atomic publication.
+- Final local source regressions pass: Python `511/511`; MATLAB `648/648`.
+  Regenerated coverage is Python statement/branch `65.12%` / `51.16%` and
+  MATLAB production-root statement/decision `46.44%` / `47.91%`. Excluding
+  orchestration scripts, MATLAB statement/decision coverage is approximately
+  `73.69%` / `58.81%`; the `+bms/` kernel is approximately `78.90%` / `62.84%`.
+  Detailed artifacts are under `outputs/coverage`.
+- The last compiled rc2 EXE and ZIP predate these P0 source fixes and therefore
+  are no longer release-equivalent to the working tree. Before any publish or
+  deployment, rebuild the internal Runner and workbench and repeat CLI, native
+  GUI, embedded-report, failure-exit and closed-package-inventory smoke tests.
+- These local changes are not committed, pushed, deployed to 133 or merged to
+  `main`. Preserve the dirty worktree and review its complete diff before
+  publishing.
+
+## 2026-07-15 Local v1.8.1-rc2 Operator Controls And Coverage Gate
+
+- Interactive development is local-only on branch
+  `codex/jiulongjiang-cache-prebuild`. The running isolated Jiulongjiang rc1
+  production workflow on machine 133 was not inspected, modified, restarted or
+  redeployed during this work. The Codex monitor automation is currently paused
+  for interactive local development; the remote Windows task itself was not
+  stopped. Resume with a read-only check before continuing remote acceptance.
+- Future ZIP extraction requests now support `auto`, 1, 2, 4 or a bounded custom
+  worker count. The service records requested/resolved/effective concurrency and
+  any deterministic serial fallback. Archive immutability, staging publication,
+  lock handling and disk-capacity gates are unchanged. This setting is not
+  retroactively applied to a running production request.
+- The cleaning editor now has two explicit one-sided actions: set a lower bound
+  and remove values below it, or set an upper bound and remove values above it.
+  The native frozen GUI was tested with a selected Guanbing point, draggable line,
+  exact `-275.5` entry and cancel; the table/configuration remained unchanged.
+- Zero-offset correction accepts an optional second-precision effective start
+  and end. Legacy date-only end values still include the full day; explicit
+  midnight remains an exact boundary. Gap rendering now supports field-wise
+  global/module/point inheritance without changing analytical samples or stats.
+- Final local test baselines pass: Python `475/475`; MATLAB `634/634`. Python
+  statement/branch/combined coverage is `64.32%` / `50.63%` / `60.65%`.
+  MATLAB production-root statement coverage is `46.02%` and decision/branch
+  coverage is `47.52%`, with condition-level metrics collected. Artifacts are
+  under `outputs/coverage`.
+- The rc2 compiled workbench passes CLI, frozen GUI, all-profile, embedded
+  report, internal Runner, screenshot and operator-feature package gates. The
+  Chinese-named EXE is
+  `dist/BridgeMonitoringWorkbench/桥梁健康监测工作台.exe`, SHA256
+  `3AE1C6175B9BDC35C68D269266A388A6D481895515F6CBF335759431EBD9EFAD`.
+  Its manifest closes at 383 files and 226,791,562 bytes excluding the manifest.
+- A local-only release archive was prepared at
+  `release/workbench_rc2_local/BridgeMonitoringWorkbench-v1.8.1-rc2-win-x64.zip`,
+  117,398,190 bytes, SHA256
+  `E59E9E1513382F50489788D8B48B84556ACD0560365294C287E181DE88313B3A`.
+  It has not been uploaded, installed on 133, tagged, committed or pushed.
+- Architecture assessment: retain the MATLAB numerical kernel and PySide6
+  orchestration split. Do not perform a big-bang rewrite. Next low-risk steps are
+  a shared module catalog, one path/profile model, extracted capacity/parallel
+  planning services and mechanical splits of oversized editors with compatibility
+  re-exports. Production/report acceptance remains the release decision, not a
+  coverage percentage alone.
+
+## 2026-07-15 v1.8.1-rc1 Jiulongjiang May ZIP/Cache/Report Regression
+
+- Work continues on branch `codex/jiulongjiang-cache-prebuild` from stable
+  baseline `dcab406`. Production `F:\Guanbing` and the source ZIP tree
+  `F:\九龙江数据\2026年5月` are read-only; all remote writes are isolated under
+  `F:\Guanbing_v1.8.1-rc1`.
+- The candidate adds verified ZIP64 streaming extraction, source/output-root
+  isolation, disk/lock gates, raw MAT cache prebuilding, transactional MAT/meta
+  publication and the Jiulongjiang monthly-report period/WIM/patrol fixes.
+  Verified extraction reuse ignores derived cache files but continues to check
+  every ZIP-declared path and byte count.
+- Final local gates pass: MATLAB `612/612`, Python `441/441`, compiled Runner,
+  embedded report runtime, native GUI, all-profile matrix, screenshots and the
+  closed 382-file package inventory. The compiled failure-exit smoke used an
+  empty Jiulongjiang root with only `doUnzip=true`; it returned exit code `249`,
+  left `analysis_status.status=failed`, retained a readable failed manifest and
+  recorded the `unzip` module as `fail`. The release manifest therefore records
+  `analysis_runner_failure_exit_smoke=true`.
+- The final local package was built at `2026-07-15 03:35:59 +08:00` and is
+  `release/workbench/BridgeMonitoringWorkbench-v1.8.1-rc1-win-x64.zip`,
+  117,198,340 bytes, SHA256
+  `BA2ED5DCA711F69B2932B3B067DD7B0E2EC5EC19FBBB1A918D6CEECB4F114B23`.
+  Its 125,024-byte `release_manifest.json` has SHA256
+  `D90742F86AA26ACA7A1CD4F399DD3FA571571535E7225D5E87499F47218A10B9`;
+  the inventory closes at 382 files and 226,583,174 bytes excluding that
+  manifest. The 6,577,771-byte workbench EXE SHA256 is
+  `0C409E93EA11D8A83E4DBA8F47567F52B0557C4E648AF35CA30914FED4117CE0`;
+  the 2,779,220-byte internal Runner SHA256 is
+  `EA0F3B7998ED67FCD45EFA61F461B08FC8834809AAEE69F489903779D88946FC`.
+- The same final package is deployed only in the isolated 133 candidate tree.
+  Receipt:
+  `F:\Guanbing_v1.8.1-rc1\deployment_receipt_summary_runner_exitfix_20260715_034040.json`;
+  rollback copy:
+  `F:\Guanbing_v1.8.1-rc1\app_before_summary_runner_exitfix_20260715_034040`.
+- The isolated May 1 extraction/reuse-v3 and two-worker cache transaction plus
+  idempotency repeat have completed on 133. The source inventory remains 31
+  ZIPs and 61,754,011,511 compressed bytes. The full 31-day extraction later
+  completed with source-ZIP immutability checks, and the four-worker cache run
+  completed with `created=3764`, `reused=1561`, `eligible=5325`, `failed=0`
+  in `6h50m27s`. Cache size was `57.50 GiB` and F: free space was
+  `539.33 GiB`. Strict pair acceptance, the zero-write reuse rerun, all 15
+  applicable `mat_only` modules and the pinned-manifest May report with
+  Microsoft Word PDF/every-page QA remain incomplete. Do not describe the RC
+  as accepted until those remaining gates finish.
 
 ## 2026-07-14 v1.8.0 Production Cutover On gb-133
 

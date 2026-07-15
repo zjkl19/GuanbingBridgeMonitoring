@@ -8,9 +8,11 @@ from docx import Document  # noqa: E402
 from jlj_patrol import (  # noqa: E402
     insert_docx_body_after_heading,
     patrol_report_matches_period,
+    patrol_source_availability_record,
     period_label_month,
     replace_patrol_section_with_note,
     replace_patrol_report_dates,
+    resolve_patrol_report_source,
 )
 
 
@@ -67,6 +69,67 @@ class TestJljPatrol(unittest.TestCase):
             text = "\n".join(p.text for p in target.paragraphs)
             self.assertIn("本期巡查资料未提供", text)
             self.assertNotIn("2026年3月旧巡查", text)
+        finally:
+            tmp.unlink(missing_ok=True)
+
+    def test_patrol_source_availability_records_verified_source_hash_and_period(self):
+        source = Document()
+        source.add_paragraph("2026年05月09日上午巡查")
+        tmp = Path("tmp") / "test_jlj_patrol_availability.docx"
+        tmp.parent.mkdir(exist_ok=True)
+        source.save(tmp)
+        try:
+            record = patrol_source_availability_record(
+                tmp,
+                required=False,
+                target_year=2026,
+                target_month=5,
+                action="verified_source_inserted",
+            )
+            self.assertEqual(record["status"], "available")
+            self.assertEqual(record["target_period"], "2026-05")
+            self.assertEqual(record["source_period"], "2026-05")
+            self.assertEqual(record["source"], str(tmp.resolve()))
+            self.assertEqual(len(record["source_sha256"]), 64)
+            self.assertEqual(record["action"], "verified_source_inserted")
+        finally:
+            tmp.unlink(missing_ok=True)
+
+    def test_patrol_source_availability_records_nonblocking_absence(self):
+        record = patrol_source_availability_record(
+            None,
+            required=False,
+            target_year=2026,
+            target_month=5,
+            action="template_content_cleared_and_note_inserted",
+        )
+        self.assertEqual(
+            record,
+            {
+                "required": False,
+                "status": "not_available",
+                "target_period": "2026-05",
+                "source": "",
+                "source_sha256": "",
+                "source_period": "",
+                "action": "template_content_cleared_and_note_inserted",
+            },
+        )
+
+    def test_explicit_patrol_source_from_another_month_fails_closed(self):
+        source = Document()
+        source.add_paragraph("2026年03月09日巡查")
+        tmp = Path("tmp") / "test_jlj_patrol_wrong_period.docx"
+        tmp.parent.mkdir(exist_ok=True)
+        source.save(tmp)
+        try:
+            with self.assertRaisesRegex(ValueError, "period does not match"):
+                resolve_patrol_report_source(
+                    Path("template.docx"),
+                    tmp,
+                    target_year=2026,
+                    target_month=5,
+                )
         finally:
             tmp.unlink(missing_ok=True)
 

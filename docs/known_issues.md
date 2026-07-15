@@ -1,9 +1,143 @@
 # Known Issues And Follow-Up Items
 
-Last updated: 2026-07-14
+Last updated: 2026-07-15
 
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
+
+## v1.8.1-rc1 Daily ZIP Extraction And Cache-Prebuild Boundaries
+
+Status: implementation and local regression are complete. The full
+Jiulongjiang May W4 cache run on 133 completed with `created=3764`,
+`reused=1561`, `eligible=5325`, `failed=0` in `6h50m27s`; cache size was
+`57.50 GiB` and F: free space was `539.33 GiB`. Strict pair acceptance, the
+zero-write reuse repeat, 15-module analysis and May report review remain open,
+so this result does not authorize a stable production upgrade by itself.
+
+- “预生成分析缓存” is an optional capability for all installed bridge
+  profiles and remains unchecked by default. `jlj_daily_export` uses the
+  dedicated multi-channel `jlj_csv_v2` backend; `dated_folders` and
+  `hongtang_period` use the standard two-column `csv_timeseries_v2` backend.
+  Do not bypass the layout dispatcher or treat one cache schema as the other.
+- The standard backend is configuration-scoped, not a recursive CSV converter:
+  it caches only files resolved from configured analysis modules/points,
+  including both wind channels and an enabled crack-temperature companion.
+  WIM, Hongtang low-frequency Excel, ZIP, unconfigured CSV and non-CSV sources
+  remain excluded. A newly introduced sensor family with extra companion files
+  must add an explicit discovery contract and regression before it can claim
+  complete pre-generation coverage.
+- ZIP archives are read-only inputs. Automatic deletion is forbidden, and an
+  existing output directory without a matching verified extraction manifest
+  cannot be overwritten by the safe default. Production trials should use a
+  separate output root.
+- The extraction and cache-prebuild space checks are startup budgets, not a
+  substitute for monitoring free space during long runs. Do not lower the
+  configured reserve merely to force a run through.
+- A verified daily extraction remains reusable after derived `cache` files are
+  created. Reuse still checks every ZIP-declared relative path and byte count;
+  any missing or changed archive entry fails closed.
+- `preprocessing.unzip.summary_file` is a path, not only a filename. An
+  absolute value is used unchanged; a relative value is resolved under the
+  extraction `output_root`. Rejoining an absolute summary path to the output
+  root is a fixed regression and must remain covered by tests.
+- In the `jlj_daily_export` backend, only files explicitly classified as
+  DTCZ/WIM may be skipped. Unknown or damaged time-series CSV files are errors,
+  and an all-WIM/no-eligible input must not report success. The standard backend
+  does not inspect unconfigured files at all; a configured CSV that cannot
+  produce a valid two-column MAT/meta pair fails that cache run.
+- New MAT and metadata files form one transaction: both carry the same
+  `pair_id`, metadata records the exact `mat_bytes`, and a failed publish rolls
+  the previous pair back. Older pairless `jlj_csv_v2` caches remain readable
+  for compatibility, but they cannot count as proof that the new transaction
+  protocol was exercised.
+- A transaction validation run should use `force_rebuild=true`; its immediate
+  repeat must use `force_rebuild=false` and reuse every eligible cache without
+  writing another pair.
+- Cache prebuild now uses a whole-run lock, per-target locks and target-level
+  transaction directories. Same-host locks whose recorded PID is no longer
+  alive are recoverable, and MAT-only/meta-only half-pairs are repaired on the
+  next run. Continue to test hard interruption at the boundary between MAT and
+  metadata publication; do not delete locks or transaction directories by hand
+  while a recorded process is still alive.
+- This is a prerelease candidate. Stable clients do not automatically update to
+  it, and `F:\Guanbing` must remain untouched until the isolated full-period
+  analysis and report regression are accepted.
+
+## v1.8.1-rc2 Local Operator-Control And Coverage Boundary
+
+Status: rc3 now supersedes the earlier rc2 candidate and has passed complete
+source regression, compiled-package and native-GUI checks. It remains
+intentionally undeployed to machine 133 while the isolated Jiulongjiang
+acceptance sequence is incomplete.
+
+- Configurable extraction concurrency is available only for future runs. A
+  running extraction/cache task keeps the worker count captured in its request;
+  never mutate or restart it merely to adopt the new setting.
+- `auto` resolves conservatively and records the requested, resolved and
+  effective worker counts plus any serial fallback reason. Parallel speed-up is
+  workload and storage dependent; the safety and disk gates remain authoritative.
+- One-sided manual threshold editing changes exactly one bound for the selected
+  module and point. Preview and drag interaction are advisory until the operator
+  confirms; cancel and window close must leave the configuration unchanged.
+- Zero-offset effective ranges have second precision. A legacy date-only end
+  includes that whole day, while an explicit `00:00:00` end means midnight
+  exactly. Keep both interpretations covered by boundary tests.
+- Gap rendering inherits by field from point to module to compatible legacy
+  settings and finally the global default. It affects plotting continuity only;
+  it must not change samples, cleaning, statistics or report conclusions.
+- Coverage is now measured at line/statement, branch/decision and condition
+  levels, but remains one layer of evidence. Word automation, native GUI behavior,
+  real bridge data and rendered reports still require their own acceptance gates.
+- The last compiled rc2 package predates the cache recovery, MAT-only RMS guard,
+  strict report artifact/template/output checks and GUI child-process lifecycle
+  fixes. Treat that ZIP/EXE as stale until a new build passes the complete
+  package and native-GUI smoke matrix.
+- A failed analysis/report spawn or an unexpectedly exited child must leave a
+  durable `launch_failed` status; it must not inherit an old success/result
+  file. Strict report jobs must recheck pinned artifact bytes/SHA256, preflight
+  the selected template and reject missing or outside-output builder results.
+- Stop requests and status polling are now a tested state machine: an analysis
+  stays `stopping` while its worker is alive and converges to `stopped` after
+  exit; a report is only labelled stopped after its exact recorded root process
+  is confirmed gone. MATLAB status JSON, Python job contexts and report terminal
+  files use atomic same-directory replacement so a polling GUI cannot observe a
+  half document and enable a duplicate start. Preserve these stop-then-poll and
+  transient-read regressions in future GUI refactors.
+- Avoid a large one-time architecture rewrite. Continue extracting shared module
+  catalogs, path/profile models and safety planners in small contract-preserving
+  steps after the Jiulongjiang rc1 production validation is closed.
+
+## v1.8.1-rc3 Local Review Boundary
+
+Status: confirmed source defects are fixed. The complete Python suite ran `582`
+tests successfully (`581` passed, `1` conditionally skipped), and MATLAB passed
+`673/673` with no failure or incomplete test. The final rebuilt rc3 workbench
+passed native foreground, keyboard focus and icon ownership at 120 DPI with
+per-monitor awareness and a 2018 x 1122 physical window. The `384/384` file
+inventory and formal release archive gate passed; rc3 is not deployed to
+machine 133.
+
+- ZIP safety now assumes an immutable snapshot from planning through atomic
+  publication and verifies that assumption. Keep the same-path/same-length
+  replacement regression; never weaken it to path and uncompressed bytes only.
+- Extraction lock recovery is opt-in. Same-host live PIDs must never be
+  reclaimed by age, malformed/foreign owners remain protected until the stale
+  threshold, and cleanup only removes a matching UUID token.
+- Qt-offscreen screenshots remain useful for an occupied desktop but cannot
+  replace native evidence. The final rebuilt EXE has passed native foreground,
+  focus, icon and per-monitor DPI checks, and its own evidence is embedded in
+  the release manifest; an older EXE's evidence still cannot certify a new
+  archive.
+- Packaging recomputes every inventoried file hash before compression. Do not
+  add a fast path that trusts an earlier manifest after files may have changed.
+- Strict report provenance requires both byte count and SHA-256. Missing hashes
+  are an error, not a compatibility warning, for formally pinned artifacts.
+- Report stop currently guarantees only that the exact recorded report worker
+  root process exits. It does not prove that Word, LibreOffice or COM descendants
+  have all exited. Before reusing an affected output/data root, inspect known
+  descendant PIDs/identities read-only; do not fall back to PID-unsafe
+  `taskkill /T`. A true tree-level guarantee requires a Windows Job Object or
+  cooperative child-process supervision in a later architecture change.
 
 ## Hongtang Q2 Supplement Coverage And Review Items
 
@@ -349,6 +483,22 @@ This encoding rule applies to JSON contracts only. Generated Windows
 PowerShell 5.1 launchers containing Chinese paths should continue to use UTF-8
 with BOM as documented below.
 
+## Compiled Runner Failure Exit Semantics
+
+Status: fixed and covered by a real compiled-Runner release gate.
+
+A module-level failure can be a valid completed orchestration result with a
+failed analysis manifest, so waiting for the process alone is not proof of
+success. `RunRequestRunner` now writes the final async `failed` status together
+with its valid `manifest_path` first, then raises
+`BMS:RunRequestRunner:AnalysisFailed`; the compiled Runner consequently exits
+non-zero while preserving the diagnostic manifest and module records. The
+release build runs an empty-root Jiulongjiang `doUnzip` failure request and
+requires a non-zero process exit, failed status, retained failed manifest and
+`unzip=fail`. Only after that check does the package manifest set
+`analysis_runner_failure_exit_smoke=true`; GitHub Release packaging blocks old
+or unverified manifests without this field.
+
 ## MATLAB Path Pollution From Archived Runtime Copies
 
 Status: test harness guarded; repository archives remain untouched.
@@ -494,7 +644,7 @@ engineering conclusion.
 
 ## MAT-Only Dynamic RMS Refresh
 
-Status: operational hazard; avoid as an acceptance path until fixed.
+Status: fixed locally; keep the fail-closed regression in the release gate.
 
 During the 2026-07-09 Hongtang Q2 high-frequency plot refresh, the direct-wave
 CSV copies had already been removed and the run depended on the formal MAT
@@ -504,13 +654,17 @@ header-only files. The accepted state was restored by rerunning the main
 `acceleration` and `cable_accel` analyzers, which correctly read the MAT data
 and rebuilt both plots and stats.
 
-Recommended fix:
+Fixed behavior:
 
-- make `refresh_dynamic_rms_only` use the same MAT alias/source-discovery
-  logic as the main dynamic analyzers;
-- refuse to write stats when the refreshed point count is `0` unless an
-  explicit empty-output override is supplied;
-- add a regression test that simulates a MAT-only Hongtang direct-wave source.
+- `refresh_dynamic_rms_only` now uses the same vendor-aware calendar-day and
+  MAT alias/source-discovery path as the main dynamic analyzers;
+- a refreshed point count of `0` raises
+  `refresh_dynamic_rms_only:NoPointsRefreshed` before group plots or the stats
+  workbook are written; the legacy empty-output behavior requires the explicit
+  `allow_empty_output=true` option;
+- `tests/test_refresh_dynamic_rms_only.m` covers a Hongtang-style MAT-only
+  alias fixture, byte-for-byte preservation of an existing workbook on a
+  zero-point refresh, and the explicit empty-output override.
 
 ## Per-Point Suppression Hidden In Thresholds
 

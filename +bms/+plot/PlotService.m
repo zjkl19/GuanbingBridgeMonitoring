@@ -37,7 +37,9 @@ classdef PlotService
                 bms.plot.PlotService.outputBase(baseName, true), cfg, opts);
         end
 
-        function opts = runtimeOptionsFromConfig(cfg)
+        function opts = runtimeOptionsFromConfig(cfg, moduleKey, pointId)
+            if nargin < 2, moduleKey = ''; end
+            if nargin < 3, pointId = ''; end
             opts = struct();
             fullRaw = strcmpi(char(string(bms.config.ConfigReader.get( ...
                 cfg, 'plot_common.dynamic_raw_sampling_mode', 'capped'))), 'full');
@@ -51,8 +53,9 @@ classdef PlotService
             end
             opts.fig_max_points = bms.config.ConfigReader.getNumeric(cfg, 'plot_common.fig_max_points', 50000);
             opts.append_timestamp = bms.config.ConfigReader.getBool(cfg, 'plot_common.append_timestamp', false);
-            opts.gap_mode = char(string(bms.config.ConfigReader.get(cfg, 'plot_common.gap_mode', 'connect')));
-            opts.gap_break_factor = bms.config.ConfigReader.getNumeric(cfg, 'plot_common.gap_break_factor', 5);
+            gap = bms.plot.PlotOptionResolver.effectiveGap(cfg, moduleKey, pointId);
+            opts.gap_mode = gap.gap_mode;
+            opts.gap_break_factor = gap.gap_break_factor;
         end
 
         function out = mergeOptions(base, overrides)

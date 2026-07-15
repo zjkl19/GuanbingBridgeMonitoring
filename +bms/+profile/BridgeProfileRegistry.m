@@ -47,6 +47,9 @@ classdef BridgeProfileRegistry
                 P('chongyangxi', '崇阳溪大桥', fullfile(projectRoot, 'config', 'chongyangxi_config.json'), '', 'dated_folders', 'analysis_only', {'temperature','humidity','deflection','bearing_displacement','tilt','acceleration','accel_spectrum','crack','strain','dynamic_strain_highpass','dynamic_strain_lowpass'}), ...
                 P('zhishan', '芝山大桥', fullfile(projectRoot, 'config', 'zhishan_config.json'), fullfile(projectRoot, 'reports', '芝山大桥健康监测2026年3月份月报_0609_1652.docx'), 'dated_folders', 'monthly', {'strain','dynamic_strain_highpass','dynamic_strain_lowpass','bearing_displacement','acceleration','accel_spectrum','cable_accel','cable_accel_spectrum'}) ...
             ];
+            for i = 1:numel(profiles)
+                profiles(i).OptionalModuleHints = {'cache_prebuild'};
+            end
         end
 
         function profile = fromId(bridgeId, projectRoot)
@@ -74,6 +77,13 @@ classdef BridgeProfileRegistry
                 vendor = lower(char(string(cfg.vendor)));
             end
             rootText = lower(char(string(dataRoot)));
+            % A generated per-run config may have an arbitrary filename and
+            % an isolated output root. In that case the explicit vendor is
+            % the authoritative bridge-family signal.
+            if contains(vendor, 'jiulongjiang') || strcmp(vendor, 'jlj')
+                profile = bms.profile.BridgeProfileRegistry.fromId('jiulongjiang');
+                return;
+            end
             if contains(source, 'zhishan') || contains(source, 'zishan') || contains(source, '芝山') || ...
                     contains(vendor, 'zhishan') || contains(vendor, 'zishan') || contains(rootText, '芝山')
                 profile = bms.profile.BridgeProfileRegistry.fromId('zhishan');
@@ -134,6 +144,14 @@ classdef BridgeProfileRegistry
                 end
                 if isempty(p.EnabledModuleHints)
                     validation.warnings{end+1} = sprintf('%s enabled_modules is empty', prefix); %#ok<AGROW>
+                end
+                knownModuleKeys = arrayfun(@(item) item.Key, ...
+                    bms.module.ModuleRegistry.catalog(), 'UniformOutput', false);
+                unknownOptional = setdiff(p.OptionalModuleHints, knownModuleKeys, 'stable');
+                if ~isempty(unknownOptional)
+                    validation.errors{end+1} = sprintf( ... %#ok<AGROW>
+                        '%s unsupported optional_modules: %s', prefix, ...
+                        strjoin(unknownOptional, ', '));
                 end
                 if ~isempty(p.DefaultStartDate) && ~isempty(p.DefaultEndDate)
                     try

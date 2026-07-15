@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
@@ -27,12 +28,58 @@ from .config_editor import ConfigEditorError
 from .plot_config import (
     PLOT_COMMON_SCHEMA,
     SPECTRUM_MODULES,
+    GapOverrideRow,
     PlotCommonConfigSession,
     PlotCommonRow,
     SpectrumConfigSession,
     SpectrumCoverage,
     SpectrumPeakOrderRow,
+    resolve_gap_options,
 )
+
+
+def _spectrum_rows_ui_equivalent(
+    left: list[SpectrumPeakOrderRow], right: list[SpectrumPeakOrderRow]
+) -> bool:
+    """Compare rows at the precision exposed by the editable Qt table.
+
+    Historical center/half-width bands can expand to binary tails such as
+    1.0999999999999999.  The table intentionally shows 12 significant digits;
+    parsing an untouched cell back as 1.1 must therefore remain a no-op rather
+    than silently migrating every spectrum block to the canonical min/max form.
+    """
+
+    if len(left) != len(right):
+        return False
+    text_fields = (
+        "module_key",
+        "scope",
+        "point_id",
+        "label",
+        "theor_label",
+        "enabled",
+        "source",
+    )
+    number_fields = (
+        "order",
+        "theoretical_hz",
+        "search_min_hz",
+        "search_max_hz",
+    )
+    for lhs, rhs in zip(left, right):
+        if any(getattr(lhs, field) != getattr(rhs, field) for field in text_fields):
+            return False
+        for field in number_fields:
+            lhs_value = getattr(lhs, field)
+            rhs_value = getattr(rhs, field)
+            if lhs_value is None or rhs_value is None:
+                if lhs_value is not rhs_value:
+                    return False
+            elif not math.isclose(
+                float(lhs_value), float(rhs_value), rel_tol=5e-12, abs_tol=5e-12
+            ):
+                return False
+    return True
 
 
 PLOT_FIELD_LABELS = {
@@ -98,6 +145,36 @@ SPECTRUM_SOURCE_LABELS = {
     "new": "本次新建",
 }
 
+GAP_SCOPE_LABELS = {"module": "分析模块", "point": "指定测点"}
+GAP_SCOPE_KEYS = {label: key for key, label in GAP_SCOPE_LABELS.items()}
+GAP_MODE_LABELS = {
+    "inherit": "继承上一级",
+    "connect": "连续连接",
+    "break": "按数据缺口断开",
+}
+GAP_MODE_KEYS = {label: key for key, label in GAP_MODE_LABELS.items()}
+GAP_MODULE_LABELS = {
+    "temperature": "温度",
+    "humidity": "湿度",
+    "rainfall": "雨量",
+    "wind": "风速风向",
+    "eq": "地震动",
+    "deflection": "挠度",
+    "bearing_displacement": "支座与伸缩缝位移",
+    "tilt": "倾角",
+    "acceleration": "结构加速度",
+    "cable_accel": "索力加速度",
+    "crack": "裂缝宽度",
+    "gnss": "GNSS 位移",
+    "strain": "静应变",
+    "dynamic_strain_highpass": "动应变（高通）",
+    "dynamic_strain": "动应变（高通，兼容配置键）",
+    "dynamic_strain_lowpass": "动应变（低通）",
+    "accel_spectrum": "结构加速度频谱趋势",
+    "cable_accel_spectrum": "索力加速度频谱/索力趋势",
+}
+GAP_MODULE_KEYS = {label: key for key, label in GAP_MODULE_LABELS.items()}
+
 
 def _plot_value_label(field: str, value: object) -> str:
     if isinstance(value, bool):
@@ -118,6 +195,7 @@ class PlotCommonEditorWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.session: PlotCommonConfigSession | None = None
+        self._updating_gap_table = False
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -161,6 +239,52 @@ class PlotCommonEditorWidget(QWidget):
         header.setSectionResizeMode(4, QHeaderView.Stretch)
         outer.addWidget(self.table, 1)
 
+        gap_box = QGroupBox("模块与测点连线覆盖（测点 > 模块 > 全局）")
+        gap_layout = QVBoxLayout(gap_box)
+        gap_hint = QLabel(
+            "只在需要例外时新增覆盖行；删除覆盖行即恢复继承。连接方式和断线倍数可分别继承，"
+            "右侧会显示该行最终采用的设置及来源。该设置只改变时程图在数据缺口处的画法，不改变统计值。"
+        )
+        gap_hint.setWordWrap(True)
+        gap_layout.addWidget(gap_hint)
+        self.gap_table = QTableWidget(0, 6)
+        self.gap_table.setHorizontalHeaderLabels(
+            ["适用范围", "分析模块", "测点编号", "连接方式", "断线倍数", "最终采用设置"]
+        )
+        gap_tooltips = {
+            0: "分析模块：作用于该模块全部测点；指定测点：只作用于一个测点",
+            1: "例如 acceleration、cable_accel、strain、wind",
+            2: "仅“指定测点”需要填写；使用报告和图件中的测点编号",
+            3: "继承上一级、连续连接、按数据缺口断开",
+            4: "留空表示继承；相邻采样间隔超过此倍数时视为缺口，最小 1.1",
+            5: "按 测点 > 模块 > 全局 的顺序计算，兼容既有高频模块设置",
+        }
+        for column, tooltip in gap_tooltips.items():
+            self.gap_table.horizontalHeaderItem(column).setToolTip(tooltip)
+        self.gap_table.setAlternatingRowColors(True)
+        self.gap_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.gap_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.gap_table.itemChanged.connect(self._on_gap_controls_changed)
+        gap_header = self.gap_table.horizontalHeader()
+        gap_header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        gap_header.setSectionResizeMode(1, QHeaderView.Stretch)
+        gap_header.setSectionResizeMode(2, QHeaderView.Stretch)
+        gap_header.setSectionResizeMode(5, QHeaderView.Stretch)
+        gap_layout.addWidget(self.gap_table, 1)
+        gap_actions = QHBoxLayout()
+        add_module_gap = QPushButton("新增模块覆盖")
+        add_module_gap.clicked.connect(lambda: self._add_gap_override("module"))
+        gap_actions.addWidget(add_module_gap)
+        add_point_gap = QPushButton("新增测点覆盖")
+        add_point_gap.clicked.connect(lambda: self._add_gap_override("point"))
+        gap_actions.addWidget(add_point_gap)
+        delete_gap = QPushButton("删除选中覆盖（恢复继承）")
+        delete_gap.clicked.connect(self._delete_gap_overrides)
+        gap_actions.addWidget(delete_gap)
+        gap_actions.addStretch(1)
+        gap_layout.addLayout(gap_actions)
+        outer.addWidget(gap_box, 1)
+
         actions = QHBoxLayout()
         self.summary_label = QLabel("尚未加载。")
         actions.addWidget(self.summary_label, 1)
@@ -179,9 +303,11 @@ class PlotCommonEditorWidget(QWidget):
         self.session = PlotCommonConfigSession(path)
         self.path_label.setText(f"配置：{self.session.path}")
         self._populate(self.session.rows)
+        self._populate_gap_overrides(self.session.gap_overrides)
         explicit = sum(row.explicit for row in self.session.rows)
         self.summary_label.setText(
             f"已加载 {len(self.session.rows)} 个可管理参数，其中 {explicit} 个单独设置；"
+            f"模块/测点连线覆盖 {len(self.session.gap_overrides)} 条；"
             f"配置版本校验码={self.session.loaded_sha256[:16]}…"
         )
 
@@ -232,18 +358,186 @@ class PlotCommonEditorWidget(QWidget):
                 ).validated()
             )
         if self.session is not None:
-            self.session.build_payload(rows)
+            self.session.build_payload(rows, self.gap_rows())
         return rows
+
+    @staticmethod
+    def _optional_number(text: str) -> float | None:
+        return None if not text.strip() else float(text)
+
+    def _populate_gap_overrides(self, rows: list[GapOverrideRow]) -> None:
+        self._updating_gap_table = True
+        try:
+            self.gap_table.setRowCount(0)
+            for row in rows:
+                self._append_gap_override(row)
+            self._sync_gap_scope_cells()
+        finally:
+            self._updating_gap_table = False
+        self._refresh_gap_effective()
+
+    def _append_gap_override(self, row: GapOverrideRow) -> None:
+        index = self.gap_table.rowCount()
+        self.gap_table.insertRow(index)
+        scope = QComboBox()
+        scope.addItems(list(GAP_SCOPE_LABELS.values()))
+        scope.setCurrentText(GAP_SCOPE_LABELS.get(row.scope, row.scope))
+        scope.currentTextChanged.connect(self._on_gap_controls_changed)
+        self.gap_table.setCellWidget(index, 0, scope)
+
+        module = QComboBox()
+        module.setEditable(True)
+        module.addItems(list(GAP_MODULE_LABELS.values()))
+        module.setCurrentText(GAP_MODULE_LABELS.get(row.module_key, row.module_key))
+        module.currentTextChanged.connect(self._on_gap_controls_changed)
+        self.gap_table.setCellWidget(index, 1, module)
+
+        mode = QComboBox()
+        mode.addItems(list(GAP_MODE_LABELS.values()))
+        mode.setCurrentText(GAP_MODE_LABELS.get(row.gap_mode, row.gap_mode))
+        mode.currentTextChanged.connect(self._on_gap_controls_changed)
+        self.gap_table.setCellWidget(index, 3, mode)
+
+        values = {
+            2: row.point_key,
+            4: "" if row.gap_break_factor is None else f"{row.gap_break_factor:g}",
+            5: "",
+        }
+        for column, value in values.items():
+            item = QTableWidgetItem(value)
+            if column == 5:
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            self.gap_table.setItem(index, column, item)
+
+    def _gap_cell_text(self, row: int, column: int) -> str:
+        widget = self.gap_table.cellWidget(row, column)
+        if isinstance(widget, QComboBox):
+            return widget.currentText().strip()
+        item = self.gap_table.item(row, column)
+        return item.text().strip() if item is not None else ""
+
+    def _sync_gap_scope_cells(self) -> None:
+        for index in range(self.gap_table.rowCount()):
+            point_item = self.gap_table.item(index, 2)
+            if point_item is None:
+                continue
+            scope = GAP_SCOPE_KEYS.get(
+                self._gap_cell_text(index, 0), self._gap_cell_text(index, 0)
+            )
+            if scope == "module":
+                point_item.setText("")
+                point_item.setFlags(point_item.flags() & ~Qt.ItemIsEditable)
+            else:
+                point_item.setFlags(point_item.flags() | Qt.ItemIsEditable)
+                if not point_item.text().strip():
+                    point_item.setText("POINT_ID")
+
+    def _on_gap_controls_changed(self, *_args: object) -> None:
+        if self._updating_gap_table:
+            return
+        self._updating_gap_table = True
+        try:
+            self._sync_gap_scope_cells()
+        finally:
+            self._updating_gap_table = False
+        self._refresh_gap_effective()
+
+    def gap_rows(self) -> list[GapOverrideRow]:
+        rows: list[GapOverrideRow] = []
+        for index in range(self.gap_table.rowCount()):
+            values = [self._gap_cell_text(index, column) for column in range(5)]
+            try:
+                rows.append(
+                    GapOverrideRow(
+                        GAP_SCOPE_KEYS.get(values[0], values[0]),
+                        GAP_MODULE_KEYS.get(values[1], values[1]),
+                        values[2],
+                        GAP_MODE_KEYS.get(values[3], values[3]),
+                        self._optional_number(values[4]),
+                    ).validated()
+                )
+            except (ValueError, ConfigEditorError) as exc:
+                raise ConfigEditorError(f"第 {index + 1} 条连线覆盖无效：{exc}") from exc
+        return rows
+
+    def _refresh_gap_effective(self) -> None:
+        if self.session is None:
+            return
+        if self._updating_gap_table:
+            return
+        try:
+            draft = self.session.build_payload(self._common_rows_without_cross_check(), self.gap_rows())
+        except Exception:
+            self._updating_gap_table = True
+            try:
+                for index in range(self.gap_table.rowCount()):
+                    self.gap_table.item(index, 5).setText("待补充或校验")
+            finally:
+                self._updating_gap_table = False
+            return
+        self._updating_gap_table = True
+        try:
+            for index, row in enumerate(self.gap_rows()):
+                effective = resolve_gap_options(draft, row.module_key, row.point_key)
+                mode = GAP_MODE_LABELS.get(str(effective["gap_mode"]), str(effective["gap_mode"]))
+                text = (
+                    f"{mode}（{effective['mode_source']}），倍数 "
+                    f"{effective['gap_break_factor']:g}（{effective['factor_source']}）"
+                )
+                self.gap_table.item(index, 5).setText(text)
+        finally:
+            self._updating_gap_table = False
+
+    def _common_rows_without_cross_check(self) -> list[PlotCommonRow]:
+        rows: list[PlotCommonRow] = []
+        for index, schema in enumerate(PLOT_COMMON_SCHEMA):
+            rows.append(
+                PlotCommonRow(
+                    schema[0],
+                    schema[1],
+                    self.table.item(index, 0).checkState() == Qt.Checked,
+                    _plot_value_key(schema[0], self.table.item(index, 3).text().strip()),
+                    schema[3],
+                ).validated()
+            )
+        return rows
+
+    def _add_gap_override(self, scope: str) -> None:
+        module = "acceleration"
+        point = "" if scope == "module" else "POINT_ID"
+        current = self.gap_table.currentRow()
+        if current >= 0:
+            module_text = self._gap_cell_text(current, 1)
+            module = GAP_MODULE_KEYS.get(module_text, module_text) or module
+            if scope == "point":
+                point = self._gap_cell_text(current, 2) or point
+        self._append_gap_override(GapOverrideRow(scope, module, point, "connect", None))
+        self._sync_gap_scope_cells()
+        self.gap_table.selectRow(self.gap_table.rowCount() - 1)
+        self._refresh_gap_effective()
+
+    def _delete_gap_overrides(self) -> None:
+        selected = sorted(
+            {item.row() for item in self.gap_table.selectedIndexes()}, reverse=True
+        )
+        for row in selected:
+            self.gap_table.removeRow(row)
+        self._refresh_gap_effective()
 
     def _validate_dialog(self) -> None:
         try:
             rows = self.rows()
+            gap_rows = self.gap_rows()
+            self._refresh_gap_effective()
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "绘图参数校验失败", str(exc))
             return
         explicit = sum(row.explicit for row in rows)
         QMessageBox.information(
-            self, "绘图参数校验通过", f"{len(rows)} 个参数有效，其中 {explicit} 个单独设置。"
+            self,
+            "绘图参数校验通过",
+            f"{len(rows)} 个公共参数有效，其中 {explicit} 个单独设置；"
+            f"{len(gap_rows)} 条模块/测点连线覆盖有效。",
         )
 
     def _save_source(self) -> None:
@@ -276,7 +570,7 @@ class PlotCommonEditorWidget(QWidget):
     def _save(self, target: Path | None) -> None:
         assert self.session is not None
         try:
-            result = self.session.save(self.rows(), target=target)
+            result = self.session.save(self.rows(), self.gap_rows(), target=target)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "保存绘图参数失败", str(exc))
             return
@@ -487,7 +781,11 @@ class SpectrumConfigEditorWidget(QWidget):
         self.coverages[module] = SpectrumCoverage(
             module, self.explicit_check.isChecked(), points
         )
-        self.order_drafts[module] = self._table_orders(module)
+        parsed_orders = self._table_orders(module)
+        current_orders = self.order_drafts.get(module, [])
+        if _spectrum_rows_ui_equivalent(parsed_orders, current_orders):
+            parsed_orders = current_orders
+        self.order_drafts[module] = parsed_orders
 
     def _load_module(self, module: str) -> None:
         if not module or self.session is None:

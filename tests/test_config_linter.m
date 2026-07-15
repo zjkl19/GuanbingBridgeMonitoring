@@ -154,6 +154,34 @@ classdef test_config_linter < matlab.unittest.TestCase
                 'dynamic_raw_module_override')));
         end
 
+        function linterAcceptsValidModuleAndPointGapOverrides(tc)
+            cfg = minimal_config();
+            cfg.plot_styles.strain = struct('gap_mode', 'break', 'gap_break_factor', 6);
+            cfg.per_point.strain.S1.plot = struct('gap_mode', 'connect', 'gap_break_factor', 8);
+
+            result = bms.config.ConfigLinter.lint(cfg);
+
+            tc.verifyFalse(any(contains(result.warnings, 'gap_mode must be')));
+            tc.verifyFalse(any(contains(result.warnings, 'gap_break_factor must be')));
+        end
+
+        function linterWarnsInvalidModuleAndPointGapOverrides(tc)
+            cfg = minimal_config();
+            cfg.plot_styles.strain = struct('gap_mode', 'join', 'gap_break_factor', 1);
+            cfg.per_point.strain.S1.plot = struct('gap_mode', 42, 'gap_break_factor', Inf);
+
+            result = bms.config.ConfigLinter.lint(cfg);
+
+            tc.verifyTrue(any(contains(result.warnings, ...
+                'plot_styles.strain.gap_mode must be connect or break')));
+            tc.verifyTrue(any(contains(result.warnings, ...
+                'plot_styles.strain.gap_break_factor must be a finite number')));
+            tc.verifyTrue(any(contains(result.warnings, ...
+                'per_point.strain.S1.plot.gap_mode must be connect or break')));
+            tc.verifyTrue(any(contains(result.warnings, ...
+                'per_point.strain.S1.plot.gap_break_factor must be a finite number')));
+        end
+
         function lintProfilesCoversBridgeCatalog(tc)
             root = fileparts(fileparts(mfilename('fullpath')));
 

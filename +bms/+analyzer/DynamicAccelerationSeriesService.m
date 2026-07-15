@@ -168,6 +168,21 @@ classdef DynamicAccelerationSeriesService
             if nargin < 9
                 cachedRecords = [];
             end
+            bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroupVariants( ...
+                rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, ...
+                style, spec, cachedRecords, true, true);
+        end
+
+        function plotConfiguredRmsGroups(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, style, spec, cachedRecords)
+            if nargin < 9
+                cachedRecords = [];
+            end
+            bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroupVariants( ...
+                rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, ...
+                style, spec, cachedRecords, false, true);
+        end
+
+        function plotConfiguredGroupVariants(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, style, spec, cachedRecords, plotRaw, plotRms)
             cfg = bms.analyzer.DynamicAccelerationSeriesService.modulePlotConfig(cfg, spec);
             groupMode = bms.analyzer.DynamicAccelerationSeriesService.groupSamplingMode(cfg);
             if strcmp(groupMode, 'off')
@@ -193,7 +208,13 @@ classdef DynamicAccelerationSeriesService
                 bms.app.StopController.throwIfRequested('Stop requested before next dynamic group');
                 groupName = names{i};
                 pointIds = groups.(groupName);
-                records = bms.analyzer.DynamicAccelerationSeriesService.cachedGroupRecords(cachedRecords, pointIds);
+                if plotRaw
+                    records = bms.analyzer.DynamicAccelerationSeriesService.cachedGroupRecords( ...
+                        cachedRecords, pointIds);
+                else
+                    records = bms.analyzer.DynamicAccelerationSeriesService.cachedRmsGroupRecords( ...
+                        cachedRecords, pointIds);
+                end
                 if isempty(records)
                     records = bms.analyzer.DynamicAccelerationSeriesService.collectGroupRecords( ...
                         rootDir, subfolder, pointIds, startDate, endDate, groupCfg, autoDetectFs, spec);
@@ -202,10 +223,14 @@ classdef DynamicAccelerationSeriesService
                     warning('%s组 %s 无有效数据，跳过组图', spec.displayName, groupName);
                     continue;
                 end
-                bms.analyzer.DynamicAccelerationPlotService.plotAccelGroup( ...
-                    rootDir, groupName, records, startDate, endDate, style, groupCfg, spec);
-                bms.analyzer.DynamicAccelerationPlotService.plotRmsGroup( ...
-                    rootDir, groupName, records, startDate, endDate, style, groupCfg, spec);
+                if plotRaw
+                    bms.analyzer.DynamicAccelerationPlotService.plotAccelGroup( ...
+                        rootDir, groupName, records, startDate, endDate, style, groupCfg, spec);
+                end
+                if plotRms
+                    bms.analyzer.DynamicAccelerationPlotService.plotRmsGroup( ...
+                        rootDir, groupName, records, startDate, endDate, style, groupCfg, spec);
+                end
                 clear records;
             end
         end
@@ -257,6 +282,33 @@ classdef DynamicAccelerationSeriesService
                 end
                 if isempty(match) || ~isfield(match, 'has_data') || ~match.has_data ...
                         || ~isfield(match, 'vals') || isempty(match.vals)
+                    records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), 0, 1);
+                    return;
+                end
+                records(end+1, 1) = match; %#ok<AGROW>
+            end
+        end
+
+        function records = cachedRmsGroupRecords(cachedRecords, pointIds)
+            records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), 0, 1);
+            if isempty(cachedRecords)
+                return;
+            end
+            pointIds = bms.data.PointResolver.normalize(pointIds);
+            for i = 1:numel(pointIds)
+                pid = char(string(pointIds{i}));
+                match = [];
+                for j = 1:numel(cachedRecords)
+                    rec = cachedRecords(j);
+                    if isfield(rec, 'pid') && strcmp(char(string(rec.pid)), pid)
+                        match = rec;
+                        break;
+                    end
+                end
+                if isempty(match) || ~isfield(match, 'has_data') || ~match.has_data ...
+                        || ~isfield(match, 'rms_times') || isempty(match.rms_times) ...
+                        || ~isfield(match, 'rms_vals') || isempty(match.rms_vals) ...
+                        || numel(match.rms_times) ~= numel(match.rms_vals)
                     records = repmat(bms.analyzer.DynamicSeriesService.initRecord(), 0, 1);
                     return;
                 end

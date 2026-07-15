@@ -16,6 +16,7 @@ classdef BridgeProfile
         DefaultStartDate char = ''
         DefaultEndDate char = ''
         EnabledModuleHints cell = {}
+        OptionalModuleHints cell = {}
     end
 
     methods
@@ -45,6 +46,7 @@ classdef BridgeProfile
             s.default_start_date = obj.DefaultStartDate;
             s.default_end_date = obj.DefaultEndDate;
             s.enabled_module_hints = obj.EnabledModuleHints;
+            s.optional_module_hints = obj.OptionalModuleHints;
         end
 
         function tf = configExists(obj)
@@ -97,6 +99,7 @@ classdef BridgeProfile
             obj.DefaultStartDate = bms.profile.BridgeProfile.fieldText(s, 'default_start_date', '');
             obj.DefaultEndDate = bms.profile.BridgeProfile.fieldText(s, 'default_end_date', '');
             obj.EnabledModuleHints = bms.profile.BridgeProfile.fieldCellstr(s, 'enabled_modules');
+            obj.OptionalModuleHints = bms.profile.BridgeProfile.fieldCellstr(s, 'optional_modules');
         end
 
         function value = fieldText(s, fieldName, fallback)

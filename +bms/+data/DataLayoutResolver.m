@@ -79,7 +79,7 @@ classdef DataLayoutResolver
             layout = profile.DataLayout;
             if isstruct(cfg) && isfield(cfg, 'vendor')
                 vendor = lower(char(string(cfg.vendor)));
-                if any(strcmp(vendor, {'shuixianhua','sxh'}))
+                if any(strcmp(vendor, {'jiulongjiang','jlj','shuixianhua','sxh'}))
                     layout = 'jlj_daily_export';
                 end
             end

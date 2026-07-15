@@ -8,10 +8,14 @@ classdef PreprocessStepFactory
             D = @bms.app.StepDefinition.fromKey;
 
             if L('zip_precheck')
-                plan = plan.addRun(D('zip_precheck'), @() precheck_zip_count(root, startDate, endDate));
+                plan = plan.addRun(D('zip_precheck'), @() precheck_zip_count(root, startDate, endDate, cfg));
             end
             if L('unzip')
-                plan = plan.addRun(D('unzip'), @() batch_unzip_data_parallel(root, startDate, endDate, true));
+                plan = plan.addRun(D('unzip'), @() batch_unzip_data_parallel(root, startDate, endDate, true, cfg));
+            end
+            if L('cache_prebuild')
+                plan = plan.addRun(D('cache_prebuild'), ...
+                    @() bms.data.CachePrebuildService.run(root, startDate, endDate, cfg));
             end
             if L('rename_csv')
                 plan = plan.addRun(D('rename_csv'), @() batch_rename_csv(root, startDate, endDate, true));

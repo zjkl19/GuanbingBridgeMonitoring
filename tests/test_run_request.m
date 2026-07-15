@@ -230,6 +230,50 @@ classdef test_run_request < matlab.unittest.TestCase
                 'MatlabExecutable', fullfile(tc.TempDir, 'missing_matlab.exe')), ...
                 'BMS:AsyncRunService:ExecutorMissing');
         end
+
+        function finalAsyncStatusReflectsFailedManifest(tc)
+            failedPath = fullfile(tc.TempDir, 'failed_manifest.json');
+            okPath = fullfile(tc.TempDir, 'ok_manifest.json');
+            writeUtf8(failedPath, '{"status":"failed"}');
+            writeUtf8(okPath, '{"status":"completed"}');
+
+            tc.verifyEqual(bms.app.RunRequestRunner.finalStatusForManifest(failedPath), 'failed');
+            tc.verifyEqual(bms.app.RunRequestRunner.finalStatusForManifest(okPath), 'completed');
+            tc.verifyEqual(bms.app.RunRequestRunner.finalStatusForManifest( ...
+                fullfile(tc.TempDir, 'missing.json')), 'failed');
+        end
+
+        function failedManifestPreservesStatusAndRaisesCliFailure(tc)
+            opts = emptyOpts();
+            opts.doCachePrebuild = true;
+            statusPath = fullfile(tc.TempDir, 'async_status.json');
+            requestPath = fullfile(tc.TempDir, 'failed_request.json');
+            cfg = struct('vendor', 'guanbing', 'data_layout', 'dated_folders');
+            request = bms.app.RunRequest(tc.TempDir, ...
+                '2026-01-01', '2026-01-01', opts, cfg, ...
+                'AsyncStatusFile', statusPath, ...
+                'AsyncRunId', 'failed_manifest_exit_test');
+            request.writeJson(requestPath);
+
+            tc.verifyError(@() bms.app.RunRequestRunner.runFile(requestPath), ...
+                'BMS:RunRequestRunner:AnalysisFailed');
+
+            status = bms.io.JsonFile.read(statusPath);
+            tc.verifyEqual(status.status, 'failed');
+            tc.verifyEqual(status.request_path, requestPath);
+            tc.verifyTrue(isfield(status, 'manifest_path'));
+            tc.verifyTrue(isfile(status.manifest_path));
+            manifest = bms.io.JsonFile.read(status.manifest_path);
+            tc.verifyEqual(manifest.status, 'failed');
+            moduleResults = manifest.module_results;
+            if iscell(moduleResults)
+                moduleKeys = cellfun(@(item) char(string(item.key)), ...
+                    moduleResults, 'UniformOutput', false);
+            else
+                moduleKeys = {moduleResults.key};
+            end
+            tc.verifyTrue(any(strcmp(moduleKeys, 'cache_prebuild')));
+        end
     end
 
     methods
@@ -246,7 +290,7 @@ end
 
 function opts = emptyOpts()
     opts = struct();
-    keys = {'precheck_zip_count','doUnzip','doRenameCsv','doRemoveHeader','doResample', ...
+    keys = {'precheck_zip_count','doUnzip','doRenameCsv','doRemoveHeader','doResample','doCachePrebuild', ...
         'doTemp','doHumidity','doRainfall','doGNSS','doWind','doEq','doWIM', ...
         'doDeflect','doBearingDisplacement','doTilt','doAccel','doAccelSpectrum', ...
         'doCableAccel','doCableAccelSpectrum','doRenameCrk','doCrack','doStrain', ...

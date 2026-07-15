@@ -28,13 +28,13 @@ classdef test_artifact_manifest_v2 < matlab.unittest.TestCase
             tc.verifyEqual(artifacts{statsIdx}.role, 'stats');
         end
 
-        function manifestBuildsV2ArtifactSummary(tc)
+        function manifestBuildsCurrentArtifactSummary(tc)
             ctx = bms.core.AnalysisContext(tempdir, '2026-01-01', '2026-01-02', struct(), struct());
             artifact = struct('kind', 'stats', 'path', 'D:/x/stats.xlsx', 'exists', true, 'bytes', 1, 'modified_at', '2026-01-01 00:00:00');
             details = struct();
             details.module_logs = {struct('key', 'deflection', 'label', 'deflection', 'status', 'ok', 'artifacts', {{artifact}})};
             manifest = bms.app.ManifestWriter.build(ctx, 'ok', details);
-            tc.verifyEqual(manifest.schema_version, 2);
+            tc.verifyEqual(manifest.schema_version, bms.app.ManifestWriter.SchemaVersion);
             tc.verifyEqual(manifest.artifact_count, 1);
             tc.verifyEqual(manifest.module_status_counts.ok, 1);
         end

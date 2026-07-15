@@ -67,14 +67,6 @@
           "to": "H:/Guanbingwork/九龙江大桥"
         }
       ]
-    },
-    {
-      "profile_id": "office_pc",
-      "display_name": "办公室电脑",
-      "hostnames": [
-        "DESKTOP-500FVB6"
-      ],
-      "data_roots": {}
     }
   ]
 }

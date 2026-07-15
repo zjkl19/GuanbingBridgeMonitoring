@@ -57,6 +57,8 @@ classdef test_workbench_profile_catalog_contract < matlab.unittest.TestCase
                 profile = profiles(i);
                 tc.verifyTrue(isfile(profile.DefaultConfig), profile.BridgeId);
                 tc.verifyTrue(all(ismember(profile.EnabledModuleHints, knownKeys)), profile.BridgeId);
+                tc.verifyEqual(profile.OptionalModuleHints, {'cache_prebuild'}, profile.BridgeId);
+                tc.verifyTrue(all(ismember(profile.OptionalModuleHints, knownKeys)), profile.BridgeId);
                 if strcmp(profile.DefaultReportType, 'analysis_only')
                     analysisOnly = analysisOnly + 1;
                     tc.verifyEmpty(profile.ReportGuiType);

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -12,13 +14,17 @@ from workbench.config_editor import ConfigEditorError
 from workbench.plot_config import (
     PLOT_COMMON_SCHEMA,
     SPECTRUM_MODULES,
+    GapOverrideRow,
     PlotCommonConfigSession,
     PlotCommonRow,
     SpectrumConfigSession,
     SpectrumCoverage,
     SpectrumPeakOrderRow,
+    apply_gap_overrides,
     apply_plot_common,
     apply_spectrum_config,
+    extract_gap_overrides,
+    resolve_gap_options,
 )
 
 try:
@@ -101,6 +107,123 @@ class WorkbenchPlotCommonTests(unittest.TestCase):
             rows.append(PlotCommonRow(field, value_type, explicit, value, description))
         with self.assertRaisesRegex(ConfigEditorError, "强制 line"):
             apply_plot_common({}, rows)
+
+    def test_all_bridge_gap_overrides_noop_round_trip(self) -> None:
+        for name in CONFIGS:
+            with self.subTest(name=name):
+                session = PlotCommonConfigSession(ROOT / "config" / name)
+                self.assertEqual(
+                    session.build_payload(session.rows, session.gap_overrides),
+                    session.payload,
+                )
+
+    def test_gap_precedence_is_point_module_legacy_global(self) -> None:
+        payload = {
+            "plot_common": {
+                "gap_mode": "connect",
+                "gap_break_factor": 5,
+                "dynamic_raw_modules": {
+                    "acceleration": {"gap_mode": "break", "gap_break_factor": 6}
+                },
+            },
+            "plot_styles": {
+                "acceleration": {"gap_mode": "connect", "line_width": 1.2}
+            },
+            "per_point": {
+                "acceleration": {
+                    "A_1": {
+                        "plot": {"gap_mode": "break", "gap_break_factor": 9},
+                        "thresholds": {"min": -1, "max": 1},
+                    }
+                }
+            },
+            "name_map_global": {"A_1": "A-1"},
+        }
+        point = resolve_gap_options(payload, "acceleration", "A-1")
+        self.assertEqual(point["gap_mode"], "break")
+        self.assertEqual(point["gap_break_factor"], 9)
+        self.assertEqual(point["mode_source"], "测点设置")
+        module = resolve_gap_options(payload, "acceleration", "A-2")
+        self.assertEqual(module["gap_mode"], "connect")
+        self.assertEqual(module["gap_break_factor"], 6)
+        self.assertEqual(module["mode_source"], "模块设置")
+        self.assertEqual(module["factor_source"], "兼容模块设置")
+        legacy = resolve_gap_options(payload, "cable_accel", "CS1")
+        self.assertEqual(legacy["gap_mode"], "connect")
+        self.assertEqual(legacy["gap_break_factor"], 5)
+
+    def test_gap_apply_preserves_unrelated_plot_and_point_fields(self) -> None:
+        payload = {
+            "plot_common": {"gap_mode": "connect", "gap_break_factor": 5},
+            "plot_styles": {"strain": {"line_width": 1.5, "future": "keep"}},
+            "per_point": {
+                "strain": {"S_1": {"thresholds": {"min": -2, "max": 2}}}
+            },
+            "name_map_global": {"S_1": "S-1"},
+            "other": {"keep": True},
+        }
+        rows = [
+            GapOverrideRow("module", "strain", "", "break", 7),
+            GapOverrideRow("point", "strain", "S-1", "connect", None),
+        ]
+        updated = apply_gap_overrides(payload, rows)
+        self.assertEqual(updated["plot_styles"]["strain"]["line_width"], 1.5)
+        self.assertEqual(updated["plot_styles"]["strain"]["future"], "keep")
+        self.assertEqual(
+            updated["per_point"]["strain"]["S_1"]["thresholds"],
+            {"min": -2, "max": 2},
+        )
+        self.assertTrue(updated["other"]["keep"])
+        self.assertEqual(extract_gap_overrides(updated), rows)
+        self.assertEqual(resolve_gap_options(updated, "strain", "S-1")["gap_mode"], "connect")
+
+    def test_gap_resolution_uses_real_module_key_before_compatibility_keys(self) -> None:
+        payload = {
+            "plot_common": {"gap_mode": "connect", "gap_break_factor": 5},
+            "plot_styles": {
+                "dynamic_strain": {"gap_mode": "break", "future": "keep"},
+                "dynamic_strain_highpass": {"gap_mode": "connect"},
+                "wind": {"gap_mode": "break"},
+            },
+            "per_point": {
+                "dynamic_strain": {
+                    "S1": {"plot": {"gap_break_factor": 8}}
+                },
+                "wind_speed": {"W1": {"plot": {"gap_mode": "connect"}}},
+                "cable_accel": {"CS1": {"plot": {"gap_mode": "connect"}}},
+            },
+        }
+        dynamic = resolve_gap_options(payload, "dynamic_strain_highpass", "S1")
+        self.assertEqual(dynamic["gap_mode"], "connect")
+        self.assertEqual(dynamic["gap_break_factor"], 8)
+        wind = resolve_gap_options(payload, "wind", "W1")
+        self.assertEqual(wind["gap_mode"], "connect")
+        cable_spectrum = resolve_gap_options(payload, "cable_accel_spectrum", "CS1")
+        self.assertEqual(cable_spectrum["gap_mode"], "connect")
+
+    def test_gap_resolution_matches_shared_matlab_contract(self) -> None:
+        payload = json.loads(
+            (ROOT / "tests" / "fixtures" / "gap_override_contract.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        for case in payload.pop("gap_resolution_cases"):
+            with self.subTest(module=case["module_key"], point=case["point_id"]):
+                resolved = resolve_gap_options(
+                    payload, case["module_key"], case["point_id"]
+                )
+                self.assertEqual(resolved["gap_mode"], case["gap_mode"])
+                self.assertEqual(
+                    resolved["gap_break_factor"], case["gap_break_factor"]
+                )
+
+    def test_gap_duplicate_and_empty_inherit_are_rejected(self) -> None:
+        self.assertEqual(apply_gap_overrides({"other": 1}, []), {"other": 1})
+        row = GapOverrideRow("module", "strain", "", "break", None)
+        with self.assertRaisesRegex(ConfigEditorError, "重复"):
+            apply_gap_overrides({}, [row, row])
+        with self.assertRaisesRegex(ConfigEditorError, "删除"):
+            GapOverrideRow("module", "strain", "", "inherit", None).validated()
 
 
 class WorkbenchSpectrumConfigTests(unittest.TestCase):
@@ -261,6 +384,51 @@ class WorkbenchPlotSpectrumGuiTests(unittest.TestCase):
             for row in range(widget.table.rowCount())
         }
         self.assertIn("高频原始曲线的线宽", tooltips)
+        self.assertEqual(widget.gap_table.columnCount(), 6)
+
+    def test_plot_common_widget_edits_gap_overrides_and_shows_effective_value(self) -> None:
+        payload = json.loads(
+            (ROOT / "config" / "hongtang_config.json").read_text(encoding="utf-8-sig")
+        )
+        payload.setdefault("plot_styles", {}).setdefault("acceleration", {})[
+            "gap_mode"
+        ] = "break"
+        point = payload.setdefault("per_point", {}).setdefault("acceleration", {}).setdefault(
+            "A1", {}
+        )
+        point["plot"] = {"gap_mode": "connect", "gap_break_factor": 8}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            widget = PlotCommonEditorWidget()
+            widget.load_path(path)
+            self.assertEqual(widget.gap_table.rowCount(), 2)
+            rows = widget.gap_rows()
+            self.assertEqual({row.scope for row in rows}, {"module", "point"})
+            effective = [
+                widget.gap_table.item(index, 5).text()
+                for index in range(widget.gap_table.rowCount())
+            ]
+            self.assertTrue(any("连续连接" in text and "测点设置" in text for text in effective))
+            self.assertEqual(
+                widget.session.build_payload(widget.rows(), rows), payload
+            )
+            module_combo = widget.gap_table.cellWidget(0, 1)
+            module_choices = {
+                module_combo.itemText(index)
+                for index in range(module_combo.count())
+            }
+            self.assertIn("动应变（高通）", module_choices)
+            self.assertIn("结构加速度频谱趋势", module_choices)
+            point_index = next(
+                index for index, row in enumerate(rows) if row.scope == "point"
+            )
+            widget.gap_table.item(point_index, 4).setText("9")
+            self.app.processEvents()
+            self.assertIn("倍数 9", widget.gap_table.item(point_index, 5).text())
+            self.assertEqual(
+                widget.gap_rows()[point_index].gap_break_factor, 9
+            )
 
     def test_spectrum_widget_loads_zhishan_coverage_and_orders(self) -> None:
         widget = SpectrumConfigEditorWidget()

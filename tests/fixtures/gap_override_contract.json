@@ -1,0 +1,91 @@
+{
+  "plot_common": {
+    "gap_mode": "connect",
+    "gap_break_factor": 5,
+    "dynamic_raw_modules": {
+      "acceleration": {
+        "gap_mode": "break",
+        "gap_break_factor": 6
+      }
+    }
+  },
+  "plot_styles": {
+    "acceleration": {
+      "gap_mode": "connect"
+    },
+    "dynamic_strain": {
+      "gap_mode": "break"
+    },
+    "dynamic_strain_highpass": {
+      "gap_mode": "connect"
+    },
+    "wind": {
+      "gap_mode": "break"
+    },
+    "cable_accel_spectrum": {
+      "gap_mode": "break"
+    }
+  },
+  "per_point": {
+    "acceleration": {
+      "A_1": {
+        "plot": {
+          "gap_mode": "break",
+          "gap_break_factor": 9
+        }
+      }
+    },
+    "dynamic_strain": {
+      "S1": {
+        "plot": {
+          "gap_break_factor": 8
+        }
+      }
+    },
+    "wind_speed": {
+      "W1": {
+        "plot": {
+          "gap_mode": "connect",
+          "gap_break_factor": 7
+        }
+      }
+    },
+    "cable_accel": {
+      "CS1": {
+        "plot": {
+          "gap_mode": "connect",
+          "gap_break_factor": 9
+        }
+      }
+    }
+  },
+  "name_map_global": {
+    "A_1": "A-1"
+  },
+  "gap_resolution_cases": [
+    {
+      "module_key": "acceleration",
+      "point_id": "A-1",
+      "gap_mode": "break",
+      "gap_break_factor": 9
+    },
+    {
+      "module_key": "dynamic_strain_highpass",
+      "point_id": "S1",
+      "gap_mode": "connect",
+      "gap_break_factor": 8
+    },
+    {
+      "module_key": "wind",
+      "point_id": "W1",
+      "gap_mode": "connect",
+      "gap_break_factor": 7
+    },
+    {
+      "module_key": "cable_accel_spectrum",
+      "point_id": "CS1",
+      "gap_mode": "connect",
+      "gap_break_factor": 9
+    }
+  ]
+}

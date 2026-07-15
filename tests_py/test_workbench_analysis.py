@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from workbench.analysis import AnalysisLauncher, AnalysisRequestBuilder, Executor, ExecutorResolver, read_analysis_status
 from workbench.models import JobContext
@@ -12,6 +13,15 @@ from workbench.modules import options_for_modules
 
 class _FakeProcess:
     pid = 24680
+
+    def terminate(self) -> None:
+        pass
+
+    def kill(self) -> None:
+        pass
+
+    def wait(self, timeout: float | None = None) -> int:
+        return 0
 
 
 class WorkbenchAnalysisTests(unittest.TestCase):
@@ -76,7 +86,17 @@ class WorkbenchAnalysisTests(unittest.TestCase):
             context = self._context(root)
             runner = root / "BridgeAnalysisRunner.exe"
             runner.write_bytes(b"fake")
-            result = AnalysisLauncher(root, popen=fake_popen).launch(context, Executor("compiled_runner", runner))
+            identity = {
+                "pid": _FakeProcess.pid,
+                "creation_time_100ns": 123456789,
+                "executable": str(runner),
+            }
+            with patch(
+                "workbench.analysis.capture_spawned_process_identity", return_value=identity
+            ):
+                result = AnalysisLauncher(root, popen=fake_popen).launch(
+                    context, Executor("compiled_runner", runner)
+                )
             self.assertEqual(result.pid, 24680)
             self.assertTrue(Path(context.analysis.request_path).is_file())
             self.assertTrue(Path(context.analysis.status_path).is_file())

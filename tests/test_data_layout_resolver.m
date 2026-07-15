@@ -28,6 +28,12 @@ classdef test_data_layout_resolver < matlab.unittest.TestCase
             tc.verifyTrue(endsWith(dirs{1}, fullfile('data', 'jlj', 'csv')));
         end
 
+        function vendorSelectsJiulongjiangLayoutBeforeExtraction(tc)
+            layout = bms.data.DataLayoutResolver.inferLayout( ...
+                tc.TempDir, struct('vendor', 'jiulongjiang'));
+            tc.verifyEqual(layout, 'jlj_daily_export');
+        end
+
         function resolvesHongtangWimMonths(tc)
             mkdir(fullfile(tc.TempDir, 'WIM'));
             fclose(fopen(fullfile(tc.TempDir, 'WIM', 'HS_Data_202601.fmt'), 'w'));

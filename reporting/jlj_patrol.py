@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import hashlib
 import re
 import sys
 from copy import deepcopy
@@ -252,6 +253,45 @@ def patrol_report_periods(source_docx: Path) -> set[tuple[int, int]]:
 def patrol_report_matches_period(source_docx: Path, target_year: int, target_month: int) -> bool:
     periods = patrol_report_periods(source_docx)
     return bool(periods) and periods == {(int(target_year), int(target_month))}
+
+
+def patrol_source_availability_record(
+    source_docx: Path | None,
+    *,
+    required: bool,
+    target_year: int,
+    target_month: int,
+    action: str,
+) -> dict[str, object]:
+    """Build an auditable patrol-source availability record."""
+    target_period = f"{int(target_year):04d}-{int(target_month):02d}"
+    if source_docx is None:
+        return {
+            "required": bool(required),
+            "status": "not_available",
+            "target_period": target_period,
+            "source": "",
+            "source_sha256": "",
+            "source_period": "",
+            "action": action,
+        }
+
+    path = Path(source_docx).resolve()
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    periods = sorted(patrol_report_periods(path))
+    source_period = ",".join(f"{year:04d}-{month:02d}" for year, month in periods)
+    return {
+        "required": bool(required),
+        "status": "available",
+        "target_period": target_period,
+        "source": str(path),
+        "source_sha256": digest.hexdigest().upper(),
+        "source_period": source_period,
+        "action": action,
+    }
 
 
 def resolve_jlj_patrol_report_docx(

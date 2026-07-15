@@ -1,4 +1,5 @@
 import os
+import json
 import shutil
 import sys
 import unittest
@@ -235,6 +236,24 @@ class TestJljReportGenerator(unittest.TestCase):
         self.assertEqual(len(doc.sections), template_section_count)
         self.assertEqual(doc.element.body[-1].tag, qn("w:sectPr"))
 
+        manifests = sorted(output_dir.glob("jlj_report_build_manifest_*.json"))
+        self.assertTrue(manifests)
+        manifest = json.loads(manifests[-1].read_text(encoding="utf-8"))
+        self.assertIn("main_traffic", manifest["not_applicable_sections"])
+        self.assertFalse(
+            any(item.get("label") == "main_traffic" for item in manifest["missing_items"])
+        )
+        patrol = manifest["source_availability"]["patrol"]
+        self.assertFalse(patrol["required"])
+        self.assertEqual(patrol["status"], "not_available")
+        self.assertEqual(patrol["target_period"], "2026-05")
+        self.assertEqual(patrol["source"], "")
+        self.assertEqual(patrol["source_sha256"], "")
+        self.assertEqual(patrol["action"], "template_content_cleared_and_note_inserted")
+        self.assertFalse(
+            any(item.get("category") == "巡查资料缺失" for item in manifest["missing_items"])
+        )
+
         used_rel_ids = set(doc.element.body.xpath(".//a:blip/@r:embed"))
         relationship_id_attr = (
             "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
@@ -250,6 +269,75 @@ class TestJljReportGenerator(unittest.TestCase):
             if relationship.reltype == RT.IMAGE
         }
         self.assertEqual(image_rel_ids, used_rel_ids)
+
+    def test_real_template_records_verified_period_matched_patrol_source(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        template = repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_0508.docx"
+        result_root = self.tmp / "matched_patrol_result"
+        output_dir = self.tmp / "matched_patrol_report"
+        result_root.mkdir()
+        patrol_docx = self.tmp / "九龙江大桥巡查报告-2026年05月.docx"
+        patrol = Document()
+        patrol.add_paragraph("2026年05月09日巡查：本期已完成现场巡查。")
+        patrol.save(patrol_docx)
+
+        output = build_report(
+            template=template,
+            config_path=repo_root / "config" / "jiulongjiang_config.json",
+            result_root=result_root,
+            output_dir=output_dir,
+            period_label="2026年5月份",
+            monitoring_range="2026.05.01~2026.05.31",
+            report_date="2026年6月15日",
+            patrol_docx=patrol_docx,
+            precheck_template=True,
+            update_word=False,
+        )
+
+        text = "\n".join(paragraph.text for paragraph in Document(str(output)).paragraphs)
+        self.assertIn("2026年05月09日巡查", text)
+        manifests = sorted(output_dir.glob("jlj_report_build_manifest_*.json"))
+        manifest = json.loads(manifests[-1].read_text(encoding="utf-8"))
+        record = manifest["source_availability"]["patrol"]
+        self.assertEqual(record["status"], "available")
+        self.assertEqual(record["source"], str(patrol_docx.resolve()))
+        self.assertEqual(record["source_period"], "2026-05")
+        self.assertEqual(len(record["source_sha256"]), 64)
+        self.assertEqual(record["action"], "verified_source_inserted")
+
+    def test_real_template_required_missing_patrol_remains_blocking(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        template = repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_0508.docx"
+        result_root = self.tmp / "required_patrol_result"
+        output_dir = self.tmp / "required_patrol_report"
+        result_root.mkdir()
+        config = json.loads(
+            (repo_root / "config" / "jiulongjiang_config.json").read_text(encoding="utf-8-sig")
+        )
+        config["reporting"]["patrol"]["required"] = True
+        config_path = self.tmp / "required_patrol_config.json"
+        config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+
+        build_report(
+            template=template,
+            config_path=config_path,
+            result_root=result_root,
+            output_dir=output_dir,
+            period_label="2026年5月份",
+            monitoring_range="2026.05.01~2026.05.31",
+            report_date="2026年6月15日",
+            precheck_template=True,
+            update_word=False,
+        )
+
+        manifests = sorted(output_dir.glob("jlj_report_build_manifest_*.json"))
+        manifest = json.loads(manifests[-1].read_text(encoding="utf-8"))
+        record = manifest["source_availability"]["patrol"]
+        self.assertTrue(record["required"])
+        self.assertEqual(record["status"], "not_available")
+        self.assertTrue(
+            any(item.get("category") == "巡查资料缺失" for item in manifest["missing_items"])
+        )
 
     def test_report_qc_exception_writes_manifest_then_fails_closed(self):
         repo_root = Path(__file__).resolve().parents[1]

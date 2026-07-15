@@ -40,7 +40,8 @@ classdef WindPlotService
                 return;
             end
             fig = figure('Position', [100 100 1100 500]);
-            plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
+            plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions( ...
+                cfg, 50000, 'wind', pid);
             plotOpts.series_id = pid;
             if isstruct(sourceProvenance) && ~isempty(fieldnames(sourceProvenance))
                 plotOpts.source_provenance = sourceProvenance;
@@ -74,7 +75,8 @@ classdef WindPlotService
                 return;
             end
             fig = figure('Position', [100 100 1100 500]);
-            plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
+            plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions( ...
+                cfg, 50000, 'wind', pid);
             plotOpts.series_id = pid;
             if isstruct(sourceProvenance) && ~isempty(fieldnames(sourceProvenance))
                 plotOpts.source_provenance = sourceProvenance;
@@ -114,7 +116,7 @@ classdef WindPlotService
                 return;
             end
             fig = figure('Position', [100 100 1100 500]);
-            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg, 'wind', pid);
             [timesPlot, v10Plot] = prepare_plot_series(times, v10, plotOpts);
             h = plot(timesPlot, v10Plot, 'LineWidth', 1.2, 'Color', style.speed10.color);
             provenanceOpts = struct('series_id', pid, 'raw_sampling_mode', 'full');

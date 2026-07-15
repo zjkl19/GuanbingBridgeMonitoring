@@ -412,20 +412,21 @@ def _verify_pinned_analysis_artifact(
     if expected_bytes is None:
         raise ValueError(f"Pinned analysis artifact is missing its byte count: {path}")
     expected_sha = str(record.get("sha256") or "").strip().upper()
-    if expected_sha:
-        raw, actual_sha = _read_bytes_with_sha256(path)
-        actual_bytes = len(raw)
-        if actual_sha != expected_sha:
-            raise ValueError(
-                f"Pinned analysis artifact SHA-256 mismatch: expected {expected_sha}, "
-                f"got {actual_sha}: {path}"
-            )
-    else:
-        actual_bytes = path.stat().st_size
+    if not expected_sha:
+        raise ValueError(f"Pinned analysis artifact is missing its SHA-256: {path}")
+    actual_bytes = path.stat().st_size
     if int(expected_bytes) != actual_bytes:
         raise ValueError(
             f"Pinned analysis artifact size mismatch: expected {expected_bytes}, "
             f"got {actual_bytes}: {path}"
+        )
+    raw, actual_sha = _read_bytes_with_sha256(path)
+    if len(raw) != actual_bytes:
+        raise ValueError(f"Pinned analysis artifact changed while being read: {path}")
+    if actual_sha != expected_sha:
+        raise ValueError(
+            f"Pinned analysis artifact SHA-256 mismatch: expected {expected_sha}, "
+            f"got {actual_sha}: {path}"
         )
     return path
 
@@ -548,7 +549,10 @@ def manifest_artifact_paths(
         manifest, key, kind=kind, role=role, suffixes=suffixes
     )
     if active_pinned_analysis_manifest() is not None:
-        return [path for path, _record in records]
+        return [
+            _verify_pinned_analysis_artifact(path, record)
+            for path, record in records
+        ]
     return [path for path, _record in records if path.exists()]
 
 

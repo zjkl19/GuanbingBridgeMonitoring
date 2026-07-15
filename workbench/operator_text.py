@@ -9,6 +9,7 @@ _STATE_LABELS = {
     "prepared": "任务已准备",
     "launched": "正在启动",
     "running": "正在处理",
+    "stopping": "正在停止",
     "completed": "已完成",
     "success": "已完成",
     "passed": "通过",
@@ -31,6 +32,10 @@ _STAGE_LABELS = {
     "qc": "质量检查",
     "completed": "完成",
     "failed": "失败",
+    "stop_requested": "正在安全停止",
+    "status_retry": "重新读取状态",
+    "process_start": "启动子进程",
+    "process_exit": "子进程已退出",
 }
 
 _TERM_REPLACEMENTS = (

@@ -13,6 +13,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from workbench.models import file_sha256  # noqa: E402
+from workbench.modules import MODULE_SPECS  # noqa: E402
 from workbench.config_layers import config_dependency_sha256, load_layered_config  # noqa: E402
 from workbench.config_editor import CleaningConfigEditorSession  # noqa: E402
 from workbench.profiles import PathProfileResolver, WorkbenchProfile, load_profiles  # noqa: E402
@@ -128,11 +129,20 @@ def validate_profile_payload(
             and payload.get("executable_filename") == EXECUTABLE_FILENAME
             and int(payload.get("ui_font_point_size") or 0) >= 10
             and payload.get("tab_count") == 4
-            and payload.get("config_tab_count") == 8
+            and payload.get("config_tab_count") == 9
             and payload.get("warning_subtab_count") == 2
-            and payload.get("module_count") == 25
+            and payload.get("module_count") == len(MODULE_SPECS)
             and payload.get("plot_common_field_count") == 14
+            and payload.get("manual_threshold_controls_available") is True
+            and int(payload.get("offset_correction_column_count") or 0) >= 7
+            and payload.get("offset_effective_range_seconds_available") is True
+            and int(payload.get("gap_override_column_count") or 0) == 6
             and payload.get("spectrum_module_count") == 2
+            and (
+                payload.get("unzip_worker_setting") == "auto"
+                or isinstance(payload.get("unzip_worker_setting"), int)
+            )
+            and payload.get("unzip_settings_available") is True
             and int(payload.get("effective_warning_row_count") or 0) > 0
             and int(payload.get("invalid_warning_row_count") or 0) == 0
             and payload.get("report_gate_locked") is True

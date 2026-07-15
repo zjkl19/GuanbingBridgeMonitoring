@@ -7,6 +7,42 @@ classdef test_bms_services < matlab.unittest.TestCase
     end
 
     methods (Test)
+        function loggerPublishesCompleteJsonWithoutTempResidue(tc)
+            folder = tempname;
+            mkdir(folder);
+            cleanup = onCleanup(@() rmdir(folder, 's')); %#ok<NASGU>
+            path = fullfile(folder, 'status.json');
+
+            for generation = 1:5
+                payload = struct( ...
+                    'status', 'running', ...
+                    'generation', generation, ...
+                    'message', sprintf('完整状态-%d', generation));
+                bms.core.Logger.writeJson(path, payload);
+                decoded = jsondecode(fileread(path));
+                tc.verifyEqual(decoded.generation, generation);
+                tc.verifyEqual(decoded.message, payload.message);
+                tc.verifyEmpty(dir(fullfile(folder, '*.json.tmp')));
+            end
+        end
+
+        function artifactCollectorBindsExactBytesAndSha256(tc)
+            folder = tempname;
+            mkdir(folder);
+            cleanup = onCleanup(@() rmdir(folder, 's')); %#ok<NASGU>
+            path = fullfile(folder, 'artifact.png');
+            fid = fopen(path, 'wb');
+            fwrite(fid, uint8([0 1 2 3 254 255]), 'uint8');
+            fclose(fid);
+
+            record = bms.data.ArtifactCollector.record('figure', path, 'time_history');
+            tc.verifyTrue(record.exists);
+            tc.verifyEqual(record.bytes, 6);
+            tc.verifyEqual(record.sha256, bms.io.JsonFile.sha256(path));
+            tc.verifyEqual(numel(record.sha256), 64);
+            tc.verifyNotEmpty(regexp(record.sha256, '^[0-9a-f]{64}$', 'once'));
+        end
+
         function configPatchSetsNestedPath(tc)
             cfg = struct();
             cfg = bms.config.ConfigPatch.setPath(cfg, 'plot_common.gap_mode', 'connect');
@@ -376,7 +412,7 @@ classdef test_bms_services < matlab.unittest.TestCase
             manifestPath = bms.app.ManifestWriter.write(ctx, 'ok', details);
             tc.verifyTrue(isfile(manifestPath));
             manifest = jsondecode(fileread(manifestPath));
-            tc.verifyEqual(manifest.schema_version, 2);
+            tc.verifyEqual(manifest.schema_version, bms.app.ManifestWriter.SchemaVersion);
             tc.verifyEqual(manifest.manifest_type, 'analysis_run');
             tc.verifyTrue(isfield(manifest, 'stats_schema_registry'));
             tc.verifyEqual(manifest.data_index_summary_path, 'index.xlsx');

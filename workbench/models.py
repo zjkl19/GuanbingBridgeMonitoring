@@ -8,11 +8,12 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from .process_utils import atomic_write_json
 from .version import app_version
 
 
-SCHEMA_VERSION = 2
-READABLE_SCHEMA_VERSIONS = {1, SCHEMA_VERSION}
+SCHEMA_VERSION = 3
+READABLE_SCHEMA_VERSIONS = {1, 2, SCHEMA_VERSION}
 TERMINAL_ANALYSIS_STATES = {"completed", "failed", "stopped", "launch_failed"}
 
 
@@ -31,6 +32,7 @@ def _iso_date(value: str) -> str:
 @dataclass
 class AnalysisState:
     state: str = "draft"
+    launch_id: str = ""
     request_path: str = ""
     status_path: str = ""
     stop_path: str = ""
@@ -41,11 +43,14 @@ class AnalysisState:
     executor_type: str = ""
     executable: str = ""
     pid: int | None = None
+    process_creation_time_100ns: int | None = None
+    process_executable: str = ""
 
 
 @dataclass
 class ReportState:
     state: str = "blocked"
+    launch_id: str = ""
     report_type: str = ""
     template_path: str = ""
     template_sha256: str = ""
@@ -64,6 +69,8 @@ class ReportState:
     visual_qc_dir: str = ""
     visual_contact_sheet: str = ""
     pid: int | None = None
+    process_creation_time_100ns: int | None = None
+    process_executable: str = ""
 
 
 @dataclass
@@ -88,6 +95,12 @@ class JobContext:
     report_date: str = ""
     analysis: AnalysisState = field(default_factory=AnalysisState)
     report: ReportState = field(default_factory=ReportState)
+    # Runtime-only canonical location of the context that was actually opened
+    # or saved.  It is intentionally excluded from JSON so tasks remain
+    # portable between computers and moved directories.
+    _persistence_path: str = field(
+        default="", init=False, repr=False, compare=False
+    )
 
     @classmethod
     def create(
@@ -167,6 +180,8 @@ class JobContext:
 
     @property
     def context_path(self) -> Path:
+        if self._persistence_path:
+            return Path(self._persistence_path)
         return Path(self.analysis.request_path).with_name("job_context.json")
 
     @property
@@ -182,17 +197,37 @@ class JobContext:
             and self.report.plots_approved
         )
 
+    def analysis_binding(self) -> tuple[Any, ...]:
+        """Return the immutable inputs that select analysis resources/results."""
+
+        return (
+            self.job_id,
+            self.bridge_id,
+            self.bridge_name,
+            str(Path(self.data_root).expanduser().resolve()),
+            self.start_date,
+            self.end_date,
+            str(Path(self.config_path).expanduser().resolve()),
+            self.config_sha256,
+            tuple(self.selected_modules),
+            tuple(sorted((str(key), bool(value)) for key, value in self.options.items())),
+        )
+
     def touch(self) -> None:
         self.updated_at = datetime.now().astimezone().isoformat(timespec="seconds")
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        payload.pop("_persistence_path", None)
+        return payload
 
     def write(self, path: Path | None = None) -> Path:
-        target = path or self.context_path
-        target.parent.mkdir(parents=True, exist_ok=True)
+        target = (path or self.context_path).expanduser().resolve()
         self.touch()
-        target.write_text(json.dumps(self.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+        atomic_write_json(target, self.to_dict())
+        # Rebind only after publication succeeds.  A failed Save As must not
+        # redirect subsequent lifecycle writes to a path that was never saved.
+        self._persistence_path = str(target)
         return target
 
     @classmethod
@@ -211,4 +246,9 @@ class JobContext:
 
     @classmethod
     def read(cls, path: Path) -> "JobContext":
-        return cls.from_dict(json.loads(path.read_text(encoding="utf-8-sig")))
+        source = path.expanduser().resolve()
+        context = cls.from_dict(json.loads(source.read_text(encoding="utf-8-sig")))
+        # The file selected by the operator is authoritative even if the
+        # request paths came from another machine or a moved task directory.
+        context._persistence_path = str(source)
+        return context

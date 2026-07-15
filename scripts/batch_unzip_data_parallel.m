@@ -1,209 +1,33 @@
-function batch_unzip_data_parallel(root_dir, start_date, end_date, silent)
-% batch_unzip_data_parallel  批量解压监测数据 ZIP（PowerShell Expand-Archive）。
-%   batch_unzip_data_parallel(root_dir, start_date, end_date, silent)
-%   root_dir: 根目录，例如 'F:\管柄大桥健康监测数据\'
-%   start_date, end_date: 日期范围，字符串 'yyyy-MM-dd'
-%   silent: 静默模式，如果为 true 则不询问直接运行（默认 false）
-
-if nargin<1 || isempty(root_dir)
-    root_dir = 'F:\管柄大桥健康监测数据\';
+function summary = batch_unzip_data_parallel(root_dir, start_date, end_date, silent, cfg)
+% batch_unzip_data_parallel 安全批量解压监测数据 ZIP。
+%   summary = batch_unzip_data_parallel(root_dir, start_date, end_date, silent, cfg)
+%
+% 兼容旧入口，但实际工作统一交给 ArchiveExtractService：
+% - 默认保留原 ZIP；
+% - 空间不足直接失败；
+% - 每个 ZIP 先解到临时目录，条目数和总字节闭合后再原子发布；
+% - 已有目录必须带有效解压清单才能复用；
+% - 任意 ZIP 失败都会让整个步骤失败。
+%
+% silent 仅为旧 GUI 调用兼容参数。安全门槛不会因 silent=true 降级。
+if nargin < 1 || isempty(root_dir)
+    error('BMS:ArchiveExtract:RootRequired', '必须指定数据根目录。');
 end
-if nargin<2 || isempty(start_date)
+if nargin < 2 || isempty(start_date)
     start_date = input('请输入开始日期 (yyyy-MM-dd): ', 's');
 end
-if nargin<3 || isempty(end_date)
-    end_date   = input('请输入结束日期 (yyyy-MM-dd): ', 's');
+if nargin < 3 || isempty(end_date)
+    end_date = input('请输入结束日期 (yyyy-MM-dd): ', 's');
 end
-if nargin<4
-    silent = false;
-end
+if nargin < 4, silent = false; end %#ok<NASGU>
+if nargin < 5 || isempty(cfg), cfg = struct(); end
 
-% 转日期为 datenum 并筛选日期文件夹 / 按天 ZIP
-dn0 = datenum(start_date, 'yyyy-mm-dd');
-dn1 = datenum(end_date,   'yyyy-mm-dd');
-info = dir(fullfile(root_dir, '20??-??-??'));
-folders = {info([info.isdir]).name};
-selected = {};
-for i = 1:numel(folders)
-    dn = datenum(folders{i}, 'yyyy-mm-dd');
-    if dn>=dn0 && dn<=dn1
-        selected{end+1} = folders{i}; %#ok<AGROW>
-    end
-end
+summary = bms.data.ArchiveExtractService.run( ...
+    char(string(root_dir)), char(string(start_date)), char(string(end_date)), cfg);
 
-% 收集 ZIP 列表
-zipList = {};
-outDirs = {};
-for i = 1:numel(selected)
-    day = selected{i}; countZ = 0;
-    for sub = {'波形','特征值'}
-        zdir = fullfile(root_dir, day, sub{1});
-        zfiles = collect_zip_files(zdir);
-        if ~isempty(zfiles)
-            for k = 1:numel(zfiles)
-                zipList{end+1} = fullfile(zfiles(k).folder, zfiles(k).name); %#ok<AGROW>
-                outDirs{end+1} = zfiles(k).folder; %#ok<AGROW>
-                countZ = countZ + 1;
-            end
-        end
-    end
-    if countZ == 0
-        fprintf('警告: 日期 %s 未找到 ZIP, 已跳过\n', day);
-    end
-end
-
-% 九龙江/水仙花等新口径：根目录下直接是 data_<bridge>_YYYY-MM-DD.zip
-if isempty(zipList)
-    dailyTargets = bms.data.ZipDailyExportAdapter.dailyZipTargets(root_dir, start_date, end_date, struct());
-    for i = 1:numel(dailyTargets)
-        zipList{end+1} = dailyTargets(i).zip; %#ok<AGROW>
-        outDirs{end+1} = dailyTargets(i).out_dir; %#ok<AGROW>
-    end
-end
-
-N = numel(zipList);
-if N == 0
-    if isempty(selected)
-        error('指定日期范围内未找到日期文件夹，且未找到 data_jlj/data_sxh_YYYY-MM-DD.zip');
-    end
-    error('未发现任何 ZIP 文件，终止执行');
-end
-
-% 预估磁盘与时间
-[totalGB, freeGB, fileObj] = estimate_space(zipList, root_dir);
-check_disk_space(freeGB, totalGB, silent);
-estimate_time(totalGB, silent);
-
-% 并行池（限制在本地集群上限，失败回退串行）
-nCores = feature('numcores');
-cl = parcluster('local');
-maxWorkers = cl.NumWorkers;
-nWorkers = min([N, nCores, maxWorkers]);
-pool = gcp('nocreate');
-try
-    if nWorkers >= 2
-        if isempty(pool) || pool.NumWorkers ~= nWorkers
-            if ~isempty(pool), delete(pool); end
-            parpool(cl, nWorkers);
-        end
-    else
-        if ~isempty(pool), delete(pool); end
-        pool = [];
-    end
-catch ME
-    warning('启用并行池失败（%s），改为串行展开。', ME.message);
-    if ~isempty(pool), delete(pool); end
-    pool = [];
-    nWorkers = 0;
-end
-
-% 展开
-fprintf('展开 %d 个 ZIP，使用 worker 数: %d (最大允许 %d)...\n', N, nWorkers, maxWorkers);
-resultFiles  = cell(N,1);
-resultStatus = cell(N,1);
-start_t = tic;
-if nWorkers >= 2
-    parfor idx = 1:N
-        [resultFiles{idx}, resultStatus{idx}] = unzip_one(zipList{idx}, outDirs{idx});
-    end
-else
-    for idx = 1:N
-        [resultFiles{idx}, resultStatus{idx}] = unzip_one(zipList{idx}, outDirs{idx});
-    end
-end
-elapsed = toc(start_t);
-
-delete(gcp('nocreate'));
-
-% 解压后磁盘空间
-freeBytes2 = fileObj.getFreeSpace(); freeGB2 = freeBytes2/1e9;
-fprintf('解压完成，剩余空间 %.2f GB\n', freeGB2);
-
-% 日志
-fprintf('\n处理结果:\n');
-for i = 1:N
-    fprintf('%s -> %s\n', resultFiles{i}, resultStatus{i});
-end
-fprintf('总耗时: %.2f 秒\n', elapsed);
-end
-
-function zfiles = collect_zip_files(zdir)
-    zfiles = dir(fullfile(zdir, '*.zip'));
-    nested = dir(fullfile(zdir, '**', '*.zip'));
-    if ~isempty(nested)
-        all_paths = cell(numel(zfiles) + numel(nested), 1);
-        n = 0;
-        for ii = 1:numel(zfiles)
-            n = n + 1;
-            all_paths{n} = fullfile(zfiles(ii).folder, zfiles(ii).name);
-        end
-        for ii = 1:numel(nested)
-            n = n + 1;
-            all_paths{n} = fullfile(nested(ii).folder, nested(ii).name);
-        end
-        [~, keep] = unique(all_paths(1:n), 'stable');
-        merged = [zfiles(:); nested(:)];
-        zfiles = merged(keep);
-    end
-end
-
-function [zf, status] = unzip_one(zf, out)
-    status = '成功';
-    if ~exist(out, 'dir')
-        mkdir(out);
-    end
-    cmd = sprintf(['powershell -NoProfile -Command "Expand-Archive -Path ''%s'' ' ...
-                   '-DestinationPath ''%s'' -Force"'], zf, out);
-    [s,~] = system(cmd);
-    if s~=0
-        status = '失败';
-    else
-        delete(zf);
-    end
-end
-
-function [totalGB, freeGB, fileObj] = estimate_space(zipList, root_dir)
-    totalBytes = 0;
-    for i = 1:numel(zipList)
-        zfPath = zipList{i};
-        jz = java.util.zip.ZipFile(zfPath);
-        entries = jz.entries();
-        while entries.hasMoreElements()
-            entry = entries.nextElement();
-            totalBytes = totalBytes + entry.getSize();
-        end
-        jz.close();
-    end
-    totalGB = totalBytes / 1e9;
-    drive = root_dir(1:3);
-    fileObj = java.io.File(drive);
-    freeGB = fileObj.getFreeSpace()/1e9;
-    fprintf('当前磁盘空余: %.2f GB，预计解压需 %.2f GB\n', freeGB, totalGB);
-end
-
-function check_disk_space(freeGB, totalGB, silent)
-    if freeGB < totalGB + 10
-        if silent
-            warning('可用空间可能不足 10GB 余量，仍继续。');
-        else
-            c = input('磁盘富余可能不足 10GB，是否继续?(y/n): ', 's');
-            if ~strcmpi(c,'y')
-                error('用户取消。');
-            end
-        end
-    end
-end
-
-function estimate_time(totalGB, silent)
-    speedMBps = 45/8;  % 约 45MB/s HDD
-    est_time_s = totalGB*1024/speedMBps;
-    time_min = est_time_s/60;
-    if time_min > 3 && ~silent
-        c = input(sprintf('预计耗时 %.1f 分钟，是否继续?(y/n): ', time_min), 's');
-        if ~strcmpi(c,'y')
-            error('用户取消。');
-        end
-    else
-        fprintf('预计耗时 %.1f 分钟，开始运行。\n', time_min);
-    end
+fprintf(['[批量解压] 完成：共 %d 个 ZIP，新解压 %d，复用 %d，失败 %d；' ...
+    '并发请求 %s，实际 %d；原压缩包默认保留。\n'], ...
+    summary.archive_count, summary.extracted_count, summary.reused_count, ...
+    summary.failed_count, char(string(summary.requested_workers)), ...
+    summary.effective_workers);
 end

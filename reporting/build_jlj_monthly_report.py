@@ -39,6 +39,7 @@ from stats_lookup import resolve_from_analysis_manifest
 from docx_utils import prune_unused_document_image_relationships, set_cell_text_preserve
 from jlj_patrol import (
     insert_docx_body_after_heading,
+    patrol_source_availability_record,
     replace_patrol_section_with_note,
     resolve_patrol_report_source,
 )
@@ -141,6 +142,7 @@ class SectionContent:
     table_width_mm: float | None = None
     table_font_size_pt: int | None = None
     available: bool = True
+    not_applicable: bool = False
     blocks: list["SectionBlock"] | None = None
 
 
@@ -1825,6 +1827,19 @@ def build_missing_section(text: str) -> SectionContent:
     )
 
 
+def build_not_applicable_section(text: str) -> SectionContent:
+    """Describe an intentionally out-of-scope section without claiming data."""
+    return SectionContent(
+        narrative=text,
+        summary_sentence=text,
+        available=False,
+        not_applicable=True,
+        image_items=[],
+        table_rows=[],
+        table_columns=[],
+    )
+
+
 def build_numeric_summary_section(
     rows: list[dict],
     narrative_intro: str,
@@ -2427,9 +2442,40 @@ def build_eq_section(
     )
 
 
-def build_traffic_section(wim_root: Path | None) -> SectionContent:
+def jlj_traffic_required(cfg: dict) -> bool:
+    """Return whether Jiulongjiang traffic monitoring is mandatory in reports."""
+    reporting = cfg.get("reporting") if isinstance(cfg, dict) else None
+    traffic = reporting.get("traffic") if isinstance(reporting, dict) else None
+    raw = traffic.get("required", False) if isinstance(traffic, dict) else False
+    if isinstance(raw, bool):
+        return raw
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def jlj_patrol_required(cfg: dict) -> bool:
+    """Return whether a period-matched field-patrol source is mandatory."""
+    reporting = cfg.get("reporting") if isinstance(cfg, dict) else None
+    patrol = reporting.get("patrol") if isinstance(reporting, dict) else None
+    raw = patrol.get("required", True) if isinstance(patrol, dict) else True
+    if isinstance(raw, bool):
+        return raw
+    text = str(raw).strip().lower()
+    if text in {"0", "false", "no", "off"}:
+        return False
+    return True
+
+
+def build_traffic_section(
+    wim_root: Path | None,
+    *,
+    required: bool = False,
+) -> SectionContent:
     if wim_root is None or not wim_root.exists():
-        return build_missing_section("本月未获取到车辆荷载监测结果。")
+        if required:
+            return build_missing_section("本月未获取到车辆荷载监测结果。")
+        return build_not_applicable_section(
+            "本期未配置车辆荷载分析任务，车辆荷载监测章节不适用。"
+        )
     narrative = "本月已检测到车辆荷载监测结果目录，后续将接入九龙江月报的车辆荷载统计与图表。"
     return SectionContent(
         narrative=narrative,
@@ -3099,7 +3145,10 @@ def build_section_map(cfg: dict, stats_root: Path, fallback_root: Path | None, r
         "main_rainfall": build_rainfall_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_wind": build_wind_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_eq": build_eq_section(cfg, result_root, stats_root, fallback_root, image_root),
-        "main_traffic": build_traffic_section(wim_root),
+        "main_traffic": build_traffic_section(
+            wim_root,
+            required=jlj_traffic_required(cfg),
+        ),
         "main_deflection": build_deflection_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_bearing": build_main_bearing_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_gnss": build_gnss_section(cfg, result_root, stats_root, fallback_root, image_root),
@@ -3296,6 +3345,8 @@ def collect_missing_items(section_map: dict[str, SectionContent]) -> list[dict[s
     }
     for key, content in section_map.items():
         section_label = labels.get(key, key)
+        if content.not_applicable:
+            continue
         if not content.available:
             items.append(
                 {
@@ -3443,6 +3494,7 @@ def build_report(
         target_year=start_date.year,
         target_month=start_date.month,
     )
+    patrol_required = jlj_patrol_required(cfg)
     patrol_missing: list[dict[str, str]] = []
     if patrol_report_docx is not None and has_patrol_anchor:
         insert_docx_body_after_heading(
@@ -3450,15 +3502,30 @@ def build_report(
             "桥梁人工巡查结果",
             patrol_report_docx,
         )
-    elif has_patrol_anchor:
-        replace_patrol_section_with_note(doc, "桥梁人工巡查结果")
-        patrol_missing.append(
-            {
-                "category": "巡查资料缺失",
-                "item": f"{start_date.year:04d}-{start_date.month:02d}",
-                "detail": "未找到与报告月份一致的九龙江巡查报告，模板旧巡查内容已清除。",
-            }
-        )
+        patrol_action = "verified_source_inserted"
+    elif patrol_report_docx is not None:
+        patrol_action = "verified_source_available_but_template_section_absent"
+    else:
+        if has_patrol_anchor:
+            replace_patrol_section_with_note(doc, "桥梁人工巡查结果")
+            patrol_action = "template_content_cleared_and_note_inserted"
+        else:
+            patrol_action = "no_matching_source_and_no_template_section"
+        if patrol_required:
+            patrol_missing.append(
+                {
+                    "category": "巡查资料缺失",
+                    "item": f"{start_date.year:04d}-{start_date.month:02d}",
+                    "detail": "未找到与报告月份一致的九龙江巡查报告，模板旧巡查内容已清除。",
+                }
+            )
+    patrol_availability = patrol_source_availability_record(
+        patrol_report_docx,
+        required=patrol_required,
+        target_year=start_date.year,
+        target_month=start_date.month,
+        action=patrol_action,
+    )
     update_summary_table(doc, section_map, data_acquisition_summary)
     update_jlj_warning_threshold_table(doc)
     set_repeat_headers_for_all_tables(doc)
@@ -3536,8 +3603,12 @@ def build_report(
                 "period_label": period_label,
             },
             "patrol_source": str(patrol_report_docx.resolve()) if patrol_report_docx else "",
+            "source_availability": {"patrol": patrol_availability},
             "report_image_source_count": len(image_sources),
             "report_image_sources": image_sources,
+            "not_applicable_sections": sorted(
+                key for key, content in section_map.items() if content.not_applicable
+            ),
             "pruned_template_image_relationship_count": len(dropped_image_relationships),
             **qc_paths,
         },

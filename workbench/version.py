@@ -8,6 +8,7 @@ APP_DISPLAY_NAME = "桥梁健康监测工作台"
 EXECUTABLE_FILENAME = f"{APP_DISPLAY_NAME}.exe"
 LEGACY_EXECUTABLE_FILENAME = "BridgeMonitoringWorkbench.exe"
 SUPPORTED_EXECUTABLE_FILENAMES = (EXECUTABLE_FILENAME, LEGACY_EXECUTABLE_FILENAME)
+DEFAULT_VERSION = "v1.8.1-rc3"
 
 
 def project_root() -> Path:
@@ -21,5 +22,5 @@ def app_version(root: Path | None = None) -> str:
     try:
         value = version_file.read_text(encoding="utf-8-sig").strip()
     except OSError:
-        return "v1.8.0"
-    return value or "v1.8.0"
+        return DEFAULT_VERSION
+    return value or DEFAULT_VERSION

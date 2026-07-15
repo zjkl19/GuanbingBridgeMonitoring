@@ -28,6 +28,18 @@ classdef test_path_profile_resolver < matlab.unittest.TestCase
     end
 
     methods (Test)
+        function sharedCatalogExcludesRetiredOfficeProfile(tc)
+            projectRoot = fileparts(fileparts(mfilename('fullpath')));
+            sharedPath = fullfile(projectRoot, 'config', 'path_profiles.json');
+            entries = bms.profile.PathProfileResolver.loadProfiles(projectRoot);
+            shared = entries(strcmp({entries.source_path}, sharedPath));
+            ids = cellstr(string({shared.profile_id}));
+
+            tc.verifyEqual(sort(ids), sort({ ...
+                'dev_desktop_674s83o', 'prod_133', 'storage_126'}));
+            tc.verifyFalse(any(strcmp(ids, 'office_pc')));
+        end
+
         function envSelectedProfileOverridesBridgeRoot(tc)
             tc.writeProfiles(struct( ...
                 'profile_id', 'unit_remote', ...

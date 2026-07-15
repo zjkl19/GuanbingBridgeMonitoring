@@ -25,6 +25,7 @@ class WorkbenchProfile:
     default_start_date: str = ""
     default_end_date: str = ""
     enabled_modules: tuple[str, ...] = field(default_factory=tuple)
+    optional_modules: tuple[str, ...] = field(default_factory=tuple)
 
     @classmethod
     def from_mapping(cls, raw: dict[str, Any]) -> "WorkbenchProfile":
@@ -36,6 +37,7 @@ class WorkbenchProfile:
             "default_end_date",
         )}
         values["enabled_modules"] = tuple(str(item) for item in raw.get("enabled_modules", []))
+        values["optional_modules"] = tuple(str(item) for item in raw.get("optional_modules", []))
         return cls(**values)
 
     def _resolve_project_path(self, value: str, project_root: Path) -> Path:

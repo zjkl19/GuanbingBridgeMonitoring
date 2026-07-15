@@ -45,6 +45,7 @@ class TestArtifactLookup(unittest.TestCase):
                         "path": str(outside),
                         "exists": True,
                         "bytes": outside.stat().st_size,
+                        "sha256": hashlib.sha256(outside.read_bytes()).hexdigest().upper(),
                     }],
                 }],
             }), encoding="utf-8")
@@ -73,6 +74,7 @@ class TestArtifactLookup(unittest.TestCase):
                         "path": str(image),
                         "exists": True,
                         "bytes": image.stat().st_size,
+                        "sha256": hashlib.sha256(image.read_bytes()).hexdigest().upper(),
                     }],
                 }],
             }), encoding="utf-8")
@@ -152,6 +154,7 @@ class TestArtifactLookup(unittest.TestCase):
                         "path": str(pinned_image),
                         "exists": True,
                         "bytes": pinned_image.stat().st_size,
+                        "sha256": hashlib.sha256(pinned_image.read_bytes()).hexdigest().upper(),
                     }],
                 }],
             }), encoding="utf-8")

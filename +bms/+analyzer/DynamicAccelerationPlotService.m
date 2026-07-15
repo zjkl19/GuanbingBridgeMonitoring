@@ -4,7 +4,8 @@ classdef DynamicAccelerationPlotService
     methods (Static)
         function plotAccelCurve(rootDir, pointId, times, values, minVal, maxVal, style, cfg, spec, sourceProvenance)
             fig = figure('Position', [100 100 1000 469]);
-            plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
+            plotOpts = bms.analyzer.DynamicSeriesService.rawPlotOptions( ...
+                cfg, 50000, spec.moduleKey, pointId);
             plotOpts.series_id = char(string(pointId));
             plotOpts.plot_scope = 'point_time_history';
             if nargin >= 10 && isstruct(sourceProvenance)
@@ -59,7 +60,8 @@ classdef DynamicAccelerationPlotService
                 end
             end
             fig = figure('Position', [100 100 1000 469]);
-            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg);
+            plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig( ...
+                cfg, spec.moduleKey, pointId);
             [timesPlot, rmsPlot] = prepare_plot_series(rmsTimes, rmsSeries, plotOpts);
             if isempty(timesPlot)
                 timesPlot = rmsTimes;
@@ -226,6 +228,7 @@ classdef DynamicAccelerationPlotService
             opts.raw_trace_points = rawOpts.raw_trace_points;
             opts.raw_sampling_mode = rawOpts.raw_sampling_mode;
             opts.plot_scope = 'group_overview';
+            opts.moduleKey = spec.moduleKey;
             opts.series_provenance = arrayfun( ...
                 @(record) record.source_provenance, records, 'UniformOutput', false);
 
@@ -243,14 +246,14 @@ classdef DynamicAccelerationPlotService
             labels = {};
             for i = 1:numel(records)
                 rec = records(i);
-                if isempty(rec.vals) || numel(rec.times) ~= numel(rec.vals)
-                    continue;
-                end
                 if isfield(rec, 'rms_times') && isfield(rec, 'rms_vals') ...
                         && ~isempty(rec.rms_times) && ~isempty(rec.rms_vals)
                     rmsTimes = rec.rms_times;
                     rmsSeries = rec.rms_vals;
                 else
+                    if isempty(rec.vals) || numel(rec.times) ~= numel(rec.vals)
+                        continue;
+                    end
                     [rmsTimes, rmsSeries] = bms.analyzer.DynamicSeriesService.rmsByTimeBins(rec.times, rec.vals, 10, 0.7, rec.fs);
                 end
                 if isempty(rmsSeries)
@@ -273,6 +276,7 @@ classdef DynamicAccelerationPlotService
             opts.ylimRange = bms.analyzer.DynamicAccelerationPlotService.resolveRmsYLim(style, groupName);
             opts.warnLines = bms.analyzer.DynamicAccelerationPlotService.resolveGroupWarnLines( ...
                 style, 'rms_warn_lines', groupName, cfg, spec, records);
+            opts.moduleKey = spec.moduleKey;
 
             bms.analyzer.StructuralTimeSeriesPlotService.plotCells( ...
                 rootDir, timesList, valuesList, labels, startDate, endDate, opts, cfg);

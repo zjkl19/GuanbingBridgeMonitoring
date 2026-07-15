@@ -15,6 +15,7 @@ classdef ModuleSpec
         GuiField char = ''
         GuiLabel char = ''
         PresetField char = ''
+        Description char = ''
     end
 
     methods
@@ -56,6 +57,8 @@ classdef ModuleSpec
                         obj.GuiLabel = char(value);
                     case 'presetfield'
                         obj.PresetField = char(value);
+                    case 'description'
+                        obj.Description = char(value);
                     otherwise
                         error('Unknown ModuleSpec option: %s', name);
                 end
@@ -97,6 +100,7 @@ classdef ModuleSpec
             s.gui_field = obj.GuiField;
             s.gui_label = obj.GuiLabel;
             s.preset_field = obj.PresetField;
+            s.description = obj.Description;
         end
     end
 

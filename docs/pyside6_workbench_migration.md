@@ -28,6 +28,54 @@ acceleration/cable-acceleration spectrum coverage plus peak-order overrides.
 The seventh embeds report execution/QC and complete plot-provenance review.
 None of these milestones writes to production machines.
 
+The local `v1.8.1-rc2` milestone added four operator-facing controls
+without moving numerical ownership out of MATLAB:
+
+- guarded one-sided cleaning thresholds, with separate "delete below" and
+  "delete above" actions, draggable preview lines, exact numeric entry,
+  optional time windows, preview-only removal estimates and undo-before-save;
+- second-precision effective ranges for offset correction (the range controls
+  where a correction is applied; it is not a second reference-sample range);
+- gap rendering inheritance at global, module and point scope, resolved as
+  point > module > compatible legacy module setting > global and affecting
+  only line rendering, not statistics;
+- configurable safe ZIP extraction concurrency with auto/1/2/4/custom modes,
+  deterministic serial fallback and an isolated synthetic benchmark.
+
+The current `v1.8.1-rc3` review keeps those controls and hardens their release
+boundary: archive snapshots are bound through extraction and publication,
+extraction locks use host/PID/token ownership, terminal task results survive
+refresh/stop races, strict report inputs require SHA-256, and offscreen audit
+builds are prevented from masquerading as native Windows release builds.
+
+## Architecture decision after the local audit
+
+Do not perform a large-scale rewrite.  The code already uses several useful
+patterns at real extension points: registry/factory for analysis modules,
+adapter/facade around legacy numerical functions, strategy-like bridge/data
+profiles, service objects for extraction/cleaning/report jobs, guarded editor
+sessions for configuration transactions, and JSON manifests as process-boundary
+contracts.  These patterns are helping the PySide6 shell replace the MATLAB GUI
+without replacing the validated MATLAB analysis kernel.
+
+The preferred refactor style remains incremental and test-backed:
+
+1. centralize one duplicated decision at a time (for example gap inheritance
+   in `bms.plot.PlotOptionResolver` and ZIP execution in
+   `bms.data.ArchiveExtractService`);
+2. keep bridge differences in profiles/configuration instead of branching the
+   GUI or numerical code by bridge name;
+3. preserve versioned JSON contracts across Python, MATLAB and compiled EXEs;
+4. add boundary/decision-table tests before changing cleaning, date-window,
+   cache, threshold or report-acceptance semantics;
+5. use coverage as a gap-finding baseline, not as a substitute for real-data,
+   native-GUI and rendered-report validation.
+
+This avoids a high-risk "design-pattern rewrite" whose churn would consume
+more review effort and tokens than it saves.  Future larger extractions should
+be justified by measured duplication, repeated defects or an unstable public
+contract, and should land as separate milestones.
+
 ## Packaged local milestone
 
 - Build with `scripts/build_workbench_exe.ps1`.

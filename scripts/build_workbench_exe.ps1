@@ -1,6 +1,7 @@
 param(
     [string]$PythonExe = "reporting\.venv\Scripts\python.exe",
-    [switch]$SkipAnalysisRunner
+    [switch]$SkipAnalysisRunner,
+    [switch]$OffscreenScreenshots
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,13 +26,38 @@ function Invoke-NativeChecked {
     }
 }
 
+function Assert-OperatorGuideContract {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Operator guide not found: $Path"
+    }
+
+    $content = [System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8)
+    # Keep the build script Windows PowerShell 5.1 / ASCII-safe.  A longer
+    # button caption is accepted because the required caption stem is matched
+    # as a substring.
+    $requiredFragments = @(
+        (-join (39044, 29983, 25104, 20998, 26512, 32531, 23384 | ForEach-Object { [char]$_ })),
+        (-join (25171, 24320, 26354, 32447, 39044, 35272, 24182, 25302, 32447, 35774, 32622 | ForEach-Object { [char]$_ }))
+    )
+    foreach ($fragment in $requiredFragments) {
+        if (-not $content.Contains($fragment)) {
+            throw "Operator guide is missing required user workflow text: $Path"
+        }
+    }
+}
+
 if (-not (Test-Path -LiteralPath $PythonExe -PathType Leaf)) {
     throw "Python executable not found: $PythonExe"
 }
 
 Invoke-NativeChecked `
     -FilePath $PythonExe `
-    -ArgumentList @("-m", "pip", "install", "pyinstaller", "-r", "reporting\requirements.txt") `
+    -ArgumentList @("-m", "pip", "install", "-r", "reporting\requirements-build.txt") `
     -StepName "Workbench Python dependency installation"
 Invoke-NativeChecked `
     -FilePath $PythonExe `
@@ -80,7 +106,11 @@ if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
 }
 
 Copy-Item -LiteralPath (Join-Path $repo "VERSION") -Destination (Join-Path $distRoot "VERSION") -Force
-Copy-Item -LiteralPath (Join-Path $repo "docs\OPERATOR_GUIDE.md") -Destination (Join-Path $distRoot $operatorGuideName) -Force
+$operatorGuideSource = Join-Path $repo "docs\OPERATOR_GUIDE.md"
+$packagedOperatorGuide = Join-Path $distRoot $operatorGuideName
+Assert-OperatorGuideContract -Path $operatorGuideSource
+Copy-Item -LiteralPath $operatorGuideSource -Destination $packagedOperatorGuide -Force
+Assert-OperatorGuideContract -Path $packagedOperatorGuide
 
 $copyAssets = @'
 from __future__ import annotations
@@ -150,6 +180,7 @@ Invoke-NativeChecked `
     -ArgumentList @($copyScript) `
     -StepName "Workbench asset copy"
 
+$analysisRunnerFailureExitSmoke = $false
 if (-not $SkipAnalysisRunner) {
     $runnerSource = Join-Path $repo "bin\BridgeAnalysisRunner"
     $runnerExe = Join-Path $runnerSource "BridgeAnalysisRunner.exe"
@@ -170,6 +201,18 @@ if (-not $SkipAnalysisRunner) {
     if (-not (Test-Path -LiteralPath (Join-Path $runnerSource "BridgeAnalysisRunner.exe") -PathType Leaf)) {
         throw "Analysis runner is missing: $runnerSource"
     }
+    $failureExitSmokeRoot = Join-Path $buildRoot "analysis_runner_failure_exit_smoke"
+    Invoke-NativeChecked `
+        -FilePath $PythonExe `
+        -ArgumentList @(
+            (Join-Path $repo "scripts\validate_analysis_runner_failure_exit.py"),
+            "--project-root", $repo,
+            "--runner", $runnerExe,
+            "--output-root", $failureExitSmokeRoot,
+            "--replace"
+        ) `
+        -StepName "Compiled analysis failure-exit contract smoke"
+    $analysisRunnerFailureExitSmoke = $true
     $previewSmokeRoot = Join-Path $buildRoot "auto_threshold_preview_smoke"
     Invoke-NativeChecked `
         -FilePath $PythonExe `
@@ -235,8 +278,15 @@ $expectedProfileCount = @($profileCatalog.profiles).Count
 if ($expectedProfileCount -lt 1) {
     throw "Packaged bridge profile catalog is empty"
 }
+$operatorFeatureContractSmoke = (
+    $smoke.config_tab_count -eq 9 `
+        -and $smoke.manual_threshold_controls_available `
+        -and $smoke.offset_effective_range_seconds_available `
+        -and $smoke.gap_override_column_count -eq 6 `
+        -and $smoke.unzip_settings_available
+)
 if (-not $smoke.ok -or $smoke.profile_count -ne $expectedProfileCount -or $smoke.tab_count -ne 4 `
-        -or $smoke.config_tab_count -lt 8 -or $smoke.module_count -lt 20 `
+        -or -not $operatorFeatureContractSmoke -or $smoke.module_count -lt 20 `
         -or $smoke.auto_threshold_module_count -lt 10 `
         -or -not $smoke.auto_threshold_preview_enabled `
         -or -not $smoke.update_backup_management_enabled `
@@ -244,6 +294,9 @@ if (-not $smoke.ok -or $smoke.profile_count -ne $expectedProfileCount -or $smoke
         -or -not $smoke.profile_matrix_review_enabled `
         -or $smoke.executable_filename -ne "${bundleName}.exe" `
         -or $smoke.ui_font_point_size -lt 10 `
+        -or $smoke.ui_font_family -ne "Microsoft YaHei UI" `
+        -or $smoke.screen_logical_dpi -lt 96 `
+        -or $smoke.device_pixel_ratio -lt 1 `
         -or -not $smoke.task_history_enabled `
         -or $smoke.task_history_column_count -ne 8 `
         -or $smoke.effective_warning_row_count -lt 1 `
@@ -278,40 +331,76 @@ if ($profileMatrix.status -ne "passed" -or $profileMatrix.profile_count -ne $exp
     throw "Frozen all-profile matrix contract failed: $($profileMatrix | ConvertTo-Json -Compress -Depth 4)"
 }
 
-$screenshotOutput = Join-Path $distRoot "workbench_startup.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $screenshotOutput -ProfileId "guanbing" -TabIndex 0
-$configScreenshotOutput = Join-Path $distRoot "workbench_alarm_editor.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $configScreenshotOutput -ProfileId "hongtang" -TabIndex 1 -WarningTabIndex 1
-$warningOverviewScreenshotOutput = Join-Path $distRoot "workbench_warning_overview.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $warningOverviewScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -WarningTabIndex 0
-$warningEmptyBoundsScreenshotOutput = Join-Path $distRoot "workbench_warning_empty_bounds.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $warningEmptyBoundsScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -WarningTabIndex 1
-$cleaningScreenshotOutput = Join-Path $distRoot "workbench_cleaning_editor.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $cleaningScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 1
-$cleaningExclusionScreenshotOutput = Join-Path $distRoot "workbench_cleaning_exclusion_editor.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $cleaningExclusionScreenshotOutput -ProfileId "hongtang" -TabIndex 1 -ConfigTabIndex 1 -CleaningTabIndex 1
-$postFilterScreenshotOutput = Join-Path $distRoot "workbench_post_filter_editor.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $postFilterScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 2
-$autoThresholdScreenshotOutput = Join-Path $distRoot "workbench_auto_threshold.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $autoThresholdScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 3 -DemoAutoThresholdPreview
-$offsetScreenshotOutput = Join-Path $distRoot "workbench_offset_editor.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $offsetScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 4
-$groupScreenshotOutput = Join-Path $distRoot "workbench_group_plot_editor.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $groupScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 5
-$plotCommonScreenshotOutput = Join-Path $distRoot "workbench_plot_common_editor.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $plotCommonScreenshotOutput -ProfileId "hongtang" -TabIndex 1 -ConfigTabIndex 6
-$spectrumScreenshotOutput = Join-Path $distRoot "workbench_spectrum_editor.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $spectrumScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 7
-$reviewTermsScreenshotOutput = Join-Path $distRoot "workbench_review_terms.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $reviewTermsScreenshotOutput -ProfileId "guanbing" -TabIndex 2
-$reportTaskScreenshotOutput = Join-Path $distRoot "workbench_report_task.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $reportTaskScreenshotOutput -ProfileId "hongtang" -TabIndex 3
-$taskHistoryScreenshotOutput = Join-Path $distRoot "workbench_task_history.png"
-& (Join-Path $repo "scripts\capture_workbench_window.ps1") -ExePath $exePath -OutputPath $taskHistoryScreenshotOutput -ProfileId "guanbing" -TabIndex 0 -DemoTaskHistory
-
-$files = Get-ChildItem -LiteralPath $distRoot -Recurse -File | Where-Object {
-    $_.FullName -ne (Join-Path $distRoot "release_manifest.json")
+$captureScript = Join-Path $repo "scripts\capture_workbench_window.ps1"
+$captureMode = @{}
+if ($OffscreenScreenshots) {
+    $captureMode.Offscreen = $true
 }
+$screenshotOutput = Join-Path $distRoot "workbench_startup.png"
+$nativeGuiEvidenceOutput = Join-Path $distRoot "workbench_native_gui_acceptance.json"
+if ($OffscreenScreenshots) {
+    & $captureScript -ExePath $exePath -OutputPath $screenshotOutput -ProfileId "guanbing" -TabIndex 0 @captureMode
+    $nativeGuiAcceptance = $null
+}
+else {
+    & $captureScript -ExePath $exePath -OutputPath $screenshotOutput -ProfileId "guanbing" -TabIndex 0 -EvidencePath $nativeGuiEvidenceOutput
+    if (-not (Test-Path -LiteralPath $nativeGuiEvidenceOutput -PathType Leaf)) {
+        throw "Native GUI acceptance evidence was not produced"
+    }
+    $nativeGuiAcceptance = Get-Content -LiteralPath $nativeGuiEvidenceOutput -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not $nativeGuiAcceptance.foreground_window_matches `
+            -or -not $nativeGuiAcceptance.focus_owned_by_process `
+            -or -not $nativeGuiAcceptance.native_window_icon `
+            -or $nativeGuiAcceptance.dpi_awareness_code -ne 2 `
+            -or $nativeGuiAcceptance.window_dpi -lt 96 `
+            -or $nativeGuiAcceptance.physical_width -lt 1000 `
+            -or $nativeGuiAcceptance.physical_height -lt 700) {
+        throw "Native GUI acceptance evidence failed: $($nativeGuiAcceptance | ConvertTo-Json -Compress)"
+    }
+}
+$configScreenshotOutput = Join-Path $distRoot "workbench_alarm_editor.png"
+& $captureScript -ExePath $exePath -OutputPath $configScreenshotOutput -ProfileId "hongtang" -TabIndex 1 -WarningTabIndex 1 @captureMode
+$warningOverviewScreenshotOutput = Join-Path $distRoot "workbench_warning_overview.png"
+& $captureScript -ExePath $exePath -OutputPath $warningOverviewScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -WarningTabIndex 0 @captureMode
+$warningEmptyBoundsScreenshotOutput = Join-Path $distRoot "workbench_warning_empty_bounds.png"
+& $captureScript -ExePath $exePath -OutputPath $warningEmptyBoundsScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -WarningTabIndex 1 @captureMode
+$cleaningScreenshotOutput = Join-Path $distRoot "workbench_cleaning_editor.png"
+& $captureScript -ExePath $exePath -OutputPath $cleaningScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 1 @captureMode
+$cleaningExclusionScreenshotOutput = Join-Path $distRoot "workbench_cleaning_exclusion_editor.png"
+& $captureScript -ExePath $exePath -OutputPath $cleaningExclusionScreenshotOutput -ProfileId "hongtang" -TabIndex 1 -ConfigTabIndex 1 -CleaningTabIndex 1 @captureMode
+$postFilterScreenshotOutput = Join-Path $distRoot "workbench_post_filter_editor.png"
+& $captureScript -ExePath $exePath -OutputPath $postFilterScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 2 @captureMode
+$autoThresholdScreenshotOutput = Join-Path $distRoot "workbench_auto_threshold.png"
+& $captureScript -ExePath $exePath -OutputPath $autoThresholdScreenshotOutput -ProfileId "guanbing" -TabIndex 1 -ConfigTabIndex 3 -DemoAutoThresholdPreview @captureMode
+$offsetScreenshotOutput = Join-Path $distRoot "workbench_offset_editor.png"
+& $captureScript -ExePath $exePath -OutputPath $offsetScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 4 @captureMode
+$groupScreenshotOutput = Join-Path $distRoot "workbench_group_plot_editor.png"
+& $captureScript -ExePath $exePath -OutputPath $groupScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 5 @captureMode
+$plotCommonScreenshotOutput = Join-Path $distRoot "workbench_plot_common_editor.png"
+& $captureScript -ExePath $exePath -OutputPath $plotCommonScreenshotOutput -ProfileId "hongtang" -TabIndex 1 -ConfigTabIndex 6 @captureMode
+$spectrumScreenshotOutput = Join-Path $distRoot "workbench_spectrum_editor.png"
+& $captureScript -ExePath $exePath -OutputPath $spectrumScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 7 @captureMode
+$unzipScreenshotOutput = Join-Path $distRoot "workbench_unzip_settings.png"
+& $captureScript -ExePath $exePath -OutputPath $unzipScreenshotOutput -ProfileId "jiulongjiang" -TabIndex 1 -ConfigTabIndex 8 @captureMode
+$reviewTermsScreenshotOutput = Join-Path $distRoot "workbench_review_terms.png"
+& $captureScript -ExePath $exePath -OutputPath $reviewTermsScreenshotOutput -ProfileId "guanbing" -TabIndex 2 @captureMode
+$reportTaskScreenshotOutput = Join-Path $distRoot "workbench_report_task.png"
+& $captureScript -ExePath $exePath -OutputPath $reportTaskScreenshotOutput -ProfileId "hongtang" -TabIndex 3 @captureMode
+$taskHistoryScreenshotOutput = Join-Path $distRoot "workbench_task_history.png"
+& $captureScript -ExePath $exePath -OutputPath $taskHistoryScreenshotOutput -ProfileId "guanbing" -TabIndex 0 -DemoTaskHistory @captureMode
+
+$allDistItems = @(Get-ChildItem -LiteralPath $distRoot -Recurse -Force)
+$reparseItems = @($allDistItems | Where-Object {
+    ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0
+})
+if ($reparseItems.Count -gt 0) {
+    $paths = ($reparseItems | ForEach-Object FullName) -join "; "
+    throw "Workbench distribution contains reparse points: $paths"
+}
+$files = @($allDistItems | Where-Object {
+    -not $_.PSIsContainer `
+        -and $_.FullName -ne (Join-Path $distRoot "release_manifest.json")
+} | Sort-Object FullName)
 $forbiddenStandaloneReportFiles = @($files | Where-Object {
     $_.Name -ieq "BridgeReportBuilder.exe" -or
     $_.Name -ieq "MonthlyReportBuilder.exe" -or
@@ -351,9 +440,19 @@ $releaseManifest = [ordered]@{
     report_gate_contract_smoke = [bool]$reportRuntimeSmoke.report_gate_contract
     report_visual_qc_smoke = [bool]$reportRuntimeSmoke.visual_qc_contract
     auto_threshold_preview_runner_smoke = -not $SkipAnalysisRunner
+    analysis_runner_failure_exit_smoke = $analysisRunnerFailureExitSmoke
     installed_profile_matrix_smoke = $true
     invalid_cli_smoke = $true
     task_history_smoke = $true
+    screenshot_mode = if ($OffscreenScreenshots) { "qt_offscreen" } else { "native_windows" }
+    native_screenshot_smoke = -not $OffscreenScreenshots
+    native_focus_smoke = -not $OffscreenScreenshots
+    native_dpi_smoke = -not $OffscreenScreenshots
+    native_font_smoke = (-not $OffscreenScreenshots) -and ($smoke.ui_font_point_size -ge 10)
+    native_icon_smoke = (-not $OffscreenScreenshots) -and [bool]$smoke.window_icon_available
+    native_gui_acceptance = $nativeGuiAcceptance
+    operator_feature_contract_version = 1
+    operator_feature_contract_smoke = [bool]$operatorFeatureContractSmoke
     embedded_report_runtime = $reportRuntimeSmoke
     installed_profile_matrix = [ordered]@{
         profile_count = $profileMatrix.profile_count
@@ -379,6 +478,7 @@ $releaseManifest = [ordered]@{
         "workbench_group_plot_editor.png",
         "workbench_plot_common_editor.png",
         "workbench_spectrum_editor.png",
+        "workbench_unzip_settings.png",
         "workbench_review_terms.png",
         "workbench_report_task.png"
         "workbench_task_history.png"

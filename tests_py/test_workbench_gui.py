@@ -40,12 +40,13 @@ class WorkbenchGuiTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         window = WorkbenchWindow(root)
         try:
-            self.assertIn("v1.8.0", window.windowTitle())
+            expected_version = (root / "VERSION").read_text(encoding="utf-8-sig").strip()
+            self.assertIn(expected_version, window.windowTitle())
             self.assertEqual(window.tabs.count(), 4)
             self.assertGreaterEqual(len(window.module_checks), 20)
             self.assertIsNotNone(window.alarm_editor.session)
             self.assertIsNotNone(window.cleaning_editor.session)
-            self.assertEqual(window.config_tabs.count(), 8)
+            self.assertEqual(window.config_tabs.count(), 9)
             self.assertEqual(window.auto_threshold_editor.module_list.count(), 15)
             self.assertTrue(window.update_backup_btn.isEnabled())
             self.assertTrue(window.profile_matrix_btn.isEnabled())
@@ -62,6 +63,9 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertGreater(window.group_plot_editor.module_combo.count(), 0)
             self.assertIsNotNone(window.plot_common_editor.session)
             self.assertIsNotNone(window.spectrum_editor.session)
+            self.assertIsNotNone(window.unzip_settings_editor.session)
+            self.assertEqual(window.unzip_settings_editor.mode_combo.count(), 5)
+            self.assertEqual(window.unzip_settings_editor.requested_value(), 1)
             self.assertEqual(window.plot_common_editor.table.rowCount(), 14)
             self.assertEqual(window.spectrum_editor.module_combo.count(), 2)
             self.assertEqual(window.provenance_table.columnCount(), 7)
@@ -80,6 +84,23 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertGreaterEqual(window.font().pointSize(), 10)
             self.assertFalse(window.module_checks["temperature"].icon().isNull())
             self.assertFalse(window.module_checks["acceleration"].icon().isNull())
+            cache_prebuild = window.module_checks["cache_prebuild"]
+            unzip = window.module_checks["unzip"]
+            self.assertIn("解压并发", unzip.toolTip())
+            self.assertEqual(cache_prebuild.text(), "预生成分析缓存")
+            self.assertFalse(cache_prebuild.icon().isNull())
+            self.assertIn("已解压 CSV", cache_prebuild.toolTip())
+            self.assertIn("不删除源数据", cache_prebuild.toolTip())
+            self.assertIn("分析模块实际使用", cache_prebuild.toolTip())
+            self.assertTrue(cache_prebuild.isEnabled())
+            self.assertFalse(cache_prebuild.isChecked())
+            for bridge_id in (
+                "guanbing", "hongtang", "jiulongjiang", "shuixianhua",
+                "chongyangxi", "zhishan",
+            ):
+                window.profile_combo.setCurrentIndex(window.profile_combo.findData(bridge_id))
+                self.assertTrue(cache_prebuild.isEnabled(), bridge_id)
+                self.assertFalse(cache_prebuild.isChecked(), bridge_id)
             self.assertFalse(window.windowIcon().isNull())
             self.assertFalse(window.organization_logo_label.isHidden())
             self.assertIsNotNone(window.organization_logo_label.pixmap())
@@ -310,7 +331,10 @@ class WorkbenchGuiTests(unittest.TestCase):
 
     def test_operator_term_mapping_is_centralized(self) -> None:
         self.assertEqual("正在处理", operator_state_label("running"))
+        self.assertEqual("正在停止", operator_state_label("stopping"))
         self.assertEqual("质量检查", operator_stage_label("qc"))
+        self.assertEqual("正在安全停止", operator_stage_label("stop_requested"))
+        self.assertEqual("重新读取状态", operator_stage_label("status_retry"))
         message = operator_friendly_text("release manifest provenance legacy QC gate")
         for jargon in ("manifest", "provenance", "legacy", "qc", "gate"):
             self.assertNotIn(jargon, message.casefold())
@@ -398,6 +422,7 @@ class WorkbenchGuiTests(unittest.TestCase):
             logs.mkdir(parents=True)
             complete = logs / "analysis_manifest_complete.json"
             repair = logs / "analysis_manifest_repair.json"
+            previous = logs / "analysis_manifest_previous.json"
 
             def write_manifest(path: Path, modules: list[str]) -> None:
                 config_path = root / "config" / "default_config.json"
@@ -420,6 +445,14 @@ class WorkbenchGuiTests(unittest.TestCase):
             selected = ["temperature", "acceleration"]
             write_manifest(complete, selected)
             write_manifest(repair, ["acceleration"])
+            write_manifest(previous, selected)
+            previous_payload = json.loads(previous.read_text(encoding="utf-8"))
+            previous_payload["generation"] = "previous"
+            previous.write_text(json.dumps(previous_payload), encoding="utf-8")
+            complete_payload = json.loads(complete.read_text(encoding="utf-8"))
+            complete_payload["generation"] = "current"
+            complete.write_text(json.dumps(complete_payload), encoding="utf-8")
+            os.utime(previous, (0.5, 0.5))
             os.utime(complete, (1, 1))
             os.utime(repair, (2, 2))
             context = JobContext.create(
@@ -434,6 +467,11 @@ class WorkbenchGuiTests(unittest.TestCase):
                 options=options_for_modules(selected),
                 job_id="manifest_selection_unit",
             )
+            context.analysis.state = "completed"
+            context.analysis.manifest_path = str(previous.resolve())
+            context.analysis.manifest_sha256 = file_sha256(previous)
+            context.report.plots_approved = True
+            context.report.state = "ready"
             window = WorkbenchWindow(root)
             try:
                 window.load_context(context.write())
@@ -447,6 +485,15 @@ class WorkbenchGuiTests(unittest.TestCase):
                     window.current_context.analysis.manifest_path,
                     str(complete.resolve()),
                 )
+                self.assertEqual(
+                    window.current_context.analysis.manifest_sha256,
+                    file_sha256(complete),
+                )
+                self.assertFalse(window.current_context.report.plots_approved)
+                saved = JobContext.read(window.current_context_path)
+                self.assertEqual(saved.analysis.manifest_path, str(complete.resolve()))
+                self.assertEqual(saved.analysis.manifest_sha256, file_sha256(complete))
+                self.assertFalse(saved.report.plots_approved)
             finally:
                 window.poll_timer.stop()
                 window.close()
@@ -620,6 +667,8 @@ class WorkbenchGuiTests(unittest.TestCase):
             )
             context.analysis.state = "completed"
             context.analysis.manifest_path = str(manifest)
+            context.report.plots_approved = True
+            context.report.state = "ready"
             window = WorkbenchWindow(root)
             try:
                 window.current_context = context
@@ -628,6 +677,10 @@ class WorkbenchGuiTests(unittest.TestCase):
                 self.assertEqual(window.provenance_table.rowCount(), 1)
                 self.assertIn("通过：1", window.provenance_summary_label.text())
                 self.assertTrue(window.approval_check.isEnabled())
+                self.assertFalse(window.current_context.report.plots_approved)
+                saved = JobContext.read(window.current_context_path)
+                self.assertEqual(saved.analysis.manifest_sha256, file_sha256(manifest))
+                self.assertFalse(saved.report.plots_approved)
             finally:
                 window.poll_timer.stop()
                 window.close()

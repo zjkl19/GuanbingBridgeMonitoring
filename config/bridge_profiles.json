@@ -25,6 +25,9 @@
         "strain",
         "dynamic_strain_highpass",
         "dynamic_strain_lowpass"
+      ],
+      "optional_modules": [
+        "cache_prebuild"
       ]
     },
     {
@@ -53,6 +56,9 @@
         "wind",
         "earthquake",
         "wim"
+      ],
+      "optional_modules": [
+        "cache_prebuild"
       ]
     },
     {
@@ -84,6 +90,9 @@
         "crack",
         "gnss",
         "strain"
+      ],
+      "optional_modules": [
+        "cache_prebuild"
       ]
     },
     {
@@ -114,6 +123,9 @@
         "strain",
         "dynamic_strain_highpass",
         "dynamic_strain_lowpass"
+      ],
+      "optional_modules": [
+        "cache_prebuild"
       ]
     },
     {
@@ -141,6 +153,9 @@
         "strain",
         "dynamic_strain_highpass",
         "dynamic_strain_lowpass"
+      ],
+      "optional_modules": [
+        "cache_prebuild"
       ]
     },
     {
@@ -165,6 +180,9 @@
         "accel_spectrum",
         "cable_accel",
         "cable_accel_spectrum"
+      ],
+      "optional_modules": [
+        "cache_prebuild"
       ]
     }
   ]

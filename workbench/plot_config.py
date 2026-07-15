@@ -50,6 +50,57 @@ FREQUENCY_FIELDS = {
     "peak_labels",
 }
 
+# Analysis modules do not always use the same JSON key for their plot style
+# and per-point settings.  Keep that compatibility knowledge next to the gap
+# resolver so a new, explicit module key wins while established bridge configs
+# (for example wind_speed and dynamic_strain) remain effective.
+GAP_MODULE_LAYER_KEYS: dict[str, dict[str, tuple[str, ...]]] = {
+    "wind": {
+        "style": ("wind", "wind_speed"),
+        "point": ("wind", "wind_speed", "wind_direction"),
+        "legacy": ("wind", "wind_speed"),
+    },
+    "eq": {
+        "style": ("eq", "earthquake"),
+        "point": ("eq", "earthquake"),
+        "legacy": ("eq", "earthquake"),
+    },
+    "earthquake": {
+        "style": ("earthquake", "eq"),
+        "point": ("earthquake", "eq"),
+        "legacy": ("earthquake", "eq"),
+    },
+    "dynamic_strain_highpass": {
+        "style": ("dynamic_strain_highpass", "dynamic_strain"),
+        "point": ("dynamic_strain_highpass", "dynamic_strain", "strain"),
+        "legacy": ("dynamic_strain_highpass", "dynamic_strain"),
+    },
+    "dynamic_strain": {
+        "style": ("dynamic_strain", "dynamic_strain_highpass"),
+        "point": ("dynamic_strain", "dynamic_strain_highpass", "strain"),
+        "legacy": ("dynamic_strain", "dynamic_strain_highpass"),
+    },
+    "dynamic_strain_lowpass": {
+        "style": ("dynamic_strain_lowpass", "dynamic_strain"),
+        "point": (
+            "dynamic_strain_lowpass",
+            "dynamic_strain",
+            "strain",
+        ),
+        "legacy": ("dynamic_strain_lowpass", "dynamic_strain"),
+    },
+    "accel_spectrum": {
+        "style": ("accel_spectrum", "acceleration"),
+        "point": ("accel_spectrum", "acceleration"),
+        "legacy": ("accel_spectrum", "acceleration"),
+    },
+    "cable_accel_spectrum": {
+        "style": ("cable_accel_spectrum", "cable_accel"),
+        "point": ("cable_accel_spectrum", "cable_accel"),
+        "legacy": ("cable_accel_spectrum", "cable_accel"),
+    },
+}
+
 
 @dataclass(frozen=True)
 class PlotCommonRow:
@@ -69,6 +120,45 @@ class PlotCommonRow:
         return PlotCommonRow(
             self.field, expected_type, bool(self.explicit), value, schema[3]
         )
+
+
+@dataclass(frozen=True)
+class GapOverrideRow:
+    """One explicit module/point override for time-series gap rendering.
+
+    ``inherit`` is intentionally represented by the absence of a field in
+    JSON.  A row may inherit the mode while overriding only the break factor,
+    but a completely inherited row is rejected because deleting the row is
+    the unambiguous UI operation for that case.
+    """
+
+    scope: str
+    module_key: str
+    point_key: str = ""
+    gap_mode: str = "inherit"
+    gap_break_factor: float | None = None
+
+    def validated(self) -> "GapOverrideRow":
+        scope = str(self.scope or "").strip().lower()
+        module = str(self.module_key or "").strip()
+        point = str(self.point_key or "").strip()
+        mode = str(self.gap_mode or "inherit").strip().lower()
+        if scope not in {"module", "point"}:
+            raise ConfigEditorError("连线覆盖范围必须是 module 或 point")
+        if not module:
+            raise ConfigEditorError("连线覆盖必须填写分析模块")
+        if scope == "module" and point:
+            raise ConfigEditorError("模块级连线覆盖不能填写测点编号")
+        if scope == "point" and not point:
+            raise ConfigEditorError("测点级连线覆盖必须填写测点编号")
+        if mode not in {"inherit", "connect", "break"}:
+            raise ConfigEditorError("gap_mode 必须是 inherit/connect/break")
+        factor = _optional_finite(self.gap_break_factor, "gap_break_factor")
+        if factor is not None and factor < 1.1:
+            raise ConfigEditorError("gap_break_factor 不能小于 1.1")
+        if mode == "inherit" and factor is None:
+            raise ConfigEditorError("完全继承请删除该覆盖行")
+        return GapOverrideRow(scope, module, point, mode, factor)
 
 
 @dataclass(frozen=True)
@@ -244,6 +334,211 @@ def apply_plot_common(
         if row.explicit:
             common[row.field] = row.value
     return updated
+
+
+def _gap_fields(raw: Any) -> tuple[str, float | int | None] | None:
+    if not isinstance(raw, dict):
+        return None
+    has_mode = "gap_mode" in raw
+    has_factor = "gap_break_factor" in raw
+    if not has_mode and not has_factor:
+        return None
+    mode = str(raw.get("gap_mode") or "inherit").strip().lower()
+    factor = raw.get("gap_break_factor") if has_factor else None
+    return mode, factor
+
+
+def extract_gap_overrides(payload: dict[str, Any]) -> list[GapOverrideRow]:
+    """Read only the new module/point overrides; legacy raw overrides remain intact."""
+
+    rows: list[GapOverrideRow] = []
+    styles = payload.get("plot_styles", {}) or {}
+    if not isinstance(styles, dict):
+        raise ConfigEditorError("plot_styles 必须是对象")
+    for module, block in styles.items():
+        fields = _gap_fields(block)
+        if fields is not None:
+            rows.append(
+                GapOverrideRow("module", str(module), "", fields[0], fields[1]).validated()
+            )
+
+    per_point = payload.get("per_point", {}) or {}
+    if not isinstance(per_point, dict):
+        raise ConfigEditorError("per_point 必须是对象")
+    for module, points in per_point.items():
+        if not isinstance(points, dict):
+            continue
+        for point, block in points.items():
+            if not isinstance(block, dict):
+                continue
+            fields = _gap_fields(block.get("plot"))
+            if fields is not None:
+                original = str(point)
+                name_map = payload.get("name_map_global", {}) or {}
+                if isinstance(name_map, dict):
+                    original = str(name_map.get(point) or point)
+                rows.append(
+                    GapOverrideRow(
+                        "point", str(module), original, fields[0], fields[1]
+                    ).validated()
+                )
+    return rows
+
+
+def _generic_point_key(payload: dict[str, Any], module: str, point_id: str) -> str:
+    per_root = payload.get("per_point", {}) or {}
+    module_block = per_root.get(module, {}) if isinstance(per_root, dict) else {}
+    name_map = payload.get("name_map_global", {}) or {}
+    candidates = [point_id, point_id.replace("-", "_")]
+    if isinstance(name_map, dict):
+        candidates.extend(key for key, value in name_map.items() if str(value) == point_id)
+    if isinstance(module_block, dict):
+        for candidate in candidates:
+            if candidate in module_block:
+                return candidate
+    key = re.sub(r"[^0-9A-Za-z_]", "_", point_id.replace("-", "_"))
+    if not key or key[0].isdigit():
+        key = "x" + key
+    return key
+
+
+def apply_gap_overrides(
+    payload: dict[str, Any], rows: Iterable[GapOverrideRow]
+) -> dict[str, Any]:
+    normalized = [row.validated() for row in rows]
+    identities = [(row.scope, row.module_key, row.point_key) for row in normalized]
+    if len(identities) != len(set(identities)):
+        raise ConfigEditorError("同一模块或测点存在重复连线覆盖")
+
+    updated = copy.deepcopy(payload)
+    styles_raw = updated.get("plot_styles")
+    if styles_raw is None:
+        styles: dict[str, Any] = {}
+    elif not isinstance(styles_raw, dict):
+        raise ConfigEditorError("plot_styles 必须是对象")
+    else:
+        styles = styles_raw
+    for block in styles.values():
+        if isinstance(block, dict):
+            block.pop("gap_mode", None)
+            block.pop("gap_break_factor", None)
+
+    per_raw = updated.get("per_point")
+    if per_raw is None:
+        per_root: dict[str, Any] = {}
+    elif not isinstance(per_raw, dict):
+        raise ConfigEditorError("per_point 必须是对象")
+    else:
+        per_root = per_raw
+    for points in per_root.values():
+        if not isinstance(points, dict):
+            continue
+        for point_block in points.values():
+            if not isinstance(point_block, dict):
+                continue
+            plot = point_block.get("plot")
+            if isinstance(plot, dict):
+                plot.pop("gap_mode", None)
+                plot.pop("gap_break_factor", None)
+                if not plot:
+                    point_block.pop("plot", None)
+
+    for row in normalized:
+        if row.scope == "module":
+            if "plot_styles" not in updated:
+                updated["plot_styles"] = styles
+            target = styles.setdefault(row.module_key, {})
+            if not isinstance(target, dict):
+                raise ConfigEditorError(f"plot_styles.{row.module_key} 必须是对象")
+        else:
+            if "per_point" not in updated:
+                updated["per_point"] = per_root
+            module_block = per_root.setdefault(row.module_key, {})
+            if not isinstance(module_block, dict):
+                raise ConfigEditorError(f"per_point.{row.module_key} 必须是对象")
+            point_key = _generic_point_key(updated, row.module_key, row.point_key)
+            point_block = module_block.setdefault(point_key, {})
+            if not isinstance(point_block, dict):
+                raise ConfigEditorError(
+                    f"per_point.{row.module_key}.{point_key} 必须是对象"
+                )
+            target = point_block.setdefault("plot", {})
+            if not isinstance(target, dict):
+                raise ConfigEditorError(
+                    f"per_point.{row.module_key}.{point_key}.plot 必须是对象"
+                )
+            if point_key != row.point_key:
+                name_map = updated.setdefault("name_map_global", {})
+                if isinstance(name_map, dict):
+                    name_map[point_key] = row.point_key
+        if row.gap_mode != "inherit":
+            target["gap_mode"] = row.gap_mode
+        if row.gap_break_factor is not None:
+            target["gap_break_factor"] = row.gap_break_factor
+    return updated
+
+
+def resolve_gap_options(
+    payload: dict[str, Any], module_key: str = "", point_id: str = ""
+) -> dict[str, Any]:
+    """Resolve point > module > legacy dynamic module > global gap settings."""
+
+    common = payload.get("plot_common", {}) or {}
+    if not isinstance(common, dict):
+        common = {}
+    result: dict[str, Any] = {
+        "gap_mode": str(common.get("gap_mode") or "connect").strip().lower(),
+        "gap_break_factor": common.get("gap_break_factor", 5),
+        "mode_source": "全局",
+        "factor_source": "全局",
+    }
+
+    def apply(raw: Any, source: str) -> None:
+        if not isinstance(raw, dict):
+            return
+        if "gap_mode" in raw:
+            result["gap_mode"] = str(raw.get("gap_mode") or "").strip().lower()
+            result["mode_source"] = source
+        if "gap_break_factor" in raw:
+            result["gap_break_factor"] = raw.get("gap_break_factor")
+            result["factor_source"] = source
+
+    module = str(module_key or "").strip()
+    point = str(point_id or "").strip()
+
+    def layer_keys(layer: str) -> tuple[str, ...]:
+        configured = GAP_MODULE_LAYER_KEYS.get(module, {}).get(layer, ())
+        return tuple(dict.fromkeys((module, *configured))) if module else ()
+
+    def apply_layer(container: Any, layer: str, source: str) -> None:
+        if not isinstance(container, dict):
+            return
+        # Apply compatibility keys first and the actual analysis key last.
+        for key in reversed(layer_keys(layer)):
+            apply(container.get(key), source)
+
+    dynamic = common.get("dynamic_raw_modules", {})
+    apply_layer(dynamic, "legacy", "兼容模块设置")
+    styles = payload.get("plot_styles", {}) or {}
+    apply_layer(styles, "style", "模块设置")
+    per_root = payload.get("per_point", {}) or {}
+    if point and isinstance(per_root, dict):
+        for point_module in reversed(layer_keys("point")):
+            points = per_root.get(point_module, {})
+            if not isinstance(points, dict):
+                continue
+            key = _generic_point_key(payload, point_module, point)
+            block = points.get(key)
+            if isinstance(block, dict):
+                apply(block.get("plot"), "测点设置")
+
+    if result["gap_mode"] not in {"connect", "break"}:
+        raise ConfigEditorError("解析后的 gap_mode 必须是 connect 或 break")
+    factor = _required_finite(result["gap_break_factor"], "gap_break_factor")
+    if factor < 1.1:
+        raise ConfigEditorError("解析后的 gap_break_factor 不能小于 1.1")
+    result["gap_break_factor"] = factor
+    return result
 
 
 def _unique_text(values: Iterable[Any]) -> list[str]:
@@ -539,16 +834,36 @@ class PlotCommonConfigSession(ConfigEditorSession):
     def rows(self) -> list[PlotCommonRow]:
         return extract_plot_common(self.payload)
 
-    def build_payload(self, rows: Iterable[PlotCommonRow]) -> dict[str, Any]:
+    @property
+    def gap_overrides(self) -> list[GapOverrideRow]:
+        return extract_gap_overrides(self.payload)
+
+    def build_payload(
+        self,
+        rows: Iterable[PlotCommonRow],
+        gap_overrides: Iterable[GapOverrideRow] | None = None,
+    ) -> dict[str, Any]:
         normalized = [row.validated() for row in rows]
-        if normalized == self.rows:
+        normalized_gap = (
+            self.gap_overrides
+            if gap_overrides is None
+            else [row.validated() for row in gap_overrides]
+        )
+        if normalized == self.rows and normalized_gap == self.gap_overrides:
             return copy.deepcopy(self.payload)
-        return apply_plot_common(self.payload, normalized)
+        updated = apply_plot_common(self.payload, normalized)
+        return apply_gap_overrides(updated, normalized_gap)
 
     def save(
-        self, rows: Iterable[PlotCommonRow], *, target: Path | None = None
+        self,
+        rows: Iterable[PlotCommonRow],
+        gap_overrides: Iterable[GapOverrideRow] | None = None,
+        *,
+        target: Path | None = None,
     ) -> ConfigSaveResult:
-        return self._save_updated(self.build_payload(rows), target=target)
+        return self._save_updated(
+            self.build_payload(rows, gap_overrides), target=target
+        )
 
 
 class SpectrumConfigSession(ConfigEditorSession):
