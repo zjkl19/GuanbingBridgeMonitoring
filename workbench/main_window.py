@@ -53,6 +53,12 @@ from .config_tab import (
     PostFilterThresholdEditorWidget,
 )
 from .config_layers import config_dependency_sha256, load_layered_config
+from .cache_cleanup_settings import (
+    CACHE_SOURCE_CLEANUP_CONFIRMATION,
+    CACHE_SOURCE_CLEANUP_KEY,
+    CacheSourceCleanupSettings,
+    cleanup_validation_errors,
+)
 from .manifest import ManifestSummary, find_latest_manifest, load_manifest_summary, manifest_context_issues
 from .module_icons import module_icon
 from .models import JobContext, file_sha256
@@ -320,6 +326,47 @@ class WorkbenchWindow(QMainWindow):
             self.module_checks[spec.key] = checkbox
             module_layout.addWidget(checkbox, index // 4, index % 4)
         outer.addWidget(module_group)
+
+        cleanup_group = QGroupBox("缓存完成后的磁盘空间处理（高风险）")
+        cleanup_layout = QVBoxLayout(cleanup_group)
+        self.cache_cleanup_check = QCheckBox(
+            "缓存逐日验证通过后，删除本次缓存对应的已解压 CSV"
+        )
+        self.cache_cleanup_check.setToolTip(
+            "默认关闭。只删除配置实际使用、缓存可独立读取且能由原 ZIP 恢复的 CSV；"
+            "原 ZIP、WIM、Excel、未配置 CSV 和缓存文件不会删除。"
+        )
+        self.cache_cleanup_check.toggled.connect(self._on_cache_cleanup_toggled)
+        cleanup_layout.addWidget(self.cache_cleanup_check)
+        cleanup_explanation = QLabel(
+            "请把它作为独立预处理任务运行：同时选择解压与缓存时，系统逐日执行"
+            "解压→缓存→完整性与恢复来源核验→删除；只选择缓存时，仅处理已有且具备"
+            "有效解压清单和原 ZIP 的目录。校验失败不会进入删除；删除阶段若意外中断，"
+            "会保留恢复回执供确认后续跑。完成后再新建分析任务，普通用户保持“自动识别”"
+            "即可，正式隔离验收可选“仅读 MAT”。此设置不会写入桥梁公共配置。"
+        )
+        cleanup_explanation.setWordWrap(True)
+        cleanup_explanation.setStyleSheet("color: #8a3b12;")
+        cleanup_layout.addWidget(cleanup_explanation)
+        confirmation_row = QHBoxLayout()
+        confirmation_row.addWidget(QLabel("确认口令"))
+        self.cache_cleanup_confirmation_edit = QLineEdit()
+        self.cache_cleanup_confirmation_edit.setPlaceholderText(
+            CACHE_SOURCE_CLEANUP_CONFIRMATION
+        )
+        self.cache_cleanup_confirmation_edit.setToolTip(
+            "必须完整输入所示英文口令；仅勾选复选框不会执行删除。"
+        )
+        self.cache_cleanup_confirmation_edit.textChanged.connect(
+            self._on_task_inputs_changed
+        )
+        confirmation_row.addWidget(self.cache_cleanup_confirmation_edit, 1)
+        cleanup_layout.addLayout(confirmation_row)
+        outer.addWidget(cleanup_group)
+        self.module_checks["cache_prebuild"].toggled.connect(
+            self._sync_cache_cleanup_controls
+        )
+        self._sync_cache_cleanup_controls()
 
         action_row = QHBoxLayout()
         self.validate_btn = QPushButton("检查配置与路径（不运行）")
@@ -750,6 +797,7 @@ class WorkbenchWindow(QMainWindow):
                 supported = key != "cache_prebuild" or key in enabled or key in optional
                 checkbox.setEnabled(supported)
                 checkbox.setChecked(supported and key in enabled)
+            self._reset_cache_cleanup_controls()
         finally:
             self._suspend_report_autofill = previous_suspend
         if not previous_suspend:
@@ -763,6 +811,60 @@ class WorkbenchWindow(QMainWindow):
 
     def _selected_modules(self) -> list[str]:
         return [key for key, checkbox in self.module_checks.items() if checkbox.isChecked()]
+
+    def _reset_cache_cleanup_controls(self) -> None:
+        self.cache_cleanup_check.blockSignals(True)
+        self.cache_cleanup_check.setChecked(False)
+        self.cache_cleanup_check.blockSignals(False)
+        self.cache_cleanup_confirmation_edit.clear()
+        self._sync_cache_cleanup_controls()
+
+    def _sync_cache_cleanup_controls(self, *_: object) -> None:
+        cache_selected = self.module_checks["cache_prebuild"].isChecked()
+        # This is also called while the analysis tab is being built, before
+        # the first bridge profile has been applied.  Treat that short
+        # construction phase as layout-neutral; _apply_profile() calls us
+        # again immediately with the real data layout.
+        profile = getattr(self, "current_profile", None)
+        layout_supported = profile is None or profile.data_layout == "jlj_daily_export"
+        if (not cache_selected or not layout_supported) and self.cache_cleanup_check.isChecked():
+            self.cache_cleanup_check.blockSignals(True)
+            self.cache_cleanup_check.setChecked(False)
+            self.cache_cleanup_check.blockSignals(False)
+            self.cache_cleanup_confirmation_edit.clear()
+        self.cache_cleanup_check.setEnabled(cache_selected and layout_supported)
+        if not layout_supported:
+            self.cache_cleanup_check.setToolTip(
+                "默认关闭。当前安全删除只支持带逐日恢复 ZIP 的九龙江/水仙花导出格式；"
+                "必须保留原 ZIP，其它桥梁仍保留 CSV。"
+            )
+        else:
+            self.cache_cleanup_check.setToolTip(
+                "默认关闭。只删除配置实际使用、缓存可独立读取且能由原 ZIP 恢复的 CSV；"
+                "原 ZIP、WIM、Excel、未配置 CSV 和缓存文件不会删除。"
+            )
+        self.cache_cleanup_confirmation_edit.setEnabled(
+            cache_selected and self.cache_cleanup_check.isChecked()
+        )
+
+    def _on_cache_cleanup_toggled(self, checked: bool) -> None:
+        if not checked:
+            self.cache_cleanup_confirmation_edit.clear()
+        self._sync_cache_cleanup_controls()
+        self._on_task_inputs_changed()
+
+    def _cache_cleanup_settings(self) -> CacheSourceCleanupSettings:
+        return CacheSourceCleanupSettings(
+            enabled=self.cache_cleanup_check.isChecked(),
+            confirmation=self.cache_cleanup_confirmation_edit.text(),
+        )
+
+    def _task_options(self, selected: list[str]) -> dict[str, object]:
+        options: dict[str, object] = dict(options_for_modules(selected))
+        settings = self._cache_cleanup_settings()
+        if settings.enabled:
+            options[CACHE_SOURCE_CLEANUP_KEY] = settings.to_task_option(selected)
+        return options
 
     def _on_task_inputs_changed(self, *_: object) -> None:
         context = self.current_context
@@ -791,6 +893,7 @@ class WorkbenchWindow(QMainWindow):
             )
         except (OSError, ValueError, json.JSONDecodeError):
             return False
+        cleanup = CacheSourceCleanupSettings.from_task_options(context.options)
         return (
             context.bridge_id == self.current_profile.bridge_id
             and same_root
@@ -799,6 +902,9 @@ class WorkbenchWindow(QMainWindow):
             and context.start_date == self.start_date_edit.date().toString("yyyy-MM-dd")
             and context.end_date == self.end_date_edit.date().toString("yyyy-MM-dd")
             and tuple(context.selected_modules) == tuple(self._selected_modules())
+            and cleanup.policy_compatible
+            and cleanup.enabled == self.cache_cleanup_check.isChecked()
+            and cleanup.confirmation == self.cache_cleanup_confirmation_edit.text()
         )
 
     def _validate_inputs(self) -> list[str]:
@@ -813,6 +919,14 @@ class WorkbenchWindow(QMainWindow):
             errors.append("结束日期不能早于开始日期")
         if not self._selected_modules():
             errors.append("至少选择一个处理或分析模块")
+        errors.extend(
+            cleanup_validation_errors(
+                self._selected_modules(),
+                enabled=self.cache_cleanup_check.isChecked(),
+                confirmation=self.cache_cleanup_confirmation_edit.text(),
+                data_layout=self.current_profile.data_layout,
+            )
+        )
         return errors
 
     def _validate_inputs_dialog(self) -> None:
@@ -859,7 +973,7 @@ class WorkbenchWindow(QMainWindow):
             end_date=self.end_date_edit.date().toString("yyyy-MM-dd"),
             config_path=Path(self.config_edit.text().strip()),
             selected_modules=selected,
-            options=options_for_modules(selected),
+            options=self._task_options(selected),
             report_type=profile.report_gui_type,
             template_path=Path(self.template_edit.text().strip()) if self.template_edit.text().strip() else None,
             output_dir=Path(self.output_dir_edit.text().strip()),
@@ -928,6 +1042,10 @@ class WorkbenchWindow(QMainWindow):
             selected = set(context.selected_modules)
             for key, checkbox in self.module_checks.items():
                 checkbox.setChecked(key in selected)
+            cleanup = CacheSourceCleanupSettings.from_task_options(context.options)
+            self.cache_cleanup_check.setChecked(cleanup.enabled)
+            self.cache_cleanup_confirmation_edit.setText(cleanup.confirmation)
+            self._sync_cache_cleanup_controls()
             _set_line_edit_path(self.template_edit, context.report.template_path)
             _set_line_edit_path(self.output_dir_edit, context.report.output_dir)
             self.period_label_edit.setText(context.period_label)

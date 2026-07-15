@@ -48,7 +48,12 @@ function Assert-OperatorGuideContract {
         (-join (19978, 20391, 26694, 36873, 21462, 26694, 20013, 23454, 38469, 26377, 38480, 26679, 26412, 30340, 26368, 20302, 20540 | ForEach-Object { [char]$_ })),
         (-join (21024, 38500, 20005, 26684, 20302, 20110, 35813, 20540, 30340, 25968, 25454 | ForEach-Object { [char]$_ })),
         (-join (21024, 38500, 20005, 26684, 39640, 20110, 35813, 20540, 30340, 25968, 25454 | ForEach-Object { [char]$_ })),
-        (-join (31561, 20110, 20505, 36873, 38408, 20540, 30340, 28857, 20445, 30041 | ForEach-Object { [char]$_ }))
+        (-join (31561, 20110, 20505, 36873, 38408, 20540, 30340, 28857, 20445, 30041 | ForEach-Object { [char]$_ })),
+        (-join (39640, 39118, 38505, 12289, 40664, 35748, 20851, 38381 | ForEach-Object { [char]$_ })),
+        (-join (21482, 20445, 23384, 22312, 24403, 21069, 20219, 21153, 26041, 26696, 20013 | ForEach-Object { [char]$_ })),
+        (-join (19981, 20889, 20837, 26725, 26753, 20844, 20849, 37197, 32622 | ForEach-Object { [char]$_ })),
+        "jlj_daily_export",
+        "DELETE_VERIFIED_EXTRACTED_CSV"
     )
     foreach ($fragment in $requiredFragments) {
         if (-not $content.Contains($fragment)) {
@@ -187,6 +192,8 @@ Invoke-NativeChecked `
     -StepName "Workbench asset copy"
 
 $analysisRunnerFailureExitSmoke = $false
+$analysisRunnerCacheCleanupPolicySmoke = $false
+$analysisRunnerCacheCleanupPolicy = $null
 if (-not $SkipAnalysisRunner) {
     $runnerSource = Join-Path $repo "bin\BridgeAnalysisRunner"
     $runnerExe = Join-Path $runnerSource "BridgeAnalysisRunner.exe"
@@ -219,6 +226,30 @@ if (-not $SkipAnalysisRunner) {
         ) `
         -StepName "Compiled analysis failure-exit contract smoke"
     $analysisRunnerFailureExitSmoke = $true
+    $cleanupPolicySmokeRoot = Join-Path $buildRoot "analysis_runner_cache_cleanup_policy_smoke"
+    Invoke-NativeChecked `
+        -FilePath $PythonExe `
+        -ArgumentList @(
+            (Join-Path $repo "scripts\validate_analysis_runner_cache_cleanup_policy.py"),
+            "--project-root", $repo,
+            "--runner", $runnerExe,
+            "--output-root", $cleanupPolicySmokeRoot,
+            "--replace"
+        ) `
+        -StepName "Compiled analysis cache-cleanup policy smoke"
+    $cleanupPolicySummaryPath = Join-Path $cleanupPolicySmokeRoot "cleanup_policy_contract_summary.json"
+    $analysisRunnerCacheCleanupPolicy = Get-Content -LiteralPath $cleanupPolicySummaryPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not $analysisRunnerCacheCleanupPolicy.ok `
+            -or -not $analysisRunnerCacheCleanupPolicy.default_off.ok `
+            -or -not $analysisRunnerCacheCleanupPolicy.unsafe_policy.ok `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup.ok `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup.configured_csv_deleted `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup.unconfigured_csv_preserved `
+            -or $analysisRunnerCacheCleanupPolicy.enabled_cleanup.receipt_status -ne "committed" `
+            -or $analysisRunnerCacheCleanupPolicy.enabled_cleanup.deleted_count -ne 1) {
+        throw "Compiled analysis cache-cleanup policy evidence is incomplete"
+    }
+    $analysisRunnerCacheCleanupPolicySmoke = $true
     $previewSmokeRoot = Join-Path $buildRoot "auto_threshold_preview_smoke"
     Invoke-NativeChecked `
         -FilePath $PythonExe `
@@ -279,6 +310,56 @@ if ($invalidCliProcess.ExitCode -ne 2) {
     throw "Workbench invalid-CLI smoke expected exit code 2, got $($invalidCliProcess.ExitCode)"
 }
 $smoke = Get-Content -LiteralPath $smokeOutput -Raw -Encoding UTF8 | ConvertFrom-Json
+$cacheCleanupSmokeOutput = Join-Path $buildRoot "cache_source_cleanup_contract_smoke.json"
+$cacheCleanupSmokeProcess = Start-Process `
+    -FilePath $exePath `
+    -ArgumentList @(
+        "--profile-id", "jiulongjiang",
+        "--demo-cache-source-cleanup",
+        "--smoke-test",
+        "--smoke-output", $cacheCleanupSmokeOutput
+    ) `
+    -WindowStyle Hidden `
+    -Wait `
+    -PassThru
+if ($cacheCleanupSmokeProcess.ExitCode -ne 0) {
+    throw "Workbench cache-source cleanup contract smoke failed with exit code $($cacheCleanupSmokeProcess.ExitCode)"
+}
+$cacheCleanupSmoke = Get-Content -LiteralPath $cacheCleanupSmokeOutput -Raw -Encoding UTF8 | ConvertFrom-Json
+$cacheCleanupContract = $cacheCleanupSmoke.cache_source_cleanup_contract
+$cacheSourceCleanupContractSmoke = (
+    $smoke.cache_source_cleanup_control_available `
+        -and $smoke.cache_source_cleanup_default_off `
+        -and $smoke.cache_source_cleanup_confirmation_empty `
+        -and $smoke.cache_source_cleanup_confirmation_required `
+        -and -not $smoke.cache_source_cleanup_task_option_present `
+        -and $smoke.cache_source_cleanup_supported_data_layout -eq "jlj_daily_export" `
+        -and -not $smoke.cache_source_cleanup_current_layout_supported `
+        -and $cacheCleanupSmoke.cache_source_cleanup_current_layout_supported `
+        -and $cacheCleanupSmoke.cache_source_cleanup_checked `
+        -and $cacheCleanupSmoke.cache_source_cleanup_confirmation_matches `
+        -and $cacheCleanupSmoke.cache_source_cleanup_task_option_present `
+        -and $cacheCleanupContract.default_off `
+        -and $cacheCleanupContract.default_confirmation_empty `
+        -and $cacheCleanupContract.default_task_option_absent `
+        -and $cacheCleanupContract.layout_supported `
+        -and $cacheCleanupContract.control_enabled_after_cache_selection `
+        -and $cacheCleanupContract.confirmation_required `
+        -and $cacheCleanupContract.confirmation_matches `
+        -and $cacheCleanupContract.policy_complete `
+        -and $cacheCleanupContract.saved_context_policy_complete `
+        -and $cacheCleanupContract.saved_context_roundtrip `
+        -and $cacheCleanupContract.restored_enabled `
+        -and $cacheCleanupContract.restored_confirmation_matches `
+        -and $cacheCleanupContract.task_option.enabled `
+        -and $cacheCleanupContract.task_option.mode -eq "verified_extracted_csv" `
+        -and $cacheCleanupContract.task_option.commit_scope -eq "day" `
+        -and $cacheCleanupContract.task_option.recovery_policy -eq "verified_archive" `
+        -and $cacheCleanupContract.task_option.confirmation -eq "DELETE_VERIFIED_EXTRACTED_CSV"
+)
+if (-not $cacheSourceCleanupContractSmoke) {
+    throw "Workbench cache-source cleanup contract failed: $($cacheCleanupSmoke | ConvertTo-Json -Compress -Depth 8)"
+}
 $profileCatalog = Get-Content -LiteralPath (Join-Path $distRoot "config\bridge_profiles.json") -Raw -Encoding UTF8 | ConvertFrom-Json
 $expectedProfileCount = @($profileCatalog.profiles).Count
 if ($expectedProfileCount -lt 1) {
@@ -292,7 +373,8 @@ $operatorFeatureContractSmoke = (
         -and $smoke.upper_box_threshold_control_available `
         -and $smoke.offset_effective_range_seconds_available `
         -and $smoke.gap_override_column_count -eq 6 `
-        -and $smoke.unzip_settings_available
+        -and $smoke.unzip_settings_available `
+        -and $cacheSourceCleanupContractSmoke
 )
 if (-not $smoke.ok -or $smoke.profile_count -ne $expectedProfileCount -or $smoke.tab_count -ne 4 `
         -or -not $operatorFeatureContractSmoke -or $smoke.module_count -lt 20 `
@@ -391,6 +473,8 @@ $spectrumScreenshotOutput = Join-Path $distRoot "workbench_spectrum_editor.png"
 & $captureScript -ExePath $exePath -OutputPath $spectrumScreenshotOutput -ProfileId "zhishan" -TabIndex 1 -ConfigTabIndex 7 @captureMode
 $unzipScreenshotOutput = Join-Path $distRoot "workbench_unzip_settings.png"
 & $captureScript -ExePath $exePath -OutputPath $unzipScreenshotOutput -ProfileId "jiulongjiang" -TabIndex 1 -ConfigTabIndex 8 @captureMode
+$cacheCleanupScreenshotOutput = Join-Path $distRoot "workbench_cache_source_cleanup.png"
+& $captureScript -ExePath $exePath -OutputPath $cacheCleanupScreenshotOutput -ProfileId "jiulongjiang" -TabIndex 0 -DemoCacheSourceCleanup @captureMode
 $reviewTermsScreenshotOutput = Join-Path $distRoot "workbench_review_terms.png"
 & $captureScript -ExePath $exePath -OutputPath $reviewTermsScreenshotOutput -ProfileId "guanbing" -TabIndex 2 @captureMode
 $reportTaskScreenshotOutput = Join-Path $distRoot "workbench_report_task.png"
@@ -450,6 +534,8 @@ $releaseManifest = [ordered]@{
     report_visual_qc_smoke = [bool]$reportRuntimeSmoke.visual_qc_contract
     auto_threshold_preview_runner_smoke = -not $SkipAnalysisRunner
     analysis_runner_failure_exit_smoke = $analysisRunnerFailureExitSmoke
+    analysis_runner_cache_cleanup_policy_smoke = $analysisRunnerCacheCleanupPolicySmoke
+    analysis_runner_cache_cleanup_policy = $analysisRunnerCacheCleanupPolicy
     installed_profile_matrix_smoke = $true
     invalid_cli_smoke = $true
     task_history_smoke = $true
@@ -460,8 +546,10 @@ $releaseManifest = [ordered]@{
     native_font_smoke = (-not $OffscreenScreenshots) -and ($smoke.ui_font_point_size -ge 10)
     native_icon_smoke = (-not $OffscreenScreenshots) -and [bool]$smoke.window_icon_available
     native_gui_acceptance = $nativeGuiAcceptance
-    operator_feature_contract_version = 2
+    operator_feature_contract_version = 3
     operator_feature_contract_smoke = [bool]$operatorFeatureContractSmoke
+    cache_source_cleanup_contract_smoke = [bool]$cacheSourceCleanupContractSmoke
+    cache_source_cleanup_contract = $cacheCleanupContract
     embedded_report_runtime = $reportRuntimeSmoke
     installed_profile_matrix = [ordered]@{
         profile_count = $profileMatrix.profile_count
@@ -488,6 +576,7 @@ $releaseManifest = [ordered]@{
         "workbench_plot_common_editor.png",
         "workbench_spectrum_editor.png",
         "workbench_unzip_settings.png",
+        "workbench_cache_source_cleanup.png",
         "workbench_review_terms.png",
         "workbench_report_task.png"
         "workbench_task_history.png"

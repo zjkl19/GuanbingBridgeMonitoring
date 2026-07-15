@@ -7,6 +7,7 @@ param(
     [int]$WarningTabIndex = 0,
     [int]$CleaningTabIndex = 0,
     [switch]$DemoAutoThresholdPreview,
+    [switch]$DemoCacheSourceCleanup,
     [switch]$ShowTaskHistory,
     [switch]$DemoTaskHistory,
     [switch]$Offscreen,
@@ -75,6 +76,9 @@ $arguments = @(
 )
 if ($DemoAutoThresholdPreview) {
     $arguments += "--demo-auto-threshold-preview"
+}
+if ($DemoCacheSourceCleanup) {
+    $arguments += "--demo-cache-source-cleanup"
 }
 if ($ShowTaskHistory) {
     $arguments += "--show-task-history"

@@ -24,6 +24,11 @@ UPPER_BOX_RULE = "上侧框选取框中实际有限样本的最低值"
 LOWER_DELETE_RULE = "删除严格低于该值的数据"
 UPPER_DELETE_RULE = "删除严格高于该值的数据"
 EQUALITY_RULE = "等于候选阈值的点保留"
+CLEANUP_HIGH_RISK_RULE = "高风险、默认关闭"
+CLEANUP_TASK_SCOPE_RULE = "只保存在当前任务方案中"
+CLEANUP_CONFIG_ISOLATION_RULE = "不写入桥梁公共配置"
+CLEANUP_LAYOUT = "jlj_daily_export"
+CLEANUP_CONFIRMATION = "DELETE_VERIFIED_EXTRACTED_CSV"
 GUIDE_FRAGMENTS = (
     CACHE_PREBUILD_STEM,
     THRESHOLD_PREVIEW_STEM,
@@ -33,6 +38,11 @@ GUIDE_FRAGMENTS = (
     LOWER_DELETE_RULE,
     UPPER_DELETE_RULE,
     EQUALITY_RULE,
+    CLEANUP_HIGH_RISK_RULE,
+    CLEANUP_TASK_SCOPE_RULE,
+    CLEANUP_CONFIG_ISOLATION_RULE,
+    CLEANUP_LAYOUT,
+    CLEANUP_CONFIRMATION,
 )
 
 
@@ -67,6 +77,16 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
             "offset_effective_range_seconds_available": True,
             "gap_override_column_count": 6,
             "unzip_settings_available": True,
+            "cache_source_cleanup_control_available": True,
+            "cache_source_cleanup_checked": False,
+            "cache_source_cleanup_default_off": True,
+            "cache_source_cleanup_confirmation_empty": True,
+            "cache_source_cleanup_confirmation_required": True,
+            "cache_source_cleanup_confirmation_matches": False,
+            "cache_source_cleanup_supported_data_layout": CLEANUP_LAYOUT,
+            "cache_source_cleanup_current_layout_supported": False,
+            "cache_source_cleanup_control_enabled": False,
+            "cache_source_cleanup_task_option_present": False,
         }
         (self.dist / "workbench_smoke.json").write_text(
             json.dumps(self.smoke, ensure_ascii=False), encoding="utf-8"
@@ -106,6 +126,22 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
             "executable_sha256": _sha256(self.dist / "桥梁健康监测工作台.exe"),
             "auto_threshold_preview_runner_smoke": True,
             "analysis_runner_failure_exit_smoke": True,
+            "analysis_runner_cache_cleanup_policy_smoke": True,
+            "analysis_runner_cache_cleanup_policy": {
+                "ok": True,
+                "default_off": {"ok": True, "source_cleanup_enabled": False},
+                "unsafe_policy": {
+                    "ok": True,
+                    "error_id": "BMS:CacheSourceCleanup:DedicatedTaskRequired",
+                },
+                "enabled_cleanup": {
+                    "ok": True,
+                    "configured_csv_deleted": True,
+                    "unconfigured_csv_preserved": True,
+                    "receipt_status": "committed",
+                    "deleted_count": 1,
+                },
+            },
             "installed_profile_matrix_smoke": True,
             "invalid_cli_smoke": True,
             "task_history_smoke": True,
@@ -125,7 +161,30 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
                 "physical_height": 1122,
             },
             "operator_feature_contract_smoke": True,
-            "operator_feature_contract_version": 2,
+            "operator_feature_contract_version": 3,
+            "cache_source_cleanup_contract_smoke": True,
+            "cache_source_cleanup_contract": {
+                "default_off": True,
+                "default_confirmation_empty": True,
+                "default_task_option_absent": True,
+                "layout_supported": True,
+                "control_enabled_after_cache_selection": True,
+                "confirmation_required": True,
+                "confirmation_matches": True,
+                "policy_complete": True,
+                "saved_context_policy_complete": True,
+                "saved_context_roundtrip": True,
+                "restored_enabled": True,
+                "restored_confirmation_matches": True,
+                "task_option": {
+                    "enabled": True,
+                    "mode": "verified_extracted_csv",
+                    "commit_scope": "day",
+                    "recovery_policy": "verified_archive",
+                    "confirmation": CLEANUP_CONFIRMATION,
+                    "confirmed_at": "2026-07-16T00:00:00+08:00",
+                },
+            },
             "includes_analysis_runner": True,
             "report_runtime": "embedded_headless_worker",
             "standalone_report_builder_included": False,
@@ -334,6 +393,27 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
                 completed = self._run(self.repo / f"invalid-native-gui-{index}")
                 self.assertNotEqual(0, completed.returncode)
                 self.assertIn(expected_message, completed.stderr)
+
+    def test_cache_cleanup_release_evidence_fails_closed(self) -> None:
+        baseline = copy.deepcopy(self.manifest)
+        mutations = {
+            "default_not_frozen": lambda payload: payload[
+                "cache_source_cleanup_contract"
+            ].__setitem__("default_off", False),
+            "wrong_confirmation": lambda payload: payload[
+                "cache_source_cleanup_contract"
+            ]["task_option"].__setitem__("confirmation", "DELETE"),
+            "unconfigured_csv_not_preserved": lambda payload: payload[
+                "analysis_runner_cache_cleanup_policy"
+            ]["enabled_cleanup"].__setitem__("unconfigured_csv_preserved", False),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                self.manifest = copy.deepcopy(baseline)
+                mutate(self.manifest)
+                self._write_manifest()
+                completed = self._run(self.repo / f"reject-{name}")
+                self.assertNotEqual(0, completed.returncode)
 
     def test_executable_must_be_a_safe_inventory_bound_path(self) -> None:
         outside = self.repo / "outside.exe"

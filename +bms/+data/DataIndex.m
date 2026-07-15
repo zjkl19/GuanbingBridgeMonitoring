@@ -226,6 +226,43 @@ classdef DataIndex
             end
         end
 
+        function requests = sourceRequestsForModule(moduleKey, points, cfg)
+            %SOURCEREQUESTSFORMODULE Enumerate every runtime source a module reads.
+            %   Keep cache prebuild, destructive-cleanup scope and analysis
+            %   preflight on one contract.  Wind consumes both speed and
+            %   direction sources; temperature-compensated crack analysis may
+            %   consume a second companion source for each configured point.
+            if nargin < 3 || isempty(cfg), cfg = struct(); end
+            requests = struct('point_id', {}, 'sensor_type', {});
+            points = cellstr(string(points));
+            moduleKey = char(string(moduleKey));
+            for i = 1:numel(points)
+                pointId = char(string(points{i}));
+                if strcmp(moduleKey, 'wind')
+                    requests(end+1) = struct( ... %#ok<AGROW>
+                        'point_id', pointId, 'sensor_type', 'wind_speed');
+                    requests(end+1) = struct( ... %#ok<AGROW>
+                        'point_id', pointId, 'sensor_type', 'wind_direction');
+                else
+                    requests(end+1) = struct( ... %#ok<AGROW>
+                        'point_id', pointId, ...
+                        'sensor_type', bms.data.DataIndex.sensorTypeForPoint( ...
+                            moduleKey, pointId));
+                end
+            end
+            if strcmp(moduleKey, 'crack')
+                style = bms.analyzer.CrackAnalysisPipeline.style(cfg);
+                options = bms.analyzer.CrackAnalysisPipeline.options(style);
+                if options.temp_enabled
+                    for i = 1:numel(points)
+                        requests(end+1) = struct( ... %#ok<AGROW>
+                            'point_id', [char(string(points{i})) '-t'], ...
+                            'sensor_type', 'crack_temp');
+                    end
+                end
+            end
+        end
+
         function days = daysFromFiles(files, root)
             %#ok<INUSD> root is kept for backward-compatible call sites.
             if ischar(files) || isstring(files), files = cellstr(string(files)); end

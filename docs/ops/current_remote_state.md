@@ -1057,3 +1057,30 @@ Last observed on 133 at 2026-07-08 CST.
   - report manifest was `ok`, with `missing_count=0`, `warnings=0`;
   - local render produced `47` pages and no `引用源未找到`, `错误`, `未定义书签`,
     replacement tokens, or common mojibake were found.
+
+## v1.8.1 Isolated Candidate Batch (2026-07-16)
+
+- Stable production `F:\Guanbing` and source ZIP directories remain read-only.
+  All candidate output is under `F:\Guanbing_v1.8.1-rc1`.
+- Active task:
+  `Guanbing_v181rc3_Jiulongjiang_May_Analysis_20260716_005213`.
+  It is disabled after launch to prevent duplicate starts. At 03:23 Runner PID
+  `49704` was responsive, stderr was empty, and module 13/15 `cable_accel` was
+  loading SLCGQ-08/15. Estimated remaining runtime: 35–55 minutes.
+- Candidate result root:
+  `F:\Guanbing_v1.8.1-rc1\validation\jiulongjiang_may`.
+  Run-state root:
+  `F:\Guanbing_v1.8.1-rc1\run_logs\jiulongjiang_may_analysis_rc3_20260716_005213`.
+- Disk snapshot at the same poll: E about 1.56 TiB free; F about 538.7 GiB
+  free. Do not lower the 400 GiB/12% safety reserve.
+- Logs warn that some May 1–8 cable-acceleration rolling-export sources are
+  incomplete. Validate the final per-plot source record and disclose the gap;
+  do not synthesize missing periods.
+- Local rc4 package has passed release gates but is not yet deployed remotely.
+  Deploy only after the May analysis/report is accepted, with read-only
+  preflight, backup of the previous isolated application and per-file hash
+  verification. Stable production is not a deployment target.
+- Next source roots are explicit E-drive paths:
+  `E:\水仙花大桥数据\2026年6月` then
+  `E:\九龙江数据\2026年6月`. The first has 30/30 openable ZIPs; the second
+  remains blocked because June 18 is incomplete and June 19–30 are absent.

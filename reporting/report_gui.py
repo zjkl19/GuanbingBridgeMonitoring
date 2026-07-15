@@ -58,7 +58,7 @@ try:
 
     APP_VERSION = _workbench_app_version(Path(__file__).resolve().parents[1])
 except (ImportError, OSError):
-    APP_VERSION = "v1.8.1-rc3"
+    APP_VERSION = "v1.8.1-rc4"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_0508.docx"
@@ -380,8 +380,16 @@ class ReportGui(QMainWindow):
     def _apply_job_context(self, path: Path) -> None:
         """Prefill the legacy report GUI from the unified workbench context."""
 
+        from workbench.models import READABLE_SCHEMA_VERSIONS
+
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
-        if int(payload.get("schema_version", 0)) != 1:
+        try:
+            schema_version = int(payload.get("schema_version", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Unsupported workbench context schema: {payload.get('schema_version')}"
+            ) from exc
+        if schema_version not in READABLE_SCHEMA_VERSIONS:
             raise ValueError(f"Unsupported workbench context schema: {payload.get('schema_version')}")
         bridge_id = str(payload.get("bridge_id") or "")
         profile_index = self.profile_combo.findData(bridge_id)

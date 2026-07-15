@@ -81,6 +81,23 @@ classdef ArchiveExtractService
                         '无法创建解压输出目录 %s：%s', options.output_root, msg);
                 end
             end
+            % Coordinate with cache publication and verified source cleanup,
+            % not only with other extraction runs.  Acquire in stable day
+            % order; the lock is re-entrant when a streaming daily session
+            % already owns it in this MATLAB process.
+            dailyTargets = targets(strcmp({targets.layout}, 'daily_export'));
+            dailyDays = sort(unique(cellstr(string({dailyTargets.day}))));
+            dayMutationCleanups = cell(1, numel(dailyDays)); %#ok<NASGU>
+            for dayIndex = 1:numel(dailyDays)
+                dayMutationCleanups{dayIndex} = ...
+                    bms.data.DailyExportMutationLock.acquire( ...
+                    options.output_root, dailyDays{dayIndex});
+            end
+            % Always acquire locks in day -> archive-root order.  A streaming
+            % cleanup already owns one day lease and re-enters it here; using
+            % the inverse order in a standalone extractor would create a
+            % needless lock inversion (both leases fail fast, but both tasks
+            % could otherwise abort).
             lockCleanup = bms.data.ArchiveExtractService.acquireLock(options); %#ok<NASGU>
 
             indexes = repmat(bms.data.ArchiveExtractService.emptyIndex(), 1, numel(targets));
@@ -350,6 +367,181 @@ classdef ArchiveExtractService
             end
             plan = setting;
             plan.resolved_workers = min(setting.worker_limit, double(archiveCount));
+        end
+
+        function proof = verifyRecoveryForFiles(rootDir, day, cfg, sourceFiles)
+            %VERIFYRECOVERYFORFILES Prove deleted CSVs can be restored from ZIP.
+            %   This deliberately performs full content validation before a
+            %   destructive cache-cleanup commit. The original extraction
+            %   manifest remains immutable; callers store this returned proof
+            %   in a separate cleanup receipt.
+            if nargin < 4 || isempty(sourceFiles)
+                error('BMS:ArchiveExtract:RecoveryFilesMissing', ...
+                    'At least one extracted source file is required.');
+            end
+            if ischar(sourceFiles) || isstring(sourceFiles)
+                sourceFiles = cellstr(string(sourceFiles));
+            end
+            options = bms.data.ArchiveExtractService.options(rootDir, cfg);
+            targets = bms.data.ArchiveExtractService.discoverTargets( ...
+                options.source_root, options.output_root, day, day, cfg);
+            if isempty(targets)
+                error('BMS:ArchiveExtract:RecoveryArchiveMissing', ...
+                    'No recovery ZIP was found for %s.', char(string(day)));
+            end
+            matching = false(1, numel(targets));
+            for i = 1:numel(targets)
+                matching(i) = all(cellfun(@(path) ...
+                    bms.data.ArchiveExtractService.isPathInside(path, targets(i).out_dir), ...
+                    sourceFiles));
+            end
+            targets = targets(matching);
+            if numel(targets) ~= 1 || ~strcmp(targets(1).layout, 'daily_export')
+                error('BMS:ArchiveExtract:RecoveryArchiveAmbiguous', ...
+                    ['Verified CSV cleanup currently requires exactly one daily-export ' ...
+                     'ZIP whose published directory owns every selected CSV.']);
+            end
+            target = targets(1);
+            index = bms.data.ArchiveExtractService.readArchiveIndex(target.zip);
+            [reusable, ~] = bms.data.ArchiveExtractService.isReusableTarget( ...
+                target, index, true);
+            if ~reusable
+                error('BMS:ArchiveExtract:RecoveryVerificationFailed', ...
+                    ['The recovery ZIP, extraction manifest and published files no longer ' ...
+                     'form a fully verified set: %s'], target.out_dir);
+            end
+            expected = cellstr(string({index.entries.path}));
+            entries = repmat(struct('path', '', 'relative_path', '', ...
+                'bytes', 0, 'crc32', 0, 'modified_at', ''), ...
+                1, numel(sourceFiles));
+            for i = 1:numel(sourceFiles)
+                source = char(string(sourceFiles{i}));
+                if ~isfile(source)
+                    error('BMS:ArchiveExtract:RecoverySourceMissing', ...
+                        'Extracted CSV disappeared before cleanup authorisation: %s', source);
+                end
+                relative = strrep(bms.data.ArchiveExtractService.relativePath( ...
+                    source, target.out_dir), char(92), '/');
+                entryIndex = find(strcmp(expected, relative), 1);
+                if isempty(entryIndex)
+                    error('BMS:ArchiveExtract:RecoverySourceUndeclared', ...
+                        'CSV is not an entry of the verified recovery ZIP: %s', source);
+                end
+                info = dir(source);
+                sourceCrc = bms.data.ArchiveExtractService.fileCrc32(source);
+                if double(info(1).bytes) ~= double(index.entries(entryIndex).bytes) ...
+                        || sourceCrc ~= double(index.entries(entryIndex).crc32)
+                    error('BMS:ArchiveExtract:RecoverySourceContentMismatch', ...
+                        'Extracted CSV does not match its recovery ZIP entry: %s', source);
+                end
+                entries(i) = struct('path', source, 'relative_path', relative, ...
+                    'bytes', double(info(1).bytes), ...
+                    'crc32', sourceCrc, ...
+                    'modified_at', datestr(info(1).datenum, 'yyyy-mm-dd HH:MM:ss'));
+            end
+            proof = struct( ...
+                'schema_version', 2, ...
+                'verified_at', datestr(datetime('now'), 'yyyy-mm-dd HH:MM:ss'), ...
+                'day', char(string(day)), ...
+                'archive_path', target.zip, ...
+                'archive_bytes', index.archive_bytes, ...
+                'archive_modified_millis', index.archive_modified_millis, ...
+                'archive_index_sha256', index.index_sha256, ...
+                'archive_entry_count', index.file_count, ...
+                'archive_uncompressed_bytes', index.uncompressed_bytes, ...
+                'extraction_manifest_path', ...
+                    bms.data.ArchiveExtractService.manifestPath(target), ...
+                'output_root', target.out_dir, ...
+                'source_archive_preserved', true, ...
+                'files', entries);
+            % Reading only the central directory is insufficient recovery
+            % evidence: compressed entry bytes can be damaged while names,
+            % sizes and declared CRCs remain unchanged.  Stream every source
+            % that will be deleted and verify its actual decoded length/CRC.
+            bms.data.ArchiveExtractService.verifyProofEntriesReadable( ...
+                target.zip, entries);
+        end
+
+        function ok = verifyArchiveProof(proof, deepPayload)
+            %VERIFYARCHIVEPROOF Recheck a previously committed recovery proof.
+            %   The default is intentionally metadata-only so MAT-only reuse
+            %   does not decompress every archived CSV again.  Destructive
+            %   commit code must pass deepPayload=true immediately before
+            %   deletion; initial proof creation always performs that deep
+            %   check as well.
+            if nargin < 2, deepPayload = false; end
+            ok = false;
+            required = {'schema_version','archive_path','archive_bytes','archive_modified_millis', ...
+                'archive_index_sha256','archive_entry_count','archive_uncompressed_bytes', ...
+                'source_archive_preserved','files'};
+            if ~isstruct(proof) || ~isscalar(proof) || ~all(isfield(proof, required)) ...
+                    || ~isnumeric(proof.schema_version) || ~isscalar(proof.schema_version) ...
+                    || double(proof.schema_version) < 2 ...
+                    || ~islogical(proof.source_archive_preserved) ...
+                    || ~isscalar(proof.source_archive_preserved) ...
+                    || ~proof.source_archive_preserved ...
+                    || ~isfile(char(string(proof.archive_path)))
+                return;
+            end
+            try
+                actual = bms.data.ArchiveExtractService.readArchiveIndex( ...
+                    char(string(proof.archive_path)));
+                ok = double(actual.archive_bytes) == double(proof.archive_bytes) ...
+                    && double(actual.archive_modified_millis) == double(proof.archive_modified_millis) ...
+                    && double(actual.file_count) == double(proof.archive_entry_count) ...
+                    && double(actual.uncompressed_bytes) == double(proof.archive_uncompressed_bytes) ...
+                    && strcmp(actual.index_sha256, char(string(proof.archive_index_sha256)));
+                if ok
+                    bms.data.ArchiveExtractService.verifyProofEntryDeclarations( ...
+                        actual, proof.files);
+                    if logical(deepPayload)
+                        bms.data.ArchiveExtractService.verifyProofEntriesReadable( ...
+                            char(string(proof.archive_path)), proof.files);
+                    end
+                end
+            catch
+                ok = false;
+            end
+        end
+
+        function verifyFileAgainstProofEntry(pathValue, proofEntry)
+            %VERIFYFILEAGAINSTPROOFENTRY Recheck current bytes against ZIP proof.
+            %   Destructive cleanup calls this immediately before staging and
+            %   deleting a CSV.  Size and mtime alone are not sufficient: an
+            %   external writer can replace a file with same-size content and
+            %   restore its timestamp after the original recovery proof was
+            %   created.
+            required = {'bytes','crc32'};
+            if ~isstruct(proofEntry) || ~isscalar(proofEntry) ...
+                    || ~all(isfield(proofEntry, required))
+                error('BMS:ArchiveExtract:RecoveryProofEntryInvalid', ...
+                    'Recovery proof entry is missing bytes/CRC declarations.');
+            end
+            pathValue = char(string(pathValue));
+            if ~isfile(pathValue)
+                error('BMS:ArchiveExtract:RecoverySourceMissing', ...
+                    'Recovery-bound source file is missing: %s', pathValue);
+            end
+            expectedBytes = double(proofEntry.bytes);
+            expectedCrc = double(proofEntry.crc32);
+            if ~isfinite(expectedBytes) || expectedBytes < 0 ...
+                    || ~isfinite(expectedCrc) || expectedCrc < 0
+                error('BMS:ArchiveExtract:RecoveryProofEntryInvalid', ...
+                    'Recovery proof entry has invalid bytes/CRC declarations.');
+            end
+            info = dir(pathValue);
+            actualCrc = bms.data.ArchiveExtractService.fileCrc32(pathValue);
+            if double(info(1).bytes) ~= expectedBytes || actualCrc ~= expectedCrc
+                error('BMS:ArchiveExtract:RecoverySourceContentMismatch', ...
+                    'Current file content no longer matches its recovery ZIP entry: %s', ...
+                    pathValue);
+            end
+        end
+
+        function resolved = resolvedOptions(rootDir, cfg)
+            %RESOLVEDOPTIONS Read-only view used by composite workflows.
+            if nargin < 2, cfg = struct(); end
+            resolved = bms.data.ArchiveExtractService.options(rootDir, cfg);
         end
     end
 
@@ -830,6 +1022,105 @@ classdef ArchiveExtractService
             end
         end
 
+        function verifyProofEntriesReadable(zipPath, proofFiles)
+            required = {'relative_path','bytes','crc32'};
+            if ~isstruct(proofFiles) || isempty(proofFiles) ...
+                    || ~all(isfield(proofFiles, required))
+                error('BMS:ArchiveExtract:RecoveryProofFilesInvalid', ...
+                    'Recovery proof has no stream-verifiable ZIP entries.');
+            end
+            zipFile = java.util.zip.ZipFile(char(string(zipPath)));
+            zipCleanup = onCleanup(@() zipFile.close()); %#ok<NASGU>
+            byPath = containers.Map('KeyType', 'char', 'ValueType', 'any');
+            enumeration = zipFile.entries();
+            while enumeration.hasMoreElements()
+                entry = enumeration.nextElement();
+                rawName = char(entry.getName());
+                if entry.isDirectory() || endsWith(rawName, '/') || endsWith(rawName, '\')
+                    continue;
+                end
+                normalized = bms.data.ArchiveExtractService.normalizeEntry(rawName);
+                byPath(lower(normalized)) = entry;
+            end
+            seen = containers.Map('KeyType', 'char', 'ValueType', 'logical');
+            for i = 1:numel(proofFiles)
+                relative = bms.data.ArchiveExtractService.normalizeEntry( ...
+                    char(string(proofFiles(i).relative_path)));
+                key = lower(relative);
+                expectedBytes = double(proofFiles(i).bytes);
+                expectedCrc = double(proofFiles(i).crc32);
+                if isKey(seen, key) || ~isKey(byPath, key) ...
+                        || ~isfinite(expectedBytes) || expectedBytes < 0 ...
+                        || ~isfinite(expectedCrc) || expectedCrc < 0
+                    error('BMS:ArchiveExtract:RecoveryProofEntryInvalid', ...
+                        'Recovery proof entry is missing, duplicated or malformed: %s', relative);
+                end
+                seen(key) = true;
+                entry = byPath(key);
+                if double(entry.getSize()) ~= expectedBytes ...
+                        || double(entry.getCrc()) ~= expectedCrc
+                    error('BMS:ArchiveExtract:RecoveryProofEntryChanged', ...
+                        'Recovery ZIP entry metadata changed: %s', relative);
+                end
+                checksum = java.util.zip.CRC32();
+                input = java.util.zip.CheckedInputStream( ...
+                    zipFile.getInputStream(entry), checksum);
+                readable = java.nio.channels.Channels.newChannel(input);
+                streamCleanup = onCleanup(@() ...
+                    bms.data.ArchiveExtractService.closeJavaStreams(readable, input));
+                buffer = java.nio.ByteBuffer.allocate(1024 * 1024);
+                actualBytes = 0;
+                while true
+                    buffer.clear();
+                    count = double(readable.read(buffer));
+                    if count < 0, break; end
+                    if count == 0, continue; end
+                    actualBytes = actualBytes + count;
+                    if actualBytes > expectedBytes
+                        error('BMS:ArchiveExtract:RecoveryEntryLengthMismatch', ...
+                            'Recovery ZIP entry exceeds its declared length: %s', relative);
+                    end
+                end
+                actualCrc = double(checksum.getValue());
+                delete(streamCleanup);
+                if actualBytes ~= expectedBytes || actualCrc ~= expectedCrc
+                    error('BMS:ArchiveExtract:RecoveryEntryCrcMismatch', ...
+                        ['Recovery ZIP entry cannot be decoded to its verified ' ...
+                         'length/CRC: %s'], relative);
+                end
+            end
+        end
+
+        function verifyProofEntryDeclarations(index, proofFiles)
+            required = {'relative_path','bytes','crc32'};
+            if ~isstruct(proofFiles) || isempty(proofFiles) ...
+                    || ~all(isfield(proofFiles, required))
+                error('BMS:ArchiveExtract:RecoveryProofFilesInvalid', ...
+                    'Recovery proof has no declared ZIP entries.');
+            end
+            indexPaths = lower(string({index.entries.path}));
+            proofPaths = strings(1, numel(proofFiles));
+            for i = 1:numel(proofFiles)
+                relative = bms.data.ArchiveExtractService.normalizeEntry( ...
+                    char(string(proofFiles(i).relative_path)));
+                proofPaths(i) = lower(string(relative));
+                match = find(indexPaths == proofPaths(i), 1);
+                expectedBytes = double(proofFiles(i).bytes);
+                expectedCrc = double(proofFiles(i).crc32);
+                if isempty(match) || ~isfinite(expectedBytes) || expectedBytes < 0 ...
+                        || ~isfinite(expectedCrc) || expectedCrc < 0 ...
+                        || double(index.entries(match).bytes) ~= expectedBytes ...
+                        || double(index.entries(match).crc32) ~= expectedCrc
+                    error('BMS:ArchiveExtract:RecoveryProofEntryChanged', ...
+                        'Recovery ZIP entry declaration changed: %s', relative);
+                end
+            end
+            if numel(unique(proofPaths)) ~= numel(proofPaths)
+                error('BMS:ArchiveExtract:RecoveryProofEntryInvalid', ...
+                    'Recovery proof contains duplicate ZIP entries.');
+            end
+        end
+
         function closeJavaStreams(varargin)
             for i = 1:numel(varargin)
                 try
@@ -1269,6 +1560,19 @@ classdef ArchiveExtractService
             else
                 rel = pathValue;
             end
+        end
+
+        function tf = isPathInside(pathValue, root)
+            try
+                pathValue = char(java.io.File(char(string(pathValue))).getCanonicalPath());
+                root = char(java.io.File(char(string(root))).getCanonicalPath());
+            catch
+                pathValue = char(string(pathValue));
+                root = char(string(root));
+            end
+            root = regexprep(root, '[\\/]+$', '');
+            tf = strcmpi(pathValue, root) || startsWith(lower(pathValue), ...
+                lower([root filesep]));
         end
 
         function values = duplicateValues(values)

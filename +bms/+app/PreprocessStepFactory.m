@@ -6,16 +6,32 @@ classdef PreprocessStepFactory
             if nargin < 6, cfg = struct(); end
             L = @(key) bms.module.ModuleRegistry.fromKey(key).isEnabled(opts);
             D = @bms.app.StepDefinition.fromKey;
+            streamCleanup = bms.data.VerifiedSourceCsvCleanupService.isEnabled(opts) ...
+                && L('unzip') && L('cache_prebuild');
+            cleanupSession = [];
+            if streamCleanup
+                cleanupSession = bms.data.DailyArchiveCacheCleanupSession( ...
+                    root, startDate, endDate, cfg, opts);
+            end
 
             if L('zip_precheck')
                 plan = plan.addRun(D('zip_precheck'), @() precheck_zip_count(root, startDate, endDate, cfg));
             end
             if L('unzip')
-                plan = plan.addRun(D('unzip'), @() batch_unzip_data_parallel(root, startDate, endDate, true, cfg));
+                if streamCleanup
+                    plan = plan.addRun(D('unzip'), @() cleanupSession.runExtraction());
+                else
+                    plan = plan.addRun(D('unzip'), @() batch_unzip_data_parallel(root, startDate, endDate, true, cfg));
+                end
             end
             if L('cache_prebuild')
-                plan = plan.addRun(D('cache_prebuild'), ...
-                    @() bms.data.CachePrebuildService.run(root, startDate, endDate, cfg));
+                if streamCleanup
+                    plan = plan.addRun(D('cache_prebuild'), @() cleanupSession.cacheResult());
+                else
+                    plan = plan.addRun(D('cache_prebuild'), ...
+                        @() bms.data.CachePrebuildService.run( ...
+                            root, startDate, endDate, cfg, opts));
+                end
             end
             if L('rename_csv')
                 plan = plan.addRun(D('rename_csv'), @() batch_rename_csv(root, startDate, endDate, true));

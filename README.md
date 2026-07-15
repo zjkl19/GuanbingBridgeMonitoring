@@ -52,8 +52,8 @@ The isolated `v1.8.1-rc1` daily-ZIP extraction and MAT-cache-prebuild trial is
 recorded in `docs/releases/v1.8.1-rc1.md`.
 日导出 ZIP 安全解压与 MAT 缓存预生成的隔离候选验证见
 `docs/releases/v1.8.1-rc1.md`。
-当前本机审查候选 `v1.8.1-rc3` 的修复范围和发布边界见
-`docs/releases/v1.8.1-rc3.md`。
+当前本机审查候选 `v1.8.1-rc4` 的修复范围和发布边界见
+`docs/releases/v1.8.1-rc4.md`。
 
 发布目录会同时包含 MATLAB 编译 Runner、配置/模板和嵌入工作台的报告运行时，
 不再复制独立 `BridgeReportBuilder.exe`。`release_manifest.json` 记录 EXE
@@ -262,20 +262,35 @@ Users do not need to select `mat_only` merely because an archived dataset now
 contains only MAT caches. Explicit `mat_only` is an isolation/verification mode
 and must never fall back to CSV, including while `DataIndex` inventories files.
 Hongtang legacy caches and Jiulongjiang/Shuixianhua `jlj_csv_v2` caches are
-supported under this contract. See `docs/mat_only_timeseries_source.md` before
-deleting active CSV copies.
+supported under this contract. Ordinary post-archive analysis therefore remains
+on `auto`; use `mat_only` only when a formal cache-isolation check is required.
+See `docs/OPERATOR_GUIDE.md` and `docs/mat_only_timeseries_source.md` before
+removing any active CSV copy.
 普通 GUI 数据读取默认使用 `auto`：存在有效 CSV 时优先读取 CSV，仅在 CSV 不存在时读取
 有效 MAT 缓存。归档数据目录只剩 MAT 时，用户无需手工选择 `mat_only`。显式
 `mat_only` 仅用于隔离验证，并且包括 `DataIndex` 建索引在内都禁止回退读取 CSV。
-该口径同时兼容洪塘历史缓存及九龙江/水仙花 `jlj_csv_v2` 缓存。删除活动目录中的 CSV 前，
-先阅读 `docs/mat_only_timeseries_source.md`。
+该口径同时兼容洪塘历史缓存及九龙江/水仙花 `jlj_csv_v2` 缓存。CSV 归档或经安全流程删除后，
+普通分析仍保持“自动识别”即可；`mat_only` 仅用于正式隔离验收。删除活动目录中的 CSV 前，
+先阅读 `docs/OPERATOR_GUIDE.md` 和 `docs/mat_only_timeseries_source.md`。
 
 “预生成分析缓存”现为所有已配置桥梁的可选能力，默认不勾选。
 `bms.data.CachePrebuildService` 按数据布局分发三种处理路径：
 `jlj_daily_export` 使用多通道 `jlj_csv_v2`，`dated_folders` 和
 `hongtang_period` 使用两列 `csv_timeseries_v2`。预生成只处理配置中实际被分析
-模块/测点引用的 CSV，不是递归转换全目录；不清洗、不滤波、不降采样，
-也不移动或删除源 CSV/ZIP。WIM、洪塘低频 Excel、未配置 CSV 和非 CSV 源被排除。
+模块/测点引用的 CSV，不是递归转换全目录；不清洗、不滤波、不降采样。
+
+默认缓存预生成始终保留 CSV。只有带逐日恢复 ZIP 的 `jlj_daily_export`
+可额外启用“缓存验证后删除已解压 CSV”，而且该选项默认关闭、只属于当前任务，
+不写入桥梁公共配置。启用时必须使用独立预处理任务并输入完整确认口令；若同时选择
+安全解压和缓存预生成，程序按自然日依次执行“解压、缓存、缓存对及恢复来源核验、
+写入持久收据、删除该日适用 CSV”，某日失败即停止，不进入后续分析。
+缓存 worker 不删除源文件，只有父进程在整日闭合后提交删除。
+
+安全清理仅涉及配置实际使用、缓存可独立读取且可由原 ZIP 恢复的 CSV。
+原 ZIP 始终保留且作为只读恢复来源；WIM、洪塘低频 Excel、未配置 CSV、非 CSV、
+MAT 缓存和清理收据均不会删除。`dated_folders` 与 `hongtang_period` 目前只支持
+缓存预生成，仍保留 CSV。详细边界和续跑规则见 `docs/OPERATOR_GUIDE.md`。
+
 日导出 `jlj_daily_export` 还可在缓存前执行“安全解压”；
 `ArchiveExtractService` 将只读 ZIP 根与候选输出根分离，校验危险/冲突路径、
 条目大小和 CRC，在同盘暂存完成后才发布，并保留源 ZIP。解压和缓存都有
@@ -490,6 +505,7 @@ MATLAB GUI release / MATLAB GUI 版本:
 
 - `v1.8.1-rc3`: generalizes optional raw-CSV cache prebuild across all configured bridges and the three supported data layouts, removes the office PC from storage profiles, restores the legacy two-line threshold workflow, adds explicit lower/upper box-selection actions, and adds strict native Windows focus/icon/DPI release evidence.
 - `v1.8.1-rc3`：将可选原始 CSV 缓存预生成扩展至所有已配置桥梁及三种数据布局，从存储方案删除办公室电脑，恢复旧 MATLAB 双线阈值交互，增加下侧/上侧两个独立框选入口，并增加严格的原生 Windows 焦点、图标和 DPI 发布证据。
+- `v1.8.1-rc4`：为九龙江/水仙花逐日 ZIP 导出增加默认关闭的“验证缓存后清理已解压 CSV”事务流程；只清理当前桥配置实际使用且能由未变化 ZIP 恢复的 CSV，保留 ZIP、WIM、Excel、未配置 CSV 与缓存，并提供中断恢复回执和跨进程互斥。
 - `v1.8.1-rc1`: adds isolated daily-ZIP extraction and raw MAT-cache prebuilding for Jiulongjiang/Shuixianhua, with disk-space gates, transactional cache pairs and reusable verified extraction directories.
 - `v1.8.1-rc1`：为九龙江/水仙花增加隔离的日 ZIP 安全解压和原始 MAT 缓存预生成，包含磁盘门槛、缓存对事务及可复用的已验证解压目录。
 - `v1.8.0`: introduces the stable unified PySide6 workbench while retaining the MATLAB analysis engine, multi-bridge catalog, machine path profiles, guarded advanced configuration, compiled-runner contracts and closed release inventory.

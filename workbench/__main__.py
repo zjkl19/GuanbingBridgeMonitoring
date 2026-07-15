@@ -11,6 +11,13 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from .branding import application_icon, set_windows_app_user_model_id
+from .cache_cleanup_settings import (
+    CACHE_SOURCE_CLEANUP_CONFIRMATION,
+    CACHE_SOURCE_CLEANUP_KEY,
+    CACHE_SOURCE_CLEANUP_MODE,
+    CACHE_SOURCE_CLEANUP_RECOVERY,
+    CACHE_SOURCE_CLEANUP_SCOPE,
+)
 from .config_layers import config_dependency_sha256
 from .main_window import WorkbenchWindow
 from .models import file_sha256
@@ -68,6 +75,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--screenshot-output", type=Path, default=None)
     parser.add_argument("--screenshot-tab", type=int, default=0)
     parser.add_argument("--demo-auto-threshold-preview", action="store_true")
+    parser.add_argument("--demo-cache-source-cleanup", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--show-task-history", action="store_true")
     parser.add_argument("--demo-task-history", action="store_true")
     parser.add_argument("--install-staged-update", action="store_true")
@@ -78,6 +86,119 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--restart-after-install", action="store_true")
     parser.add_argument("--install-log", type=Path, default=None)
     return parser
+
+
+def cache_source_cleanup_payload(window: WorkbenchWindow) -> dict[str, object]:
+    """Return the task-scoped destructive-cleanup state without mutating it."""
+
+    checked = window.cache_cleanup_check.isChecked()
+    confirmation = window.cache_cleanup_confirmation_edit.text()
+    selected = window._selected_modules()
+    task_option: dict[str, object] = {}
+    if checked and confirmation == CACHE_SOURCE_CLEANUP_CONFIRMATION:
+        try:
+            candidate = window._task_options(selected).get(CACHE_SOURCE_CLEANUP_KEY, {})
+        except ValueError:
+            candidate = {}
+        if isinstance(candidate, dict):
+            task_option = candidate
+    return {
+        "control_available": hasattr(window, "cache_cleanup_check"),
+        "checked": checked,
+        "default_off": not checked,
+        "confirmation_empty": confirmation == "",
+        "confirmation_required": (
+            window.cache_cleanup_confirmation_edit.placeholderText()
+            == CACHE_SOURCE_CLEANUP_CONFIRMATION
+        ),
+        "confirmation_matches": confirmation == CACHE_SOURCE_CLEANUP_CONFIRMATION,
+        "supported_data_layout": "jlj_daily_export",
+        "current_layout_supported": window.current_profile.data_layout == "jlj_daily_export",
+        "control_enabled": window.cache_cleanup_check.isEnabled(),
+        "task_option_present": bool(task_option),
+        "task_option": task_option,
+    }
+
+
+def exercise_cache_source_cleanup_contract(window: WorkbenchWindow) -> dict[str, object]:
+    """Exercise opt-in, policy serialization and saved-task restoration in place."""
+
+    if window.current_profile.data_layout != "jlj_daily_export":
+        raise ValueError("cache cleanup demo requires the jlj_daily_export layout")
+    default_state = cache_source_cleanup_payload(window)
+
+    for checkbox in window.module_checks.values():
+        checkbox.setChecked(False)
+    window.module_checks["cache_prebuild"].setChecked(True)
+    control_enabled_after_cache_selection = window.cache_cleanup_check.isEnabled()
+    window.cache_cleanup_check.setChecked(True)
+    window.cache_cleanup_confirmation_edit.setText(CACHE_SOURCE_CLEANUP_CONFIRMATION)
+    configured_state = cache_source_cleanup_payload(window)
+    option = configured_state["task_option"]
+    def policy_is_complete(value: object) -> bool:
+        return bool(
+            isinstance(value, dict)
+            and value.get("enabled") is True
+            and value.get("mode") == CACHE_SOURCE_CLEANUP_MODE
+            and value.get("commit_scope") == CACHE_SOURCE_CLEANUP_SCOPE
+            and value.get("recovery_policy") == CACHE_SOURCE_CLEANUP_RECOVERY
+            and value.get("confirmation") == CACHE_SOURCE_CLEANUP_CONFIRMATION
+            and str(value.get("confirmed_at") or "")
+        )
+
+    def stable_policy(value: object) -> tuple[object, ...]:
+        if not isinstance(value, dict):
+            return ()
+        return tuple(
+            value.get(key)
+            for key in (
+                "enabled",
+                "mode",
+                "commit_scope",
+                "recovery_policy",
+                "confirmation",
+            )
+        )
+
+    policy_complete = policy_is_complete(option)
+
+    with tempfile.TemporaryDirectory(prefix="workbench_cleanup_contract_") as folder:
+        context_path = Path(folder) / "job_context.json"
+        window._build_context().write(context_path)
+        saved_option = json.loads(context_path.read_text(encoding="utf-8"))["options"].get(
+            CACHE_SOURCE_CLEANUP_KEY, {}
+        )
+        window.cache_cleanup_check.setChecked(False)
+        window.cache_cleanup_confirmation_edit.clear()
+        window.module_checks["cache_prebuild"].setChecked(False)
+        window.load_context(context_path)
+        restored_state = cache_source_cleanup_payload(window)
+
+    return {
+        "default_off": bool(default_state["default_off"]),
+        "default_confirmation_empty": bool(default_state["confirmation_empty"]),
+        "default_task_option_absent": not bool(default_state["task_option_present"]),
+        "layout_supported": bool(configured_state["current_layout_supported"]),
+        "control_enabled_after_cache_selection": control_enabled_after_cache_selection,
+        "confirmation_required": bool(configured_state["confirmation_required"]),
+        "confirmation_matches": bool(configured_state["confirmation_matches"]),
+        "policy_complete": policy_complete,
+        "saved_context_policy_complete": (
+            policy_is_complete(saved_option)
+            and stable_policy(saved_option) == stable_policy(option)
+        ),
+        "saved_context_roundtrip": (
+            restored_state["checked"] is True
+            and restored_state["confirmation_matches"] is True
+            and policy_is_complete(restored_state["task_option"])
+            and stable_policy(restored_state["task_option"])
+            == stable_policy(saved_option)
+            and window._context_matches_current_inputs(window.current_context)
+        ),
+        "restored_enabled": bool(restored_state["checked"]),
+        "restored_confirmation_matches": bool(restored_state["confirmation_matches"]),
+        "task_option": saved_option,
+    }
 
 
 def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
@@ -96,6 +217,7 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
     )
     organization_logo = window.organization_logo_label.pixmap()
     screen = window.screen() or QApplication.primaryScreen()
+    cleanup = cache_source_cleanup_payload(window)
     return {
         "ok": True,
         "executable_filename": EXECUTABLE_FILENAME,
@@ -158,6 +280,19 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "spectrum_module_count": window.spectrum_editor.module_combo.count(),
         "unzip_worker_setting": window.unzip_settings_editor.requested_value(),
         "unzip_settings_available": window.unzip_settings_editor.isEnabled(),
+        "cache_source_cleanup_control_available": cleanup["control_available"],
+        "cache_source_cleanup_checked": cleanup["checked"],
+        "cache_source_cleanup_default_off": cleanup["default_off"],
+        "cache_source_cleanup_confirmation_empty": cleanup["confirmation_empty"],
+        "cache_source_cleanup_confirmation_required": cleanup["confirmation_required"],
+        "cache_source_cleanup_confirmation_matches": cleanup["confirmation_matches"],
+        "cache_source_cleanup_supported_data_layout": cleanup["supported_data_layout"],
+        "cache_source_cleanup_current_layout_supported": cleanup["current_layout_supported"],
+        "cache_source_cleanup_control_enabled": cleanup["control_enabled"],
+        "cache_source_cleanup_task_option_present": cleanup["task_option_present"],
+        "cache_source_cleanup_contract": getattr(
+            window, "_cache_source_cleanup_smoke_contract", {}
+        ),
         "provenance_column_count": window.provenance_table.columnCount(),
         "report_qc_column_count": window.report_qc_table.columnCount(),
         "report_gate_locked": not window.open_report_btn.isEnabled(),
@@ -247,6 +382,10 @@ def main(argv: list[str] | None = None) -> int:
         window.cleaning_editor.cleaning_tabs.setCurrentIndex(args.initial_cleaning_tab)
     if args.demo_auto_threshold_preview:
         window.auto_threshold_editor.load_preview_demo()
+    if args.demo_cache_source_cleanup:
+        window._cache_source_cleanup_smoke_contract = exercise_cache_source_cleanup_contract(
+            window
+        )
     if args.demo_task_history:
         window.show_task_history(demo=True)
     elif args.show_task_history:

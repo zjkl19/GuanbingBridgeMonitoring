@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fjjky.local/schemas/bridge-monitoring-job-context-v2.json",
+  "$id": "https://fjjky.local/schemas/bridge-monitoring-job-context-v3.json",
   "title": "Bridge Monitoring Workbench Job Context",
   "type": "object",
   "required": [
@@ -9,15 +9,24 @@
     "selected_modules", "options", "analysis", "report"
   ],
   "properties": {
-    "schema_version": {"const": 2},
+    "schema_version": {"const": 3},
     "job_id": {"type": "string", "minLength": 1},
     "app_version": {"type": "string", "minLength": 1},
+    "project_root": {"type": "string", "minLength": 1},
     "bridge_id": {"type": "string", "minLength": 1},
     "data_root": {"type": "string", "minLength": 1},
     "start_date": {"type": "string", "format": "date"},
     "end_date": {"type": "string", "format": "date"},
+    "config_path": {"type": "string", "minLength": 1},
+    "config_sha256": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
     "selected_modules": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-    "options": {"type": "object", "additionalProperties": {"type": "boolean"}},
+    "options": {
+      "type": "object",
+      "properties": {
+        "cache_source_cleanup": {"$ref": "#/$defs/cacheSourceCleanup"}
+      },
+      "additionalProperties": {"type": "boolean"}
+    },
     "analysis": {
       "type": "object",
       "properties": {"manifest_sha256": {"type": "string"}}
@@ -32,6 +41,28 @@
         "stderr_log": {"type": "string"},
         "pid": {"type": ["integer", "null"]}
       }
+    }
+  },
+  "$defs": {
+    "cacheSourceCleanup": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "mode",
+        "commit_scope",
+        "recovery_policy",
+        "confirmation",
+        "confirmed_at"
+      ],
+      "properties": {
+        "enabled": {"const": true},
+        "mode": {"const": "verified_extracted_csv"},
+        "commit_scope": {"const": "day"},
+        "recovery_policy": {"const": "verified_archive"},
+        "confirmation": {"const": "DELETE_VERIFIED_EXTRACTED_CSV"},
+        "confirmed_at": {"type": "string", "format": "date-time", "minLength": 1}
+      },
+      "additionalProperties": false
     }
   }
 }

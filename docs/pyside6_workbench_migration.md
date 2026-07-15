@@ -48,6 +48,36 @@ extraction locks use host/PID/token ownership, terminal task results survive
 refresh/stop races, strict report inputs require SHA-256, and offscreen audit
 builds are prevented from masquerading as native Windows release builds.
 
+The next working-tree milestone adds an explicitly destructive, task-scoped
+cache-source cleanup control without changing MATLAB's numerical ownership. The
+control is unchecked by default and is enabled only for the archive-backed
+`jlj_daily_export` layout. It requires the exact confirmation token
+`DELETE_VERIFIED_EXTRACTED_CSV` and may run only in a dedicated preprocessing
+task containing ZIP precheck/extraction/cache-prebuild steps. It is not stored
+in a bridge's shared configuration. The versioned request option is:
+
+```json
+{
+  "cache_source_cleanup": {
+    "enabled": true,
+    "mode": "verified_extracted_csv",
+    "commit_scope": "day",
+    "recovery_policy": "verified_archive",
+    "confirmation": "DELETE_VERIFIED_EXTRACTED_CSV",
+    "confirmed_at": "<task confirmation timestamp>"
+  }
+}
+```
+
+When extraction and cache prebuild are both selected, MATLAB streams one natural
+day at a time through extract, cache, cache-pair/recovery verification, durable
+receipt publication and source-CSV cleanup. Cache workers never delete source
+files; the parent process commits a complete day. The original ZIP, WIM, Excel,
+unconfigured CSV, non-CSV data, MAT/metadata and cleanup receipts are retained.
+Any failed day stops the preprocessing batch before later analysis. Ordinary
+follow-up analysis continues to use source mode `auto`; explicit `mat_only`
+remains an acceptance/isolation choice rather than a normal operator setting.
+
 ## Architecture decision after the local audit
 
 Do not perform a large-scale rewrite.  The code already uses several useful
@@ -198,6 +228,11 @@ analysis. Python report builders own DOCX/PDF production. They communicate only
 through versioned JSON, manifests, logs, and file paths. PySide6 is not embedded
 inside MATLAB, and the MATLAB engine is not rewritten in Python.
 
+Destructive cache cleanup follows the same boundary. PySide6 owns operator
+consent, layout/module validation and the task option; MATLAB owns cache and
+archive verification, daily transaction execution, receipts and fail-closed
+status. A GUI checkbox alone is never deletion authority.
+
 ## Safety gates
 
 1. Validate project, data root, config, dates, and selected modules.
@@ -205,6 +240,18 @@ inside MATLAB, and the MATLAB engine is not rewritten in Python.
 3. Require a successful analysis manifest with no failed modules.
 4. Require explicit plot approval tied to that job context.
 5. Only then enable the formal report entry.
+
+For the optional archive-backed CSV cleanup path, add these preprocessing gates
+before normal analysis starts:
+
+6. Require `jlj_daily_export`, a dedicated preprocessing module set and the
+   exact task confirmation token; all other layouts retain CSV.
+7. Require a verified immutable source ZIP/extraction manifest and closed,
+   independently loadable MAT/metadata pairs for every eligible CSV in the day.
+8. Commit one day at a time through a durable cleanup receipt; a non-committed
+   or failed day stops the batch and keeps the subsequent analysis task separate.
+9. Preserve the original ZIP and all excluded data, and keep normal follow-up
+   analysis in `auto` unless a formal `mat_only` acceptance run is requested.
 
 ## Later migration work
 

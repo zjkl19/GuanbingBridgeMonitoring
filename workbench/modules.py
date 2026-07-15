@@ -32,7 +32,7 @@ MODULE_SPECS: tuple[ModuleSpec, ...] = (
         "预生成分析缓存",
         "preprocess",
         "cache-prebuild.svg",
-        "按桥梁数据格式选择缓存方式；只读取配置中分析模块实际使用的已解压 CSV，生成或复用 MAT 分析缓存，不删除源数据。",
+        "按桥梁数据格式选择缓存方式；只读取配置中分析模块实际使用的已解压 CSV，生成或复用 MAT 分析缓存。默认保留 CSV；仅在任务中明确启用并确认后，才按天删除已验证且可由原 ZIP 恢复的 CSV。",
     ),
     ModuleSpec("lowfreq_sync", "doLowfreqSync", "基康低频同步", "preprocess", "acquisition-sync.svg"),
     ModuleSpec("temperature", "doTemp", "温度分析", icon_asset="thermometer.svg"),

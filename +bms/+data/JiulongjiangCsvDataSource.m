@@ -93,6 +93,113 @@ classdef JiulongjiangCsvDataSource < bms.data.BaseDataSource
             adapter = bms.data.ZipDailyExportAdapter.resolve(cfg);
         end
 
+        function scope = configuredCleanupSourceScope(cfg)
+            %CONFIGUREDCLEANUPSOURCESCOPE Resolve the exact runtime CSV IDs.
+            %   Cleanup must follow the same module/group/alias and trailing
+            %   axis semantics as findFile().  In particular, a configured
+            %   FOO-X point reads FOO.csv; FOO-X.csv is not implicitly in the
+            %   destructive scope.
+            specs = bms.module.ModuleRegistry.forCategory('analysis');
+            bindingCells = {};
+            ids = {};
+            for specIndex = 1:numel(specs)
+                moduleKey = char(string(specs(specIndex).Key));
+                points = bms.app.RunPreflight.configuredPoints(cfg, moduleKey);
+                requests = bms.data.DataIndex.sourceRequestsForModule( ...
+                    moduleKey, points, cfg);
+                for pointIndex = 1:numel(requests)
+                    pointId = char(string(requests(pointIndex).point_id));
+                    sensorType = char(string(requests(pointIndex).sensor_type));
+                    fileId = bms.data.TimeSeriesLoader.resolveFileId( ...
+                        cfg, sensorType, pointId);
+                    candidates = bms.data.PointResolver.uniqueText({ ...
+                        regexprep(char(string(fileId)), '[-_][XYZxyz]$', ''), ...
+                        regexprep(pointId, '[-_][XYZxyz]$', '')});
+                    candidates = candidates(~cellfun(@isempty, candidates));
+                    if isempty(candidates), continue; end
+                    candidates = candidates(:)';
+                    ids = [ids, candidates]; %#ok<AGROW>
+                    bindingCells{end+1} = struct( ... %#ok<AGROW>
+                        'module_key', moduleKey, ...
+                        'point_id', pointId, ...
+                        'sensor_type', sensorType, ...
+                        'candidate_ids', {candidates});
+                end
+            end
+            normalized = lower(strtrim(string(ids)));
+            normalized = normalized(strlength(normalized) > 0);
+            normalized = sort(unique(normalized));
+            normalizedIds = cellstr(normalized(:));
+            identity = struct('schema_version', 1, 'ids', {normalizedIds});
+            scope = struct( ...
+                'schema_version', 1, ...
+                'ids', {normalizedIds}, ...
+                'count', numel(normalizedIds), ...
+                'hash', bms.data.CacheManager.configHash(identity), ...
+                'bindings', struct([]));
+            if ~isempty(bindingCells)
+                scope.bindings = [bindingCells{:}];
+            end
+        end
+
+        function paths = configuredCleanupCsvPaths(csvDir, cfg)
+            %CONFIGUREDCLEANUPCSVPATHS Select the files runtime would read now.
+            scope = bms.data.JiulongjiangCsvDataSource. ...
+                configuredCleanupSourceScope(cfg);
+            paths = {};
+            for i = 1:numel(scope.bindings)
+                binding = scope.bindings(i);
+                fp = bms.data.JiulongjiangCsvDataSource.findCsvFallback( ...
+                    csvDir, binding.point_id, binding.sensor_type, cfg);
+                if ~isempty(fp) && isfile(fp)
+                    paths{end+1} = char(string(fp)); %#ok<AGROW>
+                end
+            end
+            if isempty(paths), return; end
+            keys = lower(string(paths));
+            [~, indexes] = unique(keys, 'stable');
+            paths = paths(sort(indexes));
+        end
+
+        function ok = validateStandaloneRawCache(cachePath, cfg)
+            %VALIDATESTANDALONERAWCACHE Validate a jlj_csv_v2 pair without CSV.
+            ok = false;
+            if nargin < 2 || isempty(cfg), cfg = struct(); end
+            cachePath = char(string(cachePath));
+            adapter = bms.data.JiulongjiangCsvDataSource.adapterFromConfig(cfg);
+            if isempty(cachePath) || ~isfile(cachePath) ...
+                    || ~bms.data.CacheManager.metadataMatches( ...
+                        cachePath, adapter, 'jlj_csv_v2') ...
+                    || ~bms.data.CacheManager.cachePairIntegrityMatches(cachePath)
+                return;
+            end
+            try
+                info = whos('-file', cachePath);
+                names = {info.name};
+                required = {'ts', 'valx', 'valy', 'valz', 'meta'};
+                if ~all(ismember(required, names)), return; end
+                payload = load(cachePath, 'ts', 'valx', 'valy', 'valz', 'meta');
+                if ~isdatetime(payload.ts) || isempty(payload.ts) ...
+                        || all(isnat(payload.ts)) || ~isstruct(payload.meta)
+                    return;
+                end
+                count = numel(payload.ts);
+                nonempty = false;
+                for field = {'valx','valy','valz'}
+                    values = payload.(field{1});
+                    if ~isempty(values)
+                        nonempty = true;
+                        if ~isnumeric(values) || numel(values) ~= count
+                            return;
+                        end
+                    end
+                end
+                ok = nonempty;
+            catch
+                ok = false;
+            end
+        end
+
         function [dirp, meta] = getDayDir(root, day, cfg, meta)
             if nargin < 4 || isempty(meta)
                 meta = struct();
@@ -413,6 +520,11 @@ classdef JiulongjiangCsvDataSource < bms.data.BaseDataSource
                     cachePath, adapter, 'jlj_csv_v2')
                 return;
             end
+            metadataExists = isfile(bms.data.CacheManager.metadataPath(cachePath));
+            if (requireMetadata || metadataExists) ...
+                    && ~bms.data.CacheManager.cachePairIntegrityMatches(cachePath)
+                return;
+            end
 
             try
                 S = load(cachePath, 'ts', 'valx', 'valy', 'valz', 'meta');
@@ -443,6 +555,11 @@ classdef JiulongjiangCsvDataSource < bms.data.BaseDataSource
             requireMetadata = bms.data.TimeSeriesLoader.seriesCacheRequireMetadata(cfg);
             if requireMetadata && ~bms.data.CacheManager.metadataMatches( ...
                     cachePath, adapter, 'jlj_csv_v2')
+                return;
+            end
+            metadataExists = isfile(bms.data.CacheManager.metadataPath(cachePath));
+            if (requireMetadata || metadataExists) ...
+                    && ~bms.data.CacheManager.cachePairIntegrityMatches(cachePath)
                 return;
             end
             col = bms.data.JiulongjiangCsvDataSource.resolveValueColumn(sensorType, pointId);
@@ -736,23 +853,7 @@ classdef JiulongjiangCsvDataSource < bms.data.BaseDataSource
                         || ~isfield(S.meta, 'mtime') || ~isfield(S.meta, 'size')
                     return;
                 end
-                jsonMeta = jsondecode(fileread(bms.data.CacheManager.metadataPath(cachePath)));
-                matHasPair = isfield(S.meta, 'pair_id') && ~isempty(S.meta.pair_id);
-                jsonHasPair = isfield(jsonMeta, 'pair_id') && ~isempty(jsonMeta.pair_id);
-                if xor(matHasPair, jsonHasPair)
-                    return;
-                end
-                if matHasPair && ~strcmp(char(string(S.meta.pair_id)), ...
-                        char(string(jsonMeta.pair_id)))
-                    return;
-                end
-                if isfield(jsonMeta, 'mat_bytes')
-                    d = dir(cachePath);
-                    if isempty(d) || double(d(1).bytes) ~= double(jsonMeta.mat_bytes)
-                        return;
-                    end
-                end
-                ok = true;
+                ok = bms.data.CacheManager.cachePairIntegrityMatches(cachePath);
             catch
                 ok = false;
             end

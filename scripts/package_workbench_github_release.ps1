@@ -109,7 +109,12 @@ function Assert-OperatorGuideContract([string]$Path) {
         (-join (19978, 20391, 26694, 36873, 21462, 26694, 20013, 23454, 38469, 26377, 38480, 26679, 26412, 30340, 26368, 20302, 20540 | ForEach-Object { [char]$_ })),
         (-join (21024, 38500, 20005, 26684, 20302, 20110, 35813, 20540, 30340, 25968, 25454 | ForEach-Object { [char]$_ })),
         (-join (21024, 38500, 20005, 26684, 39640, 20110, 35813, 20540, 30340, 25968, 25454 | ForEach-Object { [char]$_ })),
-        (-join (31561, 20110, 20505, 36873, 38408, 20540, 30340, 28857, 20445, 30041 | ForEach-Object { [char]$_ }))
+        (-join (31561, 20110, 20505, 36873, 38408, 20540, 30340, 28857, 20445, 30041 | ForEach-Object { [char]$_ })),
+        (-join (39640, 39118, 38505, 12289, 40664, 35748, 20851, 38381 | ForEach-Object { [char]$_ })),
+        (-join (21482, 20445, 23384, 22312, 24403, 21069, 20219, 21153, 26041, 26696, 20013 | ForEach-Object { [char]$_ })),
+        (-join (19981, 20889, 20837, 26725, 26753, 20844, 20849, 37197, 32622 | ForEach-Object { [char]$_ })),
+        "jlj_daily_export",
+        "DELETE_VERIFIED_EXTRACTED_CSV"
     )
     foreach ($fragment in $requiredFragments) {
         if (-not $content.Contains($fragment)) {
@@ -311,6 +316,7 @@ if ((Get-StrictString $manifest.version "manifest.version") -cne $Version) {
 $requiredTrueManifestFields = @(
     "auto_threshold_preview_runner_smoke",
     "analysis_runner_failure_exit_smoke",
+    "analysis_runner_cache_cleanup_policy_smoke",
     "installed_profile_matrix_smoke",
     "invalid_cli_smoke",
     "task_history_smoke",
@@ -320,6 +326,7 @@ $requiredTrueManifestFields = @(
     "native_font_smoke",
     "native_icon_smoke",
     "operator_feature_contract_smoke",
+    "cache_source_cleanup_contract_smoke",
     "includes_analysis_runner",
     "includes_report_builder",
     "report_builder_context_smoke",
@@ -334,6 +341,36 @@ foreach ($fieldName in $requiredTrueManifestFields) {
         throw "Workbench release manifest is missing $fieldName"
     }
     Assert-ExactBoolean $property.Value $true "manifest.$fieldName"
+}
+$runnerCleanup = $manifest.analysis_runner_cache_cleanup_policy
+if ($null -eq $runnerCleanup) {
+    throw "Workbench release manifest is missing compiled Runner cleanup-policy evidence"
+}
+foreach ($sectionName in @("default_off", "unsafe_policy", "enabled_cleanup")) {
+    $section = $runnerCleanup.PSObject.Properties[$sectionName]
+    if ($null -eq $section) {
+        throw "Compiled Runner cleanup-policy evidence is missing $sectionName"
+    }
+    Assert-ExactBoolean $section.Value.ok $true `
+        "manifest.analysis_runner_cache_cleanup_policy.$sectionName.ok"
+}
+Assert-ExactBoolean $runnerCleanup.default_off.source_cleanup_enabled $false `
+    "manifest.analysis_runner_cache_cleanup_policy.default_off.source_cleanup_enabled"
+if ((Get-StrictString $runnerCleanup.unsafe_policy.error_id `
+        "manifest.analysis_runner_cache_cleanup_policy.unsafe_policy.error_id") `
+        -cne "BMS:CacheSourceCleanup:DedicatedTaskRequired") {
+    throw "Compiled Runner cleanup-policy evidence has the wrong unsafe-policy error"
+}
+Assert-ExactBoolean $runnerCleanup.enabled_cleanup.configured_csv_deleted $true `
+    "manifest.analysis_runner_cache_cleanup_policy.enabled_cleanup.configured_csv_deleted"
+Assert-ExactBoolean $runnerCleanup.enabled_cleanup.unconfigured_csv_preserved $true `
+    "manifest.analysis_runner_cache_cleanup_policy.enabled_cleanup.unconfigured_csv_preserved"
+if ((Get-StrictString $runnerCleanup.enabled_cleanup.receipt_status `
+        "manifest.analysis_runner_cache_cleanup_policy.enabled_cleanup.receipt_status") `
+        -cne "committed" `
+        -or (Get-StrictInt64 $runnerCleanup.enabled_cleanup.deleted_count `
+            "manifest.analysis_runner_cache_cleanup_policy.enabled_cleanup.deleted_count") -ne 1) {
+    throw "Compiled Runner cleanup-policy evidence has no committed one-file cleanup"
 }
 Assert-ExactBoolean $manifest.standalone_report_builder_included $false `
     "manifest.standalone_report_builder_included"
@@ -369,8 +406,36 @@ if ((Get-StrictInt64 $nativeGui.dpi_awareness_code `
     throw "Workbench native GUI acceptance evidence is incomplete"
 }
 if ((Get-StrictInt64 $manifest.operator_feature_contract_version `
-        "manifest.operator_feature_contract_version" 1) -lt 2) {
+        "manifest.operator_feature_contract_version" 1) -lt 3) {
     throw "Workbench operator feature contract is missing"
+}
+$cleanupContract = $manifest.cache_source_cleanup_contract
+if ($null -eq $cleanupContract `
+        -or $cleanupContract.task_option.mode -cne "verified_extracted_csv" `
+        -or $cleanupContract.task_option.commit_scope -cne "day" `
+        -or $cleanupContract.task_option.recovery_policy -cne "verified_archive" `
+        -or $cleanupContract.task_option.confirmation -cne "DELETE_VERIFIED_EXTRACTED_CSV") {
+    throw "Workbench cache-source cleanup contract evidence is missing or incomplete"
+}
+foreach ($fieldName in @(
+        "default_off",
+        "default_confirmation_empty",
+        "default_task_option_absent",
+        "layout_supported",
+        "control_enabled_after_cache_selection",
+        "confirmation_required",
+        "confirmation_matches",
+        "policy_complete",
+        "saved_context_policy_complete",
+        "saved_context_roundtrip",
+        "restored_enabled",
+        "restored_confirmation_matches"
+    )) {
+    $property = $cleanupContract.PSObject.Properties[$fieldName]
+    if ($null -eq $property) {
+        throw "Cache-source cleanup contract evidence is missing $fieldName"
+    }
+    Assert-ExactBoolean $property.Value $true "manifest.cache_source_cleanup_contract.$fieldName"
 }
 
 $manifestInventoryCount = Get-StrictInt64 $manifest.file_inventory_count `
@@ -414,6 +479,35 @@ foreach ($fieldName in @(
         throw "Workbench smoke result is missing $fieldName"
     }
     Assert-ExactBoolean $property.Value $true "smoke.$fieldName"
+}
+foreach ($fieldName in @(
+        "cache_source_cleanup_control_available",
+        "cache_source_cleanup_default_off",
+        "cache_source_cleanup_confirmation_empty",
+        "cache_source_cleanup_confirmation_required"
+    )) {
+    $property = $smokeResult.PSObject.Properties[$fieldName]
+    if ($null -eq $property) {
+        throw "Workbench smoke result is missing $fieldName"
+    }
+    Assert-ExactBoolean $property.Value $true "smoke.$fieldName"
+}
+foreach ($fieldName in @(
+        "cache_source_cleanup_checked",
+        "cache_source_cleanup_confirmation_matches",
+        "cache_source_cleanup_current_layout_supported",
+        "cache_source_cleanup_control_enabled",
+        "cache_source_cleanup_task_option_present"
+    )) {
+    $property = $smokeResult.PSObject.Properties[$fieldName]
+    if ($null -eq $property) {
+        throw "Workbench smoke result is missing $fieldName"
+    }
+    Assert-ExactBoolean $property.Value $false "smoke.$fieldName"
+}
+if ((Get-StrictString $smokeResult.cache_source_cleanup_supported_data_layout `
+        "smoke.cache_source_cleanup_supported_data_layout") -cne "jlj_daily_export") {
+    throw "Workbench smoke result has an invalid cache-source cleanup layout hint"
 }
 if ((Get-StrictInt64 $smokeResult.config_tab_count "smoke.config_tab_count") -ne 9 `
         -or (Get-StrictInt64 $smokeResult.gap_override_column_count `

@@ -48,10 +48,65 @@ classdef CacheManager
             meta.written_at = datestr(datetime('now'), 'yyyy-mm-dd HH:MM:ss');
         end
 
-        function writeMetadata(cacheFile, sourceFiles, cfg, version)
+        function writeMetadata(cacheFile, sourceFiles, cfg, version, extra)
+            if nargin < 5 || isempty(extra), extra = struct(); end
             metaPath = bms.data.CacheManager.metadataPath(cacheFile);
             meta = bms.data.CacheManager.buildMetadata(sourceFiles, cfg, version);
+            if ~isstruct(extra) || ~isscalar(extra)
+                error('BMS:CacheManager:InvalidMetadataExtra', ...
+                    'Cache metadata additions must be a scalar struct.');
+            end
+            names = fieldnames(extra);
+            for i = 1:numel(names)
+                meta.(names{i}) = extra.(names{i});
+            end
             bms.core.Logger.writeJson(metaPath, meta);
+        end
+
+        function tf = cachePairIntegrityMatches(cacheFile)
+            %CACHEPAIRINTEGRITYMATCHES Bind a MAT payload to its JSON receipt.
+            %   New caches carry a pair_id in both files and record the final
+            %   MAT byte count. Legacy pairs with neither pair_id remain
+            %   readable; one-sided or mismatched identifiers fail closed.
+            tf = false;
+            cacheFile = char(string(cacheFile));
+            metaPath = bms.data.CacheManager.metadataPath(cacheFile);
+            if ~isfile(cacheFile) || ~isfile(metaPath)
+                return;
+            end
+            try
+                jsonMeta = jsondecode(fileread(metaPath));
+                jsonHasPair = isfield(jsonMeta, 'pair_id') && ~isempty(jsonMeta.pair_id);
+                matPair = '';
+                info = whos('-file', cacheFile);
+                names = {info.name};
+                if any(strcmp(names, 'cache_pair_id'))
+                    payload = load(cacheFile, 'cache_pair_id');
+                    matPair = char(string(payload.cache_pair_id));
+                elseif any(strcmp(names, 'meta'))
+                    payload = load(cacheFile, 'meta');
+                    if isfield(payload, 'meta') && isstruct(payload.meta) ...
+                            && isfield(payload.meta, 'pair_id') && ~isempty(payload.meta.pair_id)
+                        matPair = char(string(payload.meta.pair_id));
+                    end
+                end
+                matHasPair = ~isempty(matPair);
+                if xor(jsonHasPair, matHasPair)
+                    return;
+                end
+                if jsonHasPair && ~strcmp(matPair, char(string(jsonMeta.pair_id)))
+                    return;
+                end
+                if isfield(jsonMeta, 'mat_bytes')
+                    d = dir(cacheFile);
+                    if isempty(d) || double(d(1).bytes) ~= double(jsonMeta.mat_bytes)
+                        return;
+                    end
+                end
+                tf = true;
+            catch
+                tf = false;
+            end
         end
 
         function tf = metadataMatches(cacheFile, cfg, version)

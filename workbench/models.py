@@ -89,7 +89,7 @@ class JobContext:
     config_path: str
     config_sha256: str
     selected_modules: list[str] = field(default_factory=list)
-    options: dict[str, bool] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
     period_label: str = ""
     monitoring_range: str = ""
     report_date: str = ""
@@ -114,7 +114,7 @@ class JobContext:
         end_date: str,
         config_path: Path,
         selected_modules: list[str],
-        options: dict[str, bool],
+        options: dict[str, Any],
         report_type: str = "",
         template_path: Path | None = None,
         output_dir: Path | None = None,
@@ -210,7 +210,13 @@ class JobContext:
             str(Path(self.config_path).expanduser().resolve()),
             self.config_sha256,
             tuple(self.selected_modules),
-            tuple(sorted((str(key), bool(value)) for key, value in self.options.items())),
+            json.dumps(
+                self.options,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ),
         )
 
     def touch(self) -> None:

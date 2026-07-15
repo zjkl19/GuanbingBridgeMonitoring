@@ -6,8 +6,9 @@ classdef TimeSeriesCachePrebuildService
     %   scanned or converted.
 
     methods (Static)
-        function result = run(root, startDate, endDate, cfg)
+        function result = run(root, startDate, endDate, cfg, taskOptions)
             if nargin < 4, cfg = struct(); end
+            if nargin < 5, taskOptions = struct(); end
             startedAt = datetime('now');
             summary = bms.data.TimeSeriesCachePrebuildService.emptySummary( ...
                 root, startDate, endDate);
@@ -16,6 +17,13 @@ classdef TimeSeriesCachePrebuildService
 
             try
                 options = bms.data.JljCachePrebuildService.optionsFromConfig(root, cfg);
+                cleanupOptions = ...
+                    bms.data.VerifiedSourceCsvCleanupService.optionsFromTask(taskOptions);
+                if cleanupOptions.enabled
+                    error('BMS:CacheSourceCleanup:LayoutNotYetSupported', ...
+                        ['Verified CSV deletion currently requires the archive-backed ' ...
+                         'jlj_daily_export layout. This cache build retained every CSV.']);
+                end
                 bms.data.TimeSeriesCachePrebuildService.validateOptions(options);
                 if ~isfolder(root)
                     error('BMS:TimeSeriesCachePrebuild:RootMissing', ...
@@ -270,33 +278,8 @@ classdef TimeSeriesCachePrebuildService
         end
 
         function requests = sourceRequests(moduleKey, points, cfg)
-            requests = struct('point_id', {}, 'sensor_type', {});
-            points = cellstr(string(points));
-            for i = 1:numel(points)
-                pointId = char(string(points{i}));
-                if strcmp(moduleKey, 'wind')
-                    requests(end+1) = struct( ... %#ok<AGROW>
-                        'point_id', pointId, 'sensor_type', 'wind_speed');
-                    requests(end+1) = struct( ... %#ok<AGROW>
-                        'point_id', pointId, 'sensor_type', 'wind_direction');
-                else
-                    requests(end+1) = struct( ... %#ok<AGROW>
-                        'point_id', pointId, ...
-                        'sensor_type', bms.data.DataIndex.sensorTypeForPoint( ...
-                            moduleKey, pointId));
-                end
-            end
-            if strcmp(moduleKey, 'crack')
-                style = bms.analyzer.CrackAnalysisPipeline.style(cfg);
-                options = bms.analyzer.CrackAnalysisPipeline.options(style);
-                if options.temp_enabled
-                    for i = 1:numel(points)
-                        requests(end+1) = struct( ... %#ok<AGROW>
-                            'point_id', [char(string(points{i})) '-t'], ...
-                            'sensor_type', 'crack_temp');
-                    end
-                end
-            end
+            requests = bms.data.DataIndex.sourceRequestsForModule( ...
+                moduleKey, points, cfg);
         end
 
         function discovery = mergeDiscovery(rows)

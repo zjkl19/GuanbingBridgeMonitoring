@@ -112,3 +112,43 @@ For compound safety decisions, branch coverage alone is insufficient. Use
 decision-table boundary tests and selectively review condition or MC/DC
 coverage for cleaning thresholds, configuration precedence, date windows,
 archive safety, cache transactions, and report acceptance gates.
+
+## Verified source-CSV cleanup test boundary
+
+The optional archive-backed source cleanup is destructive and must be reviewed
+as its own high-risk subsystem. Do not infer its coverage from the older cache
+prebuild or archive-extraction percentages above, and do not publish a new
+percentage until the complete coverage artifacts have been regenerated after
+the feature lands.
+
+Its decision table must cover at least:
+
+- default-off retention and the exact confirmation token/timestamp contract;
+- strict boolean/policy parsing, dedicated-preprocessing module selection and
+  rejection of unsupported data layouts;
+- eligible configured CSV versus retained ZIP, WIM, Excel, unconfigured CSV and
+  non-CSV files;
+- closed MAT/metadata `pair_id` and `mat_bytes`, independent cache loading and
+  zero-write reuse after the CSV is absent;
+- missing, changed or path-conflicting source ZIP/extraction evidence;
+- receipt path/config/cache/archive binding, truncated or tampered receipts and
+  a new same-day source appearing after a committed receipt;
+- one-natural-day streaming, stop-before-analysis behavior and multi-day
+  partial failure;
+- interruption after preparation/rename and during deletion, rollback results,
+  partial receipt continuation and idempotent rerun;
+- capacity/lock boundaries and proof that cache workers never delete sources.
+
+Unit and branch evidence is still not sufficient for release. A packaged-runner
+smoke must exercise the real task JSON contract, and isolated production-data
+acceptance must verify daily receipts, retained ZIP hashes, removed/retained
+file inventories, MAT-only readability, free-space change and a subsequent
+ordinary `auto` analysis. Stable production deployment remains blocked until
+those artifacts close.
+
+Latest non-coverage release regression on 2026-07-16 passed `608/608` Python
+tests in `reporting\.venv`, `711/711` MATLAB tests, and `70/70` focused MATLAB
+cleanup/cache/locking tests. These counts are regression evidence only; they do
+not replace the measured coverage snapshot above. The compiled Runner release
+gate additionally exercised default-off retention, unsafe-policy rejection,
+and a committed one-day verified cleanup transaction.

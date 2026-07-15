@@ -1,12 +1,15 @@
 classdef JljCachePrebuildService
     %JLJCACHEPREBUILDSERVICE Pre-generates raw MAT caches for daily ZIP exports.
     %   This service supports only the jlj_daily_export layout shared by
-    %   Jiulongjiang and Shuixianhua. It never cleans, filters, downsamples,
-    %   moves or deletes source CSV/ZIP data.
+    %   Jiulongjiang and Shuixianhua. Cache workers never delete source data;
+    %   the parent process may commit an explicitly confirmed, verified daily
+    %   CSV cleanup after every cache and recovery proof closes. ZIP archives,
+    %   WIM/Excel and unconfigured CSV files are always retained.
 
     methods (Static)
-        function result = run(root, startDate, endDate, cfg)
+        function result = run(root, startDate, endDate, cfg, taskOptions)
             if nargin < 4, cfg = struct(); end
+            if nargin < 5, taskOptions = struct(); end
             startedAt = datetime('now');
             summary = bms.data.JljCachePrebuildService.emptySummary(root, startDate, endDate);
             options = struct('manifest_dir', fullfile(char(string(root)), 'run_logs'), ...
@@ -14,9 +17,19 @@ classdef JljCachePrebuildService
 
             try
                 options = bms.data.JljCachePrebuildService.optionsFromConfig(root, cfg);
+                cleanupOptions = ...
+                    bms.data.VerifiedSourceCsvCleanupService.optionsFromTask(taskOptions);
+                summary.source_cleanup_enabled = cleanupOptions.enabled;
                 if ~isfolder(root)
                     error('BMS:JljCachePrebuild:RootMissing', ...
                         'Data root does not exist: %s', char(string(root)));
+                end
+                daysList = bms.data.TimeRangeResolver.daysBetween(startDate, endDate);
+                dayMutationCleanups = cell(1, numel(daysList)); %#ok<NASGU>
+                for dayIndex = 1:numel(daysList)
+                    dayMutationCleanups{dayIndex} = ...
+                        bms.data.DailyExportMutationLock.acquire( ...
+                        root, datestr(daysList(dayIndex), 'yyyy-mm-dd'));
                 end
                 runLock = bms.data.JiulongjiangCsvDataSource.acquireBuildLock( ...
                     fullfile(char(string(root)), '.bms_jlj_cache_prebuild.lock')); %#ok<NASGU>
@@ -55,7 +68,12 @@ classdef JljCachePrebuildService
                 summary.config_hash = bms.data.CacheManager.configHash(adapter);
 
                 [csvDirs, discovery] = bms.data.JljCachePrebuildService.discoverCsvFiles( ...
-                    root, startDate, endDate, cfg);
+                    root, startDate, endDate, cfg, taskOptions, ...
+                    summary.cache_version, summary.config_hash);
+                if cleanupOptions.enabled
+                    discovery = bms.data.JljCachePrebuildService. ...
+                        applyCleanupConfigurationWhitelist(discovery, cfg);
+                end
                 summary.csv_dirs = csvDirs;
                 summary.csv_dir_count = numel(csvDirs);
                 summary.discovered_count = numel(discovery);
@@ -138,8 +156,41 @@ classdef JljCachePrebuildService
                 summary.workers_used = workers;
                 summary.parallel_used = workers > 1;
                 eligibleCells = cell(1, numel(eligibleRecords));
+                cleanupCells = {};
                 forceRebuild = options.force_rebuild;
-                if workers > 1
+                if cleanupOptions.enabled
+                    groupKeys = unique(cellstr(string({eligibleRecords.csv_dir})), 'stable');
+                    for g = 1:numel(groupKeys)
+                        indexes = find(strcmp(cellstr(string({eligibleRecords.csv_dir})), groupKeys{g}));
+                        groupCells = cell(1, numel(indexes));
+                        if workers > 1
+                            parfor (j = 1:numel(indexes), workers)
+                                groupCells{j} = bms.data.JljCachePrebuildService.processEligibleRecord( ...
+                                    eligibleRecords(indexes(j)), cfg, forceRebuild);
+                            end
+                        else
+                            for j = 1:numel(indexes)
+                                groupCells{j} = bms.data.JljCachePrebuildService.processEligibleRecord( ...
+                                    eligibleRecords(indexes(j)), cfg, forceRebuild);
+                            end
+                        end
+                        for j = 1:numel(indexes)
+                            eligibleCells{indexes(j)} = groupCells{j};
+                        end
+                        invalidHere = ~isempty(invalidRecords) && any(strcmp( ...
+                            cellstr(string({invalidRecords.csv_dir})), groupKeys{g}));
+                        if ~invalidHere
+                            partitionRoot = bms.data.VerifiedSourceCsvCleanupService.partitionRoot( ...
+                                groupKeys{g});
+                            dayText = bms.data.JljCachePrebuildService.dayForPartition( ...
+                                partitionRoot, startDate, endDate);
+                            cleanupCells{end+1} = ... %#ok<AGROW>
+                                bms.data.VerifiedSourceCsvCleanupService.commitJljPartition( ...
+                                    root, dayText, groupKeys{g}, [groupCells{:}], cfg, ...
+                                    taskOptions, summary.cache_version, summary.config_hash);
+                        end
+                    end
+                elseif workers > 1
                     parfor (i = 1:numel(eligibleRecords), workers)
                         eligibleCells{i} = bms.data.JljCachePrebuildService.processEligibleRecord( ...
                             eligibleRecords(i), cfg, forceRebuild);
@@ -161,6 +212,11 @@ classdef JljCachePrebuildService
                 end
 
                 summary.files = records;
+                if isempty(cleanupCells)
+                    summary.source_cleanup = struct([]);
+                else
+                    summary.source_cleanup = [cleanupCells{:}];
+                end
                 summary = bms.data.JljCachePrebuildService.finalizeSummary(summary, records);
                 summary.free_bytes_after = bms.data.JljCachePrebuildService.freeBytes(root);
                 summary.ended_at = bms.data.JljCachePrebuildService.formatTime(datetime('now'));
@@ -344,14 +400,22 @@ classdef JljCachePrebuildService
             summary.requested_workers = 1;
             summary.workers_used = 0;
             summary.parallel_used = false;
+            summary.source_cleanup_enabled = false;
+            summary.source_cleanup = struct([]);
             summary.no_eligible_timeseries = false;
             summary.files = struct([]);
             summary.skipped_files = struct([]);
         end
 
-        function [csvDirs, discovery] = discoverCsvFiles(root, startDate, endDate, cfg)
+        function [csvDirs, discovery] = discoverCsvFiles(root, startDate, endDate, cfg, ...
+                taskOptions, cacheVersion, configHash)
+            if nargin < 5, taskOptions = struct(); end
+            if nargin < 6, cacheVersion = 'jlj_csv_v2'; end
+            if nargin < 7, configHash = ''; end
             csvDirs = bms.data.ZipDailyExportAdapter.csvDirs(root, startDate, endDate, cfg);
             csvDirs = sort(unique(cellstr(string(csvDirs)), 'stable'));
+            bms.data.VerifiedSourceCsvCleanupService.resumePending( ...
+                csvDirs, cfg, taskOptions, cacheVersion, configHash);
             files = {};
             for i = 1:numel(csvDirs)
                 items = dir(fullfile(csvDirs{i}, '*.csv'));
@@ -363,29 +427,42 @@ classdef JljCachePrebuildService
             end
             files = sort(unique(cellstr(string(files)), 'stable'));
             adapter = bms.data.JiulongjiangCsvDataSource.adapterFromConfig(cfg);
-            if isempty(files)
-                discovery = struct([]);
-                return;
-            end
             records = cell(1, numel(files));
             for i = 1:numel(files)
                 records{i} = bms.data.JljCachePrebuildService.classifyCsvHeader( ...
                     files{i}, adapter);
             end
-            discovery = [records{:}];
+            if isempty(records), discovery = struct([]); else, discovery = [records{:}]; end
+            archived = bms.data.VerifiedSourceCsvCleanupService.archivedDiscovery( ...
+                csvDirs, cfg, cacheVersion, configHash);
+            if isempty(discovery)
+                discovery = archived;
+            elseif ~isempty(archived)
+                discovery = [discovery, archived];
+            end
         end
 
         function rec = classifyCsvHeader(sourcePath, adapter)
             rec = struct( ...
                 'path', char(string(sourcePath)), ...
                 'source_bytes', 0, ...
+                'source_modified_at', '', ...
                 'header', {{}}, ...
                 'classification', 'invalid', ...
                 'reason', 'header_read_failed', ...
                 'error_identifier', 'BMS:JljCachePrebuild:HeaderReadFailed', ...
-                'error_message', '');
+                'error_message', '', ...
+                'source_present', true, ...
+                'cache_path', '', ...
+                'metadata_path', '', ...
+                'cleanup_receipt_path', '', ...
+                'csv_dir', fileparts(char(string(sourcePath))), ...
+                'partition_root', '');
             d = dir(sourcePath);
-            if ~isempty(d), rec.source_bytes = double(d(1).bytes); end
+            if ~isempty(d)
+                rec.source_bytes = double(d(1).bytes);
+                rec.source_modified_at = datestr(d(1).datenum, 'yyyy-mm-dd HH:MM:ss');
+            end
             try
                 headers = bms.data.JljCachePrebuildService.readCsvHeader(sourcePath, adapter);
                 rec.header = headers;
@@ -422,6 +499,60 @@ classdef JljCachePrebuildService
             catch ME
                 rec.error_identifier = ME.identifier;
                 rec.error_message = ME.message;
+            end
+        end
+
+        function discovery = applyCleanupConfigurationWhitelist(discovery, cfg)
+            % Only configured point sources may enter the destructive path.
+            % Ordinary cache prebuild intentionally remains schema-based; the
+            % whitelist is an additional fail-closed gate used only when the
+            % operator explicitly enables verified source cleanup.
+            if isempty(discovery), return; end
+            selectedByDir = containers.Map('KeyType', 'char', 'ValueType', 'any');
+            for i = 1:numel(discovery)
+                if ~strcmp(char(string(discovery(i).classification)), 'eligible')
+                    continue;
+                end
+                sourcePath = char(string(discovery(i).path));
+                sourcePresent = isfield(discovery, 'source_present') ...
+                    && logical(discovery(i).source_present);
+                allowed = false;
+                if sourcePresent
+                    csvDir = char(string(discovery(i).csv_dir));
+                    dirKey = lower(char(java.io.File(csvDir).getCanonicalPath()));
+                    if ~isKey(selectedByDir, dirKey)
+                        selected = bms.data.JiulongjiangCsvDataSource. ...
+                            configuredCleanupCsvPaths(csvDir, cfg);
+                        selectedByDir(dirKey) = lower(string(cellfun(@(p) ...
+                            char(java.io.File(p).getCanonicalPath()), selected, ...
+                            'UniformOutput', false)));
+                    end
+                    sourceKey = lower(string(char(java.io.File(sourcePath).getCanonicalPath())));
+                    allowed = any(sourceKey == selectedByDir(dirKey));
+                else
+                    % Archived discovery already validates the committed
+                    % receipt, current cleanup scope, recovery ZIP and cache.
+                    % Compare the exact original path recorded by that receipt
+                    % so a legitimate runtime contains-fallback filename can
+                    % be reused even when its stem differs from the point ID.
+                    receiptPath = char(string(discovery(i).cleanup_receipt_path));
+                    if ~isempty(receiptPath) && isfile(receiptPath)
+                        receipt = bms.io.JsonFile.read(receiptPath);
+                        receiptSources = cellstr(string({receipt.files.source_path}));
+                        receiptKeys = lower(string(cellfun(@(p) ...
+                            char(java.io.File(p).getCanonicalPath()), ...
+                            receiptSources, 'UniformOutput', false)));
+                        sourceKey = lower(string(char(java.io.File( ...
+                            sourcePath).getCanonicalPath())));
+                        allowed = any(sourceKey == receiptKeys);
+                    end
+                end
+                if ~allowed
+                    discovery(i).classification = 'skipped';
+                    discovery(i).reason = 'unconfigured_timeseries_csv';
+                    discovery(i).error_identifier = '';
+                    discovery(i).error_message = '';
+                end
             end
         end
 
@@ -496,8 +627,26 @@ classdef JljCachePrebuildService
         function rec = processEligibleRecord(discovery, cfg, forceRebuild)
             startedAt = datetime('now');
             try
-                rec = bms.data.JiulongjiangCsvDataSource.buildCacheForFile( ...
-                    discovery.path, cfg, '', forceRebuild);
+                if isfield(discovery, 'source_present') && ~logical(discovery.source_present)
+                    if ~bms.data.JiulongjiangCsvDataSource.validateStandaloneRawCache( ...
+                            discovery.cache_path, cfg)
+                        error('BMS:JljCachePrebuild:ArchivedCacheInvalid', ...
+                            'Archived-source cache is invalid: %s', discovery.cache_path);
+                    end
+                    rec = bms.data.JiulongjiangCsvDataSource.emptyCacheBuildInfo( ...
+                        discovery.path);
+                    rec.source_bytes = discovery.source_bytes;
+                    rec.source_modified_at = discovery.source_modified_at;
+                    rec.cache_path = discovery.cache_path;
+                    rec.metadata_path = discovery.metadata_path;
+                    rec.cache_bytes = ...
+                        bms.data.JiulongjiangCsvDataSource.cachePairBytes( ...
+                            discovery.cache_path);
+                    rec.status = 'reused';
+                else
+                    rec = bms.data.JiulongjiangCsvDataSource.buildCacheForFile( ...
+                        discovery.path, cfg, '', forceRebuild);
+                end
             catch ME
                 rec = bms.data.JljCachePrebuildService.failureRecord( ...
                     discovery.path, cfg, ME);
@@ -510,9 +659,15 @@ classdef JljCachePrebuildService
         end
 
         function rec = decorateRecord(rec, discovery)
+            rec.source_bytes = discovery.source_bytes;
+            rec.source_modified_at = discovery.source_modified_at;
             rec.classification = discovery.classification;
             rec.reason = discovery.reason;
             rec.header = discovery.header;
+            rec.source_present = discovery.source_present;
+            rec.cleanup_receipt_path = discovery.cleanup_receipt_path;
+            rec.csv_dir = discovery.csv_dir;
+            rec.partition_root = discovery.partition_root;
         end
 
         function bytes = discoveryBytes(records)
@@ -559,6 +714,11 @@ classdef JljCachePrebuildService
                     fileparts(sourcePath), adapter);
                 [~, base, ~] = fileparts(sourcePath);
                 cachePath = fullfile(cacheDir, [base '.mat']);
+                if ~isfile(sourcePath) ...
+                        && bms.data.JiulongjiangCsvDataSource.validateStandaloneRawCache( ...
+                            cachePath, cfg)
+                    continue;
+                end
                 reusable = ~logical(forceRebuild) ...
                     && bms.data.JiulongjiangCsvDataSource.isReusableRawCache( ...
                         cachePath, sourcePath, adapter);
@@ -613,6 +773,21 @@ classdef JljCachePrebuildService
                 total = sum(double(values(mask)));
             else
                 total = 0;
+            end
+        end
+
+        function dayText = dayForPartition(partitionRoot, startDate, endDate)
+            [~, name] = fileparts(char(string(partitionRoot)));
+            token = regexp(name, '(20\d{2}-\d{2}-\d{2})', 'tokens', 'once');
+            if isempty(token)
+                days = bms.data.TimeRangeResolver.daysBetween(startDate, endDate);
+                if numel(days) ~= 1
+                    error('BMS:CacheSourceCleanup:PartitionDateUnknown', ...
+                        'Cannot bind cleanup partition to one natural day: %s', partitionRoot);
+                end
+                dayText = datestr(days(1), 'yyyy-mm-dd');
+            else
+                dayText = token{1};
             end
         end
 

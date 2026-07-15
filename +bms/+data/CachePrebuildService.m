@@ -6,16 +6,17 @@ classdef CachePrebuildService
     %   cleaning or statistics are performed here.
 
     methods (Static)
-        function result = run(root, startDate, endDate, cfg)
+        function result = run(root, startDate, endDate, cfg, taskOptions)
             if nargin < 4, cfg = struct(); end
+            if nargin < 5, taskOptions = struct(); end
             layout = char(string(bms.data.DataLayoutResolver.inferLayout(root, cfg)));
             switch layout
                 case 'jlj_daily_export'
                     result = bms.data.JljCachePrebuildService.run( ...
-                        root, startDate, endDate, cfg);
+                        root, startDate, endDate, cfg, taskOptions);
                 case {'dated_folders', 'hongtang_period'}
                     result = bms.data.TimeSeriesCachePrebuildService.run( ...
-                        root, startDate, endDate, cfg);
+                        root, startDate, endDate, cfg, taskOptions);
                 otherwise
                     startedAt = datetime('now');
                     message = sprintf( ...

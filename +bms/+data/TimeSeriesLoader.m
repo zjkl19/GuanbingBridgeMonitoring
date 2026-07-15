@@ -154,8 +154,11 @@ classdef TimeSeriesLoader
             end
             meta.read_ok = true;
             try
-                save(cacheFile, 'times', 'vals');
-                bms.data.CacheManager.writeMetadata(cacheFile, {path}, struct(), cacheVersion);
+                cache_pair_id = char(java.util.UUID.randomUUID()); %#ok<NASGU>
+                save(cacheFile, 'times', 'vals', 'cache_pair_id');
+                cacheInfo = dir(cacheFile);
+                bms.data.CacheManager.writeMetadata(cacheFile, {path}, struct(), cacheVersion, ...
+                    struct('pair_id', cache_pair_id, 'mat_bytes', double(cacheInfo(1).bytes)));
             catch
             end
         end
@@ -193,11 +196,14 @@ classdef TimeSeriesLoader
                 'require_metadata', true));
             if requireMetadata
                 meta.metadata_ok = bms.data.CacheManager.metadataMatches(path, struct(), cacheVersion);
-                if ~meta.metadata_ok
+                if ~meta.metadata_ok || ~bms.data.CacheManager.cachePairIntegrityMatches(path)
                     return;
                 end
             else
                 meta.metadata_ok = isfile(bms.data.CacheManager.metadataPath(path));
+                if meta.metadata_ok && ~bms.data.CacheManager.cachePairIntegrityMatches(path)
+                    return;
+                end
             end
 
             try
@@ -260,6 +266,11 @@ classdef TimeSeriesLoader
             requireMetadata = bms.data.TimeSeriesLoader.seriesCacheRequireMetadata(cfg);
             if requireMetadata && ~bms.data.CacheManager.metadataMatches( ...
                     path, struct(), cacheVersion)
+                return;
+            end
+            metadataExists = isfile(bms.data.CacheManager.metadataPath(path));
+            if (requireMetadata || metadataExists) ...
+                    && ~bms.data.CacheManager.cachePairIntegrityMatches(path)
                 return;
             end
             try
@@ -969,7 +980,9 @@ classdef TimeSeriesLoader
             if isempty(cacheFile) || ~isfile(cacheFile)
                 return;
             end
-            if bms.data.CacheManager.metadataMatchesFull(cacheFile, {sourcePath}, struct(), cacheVersion)
+            if bms.data.CacheManager.metadataMatchesFull( ...
+                    cacheFile, {sourcePath}, struct(), cacheVersion) ...
+                    && bms.data.CacheManager.cachePairIntegrityMatches(cacheFile)
                 ok = true;
                 return;
             end

@@ -1,9 +1,59 @@
 # Known Issues And Follow-Up Items
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
+
+## Verified Daily Source-CSV Cleanup Safety Boundary
+
+Status: implemented in the working tree and under regression review; not yet a
+packaged or deployed production capability. The deployed `v1.8.1-rc3` package
+does not contain this feature, and its historical no-delete contract remains
+unchanged.
+
+- Cache prebuild remains optional and unchecked by default for every bridge.
+  Destructive source cleanup is a separate task option that is also disabled by
+  default and currently supports only the archive-backed `jlj_daily_export`
+  layout. `dated_folders` and `hongtang_period` still retain CSV.
+- Cleanup authorization is task-scoped, not bridge configuration. It requires
+  `mode=verified_extracted_csv`, `commit_scope=day`,
+  `recovery_policy=verified_archive`, a non-empty confirmation timestamp and the
+  exact `DELETE_VERIFIED_EXTRACTED_CSV` token. Unknown or incomplete policy
+  fields fail closed.
+- The option must run as a dedicated preprocessing task. ZIP precheck, unzip and
+  cache prebuild are permitted; analysis and CSV-mutating rename/header/resample
+  steps must run separately. A failed day stops the batch before later analysis.
+- With unzip and cache prebuild selected together, the task streams one natural
+  day at a time. Cache workers never delete sources. The parent process commits
+  a day only after every eligible configured CSV has a valid, independently
+  loadable MAT/metadata pair and verified archive recovery evidence.
+- This is not a recursive directory cleanup. Only configured eligible
+  time-series CSV files can be removed. Original ZIP, WIM, Excel, unconfigured
+  CSV, non-CSV data, MAT caches, metadata and cleanup receipts are retained.
+- The original ZIP and verified extraction manifest are mandatory recovery
+  evidence. Already-extracted data without that evidence, a changed ZIP, an
+  entry/path/size/CRC mismatch or a missing manifest must block deletion.
+- Each daily partition retains
+  `.bms_cache_source_cleanup_receipt.json`. The receipt binds partition/source/
+  cache paths, cache/config identities, MAT/meta pair data and archive proof.
+  Do not edit or delete it manually; it is part of cache-only discovery and
+  interrupted-run reconciliation.
+- A committed daily receipt cannot be silently extended when a new source CSV
+  appears for the same day. Treat that as a new/mismatched source set and fail
+  for review instead of deleting the additional file.
+- Non-terminal receipt states, incomplete rollback, file-lock/antivirus errors
+  and interruptions after rename or during deletion require explicit review and
+  same-contract rerun. Do not report a day as cleaned merely because some CSV
+  files are absent. Fault-injection and packaged-runner recovery evidence must
+  close before release promotion.
+- Daily streaming lowers peak extracted-CSV occupancy but does not replace the
+  capacity gate or live free-space monitoring. ZIP and MAT coexist after cleanup.
+  Once CSV has been removed, its MAT/meta pair is the active source and must not
+  be deleted unless the original ZIP is first restored and revalidated.
+- After successful preprocessing, ordinary GUI analysis stays on `auto` and
+  will select valid MAT because CSV is absent. Explicit `mat_only` remains an
+  isolation/acceptance mode, not an ordinary-user requirement.
 
 ## v1.8.1-rc1 Daily ZIP Extraction And Cache-Prebuild Boundaries
 
@@ -979,3 +1029,31 @@ Recommended behavior:
   output artifacts already show completion;
 - only stop batch MATLAB PIDs after confirming they belong to the current task,
   and never stop a user GUI MATLAB process by name alone.
+
+## Archive-Backed Extracted-CSV Cleanup
+
+Status: implemented in `v1.8.1-rc4`; isolated production acceptance pending.
+
+- The feature is intentionally limited to the daily ZIP export layout used by
+  Jiulongjiang and Shuixianhua. Other layouts fail closed and retain CSVs.
+- It is not a generic delete-after-cache switch. It requires a dedicated task,
+  exact confirmation token, recoverable source ZIP, immutable extraction
+  evidence, independent MAT/meta validation, CRC rechecks, a durable receipt
+  and cross-process locks.
+- If deletion is interrupted after staging, the receipt can be `partial`. A
+  later ordinary task will not silently finish it; an operator must run the
+  same explicitly authorized cleanup workflow to reconcile it.
+- Source ZIPs, WIM, Excel, unconfigured CSV, MAT/meta and receipts are retained.
+  Disk estimates must therefore include those retained files.
+- Do not run analysis in the same task. After cleanup completes, start a new
+  MAT-only/auto analysis and prove that the retained cache pairs load normally.
+
+## June 2026 Remote Source Readiness
+
+- Shuixianhua: 30/30 ZIPs open, but June 14/15/16 are substantially shorter
+  than the median day. Treat this as source coverage, not a processing error,
+  and disclose it in provenance and the report.
+- Jiulongjiang: do not start while only June 1–18 are present. The June 18 ZIP
+  currently lacks EOCD and June 19–30 are missing. Require 30/30, no download
+  temporaries, two stable inventories and successful ZipArchive open on every
+  file before extraction.

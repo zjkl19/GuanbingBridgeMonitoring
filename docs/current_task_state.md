@@ -4257,3 +4257,43 @@ Please read D:\MatlabProjects\Guanbing\docs\current_task_state.md, git status/di
 ```
 
 Avoid uploading old screenshots/images into the continuation thread unless they are essential.
+
+## 2026-07-16 v1.8.1-rc4 Archive-Backed Cache Cleanup Batch
+
+- Branch: `codex/jiulongjiang-cache-prebuild`; do not merge `main` yet.
+- Candidate feature: optional verified deletion of extracted CSV after daily
+  cache prebuild for `jlj_daily_export` (Jiulongjiang and Shuixianhua). It is
+  default-off, requires `DELETE_VERIFIED_EXTRACTED_CSV`, and only runs in a
+  dedicated preprocessing task.
+- Transaction boundary is one natural day: extract, build/reuse every active
+  configured cache source, independently load/validate MAT+meta, prove recovery
+  from the unchanged ZIP and extraction manifest including CRC, write a durable
+  receipt, then same-volume stage/delete only eligible CSVs. ZIP, WIM, Excel,
+  unconfigured CSV, cache and evidence are retained.
+- Source request discovery is shared by cache prebuild and cleanup. Split wind
+  speed/direction files and crack-temperature companions are therefore both
+  covered, and nonstandard contains-fallback filenames remain reusable after a
+  committed cleanup.
+- Local release gates passed: focused MATLAB `70/70`, full MATLAB `711/711`,
+  full Python `608/608`, compiled Runner default-off/unsafe/enabled cleanup
+  scenarios, native Windows icon/font/DPI/focus screenshots and package gate.
+- Candidate ZIP:
+  `release\workbench\BridgeMonitoringWorkbench-v1.8.1-rc4-win-x64.zip`,
+  SHA256 `721BE6B6512805B83D7FEB23358BE8E7980BC6188E55FE8D36AF2A952254714D`.
+- 133 remains isolated: stable `F:\Guanbing` and E-drive source ZIPs are
+  read-only; candidate writes are limited to `F:\Guanbing_v1.8.1-rc1`.
+- Current remote job is Jiulongjiang May rc3 MAT-only analysis. At 03:23 it was
+  on module 13/15 `cable_accel`, SLCGQ-08/15, stderr empty; estimated remaining
+  time was 35–55 minutes. Some cable-acceleration rolling exports for May 1–8
+  report incomplete source coverage and must be disclosed after provenance
+  verification.
+- Next order: validate/report Jiulongjiang May; deploy rc4 only to the isolated
+  candidate tree and clean May extracted CSVs; process Shuixianhua June with
+  daily extract/cache/proof/cleanup then separate 13-module MAT-only analysis
+  and report; process Jiulongjiang June only after all 30 ZIPs are stable and
+  openable.
+- Shuixianhua June source preflight: 30/30 ZIPs openable; June 14/15/16 have
+  materially shorter coverage and must be disclosed.
+- Jiulongjiang June is blocked by source state: only June 1–18 exist, June 18
+  lacks a valid EOCD, and June 19–30 are absent. Do not start until the 30/30
+  two-poll stability and ZIP-openability gate passes.

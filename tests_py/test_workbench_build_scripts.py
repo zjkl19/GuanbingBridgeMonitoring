@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +17,9 @@ PACKAGE_SCRIPT = REPO_ROOT / "scripts" / "package_workbench_github_release.ps1"
 RUNTIME_PACKAGE_SCRIPT = REPO_ROOT / "scripts" / "package_runtime_update.ps1"
 HEALTH_SCRIPT = REPO_ROOT / "scripts" / "run_release_health_check.ps1"
 FAILURE_EXIT_SCRIPT = REPO_ROOT / "scripts" / "validate_analysis_runner_failure_exit.py"
+CLEANUP_POLICY_SCRIPT = (
+    REPO_ROOT / "scripts" / "validate_analysis_runner_cache_cleanup_policy.py"
+)
 CAPTURE_SCRIPT = REPO_ROOT / "scripts" / "capture_workbench_window.ps1"
 REPORT_BUILD_SCRIPT = REPO_ROOT / "reporting" / "build_gui_exe.ps1"
 REPORT_PACKAGE_SCRIPT = REPO_ROOT / "scripts" / "package_report_builder.ps1"
@@ -43,6 +47,17 @@ class WorkbenchBuildScriptTests(unittest.TestCase):
         spec.loader.exec_module(module)
         return module
 
+    @staticmethod
+    def _cleanup_policy_module():
+        spec = importlib.util.spec_from_file_location(
+            "validate_analysis_runner_cache_cleanup_policy", CLEANUP_POLICY_SCRIPT
+        )
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"unable to load {CLEANUP_POLICY_SCRIPT}")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
     def test_all_direct_python_steps_use_fail_fast_wrapper(self) -> None:
         self.assertIn("function Invoke-NativeChecked", self.build_script)
         self.assertRegex(
@@ -62,6 +77,7 @@ class WorkbenchBuildScriptTests(unittest.TestCase):
             "PyInstaller workbench build",
             "Workbench asset copy",
             "Compiled analysis failure-exit contract smoke",
+            "Compiled analysis cache-cleanup policy smoke",
             "Compiled automatic-cleaning preview contract smoke",
             "Frozen all-profile matrix",
         ):
@@ -172,6 +188,111 @@ exit 0
         self.assertLess(runner_check, failure_exit_gate)
         self.assertLess(failure_exit_gate, runner_copy)
 
+    def test_build_and_package_gate_compiled_analysis_cache_cleanup_policy(self) -> None:
+        self.assertIn(
+            "validate_analysis_runner_cache_cleanup_policy.py", self.build_script
+        )
+        self.assertIn(
+            "analysis_runner_cache_cleanup_policy_smoke = $analysisRunnerCacheCleanupPolicySmoke",
+            self.build_script,
+        )
+        self.assertIn(
+            '"analysis_runner_cache_cleanup_policy_smoke"', self.package_script
+        )
+        self.assertIn("configured_csv_deleted", self.build_script)
+        self.assertIn("unconfigured_csv_preserved", self.build_script)
+        self.assertIn("BMS:CacheSourceCleanup:DedicatedTaskRequired", self.package_script)
+        cleanup_gate = self.build_script.index(
+            '-StepName "Compiled analysis cache-cleanup policy smoke"'
+        )
+        runner_copy = self.build_script.index(
+            '$runnerTarget = Join-Path $distRoot "bin\\BridgeAnalysisRunner"'
+        )
+        self.assertLess(cleanup_gate, runner_copy)
+
+    def test_cleanup_policy_smoke_replace_is_marker_bounded(self) -> None:
+        module = self._cleanup_policy_module()
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            marked = root / "marked"
+            module._prepare_output_root(marked, replace=False)
+            marker = marked / ".cache_cleanup_policy_smoke_root.json"
+            self.assertTrue(marker.is_file())
+            (marked / "evidence.txt").write_text("old", encoding="utf-8")
+            module._prepare_output_root(marked, replace=True)
+            self.assertTrue(marker.is_file())
+            self.assertFalse((marked / "evidence.txt").exists())
+
+            unmarked = root / "unmarked"
+            unmarked.mkdir()
+            (unmarked / "user-data.txt").write_text("preserve", encoding="utf-8")
+            with self.assertRaises(RuntimeError):
+                module._prepare_output_root(unmarked, replace=True)
+            self.assertEqual(
+                (unmarked / "user-data.txt").read_text(encoding="utf-8"),
+                "preserve",
+            )
+
+    def test_cleanup_policy_smoke_retries_only_transient_permission_error(self) -> None:
+        module = self._cleanup_policy_module()
+        output_root = Path("C:/marked-smoke")
+        with (
+            patch.object(
+                module.shutil,
+                "rmtree",
+                side_effect=[PermissionError("busy"), None],
+            ) as remove,
+            patch.object(module.time, "sleep") as sleep,
+        ):
+            module._remove_marked_output_root(
+                output_root,
+                attempts=2,
+                delay_seconds=0.01,
+            )
+        self.assertEqual(remove.call_count, 2)
+        sleep.assert_called_once_with(0.01)
+
+        with (
+            patch.object(module.shutil, "rmtree", side_effect=OSError("fatal")),
+            patch.object(module.time, "sleep") as sleep,
+        ):
+            with self.assertRaisesRegex(OSError, "fatal"):
+                module._remove_marked_output_root(output_root, attempts=3)
+        sleep.assert_not_called()
+
+    def test_cleanup_policy_smoke_resolves_summary_from_manifest_artifact(self) -> None:
+        module = self._cleanup_policy_module()
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text("{}", encoding="utf-8")
+            summary = root / "cache_summary.json"
+            summary.write_text("{}", encoding="utf-8")
+            record = {
+                "stats_path": "",
+                "artifacts": {
+                    "kind": "manifest",
+                    "path": summary.name,
+                    "role": "cache_prebuild_summary",
+                },
+            }
+            self.assertEqual(
+                module._record_artifact_path(
+                    record,
+                    manifest,
+                    role="cache_prebuild_summary",
+                ),
+                summary,
+            )
+
+            record["artifacts"] = []
+            with self.assertRaisesRegex(RuntimeError, "expected one module artifact"):
+                module._record_artifact_path(
+                    record,
+                    manifest,
+                    role="cache_prebuild_summary",
+                )
+
     def test_build_and_package_gate_current_operator_features(self) -> None:
         self.assertIn("$smoke.config_tab_count -eq 9", self.build_script)
         for field in (
@@ -182,11 +303,23 @@ exit 0
             "offset_effective_range_seconds_available",
             "gap_override_column_count",
             "unzip_settings_available",
+            "cache_source_cleanup_control_available",
+            "cache_source_cleanup_default_off",
+            "cache_source_cleanup_confirmation_empty",
+            "cache_source_cleanup_confirmation_required",
+            "cache_source_cleanup_task_option_present",
+            "cache_source_cleanup_supported_data_layout",
         ):
             self.assertIn(field, self.build_script)
             self.assertIn(field, self.package_script)
         self.assertIn("operator_feature_contract_smoke", self.build_script)
         self.assertIn("operator_feature_contract_smoke", self.package_script)
+        self.assertIn("operator_feature_contract_version = 3", self.build_script)
+        self.assertIn("cache_source_cleanup_contract_smoke", self.build_script)
+        self.assertIn("cache_source_cleanup_contract_smoke", self.package_script)
+        self.assertIn("workbench_cache_source_cleanup.png", self.build_script)
+        self.assertIn("[switch]$DemoCacheSourceCleanup", self.capture_script)
+        self.assertIn('--demo-cache-source-cleanup', self.capture_script)
         self.assertIn("workbench_unzip_settings.png", self.build_script)
         self.assertIn("reporting\\requirements-build.txt", self.build_script)
 
@@ -316,7 +449,8 @@ exit 0
         release_notes = REPO_ROOT / "docs" / "releases" / f"{version}.md"
         text = release_notes.read_text(encoding="utf-8-sig")
 
-        self.assertIn("user-facing cache-prebuild module", text)
+        self.assertIn("DELETE_VERIFIED_EXTRACTED_CSV", text)
+        self.assertIn("unconfigured CSVs", text)
         for marker in ("鈥滈", "缂撳瓨", "锟斤拷", "ï»¿"):
             self.assertNotIn(marker, text)
 
@@ -408,6 +542,9 @@ exit 0
             "19979, 20391, 26694, 36873, 21462, 26694, 20013, 23454, 38469, 26377, 38480, 26679, 26412, 30340, 26368, 39640, 20540",
             "19978, 20391, 26694, 36873, 21462, 26694, 20013, 23454, 38469, 26377, 38480, 26679, 26412, 30340, 26368, 20302, 20540",
             "31561, 20110, 20505, 36873, 38408, 20540, 30340, 28857, 20445, 30041",
+            "39640, 39118, 38505, 12289, 40664, 35748, 20851, 38381",
+            "21482, 20445, 23384, 22312, 24403, 21069, 20219, 21153, 26041, 26696, 20013",
+            "19981, 20889, 20837, 26725, 26753, 20844, 20849, 37197, 32622",
         ):
             self.assertIn(fragment_code_points, self.package_script)
 
@@ -427,6 +564,11 @@ exit 0
             "删除严格低于该值的数据",
             "删除严格高于该值的数据",
             "等于候选阈值的点保留",
+            "高风险、默认关闭",
+            "只保存在当前任务方案中",
+            "不写入桥梁公共配置",
+            "jlj_daily_export",
+            "DELETE_VERIFIED_EXTRACTED_CSV",
         )
 
         helper_sources = {}

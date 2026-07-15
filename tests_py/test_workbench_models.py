@@ -7,13 +7,63 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from workbench.models import JobContext
+from workbench.cache_cleanup_settings import (
+    CACHE_SOURCE_CLEANUP_CONFIRMATION,
+    CACHE_SOURCE_CLEANUP_KEY,
+    CACHE_SOURCE_CLEANUP_MODE,
+    CACHE_SOURCE_CLEANUP_RECOVERY,
+    CACHE_SOURCE_CLEANUP_SCOPE,
+)
+from workbench.models import JobContext, SCHEMA_VERSION
 from workbench.modules import MODULE_SPECS, options_for_modules
 from workbench.profiles import load_profiles
 from workbench.version import app_version
 
 
 class WorkbenchModelTests(unittest.TestCase):
+    def test_job_context_schema_v3_preserves_boolean_options_and_strict_cleanup_policy(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        schema = json.loads(
+            (root / "workbench" / "job_context.schema.json").read_text(
+                encoding="utf-8-sig"
+            )
+        )
+
+        self.assertEqual(schema["properties"]["schema_version"]["const"], SCHEMA_VERSION)
+        self.assertTrue(schema["$id"].endswith("job-context-v3.json"))
+        self.assertFalse(set(schema["required"]).difference(schema["properties"]))
+        options_schema = schema["properties"]["options"]
+        self.assertEqual(options_schema["additionalProperties"], {"type": "boolean"})
+        self.assertEqual(
+            options_schema["properties"][CACHE_SOURCE_CLEANUP_KEY]["$ref"],
+            "#/$defs/cacheSourceCleanup",
+        )
+
+        cleanup_schema = schema["$defs"]["cacheSourceCleanup"]
+        self.assertFalse(cleanup_schema["additionalProperties"])
+        self.assertEqual(
+            set(cleanup_schema["required"]),
+            {
+                "enabled",
+                "mode",
+                "commit_scope",
+                "recovery_policy",
+                "confirmation",
+                "confirmed_at",
+            },
+        )
+        properties = cleanup_schema["properties"]
+        self.assertIs(properties["enabled"]["const"], True)
+        self.assertEqual(properties["mode"]["const"], CACHE_SOURCE_CLEANUP_MODE)
+        self.assertEqual(properties["commit_scope"]["const"], CACHE_SOURCE_CLEANUP_SCOPE)
+        self.assertEqual(
+            properties["recovery_policy"]["const"], CACHE_SOURCE_CLEANUP_RECOVERY
+        )
+        self.assertEqual(
+            properties["confirmation"]["const"], CACHE_SOURCE_CLEANUP_CONFIRMATION
+        )
+        self.assertEqual(properties["confirmed_at"]["format"], "date-time")
+
     def test_version_uses_single_project_file(self) -> None:
         root = Path(__file__).resolve().parents[1]
         expected = (root / "VERSION").read_text(encoding="utf-8-sig").strip()
