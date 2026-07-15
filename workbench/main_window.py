@@ -132,7 +132,9 @@ class WorkbenchWindow(QMainWindow):
                 "预警值", path, sha256, backup
             )
         )
-        self.cleaning_editor = CleaningThresholdEditorWidget()
+        self.cleaning_editor = CleaningThresholdEditorWidget(
+            preview_context_provider=self._auto_threshold_context
+        )
         self.cleaning_editor.config_saved.connect(
             lambda path, sha256, backup: self._on_config_saved(
                 "数据清洗", path, sha256, backup
@@ -683,6 +685,7 @@ class WorkbenchWindow(QMainWindow):
 
     def _auto_threshold_context(self) -> dict[str, str]:
         return {
+            "bridge_id": str(self.profile_combo.currentData() or ""),
             "data_root": self.data_root_edit.text().strip(),
             "config_path": self.config_edit.text().strip(),
             "start_date": self.start_date_edit.date().toString("yyyy-MM-dd"),

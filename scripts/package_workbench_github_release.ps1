@@ -103,7 +103,13 @@ function Assert-OperatorGuideContract([string]$Path) {
     $content = [System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8)
     $requiredFragments = @(
         (-join (39044, 29983, 25104, 20998, 26512, 32531, 23384 | ForEach-Object { [char]$_ })),
-        (-join (25171, 24320, 26354, 32447, 39044, 35272, 24182, 25302, 32447, 35774, 32622 | ForEach-Object { [char]$_ }))
+        (-join (25171, 24320, 26354, 32447, 39044, 35272, 24182, 25302, 32447, 35774, 32622 | ForEach-Object { [char]$_ })),
+        (-join (25302, 32447, 35774, 32622, 19978, 19979, 38480 | ForEach-Object { [char]$_ })),
+        (-join (19979, 20391, 26694, 36873, 21462, 26694, 20013, 23454, 38469, 26377, 38480, 26679, 26412, 30340, 26368, 39640, 20540 | ForEach-Object { [char]$_ })),
+        (-join (19978, 20391, 26694, 36873, 21462, 26694, 20013, 23454, 38469, 26377, 38480, 26679, 26412, 30340, 26368, 20302, 20540 | ForEach-Object { [char]$_ })),
+        (-join (21024, 38500, 20005, 26684, 20302, 20110, 35813, 20540, 30340, 25968, 25454 | ForEach-Object { [char]$_ })),
+        (-join (21024, 38500, 20005, 26684, 39640, 20110, 35813, 20540, 30340, 25968, 25454 | ForEach-Object { [char]$_ })),
+        (-join (31561, 20110, 20505, 36873, 38408, 20540, 30340, 28857, 20445, 30041 | ForEach-Object { [char]$_ }))
     )
     foreach ($fragment in $requiredFragments) {
         if (-not $content.Contains($fragment)) {
@@ -363,7 +369,7 @@ if ((Get-StrictInt64 $nativeGui.dpi_awareness_code `
     throw "Workbench native GUI acceptance evidence is incomplete"
 }
 if ((Get-StrictInt64 $manifest.operator_feature_contract_version `
-        "manifest.operator_feature_contract_version" 1) -lt 1) {
+        "manifest.operator_feature_contract_version" 1) -lt 2) {
     throw "Workbench operator feature contract is missing"
 }
 
@@ -397,6 +403,9 @@ if ($manifestSmokeJson -cne $standaloneSmokeJson) {
 foreach ($fieldName in @(
         "ok",
         "manual_threshold_controls_available",
+        "threshold_band_control_available",
+        "lower_box_threshold_control_available",
+        "upper_box_threshold_control_available",
         "offset_effective_range_seconds_available",
         "unzip_settings_available"
     )) {

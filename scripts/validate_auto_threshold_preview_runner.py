@@ -70,6 +70,7 @@ def main() -> int:
         encoding="utf-8",
     )
     paths, payload = prepare_request(
+        bridge_id="compiled_preview_contract",
         data_root=data_root,
         config_path=config_path,
         start_date="2026-01-01",

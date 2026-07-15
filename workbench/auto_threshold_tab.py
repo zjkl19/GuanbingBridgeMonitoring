@@ -289,6 +289,7 @@ class AutoThresholdProposalWidget(QWidget):
         try:
             context = self.context_provider()
             paths, payload = prepare_request(
+                bridge_id=str(context["bridge_id"]),
                 data_root=Path(context["data_root"]),
                 config_path=Path(context["config_path"]),
                 start_date=str(context["start_date"]),
@@ -337,7 +338,11 @@ class AutoThresholdProposalWidget(QWidget):
                     preview_path,
                     expected_sha256=preview_hash,
                     expected_request_id=str(self.result.get("request_id") or ""),
-                    expected_config_sha256=str(self.result.get("config_sha256") or ""),
+                    expected_config_sha256=run.config_sha256,
+                    expected_bridge_id=run.bridge_id,
+                    expected_data_root=run.data_root,
+                    expected_start_date=run.start_date,
+                    expected_end_date=run.end_date,
                     expected_series_count=int(self.result.get("preview_series_count") or 0),
                 )
                 self._populate(self.result.get("proposals", []))

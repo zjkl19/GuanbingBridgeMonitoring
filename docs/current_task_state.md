@@ -6,6 +6,33 @@ Last updated: 2026-07-15
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-15 Curve Threshold Interaction Correction
+
+- The cleaning editor no longer presents the two one-sided actions as drag-line
+  buttons. The legacy MATLAB interaction is restored as one two-line dialog:
+  lower and upper horizontal lines share one required time window, default to
+  the loaded preview extent, support endpoint dragging and exact numeric entry,
+  and produce one reviewed two-sided rule for the selected point.
+- Two separate box actions implement the user-confirmed semantics. Lower-side
+  selection takes the highest finite sample actually hit by the rectangle and
+  updates only `min`; upper-side selection takes the lowest and updates only
+  `max`. Strict comparisons preserve samples equal to the bound. The other bound,
+  existing rule time window, zero handling and outlier settings are preserved.
+- Box selection displays the actual selected preview count, candidate value and
+  sampled deletion estimate. A tiny/empty/non-finite selection cannot be
+  accepted; cancel and close do not mutate the table, confirmation remains an
+  in-memory edit, and the existing explicit save/automatic-backup boundary is
+  unchanged.
+- Preview loading is fixed to the selected module/point identity and, when the
+  editor has a loaded configuration and task context, must match its dependency
+  SHA-256, bridge, data root and start/end dates. Missing or mismatched context
+  fails closed. The UI states that preview counts may be sampled and full-cache
+  recomputation remains authoritative.
+- Final local regression after the interaction and context-binding changes:
+  Python `597/597` executed successfully (`1` conditional permission skip),
+  MATLAB `675/675`, focused automatic-preview contract `4/4`, and focused
+  cleaning-threshold contract `5/5`.
+
 ## 2026-07-15 Local Machine-Profile And Cross-Bridge Cache Capability
 
 - The implementation changes in this batch were local-only. A separate
@@ -35,7 +62,7 @@ This file is the handoff point for long Codex sessions. New conversations should
   exercises real cache creation and loading for `dated_folders`,
   `hongtang_period` and `jlj_daily_export`, plus reuse, source-change rebuild,
   wind direction and crack-temperature coverage. The complete Python suite ran
-  `582` tests successfully (`581` passed and `1` was conditionally skipped),
+  `597` tests successfully (`596` passed and `1` was conditionally skipped),
   including the updated release-packaging fixtures.
 
 ## 2026-07-15 Local v1.8.1-rc3 Release Review
@@ -68,19 +95,19 @@ This file is the handoff point for long Codex sessions. New conversations should
   rebuilt rc3 package reproduced the same evidence in its release manifest.
 - Packaging now rehashes the complete frozen distribution immediately before
   compression and requires root/dist/manifest/smoke version records to agree.
-- The final Python regression ran `582` tests successfully (`581` passed and
-  `1` was conditionally skipped). The final MATLAB regression passed `673/673`
+- The final Python regression ran `597` tests successfully (`596` passed and
+  `1` was conditionally skipped). The final MATLAB regression passed `675/675`
   with no failure or incomplete test. Earlier coverage artifacts remain
   diagnostic rather than substitutes for these release gates.
 - The analysis Runner and unified workbench were rebuilt locally. Runner SHA-256
-  is `92ae777bc8395f6dad6968a5c0465ea958a623a2d771c38d9150bca79b819754`;
+  is `902dcd79956e9d091227d004cef47be6003a72325ee115f7b418d6ad31eb8531`;
   workbench EXE SHA-256 is
-  `7e2f3dc6ba13433a27c73d949dc805f19ac5cc4e9ba5e28250437dd19682e5bc`.
+  `8be37fcd576547a77d72b1d04135fe716bc56ac862a69ab32157640b636d8af9`.
   The candidate manifest closes `384/384` files and all `16/16` native Windows
   screenshots, six installed bridge profiles, embedded-report contracts,
   compiled failure-exit and automatic-threshold-preview smoke tests. The
   release ZIP SHA-256 is
-  `61793bda8d1b905e254256d8e72914cd6ea376a26c224a25be24a64e5418bf62`.
+  `60358c2f643b82d144580bba4562f7ca5fd7ee642c98d5a1398e6c6246f4e650`.
 - The first offscreen audit correctly exposed a false-negative screenshot gate:
   dense CJK fallback boxes on a valid table page exceeded the old 5% dark-pixel
   limit. The offscreen-only detector now permits 20% while retaining its bright
@@ -107,8 +134,9 @@ This file is the handoff point for long Codex sessions. New conversations should
 
 ## 2026-07-15 360 Cloud Transfer Pilot And V2Ray Diagnosis
 
-- The local P0 hardening batch remains complete and uncommitted. The Codex
-  monitor automation remains paused. The isolated Jiulongjiang W4 cache task
+- At this checkpoint the local P0 hardening batch was complete but had not yet
+  been committed; the later rc3 release review recorded above supersedes that
+  publication state. The Codex monitor automation remains paused. The isolated Jiulongjiang W4 cache task
   on 133 has completed; its downstream acceptance steps remain pending.
 - The official `360disk` CLI `0.8.37` was validated in both directions using
   new random payloads and end-to-end SHA256 checks. A portable Node/CLI runtime
@@ -173,9 +201,10 @@ This file is the handoff point for long Codex sessions. New conversations should
   are no longer release-equivalent to the working tree. Before any publish or
   deployment, rebuild the internal Runner and workbench and repeat CLI, native
   GUI, embedded-report, failure-exit and closed-package-inventory smoke tests.
-- These local changes are not committed, pushed, deployed to 133 or merged to
-  `main`. Preserve the dirty worktree and review its complete diff before
-  publishing.
+- At this checkpoint these local changes had not yet been committed, pushed,
+  deployed to 133 or merged to `main`. The later rc3 release review recorded
+  above supersedes that publication state; deployment and `main` merge remain
+  separate decisions.
 
 ## 2026-07-15 Local v1.8.1-rc2 Operator Controls And Coverage Gate
 

@@ -46,6 +46,49 @@ classdef test_workbench_cleaning_threshold_contract < matlab.unittest.TestCase
             tc.verifyTrue(isnan(cleaned(3)));
         end
 
+        function twoSidedThresholdUsesStrictComparisons(tc)
+            values = [-1.1; -1; 0; 1; 1.1];
+            times = datetime(2026, 1, 1) + seconds(0:4)';
+            rules = bms.data.CleaningPipeline.emptyRules();
+            rules.thresholds = struct('min', -1, 'max', 1);
+
+            [cleaned, log] = bms.data.CleaningPipeline.apply( ...
+                values, times, rules, struct());
+
+            tc.verifyTrue(isnan(cleaned(1)), ...
+                'Only a value strictly below min should be removed.');
+            tc.verifyEqual(cleaned(2:4), [-1; 0; 1], ...
+                'Samples equal to min or max must be retained.');
+            tc.verifyTrue(isnan(cleaned(5)), ...
+                'Only a value strictly above max should be removed.');
+            tc.verifyEqual(log.threshold_removed_count, 2);
+        end
+
+        function jsonOneSidedThresholdsUseStrictComparisons(tc)
+            lowerCfg = jsondecode( ...
+                '{"defaults":{"temperature":{"thresholds":{"min":-1}}}}');
+            upperCfg = jsondecode( ...
+                '{"defaults":{"temperature":{"thresholds":{"max":1}}}}');
+            lowerRules = bms.data.CleaningPipeline.resolveRules( ...
+                lowerCfg, 'temperature', 'T-1');
+            upperRules = bms.data.CleaningPipeline.resolveRules( ...
+                upperCfg, 'temperature', 'T-1');
+            values = [-2; -1; 0; 1; 2];
+            times = datetime(2026, 1, 1) + seconds(0:4)';
+
+            lowerCleaned = bms.data.CleaningPipeline.applyThresholds( ...
+                values, times, lowerRules.thresholds);
+            tc.verifyTrue(isnan(lowerCleaned(1)));
+            tc.verifyEqual(lowerCleaned(2:5), [-1; 0; 1; 2], ...
+                'A min-only JSON rule must retain the sample equal to min.');
+
+            upperCleaned = bms.data.CleaningPipeline.applyThresholds( ...
+                values, times, upperRules.thresholds);
+            tc.verifyEqual(upperCleaned(1:4), [-2; -1; 0; 1], ...
+                'A max-only JSON rule must retain the sample equal to max.');
+            tc.verifyTrue(isnan(upperCleaned(5)));
+        end
+
         function postFilterContractSupportsOneSidedTimedRule(tc)
             root = fileparts(fileparts(mfilename('fullpath')));
             addpath(fullfile(root, 'pipeline'), '-begin');

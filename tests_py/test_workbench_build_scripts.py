@@ -176,6 +176,9 @@ exit 0
         self.assertIn("$smoke.config_tab_count -eq 9", self.build_script)
         for field in (
             "manual_threshold_controls_available",
+            "threshold_band_control_available",
+            "lower_box_threshold_control_available",
+            "upper_box_threshold_control_available",
             "offset_effective_range_seconds_available",
             "gap_override_column_count",
             "unzip_settings_available",
@@ -401,6 +404,10 @@ exit 0
         for fragment_code_points in (
             "39044, 29983, 25104, 20998, 26512, 32531, 23384",
             "25171, 24320, 26354, 32447, 39044, 35272, 24182, 25302, 32447, 35774, 32622",
+            "25302, 32447, 35774, 32622, 19978, 19979, 38480",
+            "19979, 20391, 26694, 36873, 21462, 26694, 20013, 23454, 38469, 26377, 38480, 26679, 26412, 30340, 26368, 39640, 20540",
+            "19978, 20391, 26694, 36873, 21462, 26694, 20013, 23454, 38469, 26377, 38480, 26679, 26412, 30340, 26368, 20302, 20540",
+            "31561, 20110, 20505, 36873, 38408, 20540, 30340, 28857, 20445, 30041",
         ):
             self.assertIn(fragment_code_points, self.package_script)
 
@@ -411,6 +418,16 @@ exit 0
 
         cache_caption = "\u9884\u751f\u6210\u5206\u6790\u7f13\u5b58"
         threshold_caption_stem = "\u6253\u5f00\u66f2\u7ebf\u9884\u89c8\u5e76\u62d6\u7ebf\u8bbe\u7f6e"
+        required_fragments = (
+            cache_caption,
+            threshold_caption_stem,
+            "拖线设置上下限",
+            "下侧框选取框中实际有限样本的最高值",
+            "上侧框选取框中实际有限样本的最低值",
+            "删除严格低于该值的数据",
+            "删除严格高于该值的数据",
+            "等于候选阈值的点保留",
+        )
 
         helper_sources = {}
         for script_name, script_text, next_marker in (
@@ -433,13 +450,21 @@ exit 0
             root = Path(temporary_directory)
             cases = {
                 "complete": (
-                    f"# Guide\n{cache_caption}\n"
-                    f"{threshold_caption_stem}\u9608\u503c\uff08\u53cc\u5411\uff09\n",
+                    "# Guide\n" + "\n".join(required_fragments) + "\n",
                     True,
                 ),
-                "missing_cache": f"# Guide\n{threshold_caption_stem}\u9608\u503c\n",
-                "missing_threshold": f"# Guide\n{cache_caption}\n",
             }
+            cases.update(
+                {
+                    f"missing_{index}": "# Guide\n"
+                    + "\n".join(
+                        fragment
+                        for candidate_index, fragment in enumerate(required_fragments)
+                        if candidate_index != index
+                    )
+                    for index in range(len(required_fragments))
+                }
+            )
             for script_name, helper_source in helper_sources.items():
                 for name, payload in cases.items():
                     if isinstance(payload, tuple):

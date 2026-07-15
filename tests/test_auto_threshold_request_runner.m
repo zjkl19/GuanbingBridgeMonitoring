@@ -48,6 +48,7 @@ classdef test_auto_threshold_request_runner < matlab.unittest.TestCase
             request.schema_version = 1;
             request.request_type = 'auto_threshold_proposal';
             request.request_id = 'matlab_unit';
+            request.bridge_id = 'unit_bridge';
             request.config_path = configPath;
             request.config_sha256 = bms.io.JsonFile.sha256(configPath);
             request.data_root = tc.TempDir;
@@ -74,7 +75,12 @@ classdef test_auto_threshold_request_runner < matlab.unittest.TestCase
             preview = jsondecode(fileread(request.preview_path));
             tc.verifyEqual(preview.artifact_type, 'auto_threshold_preview');
             tc.verifyEqual(preview.request_id, 'matlab_unit');
+            tc.verifyEqual(preview.bridge_id, 'unit_bridge');
             tc.verifyEqual(preview.config_sha256, request.config_sha256);
+            tc.verifyEqual(preview.data_root, ...
+                char(java.io.File(request.data_root).getCanonicalPath()));
+            tc.verifyEqual(preview.start_date, '2026-01-01');
+            tc.verifyEqual(preview.end_date, '2026-01-02');
             tc.verifyEqual(status.preview_path, request.preview_path);
         end
 
@@ -85,6 +91,7 @@ classdef test_auto_threshold_request_runner < matlab.unittest.TestCase
             request = struct('schema_version', 1, ...
                 'request_type', 'auto_threshold_proposal', ...
                 'request_id', 'drift_unit', ...
+                'bridge_id', 'unit_bridge', ...
                 'config_path', configPath, ...
                 'config_sha256', repmat('0', 1, 64), ...
                 'data_root', tc.TempDir, ...

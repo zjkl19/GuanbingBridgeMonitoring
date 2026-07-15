@@ -5,7 +5,7 @@ classdef AutoThresholdRequestRunner
         function resultPath = runFile(requestPath)
             requestPath = char(string(requestPath));
             request = bms.io.JsonFile.read(requestPath);
-            required = {'config_path', 'config_sha256', 'data_root', 'start_date', 'end_date', ...
+            required = {'bridge_id', 'config_path', 'config_sha256', 'data_root', 'start_date', 'end_date', ...
                 'status_path', 'result_path'};
             for i = 1:numel(required)
                 if ~isfield(request, required{i}) || isempty(request.(required{i}))
@@ -32,9 +32,11 @@ classdef AutoThresholdRequestRunner
                 if isfield(request, 'options') && isstruct(request.options)
                     opts = request.options;
                 end
+                dataRoot = bms.app.AutoThresholdRequestRunner.canonicalPath(request.data_root);
+                startDate = bms.data.TimeRangeResolver.normalizeDateText(request.start_date);
+                endDate = bms.data.TimeRangeResolver.normalizeDateText(request.end_date);
                 result = bms.config.AutoThresholdProposalService.generate( ...
-                    cfg, char(string(request.data_root)), ...
-                    char(string(request.start_date)), char(string(request.end_date)), opts);
+                    cfg, dataRoot, startDate, endDate, opts);
                 previewCount = 0;
                 previewPath = bms.app.AutoThresholdRequestRunner.textField(request, 'preview_path');
                 if isfield(result, 'preview_series')
@@ -47,7 +49,11 @@ classdef AutoThresholdRequestRunner
                         'artifact_type', 'auto_threshold_preview', ...
                         'request_type', 'auto_threshold_proposal', ...
                         'request_id', requestId, ...
+                        'bridge_id', strtrim(char(string(request.bridge_id))), ...
                         'config_sha256', actualConfigHash, ...
+                        'data_root', dataRoot, ...
+                        'start_date', startDate, ...
+                        'end_date', endDate, ...
                         'preview_series', result.preview_series);
                     bms.core.Logger.writeJson(previewPath, preview);
                     result = rmfield(result, 'preview_series');
@@ -84,6 +90,15 @@ classdef AutoThresholdRequestRunner
             value = '';
             if isstruct(s) && isfield(s, field) && ~isempty(s.(field))
                 value = char(string(s.(field)));
+            end
+        end
+
+        function path = canonicalPath(value)
+            path = char(string(value));
+            try
+                path = char(java.io.File(path).getCanonicalPath());
+            catch
+                path = bms.profile.BridgeProfile.normalizePathText(path);
             end
         end
     end

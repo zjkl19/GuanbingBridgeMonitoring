@@ -117,8 +117,22 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "cleaning_exclude_editor_available": window.cleaning_editor.cleaning_tabs.count() == 2,
         "cleaning_exclude_range_count": window.cleaning_editor.exclude_table.rowCount(),
         "manual_threshold_controls_available": (
-            window.cleaning_editor.lower_threshold_button.isEnabled()
-            and window.cleaning_editor.upper_threshold_button.isEnabled()
+            window.cleaning_editor.threshold_band_button.isEnabled()
+            and window.cleaning_editor.lower_box_threshold_button.isEnabled()
+            and window.cleaning_editor.upper_box_threshold_button.isEnabled()
+        ),
+        "threshold_band_control_available": bool(
+            window.cleaning_editor.threshold_band_button.isEnabled()
+        ),
+        "box_threshold_controls_available": bool(
+            window.cleaning_editor.lower_box_threshold_button.isEnabled()
+            and window.cleaning_editor.upper_box_threshold_button.isEnabled()
+        ),
+        "lower_box_threshold_control_available": bool(
+            window.cleaning_editor.lower_box_threshold_button.isEnabled()
+        ),
+        "upper_box_threshold_control_available": bool(
+            window.cleaning_editor.upper_box_threshold_button.isEnabled()
         ),
         "config_tab_count": window.config_tabs.count(),
         "auto_threshold_module_count": window.auto_threshold_editor.module_list.count(),

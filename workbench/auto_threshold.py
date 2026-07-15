@@ -53,6 +53,10 @@ class AutoThresholdRun:
     paths: AutoThresholdPaths
     process: subprocess.Popen[bytes]
     config_sha256: str
+    bridge_id: str
+    data_root: str
+    start_date: str
+    end_date: str
 
 
 @dataclass(frozen=True)
@@ -99,6 +103,7 @@ def resolve_runner(project_root: Path) -> Path:
 
 def prepare_request(
     *,
+    bridge_id: str,
     data_root: Path,
     config_path: Path,
     start_date: str,
@@ -109,6 +114,9 @@ def prepare_request(
 ) -> tuple[AutoThresholdPaths, dict[str, Any]]:
     data_root = data_root.expanduser().resolve()
     config_path = config_path.expanduser().resolve()
+    bridge_id = str(bridge_id or "").strip()
+    if not bridge_id:
+        raise AutoThresholdError("桥梁编号不能为空")
     if not data_root.is_dir():
         raise AutoThresholdError(f"数据目录不存在：{data_root}")
     if not config_path.is_file():
@@ -130,6 +138,7 @@ def prepare_request(
         "schema_version": 1,
         "request_type": "auto_threshold_proposal",
         "request_id": run_id,
+        "bridge_id": bridge_id,
         "data_root": str(data_root),
         "config_path": str(config_path),
         "config_sha256": config_hash,
@@ -155,6 +164,12 @@ def prepare_request(
 
 def launch(project_root: Path, paths: AutoThresholdPaths, config_sha256: str) -> AutoThresholdRun:
     runner = resolve_runner(project_root.resolve())
+    try:
+        request = json.loads(paths.request.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AutoThresholdError(f"自动清洗建议请求无法读取：{exc}") from exc
+    if not isinstance(request, dict):
+        raise AutoThresholdError("自动清洗建议请求格式无效")
     creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     with paths.stdout.open("wb") as stdout, paths.stderr.open("wb") as stderr:
         process = subprocess.Popen(
@@ -164,7 +179,15 @@ def launch(project_root: Path, paths: AutoThresholdPaths, config_sha256: str) ->
             stderr=stderr,
             creationflags=creationflags,
         )
-    return AutoThresholdRun(paths, process, config_sha256)
+    return AutoThresholdRun(
+        paths,
+        process,
+        config_sha256,
+        str(request.get("bridge_id") or ""),
+        str(request.get("data_root") or ""),
+        str(request.get("start_date") or ""),
+        str(request.get("end_date") or ""),
+    )
 
 
 def read_status(path: Path) -> dict[str, Any]:
@@ -199,12 +222,37 @@ def _series_rows(value: Any) -> list[dict[str, Any]]:
     raise AutoThresholdError("自动清洗预览 preview_series 必须是对象数组")
 
 
+def _normalized_context_path(value: str | Path) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return os.path.normcase(
+        os.path.normpath(str(Path(text).expanduser().resolve(strict=False)))
+    )
+
+
+def _normalized_context_date(value: Any, field_label: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").date().isoformat()
+    except ValueError as exc:
+        raise AutoThresholdError(
+            f"自动清洗预览的 {field_label} 不是有效的 YYYY-MM-DD 日期：{text}"
+        ) from exc
+
+
 def load_preview_artifact(
     path: Path,
     *,
     expected_sha256: str = "",
     expected_request_id: str = "",
     expected_config_sha256: str = "",
+    expected_bridge_id: str = "",
+    expected_data_root: str | Path = "",
+    expected_start_date: str = "",
+    expected_end_date: str = "",
     expected_series_count: int | None = None,
 ) -> dict[tuple[str, str], PreviewSeries]:
     path = path.expanduser().resolve()
@@ -224,6 +272,38 @@ def load_preview_artifact(
         raise AutoThresholdError("自动清洗预览 request_id 与建议结果不一致")
     if expected_config_sha256 and str(payload.get("config_sha256") or "").lower() != expected_config_sha256.lower():
         raise AutoThresholdError("自动清洗预览所用配置版本与建议结果不一致")
+    if expected_bridge_id:
+        artifact_bridge_id = str(payload.get("bridge_id") or "").strip()
+        if not artifact_bridge_id:
+            raise AutoThresholdError("自动清洗预览缺少桥梁编号，不能确认它属于当前任务")
+        if artifact_bridge_id.casefold() != str(expected_bridge_id).strip().casefold():
+            raise AutoThresholdError("自动清洗预览的桥梁编号与当前任务不一致")
+    if expected_data_root:
+        artifact_data_root = str(payload.get("data_root") or "").strip()
+        if not artifact_data_root:
+            raise AutoThresholdError("自动清洗预览缺少数据目录，不能确认它属于当前任务")
+        if _normalized_context_path(artifact_data_root) != _normalized_context_path(
+            expected_data_root
+        ):
+            raise AutoThresholdError("自动清洗预览的数据目录与当前任务不一致")
+    expected_dates = (
+        ("start_date", expected_start_date, "开始日期"),
+        ("end_date", expected_end_date, "结束日期"),
+    )
+    for field_name, expected_value, field_label in expected_dates:
+        if not str(expected_value or "").strip():
+            continue
+        artifact_value = payload.get(field_name)
+        if not str(artifact_value or "").strip():
+            raise AutoThresholdError(
+                f"自动清洗预览缺少{field_label}，不能确认它属于当前任务"
+            )
+        if _normalized_context_date(
+            artifact_value, field_label
+        ) != _normalized_context_date(expected_value, f"预期{field_label}"):
+            raise AutoThresholdError(
+                f"自动清洗预览的{field_label}与当前任务不一致"
+            )
 
     result: dict[tuple[str, str], PreviewSeries] = {}
     for row in _series_rows(payload.get("preview_series")):

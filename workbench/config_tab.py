@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Mapping
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -44,10 +44,12 @@ from .config_editor import (
 from .manual_threshold import (
     LOWER_SIDE,
     UPPER_SIDE,
+    apply_one_sided_to_selected_row,
     accepted_point_ids,
-    merge_one_sided_rule,
+    merge_two_sided_rule,
 )
-from .manual_threshold_dialog import OneSidedThresholdDialog
+from .box_threshold_dialog import BoxThresholdDialog
+from .manual_threshold_dialog import ThresholdBandDialog
 
 
 WARNING_SOURCE_LABELS = {
@@ -720,13 +722,27 @@ class CleaningThresholdEditorWidget(QWidget):
     add_default_text = "新增默认数值清洗规则"
     add_point_text = "新增测点数值清洗规则"
     supports_exclude_ranges = True
-    supports_manual_single_side = True
-    single_side_dialog_class = OneSidedThresholdDialog
+    supports_curve_threshold_tools = True
+    threshold_band_dialog_class = ThresholdBandDialog
+    box_threshold_dialog_class = BoxThresholdDialog
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        preview_context_provider: Callable[[], Mapping[str, object]] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.session: CleaningConfigEditorSession | None = None
-        self._single_side_undo: tuple[list[CleaningThresholdRow], int] | None = None
+        self.preview_context_provider = preview_context_provider
+        self._manual_threshold_undo: (
+            tuple[
+                list[CleaningThresholdRow],
+                int,
+                list[CleaningThresholdRow],
+            ]
+            | None
+        ) = None
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -788,6 +804,7 @@ class CleaningThresholdEditorWidget(QWidget):
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.table.itemChanged.connect(self._invalidate_manual_threshold_undo)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -829,15 +846,16 @@ class CleaningThresholdEditorWidget(QWidget):
             self.cleaning_tabs.addTab(exclude_page, "整段排除规则（0 条）")
         outer.addWidget(self.cleaning_tabs, 1)
 
-        if self.supports_manual_single_side:
-            self.manual_threshold_group = QGroupBox("曲线拖线设置清洗阈值（测点专用）")
+        if self.supports_curve_threshold_tools:
+            self.manual_threshold_group = QGroupBox("从曲线设置清洗阈值（测点专用）")
             self.manual_threshold_group.setObjectName("manualThresholdGroup")
             single_side_layout = QVBoxLayout(self.manual_threshold_group)
             self.manual_threshold_entry_label = QLabel(
-                "<b>曲线拖线入口：</b>先在上表选择一条“测点专用”规则，"
-                "再点击下方任一蓝色按钮“打开曲线预览并拖线设置下限/上限”。"
-                "在曲线窗口内加载预览后，可单击或上下拖动红色虚线，"
-                "也可直接输入精确值。"
+                "<b>先在上表选择一条“测点专用”规则。</b> “拖线设置上下限”沿用旧 MATLAB GUI："
+                "在同一曲线上同时调整下限、上限和共同时间窗。框选是两个独立动作："
+                "<b>下侧框选取框中实际样本的最高值作为下限</b>（删除更低值）；"
+                "<b>上侧框选取框中实际样本的最低值作为上限</b>（删除更高值）。"
+                "框选边界值本身保留；确认前只显示候选值和预计删除数，不修改表格、不写配置。"
             )
             self.manual_threshold_entry_label.setObjectName("manualThresholdEntryHelp")
             self.manual_threshold_entry_label.setWordWrap(True)
@@ -847,45 +865,66 @@ class CleaningThresholdEditorWidget(QWidget):
             )
             single_side_layout.addWidget(self.manual_threshold_entry_label)
 
-            single_side_actions = QHBoxLayout()
+            band_actions = QHBoxLayout()
             primary_button_style = (
                 "font-weight: 700; background: #005eac; color: white; padding: 7px 12px;"
             )
-            self.lower_threshold_button = QPushButton(
-                "打开曲线预览并拖线设置下限（删除低于阈值的数据）…"
+            self.threshold_band_button = QPushButton(
+                "拖线设置上下限（旧 MATLAB 方式：双线 + 共同时间窗）…"
             )
-            self.lower_threshold_button.setObjectName("openLowerThresholdCurveButton")
-            self.lower_threshold_button.setToolTip(
-                "打开曲线窗口，通过拖动红色阈值线或输入精确值，"
-                "新增或修改一条下限规则；低于该值的数据会被清洗"
+            self.threshold_band_button.setObjectName("openThresholdBandCurveButton")
+            self.threshold_band_button.setToolTip(
+                "打开同一测点曲线，同时拖动下限线和上限线；两条线共享一个可调整时间窗"
             )
-            self.lower_threshold_button.setAccessibleName("打开曲线预览并拖线设置下限")
-            self.lower_threshold_button.setMinimumHeight(36)
-            self.lower_threshold_button.setStyleSheet(primary_button_style)
-            self.lower_threshold_button.clicked.connect(
-                lambda: self.open_single_sided_threshold(LOWER_SIDE)
+            self.threshold_band_button.setAccessibleName("拖线设置上下限")
+            self.threshold_band_button.setMinimumHeight(36)
+            self.threshold_band_button.setStyleSheet(primary_button_style)
+            self.threshold_band_button.clicked.connect(self.open_threshold_band)
+            band_actions.addWidget(self.threshold_band_button, 1)
+            self.undo_manual_threshold_button = QPushButton("撤销上次尚未保存的曲线设置")
+            self.undo_manual_threshold_button.setEnabled(False)
+            self.undo_manual_threshold_button.clicked.connect(self.undo_manual_threshold)
+            band_actions.addWidget(self.undo_manual_threshold_button)
+            single_side_layout.addLayout(band_actions)
+
+            box_actions = QHBoxLayout()
+            self.lower_box_threshold_button = QPushButton(
+                "框选设为下限（下侧框选取最高值；删除更低值）…"
             )
-            single_side_actions.addWidget(self.lower_threshold_button)
-            self.upper_threshold_button = QPushButton(
-                "打开曲线预览并拖线设置上限（删除高于阈值的数据）…"
+            self.lower_box_threshold_button.setObjectName("openLowerBoxThresholdButton")
+            self.lower_box_threshold_button.setToolTip(
+                "拉框选中低值侧实际样本；取框中最高值作为下限，严格删除低于该值的数据"
             )
-            self.upper_threshold_button.setObjectName("openUpperThresholdCurveButton")
-            self.upper_threshold_button.setToolTip(
-                "打开曲线窗口，通过拖动红色阈值线或输入精确值，"
-                "新增或修改一条上限规则；高于该值的数据会被清洗"
+            self.lower_box_threshold_button.setAccessibleName(
+                "框选设为下限，下侧框选取最高值"
             )
-            self.upper_threshold_button.setAccessibleName("打开曲线预览并拖线设置上限")
-            self.upper_threshold_button.setMinimumHeight(36)
-            self.upper_threshold_button.setStyleSheet(primary_button_style)
-            self.upper_threshold_button.clicked.connect(
-                lambda: self.open_single_sided_threshold(UPPER_SIDE)
+            self.lower_box_threshold_button.setMinimumHeight(36)
+            self.lower_box_threshold_button.clicked.connect(
+                lambda: self.open_box_threshold(LOWER_SIDE)
             )
-            single_side_actions.addWidget(self.upper_threshold_button)
-            self.undo_single_side_button = QPushButton("撤销上次单边设置")
-            self.undo_single_side_button.setEnabled(False)
-            self.undo_single_side_button.clicked.connect(self.undo_single_sided_threshold)
-            single_side_actions.addWidget(self.undo_single_side_button)
-            single_side_layout.addLayout(single_side_actions)
+            box_actions.addWidget(self.lower_box_threshold_button, 1)
+            self.upper_box_threshold_button = QPushButton(
+                "框选设为上限（上侧框选取最低值；删除更高值）…"
+            )
+            self.upper_box_threshold_button.setObjectName("openUpperBoxThresholdButton")
+            self.upper_box_threshold_button.setToolTip(
+                "拉框选中高值侧实际样本；取框中最低值作为上限，严格删除高于该值的数据"
+            )
+            self.upper_box_threshold_button.setAccessibleName(
+                "框选设为上限，上侧框选取最低值"
+            )
+            self.upper_box_threshold_button.setMinimumHeight(36)
+            self.upper_box_threshold_button.clicked.connect(
+                lambda: self.open_box_threshold(UPPER_SIDE)
+            )
+            box_actions.addWidget(self.upper_box_threshold_button, 1)
+            single_side_layout.addLayout(box_actions)
+
+            # Backward-compatible attribute names are retained for older smoke
+            # consumers; the two buttons now intentionally mean box selection.
+            self.lower_threshold_button = self.lower_box_threshold_button
+            self.upper_threshold_button = self.upper_box_threshold_button
+            self.undo_single_side_button = self.undo_manual_threshold_button
             outer.addWidget(self.manual_threshold_group)
 
         actions = QHBoxLayout()
@@ -920,9 +959,9 @@ class CleaningThresholdEditorWidget(QWidget):
     def load_path(self, path: Path) -> None:
         session = self.session_class(path)
         self.session = session
-        self._single_side_undo = None
-        if self.supports_manual_single_side:
-            self.undo_single_side_button.setEnabled(False)
+        self._manual_threshold_undo = None
+        if self.supports_curve_threshold_tools:
+            self.undo_manual_threshold_button.setEnabled(False)
         self.path_label.setText(f"配置：{session.path}")
         self._populate(session.rows)
         if self.supports_exclude_ranges:
@@ -935,9 +974,8 @@ class CleaningThresholdEditorWidget(QWidget):
         else:
             detail = f"仅列出{self.managed_field_text}；未显示的其它配置保持不变。"
         manual_threshold_hint = (
-            " 选择测点专用规则后，可点击蓝色“打开曲线预览并拖线设置"
-            "下限/上限”按钮。"
-            if self.supports_manual_single_side
+            " 选择测点专用规则后，可使用双线拖动，或使用下侧/上侧框选两个独立入口。"
+            if self.supports_curve_threshold_tools
             else ""
         )
         self.message_label.setText(
@@ -964,10 +1002,21 @@ class CleaningThresholdEditorWidget(QWidget):
         return str(value)
 
     def _populate(self, rows: list[CleaningThresholdRow]) -> None:
-        self.table.setRowCount(0)
-        for row in rows:
-            self._append_row(row)
+        blocked = self.table.blockSignals(True)
+        try:
+            self.table.setRowCount(0)
+            for row in rows:
+                self._append_row(row)
+        finally:
+            self.table.blockSignals(blocked)
         self.count_label.setText(f"{len(rows)} 条{self.row_label}")
+
+    def _invalidate_manual_threshold_undo(self, *_args: object) -> None:
+        if self._manual_threshold_undo is None:
+            return
+        self._manual_threshold_undo = None
+        if self.supports_curve_threshold_tools:
+            self.undo_manual_threshold_button.setEnabled(False)
 
     def _append_row(self, row: CleaningThresholdRow) -> None:
         index = self.table.rowCount()
@@ -993,6 +1042,7 @@ class CleaningThresholdEditorWidget(QWidget):
             self.table.setItem(index, column, item)
 
     def add_row(self, scope: str) -> None:
+        self._invalidate_manual_threshold_undo()
         module_key = "acceleration"
         selected = self.table.currentRow()
         if selected >= 0 and self.table.item(selected, 1):
@@ -1009,67 +1059,189 @@ class CleaningThresholdEditorWidget(QWidget):
         self.count_label.setText(f"{self.table.rowCount()} 条{self.row_label}")
 
     def delete_selected_rows(self) -> None:
+        self._invalidate_manual_threshold_undo()
         selected = sorted({index.row() for index in self.table.selectedIndexes()}, reverse=True)
         for row in selected:
             self.table.removeRow(row)
         self.count_label.setText(f"{self.table.rowCount()} 条{self.row_label}")
 
-    def open_single_sided_threshold(self, side: str) -> None:
-        selected_index = self.table.currentRow()
+    def _preview_context(self) -> dict[str, str]:
+        if self.preview_context_provider is None:
+            return {}
         try:
-            current_rows = self.rows()
-            if selected_index < 0 or selected_index >= len(current_rows):
-                raise ConfigEditorError("请先在数值清洗规则表中选择一条测点专用规则")
-            target = current_rows[selected_index]
-            if target.scope != "per_point":
-                raise ConfigEditorError(
-                    "曲线拖线设置单边阈值只适用于测点专用规则；请先选择或新增测点规则"
-                )
-            if target.point_key in {"", "POINT_ID"}:
-                raise ConfigEditorError("请先把测点编号填写为配置中真实存在的测点")
-            payload = self.session.payload if self.session is not None else {}
-            aliases = accepted_point_ids(payload, target.point_key)
-            dialog = self.single_side_dialog_class(
+            raw = self.preview_context_provider()
+        except Exception as exc:  # noqa: BLE001
+            raise ConfigEditorError(f"无法读取当前任务信息：{exc}") from exc
+        if not isinstance(raw, Mapping):
+            raise ConfigEditorError("当前任务信息格式无效")
+        context = {
+            key: str(raw.get(key) or "").strip()
+            for key in ("bridge_id", "data_root", "start_date", "end_date")
+        }
+        missing = [key for key, value in context.items() if not value]
+        if missing:
+            raise ConfigEditorError(
+                "当前任务信息不完整，不能安全加载曲线预览："
+                + "、".join(missing)
+            )
+        try:
+            start = datetime.strptime(context["start_date"], "%Y-%m-%d").date()
+            end = datetime.strptime(context["end_date"], "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise ConfigEditorError("当前任务的起止日期无效") from exc
+        if end < start:
+            raise ConfigEditorError("当前任务的结束日期早于开始日期")
+        return context
+
+    def _manual_threshold_target(
+        self,
+    ) -> tuple[int, list[CleaningThresholdRow], CleaningThresholdRow, tuple[str, ...]]:
+        selected_index = self.table.currentRow()
+        selected_rows = {index.row() for index in self.table.selectedIndexes()}
+        if len(selected_rows) != 1:
+            raise ConfigEditorError("曲线设置阈值一次只作用于一条规则；请只选择一行")
+        current_rows = self.rows()
+        if selected_index < 0 or selected_index >= len(current_rows):
+            raise ConfigEditorError("请先在数值清洗规则表中选择一条测点专用规则")
+        target = current_rows[selected_index]
+        if target.scope != "per_point":
+            raise ConfigEditorError(
+                "曲线设置阈值只适用于测点专用规则；请先选择或新增测点规则"
+            )
+        if target.point_key in {"", "POINT_ID"}:
+            raise ConfigEditorError("请先把测点编号填写为配置中真实存在的测点")
+        payload = self.session.payload if self.session is not None else {}
+        return selected_index, current_rows, target, accepted_point_ids(
+            payload, target.point_key
+        )
+
+    def _apply_manual_threshold_rows(
+        self,
+        *,
+        before: list[CleaningThresholdRow],
+        previous_index: int,
+        updated: list[CleaningThresholdRow],
+        result_index: int,
+        message: str,
+    ) -> None:
+        self._populate(updated)
+        self.table.selectRow(result_index)
+        self.table.scrollToItem(self.table.item(result_index, 0))
+        self._manual_threshold_undo = (before, previous_index, list(updated))
+        self.undo_manual_threshold_button.setEnabled(True)
+        self.message_label.setText(message)
+        self.message_label.setStyleSheet("color: #9a6700; font-weight: 600;")
+
+    def open_threshold_band(self) -> None:
+        dialog = None
+        try:
+            selected_index, current_rows, target, aliases = self._manual_threshold_target()
+            context = self._preview_context()
+            dialog = self.threshold_band_dialog_class(
                 target,
-                side=side,
                 accepted_preview_point_ids=aliases,
+                expected_config_sha256=(self.session.loaded_sha256 if self.session else ""),
+                expected_bridge_id=context.get("bridge_id", ""),
+                expected_data_root=context.get("data_root", ""),
+                expected_start_date=context.get("start_date", ""),
+                expected_end_date=context.get("end_date", ""),
                 parent=self,
             )
             if dialog.exec() != QDialog.Accepted:
                 return
             draft = dialog.draft()
-            updated_rows, result_index, replaced = merge_one_sided_rule(
+            estimate_summary = dialog.estimate_summary()
+            updated_rows, result_index, _replaced = merge_two_sided_rule(
                 current_rows,
                 selected_index=selected_index,
                 draft=draft,
             )
         except (ValueError, ConfigEditorError) as exc:
-            QMessageBox.warning(self, "无法设置单边阈值", str(exc))
+            QMessageBox.warning(self, "无法拖线设置上下限", str(exc))
             return
-
-        self._single_side_undo = (current_rows, selected_index)
-        self._populate(updated_rows)
-        self.table.selectRow(result_index)
-        self.table.scrollToItem(self.table.item(result_index, 0))
-        self.undo_single_side_button.setEnabled(True)
-        action = "修改" if replaced else "新增"
-        self.message_label.setText(
-            f"尚未保存：已{action} {draft.module_key}/{draft.point_key} 的{draft.direction_text}，"
-            f"精确阈值={draft.value:.15g}，时间窗={draft.time_window_text}。"
-            f"{dialog.estimate_summary()}"
+        finally:
+            if dialog is not None and hasattr(dialog, "deleteLater"):
+                dialog.deleteLater()
+        self._apply_manual_threshold_rows(
+            before=current_rows,
+            previous_index=selected_index,
+            updated=updated_rows,
+            result_index=result_index,
+            message=(
+                f"尚未保存：已按旧 MATLAB 双线方式修改 {draft.module_key}/{draft.point_key}，"
+                f"下限={draft.lower:.15g}，上限={draft.upper:.15g}，"
+                f"共同时间窗={draft.time_window_text}。{estimate_summary}"
+            ),
         )
-        self.message_label.setStyleSheet("color: #9a6700; font-weight: 600;")
 
-    def undo_single_sided_threshold(self) -> None:
-        if self._single_side_undo is None:
+    def open_box_threshold(self, side: str) -> None:
+        dialog = None
+        try:
+            selected_index, current_rows, target, aliases = self._manual_threshold_target()
+            context = self._preview_context()
+            dialog = self.box_threshold_dialog_class(
+                target,
+                side=side,
+                accepted_preview_point_ids=aliases,
+                expected_config_sha256=(self.session.loaded_sha256 if self.session else ""),
+                expected_bridge_id=context.get("bridge_id", ""),
+                expected_data_root=context.get("data_root", ""),
+                expected_start_date=context.get("start_date", ""),
+                expected_end_date=context.get("end_date", ""),
+                parent=self,
+            )
+            if dialog.exec() != QDialog.Accepted:
+                return
+            proposal = dialog.proposal()
+            draft = proposal.draft
+            estimate_summary = dialog.estimate_summary()
+            updated_rows, result_index, _replaced = apply_one_sided_to_selected_row(
+                current_rows,
+                selected_index=selected_index,
+                draft=draft,
+            )
+        except (ValueError, ConfigEditorError) as exc:
+            QMessageBox.warning(self, "无法框选设置阈值", str(exc))
             return
-        rows, selected_index = self._single_side_undo
+        finally:
+            if dialog is not None and hasattr(dialog, "deleteLater"):
+                dialog.deleteLater()
+        rule = "下侧框选取最高值" if side == LOWER_SIDE else "上侧框选取最低值"
+        self._apply_manual_threshold_rows(
+            before=current_rows,
+            previous_index=selected_index,
+            updated=updated_rows,
+            result_index=result_index,
+            message=(
+                f"尚未保存：{rule}，已把 {draft.module_key}/{draft.point_key} 的"
+                f"{draft.direction_text}更新为 {draft.value:.15g}；"
+                f"框中有限预览点 {proposal.selected_sample_count} 个。"
+                f"等于阈值的点保留。{estimate_summary}"
+            ),
+        )
+
+    def undo_manual_threshold(self) -> None:
+        if self._manual_threshold_undo is None:
+            return
+        rows, selected_index, expected_current = self._manual_threshold_undo
+        try:
+            current = self.rows()
+        except (ValueError, ConfigEditorError):
+            current = []
+        if current != expected_current:
+            self._manual_threshold_undo = None
+            self.undo_manual_threshold_button.setEnabled(False)
+            self.message_label.setText(
+                "表格在曲线设置后又发生了其它修改，为避免覆盖这些修改，已取消本次撤销。"
+            )
+            self.message_label.setStyleSheet("color: #9a6700; font-weight: 600;")
+            return
         self._populate(rows)
         if 0 <= selected_index < self.table.rowCount():
             self.table.selectRow(selected_index)
-        self._single_side_undo = None
-        self.undo_single_side_button.setEnabled(False)
-        self.message_label.setText("已撤销上次尚未保存的单边阈值设置。")
+        self._manual_threshold_undo = None
+        self.undo_manual_threshold_button.setEnabled(False)
+        self.message_label.setText("已撤销上次尚未保存的曲线阈值设置。")
         self.message_label.setStyleSheet("color: #167c35;")
 
     def _populate_exclude_rows(self, rows: list[ExcludeRangeRow]) -> None:
@@ -1275,6 +1447,7 @@ class CleaningThresholdEditorWidget(QWidget):
             f"保存完成：{result.path}；配置版本校验码={result.sha256[:16]}…；备份={backup}"
         )
         self.message_label.setStyleSheet("color: #167c35; font-weight: 600;")
+        self._invalidate_manual_threshold_undo()
         self.config_saved.emit(str(result.path), result.sha256, backup)
         QMessageBox.information(self, "保存完成", self.message_label.text())
 
@@ -1288,7 +1461,9 @@ class PostFilterThresholdEditorWidget(CleaningThresholdEditorWidget):
     add_default_text = "新增默认滤波后规则"
     add_point_text = "新增测点滤波后规则"
     supports_exclude_ranges = False
-    supports_manual_single_side = False
+    # Automatic-cleaning previews are pre-filter data.  Do not expose curve
+    # tools here until a filter-chain-pinned post-filter preview exists.
+    supports_curve_threshold_tools = False
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)

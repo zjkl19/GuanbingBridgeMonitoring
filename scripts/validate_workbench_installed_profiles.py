@@ -134,6 +134,9 @@ def validate_profile_payload(
             and payload.get("module_count") == len(MODULE_SPECS)
             and payload.get("plot_common_field_count") == 14
             and payload.get("manual_threshold_controls_available") is True
+            and payload.get("threshold_band_control_available") is True
+            and payload.get("lower_box_threshold_control_available") is True
+            and payload.get("upper_box_threshold_control_available") is True
             and int(payload.get("offset_correction_column_count") or 0) >= 7
             and payload.get("offset_effective_range_seconds_available") is True
             and int(payload.get("gap_override_column_count") or 0) == 6

@@ -76,9 +76,18 @@ acceptance sequence is incomplete.
 - `auto` resolves conservatively and records the requested, resolved and
   effective worker counts plus any serial fallback reason. Parallel speed-up is
   workload and storage dependent; the safety and disk gates remain authoritative.
-- One-sided manual threshold editing changes exactly one bound for the selected
-  module and point. Preview and drag interaction are advisory until the operator
-  confirms; cancel and window close must leave the configuration unchanged.
+- Manual curve editing now has two separate contracts. The legacy-equivalent
+  drag dialog edits a lower/upper pair over one required shared time window;
+  lower-side box selection takes the highest finite sample inside the box and
+  upper-side selection takes the lowest. Box edges are never used as threshold
+  values, equal-to-bound samples are retained, and the box does not silently
+  redefine the rule time window. Preview counts remain sampled estimates;
+  cancel/window close must leave the table unchanged and only an explicit page
+  save may write the configuration.
+- A curve preview opened from the main workbench is accepted only when its
+  bridge id, layered-config SHA-256, canonical data root and start/end dates all
+  match the live task controls. Older preview artifacts without that context
+  fail closed; do not weaken this to a warning-only comparison.
 - Zero-offset effective ranges have second precision. A legacy date-only end
   includes that whole day, while an explicit `00:00:00` end means midnight
   exactly. Keep both interpretations covered by boundary tests.
@@ -109,9 +118,9 @@ acceptance sequence is incomplete.
 
 ## v1.8.1-rc3 Local Review Boundary
 
-Status: confirmed source defects are fixed. The complete Python suite ran `582`
-tests successfully (`581` passed, `1` conditionally skipped), and MATLAB passed
-`673/673` with no failure or incomplete test. The final rebuilt rc3 workbench
+Status: confirmed source defects are fixed. The complete Python suite ran `597`
+tests successfully (`596` passed, `1` conditionally skipped), and MATLAB passed
+`675/675` with no failure or incomplete test. The final rebuilt rc3 workbench
 passed native foreground, keyboard focus and icon ownership at 120 DPI with
 per-monitor awareness and a 2018 x 1122 physical window. The `384/384` file
 inventory and formal release archive gate passed; rc3 is not deployed to

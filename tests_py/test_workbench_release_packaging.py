@@ -18,6 +18,22 @@ VERSION = "v1.8.1-rc3"
 OPERATOR_GUIDE_NAME = "\u4f7f\u7528\u8bf4\u660e.md"
 CACHE_PREBUILD_STEM = "\u9884\u751f\u6210\u5206\u6790\u7f13\u5b58"
 THRESHOLD_PREVIEW_STEM = "\u6253\u5f00\u66f2\u7ebf\u9884\u89c8\u5e76\u62d6\u7ebf\u8bbe\u7f6e"
+BAND_THRESHOLD_STEM = "拖线设置上下限"
+LOWER_BOX_RULE = "下侧框选取框中实际有限样本的最高值"
+UPPER_BOX_RULE = "上侧框选取框中实际有限样本的最低值"
+LOWER_DELETE_RULE = "删除严格低于该值的数据"
+UPPER_DELETE_RULE = "删除严格高于该值的数据"
+EQUALITY_RULE = "等于候选阈值的点保留"
+GUIDE_FRAGMENTS = (
+    CACHE_PREBUILD_STEM,
+    THRESHOLD_PREVIEW_STEM,
+    BAND_THRESHOLD_STEM,
+    LOWER_BOX_RULE,
+    UPPER_BOX_RULE,
+    LOWER_DELETE_RULE,
+    UPPER_DELETE_RULE,
+    EQUALITY_RULE,
+)
 
 
 def _sha256(path: Path) -> str:
@@ -45,6 +61,9 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
             "version": VERSION,
             "config_tab_count": 9,
             "manual_threshold_controls_available": True,
+            "threshold_band_control_available": True,
+            "lower_box_threshold_control_available": True,
+            "upper_box_threshold_control_available": True,
             "offset_effective_range_seconds_available": True,
             "gap_override_column_count": 6,
             "unzip_settings_available": True,
@@ -56,8 +75,7 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
         (self.dist / "桥梁健康监测工作台.exe").write_bytes(b"fixture-executable")
         (self.dist / "asset.txt").write_text("fixture asset", encoding="utf-8")
         (self.dist / OPERATOR_GUIDE_NAME).write_text(
-            f"# Guide\n{CACHE_PREBUILD_STEM}\n"
-            f"{THRESHOLD_PREVIEW_STEM}\u9608\u503c\uff08\u53cc\u5411\uff09\n",
+            "# Guide\n" + "\n".join(GUIDE_FRAGMENTS) + "\n",
             encoding="utf-8",
         )
         self.manifest = self._base_manifest()
@@ -107,7 +125,7 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
                 "physical_height": 1122,
             },
             "operator_feature_contract_smoke": True,
-            "operator_feature_contract_version": 1,
+            "operator_feature_contract_version": 2,
             "includes_analysis_runner": True,
             "report_runtime": "embedded_headless_worker",
             "standalone_report_builder_included": False,
@@ -128,6 +146,23 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
         (self.dist / "release_manifest.json").write_text(
             json.dumps(self.manifest, ensure_ascii=False, indent=2), encoding="utf-8-sig"
         )
+
+    def _write_smoke_and_refresh_manifest(self) -> None:
+        smoke_path = self.dist / "workbench_smoke.json"
+        smoke_path.write_text(
+            json.dumps(self.smoke, ensure_ascii=False), encoding="utf-8"
+        )
+        self.manifest["smoke"] = copy.deepcopy(self.smoke)
+        payload = smoke_path.read_bytes()
+        for entry in self.manifest["file_inventory"]:
+            if entry["path"] == smoke_path.name:
+                entry["bytes"] = len(payload)
+                entry["sha256"] = hashlib.sha256(payload).hexdigest()
+                break
+        self.manifest["total_bytes_excluding_manifest"] = sum(
+            entry["bytes"] for entry in self.manifest["file_inventory"]
+        )
+        self._write_manifest()
 
     def _run(self, output: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -189,17 +224,16 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
         self.assertIn("Operator guide not found", completed.stderr)
 
     def test_operator_guide_requires_each_workflow_stem(self) -> None:
-        cases = (
-            ("missing-cache", f"# Guide\n{THRESHOLD_PREVIEW_STEM}\u9608\u503c\n"),
-            ("missing-threshold", f"# Guide\n{CACHE_PREBUILD_STEM}\n"),
-        )
-        for name, content in cases:
-            with self.subTest(name=name):
+        for index, missing in enumerate(GUIDE_FRAGMENTS):
+            with self.subTest(missing=missing):
+                content = "# Guide\n" + "\n".join(
+                    fragment for fragment in GUIDE_FRAGMENTS if fragment != missing
+                )
                 (self.dist / OPERATOR_GUIDE_NAME).write_text(
                     content,
                     encoding="utf-8",
                 )
-                completed = self._run(self.repo / name)
+                completed = self._run(self.repo / f"missing-guide-fragment-{index}")
                 self.assertNotEqual(0, completed.returncode)
                 self.assertIn(
                     "Operator guide is missing required user workflow text",
@@ -258,6 +292,29 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
                 completed = self._run(self.repo / f"invalid-{index}")
                 self.assertNotEqual(0, completed.returncode)
                 self.assertIn(expected_message, completed.stderr)
+
+    def test_threshold_entry_smoke_fields_are_individually_required_true_booleans(self) -> None:
+        fields = (
+            "threshold_band_control_available",
+            "lower_box_threshold_control_available",
+            "upper_box_threshold_control_available",
+        )
+        baseline_smoke = copy.deepcopy(self.smoke)
+        for index, field in enumerate(fields):
+            for suffix, value in (("false", False), ("string", "true"), ("missing", None)):
+                with self.subTest(field=field, value=value):
+                    self.smoke = copy.deepcopy(baseline_smoke)
+                    self.manifest = self._base_manifest()
+                    if suffix == "missing":
+                        self.smoke.pop(field)
+                    else:
+                        self.smoke[field] = value
+                    self._write_smoke_and_refresh_manifest()
+                    completed = self._run(
+                        self.repo / f"invalid-threshold-smoke-{index}-{suffix}"
+                    )
+                    self.assertNotEqual(0, completed.returncode)
+                    self.assertIn(field, completed.stderr)
 
     def test_native_gui_evidence_is_strictly_validated(self) -> None:
         cases = (

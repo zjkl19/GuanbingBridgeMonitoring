@@ -42,7 +42,13 @@ function Assert-OperatorGuideContract {
     # as a substring.
     $requiredFragments = @(
         (-join (39044, 29983, 25104, 20998, 26512, 32531, 23384 | ForEach-Object { [char]$_ })),
-        (-join (25171, 24320, 26354, 32447, 39044, 35272, 24182, 25302, 32447, 35774, 32622 | ForEach-Object { [char]$_ }))
+        (-join (25171, 24320, 26354, 32447, 39044, 35272, 24182, 25302, 32447, 35774, 32622 | ForEach-Object { [char]$_ })),
+        (-join (25302, 32447, 35774, 32622, 19978, 19979, 38480 | ForEach-Object { [char]$_ })),
+        (-join (19979, 20391, 26694, 36873, 21462, 26694, 20013, 23454, 38469, 26377, 38480, 26679, 26412, 30340, 26368, 39640, 20540 | ForEach-Object { [char]$_ })),
+        (-join (19978, 20391, 26694, 36873, 21462, 26694, 20013, 23454, 38469, 26377, 38480, 26679, 26412, 30340, 26368, 20302, 20540 | ForEach-Object { [char]$_ })),
+        (-join (21024, 38500, 20005, 26684, 20302, 20110, 35813, 20540, 30340, 25968, 25454 | ForEach-Object { [char]$_ })),
+        (-join (21024, 38500, 20005, 26684, 39640, 20110, 35813, 20540, 30340, 25968, 25454 | ForEach-Object { [char]$_ })),
+        (-join (31561, 20110, 20505, 36873, 38408, 20540, 30340, 28857, 20445, 30041 | ForEach-Object { [char]$_ }))
     )
     foreach ($fragment in $requiredFragments) {
         if (-not $content.Contains($fragment)) {
@@ -281,6 +287,9 @@ if ($expectedProfileCount -lt 1) {
 $operatorFeatureContractSmoke = (
     $smoke.config_tab_count -eq 9 `
         -and $smoke.manual_threshold_controls_available `
+        -and $smoke.threshold_band_control_available `
+        -and $smoke.lower_box_threshold_control_available `
+        -and $smoke.upper_box_threshold_control_available `
         -and $smoke.offset_effective_range_seconds_available `
         -and $smoke.gap_override_column_count -eq 6 `
         -and $smoke.unzip_settings_available
@@ -451,7 +460,7 @@ $releaseManifest = [ordered]@{
     native_font_smoke = (-not $OffscreenScreenshots) -and ($smoke.ui_font_point_size -ge 10)
     native_icon_smoke = (-not $OffscreenScreenshots) -and [bool]$smoke.window_icon_available
     native_gui_acceptance = $nativeGuiAcceptance
-    operator_feature_contract_version = 1
+    operator_feature_contract_version = 2
     operator_feature_contract_smoke = [bool]$operatorFeatureContractSmoke
     embedded_report_runtime = $reportRuntimeSmoke
     installed_profile_matrix = [ordered]@{

@@ -76,10 +76,15 @@ class MultiBridgeConfigRoundTripTests(unittest.TestCase):
                     self.assertTrue(
                         all(editor.session.path == config_path.resolve() for editor in editors)
                     )
-                    self.assertEqual(
-                        Path(window.auto_threshold_editor.context_provider()["config_path"]),
-                        config_path,
-                    )
+                    context = window.auto_threshold_editor.context_provider()
+                    self.assertEqual(Path(context["config_path"]), config_path)
+                    self.assertEqual(context["bridge_id"], profile.bridge_id)
+                    self.assertEqual(window.cleaning_editor._preview_context(), {
+                        "bridge_id": profile.bridge_id,
+                        "data_root": window.data_root_edit.text().strip(),
+                        "start_date": window.start_date_edit.date().toString("yyyy-MM-dd"),
+                        "end_date": window.end_date_edit.date().toString("yyyy-MM-dd"),
+                    })
 
                     window.group_plot_editor._persist_module()
                     window.spectrum_editor._persist_module()

@@ -39,6 +39,7 @@ class WorkbenchAutoThresholdTests(unittest.TestCase):
             config = root / "config.json"
             config.write_text("{}", encoding="utf-8")
             paths, payload = prepare_request(
+                bridge_id="unit_bridge",
                 data_root=data,
                 config_path=config,
                 start_date="2026-01-01",
@@ -49,6 +50,7 @@ class WorkbenchAutoThresholdTests(unittest.TestCase):
             )
             self.assertEqual(payload["request_type"], "auto_threshold_proposal")
             self.assertEqual(payload["request_id"], "auto_unit")
+            self.assertEqual(payload["bridge_id"], "unit_bridge")
             self.assertTrue(paths.request.is_file())
             self.assertFalse(paths.request.read_bytes().startswith(b"\xef\xbb\xbf"))
             self.assertEqual(read_status(paths.status)["status"], "prepared")
@@ -75,13 +77,20 @@ class WorkbenchAutoThresholdTests(unittest.TestCase):
 
     def test_preview_artifact_is_hash_pinned_and_count_closed(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "preview.json"
+            root = Path(folder)
+            data_root = root / "data"
+            data_root.mkdir()
+            path = root / "preview.json"
             payload = {
                 "schema_version": 1,
                 "artifact_type": "auto_threshold_preview",
                 "request_type": "auto_threshold_proposal",
                 "request_id": "unit-preview",
+                "bridge_id": "unit_bridge",
                 "config_sha256": "a" * 64,
+                "data_root": str(data_root.resolve()),
+                "start_date": "2026-01-01",
+                "end_date": "2026-01-31",
                 "preview_series": [{
                     "module_key": "temperature",
                     "point_id": "T-1",
@@ -97,6 +106,10 @@ class WorkbenchAutoThresholdTests(unittest.TestCase):
                 expected_sha256=file_sha256(path),
                 expected_request_id="unit-preview",
                 expected_config_sha256="a" * 64,
+                expected_bridge_id="UNIT_BRIDGE",
+                expected_data_root=data_root / ".",
+                expected_start_date="2026-01-01",
+                expected_end_date="2026-01-31",
                 expected_series_count=1,
             )
             self.assertEqual(rows[("temperature", "T-1")].values, (12.5, None))
@@ -104,6 +117,55 @@ class WorkbenchAutoThresholdTests(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(AutoThresholdError, "点数不闭合"):
                 load_preview_artifact(path)
+
+    def test_preview_context_validation_fails_closed_for_legacy_or_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            data_root = root / "data"
+            data_root.mkdir()
+            path = root / "preview.json"
+            payload = {
+                "schema_version": 1,
+                "artifact_type": "auto_threshold_preview",
+                "request_type": "auto_threshold_proposal",
+                "request_id": "legacy-preview",
+                "config_sha256": "b" * 64,
+                "preview_series": [],
+            }
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            expected = {
+                "expected_bridge_id": "unit_bridge",
+                "expected_data_root": data_root,
+                "expected_start_date": "2026-05-01",
+                "expected_end_date": "2026-05-31",
+            }
+            with self.assertRaisesRegex(AutoThresholdError, "缺少桥梁编号"):
+                load_preview_artifact(path, **expected)
+
+            payload.update(
+                bridge_id="unit_bridge",
+                data_root=str(data_root.resolve()),
+                start_date="2026-05-01",
+                end_date="2026-05-31",
+            )
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertEqual(load_preview_artifact(path, **expected), {})
+            with self.assertRaisesRegex(AutoThresholdError, "桥梁编号与当前任务不一致"):
+                load_preview_artifact(
+                    path, **{**expected, "expected_bridge_id": "other_bridge"}
+                )
+            with self.assertRaisesRegex(AutoThresholdError, "数据目录与当前任务不一致"):
+                load_preview_artifact(
+                    path, **{**expected, "expected_data_root": root / "other"}
+                )
+            with self.assertRaisesRegex(AutoThresholdError, "开始日期与当前任务不一致"):
+                load_preview_artifact(
+                    path, **{**expected, "expected_start_date": "2026-05-02"}
+                )
+            with self.assertRaisesRegex(AutoThresholdError, "结束日期与当前任务不一致"):
+                load_preview_artifact(
+                    path, **{**expected, "expected_end_date": "2026-05-30"}
+                )
 
     def test_selected_proposals_use_apply_key_safe_id_and_config_pin(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
