@@ -8,6 +8,7 @@ import pytest
 from openpyxl import Workbook, load_workbook
 
 from scripts.high_memory_recovery import (
+    _infer_artifact_role,
     _spectrum_output_contract,
     build_baseline_evidence,
     compose_recovery_manifest,
@@ -32,6 +33,26 @@ BASE_MODULES = [
     "strain",
     "acceleration",
 ]
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "expected"),
+    [
+        ("加速度_RMS/A1_RMS10.jpg", "rms10min"),
+        ("频谱峰值曲线_加速度/SpecFreq_A1.jpg", "spectrum"),
+        ("加速度箱线图/A1_boxplot.jpg", "boxplot"),
+        ("风速风向结果/风玫瑰/W1_windrose_summary.txt", "wind_rose"),
+        ("风速风向结果/风速10min/W1_speed10min.jpg", "wind_speed10min"),
+        ("频次分布_湿度/HumidityFreq_H1.jpg", "frequency_distribution"),
+        ("时程曲线_挠度_原始/Defl_A1_Orig.jpg", "raw"),
+        ("时程曲线_挠度_滤波/Defl_A1_Filt.jpg", "filtered"),
+        ("时程曲线_温度/T1.jpg", "time_history"),
+    ],
+)
+def test_rebuilt_baseline_artifact_roles_match_normal_collector(
+    relative_path: str, expected: str
+) -> None:
+    assert _infer_artifact_role(Path(relative_path)) == expected
 
 
 @pytest.mark.parametrize(
@@ -444,6 +465,28 @@ def test_merge_cable_stats_rejects_point_or_column_mismatch(tmp_path: Path) -> N
 def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_path: Path) -> None:
     root = tmp_path / "rc"
     baseline_records = [_module_record(root, key) for key in BASE_MODULES]
+    semantic_paths = {
+        "wind_summary": root / "风速风向结果" / "风玫瑰" / "W1_windrose_summary.txt",
+        "wind_rose": root / "风速风向结果" / "风玫瑰" / "W1_windrose.jpg",
+        "wind_speed10min": root / "风速风向结果" / "风速10min" / "W1_speed10min.jpg",
+        "rms10min": root / "加速度_RMS" / "A1_RMS10.jpg",
+        "raw": root / "时程曲线_挠度_原始" / "Defl_A1_Orig.jpg",
+        "filtered": root / "时程曲线_挠度_滤波" / "Defl_A1_Filt.jpg",
+    }
+    module_for_role = {
+        "wind_summary": "wind",
+        "wind_rose": "wind",
+        "wind_speed10min": "wind",
+        "rms10min": "acceleration",
+        "raw": "deflection",
+        "filtered": "deflection",
+    }
+    records_by_key = {record["key"]: record for record in baseline_records}
+    for role_name, path in semantic_paths.items():
+        kind = "summary" if role_name == "wind_summary" else "figure"
+        records_by_key[module_for_role[role_name]]["artifacts"].append(
+            _artifact(path, kind=kind)
+        )
     config_path = root / "config" / "baseline.json"
     _write_json(config_path, {
         **_config_contract(),
@@ -504,6 +547,14 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
     )
     rebuilt_baseline = json.loads(baseline.read_text(encoding="utf-8"))
     assert rebuilt_baseline["bridge_profile"]["bridge_id"] == "jiulongjiang"
+    rebuilt_roles = {
+        Path(artifact["path"]).name: artifact["role"]
+        for record in rebuilt_baseline["module_results"]
+        for artifact in record["artifacts"]
+    }
+    assert rebuilt_roles[semantic_paths["wind_summary"].name] == "wind_rose"
+    for role_name in ("wind_rose", "wind_speed10min", "rms10min", "raw", "filtered"):
+        assert rebuilt_roles[semantic_paths[role_name].name] == role_name
 
     single_stats = []
     cable_manifests = []

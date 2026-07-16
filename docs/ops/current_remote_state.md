@@ -8,6 +8,17 @@ state and keep algorithm/report decisions in the normal project docs.
 
 ## Current gb-133 Pre-Release State (2026-07-16)
 
+- The exact v1.8.1 candidate package was deployed only to
+  `F:\Guanbing_v1.8.1-rc1\app`; stable `F:\Guanbing` remains v1.8.0. The first
+  Jiulongjiang May report task is disabled and safely failed before DOCX output
+  because the recovered composite manifest used generic artifact roles. There
+  are no report, Runner, MATLAB or worker processes.
+- The two May wind-summary files are present and hash-bound. Source now repairs
+  semantic role reconstruction; the next operation is to publish a new baseline
+  evidence file and composite manifest from existing artifacts, redeploy the
+  rebuilt candidate report generator and retry the report. No 15-module analysis
+  rerun is required.
+
 - The isolated Jiulongjiang May recovery task completed all `17/17` jobs:
   `15` point-isolated cable-acceleration jobs plus full acceleration-spectrum
   and cable-acceleration-spectrum jobs. The accepted composite manifest is
@@ -30,11 +41,9 @@ state and keep algorithm/report decisions in the normal project docs.
   `ctfxlauncher` worker. The Codex monitoring automation remains paused; repeat
   the same exact-process and disk preflight immediately before any new write.
 - Stable `F:\Guanbing` is still the frozen v1.8.0 production installation. The
-  isolated `F:\Guanbing_v1.8.1-rc1\app` is still an rc5-era/hot-patched
-  candidate and is not a final immutable v1.8.1 package. It lacks the final
-  report-builder changes required to generate the accepted Jiulongjiang May
-  report, so do not use it for final delivery and do not copy it over stable
-  production.
+  isolated `F:\Guanbing_v1.8.1-rc1\app` is a candidate only and is not yet an
+  accepted stable v1.8.1 installation. Do not copy it over stable production
+  before the rebuilt manifest, report and local Word/PDF review pass.
 - Open gates, in order: build and deploy the exact committed final v1.8.1
   package to the isolated tree; generate Jiulongjiang May DOCX from the accepted
   composite manifest; copy it locally for Microsoft Word field update,

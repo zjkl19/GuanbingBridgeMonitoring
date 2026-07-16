@@ -6,6 +6,29 @@ Last updated: 2026-07-16
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
 
+## 2026-07-16 Jiulongjiang Strict Report Artifact-Role Repair
+
+- The first final v1.8.1 Jiulongjiang May report attempt failed closed before
+  producing a DOCX. The two May wind-summary files existed, matched the pinned
+  manifest by path, bytes and SHA-256, and covered `2026-05-01` through
+  `2026-05-31`; the failure was not missing data or a wrong report period.
+- Root cause was the recovery producer: baseline reconstruction labelled every
+  ordinary figure `time_history` and every `_summary.txt` file `summary`.
+  Normal analysis distinguishes `wind_rose`, `wind_speed10min`, `rms10min`,
+  `frequency_distribution`, `raw`, `filtered`, `boxplot` and `spectrum`.
+  Strict report lookup therefore rejected correctly hashed artifacts whose
+  recovered semantic role was wrong.
+- `scripts/high_memory_recovery.py` now mirrors the normal MATLAB collector's
+  immediate-parent/filename role inference when rebuilding baseline evidence.
+  Existing recovered summary records remain read-compatible without weakening
+  module, kind, directory, suffix, point-token, bytes, SHA-256 or report-period
+  checks. Figures continue to require their semantic role.
+- Python source gates now pass `655/655` unittest cases and `36/36` expanded
+  pytest cases. The next remote step is to rebuild baseline evidence and a new
+  composite manifest from the existing inventory and artifacts; no analysis
+  module needs to be recalculated. The new manifest must then pass strict report
+  generation and local Word/PDF review before release promotion.
+
 ## 2026-07-16 v1.8.1 Pre-Release Acceptance Snapshot
 
 This section supersedes the older in-progress checkpoints below. Historical
@@ -96,7 +119,7 @@ entries are retained so that the failure and recovery chain remains auditable.
   match the current task. If none matches, the user is directed to generate one
   on the automatic-cleaning-suggestion page. Manual JSON import is retained only
   behind an explicitly labelled advanced/diagnostic control.
-- Current full source gates pass: Python `654/654` plus the separate `27/27`
+- Current full source gates pass: Python `655/655` plus the separate `36/36`
   pytest function-node run, MATLAB `752/752`, and the complete configuration
   validation matrix. A final clean-commit package build and native packaged GUI
   acceptance must still be repeated before release promotion.

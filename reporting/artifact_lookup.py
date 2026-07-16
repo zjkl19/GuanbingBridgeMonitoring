@@ -87,6 +87,13 @@ def latest_file_patterns(
     kind: str | None = None,
 ) -> ArtifactLookupResult:
     configured_dir_text = str(configured_dir)
+    # Directory names such as ``风玫瑰`` describe a figure role, but the same
+    # directory also contains period summary text whose manifest role is
+    # simply ``summary``.  Applying the figure-role inference to non-figure
+    # artifacts makes a correctly pinned and hash-verified summary impossible
+    # to resolve.  Kind, module, directory, suffix and point-token checks still
+    # keep these lookups strict, so only figures should use the directory-based
+    # role discriminator.
     rejected_manifest_collision: Path | None = None
     strict_binding = active_pinned_analysis_manifest()
     context = (
@@ -104,7 +111,11 @@ def latest_file_patterns(
                 manifest_key_for_dir(configured_dir_text),
                 token=token or None,
                 kind=kind,
-                role=manifest_role_for_lookup(configured_dir_text, token),
+                role=(
+                    manifest_role_for_lookup(configured_dir_text, token)
+                    if kind in {None, "figure"}
+                    else None
+                ),
                 suffixes=suffixes_from_patterns(patterns),
                 directory_hint=configured_dir_text,
                 strict_point_token=point_token_strict,
@@ -138,7 +149,11 @@ def latest_file_patterns(
                 root,
                 token=token or None,
                 kind=kind,
-                role=manifest_role_for_lookup(configured_dir_text, token),
+                role=(
+                    manifest_role_for_lookup(configured_dir_text, token)
+                    if kind in {None, "figure"}
+                    else None
+                ),
                 suffixes=suffixes_from_patterns(patterns),
                 directory_hint=configured_dir_text,
                 strict_point_token=point_token_strict,

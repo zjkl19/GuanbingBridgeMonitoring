@@ -5,6 +5,28 @@ Last updated: 2026-07-16
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
 
+## Reconstructed Manifest Semantic Artifact Roles
+
+Status: fixed in source; Jiulongjiang May composite-manifest republication and
+report acceptance remain pending.
+
+- A recovery manifest must preserve the semantic role produced by the normal
+  MATLAB artifact collector. Treating every figure as `time_history` and every
+  summary text as `summary` can make a strict report silently omit figures or
+  fail closed even when path, bytes and SHA-256 are correct.
+- Baseline reconstruction now infers roles from only the immediate parent
+  directory and filename, using the same precedence as the normal collector.
+  Do not infer from the entire absolute path because ancestor names can cause
+  unrelated role matches.
+- Non-figure summary lookup may read the historical generic `summary` role for
+  compatibility, but figures still require their inferred semantic role. This
+  is not permission to bypass the pinned manifest, directory, point-token,
+  suffix, byte-count, SHA-256 or requested-period checks.
+- Existing analysis results do not need recalculation. Rebuild the baseline
+  evidence and composite manifest from the pinned run request, configuration,
+  explicit artifact inventory and current files, publish to a new path, then
+  bind the report to the new manifest and retain the old evidence unchanged.
+
 ## Verified Daily Source-CSV Cleanup Safety Boundary
 
 Status: implemented in the working tree and under regression review; not yet a

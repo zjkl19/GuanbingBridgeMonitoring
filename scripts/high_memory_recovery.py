@@ -1355,9 +1355,9 @@ def build_baseline_evidence(
                 kind, role = "plot_provenance", "plot_provenance"
                 _json_object(path, "Plot provenance")
             elif path.suffix.casefold() in {".jpg", ".jpeg", ".png", ".emf", ".fig"}:
-                kind, role = "figure", "time_history"
+                kind, role = "figure", _infer_artifact_role(path)
             elif lower.endswith("_summary.txt"):
-                kind, role = "summary", "summary"
+                kind, role = "summary", _infer_artifact_role(path)
             else:
                 raise ValueError(f"Unsupported baseline artifact type for {module}: {path}")
             artifacts.append({"kind": kind, "role": role, "path": str(path), "exists": True,
@@ -1437,6 +1437,37 @@ def build_baseline_evidence(
     return {"path": str(output), "bytes": output.stat().st_size,
             "sha256": _sha256_file(output), "module_count": 12,
             "artifact_count": evidence["artifact_count"]}
+
+
+def _infer_artifact_role(path: Path) -> str:
+    """Mirror ``ArtifactCollector.inferRole`` for rebuilt baseline evidence.
+
+    Recovery manifests are report-authoritative, so generic ``time_history``
+    and ``summary`` labels are insufficient for semantic plot directories.
+    Only the immediate parent plus filename participate, matching the MATLAB
+    collector and avoiding accidental matches from arbitrary ancestors.
+    """
+
+    text = f"{path.parent.name}/{path.name}".casefold()
+    if "rms10" in text or "rms_10" in text:
+        return "rms10min"
+    if "envelope30" in text or "包络" in text:
+        return "envelope30min"
+    if any(token in text for token in ("specfreq", "spectrum", "psd", "频谱")):
+        return "spectrum"
+    if "boxplot" in text or "箱线" in text:
+        return "boxplot"
+    if "windrose" in text or "风玫瑰" in text:
+        return "wind_rose"
+    if "freq" in text or "频率" in text or "频次" in text:
+        return "frequency_distribution"
+    if "speed10min" in text or "10min" in text:
+        return "wind_speed10min"
+    if "filt" in text or "滤波" in text:
+        return "filtered"
+    if "orig" in text or "原始" in text:
+        return "raw"
+    return "time_history"
 
 
 def _rehash_module_record(

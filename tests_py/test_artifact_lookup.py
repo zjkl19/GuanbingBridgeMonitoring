@@ -26,6 +26,64 @@ from analysis_manifest import (  # noqa: E402
 
 
 class TestArtifactLookup(unittest.TestCase):
+    def test_strict_wind_summary_does_not_inherit_figure_role(self):
+        for recorded_role in ("summary", "wind_rose"):
+            with self.subTest(recorded_role=recorded_role), tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                configured_dir = "风速风向结果/风玫瑰"
+                folder = root / "风速风向结果" / "风玫瑰"
+                folder.mkdir(parents=True)
+                point_id = "CSFSY-01-K16-GD-A20"
+                summary = folder / (
+                    f"{point_id}_windrose_2026-05-01_2026-05-31_summary.txt"
+                )
+                summary.write_text("平均风速: 1.00 m/s", encoding="utf-8")
+                manifest = root / "analysis.json"
+                manifest.write_text(
+                    json.dumps(
+                        {
+                            "module_results": [
+                                {
+                                    "key": "wind",
+                                    "artifacts": [
+                                        {
+                                            "kind": "summary",
+                                            "role": recorded_role,
+                                            "path": str(summary),
+                                            "exists": True,
+                                            "bytes": summary.stat().st_size,
+                                            "sha256": hashlib.sha256(
+                                                summary.read_bytes()
+                                            ).hexdigest().upper(),
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                manifest_hash = hashlib.sha256(manifest.read_bytes()).hexdigest().upper()
+
+                with pinned_analysis_manifest_scope(
+                    manifest,
+                    manifest_hash,
+                    require_source_provenance=True,
+                    result_root=root,
+                ):
+                    selected = latest_file_patterns(
+                        root,
+                        configured_dir,
+                        [f"{point_id}_windrose_*_summary.txt"],
+                        point_id=point_id,
+                        point_token_strict=True,
+                        kind="summary",
+                    )
+
+                self.assertEqual(selected.path, summary.resolve())
+                self.assertEqual(selected.debug["source"], "analysis_manifest")
+
     def test_strict_manifest_rejects_artifact_outside_result_root(self):
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
