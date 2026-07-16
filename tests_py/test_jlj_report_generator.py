@@ -22,6 +22,7 @@ from analysis_manifest import (  # noqa: E402
 )
 from build_jlj_monthly_report import (  # noqa: E402
     JLJ_CABLE_FORCE_UNVERIFIED_DISCLOSURE,
+    bind_last_figure_to_caption,
     build_cable_section,
     build_main_bearing_section,
     build_report,
@@ -87,6 +88,20 @@ class TestJljReportGenerator(unittest.TestCase):
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_last_figure_stays_with_caption(self):
+        doc = Document()
+        first = doc.add_paragraph("figure-1")
+        last = doc.add_paragraph("figure-2")
+        caption = doc.add_paragraph("caption")
+        caption.paragraph_format.keep_with_next = True
+
+        bind_last_figure_to_caption([first, last], caption)
+
+        self.assertIsNone(first.paragraph_format.keep_with_next)
+        self.assertTrue(last.paragraph_format.keep_with_next)
+        self.assertTrue(caption.paragraph_format.keep_together)
+        self.assertFalse(caption.paragraph_format.keep_with_next)
 
     def test_cover_monitoring_time_uses_report_month(self):
         self.assertEqual(

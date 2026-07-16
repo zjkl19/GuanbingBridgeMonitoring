@@ -3546,11 +3546,25 @@ def render_section_block(anchor: Paragraph, content: SectionBlock, body_template
 
     valid_images = [item for item in (content.image_items or []) if item.path is not None and item.path.exists()]
     if content.figure_title and valid_images:
+        picture_paragraphs: list[Paragraph] = []
         for item in valid_images:
             pic_para = insert_paragraph_before(anchor)
             pic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
             pic_para.add_run().add_picture(str(item.path), width=Mm(165))
-        insert_auto_caption_before(anchor, caption_templates.figure_paragraph, content.figure_title)
+            picture_paragraphs.append(pic_para)
+        caption = insert_auto_caption_before(anchor, caption_templates.figure_paragraph, content.figure_title)
+        bind_last_figure_to_caption(picture_paragraphs, caption)
+
+
+def bind_last_figure_to_caption(
+    picture_paragraphs: list[Paragraph],
+    caption: Paragraph,
+) -> None:
+    """Prevent Word from leaving a figure caption alone on the next page."""
+    if picture_paragraphs:
+        picture_paragraphs[-1].paragraph_format.keep_with_next = True
+    caption.paragraph_format.keep_together = True
+    caption.paragraph_format.keep_with_next = False
 
 
 def add_section_content(
