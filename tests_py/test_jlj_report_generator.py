@@ -1,5 +1,6 @@
-import os
+import hashlib
 import json
+import os
 import shutil
 import sys
 import unittest
@@ -15,9 +16,14 @@ from openpyxl import Workbook
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 
 from artifact_lookup import ArtifactLookupResult  # noqa: E402
+from analysis_manifest import (  # noqa: E402
+    pinned_analysis_manifest_scope,
+    pinned_derived_artifact_manifest_scope,
+)
 from build_jlj_monthly_report import (  # noqa: E402
     JLJ_CABLE_FORCE_UNVERIFIED_DISCLOSURE,
     build_cable_section,
+    build_main_bearing_section,
     build_report,
     build_wind_section,
     clean_jlj_report_xml_text,
@@ -178,6 +184,206 @@ class TestJljReportGenerator(unittest.TestCase):
         self.assertFalse(
             jlj_image_matches_report_period(stale, date(2026, 5, 1), date(2026, 5, 31))
         )
+
+    def test_strict_pinned_manifest_accepts_in_month_partial_range_only(self):
+        folder = self.tmp / "时程曲线_加速度"
+        folder.mkdir()
+
+        for filename, expected in (
+            ("A1_20260509_20260531.jpg", True),
+            ("A1_20260309_20260331.jpg", False),
+            ("A1_20260509_20260601.jpg", False),
+        ):
+            with self.subTest(filename=filename):
+                image = folder / filename
+                image.write_bytes(filename.encode("ascii"))
+                artifact = {
+                    "kind": "figure",
+                    "role": "time_history",
+                    "path": str(image.resolve()),
+                    "exists": True,
+                    "bytes": image.stat().st_size,
+                    "sha256": hashlib.sha256(image.read_bytes()).hexdigest().upper(),
+                }
+                manifest = self.tmp / f"analysis_{image.stem}.json"
+                manifest.write_text(
+                    json.dumps(
+                        {
+                            "module_results": [
+                                {
+                                    "key": "acceleration",
+                                    "status": "ok",
+                                    "artifacts": [artifact],
+                                }
+                            ]
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                manifest_hash = hashlib.sha256(manifest.read_bytes()).hexdigest().upper()
+                with pinned_analysis_manifest_scope(
+                    manifest,
+                    manifest_hash,
+                    require_source_provenance=True,
+                    result_root=self.tmp,
+                ), jlj_report_period_scope(date(2026, 5, 1), date(2026, 5, 31)):
+                    selected = find_latest_point_image_patterns(
+                        self.tmp,
+                        "时程曲线_加速度",
+                        "A1",
+                        ["A1_*.jpg"],
+                    )
+
+                self.assertEqual(selected, image.resolve() if expected else None)
+                image.unlink()
+
+    def test_unpinned_manifest_does_not_relax_partial_range_gate(self):
+        folder = self.tmp / "时程曲线_加速度"
+        folder.mkdir()
+        image = folder / "A1_20260509_20260531.jpg"
+        image.write_bytes(b"unpinned-partial")
+        run_logs = self.tmp / "run_logs"
+        run_logs.mkdir()
+        (run_logs / "analysis_manifest_1.json").write_text(
+            json.dumps(
+                {
+                    "module_results": [
+                        {
+                            "key": "acceleration",
+                            "status": "ok",
+                            "artifacts": [
+                                {
+                                    "kind": "figure",
+                                    "role": "time_history",
+                                    "path": str(image.resolve()),
+                                }
+                            ],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with jlj_report_period_scope(date(2026, 5, 1), date(2026, 5, 31)):
+            selected = find_latest_point_image_patterns(
+                self.tmp,
+                "时程曲线_加速度",
+                "A1",
+                ["A1_*.jpg"],
+            )
+
+        self.assertIsNone(selected)
+
+    def test_strict_derived_manifest_accepts_in_month_partial_range(self):
+        folder = self.tmp / "时程曲线_加速度"
+        folder.mkdir()
+        image = folder / "A1_20260509_20260531.jpg"
+        image.write_bytes(b"partial-derived")
+
+        analysis = self.tmp / "analysis.json"
+        analysis.write_text(json.dumps({"module_results": []}), encoding="utf-8")
+        analysis_hash = hashlib.sha256(analysis.read_bytes()).hexdigest().upper()
+        derived = self.tmp / "derived.json"
+        derived.write_text(
+            json.dumps(
+                {
+                    "manifest_type": "derived_artifact_manifest",
+                    "analysis_manifest": {
+                        "path": str(analysis.resolve()),
+                        "sha256": analysis_hash,
+                    },
+                    "result_root": str(self.tmp.resolve()),
+                    "artifacts": [
+                        {
+                            "kind": "figure",
+                            "role": "time_history",
+                            "path": str(image.resolve()),
+                            "bytes": image.stat().st_size,
+                            "sha256": hashlib.sha256(image.read_bytes()).hexdigest().upper(),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        derived_hash = hashlib.sha256(derived.read_bytes()).hexdigest().upper()
+
+        with pinned_analysis_manifest_scope(
+            analysis,
+            analysis_hash,
+            require_source_provenance=True,
+            result_root=self.tmp,
+        ), pinned_derived_artifact_manifest_scope(
+            derived,
+            derived_hash,
+            require_source_provenance=True,
+        ), jlj_report_period_scope(date(2026, 5, 1), date(2026, 5, 31)):
+            selected = find_latest_point_image_patterns(
+                self.tmp,
+                "时程曲线_加速度",
+                "A1",
+                ["A1_*.jpg"],
+            )
+
+        self.assertEqual(selected, image.resolve())
+
+    def test_main_bearing_section_uses_strict_filtered_directory(self):
+        stats = self.tmp / "stats"
+        figures = self.tmp / "时程曲线_支座位移_滤波"
+        stats.mkdir()
+        figures.mkdir()
+        point_id = "WYJ-01-K15-ZF-G14"
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(["PointID", "FiltMin_mm", "FiltMax_mm", "FiltMean_mm"])
+        sheet.append([point_id, -0.5, 0.6, 0.1])
+        stats_file = stats / "bearing_displacement_stats.xlsx"
+        workbook.save(stats_file)
+        image = figures / f"BearingDisp_{point_id}_20260501_20260531_Filt.jpg"
+        image.write_bytes(b"filtered-bearing")
+
+        def record(path: Path, kind: str, role: str) -> dict:
+            return {
+                "kind": kind,
+                "role": role,
+                "path": str(path.resolve()),
+                "exists": True,
+                "bytes": path.stat().st_size,
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest().upper(),
+            }
+
+        manifest = self.tmp / "analysis_bearing.json"
+        manifest.write_text(
+            json.dumps(
+                {
+                    "module_results": [
+                        {
+                            "key": "bearing_displacement",
+                            "status": "ok",
+                            "artifacts": [
+                                record(stats_file, "stats", "stats"),
+                                record(image, "figure", "filtered"),
+                            ],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        manifest_hash = hashlib.sha256(manifest.read_bytes()).hexdigest().upper()
+
+        with pinned_analysis_manifest_scope(
+            manifest,
+            manifest_hash,
+            require_source_provenance=True,
+            result_root=self.tmp,
+        ), jlj_report_period_scope(date(2026, 5, 1), date(2026, 5, 31)):
+            section = build_main_bearing_section({}, self.tmp, stats, None, self.tmp)
+
+        self.assertEqual(len(section.image_items or []), 1)
+        self.assertEqual(section.image_items[0].path, image.resolve())
 
     def test_analysis_manifest_period_mismatch_is_blocked(self):
         context = {

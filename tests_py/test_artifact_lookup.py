@@ -26,6 +26,16 @@ from analysis_manifest import (  # noqa: E402
 
 
 class TestArtifactLookup(unittest.TestCase):
+    def test_psd_directories_map_to_spectrum_modules_before_broad_hints(self):
+        self.assertEqual(
+            manifest_key_for_dir("PSD_备查/ZDCQG-01"),
+            "accel_spectrum",
+        )
+        self.assertEqual(
+            manifest_key_for_dir("PSD_备查_索力加速度/SLCGQ-01"),
+            "cable_accel_spectrum",
+        )
+
     def test_strict_wind_summary_does_not_inherit_figure_role(self):
         for recorded_role in ("summary", "wind_rose"):
             with self.subTest(recorded_role=recorded_role), tempfile.TemporaryDirectory() as td:

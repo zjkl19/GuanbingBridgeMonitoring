@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -846,15 +847,19 @@ class ThresholdBandDialog(QDialog):
         self.expected_start_date = str(expected_start_date or "").strip()
         self.expected_end_date = str(expected_end_date or "").strip()
         self.automatic_preview_resolver = automatic_preview_resolver
+        self.preview_generation_requested = False
+        self.external_reference_mode = False
+        self.external_reference_source = ""
         self.preview_identity_verified = False
         self.current_estimate: ThresholdEstimate | None = None
         self._lower_from_config = self.target_row.minimum is not None
         self._upper_from_config = self.target_row.maximum is not None
         self._initial_lower, self._initial_upper = self._default_pair()
-        self._initial_window = (
+        self._target_rule_window = (
             str(self.target_row.t_range_start or ""),
             str(self.target_row.t_range_end or ""),
         )
+        self._initial_window = self._target_rule_window
         self.setWindowTitle("拖动上下限（双边范围）")
         self._build_ui()
         _fit_dialog_to_available_screen(self)
@@ -909,31 +914,36 @@ class ThresholdBandDialog(QDialog):
         grid.addWidget(self.upper_edit, 0, 3)
         self.auto_load_preview_button = QPushButton("自动加载当前任务曲线")
         self.auto_load_preview_button.setToolTip(
-            "按当前桥梁、数据目录、日期、配置版本、分析类型和测点自动匹配，不需要选择 JSON 文件"
+            "按当前桥梁、数据目录、日期、配置版本、分析类型和测点自动匹配"
         )
         self.auto_load_preview_button.clicked.connect(self._load_automatic_preview)
         grid.addWidget(self.auto_load_preview_button, 0, 4)
         self.preview_path_label = QLabel(
-            "正在查找当前任务匹配的曲线；普通用户不需要选择 JSON 文件"
+            "正在查找当前任务匹配的曲线；正常操作无需选择任何文件"
         )
         self.preview_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.preview_path_label.setWordWrap(True)
         self.preview_path_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         grid.addWidget(self.preview_path_label, 0, 5)
 
-        self.advanced_preview_toggle = QPushButton("高级：导入已有预览文件")
-        self.advanced_preview_toggle.setCheckable(True)
-        self.advanced_preview_toggle.setToolTip(
-            "仅用于诊断或迁移旧任务；导入后仍会严格核对桥梁、目录、日期、配置版本和测点"
+        self.import_preview_button = QPushButton(
+            "从其他任务/项目导入参考曲线…"
         )
-        self.import_preview_button = QPushButton("选择 auto_threshold_preview JSON…")
-        self.import_preview_button.setVisible(False)
+        self.import_preview_button.setToolTip(
+            "可选：导入工作台生成的系统曲线记录；只把曲线数值作为当前配置行的参考，不冒充当前任务"
+        )
         self.import_preview_button.clicked.connect(self._choose_preview)
-        self.advanced_preview_toggle.toggled.connect(
-            self.import_preview_button.setVisible
+        grid.addWidget(self.import_preview_button, 2, 0, 1, 4)
+        self.generate_preview_button = QPushButton(
+            "没有曲线？关闭并前往“自动清洗建议”生成"
         )
-        grid.addWidget(self.advanced_preview_toggle, 2, 0, 1, 2)
-        grid.addWidget(self.import_preview_button, 2, 2, 1, 2)
+        self.generate_preview_button.setToolTip(
+            "关闭本窗口并切换到自动清洗建议页；生成完成后回到本页即可自动匹配"
+        )
+        self.generate_preview_button.clicked.connect(
+            self._request_preview_generation
+        )
+        grid.addWidget(self.generate_preview_button, 2, 4, 1, 2)
 
         self.time_window_check = QCheckBox(
             "共同时间窗（旧 MATLAB 方式，必须；默认取当前预览范围）"
@@ -1011,7 +1021,11 @@ class ThresholdBandDialog(QDialog):
 
     def draft(self) -> TwoSidedThresholdDraft:
         lower, upper = self._numbers()
-        start, end = self._time_texts()
+        start, end = (
+            self._target_rule_window
+            if self.external_reference_mode
+            else self._time_texts()
+        )
         return TwoSidedThresholdDraft(
             self.target_row.module_key,
             self.target_row.point_key,
@@ -1028,14 +1042,68 @@ class ThresholdBandDialog(QDialog):
             str(Path(self.expected_data_root) / "run_logs")
             if self.expected_data_root
             else "",
-            "自动清洗曲线预览 (auto_threshold_preview*.json);;JSON files (*.json)",
+            "系统曲线记录 (*.json)",
         )
         if not path:
             return
         try:
-            self.load_preview_path(Path(path))
+            self.load_reference_preview_path(Path(path))
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "曲线预览无法使用", str(exc))
+
+    def _request_preview_generation(self) -> None:
+        self.preview_generation_requested = True
+        self.reject()
+
+    def _pick_reference_series(
+        self, previews: dict[tuple[str, str], PreviewSeries]
+    ) -> tuple[PreviewSeries, tuple[str, str]]:
+        try:
+            matched = select_preview_series(
+                previews,
+                module_key=self.target_row.module_key,
+                point_ids=self.accepted_preview_point_ids,
+            )
+            return matched, matched.key
+        except ConfigEditorError:
+            pass
+        if len(previews) == 1:
+            key, series = next(iter(previews.items()))
+            return series, key
+        labels = [f"{module_label(key[0])} / {key[1]}" for key in previews]
+        selected, ok = QInputDialog.getItem(
+            self,
+            "选择外部参考曲线",
+            "该记录包含多条曲线；请选择仅用于参考当前配置行的一条：",
+            labels,
+            0,
+            False,
+        )
+        if not ok:
+            raise ConfigEditorError("已取消选择外部参考曲线")
+        index = labels.index(selected)
+        key = list(previews)[index]
+        return previews[key], key
+
+    def load_reference_preview_path(self, path: Path) -> None:
+        previews = load_preview_artifact(path)
+        source, source_key = self._pick_reference_series(previews)
+        rebound = PreviewSeries(
+            self.target_row.module_key,
+            self.target_row.point_key,
+            source.sensor_type,
+            source.times,
+            source.values,
+        )
+        self.external_reference_mode = True
+        self.external_reference_source = f"{source_key[0]}/{source_key[1]}"
+        self.preview_identity_verified = False
+        self._apply_series(rebound)
+        self.preview_path_label.setText(
+            "外部参考曲线（未绑定当前任务）："
+            f"{path.resolve()}；来源={self.external_reference_source}。"
+            "仅采用上下限数值，保留当前配置行原有时间窗。"
+        )
 
     def _load_automatic_preview(
         self, _checked: bool = False, *, silent: bool = False
@@ -1043,7 +1111,7 @@ class ThresholdBandDialog(QDialog):
         if self.automatic_preview_resolver is None:
             message = (
                 "当前窗口没有绑定任务信息。请关闭窗口，先在主任务页选择桥梁、数据目录和日期；"
-                "或展开“高级”导入诊断预览。"
+                "也可使用“从其他任务/项目导入参考曲线”。"
             )
             self.preview_path_label.setText(message)
             if not silent:
@@ -1054,7 +1122,13 @@ class ThresholdBandDialog(QDialog):
             self.load_preview_path(path)
             return True
         except Exception as exc:  # noqa: BLE001
-            message = str(exc)
+            if self.external_reference_mode and self.preview_series is not None:
+                message = (
+                    f"当前任务曲线未能通过校验：{exc}；"
+                    "已继续保留外部参考曲线（未绑定当前任务）。"
+                )
+            else:
+                message = str(exc)
             self.preview_path_label.setText(message)
             if not silent:
                 QMessageBox.information(self, "尚无匹配曲线", message)
@@ -1074,7 +1148,7 @@ class ThresholdBandDialog(QDialog):
             module_key=self.target_row.module_key,
             point_ids=self.accepted_preview_point_ids,
         )
-        self.preview_identity_verified = all(
+        identity_verified = all(
             (
                 self.expected_config_sha256,
                 self.expected_bridge_id,
@@ -1084,6 +1158,13 @@ class ThresholdBandDialog(QDialog):
             )
         )
         self._apply_series(series)
+        # Commit the identity switch only after strict loading and curve
+        # validation both succeed.  A failed current-task lookup must never
+        # make an already loaded external reference look task-verified.
+        self.external_reference_mode = False
+        self.external_reference_source = ""
+        self.preview_identity_verified = identity_verified
+        self._refresh()
         verified_task = all(
             (self.expected_data_root, self.expected_start_date, self.expected_end_date)
         )
@@ -1192,6 +1273,11 @@ class ThresholdBandDialog(QDialog):
         self._refresh()
 
     def _preview_notice(self) -> str:
+        if self.external_reference_mode:
+            return (
+                "当前使用其他任务/项目的外部参考曲线；只采用上下限数值并保留当前配置行时间窗。"
+                "删除量仅针对参考曲线估算，不代表当前任务。"
+            )
         if self.preview_identity_verified:
             return (
                 "当前为抽样预览，已校验桥梁编号、数据目录、日期范围和配置版本；"

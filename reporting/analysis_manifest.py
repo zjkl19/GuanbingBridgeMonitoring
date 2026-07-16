@@ -562,6 +562,8 @@ _DIR_KEY_HINTS: tuple[tuple[str, str], ...] = (
     ("动应变箱线图_低通", "dynamic_strain_lowpass"),
     ("时程曲线_动应变_低通", "dynamic_strain_lowpass"),
     ("频谱峰值曲线_索力加速度", "cable_accel_spectrum"),
+    ("PSD_备查_索力加速度", "cable_accel_spectrum"),
+    ("PSD_备查", "accel_spectrum"),
     ("索力加速度", "cable_accel"),
     ("索力时程", "cable_accel_spectrum"),
     ("索力", "cable_accel_spectrum"),

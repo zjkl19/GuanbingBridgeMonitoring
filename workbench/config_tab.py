@@ -715,6 +715,7 @@ class AlarmBoundsEditorWidget(QWidget):
 
 class CleaningThresholdEditorWidget(QWidget):
     config_saved = Signal(str, str, str)
+    auto_threshold_requested = Signal(str)
     session_class = CleaningConfigEditorSession
     row_label = "清洗配置行"
     copy_suffix = "cleaning_workbench"
@@ -857,6 +858,9 @@ class CleaningThresholdEditorWidget(QWidget):
                 "<b>下侧框选取框中实际样本的最高值作为下限</b>（删除更低值）；"
                 "<b>上侧框选取框中实际样本的最低值作为上限</b>（删除更高值）。"
                 "框选边界值本身保留；确认前只显示候选值和预计删除数，不修改表格、不写配置。"
+                "<br><b>正常操作无需选择任何文件：</b>系统会自动匹配当前桥梁、数据目录、日期、"
+                "配置版本和测点的曲线。若尚无曲线，请先到“自动清洗建议”页生成一次预览。"
+                "也可显式导入其他任务/项目的系统曲线作为数值参考；该模式不会冒充当前任务校验通过。"
             )
             self.manual_threshold_entry_label.setObjectName("manualThresholdEntryHelp")
             self.manual_threshold_entry_label.setWordWrap(True)
@@ -1177,6 +1181,8 @@ class CleaningThresholdEditorWidget(QWidget):
                 parent=self,
             )
             if dialog.exec() != QDialog.Accepted:
+                if getattr(dialog, "preview_generation_requested", False):
+                    self.auto_threshold_requested.emit(target.module_key)
                 return
             draft = dialog.draft()
             estimate_summary = dialog.estimate_summary()
@@ -1223,6 +1229,8 @@ class CleaningThresholdEditorWidget(QWidget):
                 parent=self,
             )
             if dialog.exec() != QDialog.Accepted:
+                if getattr(dialog, "preview_generation_requested", False):
+                    self.auto_threshold_requested.emit(target.module_key)
                 return
             proposal = dialog.proposal()
             draft = proposal.draft

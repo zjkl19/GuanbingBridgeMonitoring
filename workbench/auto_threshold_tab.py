@@ -256,6 +256,21 @@ class AutoThresholdProposalWidget(QWidget):
             if (item := self.module_list.item(index)).checkState() == Qt.Checked
         ]
 
+    def select_only_module(self, module_key: str) -> bool:
+        """Prepare a minimal preview run for one cleaning module."""
+
+        found = False
+        for index in range(self.module_list.count()):
+            item = self.module_list.item(index)
+            selected = str(item.data(Qt.UserRole) or "") == str(module_key or "")
+            item.setCheckState(Qt.Checked if selected else Qt.Unchecked)
+            found = found or selected
+        if found:
+            self.status_label.setText(
+                f"已从清洗阈值页转入；请点击“生成建议（后台分析）”生成 {module_label(module_key)} 曲线。"
+            )
+        return found
+
     def _options(self) -> dict[str, Any]:
         return {
             "module_keys": self._selected_modules(),

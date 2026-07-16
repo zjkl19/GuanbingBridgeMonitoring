@@ -10,6 +10,7 @@ from openpyxl import Workbook, load_workbook
 from scripts.high_memory_recovery import (
     _infer_artifact_role,
     _spectrum_output_contract,
+    _validate_reporting_contract,
     build_baseline_evidence,
     compose_recovery_manifest,
     merge_cable_accel_stats,
@@ -126,6 +127,133 @@ def _config_contract() -> dict:
 def _write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def _write_reporting_contract(
+    path: Path,
+    module_stats: dict[str, str],
+) -> dict:
+    modules = []
+    for key, stats_path in module_stats.items():
+        output_dir = f"figures/{key}"
+        modules.append(
+            {
+                "key": key,
+                "label": key,
+                "category": "analysis",
+                "stats_file": Path(stats_path).name,
+                "subfolder_key": key,
+                "subfolder": key,
+                "config": {
+                    "value": key,
+                    "style_key": key,
+                    "section": key,
+                    "point_key": key,
+                    "per_point_key": key,
+                    "group_key": key,
+                    "params_key": key,
+                },
+                "points": [],
+                "point_count": 0,
+                "points_source": "configured",
+                "groups": [],
+                "group_count": 0,
+                "output_dir_records": [
+                    {
+                        "field": "output_dir",
+                        "dir": output_dir,
+                        "role": "single_plot",
+                    }
+                ],
+                "output_dirs": [output_dir],
+                "warn_fields": [],
+                "is_spectrum": key in {"accel_spectrum", "cable_accel_spectrum"},
+            }
+        )
+    payload = {
+        "schema_version": 1,
+        "contract_type": "analysis_reporting_contract",
+        "created_at": "2026-05-31 23:59:59",
+        "profile": {
+            "bridge_id": "jiulongjiang",
+            "bridge_name": "Jiulongjiang",
+            "vendor": "jiulongjiang",
+        },
+        "modules": modules,
+        "summary": {
+            "module_count": len(modules),
+            "point_count": 0,
+            "group_count": 0,
+        },
+    }
+    _write_json(path, payload)
+    return payload
+
+
+@pytest.mark.parametrize(
+    ("output_dir_records", "output_dirs", "expected_records"),
+    [
+        (
+            {
+                "field": "output_dir",
+                "dir": "figures/rainfall",
+                "role": "single_plot",
+            },
+            ["figures/rainfall"],
+            [
+                {
+                    "field": "output_dir",
+                    "dir": "figures/rainfall",
+                    "role": "single_plot",
+                }
+            ],
+        ),
+        (
+            [
+                {
+                    "field": "output_dir",
+                    "dir": "figures/rainfall",
+                    "role": "single_plot",
+                }
+            ],
+            ["figures/rainfall"],
+            [
+                {
+                    "field": "output_dir",
+                    "dir": "figures/rainfall",
+                    "role": "single_plot",
+                }
+            ],
+        ),
+        ({}, [], []),
+        ([], [], []),
+    ],
+)
+def test_reporting_contract_normalizes_matlab_scalar_output_dir_record(
+    tmp_path: Path,
+    output_dir_records: object,
+    output_dirs: list[str],
+    expected_records: list[dict[str, str]],
+) -> None:
+    stats_path = tmp_path / "stats" / "rainfall_stats.xlsx"
+    stats_path.parent.mkdir(parents=True)
+    stats_path.touch()
+    contract_path = tmp_path / "analysis_reporting_contract.json"
+    contract = _write_reporting_contract(
+        contract_path, {"rainfall": str(stats_path)}
+    )
+    contract["modules"][0]["output_dir_records"] = output_dir_records
+    contract["modules"][0]["output_dirs"] = output_dirs
+    _write_json(contract_path, contract)
+
+    _, normalized = _validate_reporting_contract(
+        contract_path,
+        tmp_path,
+        [{"key": "rainfall", "stats_path": str(stats_path)}],
+        _config_contract(),
+    )
+
+    assert normalized["modules"][0]["output_dir_records"] == expected_records
 
 
 def _canonical_json_sha(payload: dict) -> str:
@@ -694,6 +822,19 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
         "artifacts": [],
     })
 
+    reporting_contract = root / "run_logs" / "analysis_reporting_contract.json"
+    reporting_contract_payload = _write_reporting_contract(
+        reporting_contract,
+        {
+            **{record["key"]: record["stats_path"] for record in baseline_records},
+            "cable_accel": str(merged),
+            "accel_spectrum": str(root / "stats" / "accel_spectrum.xlsx"),
+            "cable_accel_spectrum": str(
+                root / "stats" / "cable_accel_spectrum.xlsx"
+            ),
+        },
+    )
+
     output = root / "run_logs" / "analysis_manifest_composite.json"
     result = compose_recovery_manifest(
         baseline,
@@ -702,6 +843,7 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
         cable_merge_receipt_path=merge_result["receipt_path"],
         cable_group_evidence_path=group_evidence,
         recovery_expectations_path=recovery_expectations,
+        reporting_contract_path=reporting_contract,
         accel_spectrum_manifest_path=accel_manifest,
         cable_spectrum_manifest_path=cable_spectrum_manifest,
         output_path=output,
@@ -721,6 +863,15 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
     assert payload["cable_force_engineering_valid"] is False
     assert payload["cable_force_engineering_status"] == "unverified_parameters"
     assert "Do not use" in payload["cable_force_engineering_note"]
+    assert payload["reporting_contract"] == reporting_contract_payload
+    contract_binding = payload["source_chain"]["reporting_contract"]
+    assert contract_binding["role"] == "analysis_reporting_contract"
+    assert contract_binding["path"] == str(reporting_contract.resolve())
+    assert contract_binding["bytes"] == reporting_contract.stat().st_size
+    assert contract_binding["sha256"] == hashlib.sha256(
+        reporting_contract.read_bytes()
+    ).hexdigest().upper()
+    assert result["reporting_contract_sha256"] == contract_binding["sha256"]
     assert [item["key"] for item in payload["module_results"]] == [
         *BASE_MODULES,
         "cable_accel",
@@ -736,6 +887,48 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
             assert artifact["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest().upper()
 
     output.unlink()
+    invalid_contracts: list[tuple[dict, str]] = []
+    invalid_type = json.loads(json.dumps(reporting_contract_payload))
+    invalid_type["contract_type"] = "other"
+    invalid_contracts.append((invalid_type, "unexpected contract_type"))
+    invalid_bridge = json.loads(json.dumps(reporting_contract_payload))
+    invalid_bridge["profile"]["bridge_id"] = "other_bridge"
+    invalid_contracts.append((invalid_bridge, "bridge profile differs"))
+    missing_module = json.loads(json.dumps(reporting_contract_payload))
+    missing_module["modules"].pop()
+    missing_module["summary"]["module_count"] -= 1
+    invalid_contracts.append((missing_module, "module set differs"))
+    invalid_stats = json.loads(json.dumps(reporting_contract_payload))
+    invalid_stats["modules"][0]["stats_file"] = "wrong.xlsx"
+    invalid_contracts.append((invalid_stats, "stats_file differs"))
+    invalid_output_dirs = json.loads(json.dumps(reporting_contract_payload))
+    invalid_output_dirs["modules"][0]["output_dirs"] = ["figures/other"]
+    invalid_contracts.append((invalid_output_dirs, "output_dirs differ"))
+    absolute_output_dir = json.loads(json.dumps(reporting_contract_payload))
+    absolute_output_dir["modules"][0]["output_dirs"] = [r"C:\outside"]
+    absolute_output_dir["modules"][0]["output_dir_records"][0]["dir"] = (
+        r"C:\outside"
+    )
+    invalid_contracts.append((absolute_output_dir, "must be relative"))
+    for invalid_contract, expected_error in invalid_contracts:
+        _write_json(reporting_contract, invalid_contract)
+        with pytest.raises(ValueError, match=expected_error):
+            compose_recovery_manifest(
+                baseline,
+                expected_baseline_modules=BASE_MODULES,
+                cable_point_manifest_paths=cable_manifests,
+                cable_merge_receipt_path=merge_result["receipt_path"],
+                cable_group_evidence_path=group_evidence,
+                recovery_expectations_path=recovery_expectations,
+                reporting_contract_path=reporting_contract,
+                accel_spectrum_manifest_path=accel_manifest,
+                cable_spectrum_manifest_path=cable_spectrum_manifest,
+                output_path=output,
+                allowed_root=root,
+                expected_plot_provenance_count=27,
+            )
+    _write_json(reporting_contract, reporting_contract_payload)
+
     original_cable_spectrum = json.loads(
         cable_spectrum_manifest.read_text(encoding="utf-8")
     )
@@ -754,6 +947,7 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
             cable_merge_receipt_path=merge_result["receipt_path"],
             cable_group_evidence_path=group_evidence,
             recovery_expectations_path=recovery_expectations,
+            reporting_contract_path=reporting_contract,
             accel_spectrum_manifest_path=accel_manifest,
             cable_spectrum_manifest_path=cable_spectrum_manifest,
             output_path=output,
@@ -777,6 +971,7 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
             cable_merge_receipt_path=merge_result["receipt_path"],
             cable_group_evidence_path=group_evidence,
             recovery_expectations_path=recovery_expectations,
+            reporting_contract_path=reporting_contract,
             accel_spectrum_manifest_path=accel_manifest,
             cable_spectrum_manifest_path=cable_spectrum_manifest,
             output_path=output,
@@ -797,6 +992,7 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
             cable_merge_receipt_path=merge_result["receipt_path"],
             cable_group_evidence_path=group_evidence,
             recovery_expectations_path=recovery_expectations,
+            reporting_contract_path=reporting_contract,
             accel_spectrum_manifest_path=accel_manifest,
             cable_spectrum_manifest_path=cable_spectrum_manifest,
             output_path=output,
@@ -818,6 +1014,7 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
             cable_merge_receipt_path=merge_result["receipt_path"],
             cable_group_evidence_path=group_evidence,
             recovery_expectations_path=recovery_expectations,
+            reporting_contract_path=reporting_contract,
             accel_spectrum_manifest_path=accel_manifest,
             cable_spectrum_manifest_path=cable_spectrum_manifest,
             output_path=output,
@@ -838,6 +1035,7 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
             cable_merge_receipt_path=merge_result["receipt_path"],
             cable_group_evidence_path=group_evidence,
             recovery_expectations_path=recovery_expectations,
+            reporting_contract_path=reporting_contract,
             accel_spectrum_manifest_path=accel_manifest,
             cable_spectrum_manifest_path=cable_spectrum_manifest,
             output_path=output,
@@ -863,6 +1061,7 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
             cable_merge_receipt_path=merge_result["receipt_path"],
             cable_group_evidence_path=group_evidence,
             recovery_expectations_path=recovery_expectations,
+            reporting_contract_path=reporting_contract,
             accel_spectrum_manifest_path=accel_manifest,
             cable_spectrum_manifest_path=cable_spectrum_manifest,
             output_path=output,
@@ -882,6 +1081,7 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
             cable_merge_receipt_path=merge_result["receipt_path"],
             cable_group_evidence_path=group_evidence,
             recovery_expectations_path=recovery_expectations,
+            reporting_contract_path=reporting_contract,
             accel_spectrum_manifest_path=accel_manifest,
             cable_spectrum_manifest_path=cable_spectrum_manifest,
             output_path=output,
@@ -901,6 +1101,7 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
             cable_merge_receipt_path=merge_result["receipt_path"],
             cable_group_evidence_path=group_evidence,
             recovery_expectations_path=recovery_expectations,
+            reporting_contract_path=reporting_contract,
             accel_spectrum_manifest_path=accel_manifest,
             cable_spectrum_manifest_path=cable_spectrum_manifest,
             output_path=output,
@@ -917,6 +1118,7 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
             cable_merge_receipt_path=merge_result["receipt_path"],
             cable_group_evidence_path=group_evidence,
             recovery_expectations_path=recovery_expectations,
+            reporting_contract_path=reporting_contract,
             accel_spectrum_manifest_path=accel_manifest,
             cable_spectrum_manifest_path=cable_spectrum_manifest,
             output_path=output,
@@ -935,6 +1137,7 @@ def test_compose_manifest_rehashes_and_rejects_failed_or_missing_evidence(tmp_pa
             cable_merge_receipt_path=merge_result["receipt_path"],
             cable_group_evidence_path=group_evidence,
             recovery_expectations_path=recovery_expectations,
+            reporting_contract_path=reporting_contract,
             accel_spectrum_manifest_path=accel_manifest,
             cable_spectrum_manifest_path=cable_spectrum_manifest,
             output_path=output,

@@ -39,6 +39,8 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from analysis_manifest import (
+    active_pinned_analysis_manifest,
+    active_pinned_derived_artifact_manifest,
     analysis_manifest_context,
     manifest_artifact_paths,
     manifest_module_records,
@@ -389,6 +391,26 @@ def jlj_image_matches_report_period(
     return False
 
 
+def _jlj_image_is_contained_in_report_period(
+    path: Path | str,
+    start_date: date,
+    end_date: date,
+) -> bool:
+    """Accept a dated artifact only when every declared date stays in-period.
+
+    This is deliberately weaker than :func:`jlj_image_matches_report_period`
+    and is used only after a strict pinned manifest has re-hashed the selected
+    artifact.  It allows a disclosed partial-period plot such as May 9--31 in
+    a May report without allowing a stale March plot or a cross-month range.
+    """
+    dates = jlj_image_data_dates(path)
+    if not dates:
+        return False
+    if dates != sorted(dates):
+        return False
+    return all(start_date <= value <= end_date for value in dates)
+
+
 @contextmanager
 def jlj_report_period_scope(start_date: date, end_date: date):
     token = _JLJ_REPORT_PERIOD.set((start_date, end_date))
@@ -419,10 +441,27 @@ def _period_filtered_image_candidate(
     ):
         return lookup.path
 
+    source = str(lookup.debug.get("source") or "")
+    strict_pinned_artifact = (
+        source == "analysis_manifest"
+        and active_pinned_analysis_manifest() is not None
+    ) or (
+        source == "derived_artifact_manifest"
+        and active_pinned_derived_artifact_manifest() is not None
+    )
+    if (
+        lookup.path is not None
+        and strict_pinned_artifact
+        and _jlj_image_is_contained_in_report_period(
+            lookup.path, start_date, end_date
+        )
+    ):
+        return lookup.path
+
     # A manifest-selected artifact belongs to the manifest run.  If its name
     # cannot prove the requested period, fail closed instead of falling back to
     # an unrecorded filesystem file.
-    if str(lookup.debug.get("source") or "") in {
+    if source in {
         "analysis_manifest",
         "derived_artifact_manifest",
         "pinned_analysis_manifest",
@@ -2750,7 +2789,7 @@ def build_main_bearing_section(cfg: dict, result_root: Path, stats_root: Path, f
     ]
     image_items = make_image_items(
         image_root,
-        "时程曲线_支座位移",
+        "时程曲线_支座位移_滤波",
         rows,
         lambda pid: [f"BearingDisp_{pid}_*Filt*.jpg", f"BearingDisp_{pid}_*.jpg"],
         lambda row: safe_text(row.get("PointID")),
@@ -3170,7 +3209,7 @@ def build_south_strain_section(cfg: dict, result_root: Path, stats_root: Path, f
 def build_north_bearing_section(cfg: dict, result_root: Path, stats_root: Path, fallback_root: Path | None, image_root: Path) -> SectionContent:
     rows = load_section_rows(stats_root, fallback_root, "bearing_displacement_stats.xlsx", lambda row: is_north_bearing(safe_text(row.get("PointID"))))
     columns = [("PointID", "测点编号", None), ("FiltMin_mm", "最小值(mm)", None), ("FiltMax_mm", "最大值(mm)", None)]
-    image_items = make_image_items(image_root, "时程曲线_支座位移", rows, lambda pid: [f"BearingDisp_{pid}_*Filt*.jpg", f"BearingDisp_{pid}_*.jpg"], lambda row: safe_text(row.get("PointID")), limit=4)
+    image_items = make_image_items(image_root, "时程曲线_支座位移_滤波", rows, lambda pid: [f"BearingDisp_{pid}_*Filt*.jpg", f"BearingDisp_{pid}_*.jpg"], lambda row: safe_text(row.get("PointID")), limit=4)
     table_rows = build_full_point_table_rows(
         resolve_expected_points(cfg, result_root, "bearing_displacement", ("WYJ-",), predicate=is_north_bearing, fallback_rows=rows),
         rows,
@@ -3211,7 +3250,7 @@ def build_north_bearing_section(cfg: dict, result_root: Path, stats_root: Path, 
 def build_south_bearing_section(cfg: dict, result_root: Path, stats_root: Path, fallback_root: Path | None, image_root: Path) -> SectionContent:
     rows = load_section_rows(stats_root, fallback_root, "bearing_displacement_stats.xlsx", lambda row: is_south_bearing(safe_text(row.get("PointID"))))
     columns = [("PointID", "测点编号", None), ("FiltMin_mm", "最小值(mm)", None), ("FiltMax_mm", "最大值(mm)", None)]
-    image_items = make_image_items(image_root, "时程曲线_支座位移", rows, lambda pid: [f"BearingDisp_{pid}_*Filt*.jpg", f"BearingDisp_{pid}_*.jpg"], lambda row: safe_text(row.get("PointID")), limit=4)
+    image_items = make_image_items(image_root, "时程曲线_支座位移_滤波", rows, lambda pid: [f"BearingDisp_{pid}_*Filt*.jpg", f"BearingDisp_{pid}_*.jpg"], lambda row: safe_text(row.get("PointID")), limit=4)
     table_rows = build_full_point_table_rows(
         resolve_expected_points(cfg, result_root, "bearing_displacement", ("WYJ-",), predicate=is_south_bearing, fallback_rows=rows),
         rows,

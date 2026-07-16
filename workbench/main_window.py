@@ -10,6 +10,7 @@ from pathlib import Path
 from PySide6.QtCore import QDate, QSize, QTimer, Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QFont, QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QDateEdit,
@@ -157,6 +158,9 @@ class WorkbenchWindow(QMainWindow):
         )
         self.auto_threshold_editor = AutoThresholdProposalWidget(
             self.project_root, self._auto_threshold_context
+        )
+        self.cleaning_editor.auto_threshold_requested.connect(
+            self._show_auto_threshold_for_module
         )
         self.auto_threshold_editor.config_saved.connect(
             lambda path, sha256, backup: self._on_config_saved(
@@ -326,6 +330,17 @@ class WorkbenchWindow(QMainWindow):
         self.analysis_result_path_label.setWordWrap(True)
         self.analysis_result_path_label.setStyleSheet("font-weight: 700; color: #174a75;")
         result_path_row.addWidget(self.analysis_result_path_label, 1)
+        self.copy_analysis_result_path_button = QPushButton("复制路径")
+        self.copy_analysis_result_path_button.setObjectName(
+            "copyAnalysisResultPathButton"
+        )
+        self.copy_analysis_result_path_button.setToolTip(
+            "把统计表、图件和运行记录所在的结果根目录复制到剪贴板"
+        )
+        self.copy_analysis_result_path_button.clicked.connect(
+            self._copy_analysis_result_path
+        )
+        result_path_row.addWidget(self.copy_analysis_result_path_button)
         self.open_analysis_result_button = QPushButton("打开结果目录")
         self.open_analysis_result_button.setObjectName("openAnalysisResultDirectoryButton")
         self.open_analysis_result_button.clicked.connect(self._open_analysis_result_dir)
@@ -779,23 +794,24 @@ class WorkbenchWindow(QMainWindow):
             "end_date": self.end_date_edit.date().toString("yyyy-MM-dd"),
         }
 
+    def _show_auto_threshold_for_module(self, module_key: str) -> None:
+        self.tabs.setCurrentWidget(self.config_tabs)
+        self.config_tabs.setCurrentWidget(self.auto_threshold_editor)
+        if not self.auto_threshold_editor.select_only_module(module_key):
+            self._append_log(
+                f"自动清洗建议暂不支持当前分析类型：{module_key}；请改选受支持模块。"
+            )
+
     def _analysis_result_location(self):
-        context = self.current_context
         current_root = self.data_root_edit.text().strip()
-        if context is not None:
-            try:
-                same_root = os.path.normcase(
-                    str(Path(context.data_root).expanduser().resolve(strict=False))
-                ) == os.path.normcase(
-                    str(Path(current_root).expanduser().resolve(strict=False))
-                )
-                same_task = self._context_matches_current_inputs(context)
-            except (OSError, ValueError):
-                same_root = False
-                same_task = False
-            if not same_root or not same_task:
-                context = None
-        return analysis_result_location(data_root=current_root, context=context)
+        # Once a task exists, keep every result action bound to that task even
+        # if the operator edits the controls for the *next* task.  Falling back
+        # to the edited data root here makes a healthy/finished task appear to
+        # have written somewhere it never used.
+        return analysis_result_location(
+            data_root=current_root,
+            context=self.current_context,
+        )
 
     def _refresh_analysis_result_location(self, *_args: object) -> None:
         if not hasattr(self, "analysis_result_path_label"):
@@ -807,6 +823,7 @@ class WorkbenchWindow(QMainWindow):
                 "先选择数据根目录；建立任务后这里会持续显示实际结果位置。"
             )
             self.open_analysis_result_button.setEnabled(False)
+            self.copy_analysis_result_path_button.setEnabled(False)
             self.open_analysis_stats_button.setEnabled(False)
             self.open_analysis_logs_button.setEnabled(False)
             if hasattr(self, "review_open_result_button"):
@@ -814,8 +831,19 @@ class WorkbenchWindow(QMainWindow):
             return
         prefix = "本任务实际结果根目录" if location.task_dir is not None else "计划结果根目录"
         self.analysis_result_path_label.setText(f"{prefix}：{location.root}")
-        self.analysis_result_help_label.setText(location.explanation)
+        explanation = location.explanation
+        context = self.current_context
+        if context is not None and not self._context_matches_current_inputs(context):
+            planned = self.data_root_edit.text().strip()
+            if planned:
+                planned_root = Path(planned).expanduser().resolve(strict=False)
+                explanation += (
+                    f" 你已修改任务输入；下一次新任务计划使用：{planned_root}。"
+                    "上方路径及打开/复制按钮仍指向当前正在监控或已保存任务的真实结果。"
+                )
+        self.analysis_result_help_label.setText(explanation)
         available = location.root.is_dir()
+        self.copy_analysis_result_path_button.setEnabled(True)
         self.open_analysis_result_button.setEnabled(available)
         self.open_analysis_stats_button.setEnabled(location.stats_dir.is_dir())
         self.open_analysis_logs_button.setEnabled(location.run_logs_dir.is_dir())
@@ -840,6 +868,18 @@ class WorkbenchWindow(QMainWindow):
             os.startfile(location.root)  # type: ignore[attr-defined]
         else:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(location.root)))
+
+    def _copy_analysis_result_path(self) -> None:
+        location = self._analysis_result_location()
+        if location is None:
+            QMessageBox.information(
+                self,
+                "尚无结果路径",
+                "请先选择数据根目录，或打开一个已保存的任务方案。",
+            )
+            return
+        QApplication.clipboard().setText(str(location.root))
+        self._append_log(f"已复制计算结果目录：{location.root}")
 
     def _open_analysis_result_child(self, name: str) -> None:
         location = self._analysis_result_location()
@@ -1305,6 +1345,12 @@ class WorkbenchWindow(QMainWindow):
         if remaining:
             progress_bits.append(f"预计剩余 {remaining}")
         self.analysis_progress_label.setText("；".join(progress_bits))
+        if state == "completed":
+            location = self._analysis_result_location()
+            if location is not None:
+                self.analysis_progress_label.setText(
+                    f"计算完成；结果保存在：{location.root}"
+                )
         terminal = state in {"completed", "failed", "stopped", "launch_failed"}
         if superseded:
             self.start_btn.setEnabled(False)
@@ -1329,6 +1375,12 @@ class WorkbenchWindow(QMainWindow):
         if changed and not superseded and not cleanup_pending:
             persist_analysis_state(context)
             self._append_log(f"分析状态更新：{state}")
+            if state == "completed":
+                location = self._analysis_result_location()
+                if location is not None:
+                    self._append_log(
+                        f"计算完成。统计表、图件和运行记录保存在：{location.root}"
+                    )
         # Keep monitoring an already-started task after the operator edits the
         # bridge/date/config controls, but never repopulate the review page
         # from that now-stale task.  The operator must explicitly reopen the

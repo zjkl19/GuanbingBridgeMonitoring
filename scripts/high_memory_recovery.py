@@ -1545,6 +1545,171 @@ def _artifact_belongs_to_point(artifact: dict[str, Any], path: Path, point_id: s
     return True
 
 
+def _validate_reporting_contract(
+    contract_path: Path | str,
+    root: Path,
+    records: Sequence[dict[str, Any]],
+    baseline_config: dict[str, Any],
+) -> tuple[Path, dict[str, Any]]:
+    """Validate a MATLAB-produced report contract before manifest recovery.
+
+    Recovery manifests are report-authoritative, so silently falling back to
+    a separately discovered ``analysis_reporting_contract_*.json`` would
+    break the pinned provenance chain.  The contract is therefore required,
+    checked against the recovered module/statistics inventory, and embedded
+    in the composite manifest while its source file is hash-bound below.
+    """
+
+    path = _require_local_path(contract_path, root, "Analysis reporting contract")
+    if not path.is_file():
+        raise FileNotFoundError(f"Analysis reporting contract does not exist: {path}")
+    contract = _json_object(path, "Analysis reporting contract")
+    if contract.get("schema_version") != 1:
+        raise ValueError("Analysis reporting contract schema_version must be 1")
+    if contract.get("contract_type") != "analysis_reporting_contract":
+        raise ValueError(
+            "Analysis reporting contract has an unexpected contract_type"
+        )
+
+    expected_bridge_id = str(baseline_config.get("vendor") or "").strip()
+    profile = contract.get("profile")
+    if not isinstance(profile, dict):
+        raise ValueError("Analysis reporting contract profile must be an object")
+    contract_bridge_id = str(profile.get("bridge_id") or "").strip()
+    if not expected_bridge_id or contract_bridge_id.casefold() != expected_bridge_id.casefold():
+        raise ValueError(
+            "Analysis reporting contract bridge profile differs from the pinned config: "
+            f"{contract_bridge_id or '<empty>'} != {expected_bridge_id or '<empty>'}"
+        )
+    contract_vendor = str(profile.get("vendor") or "").strip()
+    if contract_vendor and contract_vendor.casefold() != expected_bridge_id.casefold():
+        raise ValueError(
+            "Analysis reporting contract vendor differs from the pinned config: "
+            f"{contract_vendor} != {expected_bridge_id}"
+        )
+
+    modules = contract.get("modules")
+    if not isinstance(modules, list) or any(not isinstance(item, dict) for item in modules):
+        raise ValueError("Analysis reporting contract modules must be an object array")
+    keys = [str(item.get("key") or "").strip() for item in modules]
+    if any(not key for key in keys) or len(keys) != len(set(keys)):
+        raise ValueError("Analysis reporting contract module keys must be non-empty and unique")
+    expected_by_key = {str(item.get("key") or ""): item for item in records}
+    if set(keys) != set(expected_by_key) or len(keys) != len(expected_by_key):
+        raise ValueError(
+            "Analysis reporting contract module set differs from the recovered manifest: "
+            f"{keys} != {list(expected_by_key)}"
+        )
+
+    summary = contract.get("summary")
+    if not isinstance(summary, dict):
+        raise ValueError("Analysis reporting contract summary must be an object")
+    module_count = summary.get("module_count")
+    if isinstance(module_count, bool) or not isinstance(module_count, int) \
+            or module_count != len(modules):
+        raise ValueError(
+            "Analysis reporting contract summary.module_count does not match its modules"
+        )
+
+    total_points = 0
+    total_groups = 0
+    for module in modules:
+        key = str(module["key"])
+        expected_stats = Path(str(expected_by_key[key].get("stats_path") or "")).name
+        contract_stats = str(module.get("stats_file") or "").strip()
+        if not expected_stats or contract_stats.casefold() != expected_stats.casefold():
+            raise ValueError(
+                f"Analysis reporting contract stats_file differs for {key}: "
+                f"{contract_stats or '<empty>'} != {expected_stats or '<empty>'}"
+            )
+
+        points = module.get("points")
+        point_count = module.get("point_count")
+        if not isinstance(points, list) or isinstance(point_count, bool) \
+                or not isinstance(point_count, int) or point_count != len(points):
+            raise ValueError(
+                f"Analysis reporting contract point count is inconsistent for {key}"
+            )
+        if any(not isinstance(point, str) or not point.strip() for point in points):
+            raise ValueError(
+                f"Analysis reporting contract points must be non-empty strings for {key}"
+            )
+        if len(points) != len(set(points)):
+            raise ValueError(f"Analysis reporting contract points are duplicated for {key}")
+        total_points += point_count
+
+        groups = module.get("groups")
+        group_count = module.get("group_count")
+        if not isinstance(groups, list) or isinstance(group_count, bool) \
+                or not isinstance(group_count, int) or group_count != len(groups):
+            raise ValueError(
+                f"Analysis reporting contract group count is inconsistent for {key}"
+            )
+        total_groups += group_count
+
+        output_dirs = module.get("output_dirs")
+        output_records = module.get("output_dir_records")
+        if not isinstance(output_dirs, list) or any(
+            not isinstance(value, str) or not value.strip() for value in output_dirs
+        ):
+            raise ValueError(
+                f"Analysis reporting contract output_dirs must be a string array for {key}"
+            )
+        # MATLAB jsonencode emits a scalar struct as a JSON object but emits a
+        # struct array as a JSON array.  Treat the scalar representation as the
+        # one-record form of the same contract and normalize it before the
+        # remaining validation and before embedding the contract in the
+        # composite manifest.  An empty struct represents no records.
+        if isinstance(output_records, dict):
+            output_records = [output_records] if output_records else []
+            module["output_dir_records"] = output_records
+        if not isinstance(output_records, list) or any(
+            not isinstance(item, dict) for item in output_records
+        ):
+            raise ValueError(
+                f"Analysis reporting contract output_dir_records must be an object array for {key}"
+            )
+        record_dirs: list[str] = []
+        seen_records: set[tuple[str, str]] = set()
+        for record in output_records:
+            field = str(record.get("field") or "").strip()
+            directory = str(record.get("dir") or "").strip()
+            role = str(record.get("role") or "").strip()
+            if not field or not directory or not role:
+                raise ValueError(
+                    f"Analysis reporting contract output-dir record is incomplete for {key}"
+                )
+            win_path = PureWindowsPath(directory)
+            if win_path.is_absolute() or Path(directory).is_absolute() \
+                    or ".." in win_path.parts:
+                raise ValueError(
+                    f"Analysis reporting contract output dir must be relative for {key}: {directory}"
+                )
+            identity = (field.casefold(), directory.casefold())
+            if identity in seen_records:
+                raise ValueError(
+                    f"Analysis reporting contract output-dir record is duplicated for {key}"
+                )
+            seen_records.add(identity)
+            record_dirs.append(directory)
+        expected_dirs = list(dict.fromkeys(record_dirs))
+        if output_dirs != expected_dirs:
+            raise ValueError(
+                f"Analysis reporting contract output_dirs differ from output_dir_records for {key}"
+            )
+
+    for field, actual in (
+        ("point_count", total_points),
+        ("group_count", total_groups),
+    ):
+        value = summary.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value != actual:
+            raise ValueError(
+                f"Analysis reporting contract summary.{field} is inconsistent"
+            )
+    return path, contract
+
+
 def compose_recovery_manifest(
     baseline_manifest_path: Path | str,
     *,
@@ -1553,6 +1718,7 @@ def compose_recovery_manifest(
     cable_merge_receipt_path: Path | str,
     cable_group_evidence_path: Path | str,
     recovery_expectations_path: Path | str,
+    reporting_contract_path: Path | str,
     accel_spectrum_manifest_path: Path | str,
     cable_spectrum_manifest_path: Path | str,
     output_path: Path | str,
@@ -1846,6 +2012,9 @@ def compose_recovery_manifest(
     expected_all = [*expected, *RECOVERY_MODULES]
     if keys != expected_all or len(set(keys)) != 15:
         raise ValueError(f"Composite module order/uniqueness failed: {keys} != {expected_all}")
+    contract_path, reporting_contract = _validate_reporting_contract(
+        reporting_contract_path, root, records, baseline_config
+    )
     globally_seen: set[Path] = set()
     for record in records:
         for artifact in record.get("artifacts") or []:
@@ -1936,6 +2105,7 @@ def compose_recovery_manifest(
                     "cable_force_engineering_valid"
                 ] else "Cable-force parameters are explicitly marked engineering-verified."
             ),
+            "reporting_contract": reporting_contract,
             "stats_files": [item["stats_path"] for item in records if str(item.get("stats_path") or "")],
             "module_status_counts": {"ok": 15, "fail": 0, "skip": 0, "missing": 0, "other": 0},
             "source_chain": {
@@ -1947,6 +2117,9 @@ def compose_recovery_manifest(
                 ),
                 "recovery_plot_expectations": _file_binding(
                     expectations_path, "recovery_plot_expectations"
+                ),
+                "reporting_contract": _file_binding(
+                    contract_path, "analysis_reporting_contract"
                 ),
                 "recovery_modules": recovery_bindings,
             },
@@ -1967,6 +2140,7 @@ def compose_recovery_manifest(
         "artifact_count": composite["artifact_count"],
         "plot_provenance_count": actual_plot_provenance_count,
         "formal_figure_stub_count": formal_figure_stub_count,
+        "reporting_contract_sha256": _sha256_file(contract_path),
     }
 
 
@@ -2008,6 +2182,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     compose.add_argument("--cable-merge-receipt", type=Path, required=True)
     compose.add_argument("--cable-group-evidence", type=Path, required=True)
     compose.add_argument("--recovery-expectations", type=Path, required=True)
+    compose.add_argument("--reporting-contract", type=Path, required=True)
     compose.add_argument("--accel-spectrum-manifest", type=Path, required=True)
     compose.add_argument("--cable-spectrum-manifest", type=Path, required=True)
     compose.add_argument("--output", type=Path, required=True)
@@ -2044,6 +2219,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             cable_merge_receipt_path=args.cable_merge_receipt,
             cable_group_evidence_path=args.cable_group_evidence,
             recovery_expectations_path=args.recovery_expectations,
+            reporting_contract_path=args.reporting_contract,
             accel_spectrum_manifest_path=args.accel_spectrum_manifest,
             cable_spectrum_manifest_path=args.cable_spectrum_manifest,
             output_path=args.output,
