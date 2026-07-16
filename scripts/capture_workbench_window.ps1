@@ -48,6 +48,9 @@ public static class WorkbenchCaptureWin32 {
   [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+  [DllImport("user32.dll")] public static extern IntPtr SetFocus(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO info);
   [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern IntPtr GetWindowDpiAwarenessContext(IntPtr hWnd);
@@ -203,8 +206,65 @@ try {
     $foregroundHandle = [IntPtr]::Zero
     $focusHandle = [IntPtr]::Zero
     for ($focusAttempt = 0; $focusAttempt -lt 20; $focusAttempt++) {
-        [void][WorkbenchCaptureWin32]::BringWindowToTop($handle)
-        [void][WorkbenchCaptureWin32]::SetForegroundWindow($handle)
+        # Windows is allowed to reject SetForegroundWindow when this
+        # non-interactive capture process does not currently own the foreground
+        # input queue (for example, Codex/ChatGPT is the active window). Attach
+        # only for the duration of the focus hand-off, then detach immediately.
+        # The gate below still verifies the real foreground and focus owners;
+        # this is not a substitute for that evidence.
+        $foregroundBefore = [WorkbenchCaptureWin32]::GetForegroundWindow()
+        [uint32]$foregroundThread = 0
+        [uint32]$foregroundProcess = 0
+        if ($foregroundBefore -ne [IntPtr]::Zero) {
+            $foregroundThread = [WorkbenchCaptureWin32]::GetWindowThreadProcessId(
+                $foregroundBefore,
+                [ref]$foregroundProcess
+            )
+        }
+        [uint32]$targetProcess = 0
+        $targetThread = [WorkbenchCaptureWin32]::GetWindowThreadProcessId(
+            $handle,
+            [ref]$targetProcess
+        )
+        $currentThread = [WorkbenchCaptureWin32]::GetCurrentThreadId()
+        $attachedForeground = $false
+        $attachedTarget = $false
+        try {
+            if ($foregroundThread -ne 0 -and $foregroundThread -ne $currentThread) {
+                $attachedForeground = [WorkbenchCaptureWin32]::AttachThreadInput(
+                    $currentThread,
+                    $foregroundThread,
+                    $true
+                )
+            }
+            if ($targetThread -ne 0 -and $targetThread -ne $currentThread) {
+                $attachedTarget = [WorkbenchCaptureWin32]::AttachThreadInput(
+                    $currentThread,
+                    $targetThread,
+                    $true
+                )
+            }
+            [void][WorkbenchCaptureWin32]::ShowWindow($handle, 9)
+            [void][WorkbenchCaptureWin32]::BringWindowToTop($handle)
+            [void][WorkbenchCaptureWin32]::SetForegroundWindow($handle)
+            [void][WorkbenchCaptureWin32]::SetFocus($handle)
+        }
+        finally {
+            if ($attachedTarget) {
+                [void][WorkbenchCaptureWin32]::AttachThreadInput(
+                    $currentThread,
+                    $targetThread,
+                    $false
+                )
+            }
+            if ($attachedForeground) {
+                [void][WorkbenchCaptureWin32]::AttachThreadInput(
+                    $currentThread,
+                    $foregroundThread,
+                    $false
+                )
+            }
+        }
         Start-Sleep -Milliseconds 100
 
         $foregroundHandle = [WorkbenchCaptureWin32]::GetForegroundWindow()

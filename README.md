@@ -43,17 +43,19 @@ powershell -ExecutionPolicy Bypass -File scripts/build_workbench_exe.ps1 -Offscr
 `native_screenshot_smoke=false`，因此不能打正式发布 ZIP。正式发布前仍须在电脑空闲时
 执行不带该开关的原生 Windows 截图构建。
 
-The stable `v1.8.0` scope, safeguards and known engineering limits are recorded
-in `docs/releases/v1.8.0.md`.
-稳定版 `v1.8.0` 的功能范围、安全门槛和已知工程边界见
+The stable `v1.8.1` scope, safeguards and known engineering limits are recorded
+in `docs/releases/v1.8.1.md`; the previous `v1.8.0` baseline remains recorded in
+`docs/releases/v1.8.0.md`.
+稳定版 `v1.8.1` 的功能范围、安全门槛和已知工程边界见
+`docs/releases/v1.8.1.md`；上一稳定基线 `v1.8.0` 仍记录在
 `docs/releases/v1.8.0.md`。
 
 The isolated `v1.8.1-rc1` daily-ZIP extraction and MAT-cache-prebuild trial is
 recorded in `docs/releases/v1.8.1-rc1.md`.
 日导出 ZIP 安全解压与 MAT 缓存预生成的隔离候选验证见
 `docs/releases/v1.8.1-rc1.md`。
-当前本机审查候选 `v1.8.1-rc4` 的修复范围和发布边界见
-`docs/releases/v1.8.1-rc4.md`。
+候选阶段的超大高频恢复审计见 `docs/releases/v1.8.1-rc5.md`；稳定版不得
+跳过 `docs/releases/v1.8.1.md` 所列的最终构建、报告和部署门槛。
 
 发布目录会同时包含 MATLAB 编译 Runner、配置/模板和嵌入工作台的报告运行时，
 不再复制独立 `BridgeReportBuilder.exe`。`release_manifest.json` 记录 EXE
@@ -279,17 +281,20 @@ removing any active CSV copy.
 `hongtang_period` 使用两列 `csv_timeseries_v2`。预生成只处理配置中实际被分析
 模块/测点引用的 CSV，不是递归转换全目录；不清洗、不滤波、不降采样。
 
-默认缓存预生成始终保留 CSV。只有带逐日恢复 ZIP 的 `jlj_daily_export`
-可额外启用“缓存验证后删除已解压 CSV”，而且该选项默认关闭、只属于当前任务，
-不写入桥梁公共配置。启用时必须使用独立预处理任务并输入完整确认口令；若同时选择
-安全解压和缓存预生成，程序按自然日依次执行“解压、缓存、缓存对及恢复来源核验、
-写入持久收据、删除该日适用 CSV”，某日失败即停止，不进入后续分析。
+默认缓存预生成始终保留 CSV。三种受支持的数据布局 `jlj_daily_export`、
+`dated_folders` 和 `hongtang_period` 均可额外启用“缓存验证后删除已解压 CSV”，
+而且该选项默认关闭、只属于当前任务，不写入桥梁公共配置。启用时必须使用独立
+预处理任务并输入完整确认口令；若同时选择安全解压和缓存预生成，程序按自然日
+依次执行“解压、缓存、缓存对及恢复来源核验、写入持久收据、删除该日适用 CSV”，
+某日失败即停止，不进入后续分析。
 缓存 worker 不删除源文件，只有父进程在整日闭合后提交删除。
 
 安全清理仅涉及配置实际使用、缓存可独立读取且可由原 ZIP 恢复的 CSV。
 原 ZIP 始终保留且作为只读恢复来源；WIM、洪塘低频 Excel、未配置 CSV、非 CSV、
-MAT 缓存和清理收据均不会删除。`dated_folders` 与 `hongtang_period` 目前只支持
-缓存预生成，仍保留 CSV。详细边界和续跑规则见 `docs/OPERATOR_GUIDE.md`。
+MAT 缓存和清理收据均不会删除。普通日期目录/洪塘周期目录允许同日同类存在多个
+ZIP，但每个将删除的 CSV 必须按相对路径、字节数和 CRC 唯一归属于一个未变化且
+可完整读取的 ZIP；歧义或缺项会使该自然日整日零删除。详细边界和续跑规则见
+`docs/OPERATOR_GUIDE.md`。
 
 日导出 `jlj_daily_export` 还可在缓存前执行“安全解压”；
 `ArchiveExtractService` 将只读 ZIP 根与候选输出根分离，校验危险/冲突路径、
@@ -503,9 +508,12 @@ Current official templates are listed in `reports/README.md`; old drafts and gen
 
 MATLAB GUI release / MATLAB GUI 版本:
 
+- `v1.8.1`: promotes verified daily cache-source cleanup across all configured bridges and three archive-backed layouts; hardens full-month high-frequency rendering and manifest publication; independently regresses Zhishan high/low-pass dynamic strain; excludes placeholder Jiulongjiang cable-force results from engineering report conclusions; and keeps embedded reporting and release artifacts bound to the exact Git source.
+- `v1.8.1`：将逐日缓存来源安全清理扩展至所有已配置桥梁及三种可由 ZIP 恢复的数据布局，完善整月高频绘图内存与大清单发布韧性，独立回归芝山动应变高/低通，在九龙江索力参数仍为占位值时从工程报告结论中剔除相应结果，并保持内嵌报告和发布产物与精确 Git 源提交绑定。
 - `v1.8.1-rc3`: generalizes optional raw-CSV cache prebuild across all configured bridges and the three supported data layouts, removes the office PC from storage profiles, restores the legacy two-line threshold workflow, adds explicit lower/upper box-selection actions, and adds strict native Windows focus/icon/DPI release evidence.
 - `v1.8.1-rc3`：将可选原始 CSV 缓存预生成扩展至所有已配置桥梁及三种数据布局，从存储方案删除办公室电脑，恢复旧 MATLAB 双线阈值交互，增加下侧/上侧两个独立框选入口，并增加严格的原生 Windows 焦点、图标和 DPI 发布证据。
 - `v1.8.1-rc4`：为九龙江/水仙花逐日 ZIP 导出增加默认关闭的“验证缓存后清理已解压 CSV”事务流程；只清理当前桥配置实际使用且能由未变化 ZIP 恢复的 CSV，保留 ZIP、WIM、Excel、未配置 CSV 与缓存，并提供中断恢复回执和跨进程互斥。
+- `v1.8.1-rc5`：为超大月度高频分析增加内存失败隔离、有效失败清单和分测点恢复工具；内存不足时只清理当前步骤新建图窗并阻止后续高内存模块连锁失败，清单发布前执行磁盘回读校验。
 - `v1.8.1-rc1`: adds isolated daily-ZIP extraction and raw MAT-cache prebuilding for Jiulongjiang/Shuixianhua, with disk-space gates, transactional cache pairs and reusable verified extraction directories.
 - `v1.8.1-rc1`：为九龙江/水仙花增加隔离的日 ZIP 安全解压和原始 MAT 缓存预生成，包含磁盘门槛、缓存对事务及可复用的已验证解压目录。
 - `v1.8.0`: introduces the stable unified PySide6 workbench while retaining the MATLAB analysis engine, multi-bridge catalog, machine path profiles, guarded advanced configuration, compiled-runner contracts and closed release inventory.
@@ -714,6 +722,22 @@ powershell -ExecutionPolicy Bypass -File scripts/clean_generated_artifacts.ps1 -
 
 Parallel analysis is now disabled by default to avoid memory exhaustion on large datasets.
 当前默认关闭并行分析，以避免大数据量场景下的内存溢出。
+
+Classic MATLAB figures use the centralized `bms.plot.PlotVisibilityPolicy`.
+Compiled analysis runners and `matlab -batch` create figures hidden, while a
+normal interactive MATLAB session keeps the user's existing figure setting.
+`save_plot_bundle` never makes a hidden live figure visible; the saved FIG is
+serialized with `Visible='on'`, so users can open it normally later. Automated
+review can call `PlotVisibilityPolicy.savedFigureVisibility` without opening a
+window, then use `openfig(path, 'new', 'invisible')` for screenshots or visual
+comparison.
+
+经典 MATLAB 图窗统一由 `bms.plot.PlotVisibilityPolicy` 管理。编译后的分析
+Runner 和 `matlab -batch` 创建图窗时保持隐藏，普通交互 MATLAB 则保留用户
+当前的图窗显示偏好。`save_plot_bundle` 不再为保存 FIG 而临时弹出隐藏图窗；
+保存文件仍显式记录 `Visible='on'`，以后用 MATLAB 正常打开即可显示。自动验收
+可先调用 `PlotVisibilityPolicy.savedFigureVisibility` 做无窗口检查，再用
+`openfig(path, 'new', 'invisible')` 生成截图或进行并排视觉比较。
 
 ## WIM SQL Troubleshooting / WIM SQL 故障排查
 

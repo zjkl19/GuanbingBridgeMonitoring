@@ -128,6 +128,50 @@ classdef test_verified_source_csv_cleanup < matlab.unittest.TestCase
                 lower('POINT-SAFE.csv')));
         end
 
+        function canonicalAndLegacyPartitionForSameDayFailsBeforeMutation(tc)
+            secondDay = '2026-06-02';
+            tc.createDailyZip({'POINT-01.csv'}, {localSeries(tc.Day)});
+            tc.createDailyZip({'POINT-01.csv'}, {localSeries(secondDay)}, ...
+                secondDay);
+            bms.data.ArchiveExtractService.run( ...
+                tc.OutputRoot, tc.Day, secondDay, tc.Config);
+            canonicalRoot = tc.dayRoot();
+            legacyRoot = fullfile(tc.OutputRoot, ...
+                'jljData20260601-20260602');
+            copyfile(canonicalRoot, legacyRoot);
+            canonicalCsv = tc.csvPath('POINT-01.csv');
+            legacyCsv = fullfile(legacyRoot, 'data', 'jlj', 'csv', ...
+                'POINT-01.csv');
+            secondCsv = tc.csvPathForDay(secondDay, 'POINT-01.csv');
+            tc.assertTrue(isfile(canonicalCsv));
+            tc.assertTrue(isfile(legacyCsv));
+            tc.assertTrue(isfile(secondCsv));
+
+            result = bms.data.CachePrebuildService.run( ...
+                tc.OutputRoot, tc.Day, secondDay, tc.Config, ...
+                localCleanupOptions());
+
+            tc.verifyEqual(result.Status, 'fail');
+            tc.verifyTrue(isfile(canonicalCsv));
+            tc.verifyTrue(isfile(legacyCsv));
+            tc.verifyTrue(isfile(secondCsv));
+            tc.verifyFalse(isfile(tc.cachePath('POINT-01')));
+            tc.verifyFalse(isfile(fullfile(fileparts(secondCsv), ...
+                'cache', 'POINT-01.mat')));
+            tc.verifyFalse(isfile(tc.receiptPath()));
+            tc.verifyFalse(isfile(fullfile(legacyRoot, ...
+                '.bms_cache_source_cleanup_receipt.json')));
+            tc.verifyFalse(isfile(fullfile(tc.OutputRoot, ...
+                ['data_jlj_' secondDay], ...
+                '.bms_cache_source_cleanup_receipt.json')));
+            summary = jsondecode(fileread(result.StatsPath));
+            tc.verifyEqual(summary.error_identifier, ...
+                'BMS:CacheSourceCleanup:DailyPartitionCount');
+            tc.verifyThat(summary.message, ...
+                matlab.unittest.constraints.ContainsSubstring( ...
+                    '2026-06-01 has 2 partition(s)'));
+        end
+
         function cleanupUsesAxisCollapsedRuntimeSourceOnly(tc)
             cfg = tc.Config;
             cfg.points.earthquake = {'EQ-1-X', 'EQ-1-Y', 'EQ-1-Z'};
@@ -431,7 +475,9 @@ classdef test_verified_source_csv_cleanup < matlab.unittest.TestCase
 
             tc.verifyEqual(result.Status, 'fail');
             tc.verifyTrue(isfile(source));
-            tc.verifyFalse(isfile(fullfile(featureDir, 'cache', 'TEMP01.mat')));
+            % Cache creation is safe and may complete before the destructive
+            % recovery proof fails. The important contract is zero deletion.
+            tc.verifyTrue(isfile(fullfile(featureDir, 'cache', 'TEMP01.mat')));
         end
 
         function streamingSessionProcessesAndCleansOneNaturalDayAtATime(tc)

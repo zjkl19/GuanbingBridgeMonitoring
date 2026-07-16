@@ -27,6 +27,11 @@ SUPPORTED_REPORT_TYPES = {
     "shuixianhua_monthly",
     "zhishan_monthly",
 }
+SUPPORTED_CACHE_CLEANUP_LAYOUTS = {
+    "dated_folders",
+    "hongtang_period",
+    "jlj_daily_export",
+}
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -123,6 +128,15 @@ def validate_profile_payload(
         "cleaning_exclusions": (
             payload.get("cleaning_exclude_editor_available") is True
             and int(payload.get("cleaning_exclude_range_count") or 0) == expected_exclude_count
+        ),
+        "cache_cleanup_contract": (
+            payload.get("cache_source_cleanup_control_available") is True
+            and payload.get("cache_source_cleanup_default_off") is True
+            and payload.get("cache_source_cleanup_confirmation_empty") is True
+            and payload.get("cache_source_cleanup_task_option_present") is False
+            and payload.get("cache_source_cleanup_current_layout_supported") is True
+            and set(payload.get("cache_source_cleanup_supported_data_layouts") or [])
+            == SUPPORTED_CACHE_CLEANUP_LAYOUTS
         ),
         "workflow_shape": (
             payload.get("profile_count") == expected_profile_count

@@ -1,10 +1,105 @@
 ﻿# Current Task State
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 ## Purpose
 
 This file is the handoff point for long Codex sessions. New conversations should read this file first, then read `git status`, `git diff`, recent commits, and relevant output files before continuing.
+
+## 2026-07-16 v1.8.1 Pre-Release Acceptance Snapshot
+
+This section supersedes the older in-progress checkpoints below. Historical
+entries are retained so that the failure and recovery chain remains auditable.
+
+- Machine 133 has completed all `17/17` isolated Jiulongjiang May recovery
+  jobs: `15` point-isolated cable-acceleration jobs plus the complete
+  acceleration-spectrum and cable-acceleration-spectrum jobs. The accepted
+  composite manifest is:
+  `F:\Guanbing_v1.8.1-rc1\validation\jiulongjiang_may\run_logs\analysis_manifest_composite_bridgebound_20260716_135654.json`.
+  Its SHA-256 is
+  `2A2FB800A9E7E3FE5F03E8D294B615FBABB23658ED11D0F63B821D100CF17B06`;
+  it parses with `status=ok` and closes `15` modules, `15` statistics
+  workbooks, `42` formal-plot source records and `88` report-facing formal
+  figures. The 88 figure count is not a claim that 88 `plot.json` files exist.
+- All `42/42` formal-plot source records close their source/input/finite/plotted
+  contracts. Eight are intentionally classified `closed_incomplete_source`;
+  their actual affected dates are exactly `2026-05-01` through `2026-05-08`.
+  The report must disclose this source limitation and must not synthesize the
+  missing periods.
+- Jiulongjiang cable-force parameters remain placeholders. The composite
+  manifest therefore records `cable_force_engineering_valid=false` and
+  `cable_force_engineering_status=placeholder_parameters`. Cable vibration,
+  acceleration and spectrum results remain usable, but placeholder force
+  figures/values must not be presented as engineering conclusions.
+- The latest read-only 133 check found no `BridgeAnalysisRunner`, MATLAB or
+  `ctfxlauncher` worker. Stable `F:\Guanbing` remains the immutable v1.8.0
+  production installation. The isolated `F:\Guanbing_v1.8.1-rc1\app` remains
+  an rc5-era/hot-patched candidate rather than the final immutable v1.8.1
+  package, and it does not yet contain the final report-builder changes needed
+  for the accepted Jiulongjiang report.
+- Jiulongjiang May report generation, local Microsoft Word field update and
+  authoritative PDF page review are still pending. The final v1.8.1 package,
+  fast-forward merge to `main`, release publication and stable 133 switch are
+  also still pending and must not be inferred from the completed recovery.
+
+### Local high-frequency evidence
+
+- The original permanent high-frequency regression root
+  `E:\GuanbingLocalValidation\v1.8.1-highfreq-final-rc9_20260716_1200\zhishan_april_full_rc9`
+  covers acceleration, cable acceleration and their two spectrum modules; it
+  does **not** include dynamic-strain high-pass/low-pass modules. Its acceptance
+  file is
+  `run_logs\highfreq_regression\zhishan_april_final_acceptance.json`, SHA-256
+  `DB2156C983992BF35D02E34AE1C738E789D8CD1E775A1ACC9D9F0CDC5170EC89`.
+  Four statistics workbooks match the baseline, 436 JPGs are byte-identical,
+  13 raw source records close, report rendering stays below the 1.2-million
+  vertex cap while statistics use the full source, and saved FIG files reopen
+  visibly in MATLAB.
+- Dynamic strain was verified in a separate real-data regression at
+  `E:\GuanbingLocalValidation\v1.8.1-dynstrain-rc9_20260716_1342\zhishan_april_dynstrain_rc9\local-dynstrain-zhishan-april-rc9`.
+  Its `run_logs\highfreq_regression\dynamic_strain_acceptance.json` has SHA-256
+  `9C7C7B47C2EA1EA7E55BCC9C57932DC4DAC516B8633882A48BD3F4074BFEB00B`
+  and passes both high-pass and low-pass modules (`33` artifacts each). Both
+  statistics workbooks match the accepted baseline cell-for-cell, all 32 JPGs
+  are byte-identical, sampled FIGs reopen with `Visible=on`, peak private memory
+  was about 11.71 GiB and the read-only source inventory was unchanged.
+- Together these regressions accept the permanent high-frequency policy:
+  statistics retain full source samples; report plots use bounded,
+  peak-preserving rendering; batch figures stay hidden during generation but
+  saved FIG files reopen visibly; and high-memory work is isolated rather than
+  allowing one failure to poison later modules.
+
+### Cross-bridge cleanup and operator UX
+
+- Verified daily deletion of extracted CSV is now implemented in the working
+  tree for every installed bridge through all three archive-backed layouts:
+  `dated_folders`, `hongtang_period` and `jlj_daily_export`. It remains disabled
+  by default, requires the exact `DELETE_VERIFIED_EXTRACTED_CSV` confirmation
+  token and may run only as a dedicated preprocessing task.
+- A whole natural day is the transaction boundary. Every configured source for
+  that day is frozen first; every MAT/meta pair must be independently loadable
+  and bound to an unchanged ZIP entry by relative path, size and CRC; ambiguous
+  or missing archive evidence causes zero deletion for the whole day. Original
+  ZIPs, WIM, Excel, unconfigured CSV, MAT/meta and durable receipts are retained.
+  Jiulongjiang-style exports additionally require a unique, valid calendar-day
+  partition; temporary UUID-like directory names and ambiguous same-day
+  partitions cannot authorize deletion.
+- Analysis results continue to live under the task's **effective data/result
+  root**, which may be an isolated candidate directory rather than the raw-data
+  directory selected by the operator. The workbench now shows the exact result
+  root and provides direct actions for the root, `stats` and `run_logs`; the
+  explanation also distinguishes analysis outputs from the separate report
+  DOCX/PDF output directory.
+- Drag-line and box threshold tools no longer require ordinary users to browse
+  for a JSON file. They automatically find the newest preview whose bridge,
+  effective data root, date range, configuration SHA-256, module and point all
+  match the current task. If none matches, the user is directed to generate one
+  on the automatic-cleaning-suggestion page. Manual JSON import is retained only
+  behind an explicitly labelled advanced/diagnostic control.
+- Current full source gates pass: Python `654/654` plus the separate `27/27`
+  pytest function-node run, MATLAB `752/752`, and the complete configuration
+  validation matrix. A final clean-commit package build and native packaged GUI
+  acceptance must still be repeated before release promotion.
 
 ## 2026-07-15 v1.8.1-rc3 Isolated Deployment And Jiulongjiang Acceptance
 
@@ -4297,3 +4392,75 @@ Avoid uploading old screenshots/images into the continuation thread unless they 
 - Jiulongjiang June is blocked by source state: only June 1–18 exist, June 18
   lacks a valid EOCD, and June 19–30 are absent. Do not start until the 30/30
   two-poll stability and ZIP-openability gate passes.
+
+## 2026-07-16 v1.8.1-rc5 High-Memory Recovery
+
+- The Jiulongjiang May rc3 MAT-only run finished the first 12 modules, then
+  exhausted memory in `cable_accel`; the following `accel_spectrum` and
+  `cable_accel_spectrum` steps also failed after the process was already under
+  memory pressure. The task is disabled and its last task result is `249`.
+- The final rc3 manifest is invalid: it ends mid-string at exactly `1,048,576`
+  characters. It is retained as failure evidence but must never be repaired by
+  hand, accepted as a successful manifest, or bound to a report.
+- rc5 writes compact JSON, validates the encoder output and the actual
+  temporary file before atomic publication, and emits a valid compact
+  `status=failed` manifest if the full manifest cannot be encoded or written.
+- A memory failure now removes only figures created by the failing step and
+  skips later high-memory analysis steps. Existing GUI figures and subsequent
+  low-risk steps keep the previous continuation behaviour.
+- The analyzer constructor's seventh positional value is now correctly named
+  `AutoDetectFs`; `SaveFigures` remains only as a hidden read-only compatibility
+  indicator because the current analysis pipeline always writes figures.
+- Recovery is module-bounded rather than a full rerun: all 15 cable-acceleration
+  points run in separate Runner processes with group plotting disabled, their
+  one-row workbooks are hashed and merged in configured order, and both
+  spectrum modules run in their own fresh processes. A composite manifest is
+  rebuilt from the valid run request and rehashed outputs; the truncated
+  manifest is not an input.
+- Local release evidence after the final hardening: Python `624/624` in
+  `151.40 s`, MATLAB `724/724`, focused
+  recovery/provenance/compiled-manifest Python `28/28`, and focused
+  build-stage-manifest/OOM-classification MATLAB `45/45`. Code Analyzer reports
+  zero findings for all eight changed production MATLAB files.
+- The formal rc5 build completed with exit code `0`. Its release manifest is
+  `v1.8.1-rc5`, built at `2026-07-16T05:18:34+08:00`; the closed inventory has
+  `385` files and `227,271,383` bytes, with per-file size and SHA-256 verified.
+  `桥梁健康监测工作台.exe` has SHA-256
+  `75889e09e950aef65dc6d8459d6703f4a24f29d07766c76a16cacdb49ac68818`.
+- The packaged ZIP is `117,855,182` bytes with SHA-256
+  `c6ac7747e29ba11c903d44c961bbb2f7dafd4b91151a972d8b57124ee9d6543c`.
+  It contains `386` entries: the `385` inventory members plus the release
+  manifest itself; every inventory member's size and SHA-256 closes against
+  the archive.
+- Native Windows acceptance passed foreground focus, owned keyboard focus,
+  per-monitor DPI (`120` DPI), configured UI font and native application icon.
+  The compiled Runner also published and reread a `2,771,558`-byte valid
+  manifest containing `1,200` warnings, and its deterministic write-failure
+  case returned a valid compact `status=failed` fallback rather than a
+  truncated file.
+- The recovery acceptance contract is now explicit: 42 provenance-backed
+  formal plots plus 46 spectrum figures equals 88 report-facing formal figure
+  stubs. The 88 figure count must never be reported as 88 `plot.json` files.
+- Jiulongjiang's 15 cable-force configurations currently use unverified
+  `rho=1`, `L=1` placeholders. Recovery must still reproduce and hash the 15
+  `CableForce` figures, but the composite manifest must set
+  `cable_force_engineering_valid=false` and the report must not draw an
+  engineering cable-force conclusion from them.
+- rc5 was deployed at `2026-07-16T05:28:53+08:00` only to the isolated
+  `F:\Guanbing_v1.8.1-rc1\app` tree. The previous candidate app is retained as
+  `app_before_rc5_20260716_052853`; the deployment receipt closes all `385`
+  application files and records `stable_production_untouched=true`.
+- The recovery bundle passed two independent reviews and a remote read-only
+  `-ValidateOnly` gate (`17` jobs, `15` isolated cable points, no mutation).
+  Its inventory contains `44` payload files / `1,799,167` bytes with SHA-256
+  `51FC1E56AD196A86C01B56BB7E47C8DFF664256F6E7D7348F0FC4D02FF03B06D`;
+  the `45`-entry ZIP SHA-256 is
+  `A37ED9FD4A425847AE80207A8C641692B2BC3E50E575921C4A9895657C0607AC`.
+- Scheduled task
+  `Guanbing_v181rc5_Jiulongjiang_May_Recovery_20260716_0535` started at
+  `2026-07-16T06:17:51+08:00` and was immediately disabled against duplicate
+  starts. At `06:18` it was running `cable_accel_01`; the failed-run evidence
+  inventory and seal were published before Runner PID `14864` started. F had
+  `578,018,717,696` free bytes. The corrected E-drive snapshot is
+  `1,717,022,126,080` bytes free; the earlier `171,702,212,608` figure omitted
+  one zero.

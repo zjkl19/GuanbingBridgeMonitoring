@@ -12,7 +12,6 @@ classdef test_bms_services < matlab.unittest.TestCase
             mkdir(folder);
             cleanup = onCleanup(@() rmdir(folder, 's')); %#ok<NASGU>
             path = fullfile(folder, 'status.json');
-
             for generation = 1:5
                 payload = struct( ...
                     'status', 'running', ...
@@ -24,6 +23,38 @@ classdef test_bms_services < matlab.unittest.TestCase
                 tc.verifyEqual(decoded.message, payload.message);
                 tc.verifyEmpty(dir(fullfile(folder, '*.json.tmp')));
             end
+
+            % MATLAB represents non-BMP characters differently across text
+            % readers.  The byte-level publication check must nevertheless
+            % accept and publish valid UTF-8 JSON instead of comparing decoded
+            % character-vector lengths.
+            emoji = native2unicode(uint8([240 159 152 128]), 'UTF-8');
+            bms.core.Logger.writeJson(path, struct( ...
+                'status', 'running', 'generation', 6, 'message', emoji));
+            decoded = jsondecode(fileread(path));
+            tc.verifyEqual(decoded.generation, 6);
+            tc.verifyEmpty(dir(fullfile(folder, '*.json.tmp')));
+        end
+
+        function loggerLargeJsonIsCompactAndRoundTripsPastOneMiCharacter(tc)
+            folder = tempname;
+            mkdir(folder);
+            cleanup = onCleanup(@() rmdir(folder, 's')); %#ok<NASGU>
+            path = fullfile(folder, 'large_manifest.json');
+            payload = struct( ...
+                'status', 'failed', ...
+                'body', repmat('x', 1, 1200000), ...
+                'tail_marker', 'END_MARKER');
+
+            bms.core.Logger.writeJson(path, payload);
+
+            raw = fileread(path);
+            tc.verifyGreaterThan(numel(raw), 1048576);
+            tc.verifyFalse(contains(raw, newline));
+            decoded = jsondecode(raw);
+            tc.verifyEqual(decoded.tail_marker, payload.tail_marker);
+            tc.verifyEqual(numel(decoded.body), numel(payload.body));
+            tc.verifyEmpty(dir(fullfile(folder, '*.json.tmp')));
         end
 
         function artifactCollectorBindsExactBytesAndSha256(tc)
@@ -420,6 +451,57 @@ classdef test_bms_services < matlab.unittest.TestCase
             tc.verifyEqual(manifest.run_health_report_summary_path, 'health.xlsx');
             tc.verifyEqual(numel(manifest.missing_expected_stats), 1);
             clear cleanup;
+        end
+
+        function manifestWriterFallsBackToValidFailedManifest(tc)
+            tmp = tempname;
+            mkdir(tmp);
+            cleanup = onCleanup(@() rmdir(tmp, 's')); %#ok<NASGU>
+            ctx = bms.core.AnalysisContext(tmp, '2026-01-01', '2026-01-01', ...
+                struct(), struct(), 'RunId', 'manifest_fallback_unit');
+            record = struct('key', 'temperature', 'label', 'temperature', ...
+                'status', 'ok', 'artifacts', {{struct('path', 'large.bin')}});
+            details = struct('module_logs', {{record}}, ...
+                'log_file', fullfile(tmp, 'run.log'), ...
+                'elapsed_sec', 12.5, ...
+                'unencodable_test_value', @sin);
+
+            manifestPath = bms.app.ManifestWriter.write(ctx, 'ok', details);
+
+            tc.verifyTrue(endsWith(manifestPath, '_write_failure.json'));
+            manifest = jsondecode(fileread(manifestPath));
+            tc.verifyEqual(manifest.status, 'failed');
+            tc.verifyEqual(manifest.requested_status, 'ok');
+            tc.verifyEqual(manifest.error_type, 'manifest_write_error');
+            tc.verifyEqual(manifest.module_status_counts.ok, 1);
+            tc.verifyEqual(manifest.module_results.artifact_count, 0);
+            tc.verifyEmpty(manifest.module_results.artifacts);
+        end
+
+        function manifestWriterFallsBackWhenFullBuildFails(tc)
+            tmp = tempname;
+            mkdir(tmp);
+            cleanup = onCleanup(@() rmdir(tmp, 's')); %#ok<NASGU>
+            ctx = bms.core.AnalysisContext(tmp, '2026-01-01', '2026-01-01', ...
+                struct(), struct(), 'RunId', 'manifest_build_fallback_unit');
+            details = struct();
+            % findMissing() cannot consume a struct.  This deterministic bad
+            % field fails while build()/applyDetails() is still assembling the
+            % full manifest, before Logger.writeJson() is entered.
+            details.expected_stats_files = struct('bad', true);
+            % The fallback must not re-encode unsafe optional detail values.
+            details.warnings = {@sin, 'kept warning'};
+
+            manifestPath = bms.app.ManifestWriter.write(ctx, 'ok', details);
+
+            tc.verifyTrue(endsWith(manifestPath, '_write_failure.json'));
+            manifest = jsondecode(fileread(manifestPath));
+            tc.verifyEqual(manifest.status, 'failed');
+            tc.verifyEqual(manifest.requested_status, 'ok');
+            tc.verifyEqual(manifest.manifest_type, 'analysis_run_write_failure');
+            tc.verifyEqual(manifest.run_id, 'manifest_build_fallback_unit');
+            tc.verifyEqual(manifest.warnings, {'kept warning'});
+            tc.verifyEmpty(dir(fullfile(ctx.LogDir, '*.json.tmp')));
         end
     end
 end

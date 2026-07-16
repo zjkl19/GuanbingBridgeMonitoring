@@ -46,7 +46,6 @@ function paths = save_plot_bundle(fig, out_dir, file_stub, opts)
             if lightweight_fig
                 simplify_figure_lines(fig, fig_max_points);
             end
-            make_figure_visible_for_save(fig);
             drawnow;
             atomic_savefig(fig, fig_path);
             if isfile(fig_path)
@@ -72,7 +71,7 @@ function atomic_savefig(fig, target_path)
     [target_dir, ~, ~] = fileparts(target_path);
     tmp_path = [tempname(target_dir) '.fig'];
     tmp_cleanup = onCleanup(@() delete_if_exists(tmp_path)); %#ok<NASGU>
-    savefig(fig, tmp_path, 'compact');
+    bms.plot.PlotVisibilityPolicy.saveFigVisibleOn(fig, tmp_path);
     replace_file(tmp_path, target_path);
 end
 
@@ -102,8 +101,17 @@ function path = save_plot_provenance(fig, out_dir, file_stub)
         return;
     end
 
+    schema_version = 1;
+    for i = 1:numel(entries)
+        if isfield(entries{i}, 'schema_version') && ...
+                isnumeric(entries{i}.schema_version) && ...
+                isscalar(entries{i}.schema_version) && ...
+                isfinite(entries{i}.schema_version)
+            schema_version = max(schema_version, double(entries{i}.schema_version));
+        end
+    end
     payload = struct( ...
-        'schema_version', 1, ...
+        'schema_version', schema_version, ...
         'file_stub', file_stub, ...
         'created_at', char(datetime('now', 'Format', 'yyyy-MM-dd''T''HH:mm:ss')), ...
         'series', vertcat(entries{:}));
@@ -245,20 +253,6 @@ function idx = key_line_indices(y)
     [~, maxRel] = max(finiteVals);
     [~, absRel] = max(abs(finiteVals));
     idx = unique([finiteIdx(minRel), finiteIdx(maxRel), finiteIdx(absRel)], 'stable');
-end
-
-function make_figure_visible_for_save(fig)
-    if strcmpi(get(fig, 'Visible'), 'off')
-        old_units = get(fig, 'Units');
-        set(fig, 'Units', 'pixels');
-        pos = get(fig, 'Position');
-        pos(1) = -20000;
-        if numel(pos) >= 2
-            pos(2) = max(50, pos(2));
-        end
-        set(fig, 'Position', pos, 'Visible', 'on');
-        set(fig, 'Units', old_units);
-    end
 end
 
 function val = get_opt(opts, field_name, default_val)

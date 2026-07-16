@@ -89,7 +89,7 @@ PLOT_FIELD_LABELS = {
     "append_timestamp": "输出文件名追加时间戳",
     "gap_mode": "数据缺口连接方式",
     "gap_break_factor": "断线判定间隔倍数",
-    "dynamic_raw_sampling_mode": "高频原始图采样方式",
+    "dynamic_raw_sampling_mode": "高频原始图数据口径",
     "dynamic_raw_fig_max_points": "高频原始图最大绘制点数",
     "dynamic_raw_min_points_per_day": "高频原始图每日最低点数",
     "dynamic_raw_line_width": "高频原始曲线线宽",
@@ -104,13 +104,13 @@ PLOT_TYPE_LABELS = {
     "int": "整数",
     "float": "数值",
     "enum:connect|break": "连续连接 / 按缺口断开",
-    "enum:capped|full": "限量采样 / 完整数据",
+    "enum:capped|full": "限量显示 / 完整源数据",
     "enum:line|dense_band": "普通曲线 / 密集带状",
 }
 
 PLOT_VALUE_LABELS = {
     "gap_mode": {"connect": "连续连接", "break": "按数据缺口断开"},
-    "dynamic_raw_sampling_mode": {"capped": "限量采样", "full": "完整数据"},
+    "dynamic_raw_sampling_mode": {"capped": "限量显示", "full": "完整源数据"},
     "dynamic_raw_render_mode": {"line": "普通曲线", "dense_band": "密集带状"},
 }
 
@@ -121,9 +121,9 @@ PLOT_DESCRIPTION_LABELS = {
     "append_timestamp": "在输出文件名末尾增加生成时间",
     "gap_mode": "数据缺口处连续连接或按缺口断开",
     "gap_break_factor": "当相邻采样间隔超过该倍数时判定为缺口",
-    "dynamic_raw_sampling_mode": "高频原始图使用限量采样或完整数据",
-    "dynamic_raw_fig_max_points": "限量采样时，高频原始图允许绘制的总点数",
-    "dynamic_raw_min_points_per_day": "限量采样时，每个自然日至少保留的点数",
+    "dynamic_raw_sampling_mode": "未设置模块专用口径时，选择限量显示或完整源数据分析；正式统计值不受绘图抽点影响",
+    "dynamic_raw_fig_max_points": "高频图形允许保留的渲染顶点总数；完整源数据统计仍使用全部有效样本",
+    "dynamic_raw_min_points_per_day": "每个自然日为图形至少保留的渲染顶点数；不改变正式统计样本",
     "dynamic_raw_line_width": "高频原始曲线的线宽",
     "dynamic_raw_render_mode": "高频原始图使用普通曲线或密集带状图",
     "dynamic_raw_band_bins": "密集带状图沿时间轴划分的区间数量",
@@ -204,13 +204,14 @@ class PlotCommonEditorWidget(QWidget):
         title.setStyleSheet("font-size: 20px; font-weight: 700; color: #005eac;")
         outer.addWidget(title)
         hint = QLabel(
-            "管理普通绘图、高频原始时程的采样与绘制参数。取消“单独设置”后，"
-            "该项会使用分析程序默认值。完整数据模式不会抽点，并强制使用普通曲线绘制；"
-            "这些选项只改变图件表达和文件体积，不改变统计值。"
+            "管理普通绘图和高频原始时程的显示参数。结构加速度、索力加速度的正式统计"
+            "使用全部有效源样本；为避免超大图耗尽内存，图形可仅保留首尾、极值和代表点。"
+            "“最大绘制点数”只限制图中顶点，不减少统计样本。部分桥梁已设置模块专用的"
+            "完整源数据口径，它会优先于此处的全局数据口径。"
         )
         hint.setWordWrap(True)
         hint.setToolTip(
-            "完整数据模式保留全部有效点；普通曲线模式按时间顺序连接数据"
+            "完整源数据用于统计；图形渲染可采用峰值保真缩减，且保留首尾和极值"
         )
         outer.addWidget(hint)
 

@@ -40,6 +40,36 @@ function Get-StrictString($Value, [string]$Name, [bool]$AllowEmpty = $false) {
     return $Value
 }
 
+function Get-GitSourceState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepositoryRoot
+    )
+
+    $commitOutput = @(& git -C $RepositoryRoot rev-parse --verify HEAD 2>&1)
+    $commitExitCode = $LASTEXITCODE
+    if ($commitExitCode -ne 0) {
+        throw "Unable to resolve the source Git commit (exit $commitExitCode): $($commitOutput -join '; ')"
+    }
+    if ($commitOutput.Count -ne 1) {
+        throw "Git returned an ambiguous source commit: $($commitOutput -join '; ')"
+    }
+    $commit = ([string]$commitOutput[0]).Trim().ToLowerInvariant()
+    if ($commit -notmatch '^[0-9a-f]{40}$') {
+        throw "Git returned an invalid source commit: $commit"
+    }
+
+    $statusOutput = @(& git -C $RepositoryRoot status --porcelain=v1 --untracked-files=all 2>&1)
+    $statusExitCode = $LASTEXITCODE
+    if ($statusExitCode -ne 0) {
+        throw "Unable to inspect the source Git working tree (exit $statusExitCode): $($statusOutput -join '; ')"
+    }
+    return [pscustomobject]@{
+        commit = $commit
+        clean = ($statusOutput.Count -eq 0)
+    }
+}
+
 function ConvertTo-SafeRelativePath($Value) {
     $Value = Get-StrictString $Value "Relative package path"
     if ([string]::IsNullOrWhiteSpace($Value)) {
@@ -113,6 +143,13 @@ function Assert-OperatorGuideContract([string]$Path) {
         (-join (39640, 39118, 38505, 12289, 40664, 35748, 20851, 38381 | ForEach-Object { [char]$_ })),
         (-join (21482, 20445, 23384, 22312, 24403, 21069, 20219, 21153, 26041, 26696, 20013 | ForEach-Object { [char]$_ })),
         (-join (19981, 20889, 20837, 26725, 26753, 20844, 20849, 37197, 32622 | ForEach-Object { [char]$_ })),
+        (-join (26412, 27425, 35745, 31639, 32467, 26524, 22312, 21738, 37324 | ForEach-Object { [char]$_ })),
+        (-join (33258, 21160, 21305, 37197, 24403, 21069, 20219, 21153, 26354, 32447, 39044, 35272 | ForEach-Object { [char]$_ })),
+        (-join (26222, 36890, 29992, 25143, 26080, 38656, 36873, 25321 | ForEach-Object { [char]$_ })),
+        (-join (39640, 32423, 65306, 23548, 20837, 24050, 26377, 39044, 35272, 25991, 20214 | ForEach-Object { [char]$_ })),
+        "stats",
+        "run_logs",
+        "DOCX/PDF",
         "jlj_daily_export",
         "DELETE_VERIFIED_EXTRACTED_CSV"
     )
@@ -281,6 +318,11 @@ if ($Version -notmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-
 if (-not $AllowDevelopmentVersion -and $Version -match '-') {
     throw "Development versions cannot be published as stable updates: $Version"
 }
+$isDevelopmentVersion = [bool]($Version -match '-')
+$sourceGitStateBeforeBuild = Get-GitSourceState -RepositoryRoot $repo
+if (-not $isDevelopmentVersion -and -not $sourceGitStateBeforeBuild.clean) {
+    throw "Stable releases require a clean Git working tree: $Version"
+}
 $releaseNotesPath = Join-Path $repo ("docs\releases\{0}.md" -f $Version)
 if (-not (Test-Path -LiteralPath $releaseNotesPath -PathType Leaf)) {
     throw "Release notes are missing: $releaseNotesPath"
@@ -288,6 +330,10 @@ if (-not (Test-Path -LiteralPath $releaseNotesPath -PathType Leaf)) {
 
 if (-not $SkipBuild) {
     & (Join-Path $repo "scripts\build_workbench_exe.ps1")
+}
+$sourceGitState = Get-GitSourceState -RepositoryRoot $repo
+if ($sourceGitState.commit -cne $sourceGitStateBeforeBuild.commit) {
+    throw "The source Git commit changed during release packaging: $($sourceGitStateBeforeBuild.commit) -> $($sourceGitState.commit)"
 }
 
 $distRoot = Join-Path $repo "dist\BridgeMonitoringWorkbench"
@@ -312,10 +358,29 @@ if ((Get-StrictInt64 $manifest.schema_version "manifest.schema_version") -ne 3) 
 if ((Get-StrictString $manifest.version "manifest.version") -cne $Version) {
     throw "VERSION and release manifest differ: $Version vs $($manifest.version)"
 }
+foreach ($sourceField in @("source_git_commit", "source_tree_clean")) {
+    if ($null -eq $manifest.PSObject.Properties[$sourceField]) {
+        throw "Workbench release manifest is missing $sourceField"
+    }
+}
+$manifestSourceCommit = Get-StrictString $manifest.source_git_commit `
+    "manifest.source_git_commit"
+if ($manifestSourceCommit -notmatch '^[0-9a-f]{40}$') {
+    throw "manifest.source_git_commit must be a lowercase 40-character Git commit"
+}
+Assert-ExactBoolean $manifest.source_tree_clean $sourceGitState.clean `
+    "manifest.source_tree_clean"
+if ($manifestSourceCommit -cne $sourceGitState.commit) {
+    throw "Release manifest source commit differs from the current Git HEAD: $manifestSourceCommit vs $($sourceGitState.commit)"
+}
+if (-not $isDevelopmentVersion -and -not $manifest.source_tree_clean) {
+    throw "Stable release manifest must record a clean source tree: $Version"
+}
 
 $requiredTrueManifestFields = @(
     "auto_threshold_preview_runner_smoke",
     "analysis_runner_failure_exit_smoke",
+    "analysis_runner_manifest_resilience_smoke",
     "analysis_runner_cache_cleanup_policy_smoke",
     "installed_profile_matrix_smoke",
     "invalid_cli_smoke",
@@ -372,6 +437,39 @@ if ((Get-StrictString $runnerCleanup.enabled_cleanup.receipt_status `
             "manifest.analysis_runner_cache_cleanup_policy.enabled_cleanup.deleted_count") -ne 1) {
     throw "Compiled Runner cleanup-policy evidence has no committed one-file cleanup"
 }
+foreach ($standardCleanupCase in @(
+        [pscustomobject]@{ name = "enabled_cleanup_dated_folders"; layout = "dated_folders" },
+        [pscustomobject]@{ name = "enabled_cleanup_hongtang_period"; layout = "hongtang_period" }
+    )) {
+    $section = $runnerCleanup.PSObject.Properties[$standardCleanupCase.name]
+    if ($null -eq $section) {
+        throw "Compiled Runner cleanup-policy evidence is missing $($standardCleanupCase.name)"
+    }
+    $evidence = $section.Value
+    Assert-ExactBoolean $evidence.ok $true `
+        "manifest.analysis_runner_cache_cleanup_policy.$($standardCleanupCase.name).ok"
+    if ((Get-StrictString $evidence.layout `
+            "manifest.analysis_runner_cache_cleanup_policy.$($standardCleanupCase.name).layout") `
+            -cne $standardCleanupCase.layout) {
+        throw "Compiled Runner cleanup-policy evidence has the wrong layout for $($standardCleanupCase.name)"
+    }
+    foreach ($booleanField in @(
+            "configured_csv_deleted",
+            "unconfigured_csv_preserved",
+            "source_archives_preserved",
+            "workbook_and_wim_preserved"
+        )) {
+        Assert-ExactBoolean $evidence.PSObject.Properties[$booleanField].Value $true `
+            "manifest.analysis_runner_cache_cleanup_policy.$($standardCleanupCase.name).$booleanField"
+    }
+    if ((Get-StrictString $evidence.receipt_status `
+            "manifest.analysis_runner_cache_cleanup_policy.$($standardCleanupCase.name).receipt_status") `
+            -cne "committed" `
+            -or (Get-StrictInt64 $evidence.deleted_count `
+                "manifest.analysis_runner_cache_cleanup_policy.$($standardCleanupCase.name).deleted_count") -ne 1) {
+        throw "Compiled Runner cleanup-policy evidence has no committed one-file cleanup for $($standardCleanupCase.name)"
+    }
+}
 Assert-ExactBoolean $manifest.standalone_report_builder_included $false `
     "manifest.standalone_report_builder_included"
 if ((Get-StrictString $manifest.screenshot_mode "manifest.screenshot_mode") `
@@ -406,7 +504,7 @@ if ((Get-StrictInt64 $nativeGui.dpi_awareness_code `
     throw "Workbench native GUI acceptance evidence is incomplete"
 }
 if ((Get-StrictInt64 $manifest.operator_feature_contract_version `
-        "manifest.operator_feature_contract_version" 1) -lt 3) {
+        "manifest.operator_feature_contract_version" 1) -lt 4) {
     throw "Workbench operator feature contract is missing"
 }
 $cleanupContract = $manifest.cache_source_cleanup_contract
@@ -472,7 +570,10 @@ foreach ($fieldName in @(
         "lower_box_threshold_control_available",
         "upper_box_threshold_control_available",
         "offset_effective_range_seconds_available",
-        "unzip_settings_available"
+        "unzip_settings_available",
+        "analysis_result_location_visible",
+        "analysis_result_open_control_available",
+        "threshold_preview_auto_locator_available"
     )) {
     $property = $smokeResult.PSObject.Properties[$fieldName]
     if ($null -eq $property) {
@@ -484,7 +585,8 @@ foreach ($fieldName in @(
         "cache_source_cleanup_control_available",
         "cache_source_cleanup_default_off",
         "cache_source_cleanup_confirmation_empty",
-        "cache_source_cleanup_confirmation_required"
+        "cache_source_cleanup_confirmation_required",
+        "cache_source_cleanup_current_layout_supported"
     )) {
     $property = $smokeResult.PSObject.Properties[$fieldName]
     if ($null -eq $property) {
@@ -495,7 +597,6 @@ foreach ($fieldName in @(
 foreach ($fieldName in @(
         "cache_source_cleanup_checked",
         "cache_source_cleanup_confirmation_matches",
-        "cache_source_cleanup_current_layout_supported",
         "cache_source_cleanup_control_enabled",
         "cache_source_cleanup_task_option_present"
     )) {
@@ -508,6 +609,10 @@ foreach ($fieldName in @(
 if ((Get-StrictString $smokeResult.cache_source_cleanup_supported_data_layout `
         "smoke.cache_source_cleanup_supported_data_layout") -cne "jlj_daily_export") {
     throw "Workbench smoke result has an invalid cache-source cleanup layout hint"
+}
+$cleanupLayouts = @($smokeResult.cache_source_cleanup_supported_data_layouts)
+if (($cleanupLayouts -join "|") -cne "dated_folders|hongtang_period|jlj_daily_export") {
+    throw "Workbench smoke result has an invalid cache-source cleanup layout matrix"
 }
 if ((Get-StrictInt64 $smokeResult.config_tab_count "smoke.config_tab_count") -ne 9 `
         -or (Get-StrictInt64 $smokeResult.gap_override_column_count `
@@ -789,6 +894,8 @@ try {
         schema_version = 1
         repository = "zjkl19/GuanbingBridgeMonitoring"
         tag = $Version
+        source_git_commit = $manifestSourceCommit
+        source_tree_clean = [bool]$manifest.source_tree_clean
         archive = $archivePath
         archive_sha256 = $archiveHash
         checksum = $checksumPath

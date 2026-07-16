@@ -7,10 +7,8 @@ classdef ErrorClassifier
                 errorType = '';
                 return;
             end
-            msg = '';
-            ident = '';
-            try, msg = char(ME.message); catch, msg = ''; end
-            try, ident = char(ME.identifier); catch, ident = ''; end
+            msg = bms.app.ErrorClassifier.safeExceptionText(ME, 'message');
+            ident = bms.app.ErrorClassifier.safeExceptionText(ME, 'identifier');
             errorType = bms.app.ErrorClassifier.classifyText([ident ' ' msg]);
         end
 
@@ -18,8 +16,7 @@ classdef ErrorClassifier
             text = lower(char(string(text)));
             if isempty(strtrim(text))
                 errorType = '';
-            elseif bms.app.ErrorClassifier.hasAny(text, {'out of memory','memory', ...
-                    char([20869 23384 19981 36275])})
+            elseif bms.app.ErrorClassifier.isMemoryErrorText(text)
                 errorType = 'memory_error';
             elseif bms.app.ErrorClassifier.hasAny(text, {'wim:sql','sqlcmd','sql server','odbc'})
                 errorType = 'sql_error';
@@ -50,6 +47,34 @@ classdef ErrorClassifier
                     tf = true;
                     return;
                 end
+            end
+        end
+
+        function tf = isMemoryErrorText(text)
+            % A bare "memory" match is unsafe: ordinary cache/file errors
+            % would otherwise close figures and suppress later high-memory
+            % modules.  Match MATLAB identifiers and unambiguous OOM phrases.
+            patterns = { ...
+                'matlab:nomem', ...
+                'matlab:array:sizelimitexceeded', ...
+                'out of memory', ...
+                'outofmemory', ...
+                'insufficient memory', ...
+                'not enough memory', ...
+                'cannot allocate memory', ...
+                'failed to allocate memory', ...
+                'java heap space', ...
+                char([20869 23384 19981 36275]), ... % 内存不足
+                char([26080 27861 20998 37197 20869 23384]), ... % 无法分配内存
+                char([36229 36807 26368 22823 25968 32452 22823 23567])}; % 超过最大数组大小
+            tf = bms.app.ErrorClassifier.hasAny(text, patterns);
+        end
+
+        function text = safeExceptionText(ME, fieldName)
+            text = '';
+            try
+                text = char(ME.(fieldName));
+            catch
             end
         end
     end

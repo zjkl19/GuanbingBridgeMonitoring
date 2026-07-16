@@ -93,7 +93,8 @@ classdef BridgeProfileRegistry
             elseif contains(source, 'shuixianhua') || contains(source, 'sxh') || contains(source, '水仙花') || ...
                     contains(vendor, 'shuixianhua') || contains(vendor, 'sxh') || contains(rootText, '水仙花')
                 profile = bms.profile.BridgeProfileRegistry.fromId('shuixianhua');
-            elseif contains(source, 'hongtang') || contains(source, '洪塘') || contains(rootText, '洪塘')
+            elseif contains(source, 'hongtang') || contains(source, '洪塘') ...
+                    || contains(vendor, 'hongtang') || contains(rootText, '洪塘')
                 profile = bms.profile.BridgeProfileRegistry.fromId('hongtang');
             elseif contains(source, 'jiulongjiang') || contains(source, 'jlj') || contains(source, '九龙江') || contains(rootText, '九龙江')
                 profile = bms.profile.BridgeProfileRegistry.fromId('jiulongjiang');

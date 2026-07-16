@@ -14,8 +14,9 @@ unchanged.
 
 - Cache prebuild remains optional and unchecked by default for every bridge.
   Destructive source cleanup is a separate task option that is also disabled by
-  default and currently supports only the archive-backed `jlj_daily_export`
-  layout. `dated_folders` and `hongtang_period` still retain CSV.
+  default. It supports the three archive-backed layouts `jlj_daily_export`,
+  `dated_folders` and `hongtang_period`; layouts without verified ZIP recovery
+  evidence retain CSV.
 - Cleanup authorization is task-scoped, not bridge configuration. It requires
   `mode=verified_extracted_csv`, `commit_scope=day`,
   `recovery_policy=verified_archive`, a non-empty confirmation timestamp and the
@@ -34,9 +35,11 @@ unchanged.
 - The original ZIP and verified extraction manifest are mandatory recovery
   evidence. Already-extracted data without that evidence, a changed ZIP, an
   entry/path/size/CRC mismatch or a missing manifest must block deletion.
-- Each daily partition retains
-  `.bms_cache_source_cleanup_receipt.json`. The receipt binds partition/source/
-  cache paths, cache/config identities, MAT/meta pair data and archive proof.
+- Each `jlj_daily_export` partition retains
+  `.bms_cache_source_cleanup_receipt.json`; standard/period layouts retain one
+  `run_logs/cache_source_cleanup_receipts/standard_YYYYMMDD.json` per day. The
+  receipt binds partition/source/cache paths, cache/config identities, MAT/meta
+  pair data and one or more unique archive proofs.
   Do not edit or delete it manually; it is part of cache-only discovery and
   interrupted-run reconciliation.
 - A committed daily receipt cannot be silently extended when a new source CSV
@@ -1032,10 +1035,14 @@ Recommended behavior:
 
 ## Archive-Backed Extracted-CSV Cleanup
 
-Status: implemented in `v1.8.1-rc4`; isolated production acceptance pending.
+Status: the first rc4 implementation was limited to the Jiulongjiang daily ZIP
+layout. The current v1.8.1 working tree generalizes the same fail-closed contract
+to `jlj_daily_export`, `dated_folders` and `hongtang_period`; final packaged and
+isolated production acceptance remains pending.
 
-- The feature is intentionally limited to the daily ZIP export layout used by
-  Jiulongjiang and Shuixianhua. Other layouts fail closed and retain CSVs.
+- The feature now covers all currently installed bridges whose source layout is
+  one of those three archive-backed layouts. A layout without a verified ZIP
+  recovery contract still fails closed and retains CSVs.
 - It is not a generic delete-after-cache switch. It requires a dedicated task,
   exact confirmation token, recoverable source ZIP, immutable extraction
   evidence, independent MAT/meta validation, CRC rechecks, a durable receipt
@@ -1045,6 +1052,12 @@ Status: implemented in `v1.8.1-rc4`; isolated production acceptance pending.
   same explicitly authorized cleanup workflow to reconcile it.
 - Source ZIPs, WIM, Excel, unconfigured CSV, MAT/meta and receipts are retained.
   Disk estimates must therefore include those retained files.
+- The whole natural day is one transaction. Every configured CSV source must
+  bind uniquely to an unchanged archive entry by relative path, size and CRC;
+  ambiguity or missing evidence prevents every deletion for that day. A
+  Jiulongjiang-style partition must also be a unique valid calendar-day
+  partition; UUID-like temporary names and ambiguous same-day partitions cannot
+  authorize deletion.
 - Do not run analysis in the same task. After cleanup completes, start a new
   MAT-only/auto analysis and prove that the retained cache pairs load normally.
 
@@ -1057,3 +1070,70 @@ Status: implemented in `v1.8.1-rc4`; isolated production acceptance pending.
   currently lacks EOCD and June 19–30 are missing. Require 30/30, no download
   temporaries, two stable inventories and successful ZipArchive open on every
   file before extraction.
+
+## Full-Month High-Frequency Memory And Manifest Publication
+
+Status: fixed in the `v1.8.1` source and accepted by the Hongtang Q2 and
+Zhishan April real-data high-frequency regressions. The Jiulongjiang May report
+review and machine-133 stable cutover remain separate, still-open gates.
+
+- A Jiulongjiang May `full+connect` run retained about 130 million samples per
+  cable point and exhausted memory during the cable-acceleration plot stage.
+  Continuing immediately into both spectrum modules caused predictable chained
+  memory failures.
+- The same failed run left an invalid manifest truncated at exactly 1 Mi
+  characters. A manifest file existing on disk is therefore not sufficient
+  evidence; it must parse, carry a terminal status and pass artifact hashes.
+- v1.8.1 closes only figures created by the OOM-failed step, skips later modules
+  marked `HighMemoryRisk`, writes compact JSON through a temporary file, and
+  reopens/decodes the temporary bytes before atomic publication. If a full
+  manifest still cannot be written, a small valid failed manifest is emitted.
+- Current recovery policy is separate-process isolation per high-memory unit.
+  Do not resume halfway through a module whose final statistics workbook was
+  never published. For Jiulongjiang cable acceleration, all 15 points must be
+  rerun, staged, hashed and merged in configured order.
+- The rc5 candidate boundary closed its formal build, Python, MATLAB, native
+  GUI and compiled large-manifest checks. The stable v1.8.1 package must repeat
+  those gates from the exact committed Git source; candidate evidence is not a
+  substitute for the final stable inventory. The Jiulongjiang point-isolated
+  recovery and composite result have separate evidence, but its rendered report
+  and the stable production switch must not be marked complete until their own
+  acceptance records exist.
+
+## Machine 133 PowerShell CLR Thread-Start Failure
+
+Status: transient after the Jiulongjiang May OOM; a later read-only health
+check recovered, but every deployment must repeat the gate immediately before
+writing.
+
+- A scheduled-task query succeeded, but subsequent SSH exec, PowerShell and
+  WMIC starts intermittently failed with connection resets, CLR
+  `HRESULT 80004005` and “thread failed to start”.
+- Do not interpret this as an application regression or attempt repeated remote
+  launches. First confirm the host can start a lightweight shell, then query
+  exact process names and status-file metadata. Only after that read-only gate
+  passes may the isolated candidate tree be updated.
+- The 2026-07-16 04:15 CST recheck passed and found no remaining Runner,
+  MATLAB or worker from the failed task. This is a point-in-time health result,
+  not permission to skip the same preflight before the actual deployment.
+
+## Jiulongjiang Cable-Force Parameters Are Placeholders
+
+Status: detected in the recovery evidence and fail-closed in the `v1.8.1`
+report path; formal engineering parameters are still required.
+
+- All 15 current Jiulongjiang cable-force point entries use `rho=1` and `L=1`
+  and carry no `force_parameter_status=verified` (or equivalent) marker.
+- The spectrum pipeline can therefore reproduce 15 `CableForce` statistics and
+  figures, but the resulting force values are not engineering-valid evidence;
+  the configured 1000--2200 kN display range also makes the placeholder curves
+  visually unusable.
+- The recovery manifest records every point's parameter evidence, sets
+  `cable_force_engineering_valid=false` and labels the status
+  `placeholder_parameters`. Reports retain the measured cable-vibration
+  analysis but omit placeholder force images, force values and engineering
+  force conclusions, and disclose the exclusion, until verified `rho` and `L`
+  values are supplied. The strict report path is fail-closed for future normal
+  runs as well: only an explicit Boolean `cable_force_engineering_valid=true`
+  may re-enable engineering force content; a missing or non-Boolean value does
+  not silently opt in.

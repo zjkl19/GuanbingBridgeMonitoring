@@ -201,6 +201,10 @@ exit 0
         )
         self.assertIn("configured_csv_deleted", self.build_script)
         self.assertIn("unconfigured_csv_preserved", self.build_script)
+        self.assertIn("enabled_cleanup_dated_folders", self.build_script)
+        self.assertIn("enabled_cleanup_hongtang_period", self.build_script)
+        self.assertIn("source_archives_preserved", self.build_script)
+        self.assertIn("workbook_and_wim_preserved", self.build_script)
         self.assertIn("BMS:CacheSourceCleanup:DedicatedTaskRequired", self.package_script)
         cleanup_gate = self.build_script.index(
             '-StepName "Compiled analysis cache-cleanup policy smoke"'
@@ -303,18 +307,26 @@ exit 0
             "offset_effective_range_seconds_available",
             "gap_override_column_count",
             "unzip_settings_available",
+            "analysis_result_location_visible",
+            "analysis_result_open_control_available",
+            "threshold_preview_auto_locator_available",
             "cache_source_cleanup_control_available",
             "cache_source_cleanup_default_off",
             "cache_source_cleanup_confirmation_empty",
             "cache_source_cleanup_confirmation_required",
             "cache_source_cleanup_task_option_present",
             "cache_source_cleanup_supported_data_layout",
+            "cache_source_cleanup_supported_data_layouts",
         ):
             self.assertIn(field, self.build_script)
             self.assertIn(field, self.package_script)
         self.assertIn("operator_feature_contract_smoke", self.build_script)
         self.assertIn("operator_feature_contract_smoke", self.package_script)
-        self.assertIn("operator_feature_contract_version = 3", self.build_script)
+        self.assertIn("operator_feature_contract_version = 4", self.build_script)
+        self.assertIn(
+            '"manifest.operator_feature_contract_version" 1) -lt 4',
+            self.package_script,
+        )
         self.assertIn("cache_source_cleanup_contract_smoke", self.build_script)
         self.assertIn("cache_source_cleanup_contract_smoke", self.package_script)
         self.assertIn("workbench_cache_source_cleanup.png", self.build_script)
@@ -342,6 +354,8 @@ exit 0
         for contract in (
             "GetForegroundWindow",
             "GetGUIThreadInfo",
+            "AttachThreadInput",
+            "SetFocus",
             "Workbench did not become the native foreground window",
             "Workbench did not receive native keyboard focus",
             "GetDpiForWindow",
@@ -389,6 +403,26 @@ exit 0
         self.assertIn("$distVersion -ne $Version", self.package_script)
         self.assertIn('Get-StrictString $manifest.smoke.version "manifest.smoke.version"', self.package_script)
         self.assertIn('Get-StrictString $smokeResult.version "smoke.version"', self.package_script)
+
+    def test_build_and_release_are_bound_to_a_git_source_commit(self) -> None:
+        for script in (self.build_script, self.package_script):
+            self.assertIn("function Get-GitSourceState", script)
+            self.assertIn("rev-parse --verify HEAD", script)
+            self.assertIn("status --porcelain=v1 --untracked-files=all", script)
+            self.assertIn("source_git_commit", script)
+            self.assertIn("source_tree_clean", script)
+        self.assertIn(
+            "The source Git commit changed during the workbench build",
+            self.build_script,
+        )
+        self.assertIn(
+            "Stable releases require a clean Git working tree",
+            self.package_script,
+        )
+        self.assertIn(
+            "Release manifest source commit differs from the current Git HEAD",
+            self.package_script,
+        )
 
     def test_failure_exit_validator_checks_durable_failed_manifest(self) -> None:
         module = self._failure_exit_module()
@@ -545,6 +579,10 @@ exit 0
             "39640, 39118, 38505, 12289, 40664, 35748, 20851, 38381",
             "21482, 20445, 23384, 22312, 24403, 21069, 20219, 21153, 26041, 26696, 20013",
             "19981, 20889, 20837, 26725, 26753, 20844, 20849, 37197, 32622",
+            "26412, 27425, 35745, 31639, 32467, 26524, 22312, 21738, 37324",
+            "33258, 21160, 21305, 37197, 24403, 21069, 20219, 21153, 26354, 32447, 39044, 35272",
+            "26222, 36890, 29992, 25143, 26080, 38656, 36873, 25321",
+            "39640, 32423, 65306, 23548, 20837, 24050, 26377, 39044, 35272, 25991, 20214",
         ):
             self.assertIn(fragment_code_points, self.package_script)
 
@@ -567,6 +605,13 @@ exit 0
             "高风险、默认关闭",
             "只保存在当前任务方案中",
             "不写入桥梁公共配置",
+            "本次计算结果在哪里",
+            "自动匹配当前任务曲线预览",
+            "普通用户无需选择",
+            "高级：导入已有预览文件",
+            "stats",
+            "run_logs",
+            "DOCX/PDF",
             "jlj_daily_export",
             "DELETE_VERIFIED_EXTRACTED_CSV",
         )

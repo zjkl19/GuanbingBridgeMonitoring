@@ -15,6 +15,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_SCRIPT = REPO_ROOT / "scripts" / "package_workbench_github_release.ps1"
 VERSION = "v1.8.1-rc3"
+STABLE_VERSION = "v1.8.1"
 OPERATOR_GUIDE_NAME = "\u4f7f\u7528\u8bf4\u660e.md"
 CACHE_PREBUILD_STEM = "\u9884\u751f\u6210\u5206\u6790\u7f13\u5b58"
 THRESHOLD_PREVIEW_STEM = "\u6253\u5f00\u66f2\u7ebf\u9884\u89c8\u5e76\u62d6\u7ebf\u8bbe\u7f6e"
@@ -27,6 +28,13 @@ EQUALITY_RULE = "等于候选阈值的点保留"
 CLEANUP_HIGH_RISK_RULE = "高风险、默认关闭"
 CLEANUP_TASK_SCOPE_RULE = "只保存在当前任务方案中"
 CLEANUP_CONFIG_ISOLATION_RULE = "不写入桥梁公共配置"
+RESULT_LOCATION_STEM = "本次计算结果在哪里"
+AUTO_PREVIEW_MATCH_STEM = "自动匹配当前任务曲线预览"
+NO_JSON_STEM = "普通用户无需选择"
+ADVANCED_PREVIEW_IMPORT_STEM = "高级：导入已有预览文件"
+RESULT_STATS_DIR = "stats"
+RESULT_LOGS_DIR = "run_logs"
+REPORT_OUTPUT_STEM = "DOCX/PDF"
 CLEANUP_LAYOUT = "jlj_daily_export"
 CLEANUP_CONFIRMATION = "DELETE_VERIFIED_EXTRACTED_CSV"
 GUIDE_FRAGMENTS = (
@@ -41,6 +49,13 @@ GUIDE_FRAGMENTS = (
     CLEANUP_HIGH_RISK_RULE,
     CLEANUP_TASK_SCOPE_RULE,
     CLEANUP_CONFIG_ISOLATION_RULE,
+    RESULT_LOCATION_STEM,
+    AUTO_PREVIEW_MATCH_STEM,
+    NO_JSON_STEM,
+    ADVANCED_PREVIEW_IMPORT_STEM,
+    RESULT_STATS_DIR,
+    RESULT_LOGS_DIR,
+    REPORT_OUTPUT_STEM,
     CLEANUP_LAYOUT,
     CLEANUP_CONFIRMATION,
 )
@@ -55,6 +70,9 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
         self.powershell = shutil.which("powershell.exe") or shutil.which("powershell")
         if self.powershell is None:
             self.skipTest("Windows PowerShell is unavailable")
+        self.git = shutil.which("git.exe") or shutil.which("git")
+        if self.git is None:
+            self.skipTest("Git is unavailable")
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.repo = Path(self.temporary_directory.name)
         (self.repo / "scripts").mkdir(parents=True)
@@ -66,9 +84,10 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
         (self.repo / "docs" / "releases" / f"{VERSION}.md").write_text(
             "# release fixture\n", encoding="utf-8"
         )
+        self.fixture_version = VERSION
         self.smoke = {
             "ok": True,
-            "version": VERSION,
+            "version": self.fixture_version,
             "config_tab_count": 9,
             "manual_threshold_controls_available": True,
             "threshold_band_control_available": True,
@@ -77,6 +96,9 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
             "offset_effective_range_seconds_available": True,
             "gap_override_column_count": 6,
             "unzip_settings_available": True,
+            "analysis_result_location_visible": True,
+            "analysis_result_open_control_available": True,
+            "threshold_preview_auto_locator_available": True,
             "cache_source_cleanup_control_available": True,
             "cache_source_cleanup_checked": False,
             "cache_source_cleanup_default_off": True,
@@ -84,7 +106,12 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
             "cache_source_cleanup_confirmation_required": True,
             "cache_source_cleanup_confirmation_matches": False,
             "cache_source_cleanup_supported_data_layout": CLEANUP_LAYOUT,
-            "cache_source_cleanup_current_layout_supported": False,
+            "cache_source_cleanup_supported_data_layouts": [
+                "dated_folders",
+                "hongtang_period",
+                "jlj_daily_export",
+            ],
+            "cache_source_cleanup_current_layout_supported": True,
             "cache_source_cleanup_control_enabled": False,
             "cache_source_cleanup_task_option_present": False,
         }
@@ -98,6 +125,42 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
             "# Guide\n" + "\n".join(GUIDE_FRAGMENTS) + "\n",
             encoding="utf-8",
         )
+        (self.repo / ".gitignore").write_text(
+            "/*\n!/.gitignore\n!/VERSION\n!/scripts/\n!/docs/\n",
+            encoding="utf-8",
+        )
+        subprocess.run([self.git, "init"], cwd=self.repo, check=True, capture_output=True)
+        subprocess.run(
+            [self.git, "config", "user.email", "workbench-tests@example.invalid"],
+            cwd=self.repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [self.git, "config", "user.name", "Workbench Tests"],
+            cwd=self.repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [self.git, "add", ".gitignore", "VERSION", "scripts", "docs"],
+            cwd=self.repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [self.git, "commit", "-m", "Create release fixture"],
+            cwd=self.repo,
+            check=True,
+            capture_output=True,
+        )
+        self.source_git_commit = subprocess.run(
+            [self.git, "rev-parse", "HEAD"],
+            cwd=self.repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
         self.manifest = self._base_manifest()
         self._write_manifest()
 
@@ -121,11 +184,14 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
             total_bytes += len(payload)
         return {
             "schema_version": 3,
-            "version": VERSION,
+            "source_git_commit": self.source_git_commit,
+            "source_tree_clean": True,
+            "version": self.fixture_version,
             "executable": "桥梁健康监测工作台.exe",
             "executable_sha256": _sha256(self.dist / "桥梁健康监测工作台.exe"),
             "auto_threshold_preview_runner_smoke": True,
             "analysis_runner_failure_exit_smoke": True,
+            "analysis_runner_manifest_resilience_smoke": True,
             "analysis_runner_cache_cleanup_policy_smoke": True,
             "analysis_runner_cache_cleanup_policy": {
                 "ok": True,
@@ -138,6 +204,26 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
                     "ok": True,
                     "configured_csv_deleted": True,
                     "unconfigured_csv_preserved": True,
+                    "receipt_status": "committed",
+                    "deleted_count": 1,
+                },
+                "enabled_cleanup_dated_folders": {
+                    "ok": True,
+                    "layout": "dated_folders",
+                    "configured_csv_deleted": True,
+                    "unconfigured_csv_preserved": True,
+                    "source_archives_preserved": True,
+                    "workbook_and_wim_preserved": True,
+                    "receipt_status": "committed",
+                    "deleted_count": 1,
+                },
+                "enabled_cleanup_hongtang_period": {
+                    "ok": True,
+                    "layout": "hongtang_period",
+                    "configured_csv_deleted": True,
+                    "unconfigured_csv_preserved": True,
+                    "source_archives_preserved": True,
+                    "workbook_and_wim_preserved": True,
                     "receipt_status": "committed",
                     "deleted_count": 1,
                 },
@@ -161,7 +247,7 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
                 "physical_height": 1122,
             },
             "operator_feature_contract_smoke": True,
-            "operator_feature_contract_version": 3,
+            "operator_feature_contract_version": 4,
             "cache_source_cleanup_contract_smoke": True,
             "cache_source_cleanup_contract": {
                 "default_off": True,
@@ -223,24 +309,65 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
         )
         self._write_manifest()
 
-    def _run(self, output: Path) -> subprocess.CompletedProcess[str]:
+    def _prepare_stable_fixture(self) -> None:
+        self.fixture_version = STABLE_VERSION
+        (self.repo / "VERSION").write_text(STABLE_VERSION, encoding="utf-8")
+        (self.repo / "docs" / "releases" / f"{STABLE_VERSION}.md").write_text(
+            "# stable release fixture\n", encoding="utf-8"
+        )
+        subprocess.run(
+            [self.git, "add", "VERSION", "docs"],
+            cwd=self.repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [self.git, "commit", "-m", "Prepare stable release fixture"],
+            cwd=self.repo,
+            check=True,
+            capture_output=True,
+        )
+        self.source_git_commit = subprocess.run(
+            [self.git, "rev-parse", "HEAD"],
+            cwd=self.repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        self.smoke["version"] = STABLE_VERSION
+        (self.dist / "workbench_smoke.json").write_text(
+            json.dumps(self.smoke, ensure_ascii=False), encoding="utf-8"
+        )
+        (self.dist / "VERSION").write_text(STABLE_VERSION, encoding="utf-8")
+        self.manifest = self._base_manifest()
+        self._write_manifest()
+
+    def _run(
+        self,
+        output: Path,
+        *,
+        version: str = VERSION,
+        allow_development: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        command = [
+            self.powershell,
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(self.repo / "scripts" / PACKAGE_SCRIPT.name),
+            "-Version",
+            version,
+            "-OutputDir",
+            str(output),
+            "-SkipBuild",
+        ]
+        if allow_development:
+            command.append("-AllowDevelopmentVersion")
         return subprocess.run(
-            [
-                self.powershell,
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                str(self.repo / "scripts" / PACKAGE_SCRIPT.name),
-                "-Version",
-                VERSION,
-                "-OutputDir",
-                str(output),
-                "-SkipBuild",
-                "-AllowDevelopmentVersion",
-            ],
+            command,
             cwd=self.repo,
             check=False,
             capture_output=True,
@@ -275,6 +402,90 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
                 self.assertEqual(expected_bytes, len(payload), name)
                 self.assertEqual(expected_hash, hashlib.sha256(payload).hexdigest(), name)
         self.assertFalse((output / ".workbench_release_package.lock").exists())
+
+    def test_stable_release_accepts_only_a_clean_commit_bound_fixture(self) -> None:
+        self._prepare_stable_fixture()
+        completed = self._run(
+            self.repo / "stable-release-output",
+            version=STABLE_VERSION,
+            allow_development=False,
+        )
+        self.assertEqual(0, completed.returncode, msg=completed.stderr)
+        publication = json.loads(
+            (
+                self.repo
+                / "stable-release-output"
+                / f"publish_{STABLE_VERSION}.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(self.source_git_commit, publication["source_git_commit"])
+        self.assertIs(True, publication["source_tree_clean"])
+
+    def test_stable_release_rejects_a_dirty_working_tree_before_packaging(self) -> None:
+        self._prepare_stable_fixture()
+        with (self.repo / "VERSION").open("a", encoding="utf-8") as stream:
+            stream.write("\n")
+        completed = self._run(
+            self.repo / "dirty-stable-output",
+            version=STABLE_VERSION,
+            allow_development=False,
+        )
+        self.assertNotEqual(0, completed.returncode)
+        self.assertIn("Stable releases require a clean Git working tree", completed.stderr)
+
+    def test_development_release_can_record_an_explicit_dirty_source_tree(self) -> None:
+        with (self.repo / "VERSION").open("a", encoding="utf-8") as stream:
+            stream.write("\n")
+        self.manifest["source_tree_clean"] = False
+        self._write_manifest()
+        completed = self._run(self.repo / "dirty-development-output")
+        self.assertEqual(0, completed.returncode, msg=completed.stderr)
+        publication = json.loads(
+            (
+                self.repo
+                / "dirty-development-output"
+                / f"publish_{VERSION}.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(self.source_git_commit, publication["source_git_commit"])
+        self.assertIs(False, publication["source_tree_clean"])
+
+    def test_release_manifest_source_binding_fails_closed(self) -> None:
+        baseline = copy.deepcopy(self.manifest)
+        cases = {
+            "missing_commit": (
+                lambda payload: payload.pop("source_git_commit"),
+                "missing source_git_commit",
+            ),
+            "missing_clean": (
+                lambda payload: payload.pop("source_tree_clean"),
+                "missing source_tree_clean",
+            ),
+            "invalid_commit": (
+                lambda payload: payload.__setitem__("source_git_commit", "ABC123"),
+                "lowercase 40-character Git commit",
+            ),
+            "different_commit": (
+                lambda payload: payload.__setitem__("source_git_commit", "0" * 40),
+                "source commit differs from the current Git HEAD",
+            ),
+            "string_clean": (
+                lambda payload: payload.__setitem__("source_tree_clean", "true"),
+                "must be the Boolean value",
+            ),
+            "wrong_clean_state": (
+                lambda payload: payload.__setitem__("source_tree_clean", False),
+                "must be the Boolean value True",
+            ),
+        }
+        for name, (mutate, expected_message) in cases.items():
+            with self.subTest(name=name):
+                self.manifest = copy.deepcopy(baseline)
+                mutate(self.manifest)
+                self._write_manifest()
+                completed = self._run(self.repo / f"source-binding-{name}")
+                self.assertNotEqual(0, completed.returncode)
+                self.assertIn(expected_message, completed.stderr)
 
     def test_operator_guide_is_required(self) -> None:
         (self.dist / OPERATOR_GUIDE_NAME).unlink()
@@ -375,6 +586,29 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
                     self.assertNotEqual(0, completed.returncode)
                     self.assertIn(field, completed.stderr)
 
+    def test_result_discovery_smoke_fields_are_individually_required_true_booleans(self) -> None:
+        fields = (
+            "analysis_result_location_visible",
+            "analysis_result_open_control_available",
+            "threshold_preview_auto_locator_available",
+        )
+        baseline_smoke = copy.deepcopy(self.smoke)
+        for index, field in enumerate(fields):
+            for suffix, value in (("false", False), ("string", "true"), ("missing", None)):
+                with self.subTest(field=field, value=value):
+                    self.smoke = copy.deepcopy(baseline_smoke)
+                    self.manifest = self._base_manifest()
+                    if suffix == "missing":
+                        self.smoke.pop(field)
+                    else:
+                        self.smoke[field] = value
+                    self._write_smoke_and_refresh_manifest()
+                    completed = self._run(
+                        self.repo / f"invalid-result-discovery-smoke-{index}-{suffix}"
+                    )
+                    self.assertNotEqual(0, completed.returncode)
+                    self.assertIn(field, completed.stderr)
+
     def test_native_gui_evidence_is_strictly_validated(self) -> None:
         cases = (
             ("foreground_window_matches", False, "must be the Boolean value True"),
@@ -406,6 +640,19 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
             "unconfigured_csv_not_preserved": lambda payload: payload[
                 "analysis_runner_cache_cleanup_policy"
             ]["enabled_cleanup"].__setitem__("unconfigured_csv_preserved", False),
+            "dated_folders_archive_not_preserved": lambda payload: payload[
+                "analysis_runner_cache_cleanup_policy"
+            ]["enabled_cleanup_dated_folders"].__setitem__(
+                "source_archives_preserved", False
+            ),
+            "hongtang_wrong_layout": lambda payload: payload[
+                "analysis_runner_cache_cleanup_policy"
+            ]["enabled_cleanup_hongtang_period"].__setitem__(
+                "layout", "dated_folders"
+            ),
+            "manifest_resilience_missing": lambda payload: payload.pop(
+                "analysis_runner_manifest_resilience_smoke"
+            ),
         }
         for name, mutate in mutations.items():
             with self.subTest(name=name):

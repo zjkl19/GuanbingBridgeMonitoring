@@ -408,12 +408,27 @@ classdef JljCachePrebuildService
         end
 
         function [csvDirs, discovery] = discoverCsvFiles(root, startDate, endDate, cfg, ...
-                taskOptions, cacheVersion, configHash)
+            taskOptions, cacheVersion, configHash)
             if nargin < 5, taskOptions = struct(); end
             if nargin < 6, cacheVersion = 'jlj_csv_v2'; end
             if nargin < 7, configHash = ''; end
             csvDirs = bms.data.ZipDailyExportAdapter.csvDirs(root, startDate, endDate, cfg);
             csvDirs = sort(unique(cellstr(string(csvDirs)), 'stable'));
+            cleanupOptions = ...
+                bms.data.VerifiedSourceCsvCleanupService.optionsFromTask(taskOptions);
+            if cleanupOptions.enabled
+                % The destructive contract is one transaction per natural
+                % day.  ZipDailyExportAdapter deliberately recognises both
+                % the current data_<bridge>_YYYY-MM-DD folder and the legacy
+                % jljDataYYYYMMDD-YYYYMMDD folder.  If both are present for
+                % one day, processing them as independent partitions could
+                % commit the first cleanup before the second fails.  Reject
+                % the complete day before resuming receipts, building a
+                % cache, renaming a source, or deleting anything.
+                bms.data.JljCachePrebuildService. ...
+                    assertOneCleanupPartitionPerDay( ...
+                        csvDirs, startDate, endDate);
+            end
             bms.data.VerifiedSourceCsvCleanupService.resumePending( ...
                 csvDirs, cfg, taskOptions, cacheVersion, configHash);
             files = {};
@@ -780,6 +795,14 @@ classdef JljCachePrebuildService
             [~, name] = fileparts(char(string(partitionRoot)));
             token = regexp(name, '(20\d{2}-\d{2}-\d{2})', 'tokens', 'once');
             if isempty(token)
+                legacy = regexpi(name, ...
+                    '^jljData(20\d{2})(\d{2})(\d{2})-\d{8}$', ...
+                    'tokens', 'once');
+                if ~isempty(legacy)
+                    token = {sprintf('%s-%s-%s', legacy{:})};
+                end
+            end
+            if isempty(token)
                 days = bms.data.TimeRangeResolver.daysBetween(startDate, endDate);
                 if numel(days) ~= 1
                     error('BMS:CacheSourceCleanup:PartitionDateUnknown', ...
@@ -788,6 +811,81 @@ classdef JljCachePrebuildService
                 dayText = datestr(days(1), 'yyyy-mm-dd');
             else
                 dayText = token{1};
+            end
+        end
+
+        function assertOneCleanupPartitionPerDay(csvDirs, startDate, endDate)
+            requested = bms.data.TimeRangeResolver.daysBetween( ...
+                startDate, endDate);
+            requestedDays = cellstr(datestr(requested, 'yyyy-mm-dd'));
+            partitionDays = cell(1, numel(csvDirs));
+            partitionRoots = cell(1, numel(csvDirs));
+            for i = 1:numel(csvDirs)
+                partitionRoots{i} = ...
+                    bms.data.JljCachePrebuildService. ...
+                        cleanupPartitionRoot(csvDirs{i});
+                partitionDays{i} = ...
+                    bms.data.JljCachePrebuildService.dayForPartition( ...
+                        partitionRoots{i}, startDate, endDate);
+            end
+
+            issues = {};
+            outside = setdiff(unique(partitionDays, 'stable'), ...
+                requestedDays, 'stable');
+            if ~isempty(outside)
+                issues{end+1} = sprintf('date outside request: %s', ... %#ok<AGROW>
+                    strjoin(outside, ', '));
+            end
+            for dayIndex = 1:numel(requestedDays)
+                dayText = requestedDays{dayIndex};
+                indexes = find(strcmp(partitionDays, dayText));
+                if numel(indexes) ~= 1
+                    paths = partitionRoots(indexes);
+                    if isempty(paths), paths = {'<none>'}; end
+                    issues{end+1} = sprintf('%s has %d partition(s): %s', ... %#ok<AGROW>
+                        dayText, numel(indexes), strjoin(paths, ' | '));
+                    continue;
+                end
+                manifestPath = fullfile(partitionRoots{indexes}, ...
+                    '.bms_extract_manifest.json');
+                if ~isfile(manifestPath)
+                    issues{end+1} = sprintf( ... %#ok<AGROW>
+                        '%s partition has no verified extraction manifest: %s', ...
+                        dayText, partitionRoots{indexes});
+                end
+            end
+            if ~isempty(issues)
+                error('BMS:CacheSourceCleanup:DailyPartitionCount', ...
+                    ['Verified jlj_daily_export cleanup requires exactly one ' ...
+                     'valid CSV partition for every natural day. No cache or ' ...
+                     'source cleanup was started: %s'], strjoin(issues, '; '));
+            end
+        end
+
+        function root = cleanupPartitionRoot(csvDir)
+            try
+                root = bms.data.VerifiedSourceCsvCleanupService. ...
+                    partitionRoot(csvDir);
+            catch ME
+                % Preserve the stronger existing diagnostic for a committed
+                % or interrupted cleanup whose extraction evidence was later
+                % removed.  The uniqueness gate runs before resumePending(),
+                % so it must not downgrade this to a generic missing-manifest
+                % error.
+                candidate = char(string(csvDir));
+                for i = 1:12
+                    receiptPath = fullfile(candidate, ...
+                        '.bms_cache_source_cleanup_receipt.json');
+                    if isfile(receiptPath)
+                        error('BMS:CacheSourceCleanup:ExtractionManifestLost', ...
+                            ['A cleanup receipt exists but its verified extraction ' ...
+                             'manifest is missing: %s'], receiptPath);
+                    end
+                    parent = fileparts(candidate);
+                    if isempty(parent) || strcmp(parent, candidate), break; end
+                    candidate = parent;
+                end
+                rethrow(ME);
             end
         end
 

@@ -26,6 +26,36 @@ function Invoke-NativeChecked {
     }
 }
 
+function Get-GitSourceState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepositoryRoot
+    )
+
+    $commitOutput = @(& git -C $RepositoryRoot rev-parse --verify HEAD 2>&1)
+    $commitExitCode = $LASTEXITCODE
+    if ($commitExitCode -ne 0) {
+        throw "Unable to resolve the source Git commit (exit $commitExitCode): $($commitOutput -join '; ')"
+    }
+    if ($commitOutput.Count -ne 1) {
+        throw "Git returned an ambiguous source commit: $($commitOutput -join '; ')"
+    }
+    $commit = ([string]$commitOutput[0]).Trim().ToLowerInvariant()
+    if ($commit -notmatch '^[0-9a-f]{40}$') {
+        throw "Git returned an invalid source commit: $commit"
+    }
+
+    $statusOutput = @(& git -C $RepositoryRoot status --porcelain=v1 --untracked-files=all 2>&1)
+    $statusExitCode = $LASTEXITCODE
+    if ($statusExitCode -ne 0) {
+        throw "Unable to inspect the source Git working tree (exit $statusExitCode): $($statusOutput -join '; ')"
+    }
+    return [pscustomobject]@{
+        commit = $commit
+        clean = ($statusOutput.Count -eq 0)
+    }
+}
+
 function Assert-OperatorGuideContract {
     param(
         [Parameter(Mandatory = $true)]
@@ -52,6 +82,13 @@ function Assert-OperatorGuideContract {
         (-join (39640, 39118, 38505, 12289, 40664, 35748, 20851, 38381 | ForEach-Object { [char]$_ })),
         (-join (21482, 20445, 23384, 22312, 24403, 21069, 20219, 21153, 26041, 26696, 20013 | ForEach-Object { [char]$_ })),
         (-join (19981, 20889, 20837, 26725, 26753, 20844, 20849, 37197, 32622 | ForEach-Object { [char]$_ })),
+        (-join (26412, 27425, 35745, 31639, 32467, 26524, 22312, 21738, 37324 | ForEach-Object { [char]$_ })),
+        (-join (33258, 21160, 21305, 37197, 24403, 21069, 20219, 21153, 26354, 32447, 39044, 35272 | ForEach-Object { [char]$_ })),
+        (-join (26222, 36890, 29992, 25143, 26080, 38656, 36873, 25321 | ForEach-Object { [char]$_ })),
+        (-join (39640, 32423, 65306, 23548, 20837, 24050, 26377, 39044, 35272, 25991, 20214 | ForEach-Object { [char]$_ })),
+        "stats",
+        "run_logs",
+        "DOCX/PDF",
         "jlj_daily_export",
         "DELETE_VERIFIED_EXTRACTED_CSV"
     )
@@ -65,6 +102,8 @@ function Assert-OperatorGuideContract {
 if (-not (Test-Path -LiteralPath $PythonExe -PathType Leaf)) {
     throw "Python executable not found: $PythonExe"
 }
+
+$sourceGitStateBeforeBuild = Get-GitSourceState -RepositoryRoot $repo
 
 Invoke-NativeChecked `
     -FilePath $PythonExe `
@@ -192,6 +231,8 @@ Invoke-NativeChecked `
     -StepName "Workbench asset copy"
 
 $analysisRunnerFailureExitSmoke = $false
+$analysisRunnerManifestResilienceSmoke = $false
+$analysisRunnerManifestResilience = $null
 $analysisRunnerCacheCleanupPolicySmoke = $false
 $analysisRunnerCacheCleanupPolicy = $null
 if (-not $SkipAnalysisRunner) {
@@ -226,6 +267,41 @@ if (-not $SkipAnalysisRunner) {
         ) `
         -StepName "Compiled analysis failure-exit contract smoke"
     $analysisRunnerFailureExitSmoke = $true
+    $manifestResilienceSmokeRoot = Join-Path $buildRoot "analysis_runner_manifest_resilience_smoke"
+    Invoke-NativeChecked `
+        -FilePath $PythonExe `
+        -ArgumentList @(
+            (Join-Path $repo "scripts\validate_analysis_runner_manifest_resilience.py"),
+            "--project-root", $repo,
+            "--runner", $runnerExe,
+            "--output-root", $manifestResilienceSmokeRoot,
+            "--replace"
+        ) `
+        -StepName "Compiled analysis manifest-resilience smoke"
+    $manifestResilienceSummaryPath = Join-Path $manifestResilienceSmokeRoot "manifest_resilience_contract_summary.json"
+    $analysisRunnerManifestResilience = Get-Content -LiteralPath $manifestResilienceSummaryPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not $analysisRunnerManifestResilience.ok `
+            -or -not $analysisRunnerManifestResilience.large_manifest.ok `
+            -or $analysisRunnerManifestResilience.large_manifest.runner_exit_code -ne 0 `
+            -or $analysisRunnerManifestResilience.large_manifest.analysis_status -ne "completed" `
+            -or $analysisRunnerManifestResilience.large_manifest.manifest_status -ne "ok" `
+            -or $analysisRunnerManifestResilience.large_manifest.manifest_type -ne "analysis_run" `
+            -or $analysisRunnerManifestResilience.large_manifest.request_bytes -ge 1048576 `
+            -or $analysisRunnerManifestResilience.large_manifest.manifest_bytes -le 1048576 `
+            -or $analysisRunnerManifestResilience.large_manifest.module_result_warning_count -ne $analysisRunnerManifestResilience.large_manifest.warning_count `
+            -or $analysisRunnerManifestResilience.large_manifest.module_log_warning_count -ne $analysisRunnerManifestResilience.large_manifest.warning_count `
+            -or $analysisRunnerManifestResilience.large_manifest.temporary_json_file_count -ne 0 `
+            -or -not $analysisRunnerManifestResilience.write_failure_fallback.ok `
+            -or $analysisRunnerManifestResilience.write_failure_fallback.runner_exit_code -eq 0 `
+            -or $analysisRunnerManifestResilience.write_failure_fallback.analysis_status -ne "failed" `
+            -or $analysisRunnerManifestResilience.write_failure_fallback.manifest_status -ne "failed" `
+            -or $analysisRunnerManifestResilience.write_failure_fallback.manifest_type -ne "analysis_run_write_failure" `
+            -or $analysisRunnerManifestResilience.write_failure_fallback.requested_status -ne "ok" `
+            -or $analysisRunnerManifestResilience.write_failure_fallback.write_error_identifier -ne "bms:Logger:JsonPublishFailed" `
+            -or $analysisRunnerManifestResilience.write_failure_fallback.temporary_json_file_count -ne 0) {
+        throw "Compiled analysis manifest-resilience evidence is incomplete"
+    }
+    $analysisRunnerManifestResilienceSmoke = $true
     $cleanupPolicySmokeRoot = Join-Path $buildRoot "analysis_runner_cache_cleanup_policy_smoke"
     Invoke-NativeChecked `
         -FilePath $PythonExe `
@@ -246,7 +322,23 @@ if (-not $SkipAnalysisRunner) {
             -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup.configured_csv_deleted `
             -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup.unconfigured_csv_preserved `
             -or $analysisRunnerCacheCleanupPolicy.enabled_cleanup.receipt_status -ne "committed" `
-            -or $analysisRunnerCacheCleanupPolicy.enabled_cleanup.deleted_count -ne 1) {
+            -or $analysisRunnerCacheCleanupPolicy.enabled_cleanup.deleted_count -ne 1 `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup_dated_folders.ok `
+            -or $analysisRunnerCacheCleanupPolicy.enabled_cleanup_dated_folders.layout -ne "dated_folders" `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup_dated_folders.configured_csv_deleted `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup_dated_folders.unconfigured_csv_preserved `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup_dated_folders.source_archives_preserved `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup_dated_folders.workbook_and_wim_preserved `
+            -or $analysisRunnerCacheCleanupPolicy.enabled_cleanup_dated_folders.receipt_status -ne "committed" `
+            -or $analysisRunnerCacheCleanupPolicy.enabled_cleanup_dated_folders.deleted_count -ne 1 `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup_hongtang_period.ok `
+            -or $analysisRunnerCacheCleanupPolicy.enabled_cleanup_hongtang_period.layout -ne "hongtang_period" `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup_hongtang_period.configured_csv_deleted `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup_hongtang_period.unconfigured_csv_preserved `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup_hongtang_period.source_archives_preserved `
+            -or -not $analysisRunnerCacheCleanupPolicy.enabled_cleanup_hongtang_period.workbook_and_wim_preserved `
+            -or $analysisRunnerCacheCleanupPolicy.enabled_cleanup_hongtang_period.receipt_status -ne "committed" `
+            -or $analysisRunnerCacheCleanupPolicy.enabled_cleanup_hongtang_period.deleted_count -ne 1) {
         throw "Compiled analysis cache-cleanup policy evidence is incomplete"
     }
     $analysisRunnerCacheCleanupPolicySmoke = $true
@@ -334,7 +426,9 @@ $cacheSourceCleanupContractSmoke = (
         -and $smoke.cache_source_cleanup_confirmation_required `
         -and -not $smoke.cache_source_cleanup_task_option_present `
         -and $smoke.cache_source_cleanup_supported_data_layout -eq "jlj_daily_export" `
-        -and -not $smoke.cache_source_cleanup_current_layout_supported `
+        -and ((@($smoke.cache_source_cleanup_supported_data_layouts) -join "|") -eq `
+            "dated_folders|hongtang_period|jlj_daily_export") `
+        -and $smoke.cache_source_cleanup_current_layout_supported `
         -and $cacheCleanupSmoke.cache_source_cleanup_current_layout_supported `
         -and $cacheCleanupSmoke.cache_source_cleanup_checked `
         -and $cacheCleanupSmoke.cache_source_cleanup_confirmation_matches `
@@ -374,6 +468,9 @@ $operatorFeatureContractSmoke = (
         -and $smoke.offset_effective_range_seconds_available `
         -and $smoke.gap_override_column_count -eq 6 `
         -and $smoke.unzip_settings_available `
+        -and $smoke.analysis_result_location_visible `
+        -and $smoke.analysis_result_open_control_available `
+        -and $smoke.threshold_preview_auto_locator_available `
         -and $cacheSourceCleanupContractSmoke
 )
 if (-not $smoke.ok -or $smoke.profile_count -ne $expectedProfileCount -or $smoke.tab_count -ne 4 `
@@ -511,10 +608,19 @@ $fileInventory = @($files | ForEach-Object {
         sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     }
 })
+$sourceGitStateAfterBuild = Get-GitSourceState -RepositoryRoot $repo
+if ($sourceGitStateAfterBuild.commit -cne $sourceGitStateBeforeBuild.commit) {
+    throw "The source Git commit changed during the workbench build: $($sourceGitStateBeforeBuild.commit) -> $($sourceGitStateAfterBuild.commit)"
+}
+$sourceTreeCleanForBuild = [bool](
+    $sourceGitStateBeforeBuild.clean -and $sourceGitStateAfterBuild.clean
+)
 $updatePolicy = Get-Content -LiteralPath (Join-Path $distRoot "config\workbench_update.json") -Raw -Encoding UTF8 | ConvertFrom-Json
 $releaseManifest = [ordered]@{
     schema_version = 3
     built_at = (Get-Date).ToString("o")
+    source_git_commit = $sourceGitStateBeforeBuild.commit
+    source_tree_clean = $sourceTreeCleanForBuild
     version = (Get-Content -LiteralPath (Join-Path $distRoot "VERSION") -Raw -Encoding UTF8).Trim()
     executable = "${bundleName}.exe"
     executable_sha256 = (Get-FileHash -LiteralPath $exePath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -534,6 +640,8 @@ $releaseManifest = [ordered]@{
     report_visual_qc_smoke = [bool]$reportRuntimeSmoke.visual_qc_contract
     auto_threshold_preview_runner_smoke = -not $SkipAnalysisRunner
     analysis_runner_failure_exit_smoke = $analysisRunnerFailureExitSmoke
+    analysis_runner_manifest_resilience_smoke = $analysisRunnerManifestResilienceSmoke
+    analysis_runner_manifest_resilience = $analysisRunnerManifestResilience
     analysis_runner_cache_cleanup_policy_smoke = $analysisRunnerCacheCleanupPolicySmoke
     analysis_runner_cache_cleanup_policy = $analysisRunnerCacheCleanupPolicy
     installed_profile_matrix_smoke = $true
@@ -546,7 +654,7 @@ $releaseManifest = [ordered]@{
     native_font_smoke = (-not $OffscreenScreenshots) -and ($smoke.ui_font_point_size -ge 10)
     native_icon_smoke = (-not $OffscreenScreenshots) -and [bool]$smoke.window_icon_available
     native_gui_acceptance = $nativeGuiAcceptance
-    operator_feature_contract_version = 3
+    operator_feature_contract_version = 4
     operator_feature_contract_smoke = [bool]$operatorFeatureContractSmoke
     cache_source_cleanup_contract_smoke = [bool]$cacheSourceCleanupContractSmoke
     cache_source_cleanup_contract = $cacheCleanupContract

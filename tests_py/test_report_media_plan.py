@@ -52,6 +52,40 @@ def valid_source_provenance(**overrides: object) -> dict[str, object]:
     return source
 
 
+def write_reduced_v2_provenance(
+    candidate: Path,
+    *,
+    provenance_schema_version: int = 2,
+    **overrides: object,
+) -> Path:
+    series: dict[str, object] = {
+        "schema_version": 2,
+        "sampling_mode": "full",
+        "render_mode": "line",
+        "plot_scope": "point_time_history",
+        "reduction_applied": True,
+        "reduction_scope": "render_only",
+        "reduction_algorithm": "peak_preserving_bucket_minmax_v1",
+        "extrema_preserved": True,
+        "first_last_preserved": True,
+        "input_count": 10,
+        "finite_count": 10,
+        "plotted_finite_count": 6,
+        "render_input_count": 7,
+        "render_finite_input_count": 6,
+        "render_vertex_count": 6,
+        "source": valid_source_provenance(),
+    }
+    series.update(overrides)
+    provenance = candidate.with_suffix(".plot.json")
+    provenance.write_text(json.dumps({
+        "schema_version": provenance_schema_version,
+        "file_stub": candidate.stem,
+        "series": [series],
+    }), encoding="utf-8")
+    return provenance
+
+
 class ReportMediaPlanTests(unittest.TestCase):
     def test_explicit_binding_does_not_select_newer_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -416,6 +450,67 @@ class ReportMediaPlanTests(unittest.TestCase):
                 )
 
                 with self.assertRaises(MediaCandidateError):
+                    compile_media_plan(
+                        baseline,
+                        [ExplicitMediaBinding("demo.figure", MEMBER, candidate)],
+                        analysis_manifest_path=manifest,
+                    )
+
+    def test_manifest_bound_provenance_accepts_audited_v2_render_only_reduction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = create_minimal_docx(root / "baseline.docx")
+            candidate = write_png(root / "candidate.png", "blue")
+            provenance = write_reduced_v2_provenance(candidate)
+            manifest = write_analysis_manifest(
+                root / "analysis_manifest.json",
+                [[candidate, provenance]],
+            )
+
+            plan = compile_media_plan(
+                baseline,
+                [ExplicitMediaBinding("demo.figure", MEMBER, candidate)],
+                analysis_manifest_path=manifest,
+            )
+
+            apply_media_plan(plan, root / "output.docx")
+            self.assertTrue((root / "output.docx").is_file())
+
+    def test_manifest_bound_v2_render_reduction_fails_closed_for_unsafe_variants(self) -> None:
+        cases: list[tuple[str, int, dict[str, object], str]] = [
+            ("legacy_schema", 1, {}, "schema_version"),
+            ("series_legacy_schema", 2, {"schema_version": 1}, "schema_version"),
+            ("derived_render_mode", 2, {"render_mode": "derived_10min_mean"}, "raw render mode"),
+            ("not_render_only", 2, {"reduction_scope": "analysis"}, "render_only"),
+            ("unknown_algorithm", 2, {"reduction_algorithm": "lttb"}, "unsupported"),
+            ("extrema_not_preserved", 2, {"extrema_preserved": False}, "preserve extrema"),
+            ("endpoints_not_preserved", 2, {"first_last_preserved": False}, "first/last"),
+            ("render_count_mismatch", 2, {"render_vertex_count": 5}, "render/plotted"),
+            ("render_count_exceeds_finite", 2, {
+                "plotted_finite_count": 11,
+                "render_vertex_count": 11,
+            }, "exceeds"),
+            ("missing_source", 2, {"source": None}, "source object"),
+            ("source_input_mismatch", 2, {
+                "source": valid_source_provenance(source_sample_count=11),
+            }, "source/input counts differ"),
+        ]
+        for label, schema_version, overrides, expected in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                baseline = create_minimal_docx(root / "baseline.docx")
+                candidate = write_png(root / "candidate.png", "blue")
+                provenance = write_reduced_v2_provenance(
+                    candidate,
+                    provenance_schema_version=schema_version,
+                    **overrides,
+                )
+                manifest = write_analysis_manifest(
+                    root / "analysis_manifest.json",
+                    [[candidate, provenance]],
+                )
+
+                with self.assertRaisesRegex(MediaCandidateError, expected):
                     compile_media_plan(
                         baseline,
                         [ExplicitMediaBinding("demo.figure", MEMBER, candidate)],

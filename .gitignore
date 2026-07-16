@@ -12,7 +12,7 @@ release/
 local_notes/
 ops_local/
 %SystemDrive%/
-bin/BridgeAnalysisRunner/
+bin/BridgeAnalysisRunner*/
 **/cache/
 **/__pycache__/
 *.pyc

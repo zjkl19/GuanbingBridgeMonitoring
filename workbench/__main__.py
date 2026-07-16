@@ -17,6 +17,7 @@ from .cache_cleanup_settings import (
     CACHE_SOURCE_CLEANUP_MODE,
     CACHE_SOURCE_CLEANUP_RECOVERY,
     CACHE_SOURCE_CLEANUP_SCOPE,
+    CACHE_SOURCE_CLEANUP_SUPPORTED_LAYOUTS,
 )
 from .config_layers import config_dependency_sha256
 from .main_window import WorkbenchWindow
@@ -112,8 +113,14 @@ def cache_source_cleanup_payload(window: WorkbenchWindow) -> dict[str, object]:
             == CACHE_SOURCE_CLEANUP_CONFIRMATION
         ),
         "confirmation_matches": confirmation == CACHE_SOURCE_CLEANUP_CONFIRMATION,
+        # Keep the original singular field for release-manifest readers that
+        # predate multi-layout cleanup, and publish the authoritative matrix
+        # in the new plural field.
         "supported_data_layout": "jlj_daily_export",
-        "current_layout_supported": window.current_profile.data_layout == "jlj_daily_export",
+        "supported_data_layouts": sorted(CACHE_SOURCE_CLEANUP_SUPPORTED_LAYOUTS),
+        "current_layout_supported": (
+            window.current_profile.data_layout in CACHE_SOURCE_CLEANUP_SUPPORTED_LAYOUTS
+        ),
         "control_enabled": window.cache_cleanup_check.isEnabled(),
         "task_option_present": bool(task_option),
         "task_option": task_option,
@@ -123,8 +130,8 @@ def cache_source_cleanup_payload(window: WorkbenchWindow) -> dict[str, object]:
 def exercise_cache_source_cleanup_contract(window: WorkbenchWindow) -> dict[str, object]:
     """Exercise opt-in, policy serialization and saved-task restoration in place."""
 
-    if window.current_profile.data_layout != "jlj_daily_export":
-        raise ValueError("cache cleanup demo requires the jlj_daily_export layout")
+    if window.current_profile.data_layout not in CACHE_SOURCE_CLEANUP_SUPPORTED_LAYOUTS:
+        raise ValueError("cache cleanup demo requires an archive-backed supported layout")
     default_state = cache_source_cleanup_payload(window)
 
     for checkbox in window.module_checks.values():
@@ -267,6 +274,17 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "profile_matrix_review_enabled": window.profile_matrix_btn.isEnabled(),
         "task_history_enabled": window.history_btn.isEnabled(),
         "task_history_column_count": window.task_history_page.table.columnCount(),
+        "analysis_result_location_visible": bool(
+            window.analysis_result_path_label.text().strip()
+        ),
+        "analysis_result_open_control_available": bool(
+            window.open_analysis_result_button is not None
+            and window.open_analysis_stats_button is not None
+            and window.open_analysis_logs_button is not None
+        ),
+        "threshold_preview_auto_locator_available": bool(
+            window.cleaning_editor.preview_context_provider is not None
+        ),
         "offset_correction_row_count": window.offset_editor.table.rowCount(),
         "offset_correction_column_count": window.offset_editor.table.columnCount(),
         "offset_effective_range_seconds_available": (
@@ -287,6 +305,7 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "cache_source_cleanup_confirmation_required": cleanup["confirmation_required"],
         "cache_source_cleanup_confirmation_matches": cleanup["confirmation_matches"],
         "cache_source_cleanup_supported_data_layout": cleanup["supported_data_layout"],
+        "cache_source_cleanup_supported_data_layouts": cleanup["supported_data_layouts"],
         "cache_source_cleanup_current_layout_supported": cleanup["current_layout_supported"],
         "cache_source_cleanup_control_enabled": cleanup["control_enabled"],
         "cache_source_cleanup_task_option_present": cleanup["task_option_present"],

@@ -15,6 +15,11 @@ function manifestPath = run_request_cli(requestPath)
     addpath(fullfile(projectRoot, 'analysis'), '-begin');
     addpath(fullfile(projectRoot, 'scripts'), '-begin');
 
+    % Compiled runners and MATLAB -batch jobs must not create desktop
+    % windows. In a normal interactive MATLAB session this guard preserves
+    % the user's existing figure visibility preference.
+    plotVisibilityGuard = bms.plot.PlotVisibilityPolicy.enterForCurrentProcess(); %#ok<NASGU>
+
     requestType = 'analysis';
     try
         raw = bms.io.JsonFile.read(requestPath);

@@ -104,16 +104,14 @@ classdef DynamicAccelerationPlotService
             bms.plot.PlotService.saveModuleBundle(fig, outDir, [fname '_' timestamp], cfg);
         end
 
-        function plotEnvelopeCurve(rootDir, pointId, times, values, style, cfg, spec)
+        function plotEnvelopeCurve(rootDir, pointId, times, values, style, cfg, spec, precomputed)
+            if nargin < 8
+                precomputed = struct();
+            end
             enabled = bms.analyzer.DynamicAccelerationPlotService.specField(spec, 'envelopeEnabled', false);
             enabled = bms.config.ConfigReader.boolValue( ...
                 bms.analyzer.DynamicAccelerationPlotService.styleField(style, 'envelope_enabled', enabled), enabled);
-            if ~enabled || isempty(values) || numel(times) ~= numel(values) || ~isdatetime(times)
-                return;
-            end
-
-            valid = isfinite(values) & ~isnat(times);
-            if ~any(valid)
+            if ~enabled
                 return;
             end
 
@@ -124,36 +122,48 @@ classdef DynamicAccelerationPlotService
                 binMinutes = 30;
             end
 
-            validTimes = times(valid);
-            xmin = dateshift(min(validTimes), 'start', 'day');
-            xmax = dateshift(max(validTimes), 'start', 'day') + days(1);
+            usePrecomputed = bms.analyzer.DynamicAccelerationPlotService.isValidEnvelope( ...
+                precomputed, binMinutes);
+            if usePrecomputed
+                binCenters = precomputed.times(:);
+                p01 = precomputed.p01(:);
+                p05 = precomputed.p05(:);
+                p50 = precomputed.p50(:);
+                p95 = precomputed.p95(:);
+                p99 = precomputed.p99(:);
+                ymin = precomputed.min(:);
+                ymax = precomputed.max(:);
+                rmsv = precomputed.rms(:);
+                xmin = dateshift(min(binCenters), 'start', 'day');
+                xmax = dateshift(max(binCenters), 'start', 'day') + days(1);
+            else
+                if isempty(values) || numel(times) ~= numel(values) || ~isdatetime(times)
+                    return;
+                end
+                valid = isfinite(values) & ~isnat(times);
+                if ~any(valid)
+                    return;
+                end
+                computed = bms.analyzer.DynamicSeriesService.envelopeByTimeBins( ...
+                    times, values, binMinutes);
+                if isempty(computed.times)
+                    return;
+                end
+                binCenters = computed.times(:);
+                p01 = computed.p01(:);
+                p05 = computed.p05(:);
+                p50 = computed.p50(:);
+                p95 = computed.p95(:);
+                p99 = computed.p99(:);
+                ymin = computed.min(:);
+                ymax = computed.max(:);
+                rmsv = computed.rms(:);
+                xmin = dateshift(min(binCenters), 'start', 'day');
+                xmax = dateshift(max(binCenters), 'start', 'day') + days(1);
+            end
             if xmin >= xmax
                 xmax = xmin + days(1);
             end
-            binEdges = xmin:minutes(binMinutes):xmax;
-            if numel(binEdges) < 2
-                return;
-            end
-
-            idx = discretize(times(valid), binEdges);
-            good = ~isnan(idx);
-            if ~any(good)
-                return;
-            end
-            idx = idx(good);
-            vals = values(valid);
-            vals = vals(good);
-            binCenters = binEdges(1:end-1)' + minutes(binMinutes / 2);
-            nBins = numel(binCenters);
-
-            p01 = accumarray(idx, vals, [nBins 1], @(x) prctile(x, 1), NaN);
-            p05 = accumarray(idx, vals, [nBins 1], @(x) prctile(x, 5), NaN);
-            p50 = accumarray(idx, vals, [nBins 1], @(x) median(x, 'omitnan'), NaN);
-            p95 = accumarray(idx, vals, [nBins 1], @(x) prctile(x, 95), NaN);
-            p99 = accumarray(idx, vals, [nBins 1], @(x) prctile(x, 99), NaN);
-            ymin = accumarray(idx, vals, [nBins 1], @(x) min(x, [], 'omitnan'), NaN);
-            ymax = accumarray(idx, vals, [nBins 1], @(x) max(x, [], 'omitnan'), NaN);
-            rmsv = accumarray(idx, vals, [nBins 1], @(x) sqrt(mean(x.^2, 'omitnan')), NaN);
 
             outDir = bms.analyzer.DynamicAccelerationPlotService.specField(spec, 'envelopeOutputDir', '');
             if isempty(outDir)
@@ -562,6 +572,28 @@ classdef DynamicAccelerationPlotService
             if isstruct(spec) && isfield(spec, fieldName)
                 value = spec.(fieldName);
             end
+        end
+
+        function tf = isValidEnvelope(envelope, binMinutes)
+            tf = false;
+            required = {'bin_minutes', 'times', 'p01', 'p05', 'p50', ...
+                'p95', 'p99', 'min', 'max', 'rms'};
+            if ~isstruct(envelope) || ~all(isfield(envelope, required)) ...
+                    || isempty(envelope.times) || ~isdatetime(envelope.times)
+                return;
+            end
+            if ~isscalar(envelope.bin_minutes) || ~isfinite(envelope.bin_minutes) ...
+                    || abs(double(envelope.bin_minutes) - double(binMinutes)) > 1e-9
+                return;
+            end
+            n = numel(envelope.times);
+            for i = 2:numel(required)
+                name = required{i};
+                if numel(envelope.(name)) ~= n
+                    return;
+                end
+            end
+            tf = any(~isnat(envelope.times));
         end
 
         function fillEnvelopeBand(ax, t, lo, hi, color, label)

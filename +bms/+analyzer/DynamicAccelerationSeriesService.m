@@ -4,7 +4,12 @@ classdef DynamicAccelerationSeriesService
     methods (Static)
         function stats = runSequential(rootDir, subfolder, startDate, endDate, cfg, autoDetectFs, points, style, stats, spec)
             cfg = bms.analyzer.DynamicAccelerationSeriesService.modulePlotConfig(cfg, spec);
-            releaseFullSeries = bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg);
+            % Only the explicit legacy all-vertices renderer needs to discard
+            % each point immediately.  The default full-analysis policy now
+            % retains a bounded, peak-preserving render series, which is safe
+            % to reuse for configured group plots and avoids rereading the
+            % month/quarter cache once per group.
+            releaseFullSeries = bms.analyzer.DynamicAccelerationSeriesService.shouldReleasePointSeries(cfg);
             parallelPlan = get_parallel_plan(cfg, numel(points), spec.parallelLabel);
             if parallelPlan.enabled
                 fprintf('%s分析检测到并行配置，但为避免整段波形累积导致内存不足，改为逐测点顺序处理。\n', spec.displayName);
@@ -30,7 +35,7 @@ classdef DynamicAccelerationSeriesService
                 bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve( ...
                     rootDir, rec.pid, rec.times, rec.vals, rec.fs, style, cfg, spec, rec.rms_times, rec.rms_vals);
                 bms.analyzer.DynamicAccelerationPlotService.plotEnvelopeCurve( ...
-                    rootDir, rec.pid, rec.times, rec.vals, style, cfg, spec);
+                    rootDir, rec.pid, rec.times, rec.vals, style, cfg, spec, rec.envelope);
                 if releaseFullSeries
                     records(i) = bms.analyzer.DynamicAccelerationSeriesService.stripSeries(rec);
                     clear rec;
@@ -108,7 +113,8 @@ classdef DynamicAccelerationSeriesService
                     rootDir, rec.pid, times, values, rec.mn, rec.mx, style, cfg, spec, rec.source_provenance);
                 bms.analyzer.DynamicAccelerationPlotService.plotRmsCurve( ...
                     rootDir, rec.pid, times, values, rec.fs, style, cfg, spec, rec.rms_times, rec.rms_vals);
-                bms.analyzer.DynamicAccelerationPlotService.plotEnvelopeCurve(rootDir, rec.pid, times, values, style, cfg, spec);
+                bms.analyzer.DynamicAccelerationPlotService.plotEnvelopeCurve( ...
+                    rootDir, rec.pid, times, values, style, cfg, spec, rec.envelope);
             end
 
             bms.analyzer.DynamicAccelerationSeriesService.plotConfiguredGroups( ...
@@ -131,6 +137,11 @@ classdef DynamicAccelerationSeriesService
                 return;
             end
             cfgOut = bms.analyzer.DynamicSeriesService.configForRawPlotModule(cfg, moduleKey);
+        end
+
+        function tf = shouldReleasePointSeries(cfg)
+            tf = bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg) && ...
+                strcmp(bms.analyzer.DynamicSeriesService.rawFullRenderPolicy(cfg), 'all_vertices');
         end
 
         function printSampleRate(fs, autoDetectFs, parallelEnabled)

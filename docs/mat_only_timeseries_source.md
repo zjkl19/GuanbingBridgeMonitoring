@@ -65,12 +65,18 @@ that the verified deletion transaction was completed.
 Do not clean `cache\*.mat` for a period that has already switched to MAT-only
 operation. Those files are the active working data source.
 
-## Automated Verified Daily-Export Cleanup
+## Automated Verified Daily Source Cleanup
 
-The workbench has a separate, task-scoped cleanup option for archive-backed
-`jlj_daily_export` data such as Jiulongjiang and Shuixianhua daily exports. It
-is disabled by default and is not available for `dated_folders` or
-`hongtang_period` data.
+The workbench has a separate, task-scoped cleanup option for all three current
+archive-backed layouts:
+
+- `jlj_daily_export` for Jiulongjiang and Shuixianhua daily exports;
+- `dated_folders` for Guanbing, Chongyangxi and Zhishan date folders;
+- `hongtang_period` for the Hongtang period layout.
+
+The option is disabled by default for every bridge. It is not a recursive CSV
+cleanup tool and is unavailable to any future layout that has no verified ZIP
+recovery contract.
 
 The option is intentionally stricter than the manual procedure above:
 
@@ -81,14 +87,21 @@ The option is intentionally stricter than the manual procedure above:
    confirmation token `DELETE_VERIFIED_EXTRACTED_CSV`.
 3. When extraction and cache prebuild are selected together, one natural day is
    completed before the next starts. The parent process, not a cache worker,
-   commits each day only after all eligible configured CSV files have successful
-   standalone MAT/metadata pairs.
+   commits each day only after every configured eligible CSV has a successful,
+   standalone MAT/metadata pair. When cleanup is enabled, `jlj_daily_export`
+   additionally requires exactly one valid CSV partition per natural day; a
+   simultaneous current and legacy partition is rejected before cache or source
+   mutation.
 4. The daily extraction manifest and the original ZIP path/entry/size/CRC proof
-   must still match. The source ZIP remains open for verification during the
-   commit and is never deleted by this workflow.
-5. A durable `.bms_cache_source_cleanup_receipt.json` is written in the daily
-   partition. It binds the day, source paths, cache paths, cache contract,
-   configuration hash and recovery proof. Do not edit or delete it manually.
+   must still match. Standard layouts may have several ZIP files for one day,
+   but each CSV must map to one and only one archive entry. Ambiguous or missing
+   ownership fails the whole day before deletion. Source ZIP files are never
+   deleted by this workflow.
+5. A durable receipt binds the day, source paths, cache paths, cache contract,
+   configuration hash and recovery proof. `jlj_daily_export` stores
+   `.bms_cache_source_cleanup_receipt.json` in its daily partition; standard
+   layouts store `run_logs/cache_source_cleanup_receipts/standard_YYYYMMDD.json`
+   below the data root. Do not edit or delete a receipt manually.
 6. Only configured, eligible time-series CSV files are removed. WIM, Excel,
    unconfigured CSV, non-CSV data, ZIP archives, MAT caches, metadata and cleanup
    receipts are retained.
@@ -103,8 +116,8 @@ The loader will use the validated MAT cache because the corresponding CSV is no
 longer present. Use explicit `mat_only` only for an isolation/acceptance test.
 
 This automated path cannot be used for already-extracted data that has no
-verified original ZIP and extraction manifest. It also does not turn cache
-prebuild for other bridge layouts into a general-purpose file deletion tool.
+verified original ZIP and extraction manifest. Cache prebuild without the
+explicit cleanup option continues to retain every source CSV.
 
 ## Verified Checks
 

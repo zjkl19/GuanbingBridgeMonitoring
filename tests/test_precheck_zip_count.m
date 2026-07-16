@@ -37,6 +37,30 @@ classdef test_precheck_zip_count < matlab.unittest.TestCase
             tc.verifyWarningFree(@() precheck_zip_count(tc.TempRoot, day, day));
         end
 
+        function multipleZipPerKindPassesAndAllAreChecked(tc)
+            day = '2026-05-27';
+            tc.createZip(fullfile(tc.TempRoot, day, tc.waveName(), 'device-a', 'wave-a.zip'));
+            tc.createZip(fullfile(tc.TempRoot, day, tc.waveName(), 'device-b', 'wave-b.zip'));
+            tc.createZip(fullfile(tc.TempRoot, day, tc.featureName(), 'device-a', 'feature-a.zip'));
+            tc.createZip(fullfile(tc.TempRoot, day, tc.featureName(), 'device-b', 'feature-b.zip'));
+
+            result = precheck_zip_count(tc.TempRoot, day, day);
+            tc.verifyEqual(result.archive_count, 4);
+
+            fid = fopen(fullfile(tc.TempRoot, day, tc.waveName(), ...
+                'device-b', 'wave-b.zip'), 'wb');
+            assert(fid > 0);
+            fwrite(fid, uint8('not a zip'));
+            fclose(fid);
+            didThrow = false;
+            try
+                precheck_zip_count(tc.TempRoot, day, day);
+            catch
+                didThrow = true;
+            end
+            tc.verifyTrue(didThrow);
+        end
+
         function missingZipStillFails(tc)
             day = '2026-05-28';
             tc.createZip(fullfile(tc.TempRoot, day, tc.waveName(), 'wave.zip'));
@@ -91,11 +115,16 @@ classdef test_precheck_zip_count < matlab.unittest.TestCase
             if exist(parent, 'dir') ~= 7
                 mkdir(parent);
             end
-            fid = fopen(path, 'w');
+            stage = tempname;
+            mkdir(stage);
+            stageCleanup = onCleanup(@() rmdir(stage, 's'));
+            payload = fullfile(stage, 'payload.txt');
+            fid = fopen(payload, 'w');
             assert(fid > 0);
-            cleaner = onCleanup(@() fclose(fid));
-            fwrite(fid, uint8([80 75 5 6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]));
-            delete(cleaner);
+            fwrite(fid, uint8('verified payload'));
+            fclose(fid);
+            zip(path, {'payload.txt'}, stage);
+            delete(stageCleanup);
         end
     end
 end

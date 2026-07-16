@@ -1,10 +1,46 @@
 # Current Remote State
 
-Last updated: 2026-07-15 (Jiulongjiang W4 completion confirmed; monitor remains paused)
+Last updated: 2026-07-16 (Jiulongjiang May recovery accepted; monitor remains paused)
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
 state and keep algorithm/report decisions in the normal project docs.
+
+## Current gb-133 Pre-Release State (2026-07-16)
+
+- The isolated Jiulongjiang May recovery task completed all `17/17` jobs:
+  `15` point-isolated cable-acceleration jobs plus full acceleration-spectrum
+  and cable-acceleration-spectrum jobs. The accepted composite manifest is
+  `F:\Guanbing_v1.8.1-rc1\validation\jiulongjiang_may\run_logs\analysis_manifest_composite_bridgebound_20260716_135654.json`,
+  SHA-256
+  `2A2FB800A9E7E3FE5F03E8D294B615FBABB23658ED11D0F63B821D100CF17B06`.
+  It is valid JSON with `status=ok`, `15` module results, `15` statistics
+  workbooks, `42` formal-plot source records and `88` report-facing formal
+  figures.
+- All `42/42` source records close. Eight are
+  `closed_incomplete_source`, covering exactly `2026-05-01` through
+  `2026-05-08`; this is a source-coverage limitation that must be disclosed in
+  the May report. No missing interval may be fabricated.
+- The manifest records `cable_force_engineering_valid=false` and
+  `cable_force_engineering_status=placeholder_parameters`, because all current
+  Jiulongjiang cable-force `rho/L` values are placeholders. The final report may
+  retain cable-vibration/spectrum evidence but must omit placeholder force
+  figures, values and engineering conclusions.
+- The latest read-only check returned no `BridgeAnalysisRunner`, MATLAB or
+  `ctfxlauncher` worker. The Codex monitoring automation remains paused; repeat
+  the same exact-process and disk preflight immediately before any new write.
+- Stable `F:\Guanbing` is still the frozen v1.8.0 production installation. The
+  isolated `F:\Guanbing_v1.8.1-rc1\app` is still an rc5-era/hot-patched
+  candidate and is not a final immutable v1.8.1 package. It lacks the final
+  report-builder changes required to generate the accepted Jiulongjiang May
+  report, so do not use it for final delivery and do not copy it over stable
+  production.
+- Open gates, in order: build and deploy the exact committed final v1.8.1
+  package to the isolated tree; generate Jiulongjiang May DOCX from the accepted
+  composite manifest; copy it locally for Microsoft Word field update,
+  authoritative PDF export and every-page inspection; then fast-forward/publish
+  `main` and perform a receipt-backed stable 133 cutover. None of these is
+  complete at this checkpoint.
 
 ## Access Summary
 
@@ -1084,3 +1120,58 @@ Last observed on 133 at 2026-07-08 CST.
   `E:\水仙花大桥数据\2026年6月` then
   `E:\九龙江数据\2026年6月`. The first has 30/30 openable ZIPs; the second
   remains blocked because June 18 is incomplete and June 19–30 are absent.
+
+## Jiulongjiang May Failure Boundary (2026-07-16 03:50 CST)
+
+- Scheduled task `Guanbing_v181rc3_Jiulongjiang_May_Analysis_20260716_005213`
+  is disabled; the latest confirmed task result is `249` and its launcher path
+  is under the isolated rc tree.
+- Remote recovery or deployment was not safe under the then-current machine
+  state. The first 12 modules have usable candidate outputs; `cable_accel`,
+  `accel_spectrum` and `cable_accel_spectrum` require isolated recovery.
+- The generated `analysis_manifest_20260716_033033.json` is invalid and ends at
+  exactly 1,048,576 characters. Preserve it as diagnostic evidence only.
+- A later read-only poll could no longer start reliable PowerShell/WMIC
+  processes over SSH and returned CLR `HRESULT 80004005` / thread-start errors.
+  Until a lightweight shell plus exact process/status-file check succeeds, do
+  not copy rc5, register recovery tasks or touch the candidate result tree.
+- At 2026-07-16 04:15 CST that health check succeeded again. The exact task was
+  still disabled with last result `249`; no `BridgeAnalysisRunner`, `MATLAB` or
+  `ctfxlauncher` process was returned, and the 377-byte status file remained
+  `status=failed`. Keep remote writes paused until rc5 completes all local
+  gates, then repeat the same read-only preflight immediately before an
+  isolated deployment.
+- A second read-only inventory at about 04:44 CST confirmed F/E free space of
+  about 538.66/1599.10 GiB and no residual process. The candidate tree contains
+  36 valid `plot.json` files: 27 from the completed baseline modules (earthquake
+  3, wind 8, acceleration 16) plus 9 partial cable-acceleration files. The 9
+  partial files and the partial `accel_spec_stats.xlsx` are failure evidence,
+  not reusable successful recovery output.
+- Local rc5 gates are now complete: formal build exit code `0`; Python
+  `624/624` in `151.40 s`; MATLAB `724/724`; native Windows focus, keyboard
+  focus, per-monitor DPI, font and icon checks; and compiled Runner large-
+  manifest/failure-fallback checks all pass. The release manifest identifies
+  `v1.8.1-rc5`, built at `2026-07-16T05:18:34+08:00`, and closes `385` files /
+  `227,271,383` bytes by size and SHA-256. The workbench EXE SHA-256 is
+  `75889e09e950aef65dc6d8459d6703f4a24f29d07766c76a16cacdb49ac68818`.
+- The packaged ZIP is `117,855,182` bytes, SHA-256
+  `c6ac7747e29ba11c903d44c961bbb2f7dafd4b91151a972d8b57124ee9d6543c`,
+  and contains `386` entries: `385` closed-inventory files plus the release
+  manifest. It was deployed at `05:28:53` only to
+  `F:\Guanbing_v1.8.1-rc1\app`; the old candidate app and a per-file deployment
+  receipt are retained. Stable `F:\Guanbing` remains v1.8.0 and unchanged.
+- The exact `05:52` read-only preflight found the failed rc3 task disabled with
+  last result `249`, no Runner/MATLAB/worker, F free space
+  `578,034,335,744` bytes and E free space `1,717,022,126,080` bytes. The
+  previously recorded E value omitted one zero. All 31 source ZIP sizes still
+  matched the pre-analysis inventory.
+- Recovery bundle inventory SHA-256 is
+  `51FC1E56AD196A86C01B56BB7E47C8DFF664256F6E7D7348F0FC4D02FF03B06D`
+  (`44` files / `1,799,167` bytes); its `45`-entry ZIP SHA-256 is
+  `A37ED9FD4A425847AE80207A8C641692B2BC3E50E575921C4A9895657C0607AC`.
+  Remote `-ValidateOnly` returned `ok=true`, `mutation_performed=false`, and
+  confirmed `17` jobs / `15` cable points before launch.
+- Task `Guanbing_v181rc5_Jiulongjiang_May_Recovery_20260716_0535` started at
+  `06:17:51` and was immediately disabled. At `06:18` the immutable failure
+  evidence was sealed and Runner PID `14864` was processing
+  `cable_accel_01`; launcher state was `running` with no completed job yet.

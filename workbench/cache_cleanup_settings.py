@@ -10,6 +10,9 @@ CACHE_SOURCE_CLEANUP_CONFIRMATION = "DELETE_VERIFIED_EXTRACTED_CSV"
 CACHE_SOURCE_CLEANUP_MODE = "verified_extracted_csv"
 CACHE_SOURCE_CLEANUP_SCOPE = "day"
 CACHE_SOURCE_CLEANUP_RECOVERY = "verified_archive"
+CACHE_SOURCE_CLEANUP_SUPPORTED_LAYOUTS = frozenset(
+    {"jlj_daily_export", "dated_folders", "hongtang_period"}
+)
 CACHE_SOURCE_CLEANUP_CONFLICTS = frozenset({"rename_csv", "remove_header", "resample"})
 CACHE_SOURCE_CLEANUP_ALLOWED_MODULES = frozenset(
     {"zip_precheck", "unzip", "cache_prebuild"}
@@ -50,10 +53,10 @@ class CacheSourceCleanupSettings:
                 "为防止清理失败后继续使用不完整月份，本功能必须作为独立预处理任务运行；"
                 "请先只运行压缩包预检查/批量解压/预生成分析缓存，完成后再新建分析任务"
             )
-        if data_layout and data_layout != "jlj_daily_export":
+        if data_layout and data_layout not in CACHE_SOURCE_CLEANUP_SUPPORTED_LAYOUTS:
             raise ValueError(
-                "当前安全删除只支持带逐日恢复 ZIP 的九龙江/水仙花导出格式；"
-                "其它数据格式仍会保留 CSV"
+                "当前数据目录格式不支持安全删除；系统只处理具备原 ZIP、有效解压清单、"
+                "唯一 ZIP 条目证明和独立可读 MAT 缓存的逐日数据"
             )
         if self.confirmation != CACHE_SOURCE_CLEANUP_CONFIRMATION:
             raise ValueError(

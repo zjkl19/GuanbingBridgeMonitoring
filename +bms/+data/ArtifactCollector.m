@@ -113,13 +113,21 @@ classdef ArtifactCollector
         end
 
         function role = inferRole(path, moduleKey)
-            text = lower(char(string(path)));
+            % Role keywords describe the artifact itself, not arbitrary
+            % ancestor folders. Looking at the complete absolute path made a
+            % run root such as ``highfreq_regression`` misclassify every
+            % ordinary time-history figure as a frequency distribution.
+            [folder, stem, extension] = fileparts(char(string(path)));
+            [~, parentName] = fileparts(folder);
+            text = lower(fullfile(parentName, [stem extension]));
             moduleKey = char(string(moduleKey));
             role = 'time_history';
             if endsWith(text, '.xlsx') || strcmpi(moduleKey, 'stats')
                 role = 'stats';
             elseif contains(text, 'rms10') || contains(text, 'rms_10')
                 role = 'rms10min';
+            elseif contains(text, 'envelope30') || contains(text, char([21253 32476]))
+                role = 'envelope30min';
             elseif contains(text, 'specfreq') || contains(text, 'spectrum') || contains(text, 'psd') || contains(text, char([39057 35889]))
                 role = 'spectrum';
             elseif contains(text, 'boxplot') || contains(text, char([31665 32447]))
@@ -173,6 +181,8 @@ classdef ArtifactCollector
                     names = {'时程曲线_加速度','时程曲线_加速度_组图','时程曲线_加速度_RMS10min','时程曲线_加速度_RMS10min_组图'};
                 case 'cable_accel'
                     names = {'时程曲线_索力加速度','时程曲线_索力加速度_组图','时程曲线_索力加速度_RMS10min','时程曲线_索力加速度_RMS10min_组图'};
+                    spec = bms.analyzer.DynamicAccelerationPipeline.spec('cable_accel');
+                    names{end+1} = spec.envelopeOutputDir;
                 case 'accel_spectrum'
                     names = {'频谱峰值曲线_加速度','频谱峰值曲线_加速度_组图','PSD_备查'};
                 case 'cable_accel_spectrum'

@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
@@ -399,6 +399,7 @@ class BoxThresholdDialog(QDialog):
         expected_data_root: str | Path = "",
         expected_start_date: str = "",
         expected_end_date: str = "",
+        automatic_preview_resolver: Callable[[], Path] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -412,6 +413,7 @@ class BoxThresholdDialog(QDialog):
         self.expected_data_root = str(expected_data_root or "").strip()
         self.expected_start_date = str(expected_start_date or "").strip()
         self.expected_end_date = str(expected_end_date or "").strip()
+        self.automatic_preview_resolver = automatic_preview_resolver
         self.preview_identity_verified = False
         self.preview_series = preview_series
         self.current_proposal: BoxThresholdProposal | None = None
@@ -425,6 +427,8 @@ class BoxThresholdDialog(QDialog):
         _fit_dialog_to_available_screen(self)
         if preview_series is not None:
             self._apply_series(preview_series)
+        else:
+            self._load_automatic_preview(silent=True)
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
@@ -447,10 +451,15 @@ class BoxThresholdDialog(QDialog):
         outer.addWidget(target)
 
         load_row = QHBoxLayout()
-        load_button = QPushButton("加载当前测点的已有曲线预览…")
-        load_button.clicked.connect(self._choose_preview)
-        load_row.addWidget(load_button)
-        self.preview_path_label = QLabel("尚未加载曲线预览；不能确认框选阈值")
+        self.auto_load_preview_button = QPushButton("自动加载当前任务曲线")
+        self.auto_load_preview_button.setToolTip(
+            "按当前桥梁、数据目录、日期、配置版本、分析类型和测点自动匹配，不需要选择 JSON 文件"
+        )
+        self.auto_load_preview_button.clicked.connect(self._load_automatic_preview)
+        load_row.addWidget(self.auto_load_preview_button)
+        self.preview_path_label = QLabel(
+            "正在查找当前任务匹配的曲线；普通用户不需要选择 JSON 文件"
+        )
         self.preview_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.preview_path_label.setWordWrap(True)
         self.preview_path_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
@@ -459,6 +468,23 @@ class BoxThresholdDialog(QDialog):
         clear_button.clicked.connect(self._clear_selection)
         load_row.addWidget(clear_button)
         outer.addLayout(load_row)
+
+        advanced_row = QHBoxLayout()
+        self.advanced_preview_toggle = QPushButton("高级：导入已有预览文件")
+        self.advanced_preview_toggle.setCheckable(True)
+        self.advanced_preview_toggle.setToolTip(
+            "仅用于诊断或迁移旧任务；导入后仍会严格核对桥梁、目录、日期、配置版本和测点"
+        )
+        self.import_preview_button = QPushButton("选择 auto_threshold_preview JSON…")
+        self.import_preview_button.setVisible(False)
+        self.import_preview_button.clicked.connect(self._choose_preview)
+        self.advanced_preview_toggle.toggled.connect(
+            self.import_preview_button.setVisible
+        )
+        advanced_row.addWidget(self.advanced_preview_toggle)
+        advanced_row.addWidget(self.import_preview_button)
+        advanced_row.addStretch(1)
+        outer.addLayout(advanced_row)
 
         self.curve = BoxThresholdCurveView(self)
         self.curve.selection_changed.connect(self._selection_changed)
@@ -487,7 +513,9 @@ class BoxThresholdDialog(QDialog):
         path, _ = QFileDialog.getOpenFileName(
             self,
             "加载当前测点的已有曲线预览",
-            "",
+            str(Path(self.expected_data_root) / "run_logs")
+            if self.expected_data_root
+            else "",
             "自动清洗曲线预览 (auto_threshold_preview*.json);;JSON files (*.json)",
         )
         if not path:
@@ -496,6 +524,29 @@ class BoxThresholdDialog(QDialog):
             self.load_preview_path(Path(path))
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "曲线预览无法使用", str(exc))
+
+    def _load_automatic_preview(
+        self, _checked: bool = False, *, silent: bool = False
+    ) -> bool:
+        if self.automatic_preview_resolver is None:
+            message = (
+                "当前窗口没有绑定任务信息。请关闭窗口，先在主任务页选择桥梁、数据目录和日期；"
+                "或展开“高级”导入诊断预览。"
+            )
+            self.preview_path_label.setText(message)
+            if not silent:
+                QMessageBox.information(self, "无法自动加载曲线", message)
+            return False
+        try:
+            path = self.automatic_preview_resolver()
+            self.load_preview_path(path)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            message = str(exc)
+            self.preview_path_label.setText(message)
+            if not silent:
+                QMessageBox.information(self, "尚无匹配曲线", message)
+            return False
 
     def load_preview_path(self, path: Path) -> None:
         previews = load_preview_artifact(

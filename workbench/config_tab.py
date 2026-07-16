@@ -50,6 +50,7 @@ from .manual_threshold import (
 )
 from .box_threshold_dialog import BoxThresholdDialog
 from .manual_threshold_dialog import ThresholdBandDialog
+from .threshold_preview import find_matching_threshold_preview, preview_query
 
 
 WARNING_SOURCE_LABELS = {
@@ -1076,9 +1077,10 @@ class CleaningThresholdEditorWidget(QWidget):
             raise ConfigEditorError("当前任务信息格式无效")
         context = {
             key: str(raw.get(key) or "").strip()
-            for key in ("bridge_id", "data_root", "start_date", "end_date")
+            for key in ("bridge_id", "data_root", "config_path", "start_date", "end_date")
         }
-        missing = [key for key, value in context.items() if not value]
+        required = ("bridge_id", "data_root", "start_date", "end_date")
+        missing = [key for key in required if not context[key]]
         if missing:
             raise ConfigEditorError(
                 "当前任务信息不完整，不能安全加载曲线预览："
@@ -1092,6 +1094,30 @@ class CleaningThresholdEditorWidget(QWidget):
         if end < start:
             raise ConfigEditorError("当前任务的结束日期早于开始日期")
         return context
+
+    def _automatic_preview_resolver(
+        self,
+        target: CleaningThresholdRow,
+        aliases: tuple[str, ...],
+        context: Mapping[str, str],
+    ) -> Callable[[], Path]:
+        def resolve() -> Path:
+            match = find_matching_threshold_preview(
+                preview_query(
+                    bridge_id=context.get("bridge_id", ""),
+                    data_root=context.get("data_root", ""),
+                    start_date=context.get("start_date", ""),
+                    end_date=context.get("end_date", ""),
+                    config_sha256=(self.session.loaded_sha256 if self.session else ""),
+                    module_key=target.module_key,
+                    point_ids=aliases,
+                )
+            )
+            if match.path is None:
+                raise ConfigEditorError(match.message)
+            return match.path
+
+        return resolve
 
     def _manual_threshold_target(
         self,
@@ -1145,6 +1171,9 @@ class CleaningThresholdEditorWidget(QWidget):
                 expected_data_root=context.get("data_root", ""),
                 expected_start_date=context.get("start_date", ""),
                 expected_end_date=context.get("end_date", ""),
+                automatic_preview_resolver=self._automatic_preview_resolver(
+                    target, aliases, context
+                ),
                 parent=self,
             )
             if dialog.exec() != QDialog.Accepted:
@@ -1188,6 +1217,9 @@ class CleaningThresholdEditorWidget(QWidget):
                 expected_data_root=context.get("data_root", ""),
                 expected_start_date=context.get("start_date", ""),
                 expected_end_date=context.get("end_date", ""),
+                automatic_preview_resolver=self._automatic_preview_resolver(
+                    target, aliases, context
+                ),
                 parent=self,
             )
             if dialog.exec() != QDialog.Accepted:

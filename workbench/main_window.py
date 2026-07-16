@@ -56,9 +56,11 @@ from .config_layers import config_dependency_sha256, load_layered_config
 from .cache_cleanup_settings import (
     CACHE_SOURCE_CLEANUP_CONFIRMATION,
     CACHE_SOURCE_CLEANUP_KEY,
+    CACHE_SOURCE_CLEANUP_SUPPORTED_LAYOUTS,
     CacheSourceCleanupSettings,
     cleanup_validation_errors,
 )
+from .cache_cleanup_preflight import cleanup_root_preflight_errors
 from .manifest import ManifestSummary, find_latest_manifest, load_manifest_summary, manifest_context_issues
 from .module_icons import module_icon
 from .models import JobContext, file_sha256
@@ -75,6 +77,7 @@ from .report_task import (
     read_report_status,
     terminate_report_job,
 )
+from .result_location import analysis_result_location
 from .task_history_tab import TaskHistoryWidget
 from .update_ui import UpdateController
 from .version import APP_DISPLAY_NAME, app_version, project_root as default_project_root
@@ -278,6 +281,7 @@ class WorkbenchWindow(QMainWindow):
         self.data_root_edit.textEdited.connect(self._on_data_root_edited)
         self.data_root_edit.textChanged.connect(self._refresh_report_defaults)
         self.data_root_edit.textChanged.connect(self._on_task_inputs_changed)
+        self.data_root_edit.textChanged.connect(self._refresh_analysis_result_location)
         form.addRow("数据根目录", self._path_row(self.data_root_edit, self._browse_data_root, directory=True))
         self.config_edit = QLineEdit()
         self.config_edit.textChanged.connect(self._refresh_data_source_summary)
@@ -312,6 +316,39 @@ class WorkbenchWindow(QMainWindow):
         date_layout.addStretch(1)
         form.addRow("监测日期", date_row)
         outer.addWidget(form_group)
+
+        result_group = QGroupBox("本次计算结果在哪里")
+        result_layout = QVBoxLayout(result_group)
+        result_path_row = QHBoxLayout()
+        self.analysis_result_path_label = QLabel("尚未选择结果目录")
+        self.analysis_result_path_label.setObjectName("analysisResultPathLabel")
+        self.analysis_result_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.analysis_result_path_label.setWordWrap(True)
+        self.analysis_result_path_label.setStyleSheet("font-weight: 700; color: #174a75;")
+        result_path_row.addWidget(self.analysis_result_path_label, 1)
+        self.open_analysis_result_button = QPushButton("打开结果目录")
+        self.open_analysis_result_button.setObjectName("openAnalysisResultDirectoryButton")
+        self.open_analysis_result_button.clicked.connect(self._open_analysis_result_dir)
+        result_path_row.addWidget(self.open_analysis_result_button)
+        self.open_analysis_stats_button = QPushButton("打开统计表")
+        self.open_analysis_stats_button.clicked.connect(
+            lambda: self._open_analysis_result_child("stats")
+        )
+        result_path_row.addWidget(self.open_analysis_stats_button)
+        self.open_analysis_logs_button = QPushButton("打开运行记录")
+        self.open_analysis_logs_button.clicked.connect(
+            lambda: self._open_analysis_result_child("run_logs")
+        )
+        result_path_row.addWidget(self.open_analysis_logs_button)
+        result_layout.addLayout(result_path_row)
+        self.analysis_result_help_label = QLabel(
+            "选择数据目录后，这里会显示统计表、分析图件和运行记录的实际保存位置。"
+        )
+        self.analysis_result_help_label.setObjectName("analysisResultLocationHelp")
+        self.analysis_result_help_label.setWordWrap(True)
+        self.analysis_result_help_label.setStyleSheet("color: #5f6368;")
+        result_layout.addWidget(self.analysis_result_help_label)
+        outer.addWidget(result_group)
 
         module_group = QGroupBox("处理与分析模块")
         module_layout = QGridLayout(module_group)
@@ -451,6 +488,9 @@ class WorkbenchWindow(QMainWindow):
         load_latest = QPushButton("选择数据目录中的最新分析结果")
         load_latest.clicked.connect(self._load_latest_manifest)
         header.addWidget(load_latest)
+        self.review_open_result_button = QPushButton("打开结果目录")
+        self.review_open_result_button.clicked.connect(self._open_analysis_result_dir)
+        header.addWidget(self.review_open_result_button)
         outer.addLayout(header)
 
         self.manifest_summary_label = QLabel("等待分析完成。")
@@ -739,6 +779,86 @@ class WorkbenchWindow(QMainWindow):
             "end_date": self.end_date_edit.date().toString("yyyy-MM-dd"),
         }
 
+    def _analysis_result_location(self):
+        context = self.current_context
+        current_root = self.data_root_edit.text().strip()
+        if context is not None:
+            try:
+                same_root = os.path.normcase(
+                    str(Path(context.data_root).expanduser().resolve(strict=False))
+                ) == os.path.normcase(
+                    str(Path(current_root).expanduser().resolve(strict=False))
+                )
+                same_task = self._context_matches_current_inputs(context)
+            except (OSError, ValueError):
+                same_root = False
+                same_task = False
+            if not same_root or not same_task:
+                context = None
+        return analysis_result_location(data_root=current_root, context=context)
+
+    def _refresh_analysis_result_location(self, *_args: object) -> None:
+        if not hasattr(self, "analysis_result_path_label"):
+            return
+        location = self._analysis_result_location()
+        if location is None:
+            self.analysis_result_path_label.setText("尚未选择结果目录")
+            self.analysis_result_help_label.setText(
+                "先选择数据根目录；建立任务后这里会持续显示实际结果位置。"
+            )
+            self.open_analysis_result_button.setEnabled(False)
+            self.open_analysis_stats_button.setEnabled(False)
+            self.open_analysis_logs_button.setEnabled(False)
+            if hasattr(self, "review_open_result_button"):
+                self.review_open_result_button.setEnabled(False)
+            return
+        prefix = "本任务实际结果根目录" if location.task_dir is not None else "计划结果根目录"
+        self.analysis_result_path_label.setText(f"{prefix}：{location.root}")
+        self.analysis_result_help_label.setText(location.explanation)
+        available = location.root.is_dir()
+        self.open_analysis_result_button.setEnabled(available)
+        self.open_analysis_stats_button.setEnabled(location.stats_dir.is_dir())
+        self.open_analysis_logs_button.setEnabled(location.run_logs_dir.is_dir())
+        self.open_analysis_result_button.setToolTip(
+            "打开统计表、图件和 run_logs 所在的结果根目录"
+            if available
+            else "结果根目录尚不存在；请先检查数据目录或保存任务方案"
+        )
+        if hasattr(self, "review_open_result_button"):
+            self.review_open_result_button.setEnabled(available)
+
+    def _open_analysis_result_dir(self) -> None:
+        location = self._analysis_result_location()
+        if location is None or not location.root.is_dir():
+            QMessageBox.warning(
+                self,
+                "结果目录尚不可用",
+                "当前任务的结果根目录不存在。请先检查数据目录并保存或打开任务方案。",
+            )
+            return
+        if os.name == "nt":
+            os.startfile(location.root)  # type: ignore[attr-defined]
+        else:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(location.root)))
+
+    def _open_analysis_result_child(self, name: str) -> None:
+        location = self._analysis_result_location()
+        child = None
+        if location is not None:
+            child = location.stats_dir if name == "stats" else location.run_logs_dir
+        if child is None or not child.is_dir():
+            label = "统计表" if name == "stats" else "运行记录"
+            QMessageBox.information(
+                self,
+                f"{label}目录尚未生成",
+                f"当前结果根目录下还没有{label}目录。任务运行并产生产物后再打开即可。",
+            )
+            return
+        if os.name == "nt":
+            os.startfile(child)  # type: ignore[attr-defined]
+        else:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(child)))
+
     def _apply_profile(self, profile: WorkbenchProfile) -> None:
         previous_suspend = self._suspend_report_autofill
         self._suspend_report_autofill = True
@@ -802,6 +922,7 @@ class WorkbenchWindow(QMainWindow):
             self._suspend_report_autofill = previous_suspend
         if not previous_suspend:
             self._refresh_report_defaults(profile=profile, data_root=data_root, force=True)
+        self._refresh_analysis_result_location()
         self._append_log(f"已切换项目：{profile.bridge_name}")
 
     @staticmethod
@@ -826,7 +947,10 @@ class WorkbenchWindow(QMainWindow):
         # construction phase as layout-neutral; _apply_profile() calls us
         # again immediately with the real data layout.
         profile = getattr(self, "current_profile", None)
-        layout_supported = profile is None or profile.data_layout == "jlj_daily_export"
+        layout_supported = (
+            profile is None
+            or profile.data_layout in CACHE_SOURCE_CLEANUP_SUPPORTED_LAYOUTS
+        )
         if (not cache_selected or not layout_supported) and self.cache_cleanup_check.isChecked():
             self.cache_cleanup_check.blockSignals(True)
             self.cache_cleanup_check.setChecked(False)
@@ -835,13 +959,13 @@ class WorkbenchWindow(QMainWindow):
         self.cache_cleanup_check.setEnabled(cache_selected and layout_supported)
         if not layout_supported:
             self.cache_cleanup_check.setToolTip(
-                "默认关闭。当前安全删除只支持带逐日恢复 ZIP 的九龙江/水仙花导出格式；"
-                "必须保留原 ZIP，其它桥梁仍保留 CSV。"
+                "默认关闭。当前数据目录格式没有可验证的逐日 ZIP 恢复协议；CSV 将保留。"
             )
         else:
             self.cache_cleanup_check.setToolTip(
                 "默认关闭。只删除配置实际使用、缓存可独立读取且能由原 ZIP 恢复的 CSV；"
-                "原 ZIP、WIM、Excel、未配置 CSV 和缓存文件不会删除。"
+                "原 ZIP、WIM、Excel、未配置 CSV 和缓存文件不会删除。运行前还会按实际"
+                "数据根逐日核对 ZIP 条目路径、大小和 CRC；任何一项失败，当天零删除。"
             )
         self.cache_cleanup_confirmation_edit.setEnabled(
             cache_selected and self.cache_cleanup_check.isChecked()
@@ -927,6 +1051,21 @@ class WorkbenchWindow(QMainWindow):
                 data_layout=self.current_profile.data_layout,
             )
         )
+        if (
+            self.cache_cleanup_check.isChecked()
+            and data_root.is_dir()
+            and config.is_file()
+            and self.end_date_edit.date() >= self.start_date_edit.date()
+        ):
+            errors.extend(
+                cleanup_root_preflight_errors(
+                    data_root,
+                    config,
+                    self.start_date_edit.date().toString("yyyy-MM-dd"),
+                    self.end_date_edit.date().toString("yyyy-MM-dd"),
+                    self.current_profile.data_layout,
+                )
+            )
         return errors
 
     def _validate_inputs_dialog(self) -> None:
@@ -984,6 +1123,7 @@ class WorkbenchWindow(QMainWindow):
         self.current_context = context
         self._analysis_context_superseded = False
         self._report_context_superseded = False
+        self._refresh_analysis_result_location()
         return context
 
     def _save_context(self) -> None:
@@ -998,6 +1138,7 @@ class WorkbenchWindow(QMainWindow):
             self.known_context_paths.add(self.current_context_path)
             self._append_log(f"任务方案已保存：{self.current_context_path}")
             self.analysis_status_label.setText(f"状态：draft；任务 {context.job_id}")
+            self._refresh_analysis_result_location()
         except Exception as exc:  # noqa: BLE001
             self._show_exception("保存任务失败", exc)
 
@@ -1067,6 +1208,7 @@ class WorkbenchWindow(QMainWindow):
                 self.approval_check.setChecked(True)
                 self.approval_check.blockSignals(False)
         self._append_log(f"已恢复任务：{context.job_id}；任务方案={path}")
+        self._refresh_analysis_result_location()
         self._poll_status()
 
     def _start_analysis(self) -> None:
@@ -1087,6 +1229,7 @@ class WorkbenchWindow(QMainWindow):
             self.analysis_status_label.setText(f"状态：launched；PID {result.pid}")
             self._append_log(f"已启动分析：{executor.kind}，PID={result.pid}")
             self._append_log(f"请求文件：{context.analysis.request_path}")
+            self._refresh_analysis_result_location()
         except Exception as exc:  # noqa: BLE001
             self._show_exception("启动分析失败", exc)
 
@@ -1126,6 +1269,8 @@ class WorkbenchWindow(QMainWindow):
         context = self.current_context
         if context is None:
             return
+        context_matches_inputs = self._context_matches_current_inputs(context)
+        self._refresh_analysis_result_location()
         status = read_analysis_status(context)
         state = str(status.get("status") or "unknown").lower()
         superseded = bool(status.get("context_superseded"))
@@ -1184,17 +1329,24 @@ class WorkbenchWindow(QMainWindow):
         if changed and not superseded and not cleanup_pending:
             persist_analysis_state(context)
             self._append_log(f"分析状态更新：{state}")
-        if context.analysis.manifest_path:
+        # Keep monitoring an already-started task after the operator edits the
+        # bridge/date/config controls, but never repopulate the review page
+        # from that now-stale task.  The operator must explicitly reopen the
+        # matching task (or restore the inputs) before its manifest/QC is
+        # shown again.
+        if context_matches_inputs and context.analysis.manifest_path:
             path = Path(context.analysis.manifest_path)
             if path.is_file() and (self.current_manifest is None or self.current_manifest.path != path.resolve()):
                 self._load_manifest(path)
-        self._poll_report_status()
+        self._poll_report_status(show_details=context_matches_inputs)
         self._update_report_gate()
 
-    def _poll_report_status(self) -> None:
+    def _poll_report_status(self, *, show_details: bool | None = None) -> None:
         context = self.current_context
         if context is None or not hasattr(self, "report_progress"):
             return
+        if show_details is None:
+            show_details = self._context_matches_current_inputs(context)
         status = read_report_status(context)
         state = str(status.get("state") or context.report.state or "blocked").lower()
         superseded = bool(status.get("context_superseded"))
@@ -1273,7 +1425,8 @@ class WorkbenchWindow(QMainWindow):
                 context.report.visual_contact_sheet = visual_contact_sheet
                 context.report.pid = None
                 persist_report_state(context)
-            self._show_report_qc(status)
+            if show_details:
+                self._show_report_qc(status)
         elif state == "failed" and not cleanup_pending:
             context.report.pid = None
             context.report.qc_state = "failed"

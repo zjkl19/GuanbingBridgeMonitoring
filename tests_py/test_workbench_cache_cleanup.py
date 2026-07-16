@@ -10,9 +10,11 @@ from pathlib import Path
 from workbench.cache_cleanup_settings import (
     CACHE_SOURCE_CLEANUP_CONFIRMATION,
     CACHE_SOURCE_CLEANUP_KEY,
+    CACHE_SOURCE_CLEANUP_SUPPORTED_LAYOUTS,
     CacheSourceCleanupSettings,
     cleanup_validation_errors,
 )
+from workbench.cache_cleanup_preflight import cleanup_root_preflight_errors
 from workbench.models import JobContext
 from workbench.modules import options_for_modules
 
@@ -65,15 +67,66 @@ class CacheCleanupSettingsTests(unittest.TestCase):
                 data_layout="jlj_daily_export",
             )[0],
         )
-        self.assertIn(
-            "只支持",
+        for layout in CACHE_SOURCE_CLEANUP_SUPPORTED_LAYOUTS:
+            self.assertEqual(
+                cleanup_validation_errors(
+                    ["cache_prebuild"],
+                    enabled=True,
+                    confirmation=CACHE_SOURCE_CLEANUP_CONFIRMATION,
+                    data_layout=layout,
+                ),
+                [],
+                layout,
+            )
+        self.assertTrue(
             cleanup_validation_errors(
                 ["cache_prebuild"],
                 enabled=True,
                 confirmation=CACHE_SOURCE_CLEANUP_CONFIRMATION,
-                data_layout="dated_folders",
-            )[0],
+                data_layout="unknown_layout",
+            )
         )
+
+    def test_read_only_root_preflight_fails_closed_for_missing_bad_and_complete_archives(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            config = root / "config.json"
+            config.write_text("{}", encoding="utf-8")
+            self.assertTrue(
+                cleanup_root_preflight_errors(
+                    root, config, "2026-05-01", "2026-05-01", "dated_folders"
+                )
+            )
+
+            import zipfile
+
+            for kind in ("波形", "特征值"):
+                target = root / "2026-05-01" / kind / "device"
+                target.mkdir(parents=True)
+                with zipfile.ZipFile(target / f"{kind}.zip", "w") as archive:
+                    archive.writestr("POINT.csv", "2026-05-01 00:00:00,1\n")
+            extra_waveform = root / "2026-05-01" / "波形" / "device" / "波形2.zip"
+            with zipfile.ZipFile(extra_waveform, "w") as archive:
+                archive.writestr("POINT2.csv", "2026-05-01 00:00:00,2\n")
+            self.assertEqual(
+                cleanup_root_preflight_errors(
+                    root, config, "2026-05-01", "2026-05-01", "dated_folders"
+                ),
+                [],
+            )
+            extra_waveform.write_bytes(b"not-a-zip")
+            self.assertTrue(
+                cleanup_root_preflight_errors(
+                    root, config, "2026-05-01", "2026-05-01", "dated_folders"
+                )
+            )
+            with zipfile.ZipFile(extra_waveform, "w") as archive:
+                archive.writestr("C:/escape.csv", "2026-05-01 00:00:00,2\n")
+            unsafe_errors = cleanup_root_preflight_errors(
+                root, config, "2026-05-01", "2026-05-01", "dated_folders"
+            )
+            self.assertTrue(unsafe_errors)
+            self.assertIn("不安全", "\n".join(unsafe_errors))
 
     def test_enabled_setting_builds_and_restores_closed_policy(self) -> None:
         payload = CacheSourceCleanupSettings(
@@ -156,6 +209,7 @@ class CacheCleanupSettingsTests(unittest.TestCase):
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:
+    from PySide6.QtCore import QDate
     from PySide6.QtWidgets import QApplication
 
     from workbench.__main__ import (
@@ -205,6 +259,40 @@ class CacheCleanupGuiTests(unittest.TestCase):
             window.poll_timer.stop()
             window.close()
 
+    def test_all_current_bridge_profiles_expose_same_cleanup_contract(self) -> None:
+        window = WorkbenchWindow(ROOT)
+        try:
+            for profile_id in (
+                "guanbing",
+                "hongtang",
+                "jiulongjiang",
+                "shuixianhua",
+                "chongyangxi",
+                "zhishan",
+            ):
+                window.profile_combo.setCurrentIndex(
+                    window.profile_combo.findData(profile_id)
+                )
+                for checkbox in window.module_checks.values():
+                    checkbox.setChecked(False)
+                window.module_checks["cache_prebuild"].setChecked(True)
+                self.assertTrue(window.cache_cleanup_check.isEnabled(), profile_id)
+                self.assertFalse(window.cache_cleanup_check.isChecked(), profile_id)
+                window.cache_cleanup_check.setChecked(True)
+                window.cache_cleanup_confirmation_edit.setText(
+                    CACHE_SOURCE_CLEANUP_CONFIRMATION
+                )
+                option = window._task_options(["cache_prebuild"])[
+                    CACHE_SOURCE_CLEANUP_KEY
+                ]
+                self.assertTrue(option["enabled"], profile_id)
+                self.assertEqual(
+                    option["confirmation"], CACHE_SOURCE_CLEANUP_CONFIRMATION
+                )
+        finally:
+            window.poll_timer.stop()
+            window.close()
+
     def test_smoke_payload_freezes_default_off_and_saved_task_contract(self) -> None:
         window = WorkbenchWindow(ROOT)
         try:
@@ -218,7 +306,11 @@ class CacheCleanupGuiTests(unittest.TestCase):
                 default_payload["cache_source_cleanup_supported_data_layout"],
                 "jlj_daily_export",
             )
-            self.assertFalse(
+            self.assertEqual(
+                set(default_payload["cache_source_cleanup_supported_data_layouts"]),
+                set(CACHE_SOURCE_CLEANUP_SUPPORTED_LAYOUTS),
+            )
+            self.assertTrue(
                 default_payload["cache_source_cleanup_current_layout_supported"]
             )
 
@@ -266,6 +358,17 @@ class CacheCleanupGuiTests(unittest.TestCase):
                     window.profile_combo.findData("jiulongjiang")
                 )
                 window.data_root_edit.setText(str(data_root))
+                window.start_date_edit.setDate(QDate(2026, 5, 1))
+                window.end_date_edit.setDate(QDate(2026, 5, 1))
+                import zipfile
+
+                with zipfile.ZipFile(
+                    data_root / "data_jlj_2026-05-01.zip", "w"
+                ) as archive:
+                    archive.writestr(
+                        "data/jlj/csv/POINT.csv",
+                        "ts,value_x\n2026-05-01 00:00:00.000,1\n",
+                    )
                 for checkbox in window.module_checks.values():
                     checkbox.setChecked(False)
                 window.module_checks["cache_prebuild"].setChecked(True)

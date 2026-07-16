@@ -82,12 +82,14 @@
         "sampling_mode": "full",
         "line_width": 1.0,
         "render_mode": "line",
+        "full_render_policy": "peak_preserving",
         "gap_mode": "connect"
       },
       "cable_accel": {
         "sampling_mode": "full",
         "line_width": 1.0,
         "render_mode": "line",
+        "full_render_policy": "peak_preserving",
         "gap_mode": "connect"
       }
     },

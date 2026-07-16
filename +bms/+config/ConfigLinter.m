@@ -311,7 +311,9 @@ classdef ConfigLinter
                 return;
             end
             allowedModules = {'acceleration', 'cable_accel'};
-            allowedFields = {'sampling_mode', 'line_width', 'render_mode', 'gap_mode'};
+            allowedFields = {'sampling_mode', 'line_width', 'render_mode', ...
+                'full_render_policy', 'render_max_points', ...
+                'min_points_per_day', 'gap_mode'};
             moduleNames = fieldnames(modules);
             for i = 1:numel(moduleNames)
                 moduleName = moduleNames{i};
@@ -356,6 +358,26 @@ classdef ConfigLinter
                     if ~isnumeric(lineWidth) || ~isscalar(lineWidth) || ...
                             ~isfinite(lineWidth) || lineWidth < 0.5 || lineWidth > 3.0
                         warnings{end+1} = [prefix '.line_width must be a finite number from 0.5 to 3.0']; %#ok<AGROW>
+                    end
+                end
+                fullRenderPolicy = bms.config.ConfigLinter.scalarTextField( ...
+                    override, 'full_render_policy');
+                if isfield(override, 'full_render_policy') && ...
+                        ~any(strcmp(fullRenderPolicy, {'peak_preserving', 'all_vertices'}))
+                    warnings{end+1} = [prefix ...
+                        '.full_render_policy must be peak_preserving or all_vertices']; %#ok<AGROW>
+                end
+                numericFields = {'render_max_points', 'min_points_per_day'};
+                for j = 1:numel(numericFields)
+                    fieldName = numericFields{j};
+                    if ~isfield(override, fieldName)
+                        continue;
+                    end
+                    numericValue = override.(fieldName);
+                    if ~isnumeric(numericValue) || ~isscalar(numericValue) || ...
+                            ~isfinite(numericValue) || numericValue <= 0
+                        warnings{end+1} = [prefix '.' fieldName ...
+                            ' must be a positive finite scalar']; %#ok<AGROW>
                     end
                 end
             end

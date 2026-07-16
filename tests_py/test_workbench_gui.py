@@ -143,6 +143,10 @@ class WorkbenchGuiTests(unittest.TestCase):
                 options=options_for_modules(["temperature"]),
                 job_id="review_invalidation_unit",
             )
+            old_manifest = data_root / "run_logs" / "analysis_manifest_old.json"
+            old_manifest.parent.mkdir()
+            old_manifest.write_text('{"status":"ok"}', encoding="utf-8")
+            context.analysis.manifest_path = str(old_manifest.resolve())
             window = WorkbenchWindow(root)
             try:
                 window.load_context(context.write())
@@ -165,6 +169,29 @@ class WorkbenchGuiTests(unittest.TestCase):
                 self.assertFalse(window.approval_check.isEnabled())
                 self.assertFalse(window.open_report_btn.isEnabled())
                 self.assertFalse(window.current_context.report.plots_approved)
+
+                with patch(
+                    "workbench.main_window.read_analysis_status",
+                    return_value={
+                        "status": "completed",
+                        "manifest_path": str(old_manifest.resolve()),
+                    },
+                ), patch(
+                    "workbench.main_window.read_report_status",
+                    return_value={
+                        "state": "completed",
+                        "qc": {"status": "passed"},
+                    },
+                ), patch.object(window, "_load_manifest") as load_manifest, patch.object(
+                    window, "_show_report_qc"
+                ) as show_report_qc:
+                    window._poll_status()
+
+                load_manifest.assert_not_called()
+                show_report_qc.assert_not_called()
+                self.assertIsNone(window.current_manifest)
+                self.assertIsNone(window.current_provenance)
+                self.assertFalse(window.approval_check.isEnabled())
 
                 window.end_date_edit.setDate(QDate(2026, 6, 30))
                 window.current_manifest = object()

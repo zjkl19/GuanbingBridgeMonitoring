@@ -19,11 +19,7 @@ classdef TimeSeriesCachePrebuildService
                 options = bms.data.JljCachePrebuildService.optionsFromConfig(root, cfg);
                 cleanupOptions = ...
                     bms.data.VerifiedSourceCsvCleanupService.optionsFromTask(taskOptions);
-                if cleanupOptions.enabled
-                    error('BMS:CacheSourceCleanup:LayoutNotYetSupported', ...
-                        ['Verified CSV deletion currently requires the archive-backed ' ...
-                         'jlj_daily_export layout. This cache build retained every CSV.']);
-                end
+                summary.source_cleanup_enabled = cleanupOptions.enabled;
                 bms.data.TimeSeriesCachePrebuildService.validateOptions(options);
                 if ~isfolder(root)
                     error('BMS:TimeSeriesCachePrebuild:RootMissing', ...
@@ -48,16 +44,59 @@ classdef TimeSeriesCachePrebuildService
 
                 discovery = bms.data.TimeSeriesCachePrebuildService.discoverSources( ...
                     root, startDate, endDate, cfg);
+                cleanupPlan = struct([]);
+                if cleanupOptions.enabled
+                    % Freeze the complete per-day source set before workers
+                    % start. Re-discovering after cache creation could omit a
+                    % source removed by an external writer and incorrectly
+                    % authorise deletion of the remaining subset.
+                    cleanupPlan = ...
+                        bms.data.TimeSeriesCachePrebuildService.buildCleanupPlan( ...
+                            root, startDate, endDate, discovery);
+                end
+                archived = struct([]);
+                if cleanupOptions.enabled
+                    archived = bms.data.StandardVerifiedSourceCsvCleanupService. ...
+                        archivedRecords(root, startDate, endDate, cfg);
+                end
                 summary.discovered_count = numel(discovery);
                 summary.discovered_file_count = summary.discovered_count;
                 summary.eligible_count = summary.discovered_count;
                 summary.source_file_count = summary.discovered_count;
-                if isempty(discovery)
+                if isempty(discovery) && isempty(archived)
                     error('BMS:TimeSeriesCachePrebuild:NoConfiguredCsv', ...
                         ['No configured two-column time-series CSV files were found. ' ...
                          'Unconfigured CSV, WIM, ZIP and low-frequency workbooks are excluded.']);
                 end
 
+                if isempty(discovery)
+                    summary.source_bytes = sum(double([archived.source_bytes]));
+                    summary.eligible_source_bytes = summary.source_bytes;
+                    summary.files = archived;
+                    summary = bms.data.TimeSeriesCachePrebuildService. ...
+                        finalizeSummary(summary, summary.files);
+                    summary.source_cleanup = ...
+                        bms.data.TimeSeriesCachePrebuildService.cleanupRowsForRange( ...
+                            root, startDate, endDate, cfg);
+                    summary.free_bytes_after = ...
+                        bms.data.TimeSeriesCachePrebuildService.freeBytes(root);
+                    summary.ended_at = ...
+                        bms.data.TimeSeriesCachePrebuildService. ...
+                            formatTime(datetime('now'));
+                    summary.elapsed_sec = max(0, seconds(datetime('now') - startedAt));
+                    summary.status = 'ok';
+                    summary.message = sprintf( ...
+                        'configured=0; archived_reused=%d; failed=0', ...
+                        numel(archived));
+                    manifestPath = bms.data.TimeSeriesCachePrebuildService. ...
+                        writeSummary(options, summary);
+                    artifacts = {struct('kind', 'manifest', 'path', manifestPath, ...
+                        'role', 'cache_prebuild_summary')};
+                    result = bms.analyzer.AnalyzerResult.ok( ...
+                        'cache_prebuild', manifestPath, artifacts, {}, ...
+                        startedAt, datetime('now'), summary.message);
+                    return;
+                end
                 summary.source_bytes = sum(double([discovery.source_bytes]));
                 summary.eligible_source_bytes = summary.source_bytes;
                 [pendingCount, pendingBytes, pendingBackupBytes] = ...
@@ -118,6 +157,12 @@ classdef TimeSeriesCachePrebuildService
                 summary.files = [records{:}];
                 summary = bms.data.TimeSeriesCachePrebuildService.finalizeSummary( ...
                     summary, summary.files);
+                if cleanupOptions.enabled && summary.failed_count == 0
+                    summary.source_cleanup = ...
+                        bms.data.TimeSeriesCachePrebuildService.commitCleanupRange( ...
+                            root, startDate, endDate, cfg, taskOptions, ...
+                            summary.files, cleanupPlan);
+                end
                 summary.free_bytes_after = ...
                     bms.data.TimeSeriesCachePrebuildService.freeBytes(root);
                 summary.ended_at = bms.data.TimeSeriesCachePrebuildService.formatTime(datetime('now'));
@@ -541,7 +586,134 @@ classdef TimeSeriesCachePrebuildService
                 'requested_workers', 1, ...
                 'workers_used', 0, ...
                 'parallel_used', false, ...
+                'source_cleanup_enabled', false, ...
+                'source_cleanup', struct([]), ...
                 'files', struct([]));
+        end
+
+        function cleanupRows = commitCleanupRange( ...
+                root, startDate, endDate, cfg, taskOptions, records, cleanupPlan)
+            days = bms.data.TimeRangeResolver.daysBetween(startDate, endDate);
+            if nargin < 7 || numel(cleanupPlan) ~= numel(days)
+                error('BMS:CacheSourceCleanup:CleanupPlanMissing', ...
+                    'The immutable per-day cleanup plan is missing or incomplete.');
+            end
+            cells = cell(1, numel(days));
+            recordPaths = lower(string({records.path}));
+            plannedPaths = strings(1, 0);
+            for i = 1:numel(cleanupPlan)
+                plannedPaths = [plannedPaths, ... %#ok<AGROW>
+                    lower(string(cleanupPlan(i).paths))];
+            end
+            if numel(unique(plannedPaths)) ~= numel(plannedPaths) ...
+                    || ~isequal(sort(recordPaths), sort(plannedPaths))
+                error('BMS:CacheSourceCleanup:CacheDayIncomplete', ...
+                    ['Cache results do not close against the source set frozen ' ...
+                     'before cache workers started; no CSV was deleted.']);
+            end
+            for dayIndex = 1:numel(days)
+                dayText = datestr(days(dayIndex), 'yyyy-mm-dd');
+                if ~strcmp(char(string(cleanupPlan(dayIndex).day)), dayText)
+                    error('BMS:CacheSourceCleanup:CleanupPlanMismatch', ...
+                        'The immutable cleanup plan day order changed.');
+                end
+                dayPaths = lower(string(cleanupPlan(dayIndex).paths));
+                indexes = find(ismember(recordPaths, dayPaths));
+                if isempty(indexes)
+                    archived = bms.data.StandardVerifiedSourceCsvCleanupService. ...
+                        archivedRecords(root, dayText, dayText, cfg);
+                    if isempty(archived)
+                        error('BMS:CacheSourceCleanup:NoEligibleRecords', ...
+                            ['No configured source/cache set could be proven for %s; ' ...
+                             'no CSV was deleted.'], dayText);
+                    end
+                    receiptPath = bms.data.CacheSourceCleanupProvider. ...
+                        standardReceiptPath(root, dayText);
+                    receipt = bms.io.JsonFile.read(receiptPath);
+                    cells{dayIndex} = struct('enabled', true, ...
+                        'status', 'committed', 'day', dayText, ...
+                        'receipt_path', receiptPath, ...
+                        'deleted_count', double(receipt.deleted_count), ...
+                        'deleted_bytes', double(receipt.deleted_bytes));
+                else
+                    if numel(indexes) ~= numel(dayPaths)
+                        error('BMS:CacheSourceCleanup:CacheDayIncomplete', ...
+                            ['Not every configured source frozen for %s has one ' ...
+                             'cache result; no CSV was deleted for that day.'], ...
+                            dayText);
+                    end
+                    cells{dayIndex} = ...
+                        bms.data.StandardVerifiedSourceCsvCleanupService.commitDay( ...
+                            root, dayText, records(indexes), cfg, taskOptions);
+                end
+            end
+            if isempty(cells), cleanupRows = struct([]); ...
+            else, cleanupRows = [cells{:}]; end
+        end
+
+        function plan = buildCleanupPlan(root, startDate, endDate, discovery)
+            %#ok<INUSD> root is retained for a stable private call contract.
+            days = bms.data.TimeRangeResolver.daysBetween(startDate, endDate);
+            dayTexts = cellstr(datestr(days, 'yyyy-mm-dd'));
+            plan = repmat(struct('day', '', 'paths', {{}}), 1, numel(days));
+            for i = 1:numel(days)
+                plan(i).day = dayTexts{i};
+            end
+            for i = 1:numel(discovery)
+                pathValue = char(string(discovery(i).path));
+                % Do not use the first date-shaped token blindly: MATLAB temp
+                % roots and UUIDs can contain invalid numeric fragments before
+                % the real natural-day folder. Keep only calendar-valid tokens.
+                tokens = regexp(pathValue, ...
+                    '(?<!\d)(\d{4})[-_]?(\d{2})[-_]?(\d{2})(?!\d)', ...
+                    'tokens');
+                sourceDays = {};
+                for tokenIndex = 1:numel(tokens)
+                    candidate = sprintf('%s-%s-%s', tokens{tokenIndex}{:});
+                    try
+                        parsed = datetime(candidate, 'InputFormat', 'yyyy-MM-dd');
+                        if ~isnat(parsed) && strcmp(datestr(parsed, 'yyyy-mm-dd'), candidate)
+                            sourceDays{end+1} = candidate; %#ok<AGROW>
+                        end
+                    catch
+                    end
+                end
+                sourceDays = unique(sourceDays, 'stable');
+                matches = intersect(dayTexts, sourceDays, 'stable');
+                if numel(matches) ~= 1
+                    error('BMS:CacheSourceCleanup:SourceDayAmbiguous', ...
+                        ['Configured CSV must belong to exactly one requested ' ...
+                         'natural day before it may be deleted: %s'], pathValue);
+                end
+                dayIndex = find(strcmp(dayTexts, matches{1}));
+                plan(dayIndex).paths{end+1} = pathValue;
+            end
+            for i = 1:numel(plan)
+                values = cellstr(string(plan(i).paths));
+                [~, order] = sort(lower(string(values)));
+                plan(i).paths = values(order);
+            end
+        end
+
+        function rows = cleanupRowsForRange(root, startDate, endDate, cfg)
+            days = bms.data.TimeRangeResolver.daysBetween(startDate, endDate);
+            cells = {};
+            for dayIndex = 1:numel(days)
+                dayText = datestr(days(dayIndex), 'yyyy-mm-dd');
+                receiptPath = bms.data.CacheSourceCleanupProvider. ...
+                    standardReceiptPath(root, dayText);
+                if ~isfile(receiptPath), continue; end
+                archived = bms.data.StandardVerifiedSourceCsvCleanupService. ...
+                    archivedRecords(root, dayText, dayText, cfg);
+                if isempty(archived), continue; end
+                receipt = bms.io.JsonFile.read(receiptPath);
+                cells{end+1} = struct('enabled', true, ... %#ok<AGROW>
+                    'status', 'committed', 'day', dayText, ...
+                    'receipt_path', receiptPath, ...
+                    'deleted_count', double(receipt.deleted_count), ...
+                    'deleted_bytes', double(receipt.deleted_bytes));
+            end
+            if isempty(cells), rows = struct([]); else, rows = [cells{:}]; end
         end
 
         function path = writeSummary(options, summary)

@@ -267,6 +267,57 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "没有正式图件的数据核验记录"):
                 request_from_context(path)
 
+    def test_strict_gate_uses_composite_top_level_bridge_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            data = root / "data"
+            data.mkdir()
+            config = root / "config.json"
+            template = root / "template.docx"
+            config.write_text("{}", encoding="utf-8")
+            template.write_bytes(b"template")
+            manifest = self._write_closed_manifest(
+                root,
+                data,
+                bridge_id="jiulongjiang",
+                module="temperature",
+                config_path=config,
+            )
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["manifest_type"] = "composite_analysis_recovery"
+            payload["run_request"]["bridge_profile"] = {"bridge_id": "stale_source_profile"}
+            manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+            context = JobContext.create(
+                project_root=ROOT,
+                bridge_id="jiulongjiang",
+                bridge_name="九龙江大桥",
+                data_root=data,
+                start_date="2026-04-01",
+                end_date="2026-04-30",
+                config_path=config,
+                selected_modules=["temperature"],
+                options={},
+                report_type="jlj_monthly",
+                template_path=template,
+                output_dir=data / "report",
+            )
+            context.analysis.state = "completed"
+            context.analysis.manifest_path = str(manifest)
+            context.analysis.manifest_sha256 = file_sha256(manifest)
+            context.report.plots_approved = True
+            path = context.write(root / "job_context.json")
+
+            request = request_from_context(path)
+            self.assertEqual(request.report_type, "jlj_monthly")
+
+            payload["bridge_profile"] = {"bridge_id": "guanbing"}
+            manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            context.analysis.manifest_sha256 = file_sha256(manifest)
+            context.write(path)
+            with self.assertRaisesRegex(RuntimeError, "桥梁不一致"):
+                request_from_context(path)
+
     def test_execute_job_emits_stages_and_structural_qc(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

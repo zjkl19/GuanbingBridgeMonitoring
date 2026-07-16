@@ -82,6 +82,7 @@ class MultiBridgeConfigRoundTripTests(unittest.TestCase):
                     self.assertEqual(window.cleaning_editor._preview_context(), {
                         "bridge_id": profile.bridge_id,
                         "data_root": window.data_root_edit.text().strip(),
+                        "config_path": str(config_path),
                         "start_date": window.start_date_edit.date().toString("yyyy-MM-dd"),
                         "end_date": window.end_date_edit.date().toString("yyyy-MM-dd"),
                     })

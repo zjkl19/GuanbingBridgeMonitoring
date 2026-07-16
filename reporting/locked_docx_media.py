@@ -32,6 +32,9 @@ IMAGE_DIMENSION_POLICIES = frozenset(
     }
 )
 DEFAULT_MAX_ASPECT_RATIO_ERROR = 0.001
+APPROVED_RENDER_ONLY_REDUCTION_ALGORITHMS = frozenset(
+    {"peak_preserving_bucket_minmax_v1"}
+)
 
 
 class LockedDocxMediaError(RuntimeError):
@@ -288,6 +291,84 @@ def _finite_nonnegative_number(value: Any) -> bool:
     return math.isfinite(numeric) and numeric >= 0
 
 
+def _plot_provenance_schema_version(value: Any, *, default: int | None = None) -> int:
+    if value is None and default is not None:
+        return default
+    if isinstance(value, bool) or not _finite_nonnegative_number(value):
+        raise MediaCandidateError("Plot provenance schema_version must be a positive integer.")
+    numeric = float(value)
+    if not numeric.is_integer() or numeric < 1:
+        raise MediaCandidateError("Plot provenance schema_version must be a positive integer.")
+    return int(numeric)
+
+
+def _validate_render_only_reduction(
+    item: Mapping[str, Any],
+    *,
+    index: int,
+    provenance_schema_version: int,
+    finite_count: float,
+    plotted_finite_count: float,
+) -> None:
+    """Accept only the audited, render-only peak-preserving v2 contract."""
+
+    if provenance_schema_version < 2:
+        raise MediaCandidateError(
+            f"Plot provenance series {index} reduced full render requires schema_version >= 2."
+        )
+    render_mode = str(item.get("render_mode") or "line").strip().lower()
+    if render_mode not in {"line", "dense_band", "band"}:
+        raise MediaCandidateError(
+            f"Plot provenance series {index} render-only reduction requires a raw render mode, "
+            f"got {render_mode or '<missing>'}."
+        )
+    series_schema = item.get("schema_version")
+    if series_schema is not None and _plot_provenance_schema_version(series_schema) < 2:
+        raise MediaCandidateError(
+            f"Plot provenance series {index} reduced full render requires "
+            "series schema_version >= 2."
+        )
+    reduction_scope = str(item.get("reduction_scope") or "").strip().lower()
+    if reduction_scope != "render_only":
+        raise MediaCandidateError(
+            f"Plot provenance series {index} reduced full render must be render_only."
+        )
+    reduction_algorithm = str(item.get("reduction_algorithm") or "").strip().lower()
+    if reduction_algorithm not in APPROVED_RENDER_ONLY_REDUCTION_ALGORITHMS:
+        raise MediaCandidateError(
+            f"Plot provenance series {index} uses unsupported render reduction algorithm: "
+            f"{reduction_algorithm or '<missing>'}."
+        )
+    if item.get("extrema_preserved") is not True:
+        raise MediaCandidateError(
+            f"Plot provenance series {index} render reduction must preserve extrema."
+        )
+    if item.get("first_last_preserved") is not True:
+        raise MediaCandidateError(
+            f"Plot provenance series {index} render reduction must preserve first/last samples."
+        )
+    render_vertex_count = item.get("render_vertex_count")
+    if not _finite_nonnegative_number(render_vertex_count):
+        raise MediaCandidateError(
+            f"Plot provenance series {index} has invalid render_vertex_count."
+        )
+    render_vertex_count_numeric = float(render_vertex_count)
+    if render_vertex_count_numeric <= 0:
+        raise MediaCandidateError(
+            f"Plot provenance series {index} contains no rendered finite vertices."
+        )
+    if render_vertex_count_numeric != plotted_finite_count:
+        raise MediaCandidateError(
+            f"Plot provenance series {index} render/plotted counts differ: "
+            f"render_vertex_count={render_vertex_count}, "
+            f"plotted_finite_count={plotted_finite_count}."
+        )
+    if plotted_finite_count > finite_count:
+        raise MediaCandidateError(
+            f"Plot provenance series {index} rendered count exceeds finite source count."
+        )
+
+
 def validate_full_plot_provenance(
     provenance_path: Path | str,
     candidate_path: Path | str,
@@ -309,6 +390,9 @@ def validate_full_plot_provenance(
         raise MediaCandidateError(f"Unable to load plot provenance: {provenance}: {exc}") from exc
     if not isinstance(payload, dict):
         raise MediaCandidateError(f"Plot provenance must be a JSON object: {provenance}")
+    provenance_schema_version = _plot_provenance_schema_version(
+        payload.get("schema_version"), default=1
+    )
     file_stub = str(payload.get("file_stub") or "").strip()
     if file_stub != candidate.stem:
         raise MediaCandidateError(
@@ -332,9 +416,10 @@ def validate_full_plot_provenance(
             raise MediaCandidateError(
                 f"Plot provenance series {index} is not full sampling: {sampling_mode or '<missing>'}"
             )
-        if item.get("reduction_applied") is not False:
+        reduction_applied = item.get("reduction_applied")
+        if not isinstance(reduction_applied, bool):
             raise MediaCandidateError(
-                f"Plot provenance series {index} reports reduction_applied != false."
+                f"Plot provenance series {index} reduction_applied must be boolean."
             )
         finite_count = item.get("finite_count")
         plotted_finite_count = item.get("plotted_finite_count")
@@ -346,12 +431,22 @@ def validate_full_plot_provenance(
             raise MediaCandidateError(
                 f"Plot provenance series {index} has invalid finite point counts."
             )
-        if float(finite_count) != float(plotted_finite_count):
+        finite_count_numeric = float(finite_count)
+        plotted_finite_count_numeric = float(plotted_finite_count)
+        if reduction_applied:
+            _validate_render_only_reduction(
+                item,
+                index=index,
+                provenance_schema_version=provenance_schema_version,
+                finite_count=finite_count_numeric,
+                plotted_finite_count=plotted_finite_count_numeric,
+            )
+        elif finite_count_numeric != plotted_finite_count_numeric:
             raise MediaCandidateError(
                 f"Plot provenance series {index} point counts differ: "
                 f"finite_count={finite_count}, plotted_finite_count={plotted_finite_count}"
             )
-        if require_source_provenance:
+        if require_source_provenance or reduction_applied:
             source = item.get("source")
             if not isinstance(source, dict):
                 raise MediaCandidateError(

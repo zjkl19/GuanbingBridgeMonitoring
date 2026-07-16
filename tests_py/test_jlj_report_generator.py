@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 
 from artifact_lookup import ArtifactLookupResult  # noqa: E402
 from build_jlj_monthly_report import (  # noqa: E402
+    JLJ_CABLE_FORCE_UNVERIFIED_DISCLOSURE,
+    build_cable_section,
     build_report,
     build_wind_section,
     clean_jlj_report_xml_text,
@@ -24,12 +26,51 @@ from build_jlj_monthly_report import (  # noqa: E402
     find_latest_point_image_patterns,
     find_wind_summary_file,
     jlj_image_matches_report_period,
+    jlj_cable_force_report_policy,
     jlj_report_period_scope,
     normalize_cover_monitoring_time,
     read_stats_rows,
+    summarize_jlj_pinned_source_coverage,
     update_jlj_warning_threshold_table,
+    validate_jlj_analysis_profile,
     validate_jlj_analysis_period,
 )
+
+
+def write_plot_provenance(path: Path, incomplete_days: list[str]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "series": [
+                    {
+                        "sampling_mode": "full",
+                        "reduction_applied": False,
+                        "input_count": 10,
+                        "finite_count": 9,
+                        "plotted_finite_count": 9,
+                        "source": {
+                            "source_sample_count": 10,
+                            "finite_source_sample_count": 9,
+                            "completeness_scope": "required_export_contribution",
+                            "internal_gap_coverage_assessed": True,
+                            "calendar_day_count_requested": 31,
+                            "complete_day_count": 31 - len(incomplete_days),
+                            "incomplete_day_count": len(incomplete_days),
+                            "incomplete_days": incomplete_days,
+                            "missing_required_sources": [
+                                f"rolling_export:{value}" for value in incomplete_days
+                            ],
+                        },
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    return path
 
 
 class TestJljReportGenerator(unittest.TestCase):
@@ -146,6 +187,313 @@ class TestJljReportGenerator(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValueError, "manifest period does not match"):
             validate_jlj_analysis_period(context, date(2026, 5, 1), date(2026, 5, 31))
+
+    def test_strict_composite_uses_top_level_jiulongjiang_bridge_profile(self):
+        context = {
+            "available": True,
+            "strict_source_provenance": True,
+            "path": "analysis_manifest_composite.json",
+            "bridge_profile": {"bridge_id": "jiulongjiang"},
+            "run_request": {"bridge_profile": {"bridge_id": "stale_source_profile"}},
+        }
+        validate_jlj_analysis_profile(context)
+
+        context["bridge_profile"] = {"bridge_id": "guanbing"}
+        with self.assertRaisesRegex(ValueError, "bridge profile does not match"):
+            validate_jlj_analysis_profile(context)
+
+        context["bridge_profile"] = {}
+        with self.assertRaisesRegex(ValueError, "does not declare bridge_profile.bridge_id"):
+            validate_jlj_analysis_profile(context)
+
+    def test_strict_analysis_run_cable_force_policy_is_fail_closed(self):
+        for raw_valid, expected_valid, expected_include in (
+            (None, None, False),
+            (False, False, False),
+            (True, True, True),
+            ("true", None, False),
+        ):
+            manifest = {"manifest_type": "analysis_run"}
+            if raw_valid is not None:
+                manifest["cable_force_engineering_valid"] = raw_valid
+            context = {
+                "strict_source_provenance": True,
+                "manifest": manifest,
+            }
+
+            with self.subTest(raw_valid=raw_valid):
+                policy = jlj_cable_force_report_policy(context)
+                self.assertIs(policy["engineering_valid"], expected_valid)
+                self.assertIs(
+                    policy["include_cable_force_figures"], expected_include
+                )
+                self.assertIs(
+                    policy["include_engineering_conclusions"], expected_include
+                )
+                self.assertEqual(
+                    bool(policy["disclosure"]), not expected_include
+                )
+
+    def test_non_strict_missing_cable_force_flag_retains_legacy_behaviour(self):
+        policy = jlj_cable_force_report_policy(
+            {"manifest": {"manifest_type": "analysis_run"}}
+        )
+
+        self.assertIsNone(policy["engineering_valid"])
+        self.assertTrue(policy["include_cable_force_figures"])
+        self.assertTrue(policy["include_engineering_conclusions"])
+        self.assertEqual(policy["disclosure"], "")
+
+    def test_strict_composite_source_coverage_without_gap_is_complete(self):
+        provenance = write_plot_provenance(self.tmp / "complete.plot.json", [])
+        context = {
+            "strict_source_provenance": True,
+            "manifest": {
+                "manifest_type": "composite_analysis_recovery",
+                "module_results": [
+                    {
+                        "key": "acceleration",
+                        "artifacts": [
+                            {"kind": "plot_provenance", "path": str(provenance)}
+                        ],
+                    }
+                ],
+            },
+        }
+
+        coverage = summarize_jlj_pinned_source_coverage(context)
+
+        self.assertEqual(coverage["status"], "complete")
+        self.assertEqual(coverage["plot_provenance_source_count"], 1)
+        self.assertEqual(coverage["incomplete_source_record_count"], 0)
+        self.assertEqual(coverage["incomplete_source_days"], [])
+        self.assertFalse(coverage["disclosure_required"])
+        self.assertEqual(coverage["disclosure"], "")
+
+    def test_strict_composite_source_coverage_requires_plot_provenance(self):
+        context = {
+            "strict_source_provenance": True,
+            "manifest": {
+                "manifest_type": "composite_analysis_recovery",
+                "module_results": [
+                    {"key": "acceleration", "status": "ok", "artifacts": []}
+                ],
+            },
+        }
+
+        with self.assertRaisesRegex(ValueError, "contains no plot_provenance artifacts"):
+            summarize_jlj_pinned_source_coverage(context)
+
+    def test_strict_analysis_run_source_coverage_requires_plot_provenance(self):
+        context = {
+            "strict_source_provenance": True,
+            "manifest": {
+                "manifest_type": "analysis_run",
+                "module_results": [
+                    {"key": "acceleration", "status": "ok", "artifacts": []}
+                ],
+            },
+        }
+
+        with self.assertRaisesRegex(ValueError, "contains no plot_provenance artifacts"):
+            summarize_jlj_pinned_source_coverage(context)
+
+    def test_strict_analysis_run_source_coverage_discloses_incomplete_days(self):
+        provenance = write_plot_provenance(
+            self.tmp / "analysis_run_incomplete.plot.json",
+            ["2026-05-03", "2026-05-04"],
+        )
+        context = {
+            "strict_source_provenance": True,
+            "manifest": {
+                "manifest_type": "analysis_run",
+                "module_results": [
+                    {
+                        "key": "acceleration",
+                        "status": "ok",
+                        "artifacts": [
+                            {"kind": "plot_provenance", "path": str(provenance)}
+                        ],
+                    }
+                ],
+            },
+        }
+
+        coverage = summarize_jlj_pinned_source_coverage(context)
+
+        self.assertEqual(coverage["manifest_type"], "analysis_run")
+        self.assertEqual(coverage["status"], "disclosed")
+        self.assertEqual(coverage["plot_provenance_source_count"], 1)
+        self.assertEqual(
+            coverage["incomplete_source_days"],
+            ["2026-05-03", "2026-05-04"],
+        )
+        self.assertEqual(coverage["affected_modules"], ["acceleration"])
+        self.assertTrue(coverage["disclosure_required"])
+        self.assertIn("2026-05-03~2026-05-04", coverage["disclosure"])
+
+    def test_strict_composite_source_coverage_deduplicates_days(self):
+        first = write_plot_provenance(
+            self.tmp / "first.plot.json", ["2026-05-01", "2026-05-02"]
+        )
+        second = write_plot_provenance(
+            self.tmp / "second.plot.json", ["2026-05-02", "2026-05-08"]
+        )
+        context = {
+            "strict_source_provenance": True,
+            "manifest": {
+                "manifest_type": "composite_analysis_recovery",
+                "module_results": [
+                    {
+                        "key": "acceleration",
+                        "artifacts": [
+                            {"kind": "plot_provenance", "path": str(first)}
+                        ],
+                    },
+                    {
+                        "key": "cable_accel",
+                        "artifacts": [
+                            {"kind": "plot_provenance", "path": str(second)}
+                        ],
+                    },
+                ],
+            },
+        }
+
+        coverage = summarize_jlj_pinned_source_coverage(context)
+
+        self.assertEqual(coverage["status"], "disclosed")
+        self.assertEqual(coverage["plot_provenance_source_count"], 2)
+        self.assertEqual(coverage["incomplete_source_record_count"], 2)
+        self.assertEqual(coverage["incomplete_source_day_occurrence_count"], 4)
+        self.assertEqual(
+            coverage["incomplete_source_days"],
+            ["2026-05-01", "2026-05-02", "2026-05-08"],
+        )
+        self.assertEqual(coverage["affected_modules"], ["acceleration", "cable_accel"])
+        self.assertIn("2026-05-01~2026-05-02；2026-05-08", coverage["disclosure"])
+        self.assertIn("未对缺失时段补造数据", coverage["disclosure"])
+
+    def test_unverified_cable_force_keeps_vibration_but_omits_force_figures(self):
+        stats = self.tmp / "stats"
+        stats.mkdir()
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(["PointID", "Min", "Max", "RMS10minMax"])
+        sheet.append(["SLCGQ-01-K16-ZDG1", -1.2, 0.8, 0.25])
+        workbook.save(stats / "cable_accel_stats.xlsx")
+
+        unverified = build_cable_section(
+            {},
+            self.tmp,
+            stats,
+            None,
+            self.tmp,
+            cable_force_engineering_valid=False,
+            cable_force_disclosure=JLJ_CABLE_FORCE_UNVERIFIED_DISCLOSURE,
+        )
+        self.assertIn("吊杆振动加速度", unverified.narrative)
+        self.assertIn(JLJ_CABLE_FORCE_UNVERIFIED_DISCLOSURE, unverified.narrative)
+        self.assertEqual(unverified.figure_title, "吊杆振动监测典型图")
+        self.assertFalse(any("索力时程图" in item.label for item in unverified.image_items or []))
+
+        verified = build_cable_section(
+            {}, self.tmp, stats, None, self.tmp, cable_force_engineering_valid=True
+        )
+        self.assertEqual(verified.figure_title, "吊杆振动与索力换算典型图")
+        self.assertTrue(any("索力时程图" in item.label for item in verified.image_items or []))
+
+        empty = build_cable_section(
+            {},
+            self.tmp,
+            self.tmp / "missing_stats",
+            None,
+            self.tmp,
+            cable_force_engineering_valid=False,
+        )
+        self.assertIn(JLJ_CABLE_FORCE_UNVERIFIED_DISCLOSURE, empty.narrative)
+
+    def test_report_manifest_records_unverified_force_policy_and_disclosure(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        template = repo_root / "reports" / "九龙江大桥健康监测2026年3月份月报_0508.docx"
+        result_root = self.tmp / "unverified_force_result"
+        output_dir = self.tmp / "unverified_force_report"
+        result_root.mkdir()
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(["PointID", "Min", "Max", "RMS10minMax"])
+        sheet.append(["SLCGQ-01-K16-ZDG1", -1.2, 0.8, 0.25])
+        workbook.save(result_root / "cable_accel_stats.xlsx")
+        incomplete_provenance = write_plot_provenance(
+            result_root / "run_logs" / "SLCGQ-01.plot.json",
+            ["2026-05-01", "2026-05-02", "2026-05-08"],
+        )
+        analysis_context = {
+            "available": True,
+            "strict_source_provenance": True,
+            "path": str(result_root / "run_logs" / "analysis_manifest_composite.json"),
+            "bridge_profile": {"bridge_id": "jiulongjiang"},
+            "run_request": {"start_date": "2026-05-01", "end_date": "2026-05-31"},
+            "missing_modules": [],
+            "manifest": {
+                "manifest_type": "composite_analysis_recovery",
+                "cable_force_engineering_valid": False,
+                "cable_force_engineering_status": "placeholder_parameters",
+                "module_results": [
+                    {
+                        "key": "cable_accel",
+                        "artifacts": [
+                            {
+                                "kind": "plot_provenance",
+                                "path": str(incomplete_provenance),
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+
+        with patch(
+            "build_jlj_monthly_report.ReportBuildContext.analysis_context",
+            return_value=analysis_context,
+        ):
+            output = build_report(
+                template=template,
+                config_path=repo_root / "config" / "jiulongjiang_config.json",
+                result_root=result_root,
+                output_dir=output_dir,
+                period_label="2026年5月份",
+                monitoring_range="2026.05.01~2026.05.31",
+                report_date="2026年06月05日",
+                update_word=False,
+            )
+
+        doc = Document(str(output))
+        text = "\n".join(paragraph.text for paragraph in doc.paragraphs)
+        text += "\n" + "\n".join(
+            cell.text for table in doc.tables for row in table.rows for cell in row.cells
+        )
+        self.assertIn(JLJ_CABLE_FORCE_UNVERIFIED_DISCLOSURE, text)
+        self.assertIn("滚动导出来源覆盖不完整", text)
+        self.assertIn("未对缺失时段补造数据", text)
+        self.assertNotIn("吊杆振动与索力换算典型图", text)
+
+        manifests = sorted(output_dir.glob("jlj_report_build_manifest_*.json"))
+        manifest = json.loads(manifests[-1].read_text(encoding="utf-8"))
+        self.assertFalse(manifest["cable_force_engineering_valid"])
+        self.assertEqual(manifest["cable_force_engineering_status"], "placeholder_parameters")
+        self.assertFalse(manifest["cable_force_report_policy"]["include_cable_force_figures"])
+        self.assertFalse(manifest["cable_force_report_policy"]["include_engineering_conclusions"])
+        self.assertEqual(
+            manifest["incomplete_source_days"],
+            ["2026-05-01", "2026-05-02", "2026-05-08"],
+        )
+        self.assertEqual(manifest["plot_provenance_source_count"], 1)
+        self.assertEqual(manifest["incomplete_source_record_count"], 1)
+        self.assertEqual(manifest["source_coverage"]["status"], "disclosed")
+        self.assertFalse(
+            any("CableForce_" in record["path"] for record in manifest["report_image_sources"])
+        )
 
     def test_wind_summary_prefers_requested_period_and_rejects_stale_only(self):
         folder = self.tmp / "wind"

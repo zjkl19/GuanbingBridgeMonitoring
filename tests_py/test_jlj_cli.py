@@ -1,4 +1,7 @@
 ﻿import sys
+import os
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -9,6 +12,22 @@ from jlj_patrol import resolve_patrol_report_source  # noqa: E402
 
 
 class TestJljCli(unittest.TestCase):
+    def test_direct_script_help_resolves_project_packages(self):
+        script = Path(__file__).resolve().parents[1] / "reporting" / "build_jlj_monthly_report.py"
+        env = os.environ.copy()
+        env.pop("PYTHONPATH", None)
+        with tempfile.TemporaryDirectory() as folder:
+            completed = subprocess.run(
+                [sys.executable, str(script), "--help"],
+                cwd=folder,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+
     def test_parse_args_accepts_standard_report_parameters(self):
         args = parse_args([
             "--template", "reports/template.docx",

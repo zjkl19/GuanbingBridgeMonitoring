@@ -27,7 +27,130 @@ def source(*, incomplete_days: list[str] | None = None) -> dict[str, object]:
     }
 
 
+def reduced_v2_series(**overrides: object) -> dict[str, object]:
+    series: dict[str, object] = {
+        "schema_version": 2,
+        "sampling_mode": "full",
+        "render_mode": "line",
+        "plot_scope": "point_time_history",
+        "reduction_applied": True,
+        "reduction_scope": "render_only",
+        "reduction_algorithm": "peak_preserving_bucket_minmax_v1",
+        "extrema_preserved": True,
+        "first_last_preserved": True,
+        "input_count": 10,
+        "finite_count": 9,
+        "plotted_finite_count": 5,
+        "render_input_count": 6,
+        "render_finite_input_count": 5,
+        "render_vertex_count": 5,
+        "source": source(),
+    }
+    series.update(overrides)
+    return series
+
+
 class WorkbenchProvenanceTests(unittest.TestCase):
+    def test_reduced_full_v2_peak_preserving_render_closes(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            provenance = root / "A1.plot.json"
+            provenance.write_text(json.dumps({
+                "schema_version": 2,
+                "series": [reduced_v2_series()],
+            }), encoding="utf-8")
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({
+                "module_results": [{"key": "acceleration", "artifacts": [str(provenance)]}],
+            }), encoding="utf-8")
+
+            summary = inspect_manifest_plot_provenance(manifest)
+
+            self.assertEqual(summary.closed_count, 1)
+            self.assertEqual(summary.failed_count, 0)
+            self.assertEqual(summary.rows[0].source_count, 10)
+            self.assertEqual(summary.rows[0].plotted_count, 5)
+
+    def test_reduced_full_v2_contract_fails_closed_for_unsafe_variants(self) -> None:
+        cases: list[tuple[str, int, dict[str, object], str]] = [
+            ("legacy_schema", 1, {}, "schema_version>=2"),
+            ("series_legacy_schema", 2, {"schema_version": 1}, "series schema_version>=2"),
+            ("missing_input_count", 2, {}, "explicit input_count"),
+            ("not_render_only", 2, {"reduction_scope": "analysis"}, "render_only"),
+            ("unknown_algorithm", 2, {"reduction_algorithm": "lttb"}, "unsupported"),
+            ("extrema_not_preserved", 2, {"extrema_preserved": False}, "preserve extrema"),
+            ("endpoints_not_preserved", 2, {"first_last_preserved": False}, "first/last"),
+            ("render_count_mismatch", 2, {"render_vertex_count": 4}, "render/plotted"),
+            ("missing_render_input", 2, {}, "explicit render_input_count"),
+            ("missing_render_finite", 2, {}, "explicit render_finite_input_count"),
+            ("negative_render_input", 2, {"render_input_count": -1}, "non-negative"),
+            (
+                "render_input_below_finite",
+                2,
+                {"render_input_count": 4, "render_finite_input_count": 5},
+                "source/render input counts",
+            ),
+            (
+                "render_finite_below_plotted",
+                2,
+                {"render_finite_input_count": 4},
+                "source/render input counts",
+            ),
+            (
+                "source_below_render_input",
+                2,
+                {"render_input_count": 11},
+                "source/render input counts",
+            ),
+            ("source_count_mismatch", 2, {"input_count": 9}, "raw source/input/finite"),
+        ]
+        for label, schema_version, overrides, expected in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                provenance = root / "A1.plot.json"
+                series = reduced_v2_series(**overrides)
+                if label == "missing_input_count":
+                    series.pop("input_count")
+                elif label == "missing_render_input":
+                    series.pop("render_input_count")
+                elif label == "missing_render_finite":
+                    series.pop("render_finite_input_count")
+                provenance.write_text(json.dumps({
+                    "schema_version": schema_version,
+                    "series": [series],
+                }), encoding="utf-8")
+                manifest = root / "analysis_manifest.json"
+                manifest.write_text(json.dumps({
+                    "module_results": [{
+                        "key": "acceleration",
+                        "artifacts": [str(provenance)],
+                    }],
+                }), encoding="utf-8")
+
+                summary = inspect_manifest_plot_provenance(manifest)
+
+                self.assertEqual(summary.failed_count, 1)
+                self.assertIn(expected, summary.rows[0].message)
+
+    def test_reduced_full_v2_requires_source_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            provenance = root / "A1.plot.json"
+            series = reduced_v2_series()
+            series.pop("source")
+            provenance.write_text(json.dumps({
+                "schema_version": 2,
+                "series": [series],
+            }), encoding="utf-8")
+            manifest = root / "analysis_manifest.json"
+            manifest.write_text(json.dumps({
+                "module_results": [{"key": "acceleration", "artifacts": [str(provenance)]}],
+            }), encoding="utf-8")
+
+            summary = inspect_manifest_plot_provenance(manifest)
+
+            self.assertEqual(summary.failed_count, 1)
+
     def test_shared_matlab_contract_fixture_closes(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

@@ -50,8 +50,9 @@ builds are prevented from masquerading as native Windows release builds.
 
 The next working-tree milestone adds an explicitly destructive, task-scoped
 cache-source cleanup control without changing MATLAB's numerical ownership. The
-control is unchecked by default and is enabled only for the archive-backed
-`jlj_daily_export` layout. It requires the exact confirmation token
+control is unchecked by default and is available for the archive-backed
+`jlj_daily_export`, `dated_folders` and `hongtang_period` layouts. It requires
+the exact confirmation token
 `DELETE_VERIFIED_EXTRACTED_CSV` and may run only in a dedicated preprocessing
 task containing ZIP precheck/extraction/cache-prebuild steps. It is not stored
 in a bridge's shared configuration. The versioned request option is:

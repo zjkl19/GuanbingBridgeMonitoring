@@ -38,12 +38,16 @@ classdef test_analyzer_pilot < matlab.unittest.TestCase
             tc.verifyEqual(a.StatsFile, stats);
         end
 
-        function accelerationAnalyzerCarriesLegacyArguments(tc)
+        function accelerationAnalyzerCarriesAutoDetectFs(tc)
             stats = fullfile(tempdir, 'accel_stats.xlsx');
             a = bms.analyzer.AccelerationAnalyzer('D:/data', '2026-01-01', '2026-01-02', stats, 'wave', struct(), false);
             tc.verifyClass(a, 'bms.analyzer.AccelerationAnalyzer');
             tc.verifyEqual(a.Key, 'acceleration');
-            tc.verifyFalse(a.SaveFigures);
+            tc.verifyFalse(a.AutoDetectFs);
+            tc.verifyTrue(a.SaveFigures, ...
+                'The compatibility property must not imply that figures are disabled.');
+            tc.verifySubstring(func2str(a.FunctionHandle), 'self.AutoDetectFs');
+            tc.verifyFalse(contains(func2str(a.FunctionHandle), 'self.SaveFigures'));
         end
 
         function gnssAnalyzerCarriesPoints(tc)
@@ -76,12 +80,57 @@ classdef test_analyzer_pilot < matlab.unittest.TestCase
             tc.verifyEqual(a.Key, 'earthquake');
         end
 
-        function cableAccelerationAnalyzerCarriesSaveFlag(tc)
+        function cableAccelerationAnalyzerCarriesAutoDetectFs(tc)
             stats = fullfile(tempdir, 'cable_accel_stats.xlsx');
             a = bms.analyzer.CableAccelerationAnalyzer('D:/data', '2026-01-01', '2026-01-02', stats, 'wave', struct(), false);
             tc.verifyClass(a, 'bms.analyzer.CableAccelerationAnalyzer');
             tc.verifyEqual(a.Key, 'cable_accel');
-            tc.verifyFalse(a.SaveFigures);
+            tc.verifyFalse(a.AutoDetectFs);
+            tc.verifyTrue(a.SaveFigures, ...
+                'The compatibility property must not imply that figures are disabled.');
+            tc.verifySubstring(func2str(a.FunctionHandle), 'self.AutoDetectFs');
+            tc.verifyFalse(contains(func2str(a.FunctionHandle), 'self.SaveFigures'));
+        end
+
+        function accelerationAnalyzerDefaultsToCurrentFullMode(tc)
+            stats = fullfile(tempdir, 'accel_stats.xlsx');
+            a = bms.analyzer.AccelerationAnalyzer( ...
+                'D:/data', '2026-01-01', '2026-01-02', stats, 'wave', struct());
+            tc.verifyTrue(a.AutoDetectFs);
+            tc.verifyTrue(a.SaveFigures);
+        end
+
+        function cableAccelerationAnalyzerDefaultsToCurrentFullMode(tc)
+            stats = fullfile(tempdir, 'cable_accel_stats.xlsx');
+            a = bms.analyzer.CableAccelerationAnalyzer( ...
+                'D:/data', '2026-01-01', '2026-01-02', stats, 'wave', struct());
+            tc.verifyTrue(a.AutoDetectFs);
+            tc.verifyTrue(a.SaveFigures);
+        end
+
+        function saveFiguresCompatibilityIndicatorsAreReadOnly(tc)
+            stats = fullfile(tempdir, 'accel_stats.xlsx');
+            analyzers = { ...
+                bms.analyzer.AccelerationAnalyzer( ...
+                    'D:/data', '2026-01-01', '2026-01-02', stats, 'wave', struct()), ...
+                bms.analyzer.CableAccelerationAnalyzer( ...
+                    'D:/data', '2026-01-01', '2026-01-02', stats, 'wave', struct())};
+            for i = 1:numel(analyzers)
+                prop = findprop(analyzers{i}, 'SaveFigures');
+                tc.verifyEqual(prop.SetAccess, 'private');
+                tc.verifyTrue(prop.Hidden);
+            end
+        end
+
+        function analyzerFactoryKeepsCurrentAutoDetectionMode(tc)
+            sub = struct('acceleration', 'wave', 'cable_accel', 'wave');
+            statsDir = tempdir;
+            accel = bms.analyzer.AnalyzerFactory.create('acceleration', ...
+                'D:/data', '2026-01-01', '2026-01-02', statsDir, sub, struct(), {});
+            cable = bms.analyzer.AnalyzerFactory.create('cable_accel', ...
+                'D:/data', '2026-01-01', '2026-01-02', statsDir, sub, struct(), {});
+            tc.verifyTrue(accel.AutoDetectFs);
+            tc.verifyTrue(cable.AutoDetectFs);
         end
 
         function accelerationSpectrumAnalyzerCarriesSpectrumParams(tc)

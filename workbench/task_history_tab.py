@@ -21,6 +21,8 @@ from PySide6.QtWidgets import (
 
 from .task_history import TaskHistoryEntry, TaskHistoryIndex
 from .operator_text import operator_state_label
+from .models import JobContext
+from .result_location import analysis_result_location
 
 
 HEALTH_LABELS = {"ready": "可恢复", "warning": "需注意", "invalid": "不可恢复"}
@@ -105,6 +107,10 @@ class TaskHistoryWidget(QWidget):
         self.open_button.setEnabled(False)
         self.open_button.clicked.connect(self._open_directory)
         actions.addWidget(self.open_button)
+        self.open_result_button = QPushButton("打开计算结果目录")
+        self.open_result_button.setEnabled(False)
+        self.open_result_button.clicked.connect(self._open_result_directory)
+        actions.addWidget(self.open_result_button)
         actions.addStretch(1)
         self.detail_label = QLabel("请选择任务查看恢复条件。")
         self.detail_label.setWordWrap(True)
@@ -213,6 +219,10 @@ class TaskHistoryWidget(QWidget):
         entry = self._selected()
         self.restore_button.setEnabled(bool(entry and entry.can_restore))
         self.open_button.setEnabled(bool(entry and entry.context_path.parent.is_dir()))
+        result_location = self._selected_result_location()
+        self.open_result_button.setEnabled(
+            bool(result_location and result_location.root.is_dir())
+        )
         if entry is None:
             self.detail_label.setText("请选择任务查看恢复条件。")
         elif entry.issues:
@@ -233,3 +243,25 @@ class TaskHistoryWidget(QWidget):
             return
         if os.name == "nt":
             os.startfile(entry.context_path.parent)  # type: ignore[attr-defined]
+
+    def _selected_result_location(self):
+        entry = self._selected()
+        if entry is None or not entry.context_path.is_file():
+            return None
+        try:
+            context = JobContext.read(entry.context_path)
+        except (OSError, ValueError):
+            return None
+        return analysis_result_location(context=context)
+
+    def _open_result_directory(self) -> None:
+        location = self._selected_result_location()
+        if location is None or not location.root.is_dir():
+            QMessageBox.warning(
+                self,
+                "结果目录不可用",
+                "选中任务记录的计算结果目录不存在；可恢复任务后查看任务页上的实际结果位置。",
+            )
+            return
+        if os.name == "nt":
+            os.startfile(location.root)  # type: ignore[attr-defined]

@@ -146,9 +146,17 @@ file inventories, MAT-only readability, free-space change and a subsequent
 ordinary `auto` analysis. Stable production deployment remains blocked until
 those artifacts close.
 
-Latest non-coverage release regression on 2026-07-16 passed `608/608` Python
-tests in `reporting\.venv`, `711/711` MATLAB tests, and `70/70` focused MATLAB
-cleanup/cache/locking tests. These counts are regression evidence only; they do
-not replace the measured coverage snapshot above. The compiled Runner release
-gate additionally exercised default-off retention, unsafe-policy rejection,
-and a committed one-day verified cleanup transaction.
+Latest non-coverage release regression on 2026-07-16 passed `624/624` Python
+tests in `reporting\.venv` in `151.40 s` and `724/724` MATLAB tests. The focused
+rc5 recovery, provenance and compiled-manifest contracts passed `28/28` Python
+tests; the focused manifest/OOM-classification gate passed `45/45` MATLAB
+tests. These counts are regression evidence only and do not replace the
+measured coverage snapshot above. The formal build exited `0`; native Windows
+foreground/focus, DPI, font and icon acceptance passed. The compiled Runner
+release gate additionally exercises default-off retention, unsafe-policy
+rejection, a committed one-day verified cleanup transaction, a valid
+`2,771,558`-byte manifest containing `1,200` warnings and a deterministic valid
+failed-manifest fallback. The release inventory closes `385` files /
+`227,271,383` bytes by per-file size and SHA-256; its ZIP contains the same 385
+members plus the release manifest (`386` entries total), and all inventory
+hashes close against the archive.

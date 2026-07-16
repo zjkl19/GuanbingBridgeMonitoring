@@ -67,6 +67,7 @@ classdef test_writer_plot_manifest_services < matlab.unittest.TestCase
             tc.verifyTrue(any(strcmp(paths, jsonPath)));
 
             payload = jsondecode(fileread(jsonPath));
+            tc.verifyGreaterThanOrEqual(payload.schema_version, 2);
             tc.verifyEqual(payload.series.finite_count, 99);
             tc.verifyEqual(payload.series.plotted_finite_count, 99);
             tc.verifyFalse(payload.series.reduction_applied);
@@ -126,6 +127,12 @@ classdef test_writer_plot_manifest_services < matlab.unittest.TestCase
             tc.verifyEqual(bms.app.ErrorClassifier.classifyText('writetable failed for stats.xlsx'), 'stats_write_failed');
             tc.verifyEqual(bms.app.ErrorClassifier.classifyText('Failed to save .fig file'), 'plot_save_failed');
             tc.verifyEqual(bms.app.ErrorClassifier.classifyText('sqlcmd ODBC login failed'), 'sql_error');
+            tc.verifyEqual(bms.app.ErrorClassifier.classifyText('MATLAB:nomem'), 'memory_error');
+            tc.verifyEqual(bms.app.ErrorClassifier.classifyText('MATLAB:array:SizeLimitExceeded'), 'memory_error');
+            tc.verifyEqual(bms.app.ErrorClassifier.classifyText('Insufficient memory for requested array'), 'memory_error');
+            tc.verifyEqual(bms.app.ErrorClassifier.classifyText('java.lang.OutOfMemoryError'), 'memory_error');
+            tc.verifyEqual(bms.app.ErrorClassifier.classifyText(char([20869 23384 19981 36275])), 'memory_error');
+            tc.verifyEqual(bms.app.ErrorClassifier.classifyText('memory cache metadata is inconsistent'), 'runtime_error');
         end
 
         function manifestStatusCountsSummarizeRecords(tc)

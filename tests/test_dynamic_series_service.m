@@ -216,22 +216,49 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), 556);
         end
 
-        function fullRawSamplingDisablesAllPointLimits(tc)
+        function fullRawSamplingUsesPeakPreservingRenderBudget(tc)
             cfg.plot_common = struct( ...
                 'dynamic_raw_sampling_mode', 'full', ...
+                'dynamic_raw_full_render_policy', 'peak_preserving', ...
                 'dynamic_raw_fig_max_points', 1200000, ...
                 'dynamic_raw_render_mode', 'dense_band');
 
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawSamplingMode(cfg), 'full');
             tc.verifyTrue(bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg));
-            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000), Inf);
-            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), Inf);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawFullRenderPolicy(cfg), 'peak_preserving');
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000), 1200000);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), 13334);
             tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotRenderMode(cfg, 'dense_band'), 'line');
 
             opts = bms.analyzer.DynamicSeriesService.rawPlotOptions(cfg, 50000);
-            tc.verifyEqual(opts.fig_max_points, Inf);
+            tc.verifyEqual(opts.fig_max_points, 1200000);
             tc.verifyEqual(opts.raw_render_mode, 'line');
             tc.verifyEqual(opts.raw_sampling_mode, 'full');
+            tc.verifyEqual(opts.reduction_scope, 'render_only');
+            tc.verifyEqual(opts.reduction_algorithm, 'peak_preserving_bucket_minmax_v1');
+        end
+
+        function unspecifiedFullRenderPolicyPreservesLegacyAllVertices(tc)
+            cfg.plot_common = struct('dynamic_raw_sampling_mode', 'full');
+
+            tc.verifyEqual( ...
+                bms.analyzer.DynamicSeriesService.rawFullRenderPolicy(cfg), ...
+                'all_vertices');
+            tc.verifyEqual( ...
+                bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000), ...
+                Inf);
+            tc.verifyEqual( ...
+                bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), ...
+                Inf);
+        end
+
+        function legacyAllVertexPolicyRemainsExplicitlyAvailable(tc)
+            cfg.plot_common = struct( ...
+                'dynamic_raw_sampling_mode', 'full', ...
+                'dynamic_raw_full_render_policy', 'all_vertices');
+
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotMaxPoints(cfg, 50000), Inf);
+            tc.verifyEqual(bms.analyzer.DynamicSeriesService.rawPlotPerDayMax(cfg, 90, 50000), Inf);
         end
 
         function moduleOverrideChangesPlotRetentionButNotDynamicStatistics(tc)
@@ -247,6 +274,9 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
                 'sampling_mode', 'full', ...
                 'line_width', 1.0, ...
                 'render_mode', 'line', ...
+                'full_render_policy', 'peak_preserving', ...
+                'render_max_points', 1200000, ...
+                'min_points_per_day', 12000, ...
                 'gap_mode', 'connect');
             spec = bms.analyzer.DynamicAccelerationPipeline.spec('acceleration');
 
@@ -267,6 +297,10 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(effective.plot_common.dynamic_raw_sampling_mode, 'full');
             tc.verifyEqual(effective.plot_common.dynamic_raw_line_width, 1.0);
             tc.verifyEqual(effective.plot_common.dynamic_raw_render_mode, 'line');
+            tc.verifyEqual(effective.plot_common.dynamic_raw_full_render_policy, ...
+                'peak_preserving');
+            tc.verifyEqual(effective.plot_common.dynamic_raw_fig_max_points, 1200000);
+            tc.verifyEqual(effective.plot_common.dynamic_raw_min_points_per_day, 12000);
             tc.verifyEqual(effective.plot_common.gap_mode, 'connect');
             tc.verifyEqual( ...
                 bms.analyzer.DynamicSeriesService.rawSamplingMode(moduleCfg), ...
@@ -319,6 +353,82 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyTrue(rec.has_data);
             tc.verifyEqual(numel(rec.vals), numel(values));
             tc.verifyEqual(nnz(isfinite(rec.vals)), numel(values));
+        end
+
+        function fullAnalysisCanBoundRenderSeriesWithoutChangingStatistics(tc)
+            values = sin((1:20000)' / 17);
+            values(1234) = -9.5;
+            values(17654) = 12.25;
+            write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'BOUNDED.csv'), values);
+            cfg = dynamic_cfg();
+            cfg.plot_common = struct( ...
+                'fig_max_points', 1000, ...
+                'dynamic_raw_sampling_mode', 'full', ...
+                'dynamic_raw_fig_max_points', 1000, ...
+                'dynamic_raw_min_points_per_day', 1000, ...
+                'dynamic_raw_full_render_policy', 'peak_preserving');
+
+            rec = bms.analyzer.DynamicSeriesService.collectRecord( ...
+                tc.Root, 'wave', 'BOUNDED', '2026-01-01', '2026-01-01', ...
+                cfg, 'acceleration', true, true);
+
+            tc.verifyTrue(rec.has_data);
+            tc.verifyLessThanOrEqual(numel(rec.vals), 1000);
+            tc.verifyEqual(rec.source_provenance.source_sample_count, numel(values));
+            tc.verifyEqual(rec.mn, round(min(values), 3));
+            tc.verifyEqual(rec.mx, round(max(values), 3));
+            tc.verifyEqual(rec.av, round(mean(values), 3));
+            tc.verifyTrue(any(abs(rec.vals + 9.5) < 1e-12));
+            tc.verifyTrue(any(abs(rec.vals - 12.25) < 1e-12));
+        end
+
+        function reducedFullPlotProvenanceSeparatesAnalysisAndRenderCounts(tc)
+            fig = figure('Visible', 'off');
+            cleaner = onCleanup(@() close(fig)); %#ok<NASGU>
+            ax = axes(fig);
+            times = datetime(2026, 1, 1) + milliseconds(0:1999)';
+            vals = sin((1:2000)' / 10);
+            opts = struct( ...
+                'fig_max_points', 100, ...
+                'gap_mode', 'connect', ...
+                'raw_sampling_mode', 'full', ...
+                'raw_render_mode', 'line', ...
+                'reduction_scope', 'render_only', ...
+                'reduction_algorithm', 'peak_preserving_bucket_minmax_v1', ...
+                'extrema_preserved', true, ...
+                'first_last_preserved', true, ...
+                'source_provenance', struct( ...
+                    'source_sample_count', 2000, ...
+                    'finite_source_sample_count', 2000));
+
+            h = bms.analyzer.DynamicSeriesService.plotRawSeries( ...
+                ax, times, vals, [0 0.4470 0.7410], opts, 1.0);
+            provenance = h.UserData.plot_provenance;
+
+            tc.verifyEqual(provenance.schema_version, 2);
+            tc.verifyEqual(provenance.input_count, 2000);
+            tc.verifyEqual(provenance.finite_count, 2000);
+            tc.verifyLessThanOrEqual(provenance.plotted_finite_count, 100);
+            tc.verifyEqual(provenance.render_vertex_count, provenance.plotted_finite_count);
+            tc.verifyTrue(provenance.reduction_applied);
+            tc.verifyEqual(provenance.reduction_scope, 'render_only');
+            tc.verifyTrue(provenance.extrema_preserved);
+            tc.verifyTrue(provenance.first_last_preserved);
+        end
+
+        function dailyEnvelopeMatchesFullValuesBeforeRenderReduction(tc)
+            times = datetime(2026, 1, 1) + seconds(0:3599)';
+            vals = reshape(1:3600, [], 1);
+
+            envelope = bms.analyzer.DynamicSeriesService.envelopeByTimeBins(times, vals, 30);
+
+            tc.verifyEqual(numel(envelope.times), 48);
+            tc.verifyEqual(envelope.min(1), 1);
+            tc.verifyEqual(envelope.max(1), 1800);
+            tc.verifyEqual(envelope.p01(1), prctile(vals(1:1800), 1), 'AbsTol', 1e-12);
+            tc.verifyEqual(envelope.p99(2), prctile(vals(1801:3600), 99), 'AbsTol', 1e-12);
+            tc.verifyEqual(envelope.rms(1), sqrt(mean(vals(1:1800).^2)), 'AbsTol', 1e-12);
+            tc.verifyTrue(all(isnan(envelope.min(3:end))));
         end
 
         function rollingExportDayIncludesFollowingFolderSamples(tc)
@@ -515,6 +625,18 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
             tc.verifyEqual(cfg2.plot_common.dynamic_raw_sampling_mode, 'capped');
         end
 
+        function boundedFullRenderRetainsReusableGroupSeries(tc)
+            cfg.plot_common = struct( ...
+                'dynamic_raw_sampling_mode', 'full', ...
+                'dynamic_raw_full_render_policy', 'peak_preserving');
+            tc.verifyFalse( ...
+                bms.analyzer.DynamicAccelerationSeriesService.shouldReleasePointSeries(cfg));
+
+            cfg.plot_common.dynamic_raw_full_render_policy = 'all_vertices';
+            tc.verifyTrue( ...
+                bms.analyzer.DynamicAccelerationSeriesService.shouldReleasePointSeries(cfg));
+        end
+
         function cappedGroupReloadDoesNotReapplyFullPointOverride(tc)
             values = sin((1:4000)' / 17);
             write_series_csv(fullfile(tc.Root, '2026-01-01', 'wave', 'GROUP.csv'), values);
@@ -678,6 +800,30 @@ classdef test_dynamic_series_service < matlab.unittest.TestCase
 
             patches = findall(ax, 'Type', 'patch');
             tc.verifyNumElements(patches, 2);
+        end
+
+        function mergedEnvelopeInsertsNaNsAcrossMissingWholeDay(tc)
+            first = bms.analyzer.DynamicSeriesService.emptyEnvelope(30);
+            first.times = datetime(2026, 1, 1, 0, 15, 0) + minutes((0:47)' * 30);
+            second = bms.analyzer.DynamicSeriesService.emptyEnvelope(30);
+            second.times = datetime(2026, 1, 3, 0, 15, 0) + minutes((0:47)' * 30);
+            fields = {'p01', 'p05', 'p50', 'p95', 'p99', 'min', 'max', 'rms'};
+            for i = 1:numel(fields)
+                first.(fields{i}) = ones(48, 1) * i;
+                second.(fields{i}) = ones(48, 1) * (i + 10);
+            end
+
+            merged = bms.analyzer.DynamicSeriesService.mergeEnvelopes( ...
+                {first; second}, 30);
+
+            tc.verifyNumElements(merged.times, 144);
+            missingDay = dateshift(merged.times, 'start', 'day') == datetime(2026, 1, 2);
+            tc.verifyEqual(nnz(missingDay), 48);
+            for i = 1:numel(fields)
+                tc.verifyTrue(all(isnan(merged.(fields{i})(missingDay))));
+                tc.verifyEqual(merged.(fields{i})(1:48), first.(fields{i}));
+                tc.verifyEqual(merged.(fields{i})(97:144), second.(fields{i}));
+            end
         end
 
         function accelerationPipelineDelegatesStyleResolution(tc)

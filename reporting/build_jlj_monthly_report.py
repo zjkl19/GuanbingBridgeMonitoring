@@ -7,6 +7,7 @@ import math
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -28,7 +29,21 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from analysis_manifest import analysis_manifest_context, missing_module_summary_items
+# Direct ``python reporting/build_jlj_monthly_report.py`` launches put only
+# the reporting directory on ``sys.path``.  The strict source-coverage check
+# deliberately reuses the workbench provenance validator, so make the project
+# package available before importing it.  The frozen/unified report worker
+# already has this root and is unaffected.
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from analysis_manifest import (
+    analysis_manifest_context,
+    manifest_artifact_paths,
+    manifest_module_records,
+    missing_module_summary_items,
+)
 from artifact_lookup import (
     filename_has_point_token,
     latest_file_patterns as lookup_latest_file_patterns,
@@ -78,6 +93,7 @@ from table_utils import (
     style_table as shared_style_table,
 )
 from template_precheck import raise_for_template
+from workbench.provenance import inspect_plot_provenance
 
 
 JLJ_REPORT_REMOVE_PHRASES = (
@@ -89,6 +105,17 @@ JLJ_REPORT_REMOVE_PHRASES = (
 JLJ_REPORT_REMOVE_SENTENCES = (
     "\u5f53\u524d\u540a\u6746\u53c2\u6570\u914d\u7f6e\u5c1a\u672a\u5b8c\u6574\u6821\u6838\uff0c\u7d22\u529b\u6362\u7b97\u7ed3\u679c\u6682\u4ec5\u7528\u4e8e\u65f6\u7a0b\u5c55\u793a\u3002",
     "\u5f53\u524d\u540a\u6746\u53c2\u6570\u914d\u7f6e\u5c1a\u672a\u5b8c\u6574\u6821\u6838\uff0c\u7d22\u529b\u6362\u7b97\u7ed3\u679c\u6682\u4ec5\u7528\u4e8e\u65f6\u7a0b\u5c55\u793a",
+)
+
+JLJ_CABLE_FORCE_UNVERIFIED_DISCLOSURE = (
+    "本期仅对吊杆振动加速度及频谱特征进行分析。当前配置中的吊杆线密度和长度参数"
+    "尚未完成工程校核，索力换算结果及图件不纳入本报告，也不作为工程判断依据。"
+)
+
+JLJ_INCOMPLETE_SOURCE_DISCLOSURE_TEMPLATE = (
+    "分析结果的数据来源记录显示，{date_ranges}部分测点的滚动导出来源覆盖不完整"
+    "（共{day_count}个日期，涉及{record_count}份正式图件来源记录）。本报告仅采用实际获得的数据"
+    "进行统计与绘图，未对缺失时段补造数据或作推测性补齐，相关结果应结合上述数据覆盖边界理解。"
 )
 
 @dataclass
@@ -839,6 +866,8 @@ def apply_monthly_data_status_section(
     result_root: Path,
     monitoring_range: str,
     caption_templates: CaptionTemplates,
+    *,
+    source_coverage: dict[str, object] | None = None,
 ) -> None:
     start_date, end_date = resolve_jlj_monitoring_dates(monitoring_range, result_root)
     section_idx, heading_para = find_heading(doc, "本月监测数据情况", 2)
@@ -849,6 +878,9 @@ def apply_monthly_data_status_section(
     clear_section_between(heading_para, end_para)
     anchor = end_para if end_para is not None else doc.add_paragraph()
     rows = collect_jlj_data_acquisition_rows(cfg, result_root, start_date, end_date)
+    disclosure = str((source_coverage or {}).get("disclosure") or "").strip()
+    if disclosure:
+        add_text_paragraph_before(anchor, disclosure, text_template)
     if not rows:
         add_text_paragraph_before(anchor, "未读取到设计测点配置，无法生成本月监测数据获取情况统计表。", text_template)
         return
@@ -2484,6 +2516,149 @@ def build_traffic_section(
     )
 
 
+def validate_jlj_analysis_profile(analysis_context: dict) -> None:
+    """Bind a Jiulongjiang report to the composite manifest's bridge profile.
+
+    A recovery composite is the authoritative analysis result.  Its top-level
+    ``bridge_profile`` must therefore drive the strict report check; a stale
+    nested profile copied from one of the source requests must not override it.
+    """
+    if not analysis_context.get("available"):
+        return
+    profile = analysis_context.get("bridge_profile")
+    bridge_id = (
+        str(profile.get("bridge_id") or "").strip()
+        if isinstance(profile, dict)
+        else ""
+    )
+    if analysis_context.get("strict_source_provenance") and not bridge_id:
+        raise ValueError("Pinned Jiulongjiang analysis manifest does not declare bridge_profile.bridge_id.")
+    if bridge_id and bridge_id != "jiulongjiang":
+        raise ValueError(
+            "Jiulongjiang analysis manifest bridge profile does not match the report task: "
+            f"manifest={bridge_id}, report=jiulongjiang, "
+            f"manifest_path={analysis_context.get('path', '')}"
+        )
+
+
+def jlj_cable_force_report_policy(analysis_context: dict) -> dict[str, object]:
+    """Resolve whether cable-force engineering results may enter the report."""
+    manifest = analysis_context.get("manifest")
+    if not isinstance(manifest, dict):
+        manifest = {}
+    raw_valid = manifest.get("cable_force_engineering_valid")
+    engineering_valid = raw_valid if isinstance(raw_valid, bool) else None
+    strict = bool(analysis_context.get("strict_source_provenance"))
+    # A strict report is an engineering deliverable bound to one immutable
+    # analysis manifest.  It must never infer that placeholder cable-density
+    # or length parameters are valid merely because an older/ordinary manifest
+    # omitted the audit flag.  Historical non-strict report runs retain their
+    # previous permissive behaviour for backwards compatibility.
+    include_force = engineering_valid is True if strict else engineering_valid is not False
+    status = str(manifest.get("cable_force_engineering_status") or "").strip()
+    return {
+        "engineering_valid": engineering_valid,
+        "engineering_status": status,
+        "include_engineering_conclusions": include_force,
+        "include_cable_force_figures": include_force,
+        "disclosure": "" if include_force else JLJ_CABLE_FORCE_UNVERIFIED_DISCLOSURE,
+    }
+
+
+def summarize_jlj_pinned_source_coverage(analysis_context: dict) -> dict[str, object]:
+    """Summarize incomplete days from strict manifest-bound plot sidecars.
+
+    No raw CSV is inspected here.  Under the normal report worker the artifact
+    lookup revalidates every sidecar against the pinned analysis manifest's
+    byte count and SHA-256 before the provenance contract is inspected.
+    """
+    coverage: dict[str, object] = {
+        "status": "not_applicable",
+        "manifest_type": "",
+        "plot_provenance_source_count": 0,
+        "incomplete_source_record_count": 0,
+        "incomplete_source_day_occurrence_count": 0,
+        "incomplete_source_days": [],
+        "affected_modules": [],
+        "disclosure_required": False,
+        "disclosure": "",
+    }
+    if not analysis_context.get("strict_source_provenance"):
+        return coverage
+    manifest = analysis_context.get("manifest")
+    if not isinstance(manifest, dict):
+        raise ValueError("Pinned Jiulongjiang analysis manifest payload is unavailable.")
+    manifest_type = str(manifest.get("manifest_type") or "").strip()
+    coverage["manifest_type"] = manifest_type
+
+    seen_paths: set[str] = set()
+    all_days: list[str] = []
+    affected_modules: set[str] = set()
+    incomplete_records = 0
+    source_count = 0
+    for record in manifest_module_records(manifest):
+        module = str(record.get("key") or record.get("module") or "").strip()
+        if not module:
+            continue
+        paths = manifest_artifact_paths(
+            {"module_results": [record]},
+            module,
+            kind="plot_provenance",
+            suffixes=(".json",),
+        )
+        for path in paths:
+            marker = str(path.resolve()).casefold()
+            if marker in seen_paths:
+                continue
+            seen_paths.add(marker)
+            inspected = inspect_plot_provenance(module, path)
+            if not inspected.closed:
+                raise ValueError(
+                    "Pinned Jiulongjiang plot provenance does not close: "
+                    f"{path}: {inspected.message or inspected.status}"
+                )
+            source_count += 1
+            if inspected.status != "closed_incomplete_source":
+                continue
+            incomplete_records += 1
+            affected_modules.add(module)
+            all_days.extend(inspected.incomplete_days)
+
+    if source_count == 0:
+        raise ValueError(
+            "Pinned Jiulongjiang analysis manifest contains no plot_provenance artifacts; "
+            "source coverage cannot be established."
+        )
+
+    unique_days = sorted(set(all_days))
+    parsed_days: list[date] = []
+    for value in unique_days:
+        parsed = _parse_manifest_date(value)
+        if parsed is None or parsed.isoformat() != value:
+            raise ValueError(f"Pinned plot provenance contains an invalid incomplete day: {value!r}")
+        parsed_days.append(parsed)
+    disclosure = ""
+    if unique_days:
+        disclosure = JLJ_INCOMPLETE_SOURCE_DISCLOSURE_TEMPLATE.format(
+            date_ranges=summarize_day_ranges(parsed_days),
+            day_count=len(unique_days),
+            record_count=incomplete_records,
+        )
+    coverage.update(
+        {
+            "status": "disclosed" if unique_days else "complete",
+            "plot_provenance_source_count": source_count,
+            "incomplete_source_record_count": incomplete_records,
+            "incomplete_source_day_occurrence_count": len(all_days),
+            "incomplete_source_days": unique_days,
+            "affected_modules": sorted(affected_modules),
+            "disclosure_required": bool(unique_days),
+            "disclosure": disclosure,
+        }
+    )
+    return coverage
+
+
 def build_deflection_section(cfg: dict, result_root: Path, stats_root: Path, fallback_root: Path | None, image_root: Path) -> SectionContent:
     rows = load_section_rows(stats_root, fallback_root, "deflection_stats.xlsx")
     if not rows:
@@ -2867,10 +3042,22 @@ def build_crack_section(cfg: dict, result_root: Path, stats_root: Path, fallback
     )
 
 
-def build_cable_section(cfg: dict, result_root: Path, stats_root: Path, fallback_root: Path | None, image_root: Path) -> SectionContent:
+def build_cable_section(
+    cfg: dict,
+    result_root: Path,
+    stats_root: Path,
+    fallback_root: Path | None,
+    image_root: Path,
+    *,
+    cable_force_engineering_valid: bool | None = None,
+    cable_force_disclosure: str = "",
+) -> SectionContent:
     rows = load_section_rows(stats_root, fallback_root, "cable_accel_stats.xlsx")
     if not rows:
-        return build_missing_section("本月未获取到吊杆振动监测有效数据。")
+        detail = "本月未获取到吊杆振动监测有效数据。"
+        if cable_force_engineering_valid is False:
+            detail += cable_force_disclosure.strip() or JLJ_CABLE_FORCE_UNVERIFIED_DISCLOSURE
+        return build_missing_section(detail)
     abs_peak = max(abs(parse_float(row.get("Min")) or 0.0) if abs(parse_float(row.get("Min")) or 0.0) > abs(parse_float(row.get("Max")) or 0.0) else abs(parse_float(row.get("Max")) or 0.0) for row in rows)
     rms_peak = numeric_max(rows, "RMS10minMax")
     cable_rms_level2 = JLG_REPORT_LIMITS["cable_accel_rms_level3_mps2"]
@@ -2883,9 +3070,12 @@ def build_cable_section(cfg: dict, result_root: Path, stats_root: Path, fallback
     narrative = (
         f"选取典型监测数据进行分析。吊杆振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，"
         f"10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}，{rms_status}"
-        ""
     )
     summary = f"吊杆振动加速度绝对峰值最大约为{format_number(abs_peak, 3, 'm/s²')}，10min 均方根最大值约为{format_number(rms_peak, 3, 'm/s²')}，{rms_status}"
+    if cable_force_engineering_valid is False:
+        disclosure = cable_force_disclosure.strip() or JLJ_CABLE_FORCE_UNVERIFIED_DISCLOSURE
+        narrative = f"{narrative}{disclosure}"
+        summary = f"{summary}{disclosure}"
     columns = [
         ("PointID", "测点编号", None),
         ("Min", "最小值(m/s²)", None),
@@ -2906,14 +3096,19 @@ def build_cable_section(cfg: dict, result_root: Path, stats_root: Path, fallback
         image_items.append(ImageItem(f"{pid} 10min RMS时程", image_for_point(image_root, "时程曲线_索力加速度_RMS10min", pid, [f"CableAccelRMS10_{pid}_*.jpg"])))
         image_items.append(ImageItem(f"{pid} PSD", image_for_point(image_root, f"PSD_备查_索力加速度/{pid}", pid, [f"PSD_{pid}_*.jpg"])))
         image_items.append(ImageItem(f"{pid} 频谱峰值曲线", image_for_point(image_root, "频谱峰值曲线_索力加速度", pid, [f"SpecFreq_{pid}_*.jpg"])))
-        image_items.append(ImageItem(f"{pid} 索力时程图", image_for_point(image_root, "索力时程图", pid, [f"CableForce_{pid}_*.jpg"])))
+        if cable_force_engineering_valid is not False:
+            image_items.append(ImageItem(f"{pid} 索力时程图", image_for_point(image_root, "索力时程图", pid, [f"CableForce_{pid}_*.jpg"])))
     return SectionContent(
         narrative=narrative,
         summary_sentence=summary,
         table_title="吊杆振动监测统计表",
         table_columns=columns,
         table_rows=table_rows,
-        figure_title="吊杆振动与索力换算典型图",
+        figure_title=(
+            "吊杆振动监测典型图"
+            if cable_force_engineering_valid is False
+            else "吊杆振动与索力换算典型图"
+        ),
         image_items=image_items,
     )
 
@@ -3138,7 +3333,17 @@ def build_south_tilt_section(cfg: dict, result_root: Path, stats_root: Path, fal
     )
 
 
-def build_section_map(cfg: dict, stats_root: Path, fallback_root: Path | None, result_root: Path, image_root: Path, wim_root: Path | None) -> dict[str, SectionContent]:
+def build_section_map(
+    cfg: dict,
+    stats_root: Path,
+    fallback_root: Path | None,
+    result_root: Path,
+    image_root: Path,
+    wim_root: Path | None,
+    *,
+    cable_force_policy: dict[str, object] | None = None,
+) -> dict[str, SectionContent]:
+    cable_force_policy = cable_force_policy or {}
     return {
         "main_env": build_temperature_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_humidity": build_humidity_section(cfg, result_root, stats_root, fallback_root, image_root),
@@ -3155,7 +3360,17 @@ def build_section_map(cfg: dict, stats_root: Path, fallback_root: Path | None, r
         "main_vibration": build_vibration_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_strain": build_main_strain_section(cfg, result_root, stats_root, fallback_root, image_root),
         "main_crack": build_crack_section(cfg, result_root, stats_root, fallback_root, image_root),
-        "main_cable": build_cable_section(cfg, result_root, stats_root, fallback_root, image_root),
+        "main_cable": build_cable_section(
+            cfg,
+            result_root,
+            stats_root,
+            fallback_root,
+            image_root,
+            cable_force_engineering_valid=bool(
+                cable_force_policy.get("include_cable_force_figures")
+            ),
+            cable_force_disclosure=str(cable_force_policy.get("disclosure") or ""),
+        ),
         "north_strain": build_north_strain_section(cfg, result_root, stats_root, fallback_root, image_root),
         "north_bearing": build_north_bearing_section(cfg, result_root, stats_root, fallback_root, image_root),
         "north_tilt": build_north_tilt_section(cfg, result_root, stats_root, fallback_root, image_root),
@@ -3470,7 +3685,10 @@ def build_report(
     start_date, end_date = resolve_jlj_monitoring_dates(monitoring_range, result_root)
     validate_jlj_requested_period(period_label, start_date, end_date)
     analysis_context = ctx.analysis_context()
+    validate_jlj_analysis_profile(analysis_context)
     validate_jlj_analysis_period(analysis_context, start_date, end_date)
+    cable_force_policy = jlj_cable_force_report_policy(analysis_context)
+    source_coverage = summarize_jlj_pinned_source_coverage(analysis_context)
 
     doc = Document(str(template))
     caption_templates = find_caption_templates(doc)
@@ -3480,10 +3698,25 @@ def build_report(
 
     update_cover_metadata(doc, period_label, report_date, monitoring_range)
     apply_health_status_section(doc, cfg, result_root, monitoring_range)
-    apply_monthly_data_status_section(doc, cfg, result_root, monitoring_range, caption_templates)
+    apply_monthly_data_status_section(
+        doc,
+        cfg,
+        result_root,
+        monitoring_range,
+        caption_templates,
+        source_coverage=source_coverage,
+    )
     data_acquisition_summary = summarize_jlj_data_acquisition(collect_jlj_data_acquisition_rows(cfg, result_root, start_date, end_date))
     with jlj_report_period_scope(start_date, end_date):
-        section_map = build_section_map(cfg, result_root, None, result_root, ctx.image_root, wim_root)
+        section_map = build_section_map(
+            cfg,
+            result_root,
+            None,
+            result_root,
+            ctx.image_root,
+            wim_root,
+            cable_force_policy=cable_force_policy,
+        )
     for key, parent_heading, child_heading, _ in JLG_MONTHLY_SECTIONS:
         add_section_content(doc, parent_heading, child_heading, section_map[key], body_template, caption_templates, ctx.assets_dir)
     if has_patrol_anchor:
@@ -3604,6 +3837,13 @@ def build_report(
             },
             "patrol_source": str(patrol_report_docx.resolve()) if patrol_report_docx else "",
             "source_availability": {"patrol": patrol_availability},
+            "cable_force_engineering_valid": cable_force_policy["engineering_valid"],
+            "cable_force_engineering_status": cable_force_policy["engineering_status"],
+            "cable_force_report_policy": cable_force_policy,
+            "incomplete_source_days": source_coverage["incomplete_source_days"],
+            "plot_provenance_source_count": source_coverage["plot_provenance_source_count"],
+            "incomplete_source_record_count": source_coverage["incomplete_source_record_count"],
+            "source_coverage": source_coverage,
             "report_image_source_count": len(image_sources),
             "report_image_sources": image_sources,
             "not_applicable_sections": sorted(

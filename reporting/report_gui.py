@@ -28,6 +28,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+# Direct script launches place only ``reporting`` on ``sys.path``.  Make the
+# project package tree available before importing report builders so the
+# retired GUI can still reach its explicit retirement guard instead of
+# crashing on a builder's ``workbench.*`` dependency.
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 from build_jlj_monthly_report import build_report as build_jlj_monthly_report
 from build_guanbing_monthly_report import build_report as build_guanbing_monthly_report
 from build_monthly_report import build_report as build_hongtang_monthly_report
@@ -49,16 +57,13 @@ JLJ_MONTHLY_REPORT = "\u4e5d\u9f99\u6c5f\u6708\u62a5"
 GUANBING_MONTHLY_REPORT = "管柄月报"
 SHUIXIANHUA_MONTHLY_REPORT = "水仙花月报"
 ZHISHAN_MONTHLY_REPORT = "芝山月报"
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
 try:
     from workbench.version import app_version as _workbench_app_version
     from workbench.config_layers import config_dependency_sha256
 
     APP_VERSION = _workbench_app_version(Path(__file__).resolve().parents[1])
 except (ImportError, OSError):
-    APP_VERSION = "v1.8.1-rc4"
+    APP_VERSION = "v1.8.1"
 MONTHLY_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx"
 PERIOD_TEMPLATE_NAME = "\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx"
 JLJ_TEMPLATE_NAME = "\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_0508.docx"

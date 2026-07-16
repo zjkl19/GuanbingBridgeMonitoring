@@ -30,6 +30,39 @@ classdef test_app_step_layer < matlab.unittest.TestCase
             tc.verifyGreaterThanOrEqual(rec.elapsed_sec, 0);
         end
 
+        function executorCleansOnlyFiguresCreatedByMemoryFailedStep(tc)
+            existing = figure('Visible', 'off', 'Name', 'existing-gui-window');
+            cleanup = onCleanup(@() cleanup_step_figures(existing));
+
+            r = bms.app.StepExecutor.execute( ...
+                bms.app.StepDefinition.fromKey('cable_accel'), ...
+                @create_step_figures_then_oom);
+
+            created = getappdata(groot, 'BmsStepExecutorCreatedFigures');
+            tc.verifyEqual(r.Status, 'fail');
+            tc.verifyEqual(r.ErrorType, 'memory_error');
+            tc.verifyTrue(isgraphics(existing, 'figure'), ...
+                'A figure that existed before the step must remain open.');
+            tc.verifyFalse(any(arrayfun(@(fig) isgraphics(fig, 'figure'), created)), ...
+                'Figures created by the OOM-failed step must be deleted.');
+        end
+
+        function executorDoesNotTreatMemoryCacheFailureAsOom(tc)
+            existing = figure('Visible', 'off', 'Name', 'existing-gui-window');
+            cleanup = onCleanup(@() cleanup_step_figures(existing));
+
+            r = bms.app.StepExecutor.execute( ...
+                bms.app.StepDefinition.fromKey('cable_accel'), ...
+                @create_step_figure_then_memory_cache_error);
+
+            created = getappdata(groot, 'BmsStepExecutorCreatedFigures');
+            tc.verifyEqual(r.Status, 'fail');
+            tc.verifyNotEqual(r.ErrorType, 'memory_error');
+            tc.verifyTrue(isgraphics(existing, 'figure'));
+            tc.verifyTrue(all(arrayfun(@(fig) isgraphics(fig, 'figure'), created)), ...
+                'A non-OOM error mentioning a memory cache must not trigger OOM figure cleanup.');
+        end
+
         function adapterAddsStatsPath(tc)
             logs = {struct('label',bms.app.StepDefinition.fromKey('acceleration').Label,'status','ok','message','','elapsed_sec',0.1)};
             summary = bms.app.LegacyRunAllAdapter.buildSummary(tempdir, '2026-01-01', '2026-01-01', ...
@@ -70,6 +103,112 @@ classdef test_app_step_layer < matlab.unittest.TestCase
                 payloads{end+1} = payload; %#ok<AGROW>
             end
         end
+
+        function stepPlanSkipsOnlyLaterHighMemoryStepsAfterOom(tc)
+            lowRiskRuns = 0;
+            skippedHighRiskRuns = 0;
+            plan = bms.app.StepPlan();
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('cable_accel'), ...
+                @() error('MATLAB:nomem', 'Out of memory during cable acceleration'));
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('temperature'), @run_low_risk);
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('accel_spectrum'), @run_high_risk);
+
+            results = plan.execute();
+
+            tc.verifyEqual(cellfun(@(r) r.Status, results, 'UniformOutput', false), ...
+                {'fail', 'ok', 'skip'});
+            tc.verifyEqual(results{1}.ErrorType, 'memory_error');
+            tc.verifySubstring(results{3}.Message, 'cable_accel');
+            tc.verifyEqual(lowRiskRuns, 1, 'Low-risk work should continue after an OOM.');
+            tc.verifyEqual(skippedHighRiskRuns, 0, 'Later high-memory work must not run.');
+
+            function run_low_risk()
+                lowRiskRuns = lowRiskRuns + 1;
+            end
+
+            function run_high_risk()
+                skippedHighRiskRuns = skippedHighRiskRuns + 1;
+            end
+        end
+
+        function nonMemoryFailureKeepsExistingContinuationPolicy(tc)
+            laterHighRiskRuns = 0;
+            plan = bms.app.StepPlan();
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('cable_accel'), ...
+                @() error('unit:ordinaryFailure', 'ordinary failure'));
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('accel_spectrum'), @run_later_high_risk);
+
+            results = plan.execute();
+
+            tc.verifyEqual(cellfun(@(r) r.Status, results, 'UniformOutput', false), ...
+                {'fail', 'ok'});
+            tc.verifyEqual(results{1}.ErrorType, 'runtime_error');
+            tc.verifyEqual(laterHighRiskRuns, 1);
+
+            function run_later_high_risk()
+                laterHighRiskRuns = laterHighRiskRuns + 1;
+            end
+        end
+
+
+        function memoryCacheFailureDoesNotSkipLaterHighMemoryStep(tc)
+            laterHighRiskRuns = 0;
+            plan = bms.app.StepPlan();
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('cable_accel'), ...
+                @() error('unit:memoryCache', 'memory cache metadata is inconsistent'));
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('accel_spectrum'), @run_later_high_risk);
+
+            results = plan.execute();
+
+            tc.verifyEqual(cellfun(@(r) r.Status, results, 'UniformOutput', false), ...
+                {'fail', 'ok'});
+            tc.verifyNotEqual(results{1}.ErrorType, 'memory_error');
+            tc.verifyEqual(laterHighRiskRuns, 1);
+
+            function run_later_high_risk()
+                laterHighRiskRuns = laterHighRiskRuns + 1;
+            end
+        end
+
+        function matlabSizeLimitIdentifierIsTreatedAsOom(tc)
+            plan = bms.app.StepPlan();
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('cable_accel'), ...
+                @() error('MATLAB:array:SizeLimitExceeded', 'Requested array exceeds configured limit'));
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('accel_spectrum'), ...
+                @() error('unit:mustNotRun', 'later high-memory step ran'));
+
+            results = plan.execute();
+
+            tc.verifyEqual(results{1}.ErrorType, 'memory_error');
+            tc.verifyEqual(results{2}.Status, 'skip');
+        end
+    end
+end
+
+function create_step_figures_then_oom()
+    figures = [figure('Visible', 'off'), figure('Visible', 'off')];
+    setappdata(groot, 'BmsStepExecutorCreatedFigures', figures);
+    error('MATLAB:nomem', 'Out of memory while plotting');
+end
+
+function create_step_figure_then_memory_cache_error()
+    figures = figure('Visible', 'off');
+    setappdata(groot, 'BmsStepExecutorCreatedFigures', figures);
+    error('unit:memoryCache', 'memory cache metadata is inconsistent');
+end
+
+function cleanup_step_figures(existing)
+    if isappdata(groot, 'BmsStepExecutorCreatedFigures')
+        figures = getappdata(groot, 'BmsStepExecutorCreatedFigures');
+        for i = 1:numel(figures)
+            if isgraphics(figures(i), 'figure')
+                delete(figures(i));
+            end
+        end
+        rmappdata(groot, 'BmsStepExecutorCreatedFigures');
+    end
+    if isgraphics(existing, 'figure')
+        delete(existing);
     end
 end
 

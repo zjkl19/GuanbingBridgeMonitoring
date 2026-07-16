@@ -222,6 +222,53 @@ def _base_config(data_root: Path) -> dict[str, Any]:
     }
 
 
+def _standard_base_config(
+    data_root: Path, *, layout: str, vendor: str
+) -> dict[str, Any]:
+    if layout not in {"dated_folders", "hongtang_period"}:
+        raise ValueError(f"unsupported standard cleanup layout: {layout}")
+    return {
+        "vendor": vendor,
+        "bridge": {
+            "id": vendor,
+            "name": f"{layout} cleanup policy smoke",
+        },
+        "data_layout": layout,
+        "notify": {"enabled": False},
+        "gui": {"auto_configure_result_folders": False},
+        "defaults": {"header_marker": "[missing]"},
+        "subfolders": {"temperature": "波形/feature"},
+        "points": {"temperature": ["T1"]},
+        "file_patterns": {"temperature": {"default": "{file_id}.csv"}},
+        "per_point": {"temperature": {"T1": {"file_id": "TEMP01"}}},
+        "time_series": {
+            "source_mode": "auto",
+            "cache_version": "csv_timeseries_v2",
+            "require_metadata": True,
+        },
+        "cache_prebuild": {
+            "manifest_dir": str(data_root / "run_logs"),
+            "force_rebuild": False,
+            "max_workers": 1,
+            "min_free_gib": 0,
+            "min_free_fraction": 0,
+            "estimated_cache_ratio": 1.25,
+        },
+        "preprocessing": {
+            "unzip": {
+                "max_workers": 1,
+                "min_free_gib": 0,
+                "min_free_fraction": 0,
+                "additional_required_bytes": 0,
+                "reuse_validation": "full_crc",
+                "delete_archives_after_verify": False,
+                "overwrite_existing": False,
+                "summary_file": str(data_root / "run_logs" / "archive_extract_summary.json"),
+            }
+        },
+    }
+
+
 def _request(
     project_root: Path,
     data_root: Path,
@@ -619,6 +666,189 @@ def _enabled_cleanup_case(
     }
 
 
+def _standard_enabled_cleanup_case(
+    root: Path,
+    runner: Path,
+    project_root: Path,
+    timeout_seconds: int,
+    *,
+    layout: str,
+    vendor: str,
+) -> dict[str, Any]:
+    """Exercise the compiled Runner's non-JLJ archive/cache/delete path."""
+    data_root = root / "data"
+    wave_dir = data_root / "2026-06-01" / "波形" / "feature"
+    feature_dir = data_root / "2026-06-01" / "特征值" / "unused"
+    wave_dir.mkdir(parents=True)
+    feature_dir.mkdir(parents=True)
+    configured_content = (
+        "ignored header\n"
+        "2026-06-01 00:00:00.000,1.000000\n"
+        "2026-06-01 00:00:01.000,2.000000\n"
+    )
+    unconfigured_content = (
+        "ignored header\n"
+        "2026-06-01 00:00:00.000,101.000000\n"
+        "2026-06-01 00:00:01.000,102.000000\n"
+    )
+    wave_zip = wave_dir / "temperature.zip"
+    with zipfile.ZipFile(wave_zip, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("TEMP01.csv", configured_content)
+        archive.writestr("UNCONFIGURED.csv", unconfigured_content)
+    # A second archive in the same day/kind/output directory exercises the
+    # deterministic merge-serialization path. Its unrelated member must be
+    # extracted and retained, while TEMP01 still has exactly one recovery ZIP.
+    wave_extra_zip = wave_dir / "temperature-extra.zip"
+    with zipfile.ZipFile(
+        wave_extra_zip, "w", compression=zipfile.ZIP_DEFLATED
+    ) as archive:
+        archive.writestr("UNCONFIGURED_EXTRA.csv", unconfigured_content)
+    feature_zip = feature_dir / "feature.zip"
+    with zipfile.ZipFile(feature_zip, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("unused.txt", "not configured")
+    workbook_path = wave_dir / "keep.xlsx"
+    workbook_path.write_bytes(b"workbook-preservation-probe")
+    wim_like_path = wave_dir / "DTCZ-01.csv"
+    wim_like_path.write_bytes(b"wim-like,not-configured\n")
+    archive_snapshots = [
+        _snapshot(wave_zip),
+        _snapshot(wave_extra_zip),
+        _snapshot(feature_zip),
+    ]
+    preserved_snapshots = [_snapshot(workbook_path), _snapshot(wim_like_path)]
+
+    config = _standard_base_config(data_root, layout=layout, vendor=vendor)
+    options = {
+        "doUnzip": True,
+        "doCachePrebuild": True,
+        "cache_source_cleanup": {
+            "enabled": True,
+            "mode": "verified_extracted_csv",
+            "commit_scope": "day",
+            "recovery_policy": "verified_archive",
+            "confirmation": CLEANUP_CONFIRMATION,
+            "confirmed_at": "2026-07-16T00:00:00+08:00",
+        },
+    }
+    status_path = root / "analysis_status.json"
+    request_path = root / "run_request.json"
+    _write_request(
+        request_path,
+        _request(
+            project_root,
+            data_root,
+            status_path,
+            f"compiled_cleanup_enabled_{layout}",
+            options,
+            config,
+        ),
+    )
+    exit_code, stdout_path, stderr_path = _run_runner(
+        runner, project_root, request_path, timeout_seconds=timeout_seconds
+    )
+    if exit_code != 0:
+        raise RuntimeError(
+            f"{layout} cleanup run failed: exit={exit_code}; "
+            f"stdout={stdout_path}; stderr={stderr_path}"
+        )
+    status = _read_json(status_path)
+    if str(status.get("status") or "").lower() != "completed":
+        raise RuntimeError(f"{layout} cleanup status is not completed: {status}")
+    manifest_path = Path(str(status.get("manifest_path") or ""))
+    if not manifest_path.is_absolute():
+        manifest_path = (status_path.parent / manifest_path).resolve()
+    manifest = _read_json(manifest_path)
+    records = _module_records(manifest)
+    by_key = {
+        str(item.get("key") or "").lower(): item
+        for item in records
+        if str(item.get("key") or "").lower() in {"unzip", "cache_prebuild"}
+    }
+    if set(by_key) != {"unzip", "cache_prebuild"} or any(
+        str(item.get("status") or "").lower() != "ok" for item in by_key.values()
+    ):
+        raise RuntimeError(f"{layout} cleanup modules did not complete: {by_key}")
+    combined_summary_path = _record_artifact_path(
+        by_key["cache_prebuild"],
+        manifest_path,
+        role="daily_archive_cache_cleanup_summary",
+    )
+    combined = _read_json(combined_summary_path)
+    raw_days = combined.get("days") or []
+    days = [raw_days] if isinstance(raw_days, dict) else raw_days
+    if (
+        str(combined.get("status") or "").lower() != "ok"
+        or int(combined.get("completed_days", -1)) != 1
+        or not isinstance(days, list)
+        or len(days) != 1
+        or int(days[0].get("deleted_count", -1)) != 1
+    ):
+        raise RuntimeError(
+            f"{layout} cleanup summary is invalid: {combined_summary_path}"
+        )
+
+    configured_path = wave_dir / "TEMP01.csv"
+    unconfigured_path = wave_dir / "UNCONFIGURED.csv"
+    unconfigured_extra_path = wave_dir / "UNCONFIGURED_EXTRA.csv"
+    cache_path = wave_dir / "cache" / "TEMP01.mat"
+    meta_path = Path(str(cache_path) + ".meta.json")
+    receipt_path = (
+        data_root
+        / "run_logs"
+        / "cache_source_cleanup_receipts"
+        / "standard_20260601.json"
+    )
+    if configured_path.exists():
+        raise RuntimeError(f"{layout} configured CSV was not deleted")
+    if unconfigured_path.read_bytes() != unconfigured_content.encode("utf-8"):
+        raise RuntimeError(f"{layout} unconfigured CSV was not preserved")
+    if unconfigured_extra_path.read_bytes() != unconfigured_content.encode("utf-8"):
+        raise RuntimeError(f"{layout} second-archive CSV was not preserved")
+    if not cache_path.is_file() or not meta_path.is_file():
+        raise RuntimeError(f"{layout} configured cache pair is missing")
+    meta = _read_json(meta_path)
+    if not str(meta.get("pair_id") or "") or int(meta.get("mat_bytes", -1)) != cache_path.stat().st_size:
+        raise RuntimeError(f"{layout} configured cache pair is not closed")
+    receipt = _read_json(receipt_path)
+    proofs = receipt.get("archive_proofs") or []
+    if isinstance(proofs, dict):
+        proofs = [proofs]
+    if (
+        str(receipt.get("status") or "").lower() != "committed"
+        or str(receipt.get("layout") or "") != layout
+        or str(receipt.get("provider_id") or "") != "standard_timeseries_v1"
+        or int(receipt.get("deleted_count", -1)) != 1
+        or len(proofs) != 1
+    ):
+        raise RuntimeError(f"{layout} cleanup receipt is invalid: {receipt_path}")
+    for path, before in zip(
+        (wave_zip, wave_extra_zip, feature_zip), archive_snapshots
+    ):
+        _assert_snapshot_unchanged(path, before)
+    for path, before in zip((workbook_path, wim_like_path), preserved_snapshots):
+        _assert_snapshot_unchanged(path, before)
+    _assert_no_transient_cleanup_artifacts(data_root)
+    return {
+        "ok": True,
+        "layout": layout,
+        "runner_exit_code": exit_code,
+        "analysis_status_path": str(status_path.resolve()),
+        "manifest_path": str(manifest_path.resolve()),
+        "combined_summary_path": str(combined_summary_path.resolve()),
+        "configured_csv_deleted": True,
+        "unconfigured_csv_preserved": True,
+        "source_archives_preserved": True,
+        "workbook_and_wim_preserved": True,
+        "cache_path": str(cache_path.resolve()),
+        "cache_meta_path": str(meta_path.resolve()),
+        "receipt_path": str(receipt_path.resolve()),
+        "receipt_status": str(receipt["status"]),
+        "deleted_count": int(receipt["deleted_count"]),
+        "stdout_path": str(stdout_path.resolve()),
+        "stderr_path": str(stderr_path.resolve()),
+    }
+
+
 def main() -> int:
     args = _parser().parse_args()
     project_root = args.project_root.resolve()
@@ -637,14 +867,20 @@ def main() -> int:
             output_root / "default_off",
             output_root / "unsafe_policy",
             output_root / "enabled_cleanup",
+            output_root / "enabled_cleanup_dated_folders",
+            output_root / "enabled_cleanup_hongtang_period",
         ):
             _assert_inside(output_root, path)
         default_root = output_root / "default_off"
         unsafe_root = output_root / "unsafe_policy"
         enabled_root = output_root / "enabled_cleanup"
+        dated_root = output_root / "enabled_cleanup_dated_folders"
+        hongtang_root = output_root / "enabled_cleanup_hongtang_period"
         default_root.mkdir()
         unsafe_root.mkdir()
         enabled_root.mkdir()
+        dated_root.mkdir()
+        hongtang_root.mkdir()
         default_result = _default_off_case(
             default_root, runner, project_root, args.timeout_seconds
         )
@@ -654,6 +890,22 @@ def main() -> int:
         enabled_result = _enabled_cleanup_case(
             enabled_root, runner, project_root, args.timeout_seconds
         )
+        dated_result = _standard_enabled_cleanup_case(
+            dated_root,
+            runner,
+            project_root,
+            args.timeout_seconds,
+            layout="dated_folders",
+            vendor="guanbing",
+        )
+        hongtang_result = _standard_enabled_cleanup_case(
+            hongtang_root,
+            runner,
+            project_root,
+            args.timeout_seconds,
+            layout="hongtang_period",
+            vendor="hongtang",
+        )
         summary = {
             "ok": True,
             "marker": SMOKE_MARKER,
@@ -661,6 +913,8 @@ def main() -> int:
             "default_off": default_result,
             "unsafe_policy": unsafe_result,
             "enabled_cleanup": enabled_result,
+            "enabled_cleanup_dated_folders": dated_result,
+            "enabled_cleanup_hongtang_period": hongtang_result,
         }
         summary_path = output_root / "cleanup_policy_contract_summary.json"
         summary_path.write_text(

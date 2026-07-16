@@ -6,6 +6,7 @@ classdef DynamicSeriesService
             rec = struct('pid', '', 'times', [], 'vals', [], 'fs', NaN, ...
                 'mn', NaN, 'mx', NaN, 'av', NaN, 'rms_max', NaN, ...
                 'rms_time', NaT, 'rms_times', [], 'rms_vals', [], 'has_data', false, ...
+                'envelope', bms.analyzer.DynamicSeriesService.emptyEnvelope(30), ...
                 'source_provenance', bms.analyzer.DynamicSeriesService.initSourceProvenance(0));
         end
 
@@ -64,6 +65,9 @@ classdef DynamicSeriesService
             keptVals = {};
             keptRmsTimes = {};
             keptRmsVals = {};
+            keptEnvelope = {};
+            envelopeEnabled = bms.analyzer.DynamicSeriesService.dynamicEnvelopeEnabled(cfg, sensorType);
+            envelopeBinMinutes = bms.analyzer.DynamicSeriesService.dynamicEnvelopeBinMinutes(cfg, sensorType, 30);
             sourceProvenance = bms.analyzer.DynamicSeriesService.initSourceProvenance(numel(dateList));
 
             for i = 1:numel(dateList)
@@ -103,6 +107,14 @@ classdef DynamicSeriesService
                 if ~isempty(rmsSeriesDay)
                     keptRmsTimes{end+1, 1} = rmsTimesDay; %#ok<AGROW>
                     keptRmsVals{end+1, 1} = rmsSeriesDay; %#ok<AGROW>
+                end
+
+                if envelopeEnabled
+                    envelopeDay = bms.analyzer.DynamicSeriesService.envelopeByTimeBins( ...
+                        times, vals, envelopeBinMinutes);
+                    if ~isempty(envelopeDay.times)
+                        keptEnvelope{end+1, 1} = envelopeDay; %#ok<AGROW>
+                    end
                 end
 
                 if keepSeries
@@ -146,6 +158,10 @@ classdef DynamicSeriesService
                 rec.rms_vals = vertcat(keptRmsVals{:});
                 [rec.rms_times, order] = sort(rec.rms_times);
                 rec.rms_vals = rec.rms_vals(order);
+            end
+            if ~isempty(keptEnvelope)
+                rec.envelope = bms.analyzer.DynamicSeriesService.mergeEnvelopes( ...
+                    keptEnvelope, envelopeBinMinutes);
             end
 
             if keepSeries && ~isempty(keptVals)
@@ -244,14 +260,24 @@ classdef DynamicSeriesService
 
         function maxPoints = rawPlotMaxPoints(cfg, defaultValue)
             if nargin < 2 || isempty(defaultValue), defaultValue = 50000; end
-            if bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg)
+            fullSampling = bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg);
+            if fullSampling && strcmp( ...
+                    bms.analyzer.DynamicSeriesService.rawFullRenderPolicy(cfg), 'all_vertices')
                 maxPoints = Inf;
                 return;
             end
             baseMax = bms.analyzer.DynamicSeriesService.plotMaxPoints(cfg, defaultValue);
             maxPoints = baseMax;
+            rawDefault = baseMax;
+            if fullSampling
+                % Full analysis still consumes every source sample. Rendering
+                % is bounded independently because a screen cannot display
+                % hundreds of millions of distinct vertices and MATLAB
+                % graphics otherwise duplicates those arrays in memory.
+                rawDefault = max(1200000, baseMax);
+            end
             rawMax = bms.config.ConfigReader.getNumeric(cfg, ...
-                'plot_common.dynamic_raw_fig_max_points', baseMax);
+                'plot_common.dynamic_raw_fig_max_points', rawDefault);
             if isscalar(rawMax) && isfinite(rawMax) && rawMax > 0
                 maxPoints = max(baseMax, round(rawMax));
             end
@@ -260,7 +286,9 @@ classdef DynamicSeriesService
 
         function perDayMax = rawPlotPerDayMax(cfg, dayCount, defaultValue)
             if nargin < 3 || isempty(defaultValue), defaultValue = 50000; end
-            if bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg)
+            fullSampling = bms.analyzer.DynamicSeriesService.isFullRawSampling(cfg);
+            if fullSampling && strcmp( ...
+                    bms.analyzer.DynamicSeriesService.rawFullRenderPolicy(cfg), 'all_vertices')
                 perDayMax = Inf;
                 return;
             end
@@ -270,6 +298,10 @@ classdef DynamicSeriesService
 
             minPerDay = bms.config.ConfigReader.getNumeric(cfg, ...
                 'plot_common.dynamic_raw_min_points_per_day', []);
+            if fullSampling && (isempty(minPerDay) || ~isscalar(minPerDay) || ...
+                    ~isfinite(minPerDay) || minPerDay <= 0)
+                minPerDay = 12000;
+            end
             if isscalar(minPerDay) && isfinite(minPerDay) && minPerDay > 0
                 perDayMax = max(perDayMax, round(minPerDay));
             end
@@ -287,8 +319,12 @@ classdef DynamicSeriesService
             opts.raw_band_line_width = bms.analyzer.DynamicSeriesService.rawPlotBandLineWidth(cfg, 0.55);
             opts.raw_trace_points = bms.analyzer.DynamicSeriesService.rawPlotTracePoints(cfg, 120000);
             opts.raw_sampling_mode = bms.analyzer.DynamicSeriesService.rawSamplingMode(cfg, 'capped');
+            opts.raw_full_render_policy = bms.analyzer.DynamicSeriesService.rawFullRenderPolicy(cfg);
+            opts.reduction_algorithm = 'peak_preserving_bucket_minmax_v1';
+            opts.reduction_scope = 'render_only';
+            opts.extrema_preserved = true;
+            opts.first_last_preserved = true;
             if strcmp(opts.raw_sampling_mode, 'full')
-                opts.fig_max_points = Inf;
                 opts.raw_render_mode = 'line';
             end
         end
@@ -322,6 +358,9 @@ classdef DynamicSeriesService
                 'sampling_mode', 'dynamic_raw_sampling_mode'; ...
                 'line_width', 'dynamic_raw_line_width'; ...
                 'render_mode', 'dynamic_raw_render_mode'; ...
+                'full_render_policy', 'dynamic_raw_full_render_policy'; ...
+                'render_max_points', 'dynamic_raw_fig_max_points'; ...
+                'min_points_per_day', 'dynamic_raw_min_points_per_day'; ...
                 'gap_mode', 'gap_mode'};
             for i = 1:size(mappings, 1)
                 sourceField = mappings{i, 1};
@@ -347,6 +386,27 @@ classdef DynamicSeriesService
 
         function tf = isFullRawSampling(cfg)
             tf = strcmp(bms.analyzer.DynamicSeriesService.rawSamplingMode(cfg, 'capped'), 'full');
+        end
+
+        function policy = rawFullRenderPolicy(cfg, defaultValue)
+            % Preserve the legacy contract unless a high-frequency module
+            % explicitly opts into bounded full-source rendering.  Wind and
+            % earthquake intentionally do not consume dynamic_raw_modules;
+            % silently changing their historic global "full" setting would
+            % alter both memory use and the saved-figure vertex contract.
+            if nargin < 2 || isempty(defaultValue), defaultValue = 'all_vertices'; end
+            policy = bms.config.ConfigReader.get(cfg, ...
+                'plot_common.dynamic_raw_full_render_policy', defaultValue);
+            policy = lower(strtrim(char(string(policy))));
+            aliases = struct('bounded', 'peak_preserving', ...
+                'peak_preserving_bucket', 'peak_preserving', ...
+                'legacy', 'all_vertices');
+            if isfield(aliases, matlab.lang.makeValidName(policy))
+                policy = aliases.(matlab.lang.makeValidName(policy));
+            end
+            if ~any(strcmp(policy, {'peak_preserving', 'all_vertices'}))
+                policy = 'peak_preserving';
+            end
         end
 
         function lineWidth = rawPlotLineWidth(cfg, defaultValue)
@@ -490,20 +550,46 @@ classdef DynamicSeriesService
                 end
                 finiteCount = nnz(validTime(:) & isfinite(values(:)));
             end
+            renderInputCount = inputCount;
+            renderFiniteCount = finiteCount;
+            source = struct();
+            if isstruct(opts) && isfield(opts, 'source_provenance') ...
+                    && isstruct(opts.source_provenance)
+                source = opts.source_provenance;
+                sourceInput = bms.analyzer.DynamicSeriesService.provenanceCount( ...
+                    source, 'source_sample_count', inputCount);
+                sourceFinite = bms.analyzer.DynamicSeriesService.provenanceCount( ...
+                    source, 'finite_source_sample_count', finiteCount);
+                if sourceInput >= sourceFinite && sourceFinite >= renderFiniteCount
+                    inputCount = sourceInput;
+                    finiteCount = sourceFinite;
+                end
+            end
             plottedFiniteCount = nnz(isfinite(yPlot));
             samplingMode = bms.analyzer.DynamicSeriesService.opt( ...
                 opts, 'raw_sampling_mode', 'capped');
+            reductionApplied = plottedFiniteCount < finiteCount;
             provenance = struct( ...
-                'schema_version', 1, ...
+                'schema_version', 2, ...
                 'sampling_mode', char(string(samplingMode)), ...
                 'render_mode', char(string(renderMode)), ...
                 'input_count', double(inputCount), ...
                 'finite_count', double(finiteCount), ...
                 'plotted_finite_count', double(plottedFiniteCount), ...
-                'reduction_applied', plottedFiniteCount < finiteCount);
-            if isstruct(opts) && isfield(opts, 'source_provenance') ...
-                    && isstruct(opts.source_provenance)
-                provenance.source = opts.source_provenance;
+                'render_input_count', double(renderInputCount), ...
+                'render_finite_input_count', double(renderFiniteCount), ...
+                'render_vertex_count', double(plottedFiniteCount), ...
+                'reduction_applied', reductionApplied, ...
+                'reduction_scope', char(string(bms.analyzer.DynamicSeriesService.opt( ...
+                    opts, 'reduction_scope', 'render_only'))), ...
+                'reduction_algorithm', char(string(bms.analyzer.DynamicSeriesService.opt( ...
+                    opts, 'reduction_algorithm', 'peak_preserving_bucket_minmax_v1'))), ...
+                'extrema_preserved', logical(bms.analyzer.DynamicSeriesService.opt( ...
+                    opts, 'extrema_preserved', true)), ...
+                'first_last_preserved', logical(bms.analyzer.DynamicSeriesService.opt( ...
+                    opts, 'first_last_preserved', true)));
+            if ~isempty(fieldnames(source))
+                provenance.source = source;
             end
             if isstruct(opts) && isfield(opts, 'series_id') && ~isempty(opts.series_id)
                 provenance.point_id = char(string(opts.series_id));
@@ -921,6 +1007,165 @@ classdef DynamicSeriesService
             if isstruct(opts) && isfield(opts, fieldName) && ~isempty(opts.(fieldName))
                 value = opts.(fieldName);
             end
+        end
+
+        function value = provenanceCount(source, fieldName, defaultValue)
+            value = double(defaultValue);
+            if ~isstruct(source) || ~isfield(source, fieldName)
+                return;
+            end
+            candidate = source.(fieldName);
+            if isnumeric(candidate) && isscalar(candidate) && ...
+                    isfinite(candidate) && candidate >= 0
+                value = double(candidate);
+            end
+        end
+
+        function tf = dynamicEnvelopeEnabled(cfg, sensorType)
+            sensorType = lower(strtrim(char(string(sensorType))));
+            tf = strcmp(sensorType, 'cable_accel');
+            if ~tf
+                return;
+            end
+            try
+                style = bms.config.ConfigReader.getPlotStyle(cfg, 'cable_accel', struct());
+                if isstruct(style) && isfield(style, 'envelope_enabled') ...
+                        && ~isempty(style.envelope_enabled)
+                    tf = bms.config.ConfigReader.boolValue(style.envelope_enabled, tf);
+                end
+            catch
+                % Keep the pipeline default when an older configuration does
+                % not expose the optional envelope style.
+            end
+        end
+
+        function value = dynamicEnvelopeBinMinutes(cfg, sensorType, defaultValue)
+            if nargin < 3 || isempty(defaultValue), defaultValue = 30; end
+            value = double(defaultValue);
+            sensorType = lower(strtrim(char(string(sensorType))));
+            if ~strcmp(sensorType, 'cable_accel')
+                return;
+            end
+            try
+                style = bms.config.ConfigReader.getPlotStyle(cfg, 'cable_accel', struct());
+                if isstruct(style) && isfield(style, 'envelope_bin_minutes') ...
+                        && isnumeric(style.envelope_bin_minutes) ...
+                        && isscalar(style.envelope_bin_minutes) ...
+                        && isfinite(style.envelope_bin_minutes) ...
+                        && style.envelope_bin_minutes > 0
+                    value = double(style.envelope_bin_minutes);
+                end
+            catch
+                % Preserve the default for legacy style layouts.
+            end
+        end
+
+        function envelope = emptyEnvelope(binMinutes)
+            if nargin < 1 || isempty(binMinutes), binMinutes = 30; end
+            envelope = struct( ...
+                'bin_minutes', double(binMinutes), ...
+                'times', datetime.empty(0, 1), ...
+                'p01', zeros(0, 1), ...
+                'p05', zeros(0, 1), ...
+                'p50', zeros(0, 1), ...
+                'p95', zeros(0, 1), ...
+                'p99', zeros(0, 1), ...
+                'min', zeros(0, 1), ...
+                'max', zeros(0, 1), ...
+                'rms', zeros(0, 1));
+        end
+
+        function envelope = envelopeByTimeBins(times, vals, binMinutes)
+            if nargin < 3 || isempty(binMinutes), binMinutes = 30; end
+            envelope = bms.analyzer.DynamicSeriesService.emptyEnvelope(binMinutes);
+            if isempty(vals) || numel(times) ~= numel(vals) || ~isdatetime(times)
+                return;
+            end
+            times = times(:);
+            vals = vals(:);
+            valid = ~isnat(times) & isfinite(vals);
+            if ~any(valid)
+                return;
+            end
+            validTimes = times(valid);
+            validVals = vals(valid);
+            xmin = dateshift(min(validTimes), 'start', 'day');
+            xmax = dateshift(max(validTimes), 'start', 'day') + days(1);
+            edges = (xmin:minutes(binMinutes):xmax)';
+            if numel(edges) < 2
+                return;
+            end
+            idx = discretize(validTimes, edges);
+            good = ~isnan(idx);
+            if ~any(good)
+                return;
+            end
+            idx = idx(good);
+            validVals = validVals(good);
+            nBins = numel(edges) - 1;
+            envelope.times = edges(1:end-1) + minutes(binMinutes / 2);
+            envelope.p01 = accumarray(idx, validVals, [nBins 1], @(x) prctile(x, 1), NaN);
+            envelope.p05 = accumarray(idx, validVals, [nBins 1], @(x) prctile(x, 5), NaN);
+            envelope.p50 = accumarray(idx, validVals, [nBins 1], @(x) median(x, 'omitnan'), NaN);
+            envelope.p95 = accumarray(idx, validVals, [nBins 1], @(x) prctile(x, 95), NaN);
+            envelope.p99 = accumarray(idx, validVals, [nBins 1], @(x) prctile(x, 99), NaN);
+            envelope.min = accumarray(idx, validVals, [nBins 1], @(x) min(x, [], 'omitnan'), NaN);
+            envelope.max = accumarray(idx, validVals, [nBins 1], @(x) max(x, [], 'omitnan'), NaN);
+            envelope.rms = accumarray(idx, validVals, [nBins 1], ...
+                @(x) sqrt(mean(x.^2, 'omitnan')), NaN);
+        end
+
+        function merged = mergeEnvelopes(envelopes, binMinutes)
+            if nargin < 2 || isempty(binMinutes), binMinutes = 30; end
+            merged = bms.analyzer.DynamicSeriesService.emptyEnvelope(binMinutes);
+            if isempty(envelopes)
+                return;
+            end
+            fields = {'times', 'p01', 'p05', 'p50', 'p95', 'p99', 'min', 'max', 'rms'};
+            for i = 1:numel(fields)
+                name = fields{i};
+                chunks = cellfun(@(item) item.(name), envelopes, 'UniformOutput', false);
+                merged.(name) = vertcat(chunks{:});
+            end
+            if isempty(merged.times)
+                return;
+            end
+            [merged.times, order] = sort(merged.times);
+            for i = 2:numel(fields)
+                name = fields{i};
+                merged.(name) = merged.(name)(order);
+            end
+
+            % Each daily envelope already contains NaN bins for gaps inside
+            % that day.  Reindex the merged result onto one continuous bin
+            % grid as well, so a completely missing day cannot be rendered as
+            % a straight connection between the surrounding dates.
+            validTime = ~isnat(merged.times);
+            if ~any(validTime)
+                return;
+            end
+            merged.times = merged.times(validTime);
+            for i = 2:numel(fields)
+                name = fields{i};
+                merged.(name) = merged.(name)(validTime);
+            end
+            fullTimes = (merged.times(1):minutes(binMinutes):merged.times(end))';
+            if numel(fullTimes) <= numel(merged.times)
+                return;
+            end
+            [present, locations] = ismember(merged.times, fullTimes);
+            if ~all(present)
+                error('bms:analyzer:EnvelopeGridMismatch', ...
+                    'Envelope bins do not align to the configured %.6g minute grid.', ...
+                    double(binMinutes));
+            end
+            for i = 2:numel(fields)
+                name = fields{i};
+                expanded = NaN(numel(fullTimes), 1);
+                expanded(locations) = merged.(name);
+                merged.(name) = expanded;
+            end
+            merged.times = fullTimes;
         end
 
         function provenance = initSourceProvenance(dayCount)

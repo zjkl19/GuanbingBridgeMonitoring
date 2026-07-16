@@ -115,6 +115,54 @@ classdef test_artifact_manifest_v2 < matlab.unittest.TestCase
             tc.verifyTrue(any(cellfun(@(s) strcmp(s.path, lowpassPath), lowpass)));
             clear cleanup;
         end
+
+        function cableAccelerationEnvelopeFiguresAreManifested(tc)
+            root = [tempname '_highfreq_regression'];
+            mkdir(root);
+            cleanup = onCleanup(@() rmdir(root, 's'));
+            spec = bms.analyzer.DynamicAccelerationPipeline.spec('cable_accel');
+            envelopeDir = fullfile(root, spec.envelopeOutputDir);
+            mkdir(envelopeDir);
+            jpgPath = fullfile(envelopeDir, 'CableAccelEnvelope30_CF-1_20260401_20260430.jpg');
+            figPath = fullfile(envelopeDir, 'CableAccelEnvelope30_CF-1_20260401_20260430.fig');
+            writeBytes(jpgPath, uint8([1 2 3 4]));
+            writeBytes(figPath, uint8([5 6 7 8]));
+            outputDirs = bms.data.ArtifactCollector.defaultOutputDirNames('cable_accel');
+            rawDir = fullfile(root, outputDirs{1});
+            mkdir(rawDir);
+            rawPath = fullfile(rawDir, 'CableAccel_CF-1_20260401_20260430.jpg');
+            writeBytes(rawPath, uint8([9 10 11 12]));
+
+            artifacts = bms.data.ArtifactCollector.collectModule( ...
+                root, 'cable_accel', '', datetime('now') - minutes(1), struct());
+            paths = cellfun(@(s) string(s.path), artifacts, 'UniformOutput', true);
+            jpgIdx = find(paths == string(jpgPath), 1);
+            figIdx = find(paths == string(figPath), 1);
+            rawIdx = find(paths == string(rawPath), 1);
+            tc.verifyNotEmpty(jpgIdx);
+            tc.verifyNotEmpty(figIdx);
+            tc.verifyNotEmpty(rawIdx);
+            tc.verifyEqual(artifacts{jpgIdx}.kind, 'figure');
+            tc.verifyEqual(artifacts{figIdx}.kind, 'figure');
+            tc.verifyEqual(artifacts{jpgIdx}.role, 'envelope30min');
+            tc.verifyEqual(artifacts{figIdx}.role, 'envelope30min');
+            tc.verifyEqual(artifacts{rawIdx}.role, 'time_history');
+            tc.verifyNotEmpty(artifacts{jpgIdx}.sha256);
+            tc.verifyNotEmpty(artifacts{figIdx}.sha256);
+
+            started = datetime('now') - seconds(1);
+            result = bms.analyzer.AnalyzerResult.ok( ...
+                'cable_accel', '', artifacts, {}, started, datetime('now'));
+            details = struct('module_logs', {{result.toStruct()}});
+            context = bms.core.AnalysisContext(root, '2026-04-01', '2026-04-30', struct(), struct());
+            manifest = bms.app.ManifestWriter.build(context, 'ok', details);
+            tc.verifyEqual(result.ArtifactCount, 3);
+            tc.verifyEqual(result.FigureCount, 3);
+            tc.verifyEqual(manifest.artifact_count, 3);
+            tc.verifyEqual(numel(manifest.module_artifacts), 1);
+            tc.verifyEqual(numel(manifest.module_artifacts{1}.artifacts), 3);
+            clear cleanup;
+        end
     end
 end
 

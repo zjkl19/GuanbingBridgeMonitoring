@@ -27,25 +27,65 @@ classdef Logger
             elseif ~exist(folder, 'dir')
                 mkdir(folder);
             end
-            txt = jsonencode(data, 'PrettyPrint', true, 'ConvertInfAndNaN', true);
+            % Keep machine-consumed status and manifest files compact.  Large
+            % analysis manifests can contain thousands of artifact records;
+            % pretty-print whitespace needlessly pushes the compiled runtime
+            % toward its large-character-buffer boundary.
+            txt = jsonencode(data, 'ConvertInfAndNaN', true);
+            % A deployed compiler-runtime failure once returned an unterminated
+            % JSON character vector at an exact 1 Mi-character boundary.  Do
+            % not publish such a file merely because fwrite accepted every
+            % character that jsonencode returned.
+            try
+                jsondecode(txt);
+            catch ME
+                error('bms:Logger:JsonEncodeInvalid', ...
+                    'JSON encoding produced an invalid document for %s: %s', ...
+                    path, ME.message);
+            end
             % Status/manifests are polled while the MATLAB worker is writing.
             % Publish a complete same-directory temporary file so readers
             % never observe a truncated JSON document.
             tempPath = [tempname(folder) '.json.tmp'];
-            tempCleanup = onCleanup(@() bms.core.Logger.deleteIfExists(tempPath)); %#ok<NASGU>
-            fid = fopen(tempPath, 'wt', 'n', 'UTF-8');
+            tempCleanup = onCleanup(@() bms.core.Logger.deleteIfExists(tempPath));
+            encodedBytes = unicode2native(txt, 'UTF-8');
+            fid = fopen(tempPath, 'wb');
             if fid < 0
                 error('bms:Logger:JsonTempOpenFailed', ...
                     'Unable to open temporary JSON file: %s', tempPath);
             end
             closeFile = onCleanup(@() fclose(fid));
-            written = fwrite(fid, txt, 'char');
-            if written ~= numel(txt)
+            written = fwrite(fid, encodedBytes, 'uint8');
+            if written ~= numel(encodedBytes)
                 error('bms:Logger:JsonShortWrite', ...
-                    'Incomplete JSON write for %s: %d of %d characters.', ...
-                    path, written, numel(txt));
+                    'Incomplete JSON write for %s: %d of %d bytes.', ...
+                    path, written, numel(encodedBytes));
             end
             clear closeFile;
+
+            % Validate the bytes that will actually be published, not only
+            % the in-memory encoder result.  This catches filesystem/runtime
+            % short writes that still report a successful fwrite count.
+            verifyFid = fopen(tempPath, 'rb');
+            if verifyFid < 0
+                error('bms:Logger:JsonVerifyOpenFailed', ...
+                    'Unable to reopen temporary JSON file for verification: %s', tempPath);
+            end
+            closeVerify = onCleanup(@() fclose(verifyFid));
+            publishedBytes = fread(verifyFid, Inf, '*uint8')';
+            clear closeVerify;
+            if ~isequal(publishedBytes, reshape(encodedBytes, 1, []))
+                error('bms:Logger:JsonVerifyLengthMismatch', ...
+                    'Temporary JSON verification byte mismatch for %s: %d of %d bytes.', ...
+                    path, numel(publishedBytes), numel(encodedBytes));
+            end
+            try
+                publishedText = native2unicode(publishedBytes, 'UTF-8');
+                jsondecode(publishedText);
+            catch ME
+                error('bms:Logger:JsonVerifyInvalid', ...
+                    'Temporary JSON verification failed for %s: %s', path, ME.message);
+            end
 
             moved = false;
             moveMessage = '';

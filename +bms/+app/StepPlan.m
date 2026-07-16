@@ -25,19 +25,32 @@ classdef StepPlan
             results = {};
             planStart = tic;
             total = numel(obj.Steps);
+            memoryErrorSource = '';
             for i = 1:numel(obj.Steps)
                 bms.app.StepPlan.pumpUiEvents();
                 item = obj.Steps{i};
                 bms.app.StepPlan.emitProgress(progressFcn, ...
                     bms.app.StepPlan.progressPayload('module_start', item, [], i, total, numel(results), toc(planStart)));
-                switch item.mode
-                    case 'run'
-                        results{end+1} = bms.app.StepExecutor.execute(item.def, item.fcn, shouldStopFcn); %#ok<AGROW>
-                    case 'skip'
-                        results{end+1} = bms.app.StepExecutor.skip(item.def, item.message); %#ok<AGROW>
+                if ~isempty(memoryErrorSource) && strcmp(item.mode, 'run') && ...
+                        bms.app.StepPlan.isHighMemoryAnalysis(item.def)
+                    message = sprintf('Skipped after memory error in %s', memoryErrorSource);
+                    results{end+1} = bms.app.StepExecutor.skip(item.def, message); %#ok<AGROW>
+                else
+                    switch item.mode
+                        case 'run'
+                            results{end+1} = bms.app.StepExecutor.execute(item.def, item.fcn, shouldStopFcn); %#ok<AGROW>
+                        case 'skip'
+                            results{end+1} = bms.app.StepExecutor.skip(item.def, item.message); %#ok<AGROW>
+                    end
                 end
                 bms.app.StepPlan.emitProgress(progressFcn, ...
                     bms.app.StepPlan.progressPayload('module_complete', item, results{end}, i, total, numel(results), toc(planStart)));
+                if bms.app.StepPlan.isMemoryErrorResult(results{end})
+                    memoryErrorSource = results{end}.Key;
+                    if isempty(memoryErrorSource)
+                        memoryErrorSource = results{end}.Label;
+                    end
+                end
                 if bms.app.StepPlan.isStoppedResult(results{end})
                     for j = i+1:numel(obj.Steps)
                         nextItem = obj.Steps{j};
@@ -126,6 +139,21 @@ classdef StepPlan
 
         function tf = isStoppedResult(result)
             tf = isa(result, 'bms.app.StepResult') && strcmpi(result.Status, 'stopped');
+        end
+
+        function tf = isMemoryErrorResult(result)
+            tf = isa(result, 'bms.app.StepResult') && ...
+                strcmpi(result.Status, 'fail') && ...
+                strcmpi(result.ErrorType, 'memory_error');
+        end
+
+        function tf = isHighMemoryAnalysis(def)
+            tf = false;
+            if ~isa(def, 'bms.app.StepDefinition') || isempty(def.Key)
+                return;
+            end
+            spec = bms.module.ModuleRegistry.fromKey(def.Key);
+            tf = spec.HighMemoryRisk && strcmpi(spec.Category, 'analysis');
         end
     end
 end

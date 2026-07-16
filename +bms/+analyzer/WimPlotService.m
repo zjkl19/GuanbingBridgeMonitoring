@@ -272,14 +272,14 @@ classdef WimPlotService
             drawnow;
             [p, n, ~] = fileparts(outPath);
             figPath = fullfile(p, [n '.fig']);
-            set(findall(f, 'Visible', 'off'), 'Visible', 'on');
-            set(f, 'Visible', 'on');
-            drawnow;
+            hiddenObjects = findall(f, 'Visible', 'off');
+            hiddenObjects(arrayfun(@(h) isequal(h, f), hiddenObjects)) = [];
+            set(hiddenObjects, 'Visible', 'on');
             if plotCfg.save_fig
-                savefig(f, figPath);
+                bms.plot.PlotVisibilityPolicy.saveFigVisibleOn(f, figPath);
             else
                 figPath = fullfile(tempdir, [n '_' char(java.util.UUID.randomUUID) '.fig']);
-                savefig(f, figPath);
+                bms.plot.PlotVisibilityPolicy.saveFigVisibleOn(f, figPath);
             end
             close(f);
 

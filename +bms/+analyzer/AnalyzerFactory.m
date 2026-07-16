@@ -37,9 +37,11 @@ classdef AnalyzerFactory
                 case {'earthquake','eq'}
                     analyzer = bms.analyzer.EarthquakeAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg);
                 case 'acceleration'
-                    analyzer = bms.analyzer.AccelerationAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, true);
+                    autoDetectFs = true;
+                    analyzer = bms.analyzer.AccelerationAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, autoDetectFs);
                 case 'cable_accel'
-                    analyzer = bms.analyzer.CableAccelerationAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, true);
+                    autoDetectFs = true;
+                    analyzer = bms.analyzer.CableAccelerationAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, autoDetectFs);
                 case 'accel_spectrum'
                     [freqs, tol] = bms.analyzer.AnalyzerFactory.resolveSpectrumParams(params, cfg, false);
                     analyzer = bms.analyzer.AccelerationSpectrumAnalyzer(root, startDate, endDate, statsFile, subfolder, cfg, points, freqs, tol);
