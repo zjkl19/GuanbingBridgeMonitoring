@@ -1,10 +1,37 @@
 # Current Remote State
 
-Last updated: 2026-07-16 (Jiulongjiang May recovery accepted; monitor remains paused)
+Last updated: 2026-07-16 20:45 CST (Jiulongjiang May report accepted; monitor remains paused)
 
 This file is the recoverable status anchor for remote machines and long-running
 jobs. It complements `docs/current_task_state.md`; use this file for operations
 state and keep algorithm/report decisions in the normal project docs.
+
+## Current gb-133 Final-Closure State (2026-07-16 20:45 CST)
+
+- No Jiulongjiang analysis rerun is pending. The contract-bound 15-module
+  manifest is complete at
+  `F:\Guanbing_v1.8.1-rc1\validation\jiulongjiang_may\run_logs\analysis_manifest_composite_contractbound_20260716.json`,
+  SHA-256
+  `71F1D8FCACF1B9BF327AFD23C4639F6545985610B36964F07957B1BA5EE10D96`.
+- The isolated candidate app now binds source commit
+  `690f2d6acc52393cecddfa9a8c701c864d117d23`, version v1.8.1 and a closed
+  384-file inventory. Its immediate rollback directory is
+  `F:\Guanbing_v1.8.1-rc1\app_before_690f2d6_20260716_204018`.
+- The accepted remote report run root is
+  `F:\Guanbing_v1.8.1-rc1\run_logs\jiulongjiang_may_report_captionfix_690f2d6_20260716_2041`.
+  The worker exited zero with an empty stderr; result state is completed and the
+  report build manifest is ok with zero missing items/warnings. The local Word
+  and PDF acceptance copy is under
+  `D:\MatlabProjects\Guanbing\output\doc\jiulongjiang_may_v181_captionfix_20260716`.
+- Stable `F:\Guanbing` is still v1.8.0 and untouched. Do not switch it until a
+  final clean-head native Windows build, package/update-cycle validation,
+  GitHub tag/release and same-ZIP SHA-256 check all pass.
+- After the stable switch and smoke tests, run Jiulongjiang May CSV cleanup as a
+  separate high-risk task. It must retain the 31 source ZIPs and all MAT/meta,
+  WIM, Excel, unconfigured CSV and recovery receipts. Do not combine deployment
+  and deletion in one transaction.
+- The Codex automation remains paused. Continue only through explicit manual
+  checks; no stale monitor should restart an old analysis or recovery task.
 
 ## Current gb-133 Pre-Release State (2026-07-16)
 

@@ -5,10 +5,31 @@ Last updated: 2026-07-16
 This file tracks recoverable technical risks that are too important to leave in
 chat history but not always urgent enough to fix immediately.
 
+## 2026-07-16 Final-Closure Status Update
+
+- Reconstructed-manifest artifact roles are fixed and accepted. The final
+  Jiulongjiang May contract-bound manifest SHA-256 is
+  `71F1D8FCACF1B9BF327AFD23C4639F6545985610B36964F07957B1BA5EE10D96`;
+  the regenerated report closes 42 provenance records and 80 embedded result
+  images with zero missing items and zero report-manifest warnings.
+- The orphan-caption layout defect discovered during authoritative Word review
+  is fixed in commit `690f2d6`. The last image paragraph is kept with its
+  automatic caption, while the caption is not incorrectly chained to the next
+  section heading. Jiulongjiang generator regression is 30/30 and the final
+  80-page PDF has only the intentional blank cover verso on page 2.
+- Cross-bridge verified CSV cleanup is implemented and regression-tested but is
+  still not a completed production cleanup. Do not claim reclaimed disk space
+  until the final v1.8.1 artifact is deployed to 133 and the dedicated cleanup
+  task publishes per-day receipts. The original ZIP must remain untouched.
+- Jiulongjiang cable-force rho/L values remain placeholders. This is not fixed
+  by report generation: the accepted report deliberately omits force-conversion
+  figures, values and engineering conclusions until formal parameters are
+  supplied.
+
 ## Reconstructed Manifest Semantic Artifact Roles
 
 Status: fixed in source; Jiulongjiang May composite-manifest republication and
-report acceptance remain pending.
+report acceptance completed on 2026-07-16.
 
 - A recovery manifest must preserve the semantic role produced by the normal
   MATLAB artifact collector. Treating every figure as `time_history` and every
