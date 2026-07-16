@@ -25,6 +25,10 @@ chat history but not always urgent enough to fix immediately.
   by report generation: the accepted report deliberately omits force-conversion
   figures, values and engineering conclusions until formal parameters are
   supplied.
+- Release-health output collection no longer waits indefinitely for a MATLAB
+  descendant that retains an inherited pipe after its direct parent exits. The
+  dedicated regression returns in under three seconds and real multi-bridge
+  configuration lint completes normally outside the filesystem sandbox.
 
 ## Reconstructed Manifest Semantic Artifact Roles
 
@@ -50,10 +54,10 @@ report acceptance completed on 2026-07-16.
 
 ## Verified Daily Source-CSV Cleanup Safety Boundary
 
-Status: implemented in the working tree and under regression review; not yet a
-packaged or deployed production capability. The deployed `v1.8.1-rc3` package
-does not contain this feature, and its historical no-delete contract remains
-unchanged.
+Status: implemented, regression-tested and present in the isolated v1.8.1
+candidate on machine 133; it has not yet been promoted into stable production
+or executed against Jiulongjiang May. The historical `v1.8.1-rc3` package did
+not contain this feature, and its no-delete contract remains unchanged.
 
 - Cache prebuild remains optional and unchecked by default for every bridge.
   Destructive source cleanup is a separate task option that is also disabled by

@@ -5,7 +5,9 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -110,6 +112,102 @@ class WorkbenchBuildScriptTests(unittest.TestCase):
             3,
         )
         self.assertNotIn('-FilePath "python"', self.health_script)
+
+    def test_release_health_does_not_wait_for_inherited_descendant_pipes(self) -> None:
+        powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+        if powershell is None:
+            self.skipTest("Windows PowerShell is unavailable")
+
+        helper_start = self.health_script.index("function ConvertTo-ArgumentLine")
+        helper_end = self.health_script.index(
+            '\nInvoke-Step "Validate configs"', helper_start
+        )
+        helper_source = self.health_script[helper_start:helper_end]
+        self.assertIn(
+            "if ($stdoutState.eof -and $stderrState.eof)",
+            helper_source,
+        )
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temporary_directory:
+            root = Path(temporary_directory)
+            descendant_pid = root / "descendant.pid"
+            native_parent = root / "spawn_inheriting_descendant.py"
+            native_parent.write_text(
+                "import pathlib, subprocess, sys\n"
+                "pid_path = pathlib.Path(sys.argv[1])\n"
+                "child = subprocess.Popen(\n"
+                "    [sys.executable, '-c', 'import time; time.sleep(12)'],\n"
+                "    close_fds=False,\n"
+                ")\n"
+                "pid_path.write_text(str(child.pid), encoding='ascii')\n"
+                "print('PARENT-DONE', flush=True)\n",
+                encoding="utf-8",
+            )
+            escaped_repo = str(REPO_ROOT).replace("'", "''")
+            escaped_python = sys.executable.replace("'", "''")
+            escaped_parent = str(native_parent).replace("'", "''")
+            escaped_pid = str(descendant_pid).replace("'", "''")
+            test_script = root / "health_pipe_regression.ps1"
+            test_script.write_text(
+                "$ErrorActionPreference = 'Stop'\n"
+                f"$repo = '{escaped_repo}'\n"
+                f"{helper_source}\n"
+                "$watch = [Diagnostics.Stopwatch]::StartNew()\n"
+                "Invoke-External -Name 'inherited-pipe-regression' `\n"
+                f"  -FilePath '{escaped_python}' `\n"
+                f"  -Arguments @('{escaped_parent}', '{escaped_pid}') `\n"
+                "  -TimeoutSeconds 5\n"
+                "$watch.Stop()\n"
+                "if ($watch.Elapsed.TotalSeconds -gt 3) {\n"
+                "  throw ('Invoke-External waited for descendant pipes: {0:N3}s' -f $watch.Elapsed.TotalSeconds)\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            stdout_path = root / "powershell.stdout.log"
+            stderr_path = root / "powershell.stderr.log"
+            started = time.monotonic()
+            with stdout_path.open("wb") as stdout_file, stderr_path.open("wb") as stderr_file:
+                process = subprocess.Popen(
+                    [
+                        powershell,
+                        "-NoLogo",
+                        "-NoProfile",
+                        "-NonInteractive",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                        str(test_script),
+                    ],
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                )
+                try:
+                    returncode = process.wait(timeout=8)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+                    self.fail("Invoke-External did not return after its direct parent exited")
+                finally:
+                    if descendant_pid.is_file():
+                        pid = descendant_pid.read_text(encoding="ascii").strip()
+                        subprocess.run(
+                            ["taskkill", "/PID", pid, "/T", "/F"],
+                            check=False,
+                            capture_output=True,
+                            timeout=10,
+                        )
+                        time.sleep(0.25)
+            elapsed = time.monotonic() - started
+            stdout = stdout_path.read_text(encoding="utf-8", errors="replace")
+            stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
+
+        self.assertEqual(
+            0,
+            returncode,
+            msg=f"stdout={stdout}\nstderr={stderr}",
+        )
+        self.assertIn("PARENT-DONE", stdout)
+        self.assertLess(elapsed, 6)
 
     def test_native_wrapper_rejects_nonzero_exit_code(self) -> None:
         powershell = shutil.which("powershell.exe") or shutil.which("powershell")

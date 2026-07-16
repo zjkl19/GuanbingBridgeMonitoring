@@ -48,6 +48,12 @@ below. Historical entries remain for auditability.
   `DELETE_VERIFIED_EXTRACTED_CSV` token, per-day cache/recovery/CRC proof and a
   durable receipt. Original ZIPs, MAT/meta, WIM, Excel and unconfigured CSV are
   retained.
+- Final release-health reruns exposed a Windows process-output edge case: a
+  completed MATLAB descendant could retain inherited stdout/stderr handles
+  after its direct parent exited, leaving the old `ReadToEndAsync` cleanup
+  blocked. The health runner now drains output continuously, bounds post-exit
+  collection and disposes streams only after EOF. Its inherited-pipe regression
+  and the real seven-configuration MATLAB lint pass.
 
 ## Purpose
 

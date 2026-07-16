@@ -103,6 +103,29 @@ function Stop-ProcessTree {
     Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
 }
 
+function New-AsyncLineReaderState {
+    param([System.IO.StreamReader]$Reader)
+    return @{
+        reader = $Reader
+        task = $Reader.ReadLineAsync()
+        lines = [System.Collections.Generic.List[string]]::new()
+        eof = $false
+    }
+}
+
+function Receive-AvailableLines {
+    param([hashtable]$State)
+    while (-not $State.eof -and $State.task.IsCompleted) {
+        $line = $State.task.GetAwaiter().GetResult()
+        if ($null -eq $line) {
+            $State.eof = $true
+            break
+        }
+        $State.lines.Add([string]$line)
+        $State.task = $State.reader.ReadLineAsync()
+    }
+}
+
 function Invoke-External {
     param(
         [string]$Name,
@@ -133,11 +156,13 @@ function Invoke-External {
     $proc.StartInfo = $psi
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
     [void]$proc.Start()
-    $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
-    $stderrTask = $proc.StandardError.ReadToEndAsync()
+    $stdoutState = New-AsyncLineReaderState -Reader $proc.StandardOutput
+    $stderrState = New-AsyncLineReaderState -Reader $proc.StandardError
     $lastHeartbeat = 0
 
-    while (-not $proc.WaitForExit(1000)) {
+    while (-not $proc.WaitForExit(100)) {
+        Receive-AvailableLines -State $stdoutState
+        Receive-AvailableLines -State $stderrState
         $elapsedSeconds = [int]$watch.Elapsed.TotalSeconds
         if ($elapsedSeconds -ge ($lastHeartbeat + 30)) {
             Write-Host ("[HEALTH] {0} still running, elapsed {1}s" -f $Name, $elapsedSeconds) -ForegroundColor DarkGray
@@ -149,15 +174,34 @@ function Invoke-External {
         }
     }
 
-    [void]$proc.WaitForExit()
+    # Do not call parameterless WaitForExit() or await ReadToEndAsync here.
+    # A native child can leave a MATLAB descendant holding inherited
+    # stdout/stderr pipe handles after the direct parent exits. In that case
+    # EOF never arrives and either operation blocks forever. Drain only for a
+    # bounded grace period; the direct parent's exit code is authoritative.
+    $drainDeadline = [DateTime]::UtcNow.AddMilliseconds(500)
+    do {
+        Receive-AvailableLines -State $stdoutState
+        Receive-AvailableLines -State $stderrState
+        if ($stdoutState.eof -and $stderrState.eof) { break }
+        Start-Sleep -Milliseconds 10
+    } while ([DateTime]::UtcNow -lt $drainDeadline)
+
     $exitCode = $proc.ExitCode
-    $stdout = $stdoutTask.Result
-    $stderr = $stderrTask.Result
-    if (-not [string]::IsNullOrEmpty($stdout)) {
-        Write-Host $stdout -NoNewline
+    foreach ($line in @($stdoutState.lines)) {
+        Write-Host $line
     }
-    if (-not [string]::IsNullOrEmpty($stderr)) {
-        Write-Host $stderr -NoNewline -ForegroundColor Yellow
+    foreach ($line in @($stderrState.lines)) {
+        Write-Host $line -ForegroundColor Yellow
+    }
+    # Disposing a StreamReader while ReadLineAsync is still pending can itself
+    # wait forever for a descendant-held pipe. Only dispose once both streams
+    # reached EOF; otherwise let this short-lived PowerShell host reclaim the
+    # handles when the health-check process exits.
+    if ($stdoutState.eof -and $stderrState.eof) {
+        $proc.StandardOutput.Dispose()
+        $proc.StandardError.Dispose()
+        $proc.Dispose()
     }
 
     if ($exitCode -ne 0) {

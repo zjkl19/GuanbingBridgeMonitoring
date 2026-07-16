@@ -33,7 +33,11 @@ state and keep algorithm/report decisions in the normal project docs.
 - The Codex automation remains paused. Continue only through explicit manual
   checks; no stale monitor should restart an old analysis or recovery task.
 
-## Current gb-133 Pre-Release State (2026-07-16)
+## Historical gb-133 Pre-Release State (superseded 2026-07-16 20:45 CST)
+
+The bullets in this section preserve the earlier checkpoint for audit history.
+They are not the current action list; the final-closure section above is
+authoritative.
 
 - The exact v1.8.1 candidate package was deployed only to
   `F:\Guanbing_v1.8.1-rc1\app`; stable `F:\Guanbing` remains v1.8.0. The first
