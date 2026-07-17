@@ -31,7 +31,9 @@ CLEANUP_CONFIG_ISOLATION_RULE = "不写入桥梁公共配置"
 RESULT_LOCATION_STEM = "本次计算结果在哪里"
 AUTO_PREVIEW_MATCH_STEM = "自动匹配当前任务曲线预览"
 NO_JSON_STEM = "普通流程无需选择任何文件"
-ADVANCED_PREVIEW_IMPORT_STEM = "从其他任务/项目导入参考曲线"
+DIRECT_FIG_IMPORT_STEM = "直接选择 MATLAB FIG"
+ADVANCED_PREVIEW_IMPORT_STEM = "高级：导入系统曲线记录 JSON"
+STOP_FIG_OPERATION_STEM = "停止本次 FIG 操作"
 RESULT_STATS_DIR = "stats"
 RESULT_LOGS_DIR = "run_logs"
 REPORT_OUTPUT_STEM = "DOCX/PDF"
@@ -52,7 +54,9 @@ GUIDE_FRAGMENTS = (
     RESULT_LOCATION_STEM,
     AUTO_PREVIEW_MATCH_STEM,
     NO_JSON_STEM,
+    DIRECT_FIG_IMPORT_STEM,
     ADVANCED_PREVIEW_IMPORT_STEM,
+    STOP_FIG_OPERATION_STEM,
     RESULT_STATS_DIR,
     RESULT_LOGS_DIR,
     REPORT_OUTPUT_STEM,
@@ -193,6 +197,38 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
             "analysis_runner_failure_exit_smoke": True,
             "analysis_runner_manifest_resilience_smoke": True,
             "analysis_runner_cache_cleanup_policy_smoke": True,
+            "analysis_runner_fig_threshold_smoke": True,
+            "analysis_runner_fig_threshold": {
+                "ok": True,
+                "source_fig_unchanged": True,
+                "scripted_no_manual_ui": True,
+                "compiled_operation_count": 3,
+                "source_fig_sha256": "a" * 64,
+                "visibility_dispatch": {
+                    "ok": True,
+                    "default_figure_visible_forced_on": True,
+                    "default_figure_visible_restore_guard": True,
+                    "compiled_dispatch_present": True,
+                },
+                "operations": {
+                    operation: {
+                        "ok": True,
+                        "runner_exit_code": 0,
+                        "analysis_status_completed": True,
+                        "status_result_ok": True,
+                        "request_identity_matches": True,
+                        "result_contract_matches": True,
+                        "candidate_matches": True,
+                        "source_curve_matches": True,
+                        "source_hash_matches": True,
+                        "source_size_matches": True,
+                        "source_path_matches": True,
+                        "source_mtime_recorded": True,
+                        "scripted_no_manual_ui": True,
+                    }
+                    for operation in ("band", "box_lower", "box_upper")
+                },
+            },
             "analysis_runner_cache_cleanup_policy": {
                 "ok": True,
                 "default_off": {"ok": True, "source_cleanup_enabled": False},
@@ -653,6 +689,9 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
             "manifest_resilience_missing": lambda payload: payload.pop(
                 "analysis_runner_manifest_resilience_smoke"
             ),
+            "fig_threshold_upper_candidate_invalid": lambda payload: payload[
+                "analysis_runner_fig_threshold"
+            ]["operations"]["box_upper"].__setitem__("candidate_matches", False),
         }
         for name, mutate in mutations.items():
             with self.subTest(name=name):

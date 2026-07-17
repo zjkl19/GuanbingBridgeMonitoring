@@ -190,7 +190,9 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                 project_root=ROOT,
                 bridge_id="guanbing", bridge_name="管柄大桥", data_root=data,
                 start_date="2026-04-01", end_date="2026-04-30", config_path=config,
-                selected_modules=["temperature"], options={}, report_type="guanbing_monthly",
+                selected_modules=["temperature"],
+                options={"source_quality_note": "  审定的数据完整性说明。  "},
+                report_type="guanbing_monthly",
                 template_path=template, output_dir=data / "自动报告",
             )
             context.analysis.state = "completed"
@@ -213,6 +215,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                 file_sha256(derived_manifest),
             )
             self.assertTrue(request.require_source_provenance)
+            self.assertEqual(request.source_quality_note, "审定的数据完整性说明。")
             context.report.plots_approved = False
             context.write(path)
             with self.assertRaisesRegex(RuntimeError, "图件尚未审核"):
@@ -379,6 +382,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                     report_type, template, config, root, ROOT, output,
                     "2026年4月", "2026年4月1日至2026年4月30日", "2026年5月1日",
                     "2026-04-01", "2026-04-30", wim_root=root / "wim",
+                    source_quality_note="审定的数据完整性说明。",
                 )
                 builder_result = {
                     "docx_manifest": (report, manifest),
@@ -400,7 +404,9 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                     }
 
                 with ExitStack() as stack:
-                    stack.enter_context(patch(builder_target, return_value=builder_result))
+                    builder_mock = stack.enter_context(
+                        patch(builder_target, return_value=builder_result)
+                    )
                     if report_type == "jlj_monthly":
                         stack.enter_context(
                             patch("report_job._select_new_report_build_manifest", return_value=manifest)
@@ -413,6 +419,11 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                     )
                     result = execute_report_job(request)
 
+                if report_type == "zhishan_monthly":
+                    self.assertEqual(
+                        builder_mock.call_args.kwargs["source_quality_note"],
+                        "审定的数据完整性说明。",
+                    )
                 export_mock.assert_called_once_with(report.resolve())
                 self.assertEqual(observed["preferred_pdf_path"], pdf.resolve())
                 self.assertEqual(result.pdf_path, pdf.resolve())

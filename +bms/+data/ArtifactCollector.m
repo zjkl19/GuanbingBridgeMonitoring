@@ -230,6 +230,20 @@ classdef ArtifactCollector
                     bms.analyzer.StructuralFilteredSeriesPipeline.deflectionGroupOutputDir(style, spec, 'filtered')};
                 return;
             end
+            if strcmp(char(key), 'bearing_displacement')
+                % The bearing producer derives four concrete directories by
+                % appending raw/filtered suffixes to the configured single
+                % and group base directories.  Register those exact producer
+                % paths instead of the non-existent base directories so all
+                % formal JPG/FIG artifacts are covered by the manifest.
+                spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('bearing_displacement');
+                names = { ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.bearingSingleOutputDir(style, spec, 'raw'), ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.bearingSingleOutputDir(style, spec, 'filtered'), ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(style, spec, 'raw'), ...
+                    bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(style, spec, 'filtered')};
+                return;
+            end
             if strcmp(char(key), 'tilt')
                 spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('tilt');
                 names = { ...

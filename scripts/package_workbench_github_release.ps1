@@ -146,7 +146,9 @@ function Assert-OperatorGuideContract([string]$Path) {
         (-join (26412, 27425, 35745, 31639, 32467, 26524, 22312, 21738, 37324 | ForEach-Object { [char]$_ })),
         (-join (33258, 21160, 21305, 37197, 24403, 21069, 20219, 21153, 26354, 32447, 39044, 35272 | ForEach-Object { [char]$_ })),
         (-join (26222, 36890, 27969, 31243, 26080, 38656, 36873, 25321, 20219, 20309, 25991, 20214 | ForEach-Object { [char]$_ })),
-        (-join (20174, 20854, 20182, 20219, 21153, 47, 39033, 30446, 23548, 20837, 21442, 32771, 26354, 32447 | ForEach-Object { [char]$_ })),
+        (-join (30452, 25509, 36873, 25321, 32, 77, 65, 84, 76, 65, 66, 32, 70, 73, 71 | ForEach-Object { [char]$_ })),
+        (-join (39640, 32423, 65306, 23548, 20837, 31995, 32479, 26354, 32447, 35760, 24405, 32, 74, 83, 79, 78 | ForEach-Object { [char]$_ })),
+        (-join (20572, 27490, 26412, 27425, 32, 70, 73, 71, 32, 25805, 20316 | ForEach-Object { [char]$_ })),
         "stats",
         "run_logs",
         "DOCX/PDF",
@@ -382,6 +384,7 @@ $requiredTrueManifestFields = @(
     "analysis_runner_failure_exit_smoke",
     "analysis_runner_manifest_resilience_smoke",
     "analysis_runner_cache_cleanup_policy_smoke",
+    "analysis_runner_fig_threshold_smoke",
     "installed_profile_matrix_smoke",
     "invalid_cli_smoke",
     "task_history_smoke",
@@ -468,6 +471,65 @@ foreach ($standardCleanupCase in @(
             -or (Get-StrictInt64 $evidence.deleted_count `
                 "manifest.analysis_runner_cache_cleanup_policy.$($standardCleanupCase.name).deleted_count") -ne 1) {
         throw "Compiled Runner cleanup-policy evidence has no committed one-file cleanup for $($standardCleanupCase.name)"
+    }
+}
+$runnerFigThreshold = $manifest.analysis_runner_fig_threshold
+if ($null -eq $runnerFigThreshold) {
+    throw "Workbench release manifest is missing compiled Runner FIG-threshold evidence"
+}
+foreach ($booleanField in @(
+        "ok",
+        "source_fig_unchanged",
+        "scripted_no_manual_ui"
+    )) {
+    Assert-ExactBoolean $runnerFigThreshold.PSObject.Properties[$booleanField].Value $true `
+        "manifest.analysis_runner_fig_threshold.$booleanField"
+}
+if ((Get-StrictInt64 $runnerFigThreshold.compiled_operation_count `
+        "manifest.analysis_runner_fig_threshold.compiled_operation_count") -ne 3) {
+    throw "Compiled Runner FIG-threshold evidence must cover exactly three operations"
+}
+if ((Get-StrictString $runnerFigThreshold.source_fig_sha256 `
+        "manifest.analysis_runner_fig_threshold.source_fig_sha256") `
+        -notmatch '^[0-9a-f]{64}$') {
+    throw "Compiled Runner FIG-threshold evidence has an invalid source FIG SHA-256"
+}
+foreach ($visibilityField in @(
+        "ok",
+        "default_figure_visible_forced_on",
+        "default_figure_visible_restore_guard",
+        "compiled_dispatch_present"
+    )) {
+    Assert-ExactBoolean `
+        $runnerFigThreshold.visibility_dispatch.PSObject.Properties[$visibilityField].Value `
+        $true `
+        "manifest.analysis_runner_fig_threshold.visibility_dispatch.$visibilityField"
+}
+foreach ($operationName in @("band", "box_lower", "box_upper")) {
+    $operation = $runnerFigThreshold.operations.PSObject.Properties[$operationName]
+    if ($null -eq $operation) {
+        throw "Compiled Runner FIG-threshold evidence is missing $operationName"
+    }
+    foreach ($booleanField in @(
+            "ok",
+            "analysis_status_completed",
+            "status_result_ok",
+            "request_identity_matches",
+            "result_contract_matches",
+            "candidate_matches",
+            "source_curve_matches",
+            "source_hash_matches",
+            "source_size_matches",
+            "source_path_matches",
+            "source_mtime_recorded",
+            "scripted_no_manual_ui"
+        )) {
+        Assert-ExactBoolean $operation.Value.PSObject.Properties[$booleanField].Value $true `
+            "manifest.analysis_runner_fig_threshold.operations.$operationName.$booleanField"
+    }
+    if ((Get-StrictInt64 $operation.Value.runner_exit_code `
+            "manifest.analysis_runner_fig_threshold.operations.$operationName.runner_exit_code") -ne 0) {
+        throw "Compiled Runner FIG-threshold $operationName returned a non-zero exit code"
     }
 }
 Assert-ExactBoolean $manifest.standalone_report_builder_included $false `

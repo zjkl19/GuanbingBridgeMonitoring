@@ -30,6 +30,11 @@ from PySide6.QtWidgets import (
 from .auto_threshold import PreviewSeries, load_preview_artifact
 from .auto_threshold_preview import module_label
 from .config_editor import CleaningThresholdRow, ConfigEditorError
+from .fig_threshold import (
+    FigThresholdCancelled,
+    FigThresholdError,
+    run_fig_threshold_interaction,
+)
 from .manual_threshold import (
     LOWER_SIDE,
     OneSidedThresholdDraft,
@@ -40,6 +45,7 @@ from .manual_threshold import (
     estimate_two_sided_rule,
     select_preview_series,
 )
+from .version import project_root as default_project_root
 
 
 def _timestamp(value: str) -> float | None:
@@ -835,6 +841,8 @@ class ThresholdBandDialog(QDialog):
         expected_start_date: str = "",
         expected_end_date: str = "",
         automatic_preview_resolver: Callable[[], Path] | None = None,
+        task_preview_enabled: bool = True,
+        project_root: Path | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -847,9 +855,14 @@ class ThresholdBandDialog(QDialog):
         self.expected_start_date = str(expected_start_date or "").strip()
         self.expected_end_date = str(expected_end_date or "").strip()
         self.automatic_preview_resolver = automatic_preview_resolver
+        self.task_preview_enabled = bool(task_preview_enabled)
+        self.project_root = (project_root or default_project_root()).resolve()
         self.preview_generation_requested = False
         self.external_reference_mode = False
         self.external_reference_source = ""
+        self.direct_fig_mode = False
+        self.direct_fig_source = ""
+        self.direct_fig_time_window = ("", "")
         self.preview_identity_verified = False
         self.current_estimate: ThresholdEstimate | None = None
         self._lower_from_config = self.target_row.minimum is not None
@@ -868,7 +881,8 @@ class ThresholdBandDialog(QDialog):
             self._apply_series(preview_series)
         else:
             self._refresh()
-            self._load_automatic_preview(silent=True)
+            if self.task_preview_enabled:
+                self._load_automatic_preview(silent=True)
 
     def _default_pair(self) -> tuple[float, float]:
         lower = float(self.target_row.minimum) if self.target_row.minimum is not None else None
@@ -917,23 +931,35 @@ class ThresholdBandDialog(QDialog):
             "按当前桥梁、数据目录、日期、配置版本、分析类型和测点自动匹配"
         )
         self.auto_load_preview_button.clicked.connect(self._load_automatic_preview)
+        self.auto_load_preview_button.setVisible(self.task_preview_enabled)
         grid.addWidget(self.auto_load_preview_button, 0, 4)
         self.preview_path_label = QLabel(
             "正在查找当前任务匹配的曲线；正常操作无需选择任何文件"
+            if self.task_preview_enabled
+            else "滤波后二次清洗不自动采用滤波前预览；请选择任意可信 MATLAB FIG。"
         )
         self.preview_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.preview_path_label.setWordWrap(True)
         self.preview_path_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         grid.addWidget(self.preview_path_label, 0, 5)
 
+        self.direct_fig_button = QPushButton("直接选择 MATLAB FIG（旧方式）…")
+        self.direct_fig_button.setToolTip(
+            "直接读取任意可信 FIG 中的真实曲线，并使用旧 MATLAB 双线方式设置上下限；"
+            "默认只采用阈值，不把外部 FIG 冒充当前任务"
+        )
+        self.direct_fig_button.clicked.connect(self._choose_fig)
+        grid.addWidget(self.direct_fig_button, 2, 0, 1, 2)
+
         self.import_preview_button = QPushButton(
-            "从其他任务/项目导入参考曲线…"
+            "高级：导入系统曲线记录 JSON…"
         )
         self.import_preview_button.setToolTip(
             "可选：导入工作台生成的系统曲线记录；只把曲线数值作为当前配置行的参考，不冒充当前任务"
         )
         self.import_preview_button.clicked.connect(self._choose_preview)
-        grid.addWidget(self.import_preview_button, 2, 0, 1, 4)
+        self.import_preview_button.setVisible(self.task_preview_enabled)
+        grid.addWidget(self.import_preview_button, 2, 2, 1, 2)
         self.generate_preview_button = QPushButton(
             "没有曲线？关闭并前往“自动清洗建议”生成"
         )
@@ -943,7 +969,19 @@ class ThresholdBandDialog(QDialog):
         self.generate_preview_button.clicked.connect(
             self._request_preview_generation
         )
+        self.generate_preview_button.setVisible(self.task_preview_enabled)
         grid.addWidget(self.generate_preview_button, 2, 4, 1, 2)
+
+        self.apply_fig_time_window_check = QCheckBox(
+            "同时采用 FIG 中拖线得到的时间窗（仅确认属于同一任务时勾选）"
+        )
+        self.apply_fig_time_window_check.setChecked(False)
+        self.apply_fig_time_window_check.setEnabled(False)
+        self.apply_fig_time_window_check.setToolTip(
+            "默认保留当前配置行原有时间窗；跨任务或跨项目参考 FIG 时不要勾选"
+        )
+        self.apply_fig_time_window_check.toggled.connect(self._refresh)
+        grid.addWidget(self.apply_fig_time_window_check, 3, 0, 1, 6)
 
         self.time_window_check = QCheckBox(
             "共同时间窗（旧 MATLAB 方式，必须；默认取当前预览范围）"
@@ -1021,11 +1059,16 @@ class ThresholdBandDialog(QDialog):
 
     def draft(self) -> TwoSidedThresholdDraft:
         lower, upper = self._numbers()
-        start, end = (
-            self._target_rule_window
-            if self.external_reference_mode
-            else self._time_texts()
-        )
+        if (
+            self.direct_fig_mode
+            and self.apply_fig_time_window_check.isChecked()
+            and all(self.direct_fig_time_window)
+        ):
+            start, end = self.direct_fig_time_window
+        elif self.external_reference_mode:
+            start, end = self._target_rule_window
+        else:
+            start, end = self._time_texts()
         return TwoSidedThresholdDraft(
             self.target_row.module_key,
             self.target_row.point_key,
@@ -1050,6 +1093,92 @@ class ThresholdBandDialog(QDialog):
             self.load_reference_preview_path(Path(path))
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "曲线预览无法使用", str(exc))
+
+    def _choose_fig(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "直接选择 MATLAB FIG 并拖线设置上下限",
+            self.expected_data_root or "",
+            "MATLAB 图形 (*.fig)",
+        )
+        if not path:
+            return
+        previous_label = self.preview_path_label.text()
+        self.preview_path_label.setText(
+            "正在启动 MATLAB FIG 拖线窗口；请在新窗口中选择坐标轴/曲线并完成操作…"
+        )
+        try:
+            result = run_fig_threshold_interaction(
+                self.project_root,
+                Path(path),
+                operation="band",
+                target_module=self.target_row.module_key,
+                target_point=self.target_row.point_key,
+                parent=self,
+            )
+            self.apply_direct_fig_result(Path(path), result)
+        except FigThresholdCancelled:
+            self.preview_path_label.setText(
+                f"{previous_label}\n已取消本次 MATLAB FIG 拖线；此前曲线和候选值保持不变。"
+            )
+        except (FigThresholdError, OSError, ValueError) as exc:
+            QMessageBox.critical(self, "MATLAB FIG 无法使用", str(exc))
+            self.preview_path_label.setText(
+                f"{previous_label}\n本次 MATLAB FIG 未能生成阈值：{exc}；此前状态保持不变。"
+            )
+        finally:
+            self.raise_()
+            self.activateWindow()
+
+    def apply_direct_fig_result(self, path: Path, result: dict[str, Any]) -> None:
+        candidate = result.get("candidate")
+        if not isinstance(candidate, dict):
+            raise ConfigEditorError("MATLAB FIG 结果缺少候选上下限")
+        try:
+            lower = float(candidate["lower"])
+            upper = float(candidate["upper"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ConfigEditorError("MATLAB FIG 候选上下限格式无效") from exc
+        if not math.isfinite(lower) or not math.isfinite(upper) or lower >= upper:
+            raise ConfigEditorError("MATLAB FIG 候选上下限必须为有限数值且下限小于上限")
+        start = str(candidate.get("t_range_start") or "").strip()
+        end = str(candidate.get("t_range_end") or "").strip()
+        if bool(start) != bool(end):
+            raise ConfigEditorError("MATLAB FIG 返回的时间窗不完整")
+        if start and (_timestamp(start) is None or _timestamp(end) is None):
+            raise ConfigEditorError("MATLAB FIG 返回的时间窗无法识别")
+
+        source = result.get("source_curve")
+        source = source if isinstance(source, dict) else {}
+        axis_title = str(source.get("axis_title") or "未命名坐标轴")
+        curve_label = str(source.get("curve_label") or "未命名曲线")
+        sample_count = int(source.get("sample_count") or 0)
+
+        self.direct_fig_mode = True
+        self.external_reference_mode = True
+        self.external_reference_source = f"{axis_title}/{curve_label}"
+        self.direct_fig_source = self.external_reference_source
+        self.direct_fig_time_window = (start, end)
+        self.preview_identity_verified = False
+        self.preview_series = None
+        self.current_estimate = None
+        self._set_bound_edits(lower, upper)
+        self.apply_fig_time_window_check.setEnabled(bool(start and end))
+        self.apply_fig_time_window_check.setChecked(False)
+        self.accept_button.setEnabled(True)
+        self.curve.set_rule(
+            None,
+            lower=lower,
+            upper=upper,
+            start=self._target_rule_window[0],
+            end=self._target_rule_window[1],
+        )
+        self.preview_path_label.setText(
+            "外部 MATLAB FIG 参考（未绑定当前任务）："
+            f"{path.resolve()}；坐标轴={axis_title}；曲线={curve_label}；"
+            f"源曲线有效样本={sample_count}。默认只采用上下限并保留当前配置行时间窗。"
+        )
+        self._refresh()
 
     def _request_preview_generation(self) -> None:
         self.preview_generation_requested = True
@@ -1097,6 +1226,11 @@ class ThresholdBandDialog(QDialog):
         )
         self.external_reference_mode = True
         self.external_reference_source = f"{source_key[0]}/{source_key[1]}"
+        self.direct_fig_mode = False
+        self.direct_fig_source = ""
+        self.direct_fig_time_window = ("", "")
+        self.apply_fig_time_window_check.setChecked(False)
+        self.apply_fig_time_window_check.setEnabled(False)
         self.preview_identity_verified = False
         self._apply_series(rebound)
         self.preview_path_label.setText(
@@ -1111,7 +1245,7 @@ class ThresholdBandDialog(QDialog):
         if self.automatic_preview_resolver is None:
             message = (
                 "当前窗口没有绑定任务信息。请关闭窗口，先在主任务页选择桥梁、数据目录和日期；"
-                "也可使用“从其他任务/项目导入参考曲线”。"
+                "也可使用“直接选择 MATLAB FIG（旧方式）”或高级 JSON 导入。"
             )
             self.preview_path_label.setText(message)
             if not silent:
@@ -1163,6 +1297,11 @@ class ThresholdBandDialog(QDialog):
         # make an already loaded external reference look task-verified.
         self.external_reference_mode = False
         self.external_reference_source = ""
+        self.direct_fig_mode = False
+        self.direct_fig_source = ""
+        self.direct_fig_time_window = ("", "")
+        self.apply_fig_time_window_check.setChecked(False)
+        self.apply_fig_time_window_check.setEnabled(False)
         self.preview_identity_verified = identity_verified
         self._refresh()
         verified_task = all(
@@ -1273,6 +1412,16 @@ class ThresholdBandDialog(QDialog):
         self._refresh()
 
     def _preview_notice(self) -> str:
+        if self.direct_fig_mode:
+            window_text = (
+                "同时采用了 FIG 拖线时间窗。"
+                if self.apply_fig_time_window_check.isChecked()
+                else "只采用上下限数值，保留当前配置行时间窗。"
+            )
+            return (
+                "当前阈值来自外部 MATLAB FIG 的真实曲线交互；"
+                f"{window_text}来源未绑定当前任务，不在此处估算当前任务删除量。"
+            )
         if self.external_reference_mode:
             return (
                 "当前使用其他任务/项目的外部参考曲线；只采用上下限数值并保留当前配置行时间窗。"
@@ -1305,7 +1454,13 @@ class ThresholdBandDialog(QDialog):
             start=draft.t_range_start,
             end=draft.t_range_end,
         )
-        if self.preview_series is None:
+        if self.direct_fig_mode:
+            self.current_estimate = None
+            self.estimate_label.setText(
+                f"MATLAB FIG 拖线结果：精确上下限 [{draft.lower:.15g}, {draft.upper:.15g}]；"
+                f"时间窗：{draft.time_window_text}。\n{self._preview_notice()}"
+            )
+        elif self.preview_series is None:
             self.current_estimate = None
             self.estimate_label.setText(
                 f"精确上下限：[{draft.lower:.15g}, {draft.upper:.15g}]；"
@@ -1334,12 +1489,14 @@ class ThresholdBandDialog(QDialog):
         )
 
     def estimate_summary(self) -> str:
+        if self.direct_fig_mode:
+            return self._preview_notice()
         if self.current_estimate is None:
             return "未加载完整曲线预览；需使用完整缓存复算删除数量"
         return f"{self.current_estimate.summary_text()} {self._preview_notice()}"
 
     def _accept_checked(self) -> None:
-        if self.preview_series is None:
+        if self.preview_series is None and not self.direct_fig_mode:
             QMessageBox.critical(self, "尚未加载曲线", "请先加载当前测点的曲线预览。")
             return
         try:

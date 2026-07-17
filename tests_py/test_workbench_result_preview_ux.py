@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -12,8 +13,9 @@ from PySide6.QtWidgets import QApplication
 
 from workbench.box_threshold_dialog import BoxThresholdDialog
 from workbench.config_editor import CleaningThresholdRow
+from workbench.fig_threshold import FigThresholdCancelled
 from workbench.main_window import WorkbenchWindow
-from workbench.manual_threshold import LOWER_SIDE
+from workbench.manual_threshold import LOWER_SIDE, UPPER_SIDE
 from workbench.manual_threshold_dialog import ThresholdBandDialog
 from workbench.models import JobContext
 from workbench.result_location import analysis_result_location
@@ -268,8 +270,10 @@ class ResultAndPreviewUxTests(unittest.TestCase):
                 self.assertIn("自动加载", box.auto_load_preview_button.text())
                 self.assertNotIn("JSON", band.auto_load_preview_button.toolTip())
                 self.assertNotIn("JSON", box.auto_load_preview_button.toolTip())
-                self.assertIn("其他任务/项目", band.import_preview_button.text())
-                self.assertIn("其他任务/项目", box.import_preview_button.text())
+                self.assertIn("系统曲线记录 JSON", band.import_preview_button.text())
+                self.assertIn("系统曲线记录 JSON", box.import_preview_button.text())
+                self.assertIn("MATLAB FIG", band.direct_fig_button.text())
+                self.assertIn("MATLAB FIG", box.direct_fig_button.text())
             finally:
                 band.close()
                 box.close()
@@ -318,6 +322,184 @@ class ResultAndPreviewUxTests(unittest.TestCase):
             finally:
                 band.close()
                 box.close()
+
+    def test_direct_fig_band_is_a_first_class_external_reference(self) -> None:
+        target = CleaningThresholdRow(
+            "per_point",
+            "acceleration",
+            "CURRENT-POINT",
+            -3.0,
+            3.0,
+            "2026-06-01 00:00:00",
+            "2026-06-30 23:59:59",
+        )
+        dialog = ThresholdBandDialog(
+            target,
+            accepted_preview_point_ids=("CURRENT-POINT",),
+            project_root=PROJECT_ROOT,
+        )
+        try:
+            result = {
+                "candidate": {
+                    "lower": -1.25,
+                    "upper": 2.75,
+                    "t_range_start": "2026-05-03 01:02:03",
+                    "t_range_end": "2026-05-20 04:05:06",
+                },
+                "source_curve": {
+                    "axis_title": "外部任务加速度",
+                    "curve_label": "OTHER-A1",
+                    "sample_count": 123456,
+                },
+            }
+            dialog.apply_direct_fig_result(Path("external.fig"), result)
+            self.assertTrue(dialog.direct_fig_mode)
+            self.assertTrue(dialog.external_reference_mode)
+            self.assertIsNone(dialog.preview_series)
+            self.assertIn("直接选择 MATLAB FIG", dialog.direct_fig_button.text())
+            self.assertIn("JSON", dialog.import_preview_button.text())
+            self.assertIn("未绑定当前任务", dialog.preview_path_label.text())
+            self.assertIn("123456", dialog.preview_path_label.text())
+            draft = dialog.draft()
+            self.assertEqual((draft.lower, draft.upper), (-1.25, 2.75))
+            self.assertEqual(draft.t_range_start, target.t_range_start)
+            self.assertEqual(draft.t_range_end, target.t_range_end)
+            dialog.apply_fig_time_window_check.setChecked(True)
+            draft = dialog.draft()
+            self.assertEqual(draft.t_range_start, "2026-05-03 01:02:03")
+            self.assertEqual(draft.t_range_end, "2026-05-20 04:05:06")
+        finally:
+            dialog.close()
+
+    def test_direct_fig_box_uses_exact_external_extreme_but_current_rule_window(self) -> None:
+        target = CleaningThresholdRow(
+            "per_point",
+            "cable_accel",
+            "CURRENT-CF",
+            -3.0,
+            4.0,
+            "2026-06-01 00:00:00",
+            "2026-06-30 23:59:59",
+        )
+        for side, raw_side, value in (
+            (LOWER_SIDE, "lower", -1.125),
+            (UPPER_SIDE, "upper", 2.625),
+        ):
+            dialog = BoxThresholdDialog(
+                target,
+                side=side,
+                accepted_preview_point_ids=("CURRENT-CF",),
+                project_root=PROJECT_ROOT,
+            )
+            try:
+                dialog.apply_direct_fig_result(
+                    Path("other-project.fig"),
+                    {
+                        "candidate": {
+                            "side": raw_side,
+                            "value": value,
+                            "selected_sample_count": 17,
+                            "selection_start": "2026-05-02 00:00:00.125000",
+                            "selection_end": "2026-05-02 00:00:02.875000",
+                        },
+                        "source_curve": {
+                            "axis_title": "外部索力加速度",
+                            "curve_label": "OTHER-CF",
+                            "sample_count": 98765,
+                        },
+                    },
+                )
+                proposal = dialog.proposal()
+                self.assertTrue(dialog.direct_fig_mode)
+                self.assertEqual(proposal.threshold, value)
+                self.assertEqual(proposal.selected_sample_count, 17)
+                self.assertEqual(proposal.draft.t_range_start, target.t_range_start)
+                self.assertEqual(proposal.draft.t_range_end, target.t_range_end)
+                self.assertIn("17 个有限样本", dialog.summary_label.text())
+                self.assertIn("未绑定当前任务", dialog.preview_path_label.text())
+            finally:
+                dialog.close()
+
+    def test_cancelled_direct_fig_keeps_previous_curve_identity_and_candidate(self) -> None:
+        target = CleaningThresholdRow(
+            "per_point", "acceleration", "CURRENT-POINT", -3.0, 3.0
+        )
+        band = ThresholdBandDialog(
+            target,
+            accepted_preview_point_ids=("CURRENT-POINT",),
+            project_root=PROJECT_ROOT,
+        )
+        box = BoxThresholdDialog(
+            target,
+            side=LOWER_SIDE,
+            accepted_preview_point_ids=("CURRENT-POINT",),
+            project_root=PROJECT_ROOT,
+        )
+        try:
+            band.apply_direct_fig_result(
+                Path("first.fig"),
+                {
+                    "candidate": {
+                        "lower": -1.0,
+                        "upper": 2.0,
+                        "t_range_start": "",
+                        "t_range_end": "",
+                    },
+                    "source_curve": {
+                        "axis_title": "已采用坐标轴",
+                        "curve_label": "已采用曲线",
+                        "sample_count": 50,
+                    },
+                },
+            )
+            box.apply_direct_fig_result(
+                Path("first.fig"),
+                {
+                    "candidate": {
+                        "side": "lower",
+                        "value": -1.0,
+                        "selected_sample_count": 4,
+                        "selection_start": "2026-05-01 00:00:00",
+                        "selection_end": "2026-05-01 00:01:00",
+                    },
+                    "source_curve": {
+                        "axis_title": "已采用坐标轴",
+                        "curve_label": "已采用曲线",
+                        "sample_count": 50,
+                    },
+                },
+            )
+            band_before = band.preview_path_label.text()
+            box_before = box.preview_path_label.text()
+            with (
+                patch(
+                    "workbench.manual_threshold_dialog.QFileDialog.getOpenFileName",
+                    return_value=("cancel.fig", "MATLAB 图形 (*.fig)"),
+                ),
+                patch(
+                    "workbench.manual_threshold_dialog.run_fig_threshold_interaction",
+                    side_effect=FigThresholdCancelled("cancelled"),
+                ),
+            ):
+                band._choose_fig()
+            with (
+                patch(
+                    "workbench.box_threshold_dialog.QFileDialog.getOpenFileName",
+                    return_value=("cancel.fig", "MATLAB 图形 (*.fig)"),
+                ),
+                patch(
+                    "workbench.box_threshold_dialog.run_fig_threshold_interaction",
+                    side_effect=FigThresholdCancelled("cancelled"),
+                ),
+            ):
+                box._choose_fig()
+            self.assertIn(band_before, band.preview_path_label.text())
+            self.assertIn(box_before, box.preview_path_label.text())
+            self.assertEqual((band.draft().lower, band.draft().upper), (-1.0, 2.0))
+            self.assertEqual(box.proposal().threshold, -1.0)
+        finally:
+            band.close()
+            box.close()
 
     def test_external_reference_does_not_fill_an_empty_target_time_window(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -7,14 +7,23 @@ classdef test_wim_zhichen_bcp_source < matlab.unittest.TestCase
     methods (TestMethodSetup)
         function setupPaths(tc)
             tc.ProjectRoot = fileparts(fileparts(mfilename('fullpath')));
-            tc.SampleDir = fullfile(tc.ProjectRoot, 'data', '_samples', 'wim', 'zhichen', '202512');
             addpath(tc.ProjectRoot);
+            tc.SampleDir = tempname;
+            create_synthetic_zhichen_fixture(tc.SampleDir);
+        end
+    end
+
+    methods (TestMethodTeardown)
+        function cleanupFixture(tc)
+            if exist(tc.SampleDir, 'dir')
+                rmdir(tc.SampleDir, 's');
+            end
         end
     end
 
     methods (Test)
         function parseFmtReadsNativeBcpSchema(tc)
-            fmtPath = fullfile(tc.SampleDir, 'HS_Data_202512_sample_300.fmt');
+            fmtPath = fullfile(tc.SampleDir, 'HS_Data_202512_synthetic.fmt');
 
             spec = bms.analyzer.WimZhichenBcpSource.loadSpec(fmtPath);
 
@@ -30,8 +39,8 @@ classdef test_wim_zhichen_bcp_source < matlab.unittest.TestCase
         end
 
         function decodeFirstSampleRecordMatchesCsvExport(tc)
-            fmtPath = fullfile(tc.SampleDir, 'HS_Data_202512_sample_300.fmt');
-            bcpPath = fullfile(tc.SampleDir, 'HS_Data_202512_sample_300.bcp');
+            fmtPath = fullfile(tc.SampleDir, 'HS_Data_202512_synthetic.fmt');
+            bcpPath = fullfile(tc.SampleDir, 'HS_Data_202512_synthetic.bcp');
             spec = bms.analyzer.WimZhichenBcpSource.loadSpec(fmtPath);
 
             fid = fopen(bcpPath, 'r', 'ieee-le');
@@ -43,21 +52,21 @@ classdef test_wim_zhichen_bcp_source < matlab.unittest.TestCase
 
             row = bms.analyzer.WimZhichenBcpSource.decodeRecord(spec.fmt, spec.index, rowBytes, 'gbk');
 
-            tc.verifyEqual(datestr(row.time_datenum, 'yyyy-mm-dd HH:MM:SS'), '2025-12-01 00:00:00');
-            tc.verifyEqual(row.lane, 7);
+            tc.verifyEqual(datestr(row.time_datenum, 'yyyy-mm-dd HH:MM:SS'), '2025-12-15 12:34:56');
+            tc.verifyEqual(row.lane, 2);
             tc.verifyEqual(row.axle_num, 2);
-            tc.verifyEqual(row.gross, 2240);
-            tc.verifyEqual(row.speed, 74);
-            tc.verifyEqual(row.axle_weights(1:4), [1380 860 0 0]);
-            tc.verifyEqual(row.axle_distances(1:4), [3638 0 0 0]);
-            tc.verifyNotEmpty(row.plate);
+            tc.verifyEqual(row.gross, 12000);
+            tc.verifyEqual(row.speed, 60);
+            tc.verifyEqual(row.axle_weights(1:4), [6000 6000 0 0]);
+            tc.verifyEqual(row.axle_distances(1:4), [4000 0 0 0]);
+            tc.verifyEqual(row.plate(:).', 'TEST0001');
 
             raw = bms.analyzer.WimZhichenBcpSource.decodeAllRow(spec.fmt, rowBytes, 'gbk');
             tc.verifyEqual(numel(raw), 42);
-            tc.verifyEqual(raw{2}, 7);
-            tc.verifyEqual(raw{3}, '2025-12-01 00:00:00');
-            tc.verifyEqual(raw{7}, 2240);
-            tc.verifyEqual(raw{34}, 74);
+            tc.verifyEqual(raw{2}, 2);
+            tc.verifyEqual(raw{3}, '2025-12-15 12:34:56');
+            tc.verifyEqual(raw{7}, 12000);
+            tc.verifyEqual(raw{34}, 60);
         end
 
         function sqlTypeMapsFmtTypes(tc)

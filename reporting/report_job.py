@@ -62,6 +62,7 @@ class ReportJobRequest:
     derived_artifact_manifest_path: Path | None = None
     derived_artifact_manifest_sha256: str = ""
     require_source_provenance: bool = False
+    source_quality_note: str = ""
 
 
 @dataclass(frozen=True)
@@ -477,6 +478,7 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
             result_root=request.result_root, output_dir=request.output_dir,
             period_label=request.period_label, monitoring_range=request.monitoring_range,
             report_date=request.report_date,
+            source_quality_note=request.source_quality_note,
         )
     else:
         manifest_path, report_path, missing = build_hongtang_monthly_report(

@@ -4,15 +4,19 @@ classdef test_wim_reports < matlab.unittest.TestCase
             proj_root = fileparts(fileparts(mfilename('fullpath')));
             addpath(proj_root, fullfile(proj_root,'analysis'), fullfile(proj_root,'config'));
             cfg = load_config(fullfile(proj_root,'config','hongtang_config.json'));
-            sample_dir = fullfile(proj_root, 'data', '_samples', 'wim', 'zhichen', '202512');
+            temp_root = tempname;
+            mkdir(temp_root);
+            cleanup = onCleanup(@() rmdir(temp_root, 's')); %#ok<NASGU>
+            sample_dir = fullfile(temp_root, 'synthetic_zhichen');
+            fixture = create_synthetic_zhichen_fixture(sample_dir);
 
             cfg.wim.vendor = 'zhichen';
             cfg.wim.bridge = 'hongtang';
             cfg.wim.pipeline = 'direct';
             cfg.wim.input.zhichen.dir = sample_dir;
-            cfg.wim.input.zhichen.bcp = 'HS_Data_202512_sample_1000.bcp';
-            cfg.wim.input.zhichen.fmt = 'HS_Data_202512_sample_1000.fmt';
-            cfg.wim.output_root = tempname;
+            cfg.wim.input.zhichen.bcp = fixture.bcpName;
+            cfg.wim.input.zhichen.fmt = fixture.fmtName;
+            cfg.wim.output_root = fullfile(temp_root, 'output');
             if isfield(cfg, 'wim_plot'), cfg.wim_plot.enabled = false; end
 
             analyze_wim_reports(proj_root, '2025-12-01', '2025-12-31', cfg);
@@ -27,15 +31,19 @@ classdef test_wim_reports < matlab.unittest.TestCase
             test_wim_reports.assumeSqlcmdAvailable(testCase);
 
             cfg = load_config(fullfile(proj_root,'config','hongtang_config.json'));
-            sample_dir = fullfile(proj_root, 'data', '_samples', 'wim', 'zhichen', '202512');
+            temp_root = tempname;
+            mkdir(temp_root);
+            cleanup = onCleanup(@() rmdir(temp_root, 's')); %#ok<NASGU>
+            sample_dir = fullfile(temp_root, 'synthetic_zhichen');
+            fixture = create_synthetic_zhichen_fixture(sample_dir);
 
             cfg.wim.vendor = 'zhichen';
             cfg.wim.bridge = 'hongtang';
             cfg.wim.pipeline = 'database';
             cfg.wim.input.zhichen.dir = sample_dir;
-            cfg.wim.input.zhichen.bcp = 'HS_Data_202512_sample_1000.bcp';
-            cfg.wim.input.zhichen.fmt = 'HS_Data_202512_sample_1000.fmt';
-            cfg.wim.output_root = tempname;
+            cfg.wim.input.zhichen.bcp = fixture.bcpName;
+            cfg.wim.input.zhichen.fmt = fixture.fmtName;
+            cfg.wim.output_root = fullfile(temp_root, 'output');
             if isfield(cfg, 'wim_plot'), cfg.wim_plot.enabled = false; end
             cfg.wim_db.server = '.';
             cfg.wim_db.database = 'HighSpeed_PROC';

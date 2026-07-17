@@ -22,6 +22,11 @@ try:
 except Exception:  # pragma: no cover - package import path
     from .docx_table_utils import find_summary_table
 
+try:
+    from docx_header_fields import audit_section_footer_pagination_fields
+except Exception:  # pragma: no cover - package import path
+    from .docx_header_fields import audit_section_footer_pagination_fields
+
 
 @dataclass(frozen=True)
 class TemplateIssue:
@@ -370,6 +375,17 @@ def check_guanbing_monthly_template(template: Path) -> list[TemplateIssue]:
     ]
     for fragment, note in required:
         _add_missing_fragment(issues, texts, fragment, note)
+
+    pagination = audit_section_footer_pagination_fields(template)
+    if not pagination.valid:
+        detail = "; ".join((*pagination.details, *pagination.formatting_errors))
+        issues.append(
+            TemplateIssue(
+                "invalid-footer-pagination",
+                "Guanbing body footer must use PAGE and SECTIONPAGES fields"
+                + (f": {detail}" if detail else ""),
+            )
+        )
 
     return issues
 

@@ -5,6 +5,9 @@ classdef test_main_gui_smoke < matlab.unittest.TestCase
 
     methods (TestMethodSetup)
         function setupPaths(tc)
+            tc.assumeFalse(strcmp(strtrim(getenv('BMS_RELEASE_HEALTH_NON_GUI')), '1'), ...
+                ['GUI smoke is isolated into a dedicated MATLAB process by ' ...
+                 'scripts/run_release_health_check.ps1.']);
             tc.assumeTrue(usejava('jvm'), 'MATLAB GUI smoke tests require JVM support.');
             proj = fileparts(fileparts(mfilename('fullpath')));
             addpath(proj, fullfile(proj, 'ui'), fullfile(proj, 'config'), ...

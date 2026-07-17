@@ -964,11 +964,29 @@ class ManualThresholdGuiTests(unittest.TestCase):
         finally:
             widget.close()
 
-    def test_post_filter_page_hides_unpinned_pre_filter_curve_tools(self) -> None:
+    def test_post_filter_page_exposes_only_explicit_fig_curve_tools(self) -> None:
         widget = PostFilterThresholdEditorWidget()
         try:
-            self.assertFalse(widget.supports_curve_threshold_tools)
-            self.assertFalse(hasattr(widget, "manual_threshold_group"))
+            self.assertTrue(widget.supports_curve_threshold_tools)
+            self.assertFalse(widget.supports_task_curve_preview)
+            self.assertTrue(hasattr(widget, "manual_threshold_group"))
+
+            target = CleaningThresholdRow(
+                "per_point", "acceleration", "PT-1", -1.0, 1.0
+            )
+            dialog = ThresholdBandDialog(
+                target,
+                accepted_preview_point_ids=("PT-1",),
+                task_preview_enabled=False,
+            )
+            try:
+                self.assertFalse(dialog.direct_fig_button.isHidden())
+                self.assertTrue(dialog.auto_load_preview_button.isHidden())
+                self.assertTrue(dialog.import_preview_button.isHidden())
+                self.assertTrue(dialog.generate_preview_button.isHidden())
+                self.assertIn("MATLAB FIG", dialog.preview_path_label.text())
+            finally:
+                dialog.close()
         finally:
             widget.close()
 

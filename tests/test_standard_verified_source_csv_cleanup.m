@@ -71,6 +71,9 @@ classdef test_standard_verified_source_csv_cleanup < matlab.unittest.TestCase
             tc.verifyEqual(receipt.deleted_count, 1);
             tc.verifyEqual(receipt.provider_id, 'standard_timeseries_v1');
             tc.verifyEqual(receipt.layout, 'dated_folders');
+            authorization = localVerifyCleanupAuthorization(tc, receipt, 1);
+            authorizationText = fileread(receipt.authorization_path);
+            authorizationInfo = dir(receipt.authorization_path);
             tc.verifyEqual(receipt.files(1).pair_id, ...
                 jsondecode(fileread(bms.data.CacheManager.metadataPath(cachePath))).pair_id);
 
@@ -85,6 +88,140 @@ classdef test_standard_verified_source_csv_cleanup < matlab.unittest.TestCase
             tc.verifyEqual(afterMat.datenum, beforeMat.datenum);
             tc.verifyEqual(afterMeta.bytes, beforeMeta.bytes);
             tc.verifyEqual(afterMeta.datenum, beforeMeta.datenum);
+            receiptAfterRerun = jsondecode(fileread(tc.receiptPath()));
+            localVerifyCleanupAuthorization(tc, receiptAfterRerun, 1);
+            authorizationInfoAfter = dir(receipt.authorization_path);
+            tc.verifyEqual(fileread(receipt.authorization_path), ...
+                authorizationText);
+            tc.verifyEqual(authorizationInfoAfter.bytes, ...
+                authorizationInfo.bytes);
+            tc.verifyEqual(authorizationInfoAfter.datenum, ...
+                authorizationInfo.datenum);
+            tc.verifyEqual(authorization.authorization_hash, ...
+                receiptAfterRerun.authorization_hash);
+        end
+
+        function receiptPublishingUsesChunkCheckpoints(tc)
+            fileCount = 65;
+            ids = arrayfun(@(i) sprintf('T%03d', i), 1:fileCount, ...
+                'UniformOutput', false);
+            bases = arrayfun(@(i) sprintf('TEMP%03d', i), 1:fileCount, ...
+                'UniformOutput', false);
+            names = strcat(bases, '.csv');
+            cfg = localBaseConfig('guanbing');
+            cfg.subfolders.temperature = ...
+                fullfile(char([27874 24418]), 'feature');
+            cfg.points.temperature = ids;
+            cfg.file_patterns.temperature.default = '{file_id}.csv';
+            for i = 1:fileCount
+                cfg.per_point.temperature.(ids{i}) = ...
+                    struct('file_id', bases{i});
+            end
+            folder = tc.waveFolder('feature');
+            tc.createZip(fullfile(folder, 'temperature.zip'), names, ...
+                repmat({localSeries(tc.Day, [11 12])}, 1, fileCount));
+            tc.extract(cfg);
+
+            result = bms.data.CachePrebuildService.run( ...
+                tc.TempRoot, tc.Day, tc.Day, cfg, localCleanupOptions());
+
+            tc.verifyEqual(result.Status, 'ok', result.Message);
+            receipt = jsondecode(fileread(tc.receiptPath()));
+            interval = bms.data.VerifiedSourceCsvCleanupService. ...
+                receiptCheckpointInterval();
+            expectedPublishes = 4 + 2 * ceil(fileCount / interval);
+            tc.verifyEqual(double(receipt.checkpoint_interval), interval);
+            tc.verifyEqual(double(receipt.receipt_publish_count), ...
+                expectedPublishes);
+            tc.verifyEqual(receipt.commit_validation_mode, ...
+                'batch_authorized_fastpath');
+            tc.verifyLessThan(double(receipt.receipt_publish_count), fileCount);
+            tc.verifyEqual(double(receipt.deleted_count), fileCount);
+            localVerifyCleanupAuthorization(tc, receipt, fileCount);
+        end
+
+        function committedRerunRejectsSameSizeSameMtimeAuthorizationTamper(tc)
+            cfg = localTemperatureConfig('guanbing');
+            folder = tc.waveFolder('feature');
+            tc.createZip(fullfile(folder, 'temperature.zip'), ...
+                {'TEMP01.csv'}, {localSeries(tc.Day, [11 12])});
+            tc.extract(cfg);
+            first = bms.data.CachePrebuildService.run( ...
+                tc.TempRoot, tc.Day, tc.Day, cfg, localCleanupOptions());
+            tc.assertEqual(first.Status, 'ok', first.Message);
+            receipt = jsondecode(fileread(tc.receiptPath()));
+            authorization = localVerifyCleanupAuthorization(tc, receipt, 1);
+            oldPairId = char(authorization.files(1).pair_id);
+            newPairId = oldPairId;
+            if oldPairId(1) == '0'
+                newPairId(1) = '1';
+            else
+                newPairId(1) = '0';
+            end
+            localOverwriteTokenPreservingFingerprint(tc, ...
+                receipt.authorization_path, oldPairId, newPairId);
+
+            second = bms.data.CachePrebuildService.run( ...
+                tc.TempRoot, tc.Day, tc.Day, cfg, localCleanupOptions());
+
+            tc.verifyEqual(second.Status, 'fail');
+            summary = jsondecode(fileread(second.StatsPath));
+            tc.verifyEqual(summary.error_identifier, ...
+                'BMS:CacheSourceCleanup:AuthorizationHashMismatch');
+            source = fullfile(folder, 'TEMP01.csv');
+            tc.verifyFalse(isfile(source));
+            tc.verifyTrue(isfile(localCachePath(source)));
+        end
+
+        function extractorAndCleanupShareNaturalDayMutationLease(tc)
+            cfg = localTemperatureConfig('guanbing');
+            waveFolder = tc.waveFolder('feature');
+            featureFolder = tc.featureFolder('unused');
+            tc.createZip(fullfile(waveFolder, 'temperature.zip'), ...
+                {'TEMP01.csv'}, {localSeries(tc.Day, [11 12])});
+            tc.createZip(fullfile(featureFolder, 'feature.zip'), ...
+                {'unused.txt'}, {'not configured'});
+            cfg.preprocessing = struct('unzip', struct( ...
+                'max_workers', 1, 'min_free_gib', 0, ...
+                'min_free_fraction', 0, 'additional_required_bytes', 0, ...
+                'reuse_validation', 'full_crc', ...
+                'summary_file', fullfile('run_logs', 'extract.json')));
+            lockPath = bms.data.DailyExportMutationLock.pathFor( ...
+                tc.TempRoot, tc.Day);
+            bms.data.DataLayoutResolver.ensureDir(fileparts(lockPath));
+            [foreignExtract, ~] = bms.core.DirectoryLeaseLock.acquire( ...
+                lockPath, struct(), struct('purpose', 'test_foreign_extract'));
+
+            tc.verifyError(@() bms.data.ArchiveExtractService.run( ...
+                tc.TempRoot, tc.Day, tc.Day, cfg), ...
+                'BMS:DirectoryLeaseLock:Locked');
+            source = fullfile(waveFolder, 'TEMP01.csv');
+            tc.verifyFalse(isfile(source));
+            delete(foreignExtract);
+
+            extracted = bms.data.ArchiveExtractService.run( ...
+                tc.TempRoot, tc.Day, tc.Day, cfg);
+            tc.assertEqual(extracted.status, 'ok');
+            tc.assertTrue(isfile(source));
+            [foreignCleanup, ~] = bms.core.DirectoryLeaseLock.acquire( ...
+                lockPath, struct(), struct('purpose', 'test_foreign_cleanup'));
+
+            blocked = bms.data.CachePrebuildService.run( ...
+                tc.TempRoot, tc.Day, tc.Day, cfg, localCleanupOptions());
+            tc.verifyEqual(blocked.Status, 'fail');
+            blockedSummary = jsondecode(fileread(blocked.StatsPath));
+            tc.verifyEqual(blockedSummary.error_identifier, ...
+                'BMS:DirectoryLeaseLock:Locked');
+            tc.verifyTrue(isfile(source));
+            tc.verifyFalse(isfile(tc.receiptPath()));
+            delete(foreignCleanup);
+
+            accepted = bms.data.CachePrebuildService.run( ...
+                tc.TempRoot, tc.Day, tc.Day, cfg, localCleanupOptions());
+            tc.verifyEqual(accepted.Status, 'ok', accepted.Message);
+            tc.verifyFalse(isfile(source));
+            receipt = jsondecode(fileread(tc.receiptPath()));
+            tc.verifyEqual(receipt.cleanup_lock_path, lockPath);
         end
 
         function hongtangMultipleZipsMapEachCsvUniquely(tc)
@@ -244,6 +381,7 @@ classdef test_standard_verified_source_csv_cleanup < matlab.unittest.TestCase
             tc.verifyFalse(isfile(fullfile(folder, 'TEMP01.csv')));
             final = jsondecode(fileread(tc.receiptPath()));
             tc.verifyEqual(final.status, 'committed');
+            tc.verifyEqual(final.commit_validation_mode, 'strict_recovery');
             tc.verifyEqual(final.deleted_count, 1);
             summary = jsondecode(fileread(session.SummaryPath));
             tc.verifyTrue(summary.days(1).skipped_committed_cleanup);
@@ -284,6 +422,188 @@ classdef test_standard_verified_source_csv_cleanup < matlab.unittest.TestCase
             final = jsondecode(fileread(tc.receiptPath()));
             tc.verifyEqual(final.status, 'committed');
             tc.verifyEqual(final.deleted_count, 1);
+        end
+
+        function deleteBeforeReceiptWriteIsReconciled(tc)
+            cfg = localTemperatureConfig('guanbing');
+            folder = tc.waveFolder('feature');
+            tc.createZip(fullfile(folder, 'temperature.zip'), ...
+                {'TEMP01.csv'}, {localSeries(tc.Day, [1 2])});
+            tc.extract(cfg);
+            first = bms.data.CachePrebuildService.run( ...
+                tc.TempRoot, tc.Day, tc.Day, cfg, localCleanupOptions());
+            tc.assertEqual(first.Status, 'ok', first.Message);
+            receipt = jsondecode(fileread(tc.receiptPath()));
+            source = char(receipt.files(1).source_path);
+            staged = char(receipt.files(1).temporary_path);
+            tc.assertFalse(isfile(source));
+            tc.assertFalse(isfile(staged));
+            receipt.status = 'deleting';
+            receipt.committed_at = '';
+            receipt.deleted_count = 0;
+            receipt.deleted_bytes = 0;
+            receipt.files(1).state = 'renamed';
+            receipt.files(1).deleted_at = '';
+            bms.core.Logger.writeJson(tc.receiptPath(), receipt);
+
+            verification = bms.data.StandardVerifiedSourceCsvCleanupService. ...
+                reconcilePendingDay(tc.TempRoot, tc.Day, cfg, ...
+                    localCleanupOptions());
+
+            tc.verifyTrue(verification.committed);
+            tc.verifyFalse(isfile(source));
+            tc.verifyFalse(isfile(staged));
+            final = jsondecode(fileread(tc.receiptPath()));
+            tc.verifyEqual(final.status, 'committed');
+            tc.verifyEqual(final.commit_validation_mode, 'strict_recovery');
+            tc.verifyEqual(double(final.deleted_count), 1);
+        end
+
+        function strictRecoveryRejectsSameSizeSameMtimeStagedTamper(tc)
+            cfg = localTemperatureConfig('guanbing');
+            folder = tc.waveFolder('feature');
+            original = localSeries(tc.Day, [1 2]);
+            tampered = localSeries(tc.Day, [9 2]);
+            tc.assertEqual(strlength(string(tampered)), ...
+                strlength(string(original)));
+            tc.createZip(fullfile(folder, 'temperature.zip'), ...
+                {'TEMP01.csv'}, {original});
+            tc.extract(cfg);
+            source = fullfile(folder, 'TEMP01.csv');
+            backup = fullfile(tc.TempRoot, 'strict-gate.backup.csv');
+            copyfile(source, backup);
+            first = bms.data.CachePrebuildService.run( ...
+                tc.TempRoot, tc.Day, tc.Day, cfg, localCleanupOptions());
+            tc.assertEqual(first.Status, 'ok', first.Message);
+            receipt = jsondecode(fileread(tc.receiptPath()));
+            staged = char(receipt.files(1).temporary_path);
+            copyfile(backup, staged);
+            tc.assertTrue(java.io.File(staged).setLastModified( ...
+                int64(receipt.files(1).source_modified_millis)));
+            metadataPath = char(receipt.files(1).metadata_path);
+            originalMetadata = fileread(metadataPath);
+            pairId = char(receipt.files(1).pair_id);
+            changedPairId = pairId;
+            changedPairId(1) = char(double(changedPairId(1)) ...
+                + 1 + (changedPairId(1) == 'z'));
+            tamperedMetadata = strrep(originalMetadata, pairId, changedPairId);
+            metadataInfo = dir(metadataPath);
+            localWrite(metadataPath, tamperedMetadata);
+            tc.assertTrue(java.io.File(metadataPath).setLastModified( ...
+                int64(receipt.files(1).metadata_modified_millis)));
+            tamperedMetadataInfo = dir(metadataPath);
+            tc.assertEqual(double(tamperedMetadataInfo.bytes), ...
+                double(metadataInfo.bytes));
+            freshReceipt = receipt;
+            freshReceipt.status = 'deleting';
+            freshReceipt.files(1).state = 'renamed';
+            tc.verifyError(@() ...
+                bms.data.StandardVerifiedSourceCsvCleanupService. ...
+                    validateFreshDeletionEntry( ...
+                        freshReceipt, freshReceipt.files(1), cfg), ...
+                'BMS:CacheSourceCleanup:ArchivedCacheInvalid');
+            tc.verifyTrue(isfile(staged));
+            localWrite(metadataPath, originalMetadata);
+            tc.assertTrue(java.io.File(metadataPath).setLastModified( ...
+                int64(receipt.files(1).metadata_modified_millis)));
+            localWrite(staged, tampered);
+            ok = java.io.File(staged).setLastModified( ...
+                int64(receipt.files(1).source_modified_millis));
+            tc.assertTrue(ok);
+            stagedInfo = dir(staged);
+            tc.assertEqual(double(stagedInfo.bytes), ...
+                double(receipt.files(1).source_bytes));
+            freshReceipt = receipt;
+            freshReceipt.status = 'deleting';
+            freshReceipt.files(1).state = 'renamed';
+            tc.verifyError(@() ...
+                bms.data.StandardVerifiedSourceCsvCleanupService. ...
+                    validateFreshDeletionEntry( ...
+                        freshReceipt, freshReceipt.files(1), cfg), ...
+                'BMS:ArchiveExtract:RecoverySourceContentMismatch');
+            receipt.status = 'partial';
+            receipt.committed_at = '';
+            receipt.deleted_count = 0;
+            receipt.deleted_bytes = 0;
+            receipt.files(1).state = 'renamed';
+            receipt.files(1).deleted_at = '';
+            bms.core.Logger.writeJson(tc.receiptPath(), receipt);
+
+            tc.verifyError(@() ...
+                bms.data.StandardVerifiedSourceCsvCleanupService. ...
+                    reconcilePendingDay(tc.TempRoot, tc.Day, cfg, ...
+                        localCleanupOptions()), ...
+                'BMS:ArchiveExtract:RecoverySourceContentMismatch');
+
+            tc.verifyTrue(isfile(staged));
+            failed = jsondecode(fileread(tc.receiptPath()));
+            tc.verifyEqual(failed.commit_validation_mode, 'strict_recovery');
+            tc.verifyEqual(failed.status, ...
+                'rename_failed_rollback_incomplete');
+        end
+
+        function durableDeletedStateRejectsSourceAndStagingBothPresent(tc)
+            cfg = localTemperatureConfig('guanbing');
+            folder = tc.waveFolder('feature');
+            payload = localSeries(tc.Day, [1 2]);
+            tc.createZip(fullfile(folder, 'temperature.zip'), ...
+                {'TEMP01.csv'}, {payload});
+            tc.extract(cfg);
+            source = fullfile(folder, 'TEMP01.csv');
+            backup = fullfile(tc.TempRoot, 'both-present.backup.csv');
+            copyfile(source, backup);
+            first = bms.data.CachePrebuildService.run( ...
+                tc.TempRoot, tc.Day, tc.Day, cfg, localCleanupOptions());
+            tc.assertEqual(first.Status, 'ok', first.Message);
+            receipt = jsondecode(fileread(tc.receiptPath()));
+            staged = char(receipt.files(1).temporary_path);
+            copyfile(backup, source);
+            copyfile(backup, staged);
+            receipt.status = 'deleting';
+            receipt.committed_at = '';
+            receipt.files(1).state = 'deleted';
+            bms.core.Logger.writeJson(tc.receiptPath(), receipt);
+
+            tc.verifyError(@() ...
+                bms.data.StandardVerifiedSourceCsvCleanupService. ...
+                    reconcilePendingDay(tc.TempRoot, tc.Day, cfg, ...
+                        localCleanupOptions()), ...
+                'BMS:CacheSourceCleanup:DuplicatePendingSource');
+
+            tc.verifyTrue(isfile(source));
+            tc.verifyTrue(isfile(staged));
+        end
+
+        function renamingStateRejectsSourceAndStagingBothMissing(tc)
+            cfg = localTemperatureConfig('guanbing');
+            folder = tc.waveFolder('feature');
+            tc.createZip(fullfile(folder, 'temperature.zip'), ...
+                {'TEMP01.csv'}, {localSeries(tc.Day, [1 2])});
+            tc.extract(cfg);
+            first = bms.data.CachePrebuildService.run( ...
+                tc.TempRoot, tc.Day, tc.Day, cfg, localCleanupOptions());
+            tc.assertEqual(first.Status, 'ok', first.Message);
+            receipt = jsondecode(fileread(tc.receiptPath()));
+            source = char(receipt.files(1).source_path);
+            staged = char(receipt.files(1).temporary_path);
+            tc.assertFalse(isfile(source));
+            tc.assertFalse(isfile(staged));
+            receipt.status = 'renaming';
+            receipt.committed_at = '';
+            receipt.deleted_count = 0;
+            receipt.deleted_bytes = 0;
+            receipt.files(1).state = 'renamed';
+            receipt.files(1).deleted_at = '';
+            bms.core.Logger.writeJson(tc.receiptPath(), receipt);
+
+            tc.verifyError(@() ...
+                bms.data.StandardVerifiedSourceCsvCleanupService. ...
+                    reconcilePendingDay(tc.TempRoot, tc.Day, cfg, ...
+                        localCleanupOptions()), ...
+                'BMS:CacheSourceCleanup:SourceDisappearedBeforeDelete');
+
+            tc.verifyFalse(isfile(source));
+            tc.verifyFalse(isfile(staged));
         end
 
         function committedReceiptRejectsChangedSourceResolutionConfig(tc)
@@ -438,4 +758,55 @@ function localSetModified(path, datenumValue)
 millis = int64(round((double(datenumValue) - 719529) * 86400000));
 ok = java.io.File(path).setLastModified(millis);
 assert(ok);
+end
+
+function authorization = localVerifyCleanupAuthorization(tc, receipt, expectedCount)
+tc.assertTrue(isfield(receipt, 'authorization_path'));
+tc.assertTrue(isfile(receipt.authorization_path));
+authorization = jsondecode(fileread(receipt.authorization_path));
+tc.verifyEqual(double(receipt.authorization_schema_version), 1);
+tc.verifyEqual(receipt.authorization_id, receipt.receipt_id);
+tc.verifyEqual(authorization.authorization_id, receipt.receipt_id);
+tc.verifyEqual(authorization.status, 'authorized');
+tc.verifyEqual(double(authorization.file_count), expectedCount);
+tc.verifyEqual(numel(authorization.files), expectedCount);
+tc.verifyEqual(authorization.authorization_hash, ...
+    receipt.authorization_hash);
+tc.verifyEqual(authorization.authorization_path, ...
+    receipt.authorization_path);
+tc.verifyEqual(authorization.lock_path, receipt.cleanup_lock_path);
+payload = rmfield(authorization, 'authorization_hash');
+tc.verifyEqual(bms.data.CacheManager.configHash(payload), ...
+    authorization.authorization_hash);
+required = {'source_path','temporary_path','source_bytes', ...
+    'source_crc32','cache_path','metadata_path','pair_id', ...
+    'mat_bytes','cache_bytes'};
+tc.verifyTrue(all(isfield(authorization.files, required)));
+crcValues = double([authorization.files.source_crc32]);
+tc.verifyTrue(all(isfinite(crcValues) & crcValues >= 0 ...
+    & crcValues <= double(intmax('uint32'))));
+end
+
+function localOverwriteTokenPreservingFingerprint(tc, path, oldToken, newToken)
+oldBytes = uint8(unicode2native(char(oldToken), 'UTF-8'));
+newBytes = uint8(unicode2native(char(newToken), 'UTF-8'));
+tc.assertEqual(numel(newBytes), numel(oldBytes));
+before = dir(path);
+beforeMillis = java.io.File(path).lastModified();
+fid = fopen(path, 'rb');
+tc.assertGreaterThanOrEqual(fid, 0);
+raw = fread(fid, Inf, '*uint8').';
+fclose(fid);
+locations = strfind(raw, oldBytes);
+tc.assertEqual(numel(locations), 1);
+fid = fopen(path, 'r+b');
+tc.assertGreaterThanOrEqual(fid, 0);
+tc.assertEqual(fseek(fid, locations(1) - 1, 'bof'), 0);
+written = fwrite(fid, newBytes, 'uint8');
+tc.assertEqual(written, numel(newBytes));
+tc.assertEqual(fclose(fid), 0);
+tc.assertTrue(java.io.File(path).setLastModified(beforeMillis));
+after = dir(path);
+tc.assertEqual(double(after.bytes), double(before.bytes));
+tc.assertEqual(java.io.File(path).lastModified(), beforeMillis);
 end

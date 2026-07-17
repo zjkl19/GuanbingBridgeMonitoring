@@ -27,6 +27,9 @@ def request_from_job_context(context: JobContext) -> ReportJobRequest:
     require_report_gate(context)
     result_root = Path(context.data_root).expanduser().resolve()
     report_type = context.report.report_type.strip()
+    source_quality_note = context.options.get("source_quality_note", "")
+    if not isinstance(source_quality_note, str):
+        raise ValueError("source_quality_note must be a string")
     return ReportJobRequest(
         report_type=report_type,
         template=Path(context.report.template_path).expanduser().resolve(),
@@ -53,6 +56,7 @@ def request_from_job_context(context: JobContext) -> ReportJobRequest:
         ),
         derived_artifact_manifest_sha256=context.report.derived_artifact_manifest_sha256,
         require_source_provenance=True,
+        source_quality_note=source_quality_note.strip(),
     )
 
 

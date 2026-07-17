@@ -2,10 +2,13 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from copy import deepcopy
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 
@@ -17,7 +20,9 @@ from docx_header_fields import (  # noqa: E402
     HONGTANG_FRONT_MATTER_PAGES,
     HONGTANG_HEADER_WIDTHS_TWIPS,
     audit_header_pagination_fields,
+    audit_section_footer_pagination_fields,
     ensure_header_pagination_fields,
+    ensure_section_footer_pagination_fields,
 )
 
 
@@ -71,7 +76,215 @@ def write_word_normalized_header_fixture(path: Path, *, east_asia_font: str = HE
         archive.writestr("word/styles.xml", styles)
 
 
+def write_footer_audit_fixture(
+    path: Path,
+    *,
+    inherited_absolute_footer: bool,
+) -> None:
+    namespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    rel_namespace = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    package_rel_namespace = "http://schemas.openxmlformats.org/package/2006/relationships"
+    if inherited_absolute_footer:
+        sections = f'''<w:p><w:pPr><w:sectPr>
+<w:footerReference w:type="default" r:id="rId1"/>
+</w:sectPr></w:pPr></w:p><w:sectPr><w:pgNumType w:start="1"/></w:sectPr>'''
+        target = "/word/footer1.xml"
+    else:
+        sections = '<w:sectPr><w:pgNumType w:start="1"/></w:sectPr>'
+        target = "footer1.xml"
+    document = f'''<w:document xmlns:w="{namespace}" xmlns:r="{rel_namespace}">
+<w:body>{sections}</w:body></w:document>'''
+    relationships = f'''<Relationships xmlns="{package_rel_namespace}">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="{target}"/>
+</Relationships>'''
+    visible_properties = (
+        f'<w:rPr><w:rFonts w:ascii="{HEADER_LATIN_FONT}" '
+        f'w:hAnsi="{HEADER_LATIN_FONT}" w:cs="{HEADER_LATIN_FONT}" '
+        f'w:eastAsia="{HEADER_CJK_FONT}"/><w:sz w:val="18"/>'
+        f'<w:szCs w:val="18"/></w:rPr>'
+    )
+    footer = f'''<w:ftr xmlns:w="{namespace}"><w:p>
+<w:r>{visible_properties}<w:t xml:space="preserve">第 </w:t></w:r>
+<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> PAGE </w:instrText></w:r>
+<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r>{visible_properties}<w:t>1</w:t></w:r>
+<w:r><w:fldChar w:fldCharType="end"/></w:r>
+<w:r>{visible_properties}<w:t xml:space="preserve"> 页 共 </w:t></w:r>
+<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> SECTIONPAGES </w:instrText></w:r>
+<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r>{visible_properties}<w:t>1</w:t></w:r>
+<w:r><w:fldChar w:fldCharType="end"/></w:r>
+<w:r>{visible_properties}<w:t xml:space="preserve"> 页</w:t></w:r>
+</w:p></w:ftr>'''
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("word/document.xml", document)
+        archive.writestr("word/_rels/document.xml.rels", relationships)
+        archive.writestr("word/footer1.xml", footer)
+
+
+def _append_complex_field(paragraph, instruction: str, result: str = "1") -> None:
+    def append_field_char(field_type: str) -> None:
+        node = OxmlElement("w:fldChar")
+        node.set(qn("w:fldCharType"), field_type)
+        paragraph.add_run()._r.append(node)
+
+    append_field_char("begin")
+    instruction_node = OxmlElement("w:instrText")
+    instruction_node.set(qn("xml:space"), "preserve")
+    instruction_node.text = f" {instruction} "
+    paragraph.add_run()._r.append(instruction_node)
+    append_field_char("separate")
+    paragraph.add_run(result)
+    append_field_char("end")
+
+
+def write_legacy_guanbing_footer_fixture(path: Path) -> None:
+    """Create the legacy static-total footer contract without a private template."""
+
+    document = Document()
+    document.add_paragraph(
+        "G104 \u7ba1\u67c4\u5927\u6865 "
+        "\u62a5\u544a\u7f16\u53f7\uff1aBG02FQJC2400001-M18"
+    )
+    section = document.sections[0]
+    page_numbering = OxmlElement("w:pgNumType")
+    page_numbering.set(qn("w:start"), "1")
+    section._sectPr.append(page_numbering)
+    paragraph = section.footer.paragraphs[0]
+    paragraph.add_run("\u7b2c ")
+    _append_complex_field(paragraph, "PAGE")
+    paragraph.add_run(" \u9875 \u5171 76 \u9875")
+    document.save(path)
+
+
 class TestDocxHeaderFields(unittest.TestCase):
+    def test_guanbing_body_footer_uses_dynamic_section_total_and_required_fonts(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            template = Path(temp_dir) / "legacy-static-pagination.docx"
+            output = Path(temp_dir) / "guanbing-pagination.docx"
+            write_legacy_guanbing_footer_fixture(template)
+            document = Document(template)
+            self.assertGreaterEqual(ensure_section_footer_pagination_fields(document), 1)
+            document.save(output)
+
+            audit = audit_section_footer_pagination_fields(output)
+
+        self.assertTrue(audit.valid, (audit.details, audit.formatting_errors))
+        self.assertEqual(audit.footer_parts, 1)
+        self.assertGreaterEqual(audit.pagination_paragraphs, 1)
+        self.assertEqual(audit.page_fields, audit.pagination_paragraphs)
+        self.assertEqual(audit.sectionpages_fields, audit.pagination_paragraphs)
+        self.assertEqual(audit.static_total_paragraphs, 0)
+        self.assertEqual(audit.formatting_errors, ())
+
+    def test_footer_audit_resolves_absolute_target_inherited_by_restart_section(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "inherited-absolute-footer.docx"
+            write_footer_audit_fixture(path, inherited_absolute_footer=True)
+
+            audit = audit_section_footer_pagination_fields(path)
+
+        self.assertTrue(audit.valid, (audit.details, audit.formatting_errors))
+        self.assertEqual(audit.footer_parts, 1)
+        self.assertTrue(any("word/footer1.xml" in item for item in audit.details))
+
+    def test_footer_audit_does_not_fall_back_to_unreferenced_valid_footer(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "unreferenced-footer.docx"
+            write_footer_audit_fixture(path, inherited_absolute_footer=False)
+
+            audit = audit_section_footer_pagination_fields(path)
+
+        self.assertFalse(audit.valid)
+        self.assertEqual(audit.footer_parts, 0)
+        self.assertTrue(
+            any("no resolvable inherited/default footer" in item for item in audit.details),
+            audit.details,
+        )
+
+    def test_ensure_repairs_visible_format_when_fields_are_already_correct(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            template = Path(temp_dir) / "legacy-static-pagination.docx"
+            output = Path(temp_dir) / "repaired-format.docx"
+            write_legacy_guanbing_footer_fixture(template)
+            document = Document(template)
+            ensure_section_footer_pagination_fields(document)
+            for section in document.sections:
+                for paragraph in section.footer._element.iter(qn("w:p")):
+                    instructions = "".join(
+                        node.text or "" for node in paragraph.iter(qn("w:instrText"))
+                    )
+                    if "PAGE" not in instructions or "SECTIONPAGES" not in instructions:
+                        continue
+                    for run in paragraph.findall(".//" + qn("w:r")):
+                        if run.find(".//" + qn("w:t")) is None:
+                            continue
+                        r_pr = run.find(qn("w:rPr"))
+                        if r_pr is not None:
+                            run.remove(r_pr)
+
+            self.assertGreaterEqual(ensure_section_footer_pagination_fields(document), 1)
+            document.save(output)
+            audit = audit_section_footer_pagination_fields(output)
+
+        self.assertTrue(audit.valid, (audit.details, audit.formatting_errors))
+        self.assertEqual(audit.formatting_errors, ())
+
+    def test_footer_audit_ignores_hidden_field_code_formatting(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            template = Path(temp_dir) / "legacy-static-pagination.docx"
+            output = Path(temp_dir) / "hidden-field-format.docx"
+            write_legacy_guanbing_footer_fixture(template)
+            document = Document(template)
+            ensure_section_footer_pagination_fields(document)
+            for section in document.sections:
+                for paragraph in section.footer._element.iter(qn("w:p")):
+                    for run in paragraph.findall(".//" + qn("w:r")):
+                        if run.find(".//" + qn("w:t")) is not None:
+                            continue
+                        if (
+                            run.find(".//" + qn("w:fldChar")) is None
+                            and run.find(".//" + qn("w:instrText")) is None
+                        ):
+                            continue
+                        r_pr = run.find(qn("w:rPr"))
+                        if r_pr is not None:
+                            run.remove(r_pr)
+            document.save(output)
+            audit = audit_section_footer_pagination_fields(output)
+
+        self.assertTrue(audit.valid, (audit.details, audit.formatting_errors))
+        self.assertEqual(audit.formatting_errors, ())
+
+    def test_footer_audit_rejects_extra_static_page_number_text(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            template = Path(temp_dir) / "legacy-static-pagination.docx"
+            output = Path(temp_dir) / "extra-static-page-number.docx"
+            write_legacy_guanbing_footer_fixture(template)
+            document = Document(template)
+            ensure_section_footer_pagination_fields(document)
+            appended = 0
+            for section in document.sections:
+                for paragraph in section.footer._element.iter(qn("w:p")):
+                    instructions = "".join(
+                        node.text or "" for node in paragraph.iter(qn("w:instrText"))
+                    )
+                    if "PAGE" not in instructions or "SECTIONPAGES" not in instructions:
+                        continue
+                    visible_run = next(
+                        run
+                        for run in paragraph.findall(".//" + qn("w:r"))
+                        if run.find(".//" + qn("w:t")) is not None
+                    )
+                    extra = deepcopy(visible_run)
+                    extra.find(".//" + qn("w:t")).text = " 99"
+                    paragraph.append(extra)
+                    appended += 1
+            self.assertGreaterEqual(appended, 1)
+            document.save(output)
+            audit = audit_section_footer_pagination_fields(output)
+
+        self.assertFalse(audit.valid)
+        self.assertGreaterEqual(audit.static_total_paragraphs, 1)
+
     def test_canonical_hongtang_template_has_current_header_and_wind_contract(self):
         repo_root = Path(__file__).resolve().parents[1]
         template = repo_root / "reports" / "洪塘大桥健康监测周期报模板-自动报告.docx"
