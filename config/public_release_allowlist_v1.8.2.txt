@@ -2,6 +2,8 @@
 # Internal task state, machine inventory and remote-operation evidence are
 # intentionally absent. The validation script requires exact set equality.
 +bms/+app/FigThresholdRequestRunner.m
++bms/+analyzer/DynamicSeriesService.m
++bms/+analyzer/WindPlotService.m
 +bms/+data/ArtifactCollector.m
 +bms/+data/ArchiveExtractService.m
 +bms/+data/CacheSourceCleanupProvider.m
@@ -17,6 +19,7 @@ docs/OPERATOR_GUIDE.md
 docs/releases/v1.8.2-dev.md
 docs/releases/v1.8.2.md
 reporting/build_guanbing_monthly_report.py
+reporting/build_zhishan_monthly_report.py
 reporting/docx_header_fields.py
 reporting/report_job.py
 reporting/report_job_cli.py
@@ -36,8 +39,10 @@ tests/test_artifact_manifest_v2.m
 tests/test_main_gui_smoke.m
 tests/create_synthetic_zhichen_fixture.m
 tests/test_simulated_data.m
+tests/test_zhishan_report_assets.py
 tests/test_standard_verified_source_csv_cleanup.m
 tests/test_verified_source_csv_cleanup.m
+tests/test_wind_analysis_pipeline.m
 tests/test_wim_report_pipeline.m
 tests/test_wim_reports.m
 tests/test_wim_sql_service.m
@@ -57,6 +62,7 @@ tests_py/test_workbench_manual_threshold.py
 tests_py/test_workbench_release_packaging.py
 tests_py/test_workbench_report_task.py
 tests_py/test_workbench_result_preview_ux.py
+tests_py/test_zhishan_report_generator.py
 ui/pick_threshold_box_from_fig.m
 ui/pick_threshold_lines_from_fig.m
 workbench/box_threshold_dialog.py

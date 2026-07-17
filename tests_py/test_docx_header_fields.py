@@ -7,6 +7,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from docx import Document
+from docx.enum.section import WD_SECTION
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
@@ -14,14 +15,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 
 from calibrate_hongtang_period_template import calibrate_template  # noqa: E402
 from docx_header_fields import (  # noqa: E402
+    BODY_END_PAGE_BOOKMARK,
     HEADER_CJK_FONT,
     HEADER_FONT_SIZE_PT,
     HEADER_LATIN_FONT,
     HONGTANG_FRONT_MATTER_PAGES,
     HONGTANG_HEADER_WIDTHS_TWIPS,
     audit_header_pagination_fields,
+    audit_multisection_body_footer_pagination_fields,
     audit_section_footer_pagination_fields,
     ensure_header_pagination_fields,
+    ensure_multisection_body_footer_pagination_fields,
     ensure_section_footer_pagination_fields,
 )
 
@@ -155,7 +159,108 @@ def write_legacy_guanbing_footer_fixture(path: Path) -> None:
     document.save(path)
 
 
+def _set_page_restart(section) -> None:
+    page_numbering = section._sectPr.find(qn("w:pgNumType"))
+    if page_numbering is None:
+        page_numbering = OxmlElement("w:pgNumType")
+        section._sectPr.append(page_numbering)
+    page_numbering.set(qn("w:start"), "1")
+
+
+def _write_page_footer(section, *, include_legacy_total: bool) -> None:
+    section.footer.is_linked_to_previous = False
+    paragraph = section.footer.paragraphs[0]
+    for child in list(paragraph._p):
+        if child.tag != qn("w:pPr"):
+            paragraph._p.remove(child)
+    paragraph.add_run("\u7b2c ")
+    _append_complex_field(paragraph, "PAGE")
+    if include_legacy_total:
+        paragraph.add_run(" \u9875 / \u5171 ")
+        _append_complex_field(paragraph, "NUMPAGES", "4")
+    paragraph.add_run(" \u9875")
+
+
+def write_multisection_footer_fixture_ending_in_table(path: Path) -> None:
+    document = Document()
+    document.add_paragraph("front matter")
+    approval = document.add_section(WD_SECTION.NEW_PAGE)
+    _set_page_restart(approval)
+    document.add_paragraph("approval")
+    body_start = document.add_section(WD_SECTION.NEW_PAGE)
+    _set_page_restart(body_start)
+    _write_page_footer(body_start, include_legacy_total=True)
+    document.add_paragraph("body text")
+    body_tail = document.add_section(WD_SECTION.NEW_PAGE)
+    inherited_restart = body_tail._sectPr.find(qn("w:pgNumType"))
+    if inherited_restart is not None:
+        body_tail._sectPr.remove(inherited_restart)
+    _write_page_footer(body_tail, include_legacy_total=False)
+    table = document.add_table(rows=1, cols=1)
+    table.cell(0, 0).text = "final body content in a table"
+    document.save(path)
+
+
 class TestDocxHeaderFields(unittest.TestCase):
+    def test_multisection_footer_uses_body_end_pageref_and_bookmark_in_final_table(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "multi-section-table-tail.docx"
+            output = Path(temp_dir) / "normalized.docx"
+            write_multisection_footer_fixture_ending_in_table(source)
+            document = Document(source)
+
+            self.assertEqual(
+                ensure_multisection_body_footer_pagination_fields(document),
+                2,
+            )
+            document.save(output)
+            audit = audit_multisection_body_footer_pagination_fields(output)
+            with zipfile.ZipFile(output) as archive:
+                root = ET.fromstring(archive.read("word/document.xml"))
+                namespace = {
+                    "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                }
+                table_bookmarks = [
+                    node
+                    for node in root.findall(".//w:tbl//w:bookmarkStart", namespace)
+                    if node.get(qn("w:name")) == BODY_END_PAGE_BOOKMARK
+                ]
+
+            self.assertTrue(audit.valid, (audit.details, audit.formatting_errors))
+            self.assertEqual(audit.body_start_section, 3)
+            self.assertEqual(audit.body_section_count, 2)
+            self.assertEqual(audit.footer_parts, 2)
+            self.assertEqual(audit.pagination_paragraphs, 2)
+            self.assertEqual(len(table_bookmarks), 1)
+
+            reloaded = Document(output)
+            self.assertEqual(
+                ensure_multisection_body_footer_pagination_fields(reloaded),
+                0,
+            )
+
+    def test_canonical_zhishan_template_normalizes_all_body_section_footers(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        template = next(
+            (repo_root / "reports").glob("*2026*3*0609_1652.docx")
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "zhishan-pagination.docx"
+            document = Document(template)
+            self.assertEqual(
+                ensure_multisection_body_footer_pagination_fields(document),
+                10,
+            )
+            document.save(output)
+            audit = audit_multisection_body_footer_pagination_fields(output)
+
+        self.assertTrue(audit.valid, (audit.details, audit.formatting_errors))
+        self.assertEqual(audit.body_start_section, 4)
+        self.assertEqual(audit.body_section_count, 5)
+        self.assertEqual(audit.footer_parts, 5)
+        self.assertEqual(audit.pagination_paragraphs, 10)
+        self.assertEqual(audit.formatting_errors, ())
+
     def test_guanbing_body_footer_uses_dynamic_section_total_and_required_fonts(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             template = Path(temp_dir) / "legacy-static-pagination.docx"

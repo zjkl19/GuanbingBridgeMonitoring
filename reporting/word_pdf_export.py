@@ -119,6 +119,17 @@ def _update_fields(document) -> None:
     _repaginate(document)
 
 
+def update_word_fields(document) -> None:
+    """Public field-refresh contract shared by builders and PDF export.
+
+    Keeping builders on the same implementation as authoritative Word export
+    prevents footer PAGE/PAGEREF values from remaining stale while body fields
+    happen to be current.
+    """
+
+    _update_fields(document)
+
+
 def export_authoritative_word_pdf(
     docx_path: Path,
     pdf_path: Path | None = None,

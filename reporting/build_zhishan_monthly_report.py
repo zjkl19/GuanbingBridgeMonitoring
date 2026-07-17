@@ -25,9 +25,14 @@ from docx_utils import (
     set_cell_text_preserve,
 )
 from image_block_utils import count_docx_images
+from docx_header_fields import (
+    audit_multisection_body_footer_pagination_fields,
+    ensure_multisection_body_footer_pagination_fields,
+)
 from report_build_manifest import write_report_build_manifest
 from report_context import ReportBuildContext
 from config_loader import load_report_config
+from word_pdf_export import update_word_fields
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1104,19 +1109,73 @@ def first_images(root: Path, directory: str, patterns: list[str]) -> list[Path]:
     return images
 
 
-def latest_nested_psd(root: Path, directory: str, point: str, date_token: str = "2026-03-10") -> Path | None:
+def _psd_period_tokens(
+    period_label: str,
+    monitoring_range: str,
+) -> tuple[str, str]:
+    """Return the preferred representative day and allowed report month.
+
+    The legacy generator hard-coded ``2026-03-10``.  For every later month it
+    silently fell back to the first image in the directory, and a result root
+    containing retained images from another month could therefore bind stale
+    media.  Keep the historical preference for day 10, but derive both tokens
+    from the requested report period and fail closed outside that month.
+    """
+
+    month_range = month_range_from_label(period_label)
+    if month_range is None:
+        parsed_range = parse_chinese_date_range(monitoring_range)
+        if parsed_range is None:
+            raise ValueError(
+                "cannot derive PSD report month from period_label or monitoring_range"
+            )
+        month_start = parsed_range[0]
+    else:
+        month_start = month_range[0]
+    month_token = month_start.strftime("%Y-%m")
+    preferred_token = month_start.replace(day=10).strftime("%Y-%m-%d")
+    return preferred_token, month_token
+
+
+def latest_nested_psd(
+    root: Path,
+    directory: str,
+    point: str,
+    *,
+    preferred_date_token: str,
+    month_token: str,
+) -> Path | None:
     folder = root / directory / point
     if not folder.exists():
         return None
-    files = sorted(folder.glob(f"*{date_token}*.jpg"))
-    if not files:
-        files = sorted(folder.glob("*.jpg"))
-    return files[0] if files else None
+    files = sorted(path for path in folder.glob("*.jpg") if path.is_file())
+    preferred = [path for path in files if preferred_date_token in path.name]
+    if preferred:
+        return preferred[0]
+    same_month = [path for path in files if month_token in path.name]
+    return same_month[0] if same_month else None
 
 
-def zhishan_image_replacements(result_root: Path) -> list[tuple[str, list[Path | None], float]]:
+def zhishan_image_replacements(
+    result_root: Path,
+    period_label: str,
+    monitoring_range: str,
+) -> list[tuple[str, list[Path | None], float]]:
     """Return report image replacements using analyzer output as the source of truth."""
-    az_psd_images = [latest_nested_psd(result_root, "PSD_备查", f"AZ-{idx}") for idx in range(1, 6)]
+    preferred_psd_date, psd_month = _psd_period_tokens(
+        period_label,
+        monitoring_range,
+    )
+    az_psd_images = [
+        latest_nested_psd(
+            result_root,
+            "PSD_备查",
+            f"AZ-{idx}",
+            preferred_date_token=preferred_psd_date,
+            month_token=psd_month,
+        )
+        for idx in range(1, 6)
+    ]
     cable_accel_images = first_images(
         result_root,
         "时程曲线_索力加速度",
@@ -1127,7 +1186,13 @@ def zhishan_image_replacements(result_root: Path) -> list[tuple[str, list[Path |
         for point in TYPICAL_CABLE_POINTS
     ]
     cable_psd_images = [
-        latest_nested_psd(result_root, "PSD_备查_索力加速度", point)
+        latest_nested_psd(
+            result_root,
+            "PSD_备查_索力加速度",
+            point,
+            preferred_date_token=preferred_psd_date,
+            month_token=psd_month,
+        )
         for point in TYPICAL_CABLE_POINTS
     ]
 
@@ -1199,9 +1264,18 @@ def replace_pictures_before_anchor(doc: DocxDocument, anchor_fragment: str, imag
     return []
 
 
-def update_images(doc: DocxDocument, result_root: Path) -> list[str]:
+def update_images(
+    doc: DocxDocument,
+    result_root: Path,
+    period_label: str,
+    monitoring_range: str,
+) -> list[str]:
     missing: list[str] = []
-    for anchor, images, width in zhishan_image_replacements(result_root):
+    for anchor, images, width in zhishan_image_replacements(
+        result_root,
+        period_label,
+        monitoring_range,
+    ):
         clean_images = [image for image in images if image is not None]
         missing.extend(replace_pictures_before_anchor(doc, anchor, clean_images, width_mm=width))
     return missing
@@ -1216,10 +1290,9 @@ def refresh_word_fields(path: Path) -> str | None:
     try:
         word = win32com.client.DispatchEx("Word.Application")
         word.Visible = False
+        word.DisplayAlerts = 0
         doc = word.Documents.Open(str(path))
-        doc.Fields.Update()
-        for table in doc.Tables:
-            table.Range.Fields.Update()
+        update_word_fields(doc)
         doc.Save()
         doc.Close(False)
         return None
@@ -1260,7 +1333,7 @@ def update_document(
     warnings.extend(update_cable_tables(doc, context))
     update_narrative(doc, context)
     update_summary_table(doc, context, source_quality_note)
-    warnings.extend(update_images(doc, result_root))
+    warnings.extend(update_images(doc, result_root, period_label, monitoring_range))
     normalize_caption_fields(doc)
     return warnings
 
@@ -1304,12 +1377,31 @@ def build_report(
         report_date,
         source_quality_note,
     )
+    pagination_changes = ensure_multisection_body_footer_pagination_fields(doc)
     doc.save(str(output_docx))
+
+    pagination_audit = audit_multisection_body_footer_pagination_fields(output_docx)
+    if not pagination_audit.valid:
+        raise RuntimeError(
+            "Zhishan body footer pagination contract failed before Word update: "
+            + "; ".join(
+                pagination_audit.details + pagination_audit.formatting_errors
+            )
+        )
 
     if update_word:
         warning = refresh_word_fields(output_docx)
         if warning:
             warnings.append(warning)
+
+    pagination_audit = audit_multisection_body_footer_pagination_fields(output_docx)
+    if not pagination_audit.valid:
+        raise RuntimeError(
+            "Zhishan body footer pagination contract failed after Word update: "
+            + "; ".join(
+                pagination_audit.details + pagination_audit.formatting_errors
+            )
+        )
 
     manifest_path = write_report_build_manifest(
         context=context,
@@ -1323,6 +1415,17 @@ def build_report(
             "report_date": report_date,
             "source_quality_note": source_quality_note,
             "output_docx_image_count": count_docx_images(output_docx),
+            "body_pagination": {
+                "contract": "PAGE + PAGEREF body-end bookmark",
+                "changed_paragraphs": pagination_changes,
+                "body_start_section": pagination_audit.body_start_section,
+                "body_section_count": pagination_audit.body_section_count,
+                "footer_parts": pagination_audit.footer_parts,
+                "pagination_paragraphs": pagination_audit.pagination_paragraphs,
+                "bookmark_start_count": pagination_audit.bookmark_start_count,
+                "bookmark_end_count": pagination_audit.bookmark_end_count,
+                "valid": pagination_audit.valid,
+            },
         },
         filename_prefix="zhishan_report_build_manifest",
     )

@@ -13,12 +13,70 @@ if str(REPORTING) not in sys.path:
 
 from build_zhishan_monthly_report import (  # noqa: E402
     RangeStats,
+    latest_nested_psd,
     lowpass_alarm_note,
+    _psd_period_tokens,
     update_data_availability,
 )
 
 
 class ZhishanReportGeneratorTests(unittest.TestCase):
+    def test_psd_media_selection_uses_report_month_and_never_stale_march(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = root / "PSD_备查" / "AZ-1"
+            folder.mkdir(parents=True)
+            for name in (
+                "PSD_AZ-1_2026-03-10.jpg",
+                "PSD_AZ-1_2026-04-01.jpg",
+                "PSD_AZ-1_2026-04-10.jpg",
+            ):
+                (folder / name).write_bytes(b"fixture")
+
+            preferred, month = _psd_period_tokens(
+                "2026年4月",
+                "2026年4月1日~2026年4月30日",
+            )
+            selected = latest_nested_psd(
+                root,
+                "PSD_备查",
+                "AZ-1",
+                preferred_date_token=preferred,
+                month_token=month,
+            )
+
+            self.assertIsNotNone(selected)
+            self.assertEqual(selected.name, "PSD_AZ-1_2026-04-10.jpg")
+
+    def test_psd_media_selection_falls_back_only_within_report_month(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = root / "PSD_备查" / "AZ-1"
+            folder.mkdir(parents=True)
+            (folder / "PSD_AZ-1_2026-03-10.jpg").write_bytes(b"stale")
+            (folder / "PSD_AZ-1_2026-04-03.jpg").write_bytes(b"current")
+
+            selected = latest_nested_psd(
+                root,
+                "PSD_备查",
+                "AZ-1",
+                preferred_date_token="2026-04-10",
+                month_token="2026-04",
+            )
+            self.assertIsNotNone(selected)
+            self.assertEqual(selected.name, "PSD_AZ-1_2026-04-03.jpg")
+
+            (folder / "PSD_AZ-1_2026-04-03.jpg").unlink()
+            self.assertIsNone(
+                latest_nested_psd(
+                    root,
+                    "PSD_备查",
+                    "AZ-1",
+                    preferred_date_token="2026-04-10",
+                    month_token="2026-04",
+                )
+            )
+
     def test_lowpass_alarm_note_uses_configured_point_bound(self) -> None:
         context = {
             "dynamic_lp_point_stats": {

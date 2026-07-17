@@ -119,7 +119,10 @@ classdef WindPlotService
             plotOpts = bms.plot.PlotService.runtimeOptionsFromConfig(cfg, 'wind', pid);
             [timesPlot, v10Plot] = prepare_plot_series(times, v10, plotOpts);
             h = plot(timesPlot, v10Plot, 'LineWidth', 1.2, 'Color', style.speed10.color);
-            provenanceOpts = struct('series_id', pid, 'raw_sampling_mode', 'full');
+            provenanceOpts = struct( ...
+                'series_id', pid, ...
+                'raw_sampling_mode', 'full', ...
+                'use_source_counts_as_plot_input', false);
             if isstruct(sourceProvenance) && ~isempty(fieldnames(sourceProvenance))
                 provenanceOpts.source_provenance = sourceProvenance;
             end

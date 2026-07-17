@@ -522,6 +522,33 @@ class ResultAndPreviewUxTests(unittest.TestCase):
             finally:
                 band.close()
 
+    def test_threshold_band_file_buttons_open_the_matching_file_types(self) -> None:
+        target = CleaningThresholdRow(
+            "per_point", "acceleration", "CURRENT-POINT", -3.0, 3.0
+        )
+        dialog = ThresholdBandDialog(
+            target,
+            accepted_preview_point_ids=("CURRENT-POINT",),
+            task_preview_enabled=True,
+        )
+        try:
+            with patch(
+                "workbench.manual_threshold_dialog.QFileDialog.getOpenFileName",
+                return_value=("", ""),
+            ) as chooser:
+                dialog.direct_fig_button.click()
+                dialog.import_preview_button.click()
+
+            self.assertEqual(chooser.call_count, 2)
+            direct_args = chooser.call_args_list[0].args
+            preview_args = chooser.call_args_list[1].args
+            self.assertIn("直接选择 MATLAB FIG", direct_args[1])
+            self.assertEqual(direct_args[3], "MATLAB 图形 (*.fig)")
+            self.assertIn("加载已有曲线预览", preview_args[1])
+            self.assertEqual(preview_args[3], "系统曲线记录 (*.json)")
+        finally:
+            dialog.close()
+
     def test_failed_current_task_reload_keeps_external_reference_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -560,7 +560,9 @@ classdef DynamicSeriesService
                     source, 'source_sample_count', inputCount);
                 sourceFinite = bms.analyzer.DynamicSeriesService.provenanceCount( ...
                     source, 'finite_source_sample_count', finiteCount);
-                if sourceInput >= sourceFinite && sourceFinite >= renderFiniteCount
+                useSourceCounts = logical(bms.analyzer.DynamicSeriesService.opt( ...
+                    opts, 'use_source_counts_as_plot_input', true));
+                if useSourceCounts && sourceInput >= sourceFinite && sourceFinite >= renderFiniteCount
                     inputCount = sourceInput;
                     finiteCount = sourceFinite;
                 end
