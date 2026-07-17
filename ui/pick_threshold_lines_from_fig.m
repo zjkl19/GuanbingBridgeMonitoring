@@ -1,4 +1,4 @@
-function rule = pick_threshold_lines_from_fig(parentFig, figPath)
+function [rule, sourceCurve] = pick_threshold_lines_from_fig(parentFig, figPath, options)
 % pick_threshold_lines_from_fig  Select one curve from a FIG and define a
 % threshold band with two draggable horizontal line segments.
 %
@@ -7,12 +7,16 @@ function rule = pick_threshold_lines_from_fig(parentFig, figPath)
 %   or [] when cancelled.
 
     rule = [];
+    sourceCurve = bms.gui.FigCurveSelector.metadata([]);
 
     if nargin < 1
         parentFig = [];
     end
     if nargin < 2
         figPath = '';
+    end
+    if nargin < 3 || isempty(options)
+        options = struct();
     end
 
     if isempty(figPath)
@@ -30,28 +34,22 @@ function rule = pick_threshold_lines_from_fig(parentFig, figPath)
             error('FIG 文件不存在: %s', figPath);
         end
 
-        figSrc = openfig(figPath, 'invisible');
-        axSel = choose_axis(figSrc);
-        if isempty(axSel)
-            close(figSrc);
+        if bms.gui.FigCurveSelector.scriptedCancel(options)
             return;
         end
-
-        [lineObj, pointId, xNum, yData] = choose_curve(figSrc, axSel);
-        if isempty(lineObj)
-            close(figSrc);
+        [curve, cancelled] = bms.gui.FigCurveSelector.selectFromFile(figPath, options);
+        if cancelled
             return;
         end
-
-        close(figSrc);
-        figSrc = [];
-
-        [xNum, yData] = sanitize_curve_data(xNum, yData);
+        sourceCurve = bms.gui.FigCurveSelector.metadata(curve);
+        pointId = curve.curve_label;
+        xNum = curve.x;
+        yData = curve.y;
         if numel(xNum) < 2
             error('所选曲线有效点不足，无法设置阈值。');
         end
 
-        pointId = ensure_point_id(pointId, parentFig);
+        pointId = ensure_point_id(pointId, parentFig, options);
         if isempty(pointId)
             return;
         end
@@ -89,8 +87,30 @@ function rule = pick_threshold_lines_from_fig(parentFig, figPath)
         syncGuard = false;
         xRange = [xMin, xMax];
 
+        scripted = bms.gui.FigCurveSelector.scriptedSelection(options);
+        if ~isempty(fieldnames(scripted))
+            lowerValue = bms.gui.FigCurveSelector.scriptedNumber( ...
+                scripted, 'lower', lowerInit);
+            upperValue = bms.gui.FigCurveSelector.scriptedNumber( ...
+                scripted, 'upper', upperInit);
+            yPair = sort([lowerValue, upperValue]);
+            startValue = bms.gui.FigCurveSelector.scriptedTime( ...
+                scripted, {'t_range_start', 'selection_start'}, xMin);
+            endValue = bms.gui.FigCurveSelector.scriptedTime( ...
+                scripted, {'t_range_end', 'selection_end'}, xMax);
+            xPair = sort([startValue, endValue]);
+            rule = struct( ...
+                'point_id', pointId, ...
+                'min', yPair(1), ...
+                'max', yPair(2), ...
+                't_range_start', bms.gui.FigCurveSelector.timeText(xPair(1)), ...
+                't_range_end', bms.gui.FigCurveSelector.timeText(xPair(2)));
+            return;
+        end
+
         dlg = uifigure( ...
             'Name', 'FIG 拖线设阈', ...
+            'Visible', 'on', ...
             'Position', [160 120 1100 700], ...
             'WindowStyle', 'modal', ...
             'CloseRequestFcn', @onCancel);
@@ -129,8 +149,8 @@ function rule = pick_threshold_lines_from_fig(parentFig, figPath)
         ax.YLim = [yMin, yMax];
         datetick(ax, 'x', 'yyyy-mm-dd HH:MM', 'keeplimits');
         ax.XTickLabelRotation = 20;
-        xlabel(ax, get_axis_label(axSel, 'x', '时间'));
-        ylabel(ax, get_axis_label(axSel, 'y', '数值'));
+        xlabel(ax, curve.x_label);
+        ylabel(ax, curve.y_label);
         title(ax, sprintf('拖动上下限线段并调整时间窗 - %s', pointId));
 
         lowerLine = drawline(ax, ...
@@ -178,7 +198,10 @@ function rule = pick_threshold_lines_from_fig(parentFig, figPath)
         if ~isempty(dlg) && isvalid(dlg)
             delete(dlg);
         end
-        if nargin > 0 && ishghandle(parentFig)
+        if isstruct(options) && isfield(options, 'throw_errors') ...
+                && ~isempty(options.throw_errors) && logical(options.throw_errors(1))
+            rethrow(ME);
+        elseif nargin > 0 && ishghandle(parentFig)
             uialert(parentFig, ME.message, '错误');
         else
             errordlg(ME.message, '错误', 'modal');
@@ -418,9 +441,16 @@ function [xNum, yData] = sanitize_curve_data(xNum, yData)
     yData = yData(idx);
 end
 
-function pointId = ensure_point_id(pointId, parentFig)
+function pointId = ensure_point_id(pointId, parentFig, options)
     if ~isempty(pointId) && ~startsWith(pointId, 'Curve')
         return;
+    end
+    if nargin > 2 && isstruct(options) && isfield(options, 'point_id') ...
+            && ~isempty(options.point_id)
+        pointId = strtrim(char(string(options.point_id)));
+        if ~isempty(pointId)
+            return;
+        end
     end
     answer = inputdlg('未识别点号，请输入 point_id', '点号确认', 1, {''});
     if isempty(answer)

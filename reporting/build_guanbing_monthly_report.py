@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import re
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
@@ -9,11 +10,18 @@ from pathlib import Path
 from typing import Iterable
 
 from docx import Document
+from docx.oxml import OxmlElement
 from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 
 from analysis_manifest import analysis_manifest_context, missing_module_summary_items
-from docx_utils import replace_picture_before_anchor
+from docx_utils import (
+    find_paragraph_contains,
+    prune_unused_document_image_relationships,
+    remove_nearby_picture_block_before,
+    replace_picture_before_anchor,
+)
+from docx_header_fields import ensure_section_footer_pagination_fields
 from excel_utils import load_sheet_rows as load_xlsx_rows
 from image_block_utils import count_docx_images, stack_images_vertical
 from report_artifact_resolver import (
@@ -47,6 +55,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--period-label", default="2026年03月")
     parser.add_argument("--monitoring-range", default="2026年02月26日~2026年03月25日")
     parser.add_argument("--report-date", default=datetime.now().strftime("%Y年%m月%d日"))
+    parser.add_argument(
+        "--report-number",
+        default=None,
+        help="One report number for cover and every section header; defaults to the first cover number.",
+    )
     parser.add_argument("--start-date", default="2026-02-26")
     parser.add_argument("--end-date", default="2026-03-25")
     parser.add_argument("--skip-image-replace", action="store_true")
@@ -189,6 +202,284 @@ def iter_all_paragraphs(doc: Document):
                 for row in table.rows:
                     for cell in row.cells:
                         yield from emit(cell.paragraphs)
+
+
+REPORT_NUMBER_PATTERN = re.compile(
+    r"报告编号\s*[:：]\s*([A-Za-z0-9]+(?:[-/][A-Za-z0-9]+)*)",
+    re.IGNORECASE,
+)
+
+
+def _replace_text_span_in_runs(
+    paragraph: Paragraph,
+    start: int,
+    end: int,
+    replacement: str,
+) -> bool:
+    """Replace one text span without flattening the paragraph's run styles."""
+    runs = paragraph.runs
+    if not runs:
+        text = paragraph.text
+        if start < 0 or end > len(text) or start >= end:
+            return False
+        paragraph.add_run(text[:start] + replacement + text[end:])
+        return True
+
+    full_text = "".join(run.text for run in runs)
+    if start < 0 or end > len(full_text) or start >= end:
+        return False
+
+    cursor = 0
+    inserted = False
+    for run in runs:
+        original = run.text
+        run_start = cursor
+        run_end = cursor + len(original)
+        cursor = run_end
+        if run_end <= start or run_start >= end:
+            continue
+
+        left = original[: max(0, start - run_start)] if start > run_start else ""
+        right = original[max(0, end - run_start) :] if end < run_end else ""
+        if not inserted:
+            run.text = left + replacement + right
+            inserted = True
+        else:
+            run.text = right
+    return inserted
+
+
+def _replace_literal_preserve_runs(paragraph: Paragraph, old: str, new: str) -> int:
+    changed = 0
+    while True:
+        full_text = "".join(run.text for run in paragraph.runs)
+        start = full_text.find(old)
+        if start < 0:
+            break
+        if not _replace_text_span_in_runs(paragraph, start, start + len(old), new):
+            break
+        changed += 1
+    return changed
+
+
+def detect_report_number(doc: Document) -> str | None:
+    """Prefer the first cover/body number, then fall back to headers/footers."""
+    for paragraph in doc.paragraphs:
+        match = REPORT_NUMBER_PATTERN.search(paragraph.text)
+        if match:
+            return match.group(1)
+    for paragraph_xml in _iter_report_number_paragraph_xml(doc):
+        match = REPORT_NUMBER_PATTERN.search(_xml_paragraph_text(paragraph_xml))
+        if match:
+            return match.group(1)
+    return None
+
+
+def _iter_report_number_part_roots(doc: Document):
+    """Yield the main document and every header/footer XML part once.
+
+    ``section.header`` only exposes the default header and therefore misses
+    first/even-page parts.  Walking package parts also reaches DrawingML/VML
+    text boxes stored in those parts.
+    """
+    yield doc.element
+    seen: set[object] = {doc.element}
+    for part in doc.part.package.parts:
+        name = str(part.partname)
+        if not re.fullmatch(r"/word/(?:header|footer)\d+\.xml", name):
+            continue
+        root = getattr(part, "element", None)
+        if root is None or root in seen:
+            continue
+        seen.add(root)
+        yield root
+
+
+def _iter_report_number_paragraph_xml(doc: Document):
+    """Yield leaf ``w:p`` nodes, including paragraphs inside text boxes."""
+    seen: set[object] = set()
+    for root in _iter_report_number_part_roots(doc):
+        for paragraph in root.xpath(".//w:p[not(.//w:p)]"):
+            if paragraph in seen:
+                continue
+            seen.add(paragraph)
+            yield paragraph
+
+
+def _xml_paragraph_text(paragraph_xml) -> str:
+    return "".join(node.text or "" for node in paragraph_xml.xpath(".//w:t"))
+
+
+def _set_xml_text(node, value: str) -> None:
+    """Set one ``w:t`` value without altering its containing run properties."""
+    node.text = value
+    xml_space = "{http://www.w3.org/XML/1998/namespace}space"
+    if value.startswith(" ") or value.endswith(" "):
+        node.set(xml_space, "preserve")
+    else:
+        node.attrib.pop(xml_space, None)
+
+
+def _replace_xml_text_span(paragraph_xml, start: int, end: int, replacement: str) -> bool:
+    """Replace a cross-run text span in place, retaining every ``w:rPr``."""
+    text_nodes = list(paragraph_xml.xpath(".//w:t"))
+    full_text = "".join(node.text or "" for node in text_nodes)
+    if start < 0 or end > len(full_text) or start >= end:
+        return False
+
+    cursor = 0
+    inserted = False
+    for node in text_nodes:
+        original = node.text or ""
+        node_start = cursor
+        node_end = cursor + len(original)
+        cursor = node_end
+        if node_end <= start or node_start >= end:
+            continue
+
+        left = original[: max(0, start - node_start)] if start > node_start else ""
+        right = original[max(0, end - node_start) :] if end < node_end else ""
+        if not inserted:
+            _set_xml_text(node, left + replacement + right)
+            inserted = True
+        else:
+            _set_xml_text(node, right)
+    return inserted
+
+
+def normalize_report_number(
+    doc: Document,
+    report_number: str | None = None,
+) -> tuple[str | None, int]:
+    """Use one explicit or cover-derived report number everywhere in the DOCX."""
+    resolved = str(report_number or "").strip() or detect_report_number(doc)
+    if not resolved:
+        raise ValueError(
+            "Report number is required: pass --report-number or provide one "
+            "'报告编号：...' value in the template."
+        )
+    if not re.fullmatch(r"[A-Za-z0-9]+(?:[-/][A-Za-z0-9]+)*", resolved):
+        raise ValueError(f"Invalid report number: {resolved!r}")
+
+    changed = 0
+    for paragraph_xml in _iter_report_number_paragraph_xml(doc):
+        full_text = _xml_paragraph_text(paragraph_xml)
+        matches = list(REPORT_NUMBER_PATTERN.finditer(full_text))
+        for match in reversed(matches):
+            if match.group(1) == resolved:
+                continue
+            if not _replace_xml_text_span(
+                paragraph_xml,
+                match.start(1),
+                match.end(1),
+                resolved,
+            ):
+                continue
+            changed += 1
+    return resolved, changed
+
+
+def is_sample_monitoring_period(
+    period_label: str,
+    monitoring_range: str,
+    start_date: str | None,
+    end_date: str | None,
+) -> bool:
+    """Treat an explicitly labelled or at-most-seven-day range as a sample."""
+    if "样本" in f"{period_label} {monitoring_range}":
+        return True
+    if not start_date or not end_date:
+        return False
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        return False
+    return 0 <= (end - start).days <= 6
+
+
+def normalize_sample_period_wording(doc: Document) -> int:
+    """Avoid calling a short sample a whole month while retaining engineering text."""
+    replacements = (
+        ("本月月度监测周期内", "本监测期内"),
+        ("本月监测周期内", "本监测期内"),
+        ("本月系统", "本期系统"),
+        ("本月每日", "本期每日"),
+        ("本月", "本监测期"),
+    )
+    changed = 0
+    for paragraph in iter_all_paragraphs(doc):
+        for old, new in replacements:
+            changed += _replace_literal_preserve_runs(paragraph, old, new)
+    return changed
+
+
+def _text_paragraph_element(text: str):
+    paragraph = OxmlElement("w:p")
+    run = OxmlElement("w:r")
+    text_node = OxmlElement("w:t")
+    text_node.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+    text_node.text = text
+    run.append(text_node)
+    paragraph.append(run)
+    return paragraph
+
+
+def replace_legacy_operation_calendar(doc: Document) -> int:
+    """Remove the fixed February/March calendar and its colour legend."""
+    matched = []
+    weekdays = {"一", "二", "三", "四", "五", "六", "日"}
+    for table in list(doc.tables):
+        values = [
+            cell.text.strip()
+            for row in table.rows
+            for cell in row.cells
+            if cell.text.strip()
+        ]
+        text = "\n".join(values)
+        date_cells = sum(bool(re.fullmatch(r"\d{1,2}月\d{1,2}日", value)) for value in values)
+        is_calendar = weekdays.issubset(set(values)) and date_cells >= 7
+        is_legend = (
+            "监测系统运行正常" in text
+            and "监测系统运行故障" in text
+        )
+        if is_calendar or is_legend:
+            matched.append(table)
+
+    for index, table in enumerate(matched):
+        element = table._element
+        parent = element.getparent()
+        if parent is None:
+            continue
+        if index == 0:
+            parent.replace(
+                element,
+                _text_paragraph_element(
+                    "本期未提供与当前监测范围对应的独立系统运行日历记录。"
+                    "系统运行状态以实际运维记录为准；本报告不根据监测数据缺口推断系统故障。"
+                ),
+            )
+        else:
+            parent.remove(element)
+    return len(matched)
+
+
+def neutralize_historical_picture_block(
+    doc: Document,
+    anchor_fragment: str,
+    note: str,
+) -> int:
+    """Remove a stale screenshot block but keep its numbered caption sequence."""
+    anchor = find_paragraph_contains(doc, anchor_fragment)
+    if anchor is None:
+        return 0
+    removed = remove_nearby_picture_block_before(anchor, limit=120)
+    if not removed:
+        return 0
+    anchor.insert_paragraph_before(note)
+    if "本期未提供对应记录" not in anchor.text:
+        anchor.add_run("（本期未提供对应记录）")
+    return removed
 
 
 def normalize_acceleration_units(doc: Document) -> int:
@@ -435,12 +726,112 @@ def build_stats_texts(result_root: Path, period_label: str) -> dict[str, str]:
     return texts
 
 
-def apply_text_updates(doc: Document, texts: dict[str, str], monitoring_range: str, report_date: str) -> list[str]:
+def resolve_monitoring_range(
+    monitoring_range: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> str:
+    """Return a user-facing range without falling back to the template period."""
+    requested_range = str(monitoring_range or "").strip()
+    if requested_range:
+        return requested_range
+
+    def format_date(value: str | None) -> str:
+        if not value:
+            return ""
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").strftime("%Y年%m月%d日")
+        except ValueError:
+            return str(value).strip()
+
+    start_text = format_date(start_date)
+    end_text = format_date(end_date)
+    if start_text and end_text:
+        return f"{start_text}~{end_text}"
+    if start_text or end_text:
+        return start_text or end_text
+    return "当前任务指定监测范围"
+
+
+def apply_text_updates(
+    doc: Document,
+    texts: dict[str, str],
+    monitoring_range: str,
+    report_date: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    sample_period: bool = False,
+) -> list[str]:
+    monitoring_range = resolve_monitoring_range(monitoring_range, start_date, end_date)
     updated: list[str] = []
     if replace_all_by_prefix(doc, "（时间范围：", f"（时间范围：{monitoring_range}）", limit=30):
         updated.append("cover monitoring range")
     if replace_all_by_prefix(doc, "报告日期：", f"报告日期：{report_date}", limit=30):
         updated.append("cover report date")
+
+    # The source template contains March-specific operation and maintenance
+    # statements.  Those statements are not monitoring statistics and cannot
+    # be inferred from gaps in sensor data.  Always replace them with
+    # task-scoped, evidence-neutral wording so a report for another month (or a
+    # partial sample) never inherits a fixed March outage assertion.
+    period_replacements = [
+        (
+            "G104线管柄大桥健康监测系统于2024年9月26日交工验收后进入运维服务期",
+            "G104线管柄大桥健康监测系统于2024年9月26日交工验收后进入运维服务期。"
+            f"本期报告监测范围为{monitoring_range}。本报告仅依据该范围内实际获取的监测数据进行统计分析；"
+            "系统运行状态及数据覆盖情况以实际运维记录、分析结果清单和本报告图表为准。",
+            "system operation scope",
+        ),
+        (
+            "软件线上检查维护：",
+            "软件线上检查维护：本期软件运行和维护情况以实际运维记录为准；"
+            f"本报告仅依据{monitoring_range}范围内实际获取的监测数据进行统计分析，"
+            "不根据数据缺口推断系统故障或维护情况。",
+            "software maintenance scope",
+        ),
+        (
+            "（1）本月月度监测周期内，",
+            f"（1）本期报告监测范围为{monitoring_range}。"
+            "系统运行、维护及数据覆盖情况以实际运维记录、分析结果清单和本报告图表为准；"
+            "本报告不根据数据缺口推断系统故障。",
+            "conclusion operation scope",
+        ),
+        (
+            "预警信息处理：",
+            "预警信息处理：本期未提供与当前监测范围对应的独立预警处置记录。"
+            "本报告不沿用模板中的历史报警数量、日期或原因；"
+            "预警情况以实际平台记录和经核验的处置资料为准。",
+            "warning handling scope",
+        ),
+        (
+            "现场硬件维护：",
+            "现场硬件维护：本期未提供与当前监测范围对应的独立现场维护记录。"
+            "现场维护情况以实际运维记录为准，本报告不沿用模板中的历史维护日期或事件。",
+            "hardware maintenance scope",
+        ),
+    ]
+    for prefix, replacement, label in period_replacements:
+        if replace_first_by_prefix(doc, prefix, replacement):
+            updated.append(label)
+
+    calendar_table_count = replace_legacy_operation_calendar(doc)
+    if calendar_table_count:
+        updated.append(f"operation calendar tables ({calendar_table_count})")
+
+    maintenance_picture_count = neutralize_historical_picture_block(
+        doc,
+        "图 2 系统维护情况",
+        "本期未提供与当前监测范围对应的系统维护截图，模板中的历史截图已移除。",
+    )
+    if maintenance_picture_count:
+        updated.append(f"maintenance screenshots ({maintenance_picture_count})")
+    warning_picture_count = neutralize_historical_picture_block(
+        doc,
+        "图 3 部分预警信息处理情况",
+        "本期未提供与当前监测范围对应的预警处置截图，模板中的历史截图已移除。",
+    )
+    if warning_picture_count:
+        updated.append(f"warning screenshots ({warning_picture_count})")
 
     replacements = [
         ("（1）本月监测周期内，环境最高温度", texts.get("temp_env")),
@@ -470,6 +861,10 @@ def apply_text_updates(doc: Document, texts: dict[str, str], monitoring_range: s
     for prefix, text in replacements:
         if text and replace_first_by_prefix(doc, prefix, text):
             updated.append(prefix)
+    if sample_period:
+        sample_wording_count = normalize_sample_period_wording(doc)
+        if sample_wording_count:
+            updated.append(f"sample-period wording ({sample_wording_count})")
     return updated
 
 
@@ -536,12 +931,12 @@ def build_report(
     period_label: str = "2026年03月",
     monitoring_range: str = "2026年02月26日~2026年03月25日",
     report_date: str | None = None,
+    report_number: str | None = None,
     start_date: str = "2026-02-26",
     end_date: str = "2026-03-25",
     refresh_template: bool = False,
     skip_image_replace: bool = False,
 ) -> tuple[Path, Path]:
-    del start_date, end_date  # Reserved for GUI/CLI compatibility and future config-driven generation.
     report_date = report_date or datetime.now().strftime("%Y年%m月%d日")
     template = ensure_template(source_template, template, refresh=refresh_template)
     ctx = ReportBuildContext.from_inputs(
@@ -555,12 +950,32 @@ def build_report(
     doc = Document(str(template))
     image_count_before = count_docx_images(template)
     stats_texts = build_stats_texts(result_root, period_label)
-    updated_paragraphs = apply_text_updates(doc, stats_texts, monitoring_range, report_date)
+    sample_period = is_sample_monitoring_period(
+        period_label,
+        monitoring_range,
+        start_date,
+        end_date,
+    )
+    updated_paragraphs = apply_text_updates(
+        doc,
+        stats_texts,
+        monitoring_range,
+        report_date,
+        start_date=start_date,
+        end_date=end_date,
+        sample_period=sample_period,
+    )
     replaced_images: list[dict] = []
     missing_images: list[str] = []
     if not skip_image_replace:
         replaced_images, missing_images = apply_image_updates(doc, result_root, ctx.assets_dir)
+    removed_unused_image_relationships = prune_unused_document_image_relationships(doc)
+    resolved_report_number, normalized_report_number_count = normalize_report_number(
+        doc,
+        report_number,
+    )
     normalized_unit_count = normalize_acceleration_units(doc)
+    normalized_footer_pagination_count = ensure_section_footer_pagination_fields(doc)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = ctx.output_dir / f"G104线管柄大桥监测月报_{period_label}_自动生成_{timestamp}.docx"
@@ -575,12 +990,19 @@ def build_report(
         "period_label": period_label,
         "monitoring_range": monitoring_range,
         "report_date": report_date,
+        "report_number": resolved_report_number,
+        "start_date": start_date,
+        "end_date": end_date,
+        "sample_period_wording": sample_period,
         "updated_paragraph_count": len(updated_paragraphs),
         "updated_paragraphs": updated_paragraphs,
         "replaced_image_count": len(replaced_images),
         "replaced_images": replaced_images,
         "missing_images": missing_images,
+        "removed_unused_image_relationship_count": len(removed_unused_image_relationships),
+        "normalized_report_number_count": normalized_report_number_count,
         "normalized_acceleration_unit_count": normalized_unit_count,
+        "normalized_footer_pagination_count": normalized_footer_pagination_count,
         "analysis_run_manifest": analysis_manifest_context(result_root),
         "image_count_before": image_count_before,
         "image_count_after": count_docx_images(output_path),
@@ -614,6 +1036,8 @@ def build_report(
         extra={
             "updated_paragraph_count": len(updated_paragraphs),
             "replaced_image_count": len(replaced_images),
+            "report_number": resolved_report_number,
+            "normalized_report_number_count": normalized_report_number_count,
             **qc_paths,
         },
         filename_prefix="G104线管柄大桥监测月报_manifest",
@@ -632,6 +1056,7 @@ def main() -> None:
         period_label=args.period_label,
         monitoring_range=args.monitoring_range,
         report_date=args.report_date,
+        report_number=args.report_number,
         start_date=args.start_date,
         end_date=args.end_date,
         refresh_template=args.refresh_template,

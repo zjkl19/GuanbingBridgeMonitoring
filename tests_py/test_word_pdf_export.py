@@ -14,10 +14,67 @@ REPORTING = ROOT / "reporting"
 if str(REPORTING) not in sys.path:
     sys.path.insert(0, str(REPORTING))
 
-from word_pdf_export import export_authoritative_word_pdf  # noqa: E402
+from word_pdf_export import _update_fields, export_authoritative_word_pdf  # noqa: E402
 
 
 class WordPdfExportTests(unittest.TestCase):
+    def test_field_refresh_updates_header_footer_text_box_fields(self) -> None:
+        events: list[str] = []
+        shape_fields = types.SimpleNamespace(
+            Update=Mock(side_effect=lambda: events.append("shape"))
+        )
+        shape = types.SimpleNamespace(
+            TextFrame=types.SimpleNamespace(
+                HasText=True,
+                TextRange=types.SimpleNamespace(Fields=shape_fields),
+            )
+        )
+        shapes = types.SimpleNamespace(Count=1, Item=Mock(return_value=shape))
+        story = types.SimpleNamespace(
+            Exists=True,
+            Range=types.SimpleNamespace(
+                Fields=types.SimpleNamespace(
+                    Update=Mock(side_effect=lambda: events.append("range"))
+                )
+            ),
+            Shapes=shapes,
+        )
+        toc = types.SimpleNamespace(
+            Update=Mock(side_effect=lambda: events.append("toc"))
+        )
+        document = types.SimpleNamespace(
+            Repaginate=Mock(side_effect=lambda: events.append("repaginate")),
+            Sections=[types.SimpleNamespace(Headers=[story], Footers=[story])],
+            StoryRanges=[],
+            TablesOfContents=[toc],
+            TablesOfFigures=[],
+            TablesOfAuthorities=[],
+            Fields=types.SimpleNamespace(
+                Update=Mock(side_effect=lambda: events.append("document"))
+            ),
+        )
+
+        _update_fields(document)
+
+        self.assertEqual(document.Repaginate.call_count, 3)
+        self.assertEqual(shape_fields.Update.call_count, 4)
+        toc_index = events.index("toc")
+        self.assertEqual(
+            events[toc_index + 1 :],
+            [
+                "repaginate",
+                "range",
+                "shape",
+                "range",
+                "shape",
+                "repaginate",
+            ],
+        )
+        last_header_footer_update = max(
+            index for index, event in enumerate(events) if event in {"range", "shape"}
+        )
+        self.assertNotIn("document", events[last_header_footer_update + 1 :])
+
     def test_environment_switch_skips_word_without_touching_com(self) -> None:
         with tempfile.TemporaryDirectory() as folder, patch.dict(
             os.environ, {"BMS_NO_WORD": "1"}

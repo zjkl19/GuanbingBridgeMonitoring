@@ -15,11 +15,6 @@ function manifestPath = run_request_cli(requestPath)
     addpath(fullfile(projectRoot, 'analysis'), '-begin');
     addpath(fullfile(projectRoot, 'scripts'), '-begin');
 
-    % Compiled runners and MATLAB -batch jobs must not create desktop
-    % windows. In a normal interactive MATLAB session this guard preserves
-    % the user's existing figure visibility preference.
-    plotVisibilityGuard = bms.plot.PlotVisibilityPolicy.enterForCurrentProcess(); %#ok<NASGU>
-
     requestType = 'analysis';
     try
         raw = bms.io.JsonFile.read(requestPath);
@@ -29,8 +24,23 @@ function manifestPath = run_request_cli(requestPath)
     catch
         % Analysis requests retain the legacy reader/error behavior below.
     end
+    if strcmp(requestType, 'fig_threshold_interaction')
+        % This request is the one intentional interactive exception to the
+        % background-runner visibility rule. The PySide6 workbench already
+        % selected the trusted FIG; the deployed MATLAB Runtime must show the
+        % original drag/box UI and then restore the process default.
+        originalFigureVisible = char(string(get(groot, 'DefaultFigureVisible')));
+        set(groot, 'DefaultFigureVisible', 'on');
+        plotVisibilityGuard = onCleanup( ...
+            @() set(groot, 'DefaultFigureVisible', originalFigureVisible)); %#ok<NASGU>
+    else
+        % Compiled analysis runners and MATLAB -batch jobs remain hidden.
+        plotVisibilityGuard = bms.plot.PlotVisibilityPolicy.enterForCurrentProcess(); %#ok<NASGU>
+    end
     if strcmp(requestType, 'auto_threshold_proposal')
         manifestPath = bms.app.AutoThresholdRequestRunner.runFile(requestPath);
+    elseif strcmp(requestType, 'fig_threshold_interaction')
+        manifestPath = bms.app.FigThresholdRequestRunner.runFile(requestPath);
     else
         manifestPath = bms.app.RunRequestRunner.runFile(requestPath);
     end

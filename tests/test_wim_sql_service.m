@@ -2,6 +2,7 @@ classdef test_wim_sql_service < matlab.unittest.TestCase
     properties
         TempDir
         ProjectRoot
+        SampleDir
     end
 
     methods (TestMethodSetup)
@@ -10,6 +11,8 @@ classdef test_wim_sql_service < matlab.unittest.TestCase
             mkdir(tc.TempDir);
             tc.ProjectRoot = fileparts(fileparts(mfilename('fullpath')));
             addpath(tc.ProjectRoot);
+            tc.SampleDir = fullfile(tc.TempDir, 'synthetic_zhichen');
+            create_synthetic_zhichen_fixture(tc.SampleDir);
         end
     end
 
@@ -55,7 +58,7 @@ classdef test_wim_sql_service < matlab.unittest.TestCase
         end
 
         function createsTableSqlFromNativeFmt(tc)
-            fmtPath = fullfile(tc.ProjectRoot, 'data', '_samples', 'wim', 'zhichen', '202512', 'HS_Data_202512_sample_300.fmt');
+            fmtPath = fullfile(tc.SampleDir, 'HS_Data_202512_synthetic.fmt');
 
             sql = bms.analyzer.WimSqlService.createTableSqlFromFmt('HighSpeed_PROC.dbo.HS_Data_202512', fmtPath);
 

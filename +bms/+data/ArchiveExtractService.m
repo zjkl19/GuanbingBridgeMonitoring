@@ -97,17 +97,17 @@ classdef ArchiveExtractService
                         '无法创建解压输出目录 %s：%s', options.output_root, msg);
                 end
             end
-            % Coordinate with cache publication and verified source cleanup,
-            % not only with other extraction runs.  Acquire in stable day
-            % order; the lock is re-entrant when a streaming daily session
-            % already owns it in this MATLAB process.
-            dailyTargets = targets(strcmp({targets.layout}, 'daily_export'));
-            dailyDays = sort(unique(cellstr(string({dailyTargets.day}))));
-            dayMutationCleanups = cell(1, numel(dailyDays)); %#ok<NASGU>
-            for dayIndex = 1:numel(dailyDays)
+            % Coordinate every archive-backed layout with cache publication
+            % and verified source cleanup, not only daily_export. Standard
+            % dated/hongtang extraction writes the same natural-day trees that
+            % its authorization later freezes. Acquire in stable day order;
+            % the lease is re-entrant for an outer streaming daily session.
+            mutationDays = sort(unique(cellstr(string({targets.day}))));
+            dayMutationCleanups = cell(1, numel(mutationDays)); %#ok<NASGU>
+            for dayIndex = 1:numel(mutationDays)
                 dayMutationCleanups{dayIndex} = ...
                     bms.data.DailyExportMutationLock.acquire( ...
-                    options.output_root, dailyDays{dayIndex});
+                    options.output_root, mutationDays{dayIndex});
             end
             % Always acquire locks in day -> archive-root order.  A streaming
             % cleanup already owns one day lease and re-enters it here; using
@@ -419,12 +419,15 @@ classdef ArchiveExtractService
             end
             target = targets(1);
             index = bms.data.ArchiveExtractService.readArchiveIndex(target.zip);
+            % The selected cleanup sources receive their own exact CRC check
+            % below.  Re-reading every published output here would duplicate
+            % that source pass without strengthening the selected-file proof.
             [reusable, ~] = bms.data.ArchiveExtractService.isReusableTarget( ...
-                target, index, true);
+                target, index, false);
             if ~reusable
                 error('BMS:ArchiveExtract:RecoveryVerificationFailed', ...
-                    ['The recovery ZIP, extraction manifest and published files no longer ' ...
-                     'form a fully verified set: %s'], target.out_dir);
+                    ['The recovery ZIP, extraction manifest and published path/size/mtime ' ...
+                     'set no longer close: %s'], target.out_dir);
             end
             expected = cellstr(string({index.entries.path}));
             entries = repmat(struct('path', '', 'relative_path', '', ...
@@ -484,8 +487,8 @@ classdef ArchiveExtractService
             %   output directory. Directory ownership alone is therefore not
             %   recovery evidence. This method matches the exact relative
             %   entry path, byte count and CRC, requires one and only one
-            %   verified archive, then streams every selected ZIP entry before
-            %   returning a destructive-cleanup proof.
+            %   manifest-closed archive candidate, then streams every selected
+            %   ZIP entry before returning a destructive-cleanup proof.
             if nargin < 4 || isempty(sourceFiles)
                 error('BMS:ArchiveExtract:RecoveryFilesMissing', ...
                     'At least one extracted source file is required.');
@@ -505,8 +508,11 @@ classdef ArchiveExtractService
                 try
                     archiveIndex = bms.data.ArchiveExtractService. ...
                         readArchiveIndex(targets(targetIndex).zip);
+                    % Selected sources are CRC-bound exactly once by
+                    % matchUniqueRecoverySource.  The target-level gate only
+                    % needs the extraction manifest's path/size/mtime proof.
                     [reusable, ~] = bms.data.ArchiveExtractService. ...
-                        isReusableTarget(targets(targetIndex), archiveIndex, true);
+                        isReusableTarget(targets(targetIndex), archiveIndex, false);
                     if reusable
                         targetIndexes{targetIndex} = archiveIndex;
                         targetValid(targetIndex) = true;
@@ -621,7 +627,7 @@ classdef ArchiveExtractService
             end
             if isempty(candidates)
                 error('BMS:ArchiveExtract:RecoverySourceUnproven', ...
-                    ['Configured CSV does not match any fully verified ZIP ' ...
+                    ['Configured CSV does not match any manifest-closed ZIP ' ...
                      'entry by path, size and CRC: %s'], source);
             end
             if numel(candidates) ~= 1

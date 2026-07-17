@@ -725,6 +725,7 @@ class CleaningThresholdEditorWidget(QWidget):
     add_point_text = "新增测点数值清洗规则"
     supports_exclude_ranges = True
     supports_curve_threshold_tools = True
+    supports_task_curve_preview = True
     threshold_band_dialog_class = ThresholdBandDialog
     box_threshold_dialog_class = BoxThresholdDialog
 
@@ -733,10 +734,12 @@ class CleaningThresholdEditorWidget(QWidget):
         parent: QWidget | None = None,
         *,
         preview_context_provider: Callable[[], Mapping[str, object]] | None = None,
+        project_root: Path | None = None,
     ) -> None:
         super().__init__(parent)
         self.session: CleaningConfigEditorSession | None = None
         self.preview_context_provider = preview_context_provider
+        self.project_root = project_root.resolve() if project_root is not None else None
         self._manual_threshold_undo: (
             tuple[
                 list[CleaningThresholdRow],
@@ -852,15 +855,22 @@ class CleaningThresholdEditorWidget(QWidget):
             self.manual_threshold_group = QGroupBox("从曲线设置清洗阈值（测点专用）")
             self.manual_threshold_group.setObjectName("manualThresholdGroup")
             single_side_layout = QVBoxLayout(self.manual_threshold_group)
+            source_help = (
+                "<br><b>正常操作无需选择任何文件：</b>系统会自动匹配当前桥梁、数据目录、日期、"
+                "配置版本和测点的曲线。若尚无曲线，请先到“自动清洗建议”页生成一次预览。"
+                "也可直接选择任意可信 MATLAB FIG，或显式导入其他任务/项目的系统曲线作为数值参考；"
+                "外部参考不会冒充当前任务校验通过。"
+                if self.supports_task_curve_preview
+                else "<br><b>本页仅开放任意可信 MATLAB FIG：</b>滤波前的任务预览不等于滤波后数据，"
+                "因此不会在此自动加载。请选择与目标滤波结果口径一致的 FIG 作为数值参考。"
+            )
             self.manual_threshold_entry_label = QLabel(
                 "<b>先在上表选择一条“测点专用”规则。</b> “拖线设置上下限”沿用旧 MATLAB GUI："
                 "在同一曲线上同时调整下限、上限和共同时间窗。框选是两个独立动作："
                 "<b>下侧框选取框中实际样本的最高值作为下限</b>（删除更低值）；"
                 "<b>上侧框选取框中实际样本的最低值作为上限</b>（删除更高值）。"
-                "框选边界值本身保留；确认前只显示候选值和预计删除数，不修改表格、不写配置。"
-                "<br><b>正常操作无需选择任何文件：</b>系统会自动匹配当前桥梁、数据目录、日期、"
-                "配置版本和测点的曲线。若尚无曲线，请先到“自动清洗建议”页生成一次预览。"
-                "也可显式导入其他任务/项目的系统曲线作为数值参考；该模式不会冒充当前任务校验通过。"
+                "框选边界值本身保留；确认前只显示候选值，不修改表格、不写配置。"
+                + source_help
             )
             self.manual_threshold_entry_label.setObjectName("manualThresholdEntryHelp")
             self.manual_threshold_entry_label.setWordWrap(True)
@@ -1166,7 +1176,7 @@ class CleaningThresholdEditorWidget(QWidget):
         dialog = None
         try:
             selected_index, current_rows, target, aliases = self._manual_threshold_target()
-            context = self._preview_context()
+            context = self._preview_context() if self.supports_task_curve_preview else {}
             dialog = self.threshold_band_dialog_class(
                 target,
                 accepted_preview_point_ids=aliases,
@@ -1175,9 +1185,13 @@ class CleaningThresholdEditorWidget(QWidget):
                 expected_data_root=context.get("data_root", ""),
                 expected_start_date=context.get("start_date", ""),
                 expected_end_date=context.get("end_date", ""),
-                automatic_preview_resolver=self._automatic_preview_resolver(
-                    target, aliases, context
+                automatic_preview_resolver=(
+                    self._automatic_preview_resolver(target, aliases, context)
+                    if self.supports_task_curve_preview
+                    else None
                 ),
+                task_preview_enabled=self.supports_task_curve_preview,
+                project_root=self.project_root,
                 parent=self,
             )
             if dialog.exec() != QDialog.Accepted:
@@ -1213,7 +1227,7 @@ class CleaningThresholdEditorWidget(QWidget):
         dialog = None
         try:
             selected_index, current_rows, target, aliases = self._manual_threshold_target()
-            context = self._preview_context()
+            context = self._preview_context() if self.supports_task_curve_preview else {}
             dialog = self.box_threshold_dialog_class(
                 target,
                 side=side,
@@ -1223,9 +1237,13 @@ class CleaningThresholdEditorWidget(QWidget):
                 expected_data_root=context.get("data_root", ""),
                 expected_start_date=context.get("start_date", ""),
                 expected_end_date=context.get("end_date", ""),
-                automatic_preview_resolver=self._automatic_preview_resolver(
-                    target, aliases, context
+                automatic_preview_resolver=(
+                    self._automatic_preview_resolver(target, aliases, context)
+                    if self.supports_task_curve_preview
+                    else None
                 ),
+                task_preview_enabled=self.supports_task_curve_preview,
+                project_root=self.project_root,
                 parent=self,
             )
             if dialog.exec() != QDialog.Accepted:
@@ -1501,12 +1519,20 @@ class PostFilterThresholdEditorWidget(CleaningThresholdEditorWidget):
     add_default_text = "新增默认滤波后规则"
     add_point_text = "新增测点滤波后规则"
     supports_exclude_ranges = False
-    # Automatic-cleaning previews are pre-filter data.  Do not expose curve
-    # tools here until a filter-chain-pinned post-filter preview exists.
-    supports_curve_threshold_tools = False
+    # Automatic-cleaning previews are pre-filter data, so this editor exposes
+    # only the explicit external-FIG path.  This retains the legacy MATLAB
+    # numeric-input tool without pretending that a pre-filter preview is the
+    # target post-filter signal.
+    supports_curve_threshold_tools = True
+    supports_task_curve_preview = False
 
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        project_root: Path | None = None,
+    ) -> None:
+        super().__init__(parent, project_root=project_root)
         self.title_label.setText("滤波后二次清洗配置")
         self.hint_label.setText(
             "编辑模块默认或测点专用的滤波后二次清洗规则；这些规则仅在滤波完成后按顺序执行。"

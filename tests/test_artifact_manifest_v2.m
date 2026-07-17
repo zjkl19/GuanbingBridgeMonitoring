@@ -28,6 +28,47 @@ classdef test_artifact_manifest_v2 < matlab.unittest.TestCase
             tc.verifyEqual(artifacts{statsIdx}.role, 'stats');
         end
 
+        function collectorFindsConfiguredBearingRawAndFilteredFigures(tc)
+            root = tempname;
+            mkdir(root);
+            cleanup = onCleanup(@() rmdir(root, 's'));
+
+            cfg = struct();
+            cfg.plot_styles.bearing_displacement = struct( ...
+                'output_dir', '时程曲线_梁端纵向位移', ...
+                'group_output_dir', '时程曲线_梁端纵向位移_组图');
+            spec = bms.analyzer.StructuralFilteredSeriesPipeline.spec('bearing_displacement');
+            style = cfg.plot_styles.bearing_displacement;
+            expectedDirs = { ...
+                bms.analyzer.StructuralFilteredSeriesPipeline.bearingSingleOutputDir(style, spec, 'raw'), ...
+                bms.analyzer.StructuralFilteredSeriesPipeline.bearingSingleOutputDir(style, spec, 'filtered'), ...
+                bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(style, spec, 'raw'), ...
+                bms.analyzer.StructuralFilteredSeriesPipeline.bearingGroupOutputDir(style, spec, 'filtered')};
+
+            expectedPaths = strings(1, numel(expectedDirs));
+            for i = 1:numel(expectedDirs)
+                outDir = fullfile(root, expectedDirs{i});
+                mkdir(outDir);
+                expectedPaths(i) = string(fullfile(outDir, sprintf('Bearing_%d.jpg', i)));
+                writeBytes(char(expectedPaths(i)), uint8([i, i + 1]));
+            end
+            statsPath = fullfile(root, 'stats', 'bearing_displacement_stats.xlsx');
+            mkdir(fileparts(statsPath));
+            writetable(table("DX-1", 1, 'VariableNames', {'PointID','Value'}), statsPath);
+
+            outputDirs = string(bms.data.ArtifactCollector.moduleOutputDirs( ...
+                root, 'bearing_displacement', cfg));
+            tc.verifyEqual(sort(outputDirs), sort(string(fullfile(root, expectedDirs))));
+
+            artifacts = bms.data.ArtifactCollector.collectModule( ...
+                root, 'bearing_displacement', statsPath, datetime('now') - minutes(1), cfg);
+            paths = cellfun(@(s) string(s.path), artifacts, 'UniformOutput', true);
+            tc.verifyEqual(numel(artifacts), 5);
+            tc.verifyTrue(all(ismember(expectedPaths, paths)));
+            tc.verifyTrue(any(paths == string(statsPath)));
+            clear cleanup;
+        end
+
         function manifestBuildsCurrentArtifactSummary(tc)
             ctx = bms.core.AnalysisContext(tempdir, '2026-01-01', '2026-01-02', struct(), struct());
             artifact = struct('kind', 'stats', 'path', 'D:/x/stats.xlsx', 'exists', true, 'bytes', 1, 'modified_at', '2026-01-01 00:00:00');

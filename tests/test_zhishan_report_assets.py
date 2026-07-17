@@ -37,7 +37,14 @@ def test_zhishan_report_uses_program_output_images(tmp_path):
     _touch(root / "report_assets_review" / "Cable_PSD_contact_20260609.jpg")
     _touch(root / "索力时程图_组图" / "CableForce_CF-1-CF-2-CF-3-CF-4.jpg")
 
-    replacements = {anchor: [path for path in images if path is not None] for anchor, images, _ in zhishan_image_replacements(root)}
+    replacements = {
+        anchor: [path for path in images if path is not None]
+        for anchor, images, _ in zhishan_image_replacements(
+            root,
+            "2026年3月",
+            "2026年3月1日~2026年3月31日",
+        )
+    }
 
     assert len(replacements["图 2-8"]) == 5
     assert all(path.parent.parent.name == "PSD_备查" for path in replacements["图 2-8"])

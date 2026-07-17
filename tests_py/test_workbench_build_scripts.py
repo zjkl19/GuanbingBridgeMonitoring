@@ -22,6 +22,9 @@ FAILURE_EXIT_SCRIPT = REPO_ROOT / "scripts" / "validate_analysis_runner_failure_
 CLEANUP_POLICY_SCRIPT = (
     REPO_ROOT / "scripts" / "validate_analysis_runner_cache_cleanup_policy.py"
 )
+FIG_THRESHOLD_SCRIPT = (
+    REPO_ROOT / "scripts" / "validate_analysis_runner_fig_threshold.py"
+)
 CAPTURE_SCRIPT = REPO_ROOT / "scripts" / "capture_workbench_window.ps1"
 REPORT_BUILD_SCRIPT = REPO_ROOT / "reporting" / "build_gui_exe.ps1"
 REPORT_PACKAGE_SCRIPT = REPO_ROOT / "scripts" / "package_report_builder.ps1"
@@ -60,6 +63,17 @@ class WorkbenchBuildScriptTests(unittest.TestCase):
         spec.loader.exec_module(module)
         return module
 
+    @staticmethod
+    def _fig_threshold_module():
+        spec = importlib.util.spec_from_file_location(
+            "validate_analysis_runner_fig_threshold", FIG_THRESHOLD_SCRIPT
+        )
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"unable to load {FIG_THRESHOLD_SCRIPT}")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
     def test_all_direct_python_steps_use_fail_fast_wrapper(self) -> None:
         self.assertIn("function Invoke-NativeChecked", self.build_script)
         self.assertRegex(
@@ -80,6 +94,7 @@ class WorkbenchBuildScriptTests(unittest.TestCase):
             "Workbench asset copy",
             "Compiled analysis failure-exit contract smoke",
             "Compiled analysis cache-cleanup policy smoke",
+            "Compiled analysis FIG-threshold contract smoke",
             "Compiled automatic-cleaning preview contract smoke",
             "Frozen all-profile matrix",
         ):
@@ -311,6 +326,64 @@ exit 0
             '$runnerTarget = Join-Path $distRoot "bin\\BridgeAnalysisRunner"'
         )
         self.assertLess(cleanup_gate, runner_copy)
+
+    def test_build_and_package_gate_compiled_analysis_fig_threshold(self) -> None:
+        self.assertIn(
+            "validate_analysis_runner_fig_threshold.py", self.build_script
+        )
+        self.assertIn(
+            "analysis_runner_fig_threshold_smoke = $analysisRunnerFigThresholdSmoke",
+            self.build_script,
+        )
+        self.assertIn(
+            "analysis_runner_fig_threshold = $analysisRunnerFigThreshold",
+            self.build_script,
+        )
+        self.assertIn('"analysis_runner_fig_threshold_smoke"', self.package_script)
+        for operation in ("band", "box_lower", "box_upper"):
+            self.assertIn(operation, self.build_script)
+            self.assertIn(operation, self.package_script)
+        self.assertIn("source_fig_unchanged", self.package_script)
+        self.assertIn("source_fig_sha256", self.package_script)
+        self.assertIn("default_figure_visible_restore_guard", self.package_script)
+        fig_gate = self.build_script.index(
+            '-StepName "Compiled analysis FIG-threshold contract smoke"'
+        )
+        runner_copy = self.build_script.index(
+            '$runnerTarget = Join-Path $distRoot "bin\\BridgeAnalysisRunner"'
+        )
+        self.assertLess(fig_gate, runner_copy)
+
+    def test_fig_threshold_smoke_replace_is_marker_bounded(self) -> None:
+        module = self._fig_threshold_module()
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            marked = root / "marked"
+            module._prepare_output_root(marked, replace=False)
+            marker = marked / module._MARKER_NAME
+            self.assertTrue(marker.is_file())
+            (marked / "evidence.txt").write_text("old", encoding="utf-8")
+            module._prepare_output_root(marked, replace=True)
+            self.assertTrue(marker.is_file())
+            self.assertFalse((marked / "evidence.txt").exists())
+
+            unmarked = root / "unmarked"
+            unmarked.mkdir()
+            (unmarked / "user-data.txt").write_text("preserve", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "unmarked"):
+                module._prepare_output_root(unmarked, replace=True)
+            self.assertEqual(
+                "preserve",
+                (unmarked / "user-data.txt").read_text(encoding="utf-8"),
+            )
+
+    def test_fig_threshold_smoke_validates_visibility_dispatch_source(self) -> None:
+        module = self._fig_threshold_module()
+        evidence = module._visibility_dispatch_contract(REPO_ROOT)
+        self.assertTrue(evidence["ok"])
+        self.assertTrue(evidence["default_figure_visible_forced_on"])
+        self.assertTrue(evidence["default_figure_visible_restore_guard"])
+        self.assertRegex(evidence["source_sha256"], r"^[0-9a-f]{64}$")
 
     def test_cleanup_policy_smoke_replace_is_marker_bounded(self) -> None:
         module = self._cleanup_policy_module()
@@ -680,7 +753,9 @@ exit 0
             "26412, 27425, 35745, 31639, 32467, 26524, 22312, 21738, 37324",
             "33258, 21160, 21305, 37197, 24403, 21069, 20219, 21153, 26354, 32447, 39044, 35272",
             "26222, 36890, 27969, 31243, 26080, 38656, 36873, 25321, 20219, 20309, 25991, 20214",
-            "20174, 20854, 20182, 20219, 21153, 47, 39033, 30446, 23548, 20837, 21442, 32771, 26354, 32447",
+            "30452, 25509, 36873, 25321, 32, 77, 65, 84, 76, 65, 66, 32, 70, 73, 71",
+            "39640, 32423, 65306, 23548, 20837, 31995, 32479, 26354, 32447, 35760, 24405, 32, 74, 83, 79, 78",
+            "20572, 27490, 26412, 27425, 32, 70, 73, 71, 32, 25805, 20316",
         ):
             self.assertIn(fragment_code_points, self.package_script)
 
@@ -706,7 +781,9 @@ exit 0
             "本次计算结果在哪里",
             "自动匹配当前任务曲线预览",
             "普通流程无需选择任何文件",
-            "从其他任务/项目导入参考曲线",
+            "直接选择 MATLAB FIG",
+            "高级：导入系统曲线记录 JSON",
+            "停止本次 FIG 操作",
             "stats",
             "run_logs",
             "DOCX/PDF",

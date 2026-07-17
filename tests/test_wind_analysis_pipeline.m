@@ -275,10 +275,54 @@ classdef test_wind_analysis_pipeline < matlab.unittest.TestCase
             tc.verifyEqual(numel(speed10Json), 1);
             tc.verifyEqual(numel(roseJson), 1);
             speedPayload = jsondecode(fileread(fullfile(speedJson(1).folder, speedJson(1).name)));
+            speed10Payload = jsondecode(fileread(fullfile(speed10Json(1).folder, speed10Json(1).name)));
             rosePayload = jsondecode(fileread(fullfile(roseJson(1).folder, roseJson(1).name)));
             tc.verifyEqual(speedPayload.series(1).source.source_file_count, 1);
+            tc.verifyEqual(speed10Payload.series(1).render_mode, 'derived_10min_mean');
+            tc.verifyEqual(speed10Payload.series(1).sampling_mode, 'full');
+            tc.verifyFalse(speed10Payload.series(1).reduction_applied);
+            tc.verifyEqual(speed10Payload.series(1).input_count, 5);
+            tc.verifyEqual(speed10Payload.series(1).finite_count, 5);
+            tc.verifyEqual(speed10Payload.series(1).plotted_finite_count, 5);
+            tc.verifyEqual(speed10Payload.series(1).source.source_sample_count, 5);
             tc.verifyEqual(numel(rosePayload.series), 2);
             tc.verifyTrue(all(arrayfun(@(x) x.source.source_sample_count == 5, rosePayload.series)));
+        end
+
+        function tenMinuteWindProvenanceSeparatesDerivedAndRawSourceCounts(tc)
+            cfg = rolling_wind_cfg();
+            cfg.plot_common = struct( ...
+                'save_jpg', false, 'save_emf', false, 'save_fig', false, ...
+                'append_timestamp', false, 'dynamic_raw_sampling_mode', 'full');
+            style = bms.analyzer.WindPlotService.style(cfg);
+            style.output.speed10_dir = 'speed10_derived_counts';
+            times = datetime(2026, 1, 1, 0, 5, 0) + minutes((0:4)' * 10);
+            source = bms.analyzer.DynamicSeriesService.initSourceProvenance(1);
+            source.complete_day_count = 1;
+            source.source_files = {'source.mat'};
+            source.source_file_count = 1;
+            source.source_sample_count = 500;
+            source.finite_source_sample_count = 480;
+
+            bms.analyzer.WindPlotService.plotSpeed10min( ...
+                times, [1; 2; NaN; 4; 5], 'W1', ...
+                bms.analyzer.WindSeriesService.params(cfg, 'W1'), ...
+                style, tc.Root, '2026-01-01', '2026-01-01', cfg, source);
+
+            jsonFiles = dir(fullfile(tc.Root, style.output.speed10_dir, '*.plot.json'));
+            tc.verifyEqual(numel(jsonFiles), 1);
+            payload = jsondecode(fileread(fullfile(jsonFiles(1).folder, jsonFiles(1).name)));
+            series = payload.series(1);
+            tc.verifyEqual(series.input_count, 5);
+            tc.verifyEqual(series.finite_count, 4);
+            tc.verifyEqual(series.plotted_finite_count, 4);
+            tc.verifyEqual(series.render_input_count, 5);
+            tc.verifyEqual(series.render_finite_input_count, 4);
+            tc.verifyEqual(series.source.source_sample_count, 500);
+            tc.verifyEqual(series.source.finite_source_sample_count, 480);
+            tc.verifyFalse(series.reduction_applied);
+            tc.verifyEqual(series.sampling_mode, 'full');
+            tc.verifyEqual(series.render_mode, 'derived_10min_mean');
         end
 
         function allMissingTenMinuteSeriesIsSkippedWithoutAxisFailure(tc)

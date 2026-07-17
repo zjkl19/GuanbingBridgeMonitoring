@@ -3,6 +3,8 @@ function run_tests(target)
 % Usage:
 %   run_tests()                     % curated default suite
 %   run_tests('all')                % run all discovered tests (runtests)
+%   run_tests('all-core')           % all except destructive-cleanup contracts
+%   run_tests('cleanup-contracts')  % destructive-cleanup contracts only
 %   run_tests('smoke')              % minimal fast set on fixtures
 %   run_tests({'tests/test_simulated_data.m','test.m'})  % custom list
 %
@@ -28,6 +30,21 @@ function run_tests(target)
     switch mode
         case "all"
             res = runtests(fullfile(proj, 'tests'));
+        case "all-core"
+            suite = testsuite(fullfile(proj, 'tests'));
+            cleanupPrefixes = { ...
+                'test_standard_verified_source_csv_cleanup/', ...
+                'test_verified_source_csv_cleanup/' ...
+            };
+            names = {suite.Name};
+            isCleanupContract = false(size(names));
+            for i = 1:numel(cleanupPrefixes)
+                isCleanupContract = isCleanupContract | ...
+                    startsWith(names, cleanupPrefixes{i});
+            end
+            res = run(suite(~isCleanupContract));
+        case "cleanup-contracts"
+            res = runtests(cleanupContractTestFiles(proj));
         case "smoke"
             files = { ...
                 'tests/test_simulated_data.m', ...
@@ -91,6 +108,19 @@ function run_tests(target)
         warning('run_tests:Incomplete', ...
             '%d test(s) were incomplete or skipped by assumptions.', sum(incomplete));
     end
+end
+
+function files = cleanupContractTestFiles(proj)
+    % These contracts repeatedly create ZIPs, verify cache identities and
+    % exercise crash-recovery deletion checkpoints.  Keep them in a separate
+    % MATLAB process in release gates so an external MATLABWindow/Service Host
+    % failure cannot leave an otherwise complete full-suite run ambiguous.
+    files = { ...
+        fullfile(proj, 'tests', ...
+            'test_standard_verified_source_csv_cleanup.m'), ...
+        fullfile(proj, 'tests', ...
+            'test_verified_source_csv_cleanup.m') ...
+    };
 end
 
 function files = existingTestFiles(files)

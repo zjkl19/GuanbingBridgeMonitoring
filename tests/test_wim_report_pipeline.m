@@ -15,15 +15,19 @@ classdef test_wim_report_pipeline < matlab.unittest.TestCase
         function directSampleCreatesWorkbook(tc)
             projRoot = fileparts(fileparts(mfilename('fullpath')));
             cfg = load_config(fullfile(projRoot, 'config', 'hongtang_config.json'));
-            sampleDir = fullfile(projRoot, 'data', '_samples', 'wim', 'zhichen', '202512');
+            tempRoot = tempname;
+            mkdir(tempRoot);
+            cleanup = onCleanup(@() rmdir(tempRoot, 's')); %#ok<NASGU>
+            sampleDir = fullfile(tempRoot, 'synthetic_zhichen');
+            fixture = create_synthetic_zhichen_fixture(sampleDir);
 
             cfg.wim.vendor = 'zhichen';
             cfg.wim.bridge = 'hongtang';
             cfg.wim.pipeline = 'direct';
             cfg.wim.input.zhichen.dir = sampleDir;
-            cfg.wim.input.zhichen.bcp = 'HS_Data_202512_sample_1000.bcp';
-            cfg.wim.input.zhichen.fmt = 'HS_Data_202512_sample_1000.fmt';
-            cfg.wim.output_root = tempname;
+            cfg.wim.input.zhichen.bcp = fixture.bcpName;
+            cfg.wim.input.zhichen.fmt = fixture.fmtName;
+            cfg.wim.output_root = fullfile(tempRoot, 'output');
             if isfield(cfg, 'wim_plot'), cfg.wim_plot.enabled = false; end
 
             bms.analyzer.WimReportPipeline.run(projRoot, '2025-12-01', '2025-12-31', cfg);

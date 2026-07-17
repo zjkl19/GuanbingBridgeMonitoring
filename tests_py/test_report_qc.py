@@ -7,7 +7,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reporting"))
 
 from docx import Document  # noqa: E402
 from PIL import Image  # noqa: E402
-
+from docx.oxml import OxmlElement, parse_xml  # noqa: E402
+from docx.oxml.ns import nsdecls, qn  # noqa: E402
+from docx_header_fields import ensure_section_footer_pagination_fields  # noqa: E402
 from report_qc import (  # noqa: E402
     check_guanbing_report,
     check_hongtang_report,
@@ -18,7 +20,134 @@ from report_qc import (  # noqa: E402
 )
 
 
+def _append_complex_field(paragraph, instruction: str, result: str = "1") -> None:
+    def append_field_char(field_type: str) -> None:
+        node = OxmlElement("w:fldChar")
+        node.set(qn("w:fldCharType"), field_type)
+        paragraph.add_run()._r.append(node)
+
+    append_field_char("begin")
+    instruction_node = OxmlElement("w:instrText")
+    instruction_node.set(qn("xml:space"), "preserve")
+    instruction_node.text = f" {instruction} "
+    paragraph.add_run()._r.append(instruction_node)
+    append_field_char("separate")
+    paragraph.add_run(result)
+    append_field_char("end")
+
+
+def write_legacy_guanbing_footer_fixture(path: Path) -> None:
+    document = Document()
+    document.add_paragraph(
+        "G104 \u7ba1\u67c4\u5927\u6865 "
+        "\u62a5\u544a\u7f16\u53f7\uff1aBG02FQJC2400001-M18"
+    )
+    section = document.sections[0]
+    page_numbering = OxmlElement("w:pgNumType")
+    page_numbering.set(qn("w:start"), "1")
+    section._sectPr.append(page_numbering)
+    paragraph = section.footer.paragraphs[0]
+    paragraph.add_run("\u7b2c ")
+    _append_complex_field(paragraph, "PAGE")
+    paragraph.add_run(" \u9875 \u5171 76 \u9875")
+    document.save(path)
+
+
 class TestReportQc(unittest.TestCase):
+    @staticmethod
+    def _append_report_number_text_box(header, report_number: str) -> None:
+        prefix, suffix = report_number[:-2], report_number[-2:]
+        header._element.append(
+            parse_xml(
+                f"""
+                <w:p {nsdecls('w')} xmlns:v="urn:schemas-microsoft-com:vml">
+                  <w:r><w:pict><v:shape><v:textbox><w:txbxContent>
+                    <w:p>
+                      <w:r><w:t>报告编号：</w:t></w:r>
+                      <w:r><w:t>{prefix}</w:t></w:r>
+                      <w:r><w:t>{suffix}</w:t></w:r>
+                    </w:p>
+                  </w:txbxContent></v:textbox></v:shape></w:pict></w:r>
+                </w:p>
+                """
+            )
+        )
+
+    def test_guanbing_qc_rejects_static_total_and_accepts_sectionpages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            legacy = Path(tmp) / "guanbing-static-pagination.docx"
+            output = Path(tmp) / "guanbing-dynamic-pagination.docx"
+            write_legacy_guanbing_footer_fixture(legacy)
+            invalid = check_guanbing_report(legacy)
+            self.assertIn(
+                "invalid-footer-pagination",
+                {issue.code for issue in invalid.issues},
+            )
+
+            document = Document(legacy)
+            self.assertGreaterEqual(
+                ensure_section_footer_pagination_fields(document),
+                1,
+            )
+            document.save(output)
+            valid = check_guanbing_report(output)
+
+        self.assertNotIn("invalid-footer-pagination", {issue.code for issue in valid.issues})
+
+    def test_guanbing_qc_rejects_mixed_report_number_in_header_text_box(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report = Path(tmp) / "mixed-report-number.docx"
+            doc = Document()
+            doc.add_paragraph("G104 管柄大桥　报告编号：BG02FQJC2400001-M18")
+            self._append_report_number_text_box(
+                doc.sections[0].first_page_header,
+                "BG02FQJC2400001-M16",
+            )
+            doc.save(report)
+
+            result = check_guanbing_report(report)
+
+        codes = {issue.code for issue in result.issues}
+        self.assertIn("inconsistent-report-number", codes)
+        self.assertEqual(
+            result.summary["report_numbers"],
+            ["BG02FQJC2400001-M16", "BG02FQJC2400001-M18"],
+        )
+        self.assertEqual(result.status, "failed")
+
+    def test_guanbing_qc_rejects_missing_report_number(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report = Path(tmp) / "missing-report-number.docx"
+            doc = Document()
+            doc.add_paragraph("G104 管柄大桥月报")
+            doc.save(report)
+
+            result = check_guanbing_report(report)
+
+        codes = {issue.code for issue in result.issues}
+        self.assertIn("missing-report-number", codes)
+        self.assertEqual(result.summary["report_numbers"], [])
+        self.assertEqual(result.summary["report_number_occurrence_count"], 0)
+        self.assertEqual(result.status, "failed")
+
+    def test_guanbing_qc_accepts_one_report_number_across_text_boxes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report = Path(tmp) / "one-report-number.docx"
+            doc = Document()
+            doc.add_paragraph("G104 管柄大桥　报告编号：BG02FQJC2400001-M18")
+            self._append_report_number_text_box(
+                doc.sections[0].even_page_header,
+                "BG02FQJC2400001-M18",
+            )
+            doc.save(report)
+
+            result = check_guanbing_report(report)
+
+        codes = {issue.code for issue in result.issues}
+        self.assertNotIn("inconsistent-report-number", codes)
+        self.assertEqual(result.summary["report_numbers"], ["BG02FQJC2400001-M18"])
+        self.assertEqual(result.summary["report_number_occurrence_count"], 2)
+
     def test_jlj_qc_detects_forbidden_phrase_and_front_summary(self):
         with tempfile.TemporaryDirectory() as tmp:
             docx = Path(tmp) / "report.docx"

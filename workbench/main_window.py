@@ -143,14 +143,17 @@ class WorkbenchWindow(QMainWindow):
             )
         )
         self.cleaning_editor = CleaningThresholdEditorWidget(
-            preview_context_provider=self._auto_threshold_context
+            preview_context_provider=self._auto_threshold_context,
+            project_root=self.project_root,
         )
         self.cleaning_editor.config_saved.connect(
             lambda path, sha256, backup: self._on_config_saved(
                 "数据清洗", path, sha256, backup
             )
         )
-        self.post_filter_editor = PostFilterThresholdEditorWidget()
+        self.post_filter_editor = PostFilterThresholdEditorWidget(
+            project_root=self.project_root
+        )
         self.post_filter_editor.config_saved.connect(
             lambda path, sha256, backup: self._on_config_saved(
                 "滤波后二次清洗", path, sha256, backup

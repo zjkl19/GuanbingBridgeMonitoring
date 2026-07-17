@@ -144,7 +144,11 @@ class TestBuildPeriodReportWordUpdate(unittest.TestCase):
             seen.append(path)
             return True, ""
 
-        with patch("build_period_report._run_python_word_field_update", side_effect=fake_python_update):
+        env = {k: v for k, v in os.environ.items() if k != "BMS_NO_WORD"}
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("build_period_report._run_python_word_field_update", side_effect=fake_python_update),
+        ):
             warnings = update_fields_with_word(Path("relative-output") / "report.docx")
 
         self.assertEqual(warnings, [])

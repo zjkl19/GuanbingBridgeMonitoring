@@ -24,6 +24,11 @@ from PySide6.QtWidgets import (
 from .auto_threshold import PreviewSeries, load_preview_artifact
 from .auto_threshold_preview import module_label
 from .config_editor import CleaningThresholdRow, ConfigEditorError
+from .fig_threshold import (
+    FigThresholdCancelled,
+    FigThresholdError,
+    run_fig_threshold_interaction,
+)
 from .manual_threshold import (
     LOWER_SIDE,
     UPPER_SIDE,
@@ -37,6 +42,7 @@ from .manual_threshold import (
     propose_box_threshold,
     select_preview_series,
 )
+from .version import project_root as default_project_root
 
 
 def _timestamp(value: str) -> float | None:
@@ -401,6 +407,8 @@ class BoxThresholdDialog(QDialog):
         expected_start_date: str = "",
         expected_end_date: str = "",
         automatic_preview_resolver: Callable[[], Path] | None = None,
+        task_preview_enabled: bool = True,
+        project_root: Path | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -415,9 +423,14 @@ class BoxThresholdDialog(QDialog):
         self.expected_start_date = str(expected_start_date or "").strip()
         self.expected_end_date = str(expected_end_date or "").strip()
         self.automatic_preview_resolver = automatic_preview_resolver
+        self.task_preview_enabled = bool(task_preview_enabled)
+        self.project_root = (project_root or default_project_root()).resolve()
         self.preview_generation_requested = False
         self.external_reference_mode = False
         self.external_reference_source = ""
+        self.direct_fig_mode = False
+        self.direct_fig_source = ""
+        self.direct_fig_summary = ""
         self.preview_identity_verified = False
         self.preview_series = preview_series
         self.current_proposal: BoxThresholdProposal | None = None
@@ -431,7 +444,7 @@ class BoxThresholdDialog(QDialog):
         _fit_dialog_to_available_screen(self)
         if preview_series is not None:
             self._apply_series(preview_series)
-        else:
+        elif self.task_preview_enabled:
             self._load_automatic_preview(silent=True)
 
     def _build_ui(self) -> None:
@@ -460,9 +473,12 @@ class BoxThresholdDialog(QDialog):
             "按当前桥梁、数据目录、日期、配置版本、分析类型和测点自动匹配"
         )
         self.auto_load_preview_button.clicked.connect(self._load_automatic_preview)
+        self.auto_load_preview_button.setVisible(self.task_preview_enabled)
         load_row.addWidget(self.auto_load_preview_button)
         self.preview_path_label = QLabel(
             "正在查找当前任务匹配的曲线；正常操作无需选择任何文件"
+            if self.task_preview_enabled
+            else "滤波后二次清洗不自动采用滤波前预览；请选择任意可信 MATLAB FIG。"
         )
         self.preview_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.preview_path_label.setWordWrap(True)
@@ -474,13 +490,21 @@ class BoxThresholdDialog(QDialog):
         outer.addLayout(load_row)
 
         advanced_row = QHBoxLayout()
+        self.direct_fig_button = QPushButton("直接选择 MATLAB FIG（旧方式）…")
+        self.direct_fig_button.setToolTip(
+            "直接读取任意可信 FIG 中的真实曲线并框选；"
+            "下侧框选取最高值，上侧框选取最低值，等于阈值的点保留"
+        )
+        self.direct_fig_button.clicked.connect(self._choose_fig)
+        advanced_row.addWidget(self.direct_fig_button)
         self.import_preview_button = QPushButton(
-            "从其他任务/项目导入参考曲线…"
+            "高级：导入系统曲线记录 JSON…"
         )
         self.import_preview_button.setToolTip(
             "可选：导入工作台生成的系统曲线记录；框选仍取真实曲线样本，但不会冒充当前任务"
         )
         self.import_preview_button.clicked.connect(self._choose_preview)
+        self.import_preview_button.setVisible(self.task_preview_enabled)
         advanced_row.addWidget(self.import_preview_button)
         self.generate_preview_button = QPushButton(
             "没有曲线？关闭并前往“自动清洗建议”生成"
@@ -491,6 +515,7 @@ class BoxThresholdDialog(QDialog):
         self.generate_preview_button.clicked.connect(
             self._request_preview_generation
         )
+        self.generate_preview_button.setVisible(self.task_preview_enabled)
         advanced_row.addWidget(self.generate_preview_button)
         advanced_row.addStretch(1)
         outer.addLayout(advanced_row)
@@ -533,6 +558,125 @@ class BoxThresholdDialog(QDialog):
             self.load_reference_preview_path(Path(path))
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "曲线预览无法使用", str(exc))
+
+    def _choose_fig(self) -> None:
+        side_text = "下侧框选取最高值" if self.side == LOWER_SIDE else "上侧框选取最低值"
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            f"直接选择 MATLAB FIG：{side_text}",
+            self.expected_data_root or "",
+            "MATLAB 图形 (*.fig)",
+        )
+        if not path:
+            return
+        previous_label = self.preview_path_label.text()
+        self.preview_path_label.setText(
+            "正在启动 MATLAB FIG 框选窗口；请在新窗口中选择坐标轴/曲线并框选…"
+        )
+        try:
+            result = run_fig_threshold_interaction(
+                self.project_root,
+                Path(path),
+                operation=("box_lower" if self.side == LOWER_SIDE else "box_upper"),
+                target_module=self.target_row.module_key,
+                target_point=self.target_row.point_key,
+                parent=self,
+            )
+            self.apply_direct_fig_result(Path(path), result)
+        except FigThresholdCancelled:
+            self.preview_path_label.setText(
+                f"{previous_label}\n已取消本次 MATLAB FIG 框选；此前曲线和候选值保持不变。"
+            )
+        except (FigThresholdError, OSError, ValueError) as exc:
+            QMessageBox.critical(self, "MATLAB FIG 无法使用", str(exc))
+            self.preview_path_label.setText(
+                f"{previous_label}\n本次 MATLAB FIG 未能生成框选阈值：{exc}；此前状态保持不变。"
+            )
+        finally:
+            self.raise_()
+            self.activateWindow()
+
+    def apply_direct_fig_result(self, path: Path, result: dict[str, Any]) -> None:
+        candidate = result.get("candidate")
+        if not isinstance(candidate, dict):
+            raise ConfigEditorError("MATLAB FIG 结果缺少框选候选值")
+        expected_side = LOWER_SIDE if self.side == LOWER_SIDE else UPPER_SIDE
+        raw_side = str(candidate.get("side") or "").strip().casefold()
+        result_side = {"lower": LOWER_SIDE, "upper": UPPER_SIDE}.get(
+            raw_side, raw_side
+        )
+        if result_side != expected_side:
+            raise ConfigEditorError("MATLAB FIG 框选方向与当前按钮不一致")
+        try:
+            value = float(candidate["value"])
+            sample_count = int(candidate["selected_sample_count"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ConfigEditorError("MATLAB FIG 框选候选格式无效") from exc
+        if not math.isfinite(value) or sample_count < 1:
+            raise ConfigEditorError("MATLAB FIG 框选必须命中至少一个有限样本")
+        selection_start = str(candidate.get("selection_start") or "").strip()
+        selection_end = str(candidate.get("selection_end") or "").strip()
+        if (
+            not selection_start
+            or not selection_end
+            or _timestamp(selection_start) is None
+            or _timestamp(selection_end) is None
+        ):
+            raise ConfigEditorError("MATLAB FIG 框选返回的命中时间范围无效")
+
+        draft = OneSidedThresholdDraft(
+            self.target_row.module_key,
+            self.target_row.point_key,
+            expected_side,
+            value,
+            self.target_row.t_range_start,
+            self.target_row.t_range_end,
+        ).validated()
+        placeholder_estimate = ThresholdEstimate(0, 0, 0, 0)
+        self.current_proposal = BoxThresholdProposal(
+            draft,
+            sample_count,
+            placeholder_estimate,
+        )
+        self.current_final_estimate = None
+        self.direct_fig_mode = True
+        self.external_reference_mode = True
+        self.preview_identity_verified = False
+        self.preview_series = None
+        source = result.get("source_curve")
+        source = source if isinstance(source, dict) else {}
+        axis_title = str(source.get("axis_title") or "未命名坐标轴")
+        curve_label = str(source.get("curve_label") or "未命名曲线")
+        source_samples = int(source.get("sample_count") or 0)
+        self.direct_fig_source = f"{axis_title}/{curve_label}"
+        self.external_reference_source = self.direct_fig_source
+        self.curve.set_series(
+            None,
+            side=self.side,
+            module_key=self.target_row.module_key,
+            point_key=self.target_row.point_key,
+            rule_start=self.target_row.t_range_start,
+            rule_end=self.target_row.t_range_end,
+        )
+        self.accept_button.setEnabled(True)
+        extreme = "最高值" if self.side == LOWER_SIDE else "最低值"
+        self.direct_fig_summary = (
+            f"外部 FIG 框中命中 {sample_count} 个有限样本，取{extreme}得到"
+            f"{'下限' if self.side == LOWER_SIDE else '上限'}={value:.15g}；"
+            f"命中时段 {selection_start} ～ {selection_end}。"
+            "结果写入当前选中的配置行并保留其原有时间窗；未据此估算当前任务删除量。"
+        )
+        self.summary_label.setText(
+            f"{self.direct_fig_summary} 确认后仍只修改内存表格，需另点保存才写配置。"
+        )
+        self.summary_label.setStyleSheet(
+            "background: #f0fdf4; border: 1px solid #86d19a; color: #14532d; padding: 7px;"
+        )
+        self.preview_path_label.setText(
+            "外部 MATLAB FIG 参考（未绑定当前任务）："
+            f"{path.resolve()}；坐标轴={axis_title}；曲线={curve_label}；"
+            f"源曲线有效样本={source_samples}。"
+        )
 
     def _request_preview_generation(self) -> None:
         self.preview_generation_requested = True
@@ -580,6 +724,9 @@ class BoxThresholdDialog(QDialog):
         )
         self.external_reference_mode = True
         self.external_reference_source = f"{source_key[0]}/{source_key[1]}"
+        self.direct_fig_mode = False
+        self.direct_fig_source = ""
+        self.direct_fig_summary = ""
         self.preview_identity_verified = False
         self._apply_series(rebound)
         self.preview_path_label.setText(
@@ -594,7 +741,7 @@ class BoxThresholdDialog(QDialog):
         if self.automatic_preview_resolver is None:
             message = (
                 "当前窗口没有绑定任务信息。请关闭窗口，先在主任务页选择桥梁、数据目录和日期；"
-                "也可使用“从其他任务/项目导入参考曲线”。"
+                "也可使用“直接选择 MATLAB FIG（旧方式）”或高级 JSON 导入。"
             )
             self.preview_path_label.setText(message)
             if not silent:
@@ -645,6 +792,9 @@ class BoxThresholdDialog(QDialog):
         # current-task artifact and its selected curve both validate.
         self.external_reference_mode = False
         self.external_reference_source = ""
+        self.direct_fig_mode = False
+        self.direct_fig_source = ""
+        self.direct_fig_summary = ""
         self.preview_identity_verified = identity_verified
         checks = []
         if self.expected_config_sha256:
@@ -693,9 +843,18 @@ class BoxThresholdDialog(QDialog):
         )
 
     def _clear_selection(self) -> None:
+        self.direct_fig_mode = False
+        self.direct_fig_source = ""
+        self.direct_fig_summary = ""
+        self.current_proposal = None
+        self.current_final_estimate = None
+        self.accept_button.setEnabled(False)
         self.curve.clear_selection()
 
     def _selection_changed(self, selection: object) -> None:
+        self.direct_fig_mode = False
+        self.direct_fig_source = ""
+        self.direct_fig_summary = ""
         self.current_proposal = None
         self.current_final_estimate = None
         self.accept_button.setEnabled(False)
@@ -772,6 +931,8 @@ class BoxThresholdDialog(QDialog):
         return self.proposal().draft
 
     def estimate_summary(self) -> str:
+        if self.direct_fig_mode:
+            return self.direct_fig_summary
         if self.current_proposal is None or self.current_final_estimate is None:
             return "尚未生成框选候选阈值"
         return self.current_final_estimate.summary_text()

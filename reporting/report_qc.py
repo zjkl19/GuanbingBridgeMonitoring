@@ -12,11 +12,14 @@ from typing import Any
 
 from docx import Document
 from docx.table import Table
+from lxml import etree
 
 try:
+    from docx_header_fields import audit_section_footer_pagination_fields
     from docx_table_utils import find_first_row_index_by_first_cell, table_has_first_cell
     from image_block_utils import count_docx_images
 except Exception:  # pragma: no cover - package import fallback
+    from .docx_header_fields import audit_section_footer_pagination_fields
     from .docx_table_utils import find_first_row_index_by_first_cell, table_has_first_cell
     from .image_block_utils import count_docx_images
 
@@ -31,6 +34,13 @@ JLJ_FORBIDDEN_REVIEW_PHRASES = COMMON_FORBIDDEN_REVIEW_PHRASES + (
     "当前吊杆参数配置尚未完整校核",
     "索力换算结果暂仅用于时程展示",
 )
+
+REPORT_NUMBER_PATTERN = re.compile(
+    r"报告编号\s*[:：]\s*([A-Za-z0-9]+(?:[-/][A-Za-z0-9]+)*)",
+    re.IGNORECASE,
+)
+W_P = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p"
+W_T = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"
 
 
 @dataclass(frozen=True)
@@ -62,6 +72,37 @@ def _all_doc_text(doc) -> str:
                 if cell.text:
                     parts.append(cell.text)
     return "\n".join(parts)
+
+
+def _paragraph_own_text(paragraph) -> str:
+    """Return text belonging to this paragraph, excluding nested text boxes."""
+    nodes = []
+    for text_node in paragraph.iter(W_T):
+        owner = text_node.getparent()
+        while owner is not None and owner.tag != W_P:
+            owner = owner.getparent()
+        if owner is paragraph:
+            nodes.append(text_node.text or "")
+    return "".join(nodes)
+
+
+def _docx_report_numbers(path: Path) -> list[str]:
+    """Read report numbers from body and every header/footer, including text boxes."""
+    numbers: list[str] = []
+    parser = etree.XMLParser(resolve_entities=False, no_network=True)
+    with ZipFile(path) as archive:
+        names = [
+            name
+            for name in archive.namelist()
+            if name == "word/document.xml"
+            or re.fullmatch(r"word/(?:header|footer)\d+\.xml", name)
+        ]
+        for name in names:
+            root = etree.fromstring(archive.read(name), parser=parser)
+            for paragraph in root.iter(W_P):
+                text = _paragraph_own_text(paragraph)
+                numbers.extend(match.group(1) for match in REPORT_NUMBER_PATTERN.finditer(text))
+    return numbers
 
 
 def _base_doc_summary(path: Path, doc) -> dict[str, Any]:
@@ -282,6 +323,38 @@ def check_guanbing_report(docx_path: Path | str) -> ReportQcResult:
         issues.append(ReportQcIssue("missing-expected-text", "warning", "管柄月报未检测到 G104/管柄大桥项目文本。"))
     if "m/s2" in text:
         issues.append(ReportQcIssue("unit-superscript-risk", "warning", "报告中仍存在 m/s2 文本，需检查是否应为 m/s²。"))
+    report_numbers = _docx_report_numbers(path)
+    unique_report_numbers = sorted(set(report_numbers))
+    summary["report_numbers"] = unique_report_numbers
+    summary["report_number_occurrence_count"] = len(report_numbers)
+    if not unique_report_numbers:
+        issues.append(
+            ReportQcIssue(
+                "missing-report-number",
+                "error",
+                "管柄月报正文及各类页眉/页脚中未检测到报告编号。",
+            )
+        )
+    elif len(unique_report_numbers) > 1:
+        issues.append(
+            ReportQcIssue(
+                "inconsistent-report-number",
+                "error",
+                "管柄月报正文及各类页眉/页脚中的报告编号不一致。",
+                ", ".join(unique_report_numbers),
+            )
+        )
+    pagination = audit_section_footer_pagination_fields(path)
+    summary["footer_pagination"] = asdict(pagination)
+    if not pagination.valid:
+        issues.append(
+            ReportQcIssue(
+                "invalid-footer-pagination",
+                "error",
+                "Guanbing report body footer must use PAGE and SECTIONPAGES fields.",
+                "; ".join((*pagination.details, *pagination.formatting_errors)),
+            )
+        )
     return _build_result("guanbing_monthly", path, issues, summary)
 
 

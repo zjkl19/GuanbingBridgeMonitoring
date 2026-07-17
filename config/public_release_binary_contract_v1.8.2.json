@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "contracts": [
+    {
+      "path": "reports/G104线管柄大桥监测月报模板-自动报告.docx",
+      "kind": "docx_member_diff",
+      "base_sha256": "0E27F6F8183D9F44AFCCA73A750032277FF04EE084AF1852D463DE71FC2DA517",
+      "current_sha256": "91BC9FCCF6CFDD7FC08CCB3EE203D11664DC9F66659CF5110E05E01259D82777",
+      "member_count": 92,
+      "base_total_uncompressed_bytes": 11101269,
+      "current_total_uncompressed_bytes": 11105003,
+      "allowed_changed_members": [
+        {
+          "path": "word/footer5.xml",
+          "base_sha256": "26BFA512572EB753721169570F0D21AA5CA983AD664A752A05FF93960E3C18E4",
+          "current_sha256": "3E5E7C8C91BCA0BE58DAD74D7AA3BA50C5E1C0FC0CE0F0FEAED9A6B9CA6700CD"
+        }
+      ]
+    }
+  ]
+}

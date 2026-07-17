@@ -85,7 +85,9 @@ function Assert-OperatorGuideContract {
         (-join (26412, 27425, 35745, 31639, 32467, 26524, 22312, 21738, 37324 | ForEach-Object { [char]$_ })),
         (-join (33258, 21160, 21305, 37197, 24403, 21069, 20219, 21153, 26354, 32447, 39044, 35272 | ForEach-Object { [char]$_ })),
         (-join (26222, 36890, 27969, 31243, 26080, 38656, 36873, 25321, 20219, 20309, 25991, 20214 | ForEach-Object { [char]$_ })),
-        (-join (20174, 20854, 20182, 20219, 21153, 47, 39033, 30446, 23548, 20837, 21442, 32771, 26354, 32447 | ForEach-Object { [char]$_ })),
+        (-join (30452, 25509, 36873, 25321, 32, 77, 65, 84, 76, 65, 66, 32, 70, 73, 71 | ForEach-Object { [char]$_ })),
+        (-join (39640, 32423, 65306, 23548, 20837, 31995, 32479, 26354, 32447, 35760, 24405, 32, 74, 83, 79, 78 | ForEach-Object { [char]$_ })),
+        (-join (20572, 27490, 26412, 27425, 32, 70, 73, 71, 32, 25805, 20316 | ForEach-Object { [char]$_ })),
         "stats",
         "run_logs",
         "DOCX/PDF",
@@ -235,6 +237,8 @@ $analysisRunnerManifestResilienceSmoke = $false
 $analysisRunnerManifestResilience = $null
 $analysisRunnerCacheCleanupPolicySmoke = $false
 $analysisRunnerCacheCleanupPolicy = $null
+$analysisRunnerFigThresholdSmoke = $false
+$analysisRunnerFigThreshold = $null
 if (-not $SkipAnalysisRunner) {
     $runnerSource = Join-Path $repo "bin\BridgeAnalysisRunner"
     $runnerExe = Join-Path $runnerSource "BridgeAnalysisRunner.exe"
@@ -342,6 +346,39 @@ if (-not $SkipAnalysisRunner) {
         throw "Compiled analysis cache-cleanup policy evidence is incomplete"
     }
     $analysisRunnerCacheCleanupPolicySmoke = $true
+    $figThresholdSmokeRoot = Join-Path $buildRoot "analysis_runner_fig_threshold_smoke"
+    Invoke-NativeChecked `
+        -FilePath $PythonExe `
+        -ArgumentList @(
+            (Join-Path $repo "scripts\validate_analysis_runner_fig_threshold.py"),
+            "--project-root", $repo,
+            "--runner", $runnerExe,
+            "--output-root", $figThresholdSmokeRoot,
+            "--replace"
+        ) `
+        -StepName "Compiled analysis FIG-threshold contract smoke"
+    $figThresholdSummaryPath = Join-Path $figThresholdSmokeRoot "fig_threshold_contract_summary.json"
+    $analysisRunnerFigThreshold = Get-Content -LiteralPath $figThresholdSummaryPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not $analysisRunnerFigThreshold.ok `
+            -or -not $analysisRunnerFigThreshold.source_fig_unchanged `
+            -or -not $analysisRunnerFigThreshold.scripted_no_manual_ui `
+            -or $analysisRunnerFigThreshold.compiled_operation_count -ne 3 `
+            -or -not $analysisRunnerFigThreshold.visibility_dispatch.ok `
+            -or -not $analysisRunnerFigThreshold.visibility_dispatch.default_figure_visible_forced_on `
+            -or -not $analysisRunnerFigThreshold.visibility_dispatch.default_figure_visible_restore_guard `
+            -or -not $analysisRunnerFigThreshold.visibility_dispatch.compiled_dispatch_present `
+            -or -not $analysisRunnerFigThreshold.operations.band.ok `
+            -or -not $analysisRunnerFigThreshold.operations.band.candidate_matches `
+            -or -not $analysisRunnerFigThreshold.operations.band.source_hash_matches `
+            -or -not $analysisRunnerFigThreshold.operations.box_lower.ok `
+            -or -not $analysisRunnerFigThreshold.operations.box_lower.candidate_matches `
+            -or -not $analysisRunnerFigThreshold.operations.box_lower.source_hash_matches `
+            -or -not $analysisRunnerFigThreshold.operations.box_upper.ok `
+            -or -not $analysisRunnerFigThreshold.operations.box_upper.candidate_matches `
+            -or -not $analysisRunnerFigThreshold.operations.box_upper.source_hash_matches) {
+        throw "Compiled analysis FIG-threshold evidence is incomplete"
+    }
+    $analysisRunnerFigThresholdSmoke = $true
     $previewSmokeRoot = Join-Path $buildRoot "auto_threshold_preview_smoke"
     Invoke-NativeChecked `
         -FilePath $PythonExe `
@@ -644,6 +681,8 @@ $releaseManifest = [ordered]@{
     analysis_runner_manifest_resilience = $analysisRunnerManifestResilience
     analysis_runner_cache_cleanup_policy_smoke = $analysisRunnerCacheCleanupPolicySmoke
     analysis_runner_cache_cleanup_policy = $analysisRunnerCacheCleanupPolicy
+    analysis_runner_fig_threshold_smoke = $analysisRunnerFigThresholdSmoke
+    analysis_runner_fig_threshold = $analysisRunnerFigThreshold
     installed_profile_matrix_smoke = $true
     invalid_cli_smoke = $true
     task_history_smoke = $true
