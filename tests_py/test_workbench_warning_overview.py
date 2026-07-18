@@ -138,6 +138,11 @@ class WorkbenchWarningOverviewGuiTests(unittest.TestCase):
             self.assertEqual(widget.inner_tabs.count(), 2)
             self.assertEqual(widget.inner_tabs.currentIndex(), 0)
             self.assertEqual(widget.effective_table.rowCount(), 12)
+            for column in range(widget.effective_table.columnCount()):
+                self.assertTrue(
+                    widget.effective_table.item(0, column).toolTip(),
+                    f"column {column}",
+                )
             self.assertEqual(widget.table.rowCount(), 0)
             self.assertIn("11 条有效", widget.overview_summary_label.text())
             self.assertIn("其它预警值和参考线", widget.overview_summary_label.text())

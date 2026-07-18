@@ -221,6 +221,47 @@ class WorkbenchManifestTests(unittest.TestCase):
                 complete,
             )
 
+    def test_disclosure_capable_search_accepts_only_explicit_reasoned_no_data(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            logs = root / "run_logs"
+            logs.mkdir()
+            candidate = logs / "analysis_manifest_disclosure.json"
+            candidate.write_text(json.dumps({
+                "status": "ok",
+                "bridge_profile": {"bridge_id": "guanbing"},
+                "run_request": {
+                    "data_root": str(root),
+                    "start_date": "2026-05-01",
+                    "end_date": "2026-05-31",
+                },
+                "module_results": [{
+                    "key": "temperature",
+                    "status": "no_data",
+                    "message": "设备断采，本期无有效数据",
+                }],
+            }, ensure_ascii=False), encoding="utf-8")
+
+            common = dict(
+                bridge_id="guanbing",
+                start_date="2026-05-01",
+                end_date="2026-05-31",
+                selected_modules=["temperature"],
+                successful_only=True,
+            )
+            self.assertIsNone(find_latest_manifest(root, **common))
+            self.assertEqual(
+                find_latest_manifest(root, disclosure_capable=True, **common),
+                candidate,
+            )
+
+            payload = json.loads(candidate.read_text(encoding="utf-8"))
+            payload["module_results"][0]["message"] = ""
+            candidate.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertIsNone(
+                find_latest_manifest(root, disclosure_capable=True, **common)
+            )
+
     def test_find_latest_manifest_filters_config_but_unfiltered_keeps_legacy_behavior(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

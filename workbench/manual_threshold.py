@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable, Mapping
 
-from .auto_threshold import PreviewSeries
 from .config_editor import CleaningThresholdRow, ConfigEditorError
+from .threshold_series import PreviewSeries
 
 
 LOWER_SIDE = "minimum"
@@ -229,12 +229,29 @@ class BoxThresholdProposal:
 def accepted_point_ids(payload: Mapping[str, object], point_key: str) -> tuple[str, ...]:
     """Return exact accepted identities without fuzzy point-name matching."""
 
-    values = [point_key.strip()]
+    normalized_key = point_key.strip()
+    values = [normalized_key]
     name_map = payload.get("name_map_global", {})
     if isinstance(name_map, Mapping):
-        original = str(name_map.get(point_key, "") or "").strip()
+        original = str(name_map.get(normalized_key, "") or "").strip()
         if original:
             values.append(original)
+    configured = payload.get("points", {})
+    if isinstance(configured, Mapping):
+        for raw_points in configured.values():
+            if isinstance(raw_points, str):
+                candidates = (raw_points,)
+            elif isinstance(raw_points, (list, tuple)):
+                candidates = tuple(raw_points)
+            else:
+                continue
+            for raw_point in candidates:
+                configured_id = str(raw_point or "").strip()
+                if configured_id and (
+                    configured_id == normalized_key
+                    or configured_id.replace("-", "_") == normalized_key
+                ):
+                    values.append(configured_id)
     return tuple(dict.fromkeys(value for value in values if value))
 
 

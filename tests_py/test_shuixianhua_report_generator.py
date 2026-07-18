@@ -1,3 +1,4 @@
+import copy
 import json
 import re
 import sys
@@ -20,6 +21,7 @@ from build_shuixianhua_monthly_report import (  # noqa: E402
     _sxh_parse_wind_summaries,
     _sxh_summary_payload,
     _sxh_update_docx_package,
+    _sxh_xml_update_summary,
     _sxh_validate_generated_content,
     build_report,
     report_acquisition_rows,
@@ -193,7 +195,9 @@ class ShuixianhuaReportGeneratorTest(unittest.TestCase):
             ), patch(
                 "build_shuixianhua_monthly_report.check_shuixianhua_report",
                 return_value=qc_result,
-            ):
+            ), patch(
+                "build_shuixianhua_monthly_report.update_word_fields_and_export_pdf"
+            ) as word_export:
                 with self.assertRaisesRegex(
                     RuntimeError,
                     r"QC did not pass \(status=warning\)",
@@ -203,8 +207,10 @@ class ShuixianhuaReportGeneratorTest(unittest.TestCase):
                         config_path=config,
                         result_root=root,
                         output_dir=output,
-                        update_word=False,
+                        update_word=True,
                     )
+
+            word_export.assert_not_called()
 
             manifests = list(output.glob("shuixianhua_report_build_manifest_*.json"))
             self.assertEqual(len(manifests), 1)
@@ -238,7 +244,9 @@ class ShuixianhuaReportGeneratorTest(unittest.TestCase):
             ), patch(
                 "build_shuixianhua_monthly_report.check_shuixianhua_report",
                 side_effect=ValueError("synthetic QC crash"),
-            ):
+            ), patch(
+                "build_shuixianhua_monthly_report.update_word_fields_and_export_pdf"
+            ) as word_export:
                 with self.assertRaisesRegex(
                     RuntimeError,
                     r"QC did not pass \(status=failed\)",
@@ -248,8 +256,10 @@ class ShuixianhuaReportGeneratorTest(unittest.TestCase):
                         config_path=config,
                         result_root=root,
                         output_dir=output,
-                        update_word=False,
+                        update_word=True,
                     )
+
+            word_export.assert_not_called()
 
             manifests = list(output.glob("shuixianhua_report_build_manifest_*.json"))
             self.assertEqual(len(manifests), 1)
@@ -476,6 +486,134 @@ class ShuixianhuaReportGeneratorTest(unittest.TestCase):
         self.assertIn("本月温度监测2个测点均获取到有效数据", text)
         self.assertEqual(temperature_row_count, 3)
         self.assertEqual(content_issues, [])
+
+    def test_real_template_writes_source_quality_note_once_before_acquisition_table(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        template = repo_root / "reports" / "水仙花大桥健康监测月报模板.docx"
+        note = (
+            "数据完整性复核：2026年6月14日至16日采集覆盖偏低；"
+            "本报告仅按实际有效数据统计，未对缺失时段进行插补。"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            report = Path(tmp) / "report.docx"
+            report.write_bytes(template.read_bytes())
+
+            _sxh_update_docx_package(
+                report,
+                self._minimal_context(),
+                "2026年6月1日~2026年6月30日",
+                "2026年7月18日",
+                period_label="2026年6月",
+                source_quality_note=note,
+            )
+
+            document = Document(report)
+            paragraphs = [paragraph.text for paragraph in document.paragraphs]
+            matching = [text for text in paragraphs if note in text]
+            acquisition_caption_index = next(
+                index for index, text in enumerate(paragraphs)
+                if "表 2-1 本月监测数据获取情况统计表" in text
+            )
+            note_index = next(index for index, text in enumerate(paragraphs) if note in text)
+
+        self.assertEqual(len(matching), 1)
+        self.assertTrue(matching[0].startswith("本月监测系统数据获取情况如下。"))
+        self.assertLess(note_index, acquisition_caption_index)
+
+    def test_source_quality_note_anchor_must_exist_exactly_once(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        template = repo_root / "reports" / "水仙花大桥健康监测月报模板.docx"
+        with ZipFile(template) as archive:
+            root = etree.fromstring(archive.read("word/document.xml"))
+        namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        anchor = "本月监测系统数据获取情况如下。"
+
+        matches = [
+            paragraph
+            for paragraph in root.findall(".//w:p", namespace)
+            if anchor == "".join(paragraph.itertext())
+        ]
+        self.assertEqual(len(matches), 1)
+
+        for mode in ("missing", "duplicate"):
+            with self.subTest(mode=mode):
+                candidate = copy.deepcopy(root)
+                candidate_matches = [
+                    paragraph
+                    for paragraph in candidate.findall(".//w:p", namespace)
+                    if anchor == "".join(paragraph.itertext())
+                ]
+                target = candidate_matches[0]
+                parent = target.getparent()
+                if mode == "missing":
+                    parent.remove(target)
+                    expected = "实际0处"
+                else:
+                    parent.insert(parent.index(target) + 1, copy.deepcopy(target))
+                    expected = "实际2处"
+                with self.assertRaisesRegex(ValueError, expected):
+                    _sxh_xml_update_summary(
+                        candidate,
+                        self._minimal_context(),
+                        "2026年6月1日~2026年6月30日",
+                        "2026年7月18日",
+                        "2026年6月",
+                        "审定的数据完整性说明。",
+                    )
+
+    def test_word_update_runs_after_exact_media_qc(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            template, config, output = self._minimal_build_fixture(root)
+            events: list[str] = []
+
+            def qc_side_effect(*_args, **_kwargs):
+                events.append("qc")
+                return ReportQcResult(
+                    kind="shuixianhua_monthly",
+                    docx_path="candidate.docx",
+                    checked_at="2026-07-18 07:00:00",
+                    status="ok",
+                    issue_count=0,
+                    warning_count=0,
+                    issues=[],
+                    summary={"exists": True, "image_count": 1},
+                )
+
+            def word_side_effect(_path):
+                events.append("word")
+                return None
+
+            with patch(
+                "build_shuixianhua_monthly_report._sxh_context",
+                return_value={"report_rows": []},
+            ), patch(
+                "build_shuixianhua_monthly_report._sxh_update_docx_package"
+            ), patch(
+                "build_shuixianhua_monthly_report._sxh_resolve_report_images",
+                return_value=({}, [], []),
+            ), patch(
+                "build_shuixianhua_monthly_report._sxh_replace_report_image_blocks",
+                return_value=([], []),
+            ), patch(
+                "build_shuixianhua_monthly_report._sxh_validate_generated_content",
+                return_value=[],
+            ), patch(
+                "build_shuixianhua_monthly_report.check_shuixianhua_report",
+                side_effect=qc_side_effect,
+            ), patch(
+                "build_shuixianhua_monthly_report.update_word_fields_and_export_pdf",
+                side_effect=word_side_effect,
+            ):
+                build_report(
+                    template=template,
+                    config_path=config,
+                    result_root=root,
+                    output_dir=output,
+                    update_word=True,
+                )
+
+        self.assertEqual(events, ["qc", "word"])
 
     def test_acceleration_rms_limits_are_read_from_cm_s2_config(self):
         cfg = {

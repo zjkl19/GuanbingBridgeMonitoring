@@ -82,9 +82,9 @@ function varargout = run_gui(varargin)
     profileNote.Layout.Row = 2; profileNote.Layout.Column = 4;
     configCheckBtn = uibutton(hgl, 'Text', '检查配置', 'ButtonPushedFcn', @(btn,~) check_current_config());
     configCheckBtn.Layout.Row = 2; configCheckBtn.Layout.Column = 5;
-    reportMigrationBtn = uibutton(hgl, 'Text', '报告已迁移到统一工作台', ...
+    reportMigrationBtn = uibutton(hgl, 'Text', '报告已迁移到统一工作平台', ...
         'Enable', 'off', ...
-        'Tooltip', '请在“桥梁健康监测工作台”的“报告生成”页使用报告功能。');
+        'Tooltip', '请在“桥梁健康监测工作平台”的“报告生成”页使用报告功能。');
     reportMigrationBtn.Layout.Row = 2; reportMigrationBtn.Layout.Column = 6;
 
     lblRoot = uilabel(gl,'Text','数据根目录:','FontWeight','bold','HorizontalAlignment','right'); lblRoot.Layout.Row=2; lblRoot.Layout.Column=1;
@@ -574,7 +574,7 @@ function varargout = run_gui(varargin)
                 case 'g'
                     check_current_config();
                 case 'b'
-                    addLog('报告功能已整合到“桥梁健康监测工作台”的“报告生成”页，不再启动独立报告窗口。');
+                    addLog('报告功能已整合到“桥梁健康监测工作平台”的“报告生成”页，不再启动独立报告窗口。');
                 otherwise
                     return;
             end

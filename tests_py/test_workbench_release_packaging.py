@@ -11,6 +11,12 @@ import unittest
 import zipfile
 from pathlib import Path
 
+from workbench.updater import stage_verified_update
+from workbench.version import (
+    EXECUTABLE_FILENAME,
+    LEGACY_CHINESE_EXECUTABLE_FILENAME,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_SCRIPT = REPO_ROOT / "scripts" / "package_workbench_github_release.ps1"
@@ -32,7 +38,12 @@ RESULT_LOCATION_STEM = "本次计算结果在哪里"
 AUTO_PREVIEW_MATCH_STEM = "自动匹配当前任务曲线预览"
 NO_JSON_STEM = "普通流程无需选择任何文件"
 DIRECT_FIG_IMPORT_STEM = "直接选择 MATLAB FIG"
-ADVANCED_PREVIEW_IMPORT_STEM = "高级：导入系统曲线记录 JSON"
+ADVANCED_PREVIEW_IMPORT_STEM = "导入其他任务的工作平台曲线记录"
+CURRENT_CURVE_TASK_STEM = "生成当前测点曲线"
+NO_AUTO_ALGORITHM_STEM = "不运行自动阈值算法"
+ADVANCED_JSON_IMPORT_STEM = "高级：从 JSON 文件导入"
+TRUE_PROGRESS_STEM = "真实进度"
+SAFE_STOP_STEM = "请求安全停止"
 STOP_FIG_OPERATION_STEM = "停止本次 FIG 操作"
 RESULT_STATS_DIR = "stats"
 RESULT_LOGS_DIR = "run_logs"
@@ -56,6 +67,11 @@ GUIDE_FRAGMENTS = (
     NO_JSON_STEM,
     DIRECT_FIG_IMPORT_STEM,
     ADVANCED_PREVIEW_IMPORT_STEM,
+    CURRENT_CURVE_TASK_STEM,
+    NO_AUTO_ALGORITHM_STEM,
+    ADVANCED_JSON_IMPORT_STEM,
+    TRUE_PROGRESS_STEM,
+    SAFE_STOP_STEM,
     STOP_FIG_OPERATION_STEM,
     RESULT_STATS_DIR,
     RESULT_LOGS_DIR,
@@ -123,7 +139,7 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
             json.dumps(self.smoke, ensure_ascii=False), encoding="utf-8"
         )
         (self.dist / "VERSION").write_text(VERSION, encoding="utf-8")
-        (self.dist / "桥梁健康监测工作台.exe").write_bytes(b"fixture-executable")
+        (self.dist / "桥梁健康监测工作平台.exe").write_bytes(b"fixture-executable")
         (self.dist / "asset.txt").write_text("fixture asset", encoding="utf-8")
         (self.dist / OPERATOR_GUIDE_NAME).write_text(
             "# Guide\n" + "\n".join(GUIDE_FRAGMENTS) + "\n",
@@ -191,13 +207,32 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
             "source_git_commit": self.source_git_commit,
             "source_tree_clean": True,
             "version": self.fixture_version,
-            "executable": "桥梁健康监测工作台.exe",
-            "executable_sha256": _sha256(self.dist / "桥梁健康监测工作台.exe"),
+            "display_name": "桥梁健康监测工作平台",
+            "executable": "桥梁健康监测工作平台.exe",
+            "supported_executable_filenames": [
+                "桥梁健康监测工作平台.exe",
+                "桥梁健康监测工作台.exe",
+                "BridgeMonitoringWorkbench.exe",
+            ],
+            "executable_sha256": _sha256(self.dist / "桥梁健康监测工作平台.exe"),
             "auto_threshold_preview_runner_smoke": True,
             "analysis_runner_failure_exit_smoke": True,
             "analysis_runner_manifest_resilience_smoke": True,
             "analysis_runner_cache_cleanup_policy_smoke": True,
             "analysis_runner_fig_threshold_smoke": True,
+            "threshold_curve_runner_smoke": True,
+            "threshold_curve_runner": {
+                "ok": True,
+                "runner_exit_code": 0,
+                "curve_record_count": 1,
+                "source_sample_count": 101,
+                "finite_sample_count": 101,
+                "preview_max": 100.0,
+                "progress_percent": 100.0,
+                "unexpected_auto_preview_count": 0,
+                "preview_sha256": "b" * 64,
+                "record_sha256": "c" * 64,
+            },
             "analysis_runner_fig_threshold": {
                 "ok": True,
                 "source_fig_unchanged": True,
@@ -384,6 +419,7 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
         *,
         version: str = VERSION,
         allow_development: bool = True,
+        legacy_bridge: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         command = [
             self.powershell,
@@ -402,6 +438,8 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
         ]
         if allow_development:
             command.append("-AllowDevelopmentVersion")
+        if legacy_bridge:
+            command.append("-LegacyNameBridge")
         return subprocess.run(
             command,
             cwd=self.repo,
@@ -438,6 +476,37 @@ class WorkbenchReleasePackagingTests(unittest.TestCase):
                 self.assertEqual(expected_bytes, len(payload), name)
                 self.assertEqual(expected_hash, hashlib.sha256(payload).hexdigest(), name)
         self.assertFalse((output / ".workbench_release_package.lock").exists())
+
+    def test_legacy_name_bridge_packages_both_names_without_mutating_dist(self) -> None:
+        output = self.repo / "bridge-release-output"
+        completed = self._run(output, legacy_bridge=True)
+        self.assertEqual(0, completed.returncode, msg=completed.stderr)
+        archive_path = output / f"BridgeMonitoringWorkbench-{VERSION}-win-x64.zip"
+        digest = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+        staged = stage_verified_update(
+            archive_path,
+            VERSION,
+            digest,
+            self.repo / "bridge-stage",
+        )
+        self.assertEqual(staged.executable_path.name, LEGACY_CHINESE_EXECUTABLE_FILENAME)
+        bridge_manifest = json.loads(staged.manifest_path.read_text(encoding="utf-8-sig"))
+        self.assertEqual(bridge_manifest["executable"], LEGACY_CHINESE_EXECUTABLE_FILENAME)
+        self.assertEqual(
+            bridge_manifest["executable_migration"],
+            {
+                "mode": "legacy_name_bridge",
+                "legacy_entrypoint": LEGACY_CHINESE_EXECUTABLE_FILENAME,
+                "canonical_entrypoint": EXECUTABLE_FILENAME,
+            },
+        )
+        self.assertEqual(
+            (staged.package_root / EXECUTABLE_FILENAME).read_bytes(),
+            (staged.package_root / LEGACY_CHINESE_EXECUTABLE_FILENAME).read_bytes(),
+        )
+        self.assertFalse((self.dist / LEGACY_CHINESE_EXECUTABLE_FILENAME).exists())
+        publication = json.loads((output / f"publish_{VERSION}.json").read_text(encoding="utf-8"))
+        self.assertIs(True, publication["legacy_name_bridge"])
 
     def test_stable_release_accepts_only_a_clean_commit_bound_fixture(self) -> None:
         self._prepare_stable_fixture()

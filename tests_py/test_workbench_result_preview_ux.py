@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import gc
 import os
 import tempfile
 import unittest
@@ -9,13 +10,13 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QDialog
 
 from workbench.box_threshold_dialog import BoxThresholdDialog
 from workbench.config_editor import CleaningThresholdRow
 from workbench.fig_threshold import FigThresholdCancelled
 from workbench.main_window import WorkbenchWindow
-from workbench.manual_threshold import LOWER_SIDE, UPPER_SIDE
+from workbench.manual_threshold import LOWER_SIDE, UPPER_SIDE, ThresholdSelectionBox
 from workbench.manual_threshold_dialog import ThresholdBandDialog
 from workbench.models import JobContext
 from workbench.result_location import analysis_result_location
@@ -41,15 +42,18 @@ def _write_preview(
         json.dumps(
             {
                 "schema_version": 1,
-                "artifact_type": "auto_threshold_preview",
-                "request_type": "auto_threshold_proposal",
+                "artifact_type": "threshold_curve_preview",
+                "request_type": "threshold_curve_generation",
                 "request_id": path.parent.name,
                 "bridge_id": bridge_id,
                 "data_root": str(root.resolve()),
                 "config_sha256": config_sha256,
                 "start_date": "2026-01-01",
                 "end_date": "2026-01-31",
-                "preview_series": [
+                "module_key": "acceleration",
+                "point_id": point_id,
+                "sensor_type": "acceleration",
+                "curve_records": [
                     {
                         "module_key": "acceleration",
                         "point_id": point_id,
@@ -61,6 +65,8 @@ def _write_preview(
                         ],
                         "values": [-2.0, 0.0, 3.0],
                         "sample_count": 3,
+                        "source_sample_count": 3,
+                        "finite_sample_count": 3,
                     }
                 ],
             },
@@ -74,6 +80,12 @@ class ResultAndPreviewUxTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = QApplication.instance() or QApplication([])
+
+    def tearDown(self) -> None:
+        self.app.closeAllWindows()
+        self.app.sendPostedEvents()
+        self.app.processEvents()
+        gc.collect()
 
     def test_result_location_is_data_root_and_distinguishes_report_output(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -205,8 +217,8 @@ class ResultAndPreviewUxTests(unittest.TestCase):
     def test_preview_locator_uses_only_exact_task_and_point_binding(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            wrong = root / "run_logs" / "workbench" / "new_wrong" / "auto_threshold_preview.json"
-            right = root / "run_logs" / "workbench" / "old_right" / "auto_threshold_preview.json"
+            wrong = root / "run_logs" / "workbench" / "new_wrong" / "threshold_curve_preview.json"
+            right = root / "run_logs" / "workbench" / "old_right" / "threshold_curve_preview.json"
             _write_preview(wrong, root=root, bridge_id="other_bridge")
             _write_preview(right, root=root)
             wrong.touch()
@@ -235,12 +247,12 @@ class ResultAndPreviewUxTests(unittest.TestCase):
                 )
             )
             self.assertIsNone(missing.path)
-            self.assertIn("自动清洗建议", missing.message)
+            self.assertIn("生成当前模块和测点的新版独立曲线", missing.message)
 
     def test_curve_dialogs_auto_load_and_offer_explicit_external_reference(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            preview = root / "run_logs" / "workbench" / "preview" / "auto_threshold_preview.json"
+            preview = root / "run_logs" / "workbench" / "preview" / "threshold_curve_preview.json"
             _write_preview(preview, root=root)
             common = {
                 "accepted_preview_point_ids": ("PT-1",),
@@ -249,7 +261,7 @@ class ResultAndPreviewUxTests(unittest.TestCase):
                 "expected_data_root": str(root),
                 "expected_start_date": "2026-01-01",
                 "expected_end_date": "2026-01-31",
-                "automatic_preview_resolver": lambda: preview,
+                "curve_record_resolver": lambda: preview,
             }
             target = CleaningThresholdRow(
                 "per_point", "acceleration", "PT-1", -1.0, 1.0
@@ -270,8 +282,12 @@ class ResultAndPreviewUxTests(unittest.TestCase):
                 self.assertIn("自动加载", box.auto_load_preview_button.text())
                 self.assertNotIn("JSON", band.auto_load_preview_button.toolTip())
                 self.assertNotIn("JSON", box.auto_load_preview_button.toolTip())
-                self.assertIn("系统曲线记录 JSON", band.import_preview_button.text())
-                self.assertIn("系统曲线记录 JSON", box.import_preview_button.text())
+                self.assertIn("其他任务", band.import_preview_button.text())
+                self.assertIn("其他任务", box.import_preview_button.text())
+                self.assertIn("JSON", band.import_preview_json_button.text())
+                self.assertIn("JSON", box.import_preview_json_button.text())
+                self.assertIn("轻量任务", band.generate_preview_button.text())
+                self.assertIn("轻量任务", box.generate_preview_button.text())
                 self.assertIn("MATLAB FIG", band.direct_fig_button.text())
                 self.assertIn("MATLAB FIG", box.direct_fig_button.text())
             finally:
@@ -299,7 +315,7 @@ class ResultAndPreviewUxTests(unittest.TestCase):
                 "expected_data_root": str(root / "current"),
                 "expected_start_date": "2026-06-01",
                 "expected_end_date": "2026-06-30",
-                "automatic_preview_resolver": None,
+                "curve_record_resolver": None,
             }
             band = ThresholdBandDialog(target, **common)
             box = BoxThresholdDialog(target, side=LOWER_SIDE, **common)
@@ -315,8 +331,31 @@ class ResultAndPreviewUxTests(unittest.TestCase):
                 self.assertEqual(band.preview_series.point_id, "CURRENT-POINT")
                 self.assertEqual(box.preview_series.point_id, "CURRENT-POINT")
                 draft = band.draft()
-                self.assertEqual(draft.t_range_start, target.t_range_start)
-                self.assertEqual(draft.t_range_end, target.t_range_end)
+                self.assertTrue(band.start_edit.isEnabled())
+                self.assertTrue(band.end_edit.isEnabled())
+                band._window_from_curve(
+                    "2026-01-01T00:00:00", "2026-01-01T00:00:01"
+                )
+                draft = band.draft()
+                self.assertEqual(draft.t_range_start, "2026-01-01 00:00:00")
+                self.assertEqual(draft.t_range_end, "2026-01-01 00:00:01")
+
+                box._selection_changed(
+                    ThresholdSelectionBox(
+                        "cable_accel",
+                        "CURRENT-POINT",
+                        LOWER_SIDE,
+                        "2026-01-01T00:00:00",
+                        "2026-01-01T00:00:01",
+                        -3.0,
+                        1.0,
+                        "2026-01-01T00:00:00",
+                        "2026-01-01T00:00:01",
+                    )
+                )
+                box_draft = box.draft()
+                self.assertEqual(box_draft.t_range_start, "2026-01-01T00:00:00")
+                self.assertEqual(box_draft.t_range_end, "2026-01-01T00:00:01")
                 self.assertIn("外部参考曲线", band.preview_path_label.text())
                 self.assertIn("未绑定当前任务", box.preview_path_label.text())
             finally:
@@ -357,7 +396,8 @@ class ResultAndPreviewUxTests(unittest.TestCase):
             self.assertTrue(dialog.external_reference_mode)
             self.assertIsNone(dialog.preview_series)
             self.assertIn("直接选择 MATLAB FIG", dialog.direct_fig_button.text())
-            self.assertIn("JSON", dialog.import_preview_button.text())
+            self.assertIn("其他任务", dialog.import_preview_button.text())
+            self.assertIn("JSON", dialog.import_preview_json_button.text())
             self.assertIn("未绑定当前任务", dialog.preview_path_label.text())
             self.assertIn("123456", dialog.preview_path_label.text())
             draft = dialog.draft()
@@ -501,7 +541,7 @@ class ResultAndPreviewUxTests(unittest.TestCase):
             band.close()
             box.close()
 
-    def test_external_reference_does_not_fill_an_empty_target_time_window(self) -> None:
+    def test_external_reference_initializes_and_allows_a_new_time_window(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             preview = root / "external_curve.json"
@@ -517,8 +557,14 @@ class ResultAndPreviewUxTests(unittest.TestCase):
             try:
                 band.load_reference_preview_path(preview)
                 draft = band.draft()
-                self.assertEqual(draft.t_range_start, "")
-                self.assertEqual(draft.t_range_end, "")
+                self.assertEqual(draft.t_range_start, "2026-01-01 00:00:00")
+                self.assertEqual(draft.t_range_end, "2026-01-01 00:00:02")
+                band._window_from_curve(
+                    "2026-01-01T00:00:01", "2026-01-01T00:00:02"
+                )
+                moved = band.draft()
+                self.assertEqual(moved.t_range_start, "2026-01-01 00:00:01")
+                self.assertEqual(moved.t_range_end, "2026-01-01 00:00:02")
             finally:
                 band.close()
 
@@ -537,15 +583,15 @@ class ResultAndPreviewUxTests(unittest.TestCase):
                 return_value=("", ""),
             ) as chooser:
                 dialog.direct_fig_button.click()
-                dialog.import_preview_button.click()
+                dialog.import_preview_json_button.click()
 
             self.assertEqual(chooser.call_count, 2)
             direct_args = chooser.call_args_list[0].args
             preview_args = chooser.call_args_list[1].args
             self.assertIn("直接选择 MATLAB FIG", direct_args[1])
             self.assertEqual(direct_args[3], "MATLAB 图形 (*.fig)")
-            self.assertIn("加载已有曲线预览", preview_args[1])
-            self.assertEqual(preview_args[3], "系统曲线记录 (*.json)")
+            self.assertIn("工作平台曲线 JSON", preview_args[1])
+            self.assertEqual(preview_args[3], "工作平台曲线记录 (*.json)")
         finally:
             dialog.close()
 
@@ -564,7 +610,7 @@ class ResultAndPreviewUxTests(unittest.TestCase):
                 "expected_data_root": str(root / "current"),
                 "expected_start_date": "2026-06-01",
                 "expected_end_date": "2026-06-30",
-                "automatic_preview_resolver": lambda: preview,
+                "curve_record_resolver": lambda: preview,
             }
             band = ThresholdBandDialog(target, **common)
             box = BoxThresholdDialog(target, side=LOWER_SIDE, **common)
@@ -573,8 +619,8 @@ class ResultAndPreviewUxTests(unittest.TestCase):
                 box.load_reference_preview_path(preview)
                 band_series = band.preview_series
                 box_series = box.preview_series
-                self.assertFalse(band._load_automatic_preview(silent=True))
-                self.assertFalse(box._load_automatic_preview(silent=True))
+                self.assertFalse(band._load_current_curve(silent=True))
+                self.assertFalse(box._load_current_curve(silent=True))
                 self.assertTrue(band.external_reference_mode)
                 self.assertTrue(box.external_reference_mode)
                 self.assertIs(band.preview_series, band_series)
@@ -587,21 +633,43 @@ class ResultAndPreviewUxTests(unittest.TestCase):
                 band.close()
                 box.close()
 
-    def test_missing_curve_action_navigates_to_minimal_auto_suggestion_run(self) -> None:
-        window = WorkbenchWindow(PROJECT_ROOT)
-        try:
-            window.cleaning_editor.auto_threshold_requested.emit("acceleration")
-            self.app.processEvents()
-            self.assertIs(window.tabs.currentWidget(), window.config_tabs)
-            self.assertIs(
-                window.config_tabs.currentWidget(), window.auto_threshold_editor
-            )
-            selected = window.auto_threshold_editor._selected_modules()
-            self.assertEqual(selected, ["acceleration"])
-            self.assertIn("请点击", window.auto_threshold_editor.status_label.text())
-        finally:
-            window.poll_timer.stop()
-            window.close()
+    def test_missing_curve_action_starts_independent_single_point_task(self) -> None:
+        calls: list[tuple[str, str]] = []
+
+        class FakeCurveTaskDialog:
+            def __init__(
+                self,
+                _project_root: Path,
+                _context: dict[str, str],
+                module_key: str,
+                point_id: str,
+                _parent: object,
+            ) -> None:
+                calls.append((module_key, point_id))
+
+            def exec(self) -> int:
+                return QDialog.Accepted
+
+            def deleteLater(self) -> None:
+                pass
+
+        with patch(
+            "workbench.main_window.ThresholdCurveTaskDialog",
+            FakeCurveTaskDialog,
+        ):
+            window = WorkbenchWindow(PROJECT_ROOT)
+            try:
+                window.cleaning_editor.threshold_curve_requested.emit(
+                    "acceleration", "A-01"
+                )
+                self.app.processEvents()
+                self.assertEqual(calls, [("acceleration", "A-01")])
+                self.assertIsNot(
+                    window.config_tabs.currentWidget(), window.auto_threshold_editor
+                )
+            finally:
+                window.poll_timer.stop()
+                window.close()
 
 
 if __name__ == "__main__":

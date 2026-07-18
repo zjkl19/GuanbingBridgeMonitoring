@@ -6,11 +6,12 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtCore import QDate, QSettings, QThread
+    from PySide6.QtCore import QDate, QSettings, QThread, Qt
     from PySide6.QtWidgets import (
         QAbstractButton, QApplication, QCheckBox, QGroupBox, QLabel, QMainWindow, QMessageBox, QPushButton
     )
@@ -24,6 +25,7 @@ try:
     from workbench.operator_text import operator_friendly_text, operator_stage_label, operator_state_label
     from workbench.provenance import PlotProvenanceRow, PlotProvenanceSummary
     from workbench.update_ui import UpdateController
+    from workbench.version import APP_DISPLAY_NAME
     from scripts.validate_workbench_installed_profiles import validate_profile_payload
 except ImportError:  # pragma: no cover - dependency gate
     QApplication = None
@@ -42,11 +44,18 @@ class WorkbenchGuiTests(unittest.TestCase):
         try:
             expected_version = (root / "VERSION").read_text(encoding="utf-8-sig").strip()
             self.assertIn(expected_version, window.windowTitle())
+            self.assertIn(APP_DISPLAY_NAME, window.windowTitle())
+            self.assertEqual(window.brand_icon_label.toolTip(), APP_DISPLAY_NAME)
+            self.assertIn(APP_DISPLAY_NAME, [label.text() for label in window.findChildren(QLabel)])
             self.assertEqual(window.tabs.count(), 4)
             self.assertGreaterEqual(len(window.module_checks), 20)
             self.assertIsNotNone(window.alarm_editor.session)
             self.assertIsNotNone(window.cleaning_editor.session)
             self.assertEqual(window.config_tabs.count(), 9)
+            window.config_tabs.setCurrentIndex(0)
+            window._show_auto_threshold_for_module("temperature")
+            self.assertIs(window.config_tabs.currentWidget(), window.auto_threshold_scroll)
+            self.assertIs(window.auto_threshold_scroll.widget(), window.auto_threshold_editor)
             self.assertEqual(window.auto_threshold_editor.module_list.count(), 15)
             self.assertTrue(window.update_backup_btn.isEnabled())
             self.assertTrue(window.profile_matrix_btn.isEnabled())
@@ -68,7 +77,7 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertEqual(window.unzip_settings_editor.requested_value(), 1)
             self.assertEqual(window.plot_common_editor.table.rowCount(), 14)
             self.assertEqual(window.spectrum_editor.module_combo.count(), 2)
-            self.assertEqual(window.provenance_table.columnCount(), 7)
+            self.assertEqual(window.provenance_table.columnCount(), 8)
             self.assertEqual(window.module_table.columnCount(), 5)
             self.assertNotIn(
                 "内部标识",
@@ -77,7 +86,7 @@ class WorkbenchGuiTests(unittest.TestCase):
                     for column in range(window.module_table.columnCount())
                 ],
             )
-            self.assertEqual(window.report_qc_table.columnCount(), 5)
+            self.assertEqual(window.report_qc_table.columnCount(), 6)
             self.assertEqual(window.open_report_btn.text(), "生成报告并执行质量检查")
             self.assertEqual(window.update_btn.text(), "立即检查更新")
             self.assertTrue(window.auto_update_check.isEnabled())
@@ -119,6 +128,12 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertFalse(window.open_report_btn.isEnabled())
             self.assertFalse(window.open_report_qc_btn.isEnabled())
             self.assertEqual(window.analysis_progress.value(), 0)
+            self.assertEqual(
+                window.analysis_progress.format(),
+                "模块进度 %p%（非耗时比例）",
+            )
+            self.assertEqual(window.module_progress_panel.title(), "模块进度明细")
+            self.assertEqual(window.module_progress_panel.table.columnCount(), 7)
             self.assertTrue(window.history_btn.isEnabled())
             self.assertEqual(window.analysis_stack.count(), 2)
             self.assertEqual(window.task_history_page.table.columnCount(), 8)
@@ -245,6 +260,8 @@ class WorkbenchGuiTests(unittest.TestCase):
             config.write_text(
                 '{"extends":"base.json","bridge":{"id":"guanbing"}}', encoding="utf-8"
             )
+            template = task_root / "template.docx"
+            template.write_bytes(b"template")
             context = JobContext.create(
                 project_root=root,
                 bridge_id="guanbing",
@@ -255,32 +272,51 @@ class WorkbenchGuiTests(unittest.TestCase):
                 config_path=config,
                 selected_modules=["temperature"],
                 options=options_for_modules(["temperature"]),
+                template_path=template,
                 job_id="layered_gate_unit",
             )
             context.analysis.state = "completed"
-            context.analysis.manifest_path = str(task_root / "analysis_manifest.json")
+            provenance_path = task_root / "temperature.plot.json"
+            provenance_path.write_text(json.dumps({
+                "series": [{
+                    "point_id": "T1", "sampling_mode": "full",
+                    "reduction_applied": False, "input_count": 1,
+                    "finite_count": 1, "plotted_finite_count": 1,
+                    "source": {
+                        "source_sample_count": 1,
+                        "finite_source_sample_count": 1,
+                        "completeness_scope": "required_export_contribution",
+                        "internal_gap_coverage_assessed": True,
+                        "calendar_day_count_requested": 1,
+                        "complete_day_count": 1,
+                        "incomplete_day_count": 0,
+                        "incomplete_days": [],
+                        "missing_required_sources": [],
+                    },
+                }]
+            }), encoding="utf-8")
+            manifest_path = task_root / "analysis_manifest.json"
+            manifest_path.write_text(json.dumps({
+                "status": "ok",
+                "bridge_profile": {"bridge_id": "guanbing"},
+                "run_request": {
+                    "data_root": str(data_root),
+                    "start_date": "2026-06-01",
+                    "end_date": "2026-06-30",
+                    "config_path": str(config),
+                    "config_sha256": context.config_sha256,
+                },
+                "module_results": [{
+                    "key": "temperature", "status": "ok",
+                    "artifacts": [{"kind": "plot_provenance", "path": str(provenance_path)}],
+                }],
+            }), encoding="utf-8")
+            context.analysis.manifest_path = str(manifest_path)
+            context.analysis.manifest_sha256 = file_sha256(manifest_path)
             context.report.plots_approved = True
             window = WorkbenchWindow(root)
             try:
                 window.load_context(context.write())
-                window.current_manifest = ManifestSummary(
-                    path=Path(context.analysis.manifest_path),
-                    status="ok",
-                    artifact_count=1,
-                    modules=(),
-                )
-                window.current_manifest_missing_selected = ()
-                window.current_provenance = PlotProvenanceSummary(rows=(
-                    PlotProvenanceRow(
-                        module_key="temperature",
-                        path=task_root / "temperature.plot.json",
-                        status="closed",
-                        series_count=1,
-                        source_count=1,
-                        plotted_count=1,
-                        incomplete_days=(),
-                    ),
-                ))
                 window.approval_check.blockSignals(True)
                 window.approval_check.setEnabled(True)
                 window.approval_check.setChecked(True)
@@ -291,7 +327,8 @@ class WorkbenchGuiTests(unittest.TestCase):
                 layer.write_text('{"plot_common":{"gap_mode":"break"}}', encoding="utf-8")
 
                 self.assertFalse(window._context_matches_current_inputs(context))
-                self.assertFalse(window._report_gate_ready())
+                window._update_report_gate()
+                self.assertFalse(window.open_report_btn.isEnabled())
             finally:
                 window.poll_timer.stop()
                 window.close()
@@ -420,11 +457,35 @@ class WorkbenchGuiTests(unittest.TestCase):
             status_path.parent.mkdir(parents=True, exist_ok=True)
             status_path.write_text(json.dumps({
                 "status": "running",
+                "progress_schema_version": 2,
+                "progress_authority": "runtime",
                 "progress_fraction": 0.25,
                 "current_module_label": "温度分析",
-                "completed_modules": 1,
-                "module_total": 4,
-                "estimated_remaining_sec": 90,
+                "current_module_key": "temperature",
+                "module_index": 1,
+                "completed_modules": 0,
+                "module_total": 2,
+                "module_steps": [
+                    {
+                        "key": "temperature",
+                        "label": "温度分析",
+                        "index": 1,
+                        "status": "running",
+                        "stage": "processing_date",
+                        "current_point_id": "T-1",
+                        "current_date": "2026-03-26",
+                        "processed_dates": 1,
+                        "total_dates": 2,
+                        "elapsed_seconds": 15,
+                        "message": "",
+                    },
+                    {
+                        "key": "acceleration",
+                        "label": "加速度分析",
+                        "index": 2,
+                        "status": "pending",
+                    },
+                ],
             }, ensure_ascii=False), encoding="utf-8")
             window = WorkbenchWindow(root)
             try:
@@ -434,9 +495,17 @@ class WorkbenchGuiTests(unittest.TestCase):
                 self.assertTrue(window.module_checks["temperature"].isChecked())
                 self.assertFalse(window.module_checks["wind"].isChecked())
                 self.assertEqual(window.period_label_edit.text(), "2026年4月")
-                self.assertEqual(window.analysis_progress.value(), 250)
-                self.assertIn("温度分析", window.analysis_progress_label.text())
-                self.assertIn("1分30秒", window.analysis_progress_label.text())
+                self.assertEqual(window.analysis_progress.value(), 0)
+                self.assertIn("当前测点：T-1", window.analysis_progress_label.text())
+                self.assertIn("当前日期：2026-03-26", window.analysis_progress_label.text())
+                self.assertIn("本模块日期：1/2", window.analysis_progress_label.text())
+                self.assertNotIn("预计剩余", window.analysis_progress_label.text())
+                self.assertIn("当前1/2：温度分析", window.module_progress_panel.summary_label.text())
+                self.assertEqual(window.module_progress_panel.table.rowCount(), 2)
+                self.assertIn(
+                    "运行中",
+                    window.module_progress_panel.table.item(0, 1).text(),
+                )
                 self.assertIn(path.resolve(), window.known_context_paths)
             finally:
                 window.poll_timer.stop()
@@ -704,11 +773,104 @@ class WorkbenchGuiTests(unittest.TestCase):
                 window._load_manifest(manifest)
                 self.assertEqual(window.provenance_table.rowCount(), 1)
                 self.assertIn("通过：1", window.provenance_summary_label.text())
+                self.assertEqual(window.provenance_table.item(0, 7).text(), str(provenance))
+                self.assertNotIn(str(provenance), window.provenance_table.item(0, 6).text())
                 self.assertTrue(window.approval_check.isEnabled())
                 self.assertFalse(window.current_context.report.plots_approved)
+                self.assertEqual(window.disclosure_table.rowCount(), 1)
+                self.assertEqual(
+                    window.disclosure_table.item(0, 0).checkState(), Qt.Unchecked
+                )
+                self.assertTrue(window.disclosure_select_all_btn.isEnabled())
+                self.assertTrue(window.disclosure_clear_all_btn.isEnabled())
+                window.disclosure_select_all_btn.click()
+                self.app.processEvents()
                 saved = JobContext.read(window.current_context_path)
                 self.assertEqual(saved.analysis.manifest_sha256, file_sha256(manifest))
+                self.assertTrue(saved.report.plots_approved)
+                self.assertEqual(len(saved.report.disclosure_confirmations), 1)
+                self.assertEqual(
+                    saved.report.disclosure_manifest_sha256,
+                    saved.analysis.manifest_sha256,
+                )
+                window.disclosure_clear_all_btn.click()
+                self.app.processEvents()
+                saved = JobContext.read(window.current_context_path)
+                self.assertEqual(saved.report.disclosure_confirmations, [])
                 self.assertFalse(saved.report.plots_approved)
+            finally:
+                window.poll_timer.stop()
+                window.close()
+
+    def test_report_gate_audit_is_cached_for_periodic_ui_refresh(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            data_root = Path(folder) / "data"
+            data_root.mkdir()
+            context = JobContext.create(
+                project_root=root,
+                bridge_id="guanbing",
+                bridge_name="管柄大桥",
+                data_root=data_root,
+                start_date="2026-06-01",
+                end_date="2026-06-30",
+                config_path=root / "config" / "default_config.json",
+                selected_modules=["temperature"],
+                options=options_for_modules(["temperature"]),
+                job_id="report_gate_cache_unit",
+            )
+            context.analysis.state = "completed"
+            context.report.plots_approved = True
+            window = WorkbenchWindow(root)
+            try:
+                window.current_context = context
+                window.current_manifest = object()
+                window.current_provenance = object()
+                window.approval_check.blockSignals(True)
+                window.approval_check.setEnabled(True)
+                window.approval_check.setChecked(True)
+                window.approval_check.blockSignals(False)
+                passed_audit = SimpleNamespace(
+                    passed=True, issues=(), disclosure_items=()
+                )
+                blocked_audit = SimpleNamespace(
+                    passed=False,
+                    issues=("报告缺项尚未确认",),
+                    disclosure_items=(object(),),
+                )
+
+                def audit_for_context(candidate):
+                    return (
+                        blocked_audit
+                        if candidate.report.report_build_disclosure_candidates
+                        else passed_audit
+                    )
+
+                with patch.object(
+                    window, "_context_matches_current_inputs", return_value=True
+                ), patch(
+                    "workbench.main_window.inspect_report_gate",
+                    side_effect=audit_for_context,
+                ) as inspect:
+                    window._update_report_gate()
+                    window._update_report_gate()
+                    self.assertEqual(inspect.call_count, 1)
+
+                    # The actual report launch path must always re-audit files.
+                    self.assertTrue(window._report_gate_ready())
+                    self.assertEqual(inspect.call_count, 2)
+
+                    context.report.report_build_disclosure_candidates = [
+                        {"stable_id": "report-build-gap", "source_kind": "report_build"}
+                    ]
+                    window._update_report_gate()
+                    self.assertEqual(inspect.call_count, 3)
+                    self.assertFalse(window.open_report_btn.isEnabled())
+
+                    # A user-visible gate input invalidates the cached audit.
+                    window.template_edit.setText(str(Path(folder) / "other.docx"))
+                    self.app.processEvents()
+                    self.assertEqual(inspect.call_count, 4)
             finally:
                 window.poll_timer.stop()
                 window.close()

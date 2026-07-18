@@ -6,6 +6,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+from .provenance_contract import (
+    ProvenanceContractViolation,
+    validate_derived_10min_series,
+    validate_source_sample_counts,
+    validate_source_day_coverage,
+)
+
 
 _FULL_RAW_MODULES = {"acceleration", "cable_accel"}
 _RAW_RENDER_MODES = {"line", "dense_band", "band"}
@@ -26,6 +33,9 @@ class PlotProvenanceRow:
     plotted_count: int
     incomplete_days: tuple[str, ...]
     message: str = ""
+    failure_code: str = ""
+    reason_zh: str = ""
+    suggestion_zh: str = ""
 
     @property
     def closed(self) -> bool:
@@ -47,6 +57,53 @@ class PlotProvenanceSummary:
     @property
     def incomplete_source_count(self) -> int:
         return sum(row.status == "closed_incomplete_source" for row in self.rows)
+
+
+def _failure_guidance(message: str) -> tuple[str, str, str]:
+    """Map low-level contract failures to stable user-facing guidance."""
+
+    normalized = message.lower()
+    if "derived series must use full sampling without reduction" in normalized:
+        return (
+            "derived_reduction_forbidden",
+            "10分钟派生序列未按全量模式输出，或被错误标记为抽稀。",
+            "只重算风模块，并确认全部10分钟派生点参与绘图且reduction_applied=false。",
+        )
+    if "derived input/finite/plotted counts do not close" in normalized:
+        return (
+            "derived_counts_not_closed",
+            "10分钟派生输入数、有限值数和实际绘图点数不闭合。",
+            "检查10分钟聚合与有限值过滤；正式图必须绘制全部有限派生点。",
+        )
+    if "raw source/input/finite counts do not close" in normalized:
+        return (
+            "raw_counts_not_closed",
+            "原始序列的源样本数、输入数和有限值数不闭合。",
+            "重新生成对应模块图件及来源记录，并核对清洗后有限值计数；来源计数错误不能人工放行。",
+        )
+    if "source/input/finite counts do not close" in normalized:
+        return (
+            "source_derived_counts_not_closed",
+            "原始样本计数与派生序列计数被混用，或计数次序不可能。",
+            "分别记录原始source计数和派生input/finite/plotted计数后重新生成来源记录。",
+        )
+    if "no plotted finite values" in normalized:
+        return (
+            "no_plotted_values",
+            "该图没有任何可绘制的有限值。",
+            "检查源数据覆盖、测点配置和有限值过滤；不要把无有效数据伪装成正常图件。",
+        )
+    if "does not exist" in normalized or "不存在" in message:
+        return (
+            "provenance_file_missing",
+            "图件对应的来源核验文件不存在。",
+            "重新生成对应模块图件及同名.plot.json，不要手工复制旧图放行。",
+        )
+    return (
+        "plot_provenance_invalid",
+        "图件来源记录未通过计数或契约核验。",
+        "查看技术详情，修正来源记录或重算对应模块；不要人工放行来源计数错误。",
+    )
 
 
 def _artifact_paths(raw: Any) -> Iterable[Path]:
@@ -194,20 +251,23 @@ def _validate_series_counts(
     sampling_mode = str(item.get("sampling_mode") or "").strip().lower()
     plot_scope = str(item.get("plot_scope") or "").strip().lower()
     reduction_applied = item.get("reduction_applied")
-    if sampling_mode not in _SAMPLING_MODES:
-        raise ValueError(f"series {index} has unsupported sampling_mode={sampling_mode or '<missing>'}")
-    if not isinstance(reduction_applied, bool):
-        raise ValueError(f"series {index} reduction_applied must be boolean")
+    if render_mode != "derived_10min_mean":
+        if sampling_mode not in _SAMPLING_MODES:
+            raise ValueError(
+                f"series {index} has unsupported sampling_mode={sampling_mode or '<missing>'}"
+            )
+        if not isinstance(reduction_applied, bool):
+            raise ValueError(f"series {index} reduction_applied must be boolean")
     if render_mode == "wind_rose_aggregate":
         if sampling_mode != "full" or reduction_applied:
             raise ValueError(f"series {index} aggregate must use full sampling without reduction")
         if not (input_count >= finite >= plotted):
             raise ValueError(f"series {index} aggregate input/finite/plotted counts do not close")
     elif render_mode == "derived_10min_mean":
-        if sampling_mode != "full" or reduction_applied:
-            raise ValueError(f"series {index} derived series must use full sampling without reduction")
-        if not (input_count >= finite == plotted):
-            raise ValueError(f"series {index} derived input/finite/plotted counts do not close")
+        input_count, finite, plotted = validate_derived_10min_series(
+            item,
+            provenance_schema_version=provenance_schema_version,
+        )
     elif render_mode in _RAW_RENDER_MODES:
         normalized_module = module_key.strip().lower()
         if plot_scope and plot_scope not in {"point_time_history", "group_overview"}:
@@ -281,33 +341,13 @@ def inspect_plot_provenance(module_key: str, path: Path) -> PlotProvenanceRow:
                 has_source = False
                 source_total += input_count
                 continue
-            source_count = _nonnegative(source.get("source_sample_count"))
-            finite_source = _nonnegative(source.get("finite_source_sample_count"))
-            if finite_source > source_count:
-                raise ValueError(f"series {index} finite source count exceeds source count")
-            if render_mode in _DERIVED_RENDER_MODES or sampling_mode == "capped":
-                if source_count < input_count or finite_source < finite:
-                    raise ValueError(f"series {index} source/input/finite counts do not close")
-            elif source_count != input_count or finite_source != finite:
-                raise ValueError(f"series {index} raw source/input/finite counts do not close")
-            if str(source.get("completeness_scope") or "") != "required_export_contribution":
-                raise ValueError(f"series {index} has unsupported source completeness scope")
-            if not isinstance(source.get("internal_gap_coverage_assessed"), bool):
-                raise ValueError(f"series {index} lacks internal-gap coverage assessment")
-            requested = int(_nonnegative(source.get("calendar_day_count_requested")))
-            complete = int(_nonnegative(source.get("complete_day_count")))
-            incomplete = int(_nonnegative(source.get("incomplete_day_count")))
-            days = source.get("incomplete_days")
-            if requested != complete + incomplete:
-                raise ValueError(f"series {index} source day counts do not close")
-            if not isinstance(days, list) or len(days) != incomplete:
-                raise ValueError(f"series {index} incomplete day list does not close")
-            missing_sources = source.get("missing_required_sources")
-            if not isinstance(missing_sources, list) or not all(
-                isinstance(value, str) and value.strip() for value in missing_sources
-            ):
-                raise ValueError(f"series {index} missing-source disclosure is invalid")
-            incomplete_days.extend(str(day) for day in days)
+            source_count, finite_source = validate_source_sample_counts(
+                source,
+                input_count=input_count,
+                finite_count=finite,
+                derived=render_mode in _DERIVED_RENDER_MODES or sampling_mode == "capped",
+            )
+            incomplete_days.extend(validate_source_day_coverage(source))
             source_total += source_count
         status = "failed" if not has_source else (
             "closed_incomplete_source" if incomplete_days else "closed"
@@ -322,9 +362,34 @@ def inspect_plot_provenance(module_key: str, path: Path) -> PlotProvenanceRow:
             int(plotted_total),
             tuple(dict.fromkeys(incomplete_days)),
             message,
+            "missing_source_provenance" if not has_source else "",
+            "部分曲线没有可核验的原始数据覆盖记录。" if not has_source else "",
+            "重新生成对应模块图件及来源记录后再进行正式图核验。" if not has_source else "",
         )
     except Exception as exc:  # noqa: BLE001
-        return PlotProvenanceRow(module_key, path, "failed", 0, 0, 0, (), str(exc))
+        technical_message = str(exc)
+        if isinstance(exc, ProvenanceContractViolation):
+            code = exc.code
+            reason_zh = exc.reason_zh
+            suggestion_zh = exc.suggestion_zh
+        else:
+            code, reason_zh, suggestion_zh = _failure_guidance(technical_message)
+        message = (
+            f"{technical_message}；用户可读原因：{reason_zh}；修复建议：{suggestion_zh}"
+        )
+        return PlotProvenanceRow(
+            module_key,
+            path,
+            "failed",
+            0,
+            0,
+            0,
+            (),
+            message,
+            code,
+            reason_zh,
+            suggestion_zh,
+        )
 
 
 def inspect_manifest_plot_provenance(path: Path) -> PlotProvenanceSummary:

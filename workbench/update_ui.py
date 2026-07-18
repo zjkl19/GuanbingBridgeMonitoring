@@ -121,7 +121,7 @@ class UpdateController:
             QMessageBox.information(
                 self.window,
                 "更新备份",
-                f"当前安装目录旁没有识别到工作台更新备份。\n\n{self.project_root.parent}",
+                f"当前安装目录旁没有识别到工作平台更新备份。\n\n{self.project_root.parent}",
             )
             return
         safe = [item for item in backups if item.safe_to_remove]
@@ -218,7 +218,7 @@ class UpdateController:
                 )
             return
         box = QMessageBox(self.window)
-        box.setWindowTitle("发现工作台更新")
+        box.setWindowTitle("发现工作平台更新")
         box.setIcon(QMessageBox.Information)
         box.setText(f"发现新版本 {info.latest_version}（当前 {self.current_version}）")
         notes = info.release_notes.strip() or "该 Release 未填写更新说明。"
@@ -253,7 +253,7 @@ class UpdateController:
             self.window,
             "更新已验证",
             f"版本 {staged.version} 已下载并通过双重 SHA256 校验。\n\n"
-            "安装时工作台将退出，自动备份当前安装目录，保留现有 config，"
+            "安装时工作平台将退出，自动备份当前安装目录，保留现有 config，"
             "更新完成后重新启动。是否现在安装？",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,

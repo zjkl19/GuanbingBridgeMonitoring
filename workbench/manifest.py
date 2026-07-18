@@ -49,6 +49,7 @@ def find_latest_manifest(
     config_sha256: str = "",
     selected_modules: Iterable[str] = (),
     successful_only: bool = False,
+    disclosure_capable: bool = False,
 ) -> Path | None:
     """Return the newest manifest compatible with the current task.
 
@@ -70,6 +71,7 @@ def find_latest_manifest(
         or config_sha256
         or selected
         or successful_only
+        or disclosure_capable
     )
     if not filtered:
         return candidates[0] if candidates else None
@@ -109,11 +111,21 @@ def find_latest_manifest(
             continue
         if selected and summary.missing_selected_modules(selected):
             continue
-        if successful_only and (
-            summary.status.lower() not in {"ok", "success", "completed"}
-            or summary.failed_modules
-        ):
-            continue
+        if successful_only:
+            if summary.status.lower() not in {"ok", "success", "completed"}:
+                continue
+            if summary.failed_modules:
+                safely_disclosable = bool(
+                    disclosure_capable
+                    and all(
+                        item.status.strip().casefold()
+                        in {"skip", "skipped", "not_applicable", "no_data", "no_valid_data"}
+                        and bool(item.message.strip())
+                        for item in summary.failed_modules
+                    )
+                )
+                if not safely_disclosable:
+                    continue
         return path
     return None
 

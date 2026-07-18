@@ -98,10 +98,87 @@ classdef test_app_step_layer < matlab.unittest.TestCase
             tc.verifyGreaterThanOrEqual(numel(payloads), 2);
             tc.verifyTrue(any(cellfun(@(p) isfield(p, 'progress_fraction'), payloads)));
             tc.verifyTrue(any(cellfun(@(p) isfield(p, 'current_module_label'), payloads)));
+            finalPayload = payloads{end};
+            tc.verifyEqual(finalPayload.progress_schema_version, 2);
+            tc.verifyEqual(finalPayload.progress_authority, 'runtime');
+            tc.verifyEqual({finalPayload.module_steps.status}, {'stopped', 'skipped'});
+            tc.verifyEqual({finalPayload.module_steps.key}, {'temperature', 'humidity'});
 
             function collect_payload(payload)
                 payloads{end+1} = payload; %#ok<AGROW>
             end
+        end
+
+        function stepPlanPublishesFullTruthfulModuleContract(tc)
+            plan = bms.app.StepPlan();
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('temperature'), @report_real_checkpoint);
+            plan = plan.addSkip(bms.app.StepDefinition.fromKey('humidity'), 'No humidity points configured');
+            payloads = {};
+
+            [results, finalProgress] = plan.execute(@() false, @(payload) collect_payload(payload));
+
+            events = cellfun(@(p) char(string(p.event)), payloads, 'UniformOutput', false);
+            progressPayload = payloads{find(strcmp(events, 'module_progress'), 1, 'first')};
+            tc.verifyEqual(progressPayload.progress_schema_version, 2);
+            tc.verifyEqual(progressPayload.progress_authority, 'runtime');
+            tc.verifyEqual(progressPayload.module_total, 2);
+            tc.verifyEqual({progressPayload.module_steps.key}, {'temperature', 'humidity'});
+            tc.verifyEqual({progressPayload.module_steps.status}, {'running', 'pending'});
+            tc.verifyEqual(progressPayload.current_point_id, 'TEMP-01');
+            tc.verifyEqual(progressPayload.current_date, '2026-04-03');
+            tc.verifyEqual(progressPayload.processed_dates, 3);
+            tc.verifyEqual(progressPayload.total_dates, 30);
+            tc.verifyEqual(progressPayload.stage, 'load_mat_cache');
+
+            tc.verifyEqual({finalProgress.module_steps.status}, {'completed', 'skipped'});
+            tc.verifyEqual(finalProgress.completed_modules, 2);
+            tc.verifyEqual(results{1}.CurrentPointId, 'TEMP-01');
+            tc.verifyEqual(results{1}.ProcessedDates, 3);
+            rec = results{1}.toStruct();
+            tc.verifyEqual(rec.current_point_id, 'TEMP-01');
+            tc.verifyEqual(rec.total_dates, 30);
+
+            function report_real_checkpoint()
+                bms.app.RunProgressReporter.checkpoint( ...
+                    'stage', 'load_mat_cache', ...
+                    'current_point_id', 'TEMP-01', ...
+                    'current_date', '2026-04-03', ...
+                    'processed_dates', 3, ...
+                    'total_dates', 30, ...
+                    'message', 'Loaded verified cache day 3/30');
+            end
+
+            function collect_payload(payload)
+                payloads{end+1} = payload; %#ok<AGROW>
+            end
+        end
+
+        function manifestReconciliationKeepsMeasuredIntraModuleState(tc)
+            seed = struct('module_steps', struct( ...
+                'key', {'temperature','humidity'}, ...
+                'label', {'Temperature','Humidity'}, ...
+                'index', {1,2}, ...
+                'status', {'running','pending'}, ...
+                'stage', {'load_data','pending'}, ...
+                'current_point_id', {'TEMP-02',''}, ...
+                'current_date', {'2026-04-08',''}, ...
+                'processed_dates', {8,0}, ...
+                'total_dates', {30,0}, ...
+                'elapsed_seconds', {12.5,0}, ...
+                'message', {'',''}));
+            result1 = struct('key','temperature','label','Temperature', ...
+                'status','ok','message','','elapsed_sec',15.0);
+            result2 = struct('key','humidity','label','Humidity', ...
+                'status','skip','message','No configured points','elapsed_sec',0);
+
+            terminal = bms.app.RunProgressReporter.reconcile( ...
+                seed, {result1, result2}, 'analysis_manifest');
+
+            tc.verifyEqual(terminal.progress_authority, 'analysis_manifest');
+            tc.verifyEqual({terminal.module_steps.status}, {'completed','skipped'});
+            tc.verifyEqual(terminal.module_steps(1).current_point_id, 'TEMP-02');
+            tc.verifyEqual(terminal.module_steps(1).processed_dates, 8);
+            tc.verifyEqual(terminal.module_steps(1).elapsed_seconds, 15.0);
         end
 
         function stepPlanSkipsOnlyLaterHighMemoryStepsAfterOom(tc)

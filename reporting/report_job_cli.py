@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from report_job import ReportJobRequest, execute_report_job
+from report_disclosure_output import DisclosureReviewRequired
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -17,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from workbench.models import JobContext
 from workbench.process_utils import atomic_write_json
 from workbench.report_gate import require_report_gate
+from workbench.report_disclosures import confirmed_disclosure_dicts
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -24,7 +26,7 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def request_from_job_context(context: JobContext) -> ReportJobRequest:
-    require_report_gate(context)
+    audit = require_report_gate(context)
     result_root = Path(context.data_root).expanduser().resolve()
     report_type = context.report.report_type.strip()
     source_quality_note = context.options.get("source_quality_note", "")
@@ -57,6 +59,12 @@ def request_from_job_context(context: JobContext) -> ReportJobRequest:
         derived_artifact_manifest_sha256=context.report.derived_artifact_manifest_sha256,
         require_source_provenance=True,
         source_quality_note=source_quality_note.strip(),
+        disclosures=tuple(
+            confirmed_disclosure_dicts(
+                audit.disclosure_items,
+                context.report.disclosure_confirmations,
+            )
+        ),
     )
 
 
@@ -104,9 +112,11 @@ def run_context(
             )
         if not launch_id:
             launch_id = context_launch_id
-        progress("loading", 0.01, "正在读取并校验工作台任务上下文")
+        progress("loading", 0.01, "正在读取并校验工作平台任务上下文")
         request = request_from_context(context)
         result = execute_report_job(request, progress)
+        report_status = str(getattr(result, "report_status", "passed") or "passed")
+        disclosure_count = int(getattr(result, "disclosure_count", 0) or 0)
         payload = {
             "schema_version": 1,
             "state": "completed",
@@ -117,6 +127,8 @@ def run_context(
             "missing": list(result.missing),
             "summary_files": [str(path) for path in result.summary_files],
             "qc": result.qc,
+            "report_status": report_status,
+            "disclosure_count": disclosure_count,
         }
         _write_json(result_path, payload)
         _write_json(status_path, {
@@ -125,7 +137,38 @@ def run_context(
             "launch_id": launch_id,
             "stage": "completed",
             "progress_fraction": 1.0,
-            "message": "报告生成与 QC 已完成",
+            "message": (
+                f"缺项披露版正式报告生成与 QC 已完成，共{disclosure_count}项披露"
+                if disclosure_count
+                else "报告生成与 QC 已完成"
+            ),
+            "started_at": started,
+            "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "pid": os.getpid(),
+            "result_path": str(result_path),
+        })
+        return 0
+    except DisclosureReviewRequired as exc:
+        candidates = [item.to_dict() for item in exc.candidates]
+        payload = {
+            "schema_version": 1,
+            "state": "disclosure_required",
+            "launch_id": launch_id,
+            "report_path": str(exc.report_path),
+            "manifest_path": str(exc.manifest_path),
+            "disclosure_candidates": candidates,
+            "disclosure_count": len(candidates),
+            "analysis_manifest_sha256": context.analysis.manifest_sha256,
+            "message": str(exc),
+        }
+        _write_json(result_path, payload)
+        _write_json(status_path, {
+            "schema_version": 1,
+            "state": "disclosure_required",
+            "launch_id": launch_id,
+            "stage": "disclosure_review",
+            "progress_fraction": 1.0,
+            "message": str(exc),
             "started_at": started,
             "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
             "pid": os.getpid(),

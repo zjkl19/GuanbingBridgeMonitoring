@@ -110,7 +110,7 @@ contract, and should land as separate milestones.
 ## Packaged local milestone
 
 - Build with `scripts/build_workbench_exe.ps1`.
-- Run `dist/BridgeMonitoringWorkbench/桥梁健康监测工作台.exe`.
+- Run `dist/BridgeMonitoringWorkbench/桥梁健康监测工作平台.exe`.
 - The onedir release includes the compiled MATLAB analysis runner, all profile
   configs/templates, and the report runtime embedded in the workbench. It does
   not include a standalone report-builder executable.

@@ -22,7 +22,13 @@ from .cache_cleanup_settings import (
 from .config_layers import config_dependency_sha256
 from .main_window import WorkbenchWindow
 from .models import file_sha256
-from .version import EXECUTABLE_FILENAME, app_version, project_root as default_project_root
+from .version import (
+    APP_DISPLAY_NAME,
+    EXECUTABLE_FILENAME,
+    SUPPORTED_EXECUTABLE_FILENAMES,
+    app_version,
+    project_root as default_project_root,
+)
 
 
 CLI_DIAGNOSTIC_LOG = Path(tempfile.gettempdir()) / "BridgeMonitoringWorkbench_cli_error.log"
@@ -227,7 +233,9 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
     cleanup = cache_source_cleanup_payload(window)
     return {
         "ok": True,
+        "app_display_name": APP_DISPLAY_NAME,
         "executable_filename": EXECUTABLE_FILENAME,
+        "supported_executable_filenames": list(SUPPORTED_EXECUTABLE_FILENAMES),
         "ui_font_point_size": window.font().pointSize(),
         "ui_font_family": window.font().family(),
         "screen_logical_dpi": screen.logicalDotsPerInch() if screen is not None else 0.0,
@@ -266,7 +274,7 @@ def smoke_payload(window: WorkbenchWindow) -> dict[str, object]:
         "config_tab_count": window.config_tabs.count(),
         "auto_threshold_module_count": window.auto_threshold_editor.module_list.count(),
         "auto_threshold_preview_enabled": bool(
-            window.auto_threshold_editor._options().get("capture_preview_series")
+            window.auto_threshold_editor._options().get("capture_curve_records")
         ),
         "update_backup_management_enabled": window.update_backup_btn.isEnabled(),
         "auto_update_option_available": window.auto_update_check.isEnabled(),

@@ -110,7 +110,7 @@ def exclusive_file_lock(path: Path | str) -> Iterator[Path]:
                 fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except (OSError, PermissionError) as exc:
             raise RuntimeError(
-                f"任务正在由另一个工作台实例启动，请稍后重试：{target}"
+                f"任务正在由另一个工作平台实例启动，请稍后重试：{target}"
             ) from exc
         try:
             yield target

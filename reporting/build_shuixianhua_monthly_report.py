@@ -73,6 +73,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--report-date", default="2026年04月05日")
     parser.add_argument("--start-date", default="")
     parser.add_argument("--end-date", default="")
+    parser.add_argument("--source-quality-note", default="")
     parser.add_argument("--no-word-update", action="store_true", help="Skip Word field update and PDF export.")
     return parser.parse_args()
 
@@ -1017,8 +1018,8 @@ def _sxh_xml_set_paragraph_text(paragraph, text: str) -> None:
 def _sxh_xml_set_cell_text(cell, text: Any) -> None:
     ooxml_set_cell_text(cell, text)
 
-def _sxh_xml_rewrite_contains(root, contains: str, replacement: str, *, startswith: str | None = None) -> None:
-    ooxml_rewrite_contains(root, contains, replacement, startswith=startswith)
+def _sxh_xml_rewrite_contains(root, contains: str, replacement: str, *, startswith: str | None = None) -> int:
+    return ooxml_rewrite_contains(root, contains, replacement, startswith=startswith)
 
 def _sxh_xml_fill_table(table, rows: list[dict[str, Any]], value_builder) -> None:
     ooxml_fill_table(table, rows, value_builder)
@@ -1047,6 +1048,7 @@ def _sxh_xml_update_summary(
     monitoring_range: str,
     report_date: str,
     period_label: str,
+    source_quality_note: str = "",
 ) -> None:
     payload = _sxh_summary_payload(context)
     normalized_period = re.sub(r"月份$", "月", str(period_label or "").strip())
@@ -1087,6 +1089,19 @@ def _sxh_xml_update_summary(
             elif "1.000m/s²" in text or "SL-" in text:
                 _sxh_xml_set_paragraph_text(paragraph, payload["cable_body"] if text.startswith("监测结果表明") else payload["cable_front"])
     _sxh_xml_rewrite_contains(root, "结构应变按组图分组统计", payload["strain"])
+    source_quality_note = str(source_quality_note or "").strip()
+    if source_quality_note:
+        availability_anchor = "本月监测系统数据获取情况如下。"
+        changed = _sxh_xml_rewrite_contains(
+            root,
+            availability_anchor,
+            f"{availability_anchor}{source_quality_note}",
+        )
+        if changed != 1:
+            raise ValueError(
+                "水仙花月报数据完整性说明锚点数量异常："
+                f"期望1处，实际{changed}处。"
+            )
 
 def _sxh_update_docx_package(
     docx_path: Path,
@@ -1094,6 +1109,7 @@ def _sxh_update_docx_package(
     monitoring_range: str,
     report_date: str,
     period_label: str,
+    source_quality_note: str = "",
 ) -> None:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx", dir=str(docx_path.parent)) as tmp_file:
         tmp_path = Path(tmp_file.name)
@@ -1103,7 +1119,14 @@ def _sxh_update_docx_package(
                 data = zin.read(item.filename)
                 if item.filename == "word/document.xml":
                     root = etree.fromstring(data)
-                    _sxh_xml_update_summary(root, context, monitoring_range, report_date, period_label)
+                    _sxh_xml_update_summary(
+                        root,
+                        context,
+                        monitoring_range,
+                        report_date,
+                        period_label,
+                        source_quality_note,
+                    )
                     _sxh_xml_update_stats_tables(root, context)
                     data = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
                 elif item.filename == "word/settings.xml":
@@ -1153,6 +1176,7 @@ def build_report(
     start_date: str | None = None,
     end_date: str | None = None,
     update_word: bool = True,
+    source_quality_note: str = "",
 ) -> tuple[Path, Path | None]:
     if not template.exists():
         raise FileNotFoundError(f"未找到水仙花报告模板：{template}")
@@ -1177,13 +1201,19 @@ def build_report(
         report_start,
         report_end,
     )
-    _sxh_update_docx_package(output, context, monitoring_range, report_date, period_label)
+    _sxh_update_docx_package(
+        output,
+        context,
+        monitoring_range,
+        report_date,
+        period_label,
+        source_quality_note,
+    )
     grouped_images, image_sources, image_missing = _sxh_resolve_report_images(
         result_root, context, report_start, report_end
     )
     image_replacements, anchor_missing = _sxh_replace_report_image_blocks(output, grouped_images)
     content_missing = _sxh_validate_generated_content(output, context)
-    pdf = update_word_fields_and_export_pdf(output) if update_word else None
     qc_paths: dict[str, Any] = {}
     qc_warnings: list[str] = []
     qc_failure_cause: Exception | None = None
@@ -1198,6 +1228,14 @@ def build_report(
         qc_result = _sxh_qc_exception_result(output, exc)
 
     qc_status = qc_result.status
+    # Verify the exact inserted media before Microsoft Word opens and may
+    # recompress JPEG payloads. The unified worker performs authoritative
+    # Word/PDF rendering and page-level visual QC after the builder returns.
+    pdf = (
+        update_word_fields_and_export_pdf(output)
+        if update_word and qc_status == "ok"
+        else None
+    )
     qc_paths["report_qc_status"] = qc_status
     try:
         qc_txt, qc_json = write_report_qc_report(qc_result, output_dir, timestamp=timestamp)
@@ -1246,6 +1284,7 @@ def build_report(
             "output_pdf": str(pdf.resolve()) if pdf else "",
             "report_row_count": len(context.get("report_rows") or []),
             "report_period": {"start_date": report_start, "end_date": report_end, "period_label": period_label},
+            "source_quality_note": str(source_quality_note or "").strip(),
             "report_image_source_count": len(image_sources),
             "report_image_sources": image_sources,
             "report_image_replacements": image_replacements,
@@ -1280,6 +1319,7 @@ def main() -> None:
         start_date=args.start_date or None,
         end_date=args.end_date or None,
         update_word=not args.no_word_update,
+        source_quality_note=args.source_quality_note,
     )
     print(f"Shuixianhua monthly report generated: {output}")
     if pdf:

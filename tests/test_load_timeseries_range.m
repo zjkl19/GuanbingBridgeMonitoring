@@ -159,5 +159,76 @@ classdef test_load_timeseries_range < matlab.unittest.TestCase
             tc.verifyEqual(numel(v), 2);
             tc.verifyTrue(isnan(v(2)));
         end
+
+        function rangeLoaderPublishesRealPointAndDateProgress(tc)
+            payloads = {};
+            plan = bms.app.StepPlan();
+            plan = plan.addRun(bms.app.StepDefinition.fromKey('strain'), @load_fixture);
+
+            plan.execute(@() false, @(payload) collect_payload(payload));
+
+            matching = cellfun(@(p) strcmp(p.event, 'module_progress') ...
+                && strcmp(p.current_point_id, 'TEST-STRAIN-001') ...
+                && strcmp(p.current_date, '2025-01-01'), payloads);
+            tc.verifyTrue(any(matching));
+            datePayload = payloads{find(matching, 1, 'last')};
+            tc.verifyEqual(datePayload.total_dates, 1);
+            tc.verifyEqual(datePayload.processed_dates, 1);
+            tc.verifyTrue(any(strcmp(datePayload.stage, ...
+                {'load_dates_complete','load_range_complete','clean_timeseries'})));
+
+            function load_fixture()
+                load_timeseries_range(tc.DataRoot, tc.Cfg.subfolders.strain, ...
+                    'TEST-STRAIN-001', '2025-01-01', '2025-01-01', tc.Cfg, 'strain');
+            end
+
+            function collect_payload(payload)
+                payloads{end+1} = payload; %#ok<AGROW>
+            end
+        end
+
+        function rangeLoaderStopsAtDateBoundary(tc)
+            global RUN_STOP_FLAG;
+            RUN_STOP_FLAG = false;
+            bms.app.StopController.clear();
+            cleanup = onCleanup(@() reset_stop_state()); %#ok<NASGU>
+            readCount = 0;
+            loader = struct();
+            loader.get_day_dir = @get_day_dir;
+            loader.find_file = @find_file;
+            loader.read_file = @read_file_and_request_stop;
+            range = struct( ...
+                'start', datetime(2025,1,1), ...
+                'end', datetime(2025,1,2,23,59,59));
+            meta = struct('files', {{}});
+
+            tc.verifyError(@() bms.data.TimeSeriesRangeLoader.readByDay( ...
+                loader, tc.DataRoot, '', 'PT-STOP', 'strain', range, ...
+                {'2025-01-01','2025-01-02'}, meta, false, false, false), ...
+                'BMS:RunStopped');
+            tc.verifyEqual(readCount, 1, ...
+                'A cooperative stop raised after day one must prevent day two from starting.');
+
+            function [path, dayMeta] = get_day_dir(~, day, ~, ~, dayMeta)
+                path = fullfile(tc.DataRoot, day);
+            end
+
+            function path = find_file(~, ~, ~, day, ~)
+                path = fullfile(tc.DataRoot, [day '.csv']);
+            end
+
+            function [times, values] = read_file_and_request_stop(~, ~, ~, day, ~)
+                readCount = readCount + 1;
+                times = datetime(day, 'InputFormat', 'yyyy-MM-dd');
+                values = 1;
+                bms.app.StopController.requestStop();
+            end
+        end
     end
+end
+
+function reset_stop_state()
+    global RUN_STOP_FLAG;
+    RUN_STOP_FLAG = false;
+    bms.app.StopController.clear();
 end

@@ -438,13 +438,13 @@ class ReportGui(QMainWindow):
                 edit.setText(str(value))
         self._last_result_root = Path(self.result_root_edit.text()).expanduser()
         self._sync_result_dependent_paths(force=False)
-        self._log(f"已加载工作台任务上下文: {path}")
+        self._log(f"已加载工作平台任务上下文: {path}")
         manifest_path = str(analysis.get("manifest_path") or "")
         if manifest_path:
             self._log(f"已绑定分析结果清单: {manifest_path}")
         if not bool(report.get("plots_approved")):
             self.generate_btn.setEnabled(False)
-            self._log("尚不能生成报告：工作台尚未确认图件审核。")
+            self._log("尚不能生成报告：工作平台尚未确认图件审核。")
 
     def _build_ui(self) -> None:
         central = QWidget(self)
@@ -498,7 +498,7 @@ class ReportGui(QMainWindow):
             ("桥梁项目", self.profile_combo, None, self._profile_description(self.current_profile)),
             ("\u62a5\u544a\u7c7b\u578b", self.report_type_combo, None, report_type_description(initial_report_type)),
             ("\u6a21\u677f\u6587\u4ef6", self.template_edit, self._browse_template, "\u6d2a\u5858\u6708\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b\u6708\u62a5\u6a21\u677f.docx\uff1b\u6d2a\u5858\u5468\u671f\u62a5\uff1a\u6d2a\u5858\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e74\u7b2c\u4e00\u5b63\u5b63\u62a5-\u65394.docx\uff1b\u4e5d\u9f99\u6c5f\u6708\u62a5\uff1a\u4e5d\u9f99\u6c5f\u5927\u6865\u5065\u5eb7\u76d1\u6d4b2026\u5e743\u6708\u4efd\u6708\u62a5_\u4fee\u8ba25.docx\uff1b管柄月报：G104线管柄大桥监测月报模板-自动报告.docx；水仙花月报：水仙花大桥健康监测月报模板.docx。"),
-            ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "每座桥只使用一份业务配置；不同电脑的数据盘符由工作台的存储位置方案切换，不再复制主机专用业务配置。"),
+            ("\u914d\u7f6e\u6587\u4ef6", self.config_edit, self._browse_config, "每座桥只使用一份业务配置；不同电脑的数据盘符由工作平台的存储位置方案切换，不再复制主机专用业务配置。"),
             ("\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55", self.result_root_edit, self._browse_result_root, "\u8fd9\u91cc\u5e94\u5b58\u653e\u56fe\u7247\u3001stats\u3001run_logs \u548c\u81ea\u52a8\u62a5\u544a\u3002\u5bf9\u5468\u671f\u62a5\uff0c\u8fd9\u4e2a\u76ee\u5f55\u6700\u597d\u540c\u65f6\u5305\u542b raw \u539f\u59cb\u6570\u636e\uff0c\u5426\u5219 1.4 \u7ae0\u8282\u4f1a\u5c06\u7f3a\u5c11\u539f\u59cb\u6570\u636e\u89c6\u4e3a\u7f3a\u5931\u3002"),
             ("\u7a0b\u5e8f\u6839\u76ee\u5f55\uff08\u9ad8\u7ea7\uff09", self.analysis_root_edit, self._browse_analysis_root, "\u517c\u5bb9\u65e7\u8def\u5f84\u548c\u5c11\u91cf\u56de\u9000\u67e5\u627e\uff0c\u901a\u5e38\u4fdd\u6301\u7a0b\u5e8f\u6240\u5728\u76ee\u5f55\u5373\u53ef\u3002"),
             ("WIM\u7ed3\u679c\u76ee\u5f55", self.wim_root_edit, self._browse_wim_root, "\u5468\u671f\u62a5\u4f7f\u7528\uff0c\u9ed8\u8ba4\u662f <\u6570\u636e/\u7ed3\u679c\u6839\u76ee\u5f55>/WIM/results/hongtang\u3002WIM \u4ecd\u6309\u6708\u63d2\u5165\uff0c\u4e0d\u662f\u628a 1~3 \u4e2a\u6708\u76f4\u63a5\u5408\u6210\u4e00\u5f20\u8868\u3002"),
@@ -1441,7 +1441,7 @@ def main() -> None:
         raise SystemExit(run_context(args.job_context, args.report_status, args.report_result))
     raise SystemExit(
         "The standalone report window has retired permanently. "
-        "Open 桥梁健康监测工作台 and use its 报告生成 page."
+        "Open 桥梁健康监测工作平台 and use its 报告生成 page."
     )
 
 

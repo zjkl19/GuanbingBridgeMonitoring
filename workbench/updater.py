@@ -18,7 +18,10 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable
 
 from .version import (
+    APP_DISPLAY_NAME,
     EXECUTABLE_FILENAME,
+    LEGACY_CHINESE_EXECUTABLE_FILENAME,
+    LEGACY_ENGLISH_EXECUTABLE_FILENAME,
     LEGACY_EXECUTABLE_FILENAME,
     SUPPORTED_EXECUTABLE_FILENAMES,
 )
@@ -29,6 +32,7 @@ DEFAULT_REPOSITORY = "zjkl19/GuanbingBridgeMonitoring"
 VERSION_PATTERN = re.compile(
     r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$"
 )
+LEGACY_NAME_BRIDGE_MODE = "legacy_name_bridge"
 
 
 class UpdateError(RuntimeError):
@@ -50,6 +54,8 @@ class UpdatePolicy:
     auto_check: bool = True
     check_interval_hours: int = 24
     startup_delay_seconds: int = 5
+    display_name: str = APP_DISPLAY_NAME
+    supported_executable_filenames: tuple[str, ...] = SUPPORTED_EXECUTABLE_FILENAMES
     package_prefix: str = "BridgeMonitoringWorkbench-"
     package_suffix: str = "-win-x64.zip"
 
@@ -61,12 +67,25 @@ class UpdatePolicy:
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
         if not isinstance(payload, dict):
             raise UpdateError(f"更新策略必须是 JSON 对象：{path}")
+        display_name = str(payload.get("display_name") or APP_DISPLAY_NAME)
+        supported_names = tuple(
+            str(item) for item in (
+                payload.get("supported_executable_filenames")
+                or SUPPORTED_EXECUTABLE_FILENAMES
+            )
+        )
+        if display_name != APP_DISPLAY_NAME:
+            raise UpdateError(f"更新策略应用名称必须是 {APP_DISPLAY_NAME}")
+        if supported_names != SUPPORTED_EXECUTABLE_FILENAMES:
+            raise UpdateError("更新策略 EXE 迁移名称列表无效")
         return cls(
             repository=str(payload.get("repository") or DEFAULT_REPOSITORY),
             channel=str(payload.get("channel") or "stable"),
             auto_check=bool(payload.get("auto_check", True)),
             check_interval_hours=max(1, int(payload.get("check_interval_hours", 24))),
             startup_delay_seconds=max(0, int(payload.get("startup_delay_seconds", 5))),
+            display_name=display_name,
+            supported_executable_filenames=supported_names,
             package_prefix=str(payload.get("package_prefix") or "BridgeMonitoringWorkbench-"),
             package_suffix=str(payload.get("package_suffix") or "-win-x64.zip"),
         )
@@ -178,7 +197,7 @@ def discover_update_backups(install_root: Path) -> tuple[UpdateBackup, ...]:
         except (OSError, json.JSONDecodeError):
             manifest_version = ""
         if executable_path is None:
-            issue = "缺少工作台 EXE"
+            issue = "缺少工作平台 EXE"
         elif not manifest_version:
             issue = "缺少可读取的发布清单"
         else:
@@ -218,8 +237,7 @@ def cleanup_update_backups(install_root: Path, *, keep_latest: int = 2) -> tuple
 
 LEGACY_MANAGED_DIRECTORIES = ("_internal", "bin", "reporting", "reports")
 LEGACY_MANAGED_FILES = (
-    EXECUTABLE_FILENAME,
-    LEGACY_EXECUTABLE_FILENAME,
+    *SUPPORTED_EXECUTABLE_FILENAMES,
     "README.md",
     "VERSION",
     "release_manifest.json",
@@ -400,7 +418,7 @@ class GitHubReleaseClient:
     ) -> tuple[Path, str]:
         asset = info.package_asset
         if asset is None:
-            raise UpdateError("GitHub Release 未包含 Windows x64 工作台 ZIP")
+            raise UpdateError("GitHub Release 未包含 Windows x64 工作平台 ZIP")
         archive = self._download_asset(asset, target_dir / asset.name, progress)
         expected = ""
         if asset.digest.lower().startswith("sha256:"):
@@ -508,8 +526,31 @@ def validate_release_package(
         raise UpdateSecurityError("release manifest root must be an object")
     version = str(payload.get("version") or "")
     _version_tuple(version)
-    if payload.get("executable") != EXECUTABLE_FILENAME:
-        raise UpdateSecurityError(f"update package executable must be {EXECUTABLE_FILENAME}")
+    if payload.get("display_name") != APP_DISPLAY_NAME:
+        raise UpdateSecurityError(f"update package display name must be {APP_DISPLAY_NAME}")
+    supported_names = payload.get("supported_executable_filenames")
+    if supported_names != list(SUPPORTED_EXECUTABLE_FILENAMES):
+        raise UpdateSecurityError("update package executable migration metadata is invalid")
+    declared_executable = str(payload.get("executable") or "")
+    migration = payload.get("executable_migration")
+    legacy_name_bridge = declared_executable == LEGACY_CHINESE_EXECUTABLE_FILENAME
+    if declared_executable == EXECUTABLE_FILENAME:
+        if migration not in (None, {}):
+            raise UpdateSecurityError("canonical update package must not declare a legacy bridge")
+    elif legacy_name_bridge:
+        expected_migration = {
+            "mode": LEGACY_NAME_BRIDGE_MODE,
+            "legacy_entrypoint": LEGACY_CHINESE_EXECUTABLE_FILENAME,
+            "canonical_entrypoint": EXECUTABLE_FILENAME,
+        }
+        if not isinstance(migration, dict) or any(
+            migration.get(key) != value for key, value in expected_migration.items()
+        ):
+            raise UpdateSecurityError("update package legacy executable bridge metadata is invalid")
+    else:
+        raise UpdateSecurityError(
+            f"update package executable must be {EXECUTABLE_FILENAME} or the declared legacy bridge"
+        )
     if expected_version is not None and _version_tuple(version) != _version_tuple(expected_version):
         raise UpdateSecurityError("update package version differs from the selected release")
     for gate in REQUIRED_RELEASE_GATES:
@@ -549,12 +590,29 @@ def validate_release_package(
             raise UpdateSecurityError(
                 f"release inventory file set differs: missing={missing[:5]}, extra={extra[:5]}"
             )
-    executable = package_root / EXECUTABLE_FILENAME
+    executable = package_root / declared_executable
     expected_exe = str(payload.get("executable_sha256") or "").lower()
     if not re.fullmatch(r"[0-9a-f]{64}", expected_exe):
         raise UpdateSecurityError("release manifest is missing a valid EXE SHA256")
     if not executable.is_file() or file_sha256(executable) != expected_exe:
         raise UpdateSecurityError("workbench EXE SHA256 differs from the release manifest")
+    if legacy_name_bridge:
+        canonical = package_root / EXECUTABLE_FILENAME
+        canonical_hash = str(payload.get("canonical_executable_sha256") or "").lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", canonical_hash):
+            raise UpdateSecurityError("legacy bridge is missing the canonical EXE SHA256")
+        required_paths = {
+            LEGACY_CHINESE_EXECUTABLE_FILENAME.casefold(),
+            EXECUTABLE_FILENAME.casefold(),
+        }
+        if not required_paths.issubset(expected_paths):
+            raise UpdateSecurityError("legacy bridge must inventory both executable names")
+        if (
+            not canonical.is_file()
+            or file_sha256(canonical) != canonical_hash
+            or canonical_hash != expected_exe
+        ):
+            raise UpdateSecurityError("legacy bridge executable copies are not identical")
     return payload
 
 
@@ -578,23 +636,21 @@ def stage_verified_update(
                 stage = Path(tempfile.gettempdir()) / "bmw_stage" / token
             stage.mkdir(parents=True, exist_ok=False)
             archive.extractall(stage, members=members)
-        executables = list(stage.rglob(EXECUTABLE_FILENAME))
-        if len(executables) != 1:
-            raise UpdateSecurityError(f"更新包必须且只能包含一个 {EXECUTABLE_FILENAME}")
-        executable = executables[0]
-        package_root = executable.parent
-        manifest = package_root / "release_manifest.json"
-        if not manifest.is_file():
-            raise UpdateSecurityError("更新包缺少 release_manifest.json")
-        payload = json.loads(manifest.read_text(encoding="utf-8-sig"))
+        manifests = list(stage.rglob("release_manifest.json"))
+        if len(manifests) != 1:
+            raise UpdateSecurityError("更新包必须且只能包含一个 release_manifest.json")
+        manifest = manifests[0]
+        package_root = manifest.parent
+        payload = validate_release_package(package_root, expected_version=version)
         if _version_tuple(str(payload.get("version") or "")) != _version_tuple(version):
             raise UpdateSecurityError("更新包内部版本与 GitHub Release 标签不一致")
+        declared_executable = str(payload.get("executable") or "")
+        executable = package_root / declared_executable
         expected_exe = str(payload.get("executable_sha256") or "").lower()
         if not re.fullmatch(r"[0-9a-f]{64}", expected_exe):
             raise UpdateSecurityError("更新包清单缺少有效 EXE SHA256")
         if file_sha256(executable) != expected_exe:
             raise UpdateSecurityError("更新包 EXE SHA256 与内部清单不一致")
-        validate_release_package(package_root, expected_version=version)
         return StagedUpdate(version, archive_path, package_root, executable, manifest, archive_sha256)
     except Exception:
         shutil.rmtree(stage, ignore_errors=True)
@@ -684,6 +740,184 @@ def _copy_package_into_candidate(source: Path, candidate: Path) -> None:
             shutil.copy2(item, target)
 
 
+def _canonicalize_legacy_bridge_install(candidate: Path) -> bool:
+    """Remove the transitional alias and rewrite the installed manifest.
+
+    The downloaded package must remain byte-for-byte compatible with the old
+    v1.8.2 updater.  Once the new staged executable takes over installation,
+    the activated directory is canonical-only so users do not retain two
+    launchable product names.
+    """
+
+    manifest_path = candidate / "release_manifest.json"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    migration = payload.get("executable_migration")
+    if not isinstance(migration, dict) or migration.get("mode") != LEGACY_NAME_BRIDGE_MODE:
+        return False
+    legacy_path = candidate / LEGACY_CHINESE_EXECUTABLE_FILENAME
+    legacy_bytes = legacy_path.stat().st_size
+    legacy_path.unlink()
+    inventory = [
+        item
+        for item in list(payload.get("file_inventory") or [])
+        if isinstance(item, dict)
+        and str(item.get("path") or "").casefold()
+        != LEGACY_CHINESE_EXECUTABLE_FILENAME.casefold()
+    ]
+    payload["executable"] = EXECUTABLE_FILENAME
+    payload["executable_sha256"] = str(payload.get("canonical_executable_sha256") or "")
+    payload.pop("canonical_executable_sha256", None)
+    payload.pop("executable_migration", None)
+    payload["file_inventory"] = inventory
+    payload["file_inventory_count"] = len(inventory)
+    if "file_count_excluding_manifest" in payload:
+        payload["file_count_excluding_manifest"] = len(inventory)
+    if "total_bytes_excluding_manifest" in payload:
+        payload["total_bytes_excluding_manifest"] = (
+            int(payload.get("total_bytes_excluding_manifest") or 0) - legacy_bytes
+        )
+    manifest_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return True
+
+
+def _migrate_desktop_shortcuts(install_root: Path) -> dict[str, Any]:
+    """Safely migrate a recognized old product shortcut to the canonical name.
+
+    Only shortcuts whose filename and target both belong to this product are
+    touched.  A same-named shortcut targeting anything else is left unchanged.
+    Shortcut migration is best-effort and must never roll back an otherwise
+    valid application update.
+    """
+
+    if os.name != "nt":
+        return {"status": "skipped", "reason": "not_windows"}
+    executable = (install_root / EXECUTABLE_FILENAME).resolve()
+    if not executable.is_file():
+        return {"status": "skipped", "reason": "canonical_executable_missing"}
+    old_names = (
+        Path(LEGACY_CHINESE_EXECUTABLE_FILENAME).stem + ".lnk",
+        Path(LEGACY_ENGLISH_EXECUTABLE_FILENAME).stem + ".lnk",
+    )
+    canonical_shortcut_name = Path(EXECUTABLE_FILENAME).stem + ".lnk"
+    # Use UTF-16LE EncodedCommand so Chinese paths and product names are not
+    # corrupted by the active Windows console code page.
+    def ps_literal(value: str) -> str:
+        return "'" + value.replace("'", "''") + "'"
+
+    preamble = "\n".join((
+        f"$InstallRoot = {ps_literal(str(install_root))}",
+        f"$CanonicalExe = {ps_literal(str(executable))}",
+        f"$CanonicalShortcut = {ps_literal(canonical_shortcut_name)}",
+        f"$LegacyShortcuts = {ps_literal(json.dumps(old_names, ensure_ascii=False))}",
+        f"$SupportedExecutables = {ps_literal(json.dumps(SUPPORTED_EXECUTABLE_FILENAMES, ensure_ascii=False))}",
+        f"$Description = {ps_literal(APP_DISPLAY_NAME)}",
+    ))
+    script = preamble + r'''
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
+$ErrorActionPreference = 'Stop'
+$desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory)
+if ([string]::IsNullOrWhiteSpace($desktop) -or -not (Test-Path -LiteralPath $desktop -PathType Container)) {
+    @{ status = 'skipped'; reason = 'desktop_unavailable' } | ConvertTo-Json -Compress
+    exit 0
+}
+$shell = New-Object -ComObject WScript.Shell
+$canonicalPath = Join-Path $desktop $CanonicalShortcut
+$legacyPayload = $LegacyShortcuts | ConvertFrom-Json
+$legacyNames = @()
+foreach ($item in $legacyPayload) { $legacyNames += [string]$item }
+$supportedPayload = $SupportedExecutables | ConvertFrom-Json
+$supportedNames = @()
+foreach ($item in $supportedPayload) { $supportedNames += [string]$item }
+$supportedTargets = @($supportedNames | ForEach-Object {
+    [System.IO.Path]::GetFullPath((Join-Path $InstallRoot ([string]$_)))
+})
+function Get-ShortcutTarget([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return '' }
+    try { return [System.IO.Path]::GetFullPath($shell.CreateShortcut($Path).TargetPath) }
+    catch { return '' }
+}
+function Test-SupportedTarget([string]$Target) {
+    if ([string]::IsNullOrWhiteSpace($Target)) { return $false }
+    foreach ($candidate in $supportedTargets) {
+        if ($Target.Equals($candidate, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    return $false
+}
+$recognizedLegacy = @()
+foreach ($name in $legacyNames) {
+    $path = Join-Path $desktop ([string]$name)
+    if ((Test-Path -LiteralPath $path -PathType Leaf) -and (Test-SupportedTarget (Get-ShortcutTarget $path))) {
+        $recognizedLegacy += $path
+    }
+}
+$canonicalExists = Test-Path -LiteralPath $canonicalPath -PathType Leaf
+if ($canonicalExists -and -not (Test-SupportedTarget (Get-ShortcutTarget $canonicalPath))) {
+    @{ status = 'conflict'; shortcut = $canonicalPath; reason = 'canonical_name_targets_other_program' } | ConvertTo-Json -Compress
+    exit 0
+}
+if (-not $canonicalExists -and $recognizedLegacy.Count -eq 0) {
+    @{ status = 'skipped'; reason = 'no_managed_shortcut' } | ConvertTo-Json -Compress
+    exit 0
+}
+$shortcut = $shell.CreateShortcut($canonicalPath)
+$shortcut.TargetPath = $CanonicalExe
+$shortcut.WorkingDirectory = $InstallRoot
+$shortcut.IconLocation = "$CanonicalExe,0"
+$shortcut.Description = $Description
+$shortcut.Save()
+$savedTarget = Get-ShortcutTarget $canonicalPath
+if (-not $savedTarget.Equals([System.IO.Path]::GetFullPath($CanonicalExe), [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw 'canonical shortcut target validation failed'
+}
+foreach ($path in $recognizedLegacy) {
+    if (-not $path.Equals($canonicalPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Remove-Item -LiteralPath $path -Force
+    }
+}
+@{ status = 'migrated'; shortcut = $canonicalPath; removed = @($recognizedLegacy) } | ConvertTo-Json -Compress
+'''
+    import base64
+
+    encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    try:
+        completed = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-EncodedCommand",
+                encoded,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=(getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0),
+        )
+    except OSError as exc:
+        return {"status": "failed", "reason": str(exc)}
+    output = completed.stdout.strip()
+    if completed.returncode != 0:
+        return {
+            "status": "failed",
+            "reason": completed.stderr.strip() or output or f"exit {completed.returncode}",
+        }
+    try:
+        payload = json.loads(output)
+    except json.JSONDecodeError:
+        return {"status": "failed", "reason": "shortcut helper returned invalid JSON"}
+    return payload if isinstance(payload, dict) else {
+        "status": "failed",
+        "reason": "shortcut helper returned invalid result",
+    }
+
+
 def install_staged_update(
     source_root: Path,
     install_root: Path,
@@ -714,6 +948,7 @@ def install_staged_update(
         shutil.copytree(install_root, pending)
         _remove_managed_runtime(pending)
         _copy_package_into_candidate(source_root, pending)
+        _canonicalize_legacy_bridge_install(pending)
         validate_release_package(
             pending,
             expected_version=version,
@@ -737,12 +972,14 @@ def install_staged_update(
             allow_config_overrides=True,
             allow_extra_files=True,
         )
+        shortcut_migration = _migrate_desktop_shortcuts(install_root)
         payload = {
             "status": "installed",
             "version": version,
             "install_root": str(install_root),
             "backup_root": str(backup),
             "source_root": str(source_root),
+            "shortcut_migration": shortcut_migration,
         }
         log.parent.mkdir(parents=True, exist_ok=True)
         log.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -812,7 +1049,7 @@ def write_install_script(
 ) -> Path:
     install_root = install_root.resolve()
     if existing_workbench_executable(install_root) is None:
-        raise UpdateSecurityError(f"安装目录无工作台 EXE：{install_root}")
+        raise UpdateSecurityError(f"安装目录无工作平台 EXE：{install_root}")
     if staged.package_root.resolve() == install_root:
         raise UpdateSecurityError("更新暂存目录不能与当前安装目录相同")
     script = (script_parent or default_update_root()) / f"install_{staged.version}_{uuid.uuid4().hex[:8]}.ps1"
@@ -833,7 +1070,7 @@ try {{
         $path = Join-Path $target $name
         if (Test-Path -LiteralPath $path) {{ Remove-Item -LiteralPath $path -Recurse -Force }}
     }}
-    foreach ($name in @('{EXECUTABLE_FILENAME}','{LEGACY_EXECUTABLE_FILENAME}','README.md','VERSION','release_manifest.json','workbench_smoke.json','workbench_startup.png','workbench_alarm_editor.png','workbench_warning_overview.png','workbench_warning_empty_bounds.png','workbench_cleaning_editor.png','workbench_post_filter_editor.png','workbench_auto_threshold.png','workbench_offset_editor.png','workbench_group_plot_editor.png','workbench_plot_common_editor.png','workbench_spectrum_editor.png','workbench_review_terms.png','workbench_report_task.png','workbench_task_history.png')) {{
+    foreach ($name in @('{EXECUTABLE_FILENAME}','{LEGACY_CHINESE_EXECUTABLE_FILENAME}','{LEGACY_EXECUTABLE_FILENAME}','README.md','VERSION','release_manifest.json','workbench_smoke.json','workbench_startup.png','workbench_alarm_editor.png','workbench_warning_overview.png','workbench_warning_empty_bounds.png','workbench_cleaning_editor.png','workbench_post_filter_editor.png','workbench_auto_threshold.png','workbench_offset_editor.png','workbench_group_plot_editor.png','workbench_plot_common_editor.png','workbench_spectrum_editor.png','workbench_review_terms.png','workbench_report_task.png','workbench_task_history.png')) {{
         $path = Join-Path $target $name
         if (Test-Path -LiteralPath $path) {{ Remove-Item -LiteralPath $path -Force }}
     }}
@@ -845,6 +1082,40 @@ try {{
     Get-ChildItem -LiteralPath $sourceConfig -File | ForEach-Object {{
         $targetFile = Join-Path $targetConfig $_.Name
         if (-not (Test-Path -LiteralPath $targetFile)) {{ Copy-Item -LiteralPath $_.FullName -Destination $targetFile }}
+    }}
+    $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory)
+    if (-not [string]::IsNullOrWhiteSpace($desktop) -and (Test-Path -LiteralPath $desktop -PathType Container)) {{
+        $shell = New-Object -ComObject WScript.Shell
+        $newShortcut = Join-Path $desktop '{Path(EXECUTABLE_FILENAME).stem}.lnk'
+        $oldShortcuts = @(
+            (Join-Path $desktop '{Path(LEGACY_CHINESE_EXECUTABLE_FILENAME).stem}.lnk'),
+            (Join-Path $desktop '{Path(LEGACY_ENGLISH_EXECUTABLE_FILENAME).stem}.lnk')
+        )
+        $managedTargets = @(
+            (Join-Path $target '{EXECUTABLE_FILENAME}'),
+            (Join-Path $target '{LEGACY_CHINESE_EXECUTABLE_FILENAME}'),
+            (Join-Path $target '{LEGACY_ENGLISH_EXECUTABLE_FILENAME}')
+        )
+        $recognized = @($oldShortcuts | Where-Object {{
+            if (-not (Test-Path -LiteralPath $_ -PathType Leaf)) {{ return $false }}
+            $shortcutTarget = $shell.CreateShortcut($_).TargetPath
+            @($managedTargets | Where-Object {{ $_.Equals($shortcutTarget, [System.StringComparison]::OrdinalIgnoreCase) }}).Count -gt 0
+        }})
+        $newTargetIsManaged = $false
+        $newShortcutExists = Test-Path -LiteralPath $newShortcut -PathType Leaf
+        if ($newShortcutExists) {{
+            $newTarget = $shell.CreateShortcut($newShortcut).TargetPath
+            $newTargetIsManaged = @($managedTargets | Where-Object {{ $_.Equals($newTarget, [System.StringComparison]::OrdinalIgnoreCase) }}).Count -gt 0
+        }}
+        if ((-not $newShortcutExists -or $newTargetIsManaged) -and ($recognized.Count -gt 0 -or $newTargetIsManaged)) {{
+            $shortcut = $shell.CreateShortcut($newShortcut)
+            $shortcut.TargetPath = Join-Path $target '{EXECUTABLE_FILENAME}'
+            $shortcut.WorkingDirectory = $target
+            $shortcut.IconLocation = "$(Join-Path $target '{EXECUTABLE_FILENAME}'),0"
+            $shortcut.Description = '{APP_DISPLAY_NAME}'
+            $shortcut.Save()
+            $recognized | ForEach-Object {{ Remove-Item -LiteralPath $_ -Force }}
+        }}
     }}
     Start-Process -FilePath (Join-Path $target '{EXECUTABLE_FILENAME}')
     "$(Get-Date -Format o) update installed; backup=$backup" | Set-Content -LiteralPath $log -Encoding UTF8

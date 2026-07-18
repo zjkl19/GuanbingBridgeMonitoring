@@ -15,7 +15,7 @@ classdef StepPlan
             obj.Steps{end+1} = struct('mode', 'skip', 'def', def, 'fcn', [], 'message', char(message));
         end
 
-        function results = execute(obj, shouldStopFcn, progressFcn)
+        function [results, finalProgress] = execute(obj, shouldStopFcn, progressFcn)
             if nargin < 2 || isempty(shouldStopFcn)
                 shouldStopFcn = @() false;
             end
@@ -23,14 +23,13 @@ classdef StepPlan
                 progressFcn = [];
             end
             results = {};
-            planStart = tic;
-            total = numel(obj.Steps);
+            bms.app.RunProgressReporter.configure(obj.Steps, progressFcn);
+            progressCleanup = onCleanup(@() bms.app.RunProgressReporter.clear()); %#ok<NASGU>
             memoryErrorSource = '';
             for i = 1:numel(obj.Steps)
                 bms.app.StepPlan.pumpUiEvents();
                 item = obj.Steps{i};
-                bms.app.StepPlan.emitProgress(progressFcn, ...
-                    bms.app.StepPlan.progressPayload('module_start', item, [], i, total, numel(results), toc(planStart)));
+                bms.app.RunProgressReporter.startModule(i);
                 if ~isempty(memoryErrorSource) && strcmp(item.mode, 'run') && ...
                         bms.app.StepPlan.isHighMemoryAnalysis(item.def)
                     message = sprintf('Skipped after memory error in %s', memoryErrorSource);
@@ -43,8 +42,10 @@ classdef StepPlan
                             results{end+1} = bms.app.StepExecutor.skip(item.def, item.message); %#ok<AGROW>
                     end
                 end
-                bms.app.StepPlan.emitProgress(progressFcn, ...
-                    bms.app.StepPlan.progressPayload('module_complete', item, results{end}, i, total, numel(results), toc(planStart)));
+                if isa(results{end}, 'bms.app.StepResult')
+                    results{end} = results{end}.withProgress(bms.app.RunProgressReporter.currentStep());
+                end
+                bms.app.RunProgressReporter.completeModule(i, results{end}, 'module_complete');
                 if bms.app.StepPlan.isMemoryErrorResult(results{end})
                     memoryErrorSource = results{end}.Key;
                     if isempty(memoryErrorSource)
@@ -55,12 +56,14 @@ classdef StepPlan
                     for j = i+1:numel(obj.Steps)
                         nextItem = obj.Steps{j};
                         results{end+1} = bms.app.StepExecutor.skip(nextItem.def, 'Skipped after stop request'); %#ok<AGROW>
-                        bms.app.StepPlan.emitProgress(progressFcn, ...
-                            bms.app.StepPlan.progressPayload('module_skipped_after_stop', nextItem, results{end}, j, total, numel(results), toc(planStart)));
+                        bms.app.RunProgressReporter.completeModule( ...
+                            j, results{end}, 'module_skipped_after_stop');
                     end
+                    finalProgress = bms.app.RunProgressReporter.snapshot();
                     return;
                 end
             end
+            finalProgress = bms.app.RunProgressReporter.snapshot();
         end
 
         function defs = definitions(obj)

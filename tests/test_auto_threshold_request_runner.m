@@ -55,7 +55,7 @@ classdef test_auto_threshold_request_runner < matlab.unittest.TestCase
             request.start_date = '2026-01-01';
             request.end_date = '2026-01-02';
             request.options = struct('module_keys', {{'temperature'}}, ...
-                'capture_preview_series', true);
+                'capture_curve_records', true);
             request.status_path = statusPath;
             request.result_path = resultPath;
             request.preview_path = fullfile(tc.TempDir, 'preview.json');
@@ -70,10 +70,13 @@ classdef test_auto_threshold_request_runner < matlab.unittest.TestCase
             tc.verifyEqual(result.request_type, 'auto_threshold_proposal');
             tc.verifyEqual(result.config_sha256, request.config_sha256);
             tc.verifyEqual(result.preview_path, request.preview_path);
-            tc.verifyEqual(result.preview_series_count, 0);
+            tc.verifyEqual(result.curve_record_count, 0);
+            tc.verifyFalse(isfield(result, 'preview_series_count'));
             tc.verifyEqual(result.preview_sha256, bms.io.JsonFile.sha256(request.preview_path));
             preview = jsondecode(fileread(request.preview_path));
             tc.verifyEqual(preview.artifact_type, 'auto_threshold_preview');
+            tc.verifyTrue(isfield(preview, 'curve_records'));
+            tc.verifyFalse(isfield(preview, 'preview_series'));
             tc.verifyEqual(preview.request_id, 'matlab_unit');
             tc.verifyEqual(preview.bridge_id, 'unit_bridge');
             tc.verifyEqual(preview.config_sha256, request.config_sha256);
@@ -82,6 +85,43 @@ classdef test_auto_threshold_request_runner < matlab.unittest.TestCase
             tc.verifyEqual(preview.start_date, '2026-01-01');
             tc.verifyEqual(preview.end_date, '2026-01-02');
             tc.verifyEqual(status.preview_path, request.preview_path);
+            tc.verifyEqual(status.curve_record_count, 0);
+            tc.verifyFalse(isfield(status, 'preview_series_count'));
+        end
+
+        function runnerHonorsCooperativeStopFile(tc)
+            root = fileparts(fileparts(mfilename('fullpath')));
+            configPath = fullfile(root, 'tests', 'fixtures', ...
+                'workbench_cleaning_threshold_contract.json');
+            requestPath = fullfile(tc.TempDir, 'request_stop.json');
+            stopPath = fullfile(tc.TempDir, 'auto_threshold_stop.flag');
+            fid = fopen(stopPath, 'wt');
+            fprintf(fid, 'stop\n');
+            fclose(fid);
+            request = struct( ...
+                'schema_version', 1, ...
+                'request_type', 'auto_threshold_proposal', ...
+                'request_id', 'stop_unit', ...
+                'bridge_id', 'unit_bridge', ...
+                'config_path', configPath, ...
+                'config_sha256', bms.io.JsonFile.sha256(configPath), ...
+                'data_root', tc.TempDir, ...
+                'start_date', '2026-01-01', ...
+                'end_date', '2026-01-02', ...
+                'options', struct('module_keys', {{'temperature'}}), ...
+                'stop_file', stopPath, ...
+                'status_path', fullfile(tc.TempDir, 'stop_status.json'), ...
+                'result_path', fullfile(tc.TempDir, 'stop_result.json'));
+            bms.core.Logger.writeJson(requestPath, request);
+
+            actual = bms.app.AutoThresholdRequestRunner.runFile(requestPath);
+
+            tc.verifyEmpty(actual);
+            status = bms.io.JsonFile.read(request.status_path);
+            tc.verifyEqual(status.status, 'stopped');
+            tc.verifyTrue(status.stop_requested);
+            tc.verifyFalse(isfield(status, 'stop_path'));
+            tc.verifyFalse(isfile(request.result_path));
         end
 
         function runnerRefusesConfigDriftBeforeProposalGeneration(tc)

@@ -112,7 +112,7 @@ class WorkbenchReportContextTests(unittest.TestCase):
             for schema_version in sorted(READABLE_SCHEMA_VERSIONS):
                 with self.subTest(schema_version=schema_version):
                     payload = dict(base_payload, schema_version=schema_version)
-                    if schema_version == 3:
+                    if schema_version >= 3:
                         payload["options"] = {
                             "doCachePrebuild": True,
                             "cache_source_cleanup": {

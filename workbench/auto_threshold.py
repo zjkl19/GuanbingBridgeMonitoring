@@ -12,6 +12,7 @@ from typing import Any
 
 from .models import file_sha256
 from .config_layers import config_dependency_sha256
+from .threshold_series import PreviewSeries
 
 
 class AutoThresholdError(RuntimeError):
@@ -44,6 +45,7 @@ class AutoThresholdPaths:
     status: Path
     result: Path
     preview: Path
+    stop: Path
     stdout: Path
     stderr: Path
 
@@ -57,19 +59,6 @@ class AutoThresholdRun:
     data_root: str
     start_date: str
     end_date: str
-
-
-@dataclass(frozen=True)
-class PreviewSeries:
-    module_key: str
-    point_id: str
-    sensor_type: str
-    times: tuple[str, ...]
-    values: tuple[float | None, ...]
-
-    @property
-    def key(self) -> tuple[str, str]:
-        return self.module_key, self.point_id
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -130,10 +119,13 @@ def prepare_request(
         status=root / "auto_threshold_status.json",
         result=root / "auto_threshold_result.json",
         preview=root / "auto_threshold_preview.json",
+        stop=root / "auto_threshold_stop.flag",
         stdout=root / "auto_threshold_stdout.log",
         stderr=root / "auto_threshold_stderr.log",
     )
     config_hash = config_dependency_sha256(config_path)
+    selected_modules = options.get("module_keys", [])
+    module_total = len(selected_modules) if isinstance(selected_modules, list) else 0
     payload = {
         "schema_version": 1,
         "request_type": "auto_threshold_proposal",
@@ -148,15 +140,32 @@ def prepare_request(
         "status_path": str(paths.status),
         "result_path": str(paths.result),
         "preview_path": str(paths.preview),
+        "stop_file": str(paths.stop),
     }
     _write_json(paths.request, payload)
     _write_json(
         paths.status,
         {
+            "schema_version": 1,
             "status": "prepared",
             "request_type": "auto_threshold_proposal",
             "request_id": run_id,
             "request_path": str(paths.request),
+            "module_key": "",
+            "point_id": "",
+            "module_index": 0,
+            "module_total": module_total,
+            "point_index": 0,
+            "point_total": 0,
+            "stage": "prepared",
+            "current_date": "",
+            "processed_dates": 0,
+            "total_dates": 0,
+            "progress_fraction": 0.0,
+            "progress_percent": 0.0,
+            "elapsed_seconds": 0.0,
+            "stop_file": str(paths.stop),
+            "stop_requested": False,
         },
     )
     return paths, payload
@@ -170,6 +179,10 @@ def launch(project_root: Path, paths: AutoThresholdPaths, config_sha256: str) ->
         raise AutoThresholdError(f"自动清洗建议请求无法读取：{exc}") from exc
     if not isinstance(request, dict):
         raise AutoThresholdError("自动清洗建议请求格式无效")
+    declared_stop = str(request.get("stop_file") or "")
+    if _normalized_context_path(declared_stop) != _normalized_context_path(paths.stop):
+        raise AutoThresholdError("自动清洗建议请求的停止标志不属于本任务")
+    paths.stop.unlink(missing_ok=True)
     creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     with paths.stdout.open("wb") as stdout, paths.stderr.open("wb") as stderr:
         process = subprocess.Popen(
@@ -195,7 +208,54 @@ def read_status(path: Path) -> dict[str, Any]:
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
         return {"status": "status_read_failed", "message": str(exc)}
-    return payload if isinstance(payload, dict) else {"status": "status_read_failed"}
+    if not isinstance(payload, dict):
+        return {"status": "status_read_failed"}
+    stop_file = str(payload.get("stop_file") or "")
+    payload["stop_file"] = stop_file
+    if "progress_fraction" not in payload and "progress_percent" in payload:
+        try:
+            payload["progress_fraction"] = float(payload["progress_percent"]) / 100.0
+        except (TypeError, ValueError):
+            pass
+    if "progress_percent" not in payload and "progress_fraction" in payload:
+        try:
+            payload["progress_percent"] = float(payload["progress_fraction"]) * 100.0
+        except (TypeError, ValueError):
+            pass
+    return payload
+
+
+def request_stop(
+    paths: AutoThresholdPaths,
+    *,
+    reason: str = "用户请求安全停止自动清洗建议",
+) -> Path:
+    """Request cooperative stop without terminating an unrelated process."""
+
+    try:
+        request = json.loads(paths.request.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AutoThresholdError(f"自动清洗建议请求无法读取，未写入停止标志：{exc}") from exc
+    if not isinstance(request, dict) or request.get("request_type") != "auto_threshold_proposal":
+        raise AutoThresholdError("自动清洗建议请求类型无效，未写入停止标志")
+    declared_stop = str(request.get("stop_file") or "")
+    if (
+        _normalized_context_path(declared_stop)
+        != _normalized_context_path(paths.stop)
+        or paths.stop.parent != paths.root
+    ):
+        raise AutoThresholdError("停止标志路径不属于本次自动清洗建议任务，未执行停止")
+    _write_json(
+        paths.stop,
+        {
+            "schema_version": 1,
+            "request_type": "auto_threshold_proposal",
+            "request_id": str(request.get("request_id") or ""),
+            "requested_at": datetime.now().astimezone().isoformat(),
+            "reason": str(reason or "用户请求安全停止自动清洗建议"),
+        },
+    )
+    return paths.stop
 
 
 def load_result(path: Path) -> dict[str, Any]:
@@ -219,7 +279,15 @@ def _series_rows(value: Any) -> list[dict[str, Any]]:
         return [value]
     if isinstance(value, list) and all(isinstance(row, dict) for row in value):
         return value
-    raise AutoThresholdError("自动清洗预览 preview_series 必须是对象数组")
+    raise AutoThresholdError("自动清洗预览 curve_records 必须是对象数组")
+
+
+def _artifact_series_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Read the sole current Beta preview-series field."""
+
+    if "curve_records" not in payload:
+        raise AutoThresholdError("自动清洗预览缺少 curve_records")
+    return _series_rows(payload.get("curve_records"))
 
 
 def _normalized_context_path(value: str | Path) -> str:
@@ -264,10 +332,15 @@ def load_preview_artifact(
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
         raise AutoThresholdError(f"自动清洗预览文件无法读取：{exc}") from exc
-    if not isinstance(payload, dict) or payload.get("artifact_type") != "auto_threshold_preview":
+    if not isinstance(payload, dict):
+        raise AutoThresholdError("曲线预览文件格式无效")
+    artifact_type = str(payload.get("artifact_type") or "")
+    if artifact_type != "auto_threshold_preview":
         raise AutoThresholdError("自动清洗预览文件类型无效")
     if int(payload.get("schema_version") or 0) != 1:
-        raise AutoThresholdError("不支持的自动清洗预览文件版本")
+        raise AutoThresholdError("不支持的曲线预览文件版本")
+    if str(payload.get("request_type") or "") != "auto_threshold_proposal":
+        raise AutoThresholdError("自动清洗预览 request_type 无效")
     if expected_request_id and str(payload.get("request_id") or "") != expected_request_id:
         raise AutoThresholdError("自动清洗预览 request_id 与建议结果不一致")
     if expected_config_sha256 and str(payload.get("config_sha256") or "").lower() != expected_config_sha256.lower():
@@ -306,7 +379,7 @@ def load_preview_artifact(
             )
 
     result: dict[tuple[str, str], PreviewSeries] = {}
-    for row in _series_rows(payload.get("preview_series")):
+    for row in _artifact_series_rows(payload):
         module_key = str(row.get("module_key") or "").strip()
         point_id = str(row.get("point_id") or "").strip()
         times = row.get("times")

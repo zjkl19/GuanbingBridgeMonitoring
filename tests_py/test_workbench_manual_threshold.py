@@ -11,6 +11,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from workbench.auto_threshold import AutoThresholdError, PreviewSeries
 from workbench.config_editor import CleaningThresholdRow, ConfigEditorError
+from workbench.threshold_curve import ThresholdCurveError
 from workbench.manual_threshold import (
     LOWER_SIDE,
     UPPER_SIDE,
@@ -824,9 +825,9 @@ class ManualThresholdGuiTests(unittest.TestCase):
             band = ThresholdBandDialog(target, **common)
             box = BoxThresholdDialog(target, side=LOWER_SIDE, **common)
             try:
-                with self.assertRaisesRegex(AutoThresholdError, "缺少桥梁编号"):
+                with self.assertRaisesRegex(ThresholdCurveError, "重新生成当前测点曲线"):
                     band.load_preview_path(preview_path)
-                with self.assertRaisesRegex(AutoThresholdError, "缺少桥梁编号"):
+                with self.assertRaisesRegex(ThresholdCurveError, "重新生成当前测点曲线"):
                     box.load_preview_path(preview_path)
             finally:
                 band.close()
@@ -844,7 +845,7 @@ class ManualThresholdGuiTests(unittest.TestCase):
         class AcceptedBandDialog:
             def __init__(self, target: CleaningThresholdRow, **_kwargs: object) -> None:
                 self._draft = TwoSidedThresholdDraft(
-                    target.module_key, target.point_key, -2.5, 7.5
+                    target.module_key, target.point_key, -2.5004, 7.5006
                 )
 
             def exec(self) -> int:
@@ -903,7 +904,7 @@ class ManualThresholdGuiTests(unittest.TestCase):
             widget.open_threshold_band()
             self.assertEqual(widget.table.rowCount(), len(before))
             changed = widget.rows()[point_row]
-            self.assertEqual((changed.minimum, changed.maximum), (-2.5, 7.5))
+            self.assertEqual((changed.minimum, changed.maximum), (-2.5, 7.501))
             self.assertIn("尚未保存", widget.message_label.text())
             self.assertTrue(widget.undo_manual_threshold_button.isEnabled())
             self.assertEqual(FIXTURE.read_bytes(), source_before)
@@ -911,12 +912,15 @@ class ManualThresholdGuiTests(unittest.TestCase):
             widget.box_threshold_dialog_class = AcceptedBoxDialog
             widget.open_box_threshold(LOWER_SIDE)
             self.assertEqual(widget.rows()[point_row].minimum, -1.25)
-            self.assertEqual(widget.rows()[point_row].maximum, 7.5)
+            self.assertEqual(widget.rows()[point_row].maximum, 7.501)
             self.assertIn("下侧框选取最高值", widget.message_label.text())
             self.assertEqual(FIXTURE.read_bytes(), source_before)
 
             widget.undo_manual_threshold()
-            self.assertEqual((widget.rows()[point_row].minimum, widget.rows()[point_row].maximum), (-2.5, 7.5))
+            self.assertEqual(
+                (widget.rows()[point_row].minimum, widget.rows()[point_row].maximum),
+                (-2.5, 7.501),
+            )
             self.assertFalse(widget.undo_manual_threshold_button.isEnabled())
         finally:
             widget.close()

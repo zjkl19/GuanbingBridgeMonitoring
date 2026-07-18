@@ -14,6 +14,13 @@ classdef TimeSeriesRangeLoader
             meta.files = {};
 
             dateList = bms.data.TimeSeriesRangeLoader.buildDateList(startDate, endDate);
+            bms.app.RunProgressReporter.checkpoint( ...
+                'stage', 'load_timeseries', ...
+                'current_point_id', pointId, ...
+                'current_date', '', ...
+                'processed_dates', 0, ...
+                'total_dates', numel(dateList));
+            bms.app.StopController.throwIfRequested('Stop requested before loading time-series range');
             [rangeStart, rangeEnd] = bms.data.TimeRangeResolver.closedRange(startDate, endDate);
             range = struct('start', rangeStart, 'end', rangeEnd);
 
@@ -23,10 +30,19 @@ classdef TimeSeriesRangeLoader
 
             [allT, allV, meta, usedRangeLoader] = bms.data.TimeSeriesRangeLoader.tryReadRange( ...
                 loader, rootDir, subfolder, pointId, sensorType, range, meta);
+            bms.app.StopController.throwIfRequested('Stop requested after loading time-series range');
             if ~usedRangeLoader
                 [allT, allV, meta] = bms.data.TimeSeriesRangeLoader.readByDay( ...
-                    loader, rootDir, subfolder, pointId, sensorType, range, dateList, meta);
+                    loader, rootDir, subfolder, pointId, sensorType, range, dateList, meta, false, false, true);
+            elseif ~isempty(dateList)
+                bms.app.RunProgressReporter.checkpoint( ...
+                    'stage', 'load_range_complete', ...
+                    'current_point_id', pointId, ...
+                    'current_date', dateList{end}, ...
+                    'processed_dates', numel(dateList), ...
+                    'total_dates', numel(dateList));
             end
+            bms.app.StopController.throwIfRequested('Stop requested after loading time-series dates');
 
             if isempty(allT)
                 times = [];
@@ -36,7 +52,9 @@ classdef TimeSeriesRangeLoader
 
             [times, vals] = bms.data.TimeSeriesRangeLoader.sortSeries(allT, allV);
             [times, vals] = bms.data.TimeSeriesLoader.clipClosedRange(times, vals, rangeStart, rangeEnd);
+            bms.app.RunProgressReporter.checkpoint('stage', 'clean_timeseries');
             [vals, meta] = bms.data.TimeSeriesRangeLoader.applyCleaning(vals, times, rules, sensorType, pointId, meta);
+            bms.app.StopController.throwIfRequested('Stop requested after cleaning time-series range');
         end
 
         function [times, vals, meta] = loadCalendarDay(rootDir, subfolder, pointId, day, cfg, sensorType)
@@ -57,6 +75,7 @@ classdef TimeSeriesRangeLoader
                 'files', {{}}, ...
                 'duplicate_timestamp_count', 0, ...
                 'conflicting_timestamp_count', 0);
+            bms.app.StopController.throwIfRequested('Stop requested before loading calendar day');
             dayStart = dateshift(bms.data.TimeRangeResolver.parseDate(day), 'start', 'day');
             dayEnd = dayStart + days(1);
             range = struct('start', dayStart, 'end', dayEnd);
@@ -82,11 +101,13 @@ classdef TimeSeriesRangeLoader
             if ~forceDailyCalendar
                 [allT, allV, meta, usedRangeLoader] = bms.data.TimeSeriesRangeLoader.tryReadRange( ...
                     loader, rootDir, subfolder, pointId, sensorType, range, meta);
+                bms.app.StopController.throwIfRequested('Stop requested after calendar-day range load');
             end
             if ~usedRangeLoader
                 [allT, allV, meta] = bms.data.TimeSeriesRangeLoader.readByDay( ...
                     loader, rootDir, subfolder, pointId, sensorType, range, dateList, meta, useLookahead, true);
             end
+            bms.app.StopController.throwIfRequested('Stop requested after loading calendar-day sources');
 
             meta.calendar_day = dateList{1};
             meta.calendar_day_requested_export_dates = dateList;
@@ -100,6 +121,7 @@ classdef TimeSeriesRangeLoader
                 vals = [];
                 meta = bms.data.TimeSeriesRangeLoader.finishCalendarDayMeta( ...
                     meta, times, vals, usedRangeLoader);
+                bms.app.StopController.throwIfRequested('Stop requested after loading calendar day');
                 return;
             end
 
@@ -119,6 +141,7 @@ classdef TimeSeriesRangeLoader
                 vals, times, rules, sensorType, pointId, meta);
             meta = bms.data.TimeSeriesRangeLoader.finishCalendarDayMeta( ...
                 meta, times, vals, usedRangeLoader);
+            bms.app.StopController.throwIfRequested('Stop requested after loading calendar day');
         end
 
         function [allT, allV, meta, used] = tryReadRange(loader, rootDir, subfolder, pointId, sensorType, range, meta)
@@ -142,12 +165,15 @@ classdef TimeSeriesRangeLoader
             end
         end
 
-        function [allT, allV, meta] = readByDay(loader, rootDir, subfolder, pointId, sensorType, range, dateList, meta, strictRollingDates, halfOpenEnd)
+        function [allT, allV, meta] = readByDay(loader, rootDir, subfolder, pointId, sensorType, range, dateList, meta, strictRollingDates, halfOpenEnd, reportProgress)
             if nargin < 9 || isempty(strictRollingDates)
                 strictRollingDates = false;
             end
             if nargin < 10 || isempty(halfOpenEnd)
                 halfOpenEnd = false;
+            end
+            if nargin < 11 || isempty(reportProgress)
+                reportProgress = false;
             end
             allT = [];
             allV = [];
@@ -163,7 +189,16 @@ classdef TimeSeriesRangeLoader
             meta.rejected_cache_files = {};
             meta.duplicate_file_count = 0;
             for i = 1:numel(dateList)
+                bms.app.StopController.throwIfRequested('Stop requested before next time-series date');
                 day = dateList{i};
+                if reportProgress
+                    bms.app.RunProgressReporter.checkpoint( ...
+                        'stage', 'load_date', ...
+                        'current_point_id', pointId, ...
+                        'current_date', day, ...
+                        'processed_dates', i - 1, ...
+                        'total_dates', numel(dateList));
+                end
                 dayMeta = struct('day', day, 'range', range);
                 if strictRollingDates
                     [dirp, dayMeta] = bms.data.TimeSeriesRangeLoader.resolveStrictDatedDayDir( ...
@@ -184,6 +219,9 @@ classdef TimeSeriesRangeLoader
                         meta.ambiguous_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
                             meta.ambiguous_export_dates, day);
                     end
+                    bms.data.TimeSeriesRangeLoader.reportDateComplete( ...
+                        reportProgress, pointId, day, i, numel(dateList));
+                    bms.app.StopController.throwIfRequested('Stop requested after time-series date');
                     continue;
                 end
 
@@ -191,12 +229,18 @@ classdef TimeSeriesRangeLoader
                 if isempty(fp)
                     meta.missing_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
                         meta.missing_export_dates, day);
+                    bms.data.TimeSeriesRangeLoader.reportDateComplete( ...
+                        reportProgress, pointId, day, i, numel(dateList));
+                    bms.app.StopController.throwIfRequested('Stop requested after time-series date');
                     continue;
                 end
 
                 fileKey = bms.data.TimeSeriesRangeLoader.canonicalFileKey(fp);
                 if isKey(seenFiles, fileKey)
                     meta.duplicate_file_count = meta.duplicate_file_count + 1;
+                    bms.data.TimeSeriesRangeLoader.reportDateComplete( ...
+                        reportProgress, pointId, day, i, numel(dateList));
+                    bms.app.StopController.throwIfRequested('Stop requested after time-series date');
                     continue;
                 end
                 seenFiles(fileKey) = true;
@@ -225,6 +269,9 @@ classdef TimeSeriesRangeLoader
                 if isempty(v)
                     meta.empty_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
                         meta.empty_export_dates, day);
+                    bms.data.TimeSeriesRangeLoader.reportDateComplete( ...
+                        reportProgress, pointId, day, i, numel(dateList));
+                    bms.app.StopController.throwIfRequested('Stop requested after time-series date');
                     continue;
                 end
                 meta.found_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
@@ -247,6 +294,9 @@ classdef TimeSeriesRangeLoader
                         meta.noncontributing_export_dates, day);
                     meta = bms.data.TimeSeriesRangeLoader.mergeDayMeta(meta, dayMeta);
                     meta.files{end+1} = fp; %#ok<AGROW>
+                    bms.data.TimeSeriesRangeLoader.reportDateComplete( ...
+                        reportProgress, pointId, day, i, numel(dateList));
+                    bms.app.StopController.throwIfRequested('Stop requested after time-series date');
                     continue;
                 end
                 meta.contributing_export_dates = bms.data.TimeSeriesRangeLoader.appendUniqueText( ...
@@ -255,6 +305,17 @@ classdef TimeSeriesRangeLoader
                 meta.files{end+1} = fp; %#ok<AGROW>
                 allT = [allT; t]; %#ok<AGROW>
                 allV = [allV; v]; %#ok<AGROW>
+                bms.data.TimeSeriesRangeLoader.reportDateComplete( ...
+                    reportProgress, pointId, day, i, numel(dateList));
+                bms.app.StopController.throwIfRequested('Stop requested after time-series date');
+            end
+            if reportProgress && ~isempty(dateList)
+                bms.app.RunProgressReporter.checkpoint( ...
+                    'stage', 'load_dates_complete', ...
+                    'current_point_id', pointId, ...
+                    'current_date', dateList{end}, ...
+                    'processed_dates', numel(dateList), ...
+                    'total_dates', numel(dateList));
             end
         end
 
@@ -267,6 +328,18 @@ classdef TimeSeriesRangeLoader
             if ~exist(dirp, 'dir')
                 dirp = '';
             end
+        end
+
+        function reportDateComplete(reportProgress, pointId, day, processedDates, totalDates)
+            if ~reportProgress
+                return;
+            end
+            bms.app.RunProgressReporter.checkpoint( ...
+                'stage', 'load_date_complete', ...
+                'current_point_id', pointId, ...
+                'current_date', day, ...
+                'processed_dates', processedDates, ...
+                'total_dates', totalDates);
         end
 
         function [dirp, dayMeta] = resolveStrictDatedDayDir(rootDir, day, subfolder, dayMeta)

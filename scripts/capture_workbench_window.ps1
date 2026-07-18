@@ -130,7 +130,11 @@ if ($Offscreen) {
 
     $offscreenBitmap = [System.Drawing.Bitmap]::FromFile($resolvedOutput)
     try {
-        if ($offscreenBitmap.Width -lt 1000 -or $offscreenBitmap.Height -lt 700) {
+        # Qt's offscreen plugin exposes a fixed 800 x 800 virtual screen on
+        # Windows.  The workbench intentionally fits that screen to 800 x 720,
+        # so this optional audit must use a virtual-screen-aware width gate.
+        # The native release path below keeps the independent >=1000 gate.
+        if ($offscreenBitmap.Width -lt 800 -or $offscreenBitmap.Height -lt 700) {
             throw "Unexpected offscreen workbench size: $($offscreenBitmap.Width) x $($offscreenBitmap.Height)"
         }
         $brightSamples = 0

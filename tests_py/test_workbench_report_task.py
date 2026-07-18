@@ -60,7 +60,19 @@ class WorkbenchReportTaskTests(unittest.TestCase):
         config_path: Path | None = None,
     ) -> Path:
         provenance = root / f"{module}.plot.json"
-        provenance.write_bytes((ROOT / "tests" / "fixtures" / "workbench_provenance_contract.json").read_bytes())
+        provenance_payload = json.loads(
+            (ROOT / "tests" / "fixtures" / "workbench_provenance_contract.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        source = provenance_payload["series"][0]["source"]
+        source.update({
+            "complete_day_count": 2,
+            "incomplete_day_count": 0,
+            "incomplete_days": [],
+            "missing_required_sources": [],
+        })
+        provenance.write_text(json.dumps(provenance_payload), encoding="utf-8")
         manifest = root / "analysis_manifest.json"
         manifest.write_text(json.dumps({
             "status": "ok",
@@ -360,6 +372,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             ("guanbing_monthly", "report_job.build_guanbing_monthly_report", "docx_manifest"),
             ("zhishan_monthly", "report_job.build_zhishan_monthly_report", "docx_manifest"),
             ("jlj_monthly", "report_job.build_jlj_monthly_report", "docx_only"),
+            ("shuixianhua_monthly", "report_job.build_shuixianhua_monthly_report", "docx_pdf"),
             ("hongtang_monthly", "report_job.build_hongtang_monthly_report", "manifest_docx_missing"),
             ("hongtang_period_wim", "report_job.build_period_report", "manifest_docx_missing"),
         )
@@ -387,6 +400,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                 builder_result = {
                     "docx_manifest": (report, manifest),
                     "docx_only": report,
+                    "docx_pdf": (report, None),
                     "manifest_docx_missing": (manifest, report, []),
                 }[return_kind]
                 export_result = WordPdfExportResult(pdf, "passed", authoritative=True)
@@ -407,7 +421,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                     builder_mock = stack.enter_context(
                         patch(builder_target, return_value=builder_result)
                     )
-                    if report_type == "jlj_monthly":
+                    if report_type in {"jlj_monthly", "shuixianhua_monthly"}:
                         stack.enter_context(
                             patch("report_job._select_new_report_build_manifest", return_value=manifest)
                         )
@@ -419,11 +433,13 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                     )
                     result = execute_report_job(request)
 
-                if report_type == "zhishan_monthly":
+                if report_type in {"shuixianhua_monthly", "zhishan_monthly"}:
                     self.assertEqual(
                         builder_mock.call_args.kwargs["source_quality_note"],
                         "审定的数据完整性说明。",
                     )
+                if report_type == "shuixianhua_monthly":
+                    self.assertIs(builder_mock.call_args.kwargs["update_word"], False)
                 export_mock.assert_called_once_with(report.resolve())
                 self.assertEqual(observed["preferred_pdf_path"], pdf.resolve())
                 self.assertEqual(result.pdf_path, pdf.resolve())
@@ -457,7 +473,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             }
             with patch(
                 "report_job.build_shuixianhua_monthly_report", return_value=(report, pdf)
-            ), patch(
+            ) as builder_mock, patch(
                 "report_job._select_new_report_build_manifest", return_value=manifest
             ), patch(
                 "report_job.export_authoritative_word_pdf"
@@ -467,6 +483,7 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                 result = execute_report_job(request)
 
             export_mock.assert_not_called()
+            self.assertIs(builder_mock.call_args.kwargs["update_word"], False)
             self.assertEqual(result.pdf_path, pdf.resolve())
             self.assertEqual(result.qc["pdf"]["export"]["source"], "builder_word_pdf")
 
@@ -682,6 +699,10 @@ class WorkbenchReportTaskTests(unittest.TestCase):
             )
 
             self.assertEqual(qc["status"], "failed")
+            self.assertEqual(qc["manifest"]["missing_items"], [{"label": "missing formal plot"}])
+            self.assertEqual(qc["manifest"]["warnings"], ["filesystem fallback attempted"])
+            self.assertIn("missing formal plot", qc["manifest"]["message"])
+            self.assertIn("filesystem fallback attempted", qc["manifest"]["message"])
 
     def test_qc_rejects_pdf_with_broken_caption_reference(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

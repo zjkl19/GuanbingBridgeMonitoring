@@ -238,14 +238,18 @@ class AlarmBoundsEditorWidget(QWidget):
         self.effective_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.effective_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.effective_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.effective_table.setWordWrap(False)
+        self.effective_table.setTextElideMode(Qt.ElideRight)
         self.effective_table.itemDoubleClicked.connect(
             lambda _item: self._edit_selected_effective_value()
         )
         effective_header = self.effective_table.horizontalHeader()
-        effective_header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        effective_header.setSectionResizeMode(QHeaderView.Interactive)
         effective_header.setSectionResizeMode(3, QHeaderView.Stretch)
         effective_header.setSectionResizeMode(7, QHeaderView.Stretch)
         effective_header.setSectionResizeMode(9, QHeaderView.Stretch)
+        for column, width in enumerate((100, 82, 108, 130, 92, 96, 62, 180, 84, 210)):
+            self.effective_table.setColumnWidth(column, width)
         overview_layout.addWidget(self.effective_table, 1)
         overview_actions = QHBoxLayout()
         self.edit_effective_button = QPushButton("编辑选中预警值…")
@@ -529,32 +533,38 @@ class AlarmBoundsEditorWidget(QWidget):
                 continue
             visible.append(row)
 
-        self.effective_table.setRowCount(0)
-        for row in visible:
-            index = self.effective_table.rowCount()
-            self.effective_table.insertRow(index)
-            values = (
-                WARNING_SOURCE_LABELS.get(row.source_kind, row.source_kind),
-                WARNING_SCOPE_LABELS.get(row.scope, row.scope),
-                _module_label(row.module_key),
-                row.target_key or "全局/默认",
-                _level_label(row.level),
-                row.value_text,
-                row.unit,
-                row.purpose,
-                WARNING_STATUS_LABELS.get(row.status, row.status),
-                _warning_location_label(row),
-            )
-            for column, value in enumerate(values):
-                item = QTableWidgetItem(str(value))
-                item.setToolTip(_warning_location_label(row))
-                if column == 9:
-                    item.setData(Qt.UserRole, row.config_path)
-                if row.status == "invalid":
-                    item.setForeground(Qt.red)
-                elif row.status == "unset":
-                    item.setForeground(Qt.darkYellow)
-                self.effective_table.setItem(index, column, item)
+        blocked = self.effective_table.blockSignals(True)
+        self.effective_table.setUpdatesEnabled(False)
+        try:
+            self.effective_table.setRowCount(0)
+            for row in visible:
+                index = self.effective_table.rowCount()
+                self.effective_table.insertRow(index)
+                values = (
+                    WARNING_SOURCE_LABELS.get(row.source_kind, row.source_kind),
+                    WARNING_SCOPE_LABELS.get(row.scope, row.scope),
+                    _module_label(row.module_key),
+                    row.target_key or "全局/默认",
+                    _level_label(row.level),
+                    row.value_text,
+                    row.unit,
+                    row.purpose,
+                    WARNING_STATUS_LABELS.get(row.status, row.status),
+                    _warning_location_label(row),
+                )
+                for column, value in enumerate(values):
+                    item = QTableWidgetItem(str(value))
+                    item.setToolTip(row.config_path if column == 9 else str(value))
+                    if column == 9:
+                        item.setData(Qt.UserRole, row.config_path)
+                    if row.status == "invalid":
+                        item.setForeground(Qt.red)
+                    elif row.status == "unset":
+                        item.setForeground(Qt.darkYellow)
+                    self.effective_table.setItem(index, column, item)
+        finally:
+            self.effective_table.blockSignals(blocked)
+            self.effective_table.setUpdatesEnabled(True)
         configured = sum(row.status == "configured" for row in self.effective_rows)
         self.effective_count_label.setText(
             f"显示 {len(visible)} / {len(self.effective_rows)}；有效 {configured}"
@@ -715,6 +725,9 @@ class AlarmBoundsEditorWidget(QWidget):
 
 class CleaningThresholdEditorWidget(QWidget):
     config_saved = Signal(str, str, str)
+    threshold_curve_requested = Signal(str, str)
+    # Retained only for extension compatibility; manual curve tools no longer
+    # route through the Beta automatic-suggestion page.
     auto_threshold_requested = Signal(str)
     session_class = CleaningConfigEditorSession
     row_label = "清洗配置行"
@@ -857,8 +870,9 @@ class CleaningThresholdEditorWidget(QWidget):
             single_side_layout = QVBoxLayout(self.manual_threshold_group)
             source_help = (
                 "<br><b>正常操作无需选择任何文件：</b>系统会自动匹配当前桥梁、数据目录、日期、"
-                "配置版本和测点的曲线。若尚无曲线，请先到“自动清洗建议”页生成一次预览。"
-                "也可直接选择任意可信 MATLAB FIG，或显式导入其他任务/项目的系统曲线作为数值参考；"
+                "配置版本和测点的独立曲线记录。若尚无曲线，可运行“生成当前测点曲线”轻量任务；"
+                "它不执行自动阈值算法。也可直接选择任意可信 MATLAB FIG，或从其他任务列表导入"
+                "工作平台曲线作为数值参考；"
                 "外部参考不会冒充当前任务校验通过。"
                 if self.supports_task_curve_preview
                 else "<br><b>本页仅开放任意可信 MATLAB FIG：</b>滤波前的任务预览不等于滤波后数据，"
@@ -1016,6 +1030,34 @@ class CleaningThresholdEditorWidget(QWidget):
             return "是" if value else "否"
         return str(value)
 
+    @staticmethod
+    def _display_threshold(value: object | None) -> str:
+        """Keep editable cleaning bounds compact and deterministic."""
+        if value is None:
+            return ""
+        try:
+            text = f"{float(value):.3f}".rstrip("0").rstrip(".")
+        except (TypeError, ValueError):
+            return str(value)
+        return "0" if text in {"-0", "+0"} else text
+
+    @staticmethod
+    def _rounded_threshold(value: float | None) -> float | None:
+        if value is None:
+            return None
+        rounded = round(float(value), 3)
+        return 0.0 if rounded == 0 else rounded
+
+    def _threshold_item_value(self, item: QTableWidgetItem | None) -> float | None:
+        if item is None:
+            return None
+        text = item.text().strip()
+        initial_display = item.data(int(Qt.UserRole) + 1)
+        if initial_display is not None and text == str(initial_display):
+            raw_value = item.data(Qt.UserRole)
+            return None if raw_value is None else float(raw_value)
+        return self._rounded_threshold(self._optional_float(text))
+
     def _populate(self, rows: list[CleaningThresholdRow]) -> None:
         blocked = self.table.blockSignals(True)
         try:
@@ -1049,7 +1091,17 @@ class CleaningThresholdEditorWidget(QWidget):
             row.outlier_threshold_factor,
         )
         for column, value in enumerate(values):
-            item = QTableWidgetItem(self._display(value))
+            display = (
+                self._display_threshold(value)
+                if column in {3, 4}
+                else self._display(value)
+            )
+            item = QTableWidgetItem(display)
+            if column in {3, 4}:
+                # Display old high-precision configs compactly without turning a
+                # read-only/no-op round trip into a configuration rewrite.
+                item.setData(Qt.UserRole, value)
+                item.setData(int(Qt.UserRole) + 1, display)
             if column == 0:
                 item.setData(Qt.UserRole, row.scope)
             elif column == 1:
@@ -1109,7 +1161,7 @@ class CleaningThresholdEditorWidget(QWidget):
             raise ConfigEditorError("当前任务的结束日期早于开始日期")
         return context
 
-    def _automatic_preview_resolver(
+    def _curve_record_resolver(
         self,
         target: CleaningThresholdRow,
         aliases: tuple[str, ...],
@@ -1164,10 +1216,25 @@ class CleaningThresholdEditorWidget(QWidget):
         result_index: int,
         message: str,
     ) -> None:
-        self._populate(updated)
+        normalized = list(updated)
+        if 0 <= result_index < len(normalized):
+            row = normalized[result_index]
+            normalized[result_index] = CleaningThresholdRow(
+                row.scope,
+                row.module_key,
+                row.point_key,
+                self._rounded_threshold(row.minimum),
+                self._rounded_threshold(row.maximum),
+                row.t_range_start,
+                row.t_range_end,
+                row.zero_to_nan,
+                row.outlier_window_sec,
+                row.outlier_threshold_factor,
+            ).validated()
+        self._populate(normalized)
         self.table.selectRow(result_index)
         self.table.scrollToItem(self.table.item(result_index, 0))
-        self._manual_threshold_undo = (before, previous_index, list(updated))
+        self._manual_threshold_undo = (before, previous_index, normalized)
         self.undo_manual_threshold_button.setEnabled(True)
         self.message_label.setText(message)
         self.message_label.setStyleSheet("color: #9a6700; font-weight: 600;")
@@ -1185,8 +1252,8 @@ class CleaningThresholdEditorWidget(QWidget):
                 expected_data_root=context.get("data_root", ""),
                 expected_start_date=context.get("start_date", ""),
                 expected_end_date=context.get("end_date", ""),
-                automatic_preview_resolver=(
-                    self._automatic_preview_resolver(target, aliases, context)
+                curve_record_resolver=(
+                    self._curve_record_resolver(target, aliases, context)
                     if self.supports_task_curve_preview
                     else None
                 ),
@@ -1195,8 +1262,10 @@ class CleaningThresholdEditorWidget(QWidget):
                 parent=self,
             )
             if dialog.exec() != QDialog.Accepted:
-                if getattr(dialog, "preview_generation_requested", False):
-                    self.auto_threshold_requested.emit(target.module_key)
+                if getattr(dialog, "curve_generation_requested", False):
+                    self.threshold_curve_requested.emit(
+                        target.module_key, target.point_key
+                    )
                 return
             draft = dialog.draft()
             estimate_summary = dialog.estimate_summary()
@@ -1218,7 +1287,8 @@ class CleaningThresholdEditorWidget(QWidget):
             result_index=result_index,
             message=(
                 f"尚未保存：已按旧 MATLAB 双线方式修改 {draft.module_key}/{draft.point_key}，"
-                f"下限={draft.lower:.15g}，上限={draft.upper:.15g}，"
+                f"下限={self._display_threshold(draft.lower)}，"
+                f"上限={self._display_threshold(draft.upper)}，"
                 f"共同时间窗={draft.time_window_text}。{estimate_summary}"
             ),
         )
@@ -1237,8 +1307,8 @@ class CleaningThresholdEditorWidget(QWidget):
                 expected_data_root=context.get("data_root", ""),
                 expected_start_date=context.get("start_date", ""),
                 expected_end_date=context.get("end_date", ""),
-                automatic_preview_resolver=(
-                    self._automatic_preview_resolver(target, aliases, context)
+                curve_record_resolver=(
+                    self._curve_record_resolver(target, aliases, context)
                     if self.supports_task_curve_preview
                     else None
                 ),
@@ -1247,8 +1317,10 @@ class CleaningThresholdEditorWidget(QWidget):
                 parent=self,
             )
             if dialog.exec() != QDialog.Accepted:
-                if getattr(dialog, "preview_generation_requested", False):
-                    self.auto_threshold_requested.emit(target.module_key)
+                if getattr(dialog, "curve_generation_requested", False):
+                    self.threshold_curve_requested.emit(
+                        target.module_key, target.point_key
+                    )
                 return
             proposal = dialog.proposal()
             draft = proposal.draft
@@ -1272,7 +1344,7 @@ class CleaningThresholdEditorWidget(QWidget):
             result_index=result_index,
             message=(
                 f"尚未保存：{rule}，已把 {draft.module_key}/{draft.point_key} 的"
-                f"{draft.direction_text}更新为 {draft.value:.15g}；"
+                f"{draft.direction_text}更新为 {self._display_threshold(draft.value)}；"
                 f"框中有限预览点 {proposal.selected_sample_count} 个。"
                 f"等于阈值的点保留。{estimate_summary}"
             ),
@@ -1434,8 +1506,8 @@ class CleaningThresholdEditorWidget(QWidget):
                     values[0],
                     values[1],
                     values[2],
-                    self._optional_float(values[3]),
-                    self._optional_float(values[4]),
+                    self._threshold_item_value(self.table.item(index, 3)),
+                    self._threshold_item_value(self.table.item(index, 4)),
                     values[5],
                     values[6],
                     self._optional_bool(values[7]),

@@ -30,7 +30,7 @@ def load_installed_profile_matrix(project_root: Path) -> InstalledProfileMatrix:
     project_root = project_root.expanduser().resolve()
     path = project_root / "workbench_profile_matrix.json"
     if not path.is_file():
-        raise ProfileAuditError("当前是源码/未完成打包的工作台，尚无冻结版所有桥梁自检矩阵")
+        raise ProfileAuditError("当前是源码/未完成打包的工作平台，尚无冻结版所有桥梁自检矩阵")
     try:
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:

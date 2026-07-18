@@ -8,26 +8,11 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
-from .auto_threshold import PreviewSeries
+from .threshold_labels import THRESHOLD_MODULE_LABELS, threshold_module_label
+from .threshold_series import PreviewSeries
 
 
-MODULE_LABELS = {
-    "temperature": "温度",
-    "humidity": "湿度",
-    "rainfall": "雨量",
-    "wind_speed": "风速",
-    "earthquake": "地震动",
-    "deflection": "挠度",
-    "bearing_displacement": "支座位移",
-    "tilt": "倾角",
-    "gnss": "GNSS",
-    "acceleration": "加速度",
-    "cable_accel": "索力加速度",
-    "strain": "应变",
-    "dynamic_strain": "动应变高通",
-    "dynamic_strain_lowpass": "动应变低通",
-    "crack": "裂缝",
-}
+MODULE_LABELS = THRESHOLD_MODULE_LABELS
 
 PROPOSAL_KIND_LABELS = {
     "range": "全时段阈值",
@@ -45,8 +30,7 @@ ALGORITHM_LABELS = {
 
 
 def module_label(value: object) -> str:
-    key = str(value or "").strip()
-    return MODULE_LABELS.get(key, key)
+    return threshold_module_label(value)
 
 
 def proposal_kind_label(value: object) -> str:

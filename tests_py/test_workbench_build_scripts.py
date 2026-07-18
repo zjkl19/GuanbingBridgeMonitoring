@@ -25,6 +25,7 @@ CLEANUP_POLICY_SCRIPT = (
 FIG_THRESHOLD_SCRIPT = (
     REPO_ROOT / "scripts" / "validate_analysis_runner_fig_threshold.py"
 )
+THRESHOLD_CURVE_SCRIPT = REPO_ROOT / "scripts" / "validate_threshold_curve_runner.py"
 CAPTURE_SCRIPT = REPO_ROOT / "scripts" / "capture_workbench_window.ps1"
 REPORT_BUILD_SCRIPT = REPO_ROOT / "reporting" / "build_gui_exe.ps1"
 REPORT_PACKAGE_SCRIPT = REPO_ROOT / "scripts" / "package_report_builder.ps1"
@@ -74,6 +75,17 @@ class WorkbenchBuildScriptTests(unittest.TestCase):
         spec.loader.exec_module(module)
         return module
 
+    @staticmethod
+    def _threshold_curve_module():
+        spec = importlib.util.spec_from_file_location(
+            "validate_threshold_curve_runner", THRESHOLD_CURVE_SCRIPT
+        )
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"unable to load {THRESHOLD_CURVE_SCRIPT}")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
     def test_all_direct_python_steps_use_fail_fast_wrapper(self) -> None:
         self.assertIn("function Invoke-NativeChecked", self.build_script)
         self.assertRegex(
@@ -95,6 +107,7 @@ class WorkbenchBuildScriptTests(unittest.TestCase):
             "Compiled analysis failure-exit contract smoke",
             "Compiled analysis cache-cleanup policy smoke",
             "Compiled analysis FIG-threshold contract smoke",
+            "Compiled independent threshold-curve contract smoke",
             "Compiled automatic-cleaning preview contract smoke",
             "Frozen all-profile matrix",
         ):
@@ -354,6 +367,56 @@ exit 0
         )
         self.assertLess(fig_gate, runner_copy)
 
+    def test_build_and_package_gate_compiled_independent_threshold_curve(self) -> None:
+        self.assertTrue(THRESHOLD_CURVE_SCRIPT.is_file())
+        self.assertIn("validate_threshold_curve_runner.py", self.build_script)
+        self.assertIn(
+            "threshold_curve_runner_smoke = $thresholdCurveRunnerSmoke",
+            self.build_script,
+        )
+        self.assertIn(
+            "threshold_curve_runner = $thresholdCurveRunner",
+            self.build_script,
+        )
+        self.assertIn('"threshold_curve_runner_smoke"', self.package_script)
+        for evidence_field in (
+            "preview_max",
+            "progress_percent",
+            "preview_sha256",
+            "record_sha256",
+            "unexpected_auto_preview_count",
+        ):
+            self.assertIn(evidence_field, self.build_script)
+            self.assertIn(evidence_field, self.package_script)
+        curve_gate = self.build_script.index(
+            '-StepName "Compiled independent threshold-curve contract smoke"'
+        )
+        runner_copy = self.build_script.index(
+            '$runnerTarget = Join-Path $distRoot "bin\\BridgeAnalysisRunner"'
+        )
+        self.assertLess(curve_gate, runner_copy)
+
+    def test_threshold_curve_smoke_replace_is_marker_bounded(self) -> None:
+        module = self._threshold_curve_module()
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            marked = root / "marked"
+            module._prepare_output_root(marked, replace=False)
+            marker = marked / module._MARKER_NAME
+            self.assertTrue(marker.is_file())
+            (marked / "evidence.txt").write_text("old", encoding="utf-8")
+            module._prepare_output_root(marked, replace=True)
+            self.assertTrue(marker.is_file())
+            self.assertFalse((marked / "evidence.txt").exists())
+
+            unmarked = root / "unmarked"
+            unmarked.mkdir()
+            user_data = unmarked / "user-data.txt"
+            user_data.write_text("preserve", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "unmarked"):
+                module._prepare_output_root(unmarked, replace=True)
+            self.assertEqual("preserve", user_data.read_text(encoding="utf-8"))
+
     def test_fig_threshold_smoke_replace_is_marker_bounded(self) -> None:
         module = self._fig_threshold_module()
         with tempfile.TemporaryDirectory() as folder:
@@ -520,6 +583,8 @@ exit 0
         self.assertIn('"native_icon_smoke"', self.package_script)
         self.assertIn("native_gui_acceptance", self.package_script)
         self.assertIn('Get-StrictString $manifest.screenshot_mode', self.package_script)
+        self.assertIn("$offscreenBitmap.Width -lt 800", self.capture_script)
+        self.assertIn("$width -lt 1000", self.capture_script)
 
     def test_native_capture_requires_foreground_focus_and_real_dpi(self) -> None:
         for contract in (
@@ -694,7 +759,7 @@ exit 0
         self.assertNotIn("open_report_builder", self.matlab_gui)
         self.assertNotIn("BridgeReportBuilder.exe", self.matlab_gui)
         self.assertNotIn("report_gui.py", self.matlab_gui)
-        self.assertIn("报告已迁移到统一工作台", self.matlab_gui)
+        self.assertIn("报告已迁移到统一工作平台", self.matlab_gui)
 
     def test_frozen_package_uses_operator_guide_instead_of_developer_readme(self) -> None:
         self.assertIn('docs\\OPERATOR_GUIDE.md', self.build_script)
@@ -754,7 +819,12 @@ exit 0
             "33258, 21160, 21305, 37197, 24403, 21069, 20219, 21153, 26354, 32447, 39044, 35272",
             "26222, 36890, 27969, 31243, 26080, 38656, 36873, 25321, 20219, 20309, 25991, 20214",
             "30452, 25509, 36873, 25321, 32, 77, 65, 84, 76, 65, 66, 32, 70, 73, 71",
-            "39640, 32423, 65306, 23548, 20837, 31995, 32479, 26354, 32447, 35760, 24405, 32, 74, 83, 79, 78",
+            "23548, 20837, 20854, 20182, 20219, 21153, 30340, 24037, 20316, 24179, 21488, 26354, 32447, 35760, 24405",
+            "29983, 25104, 24403, 21069, 27979, 28857, 26354, 32447",
+            "19981, 36816, 34892, 33258, 21160, 38408, 20540, 31639, 27861",
+            "39640, 32423, 65306, 20174, 32, 74, 83, 79, 78, 32, 25991, 20214, 23548, 20837",
+            "30495, 23454, 36827, 24230",
+            "35831, 27714, 23433, 20840, 20572, 27490",
             "20572, 27490, 26412, 27425, 32, 70, 73, 71, 32, 25805, 20316",
         ):
             self.assertIn(fragment_code_points, self.package_script)
@@ -782,7 +852,12 @@ exit 0
             "自动匹配当前任务曲线预览",
             "普通流程无需选择任何文件",
             "直接选择 MATLAB FIG",
-            "高级：导入系统曲线记录 JSON",
+            "导入其他任务的工作平台曲线记录",
+            "生成当前测点曲线",
+            "不运行自动阈值算法",
+            "高级：从 JSON 文件导入",
+            "真实进度",
+            "请求安全停止",
             "停止本次 FIG 操作",
             "stats",
             "run_logs",
@@ -898,6 +973,61 @@ exit 0
         )
         self.assertEqual(0, completed.returncode, msg=completed.stderr)
         self.assertEqual("使用说明.md", completed.stdout.strip())
+
+    def test_build_manifest_executable_migration_names_are_not_split_by_powershell(self) -> None:
+        powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+        if powershell is None:
+            self.skipTest("Windows PowerShell is unavailable")
+
+        bundle_assignment = re.search(
+            r"(?m)^\$bundleName\s*=.*$",
+            self.build_script,
+        )
+        legacy_assignment = re.search(
+            r"(?m)^\$legacyChineseExecutableName\s*=.*$",
+            self.build_script,
+        )
+        supported_names = re.search(
+            r"supported_executable_filenames\s*=\s*@\((.*?)\n\s*\)",
+            self.build_script,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(bundle_assignment)
+        self.assertIsNotNone(legacy_assignment)
+        self.assertIsNotNone(supported_names)
+
+        script = (
+            f"{bundle_assignment.group(0)}\n"
+            f"{legacy_assignment.group(0)}\n"
+            "$supportedExecutableFilenames = @(\n"
+            f"{supported_names.group(1)}\n"
+            ")\n"
+            "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)\n"
+            "$supportedExecutableFilenames | ConvertTo-Json -Compress\n"
+        )
+        completed = subprocess.run(
+            [
+                powershell,
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                script,
+            ],
+            check=False,
+            capture_output=True,
+            encoding="utf-8",
+            timeout=30,
+        )
+        self.assertEqual(0, completed.returncode, msg=completed.stderr)
+        self.assertEqual(
+            [
+                "桥梁健康监测工作平台.exe",
+                "桥梁健康监测工作台.exe",
+                "BridgeMonitoringWorkbench.exe",
+            ],
+            json.loads(completed.stdout),
+        )
 
     def test_frozen_package_copies_and_audits_layered_config_dependencies(self) -> None:
         self.assertIn("from workbench.config_layers import load_layered_config", self.build_script)

@@ -27,7 +27,13 @@ from .process_utils import (
 )
 
 
-TERMINAL_REPORT_STATES = {"completed", "failed", "stopped", "launch_failed"}
+TERMINAL_REPORT_STATES = {
+    "completed",
+    "disclosure_required",
+    "failed",
+    "stopped",
+    "launch_failed",
+}
 
 
 def _wait_for_process_exit(
@@ -396,7 +402,7 @@ def read_report_status(context: JobContext) -> dict[str, Any]:
             "stage": "stale_window",
             "context_superseded": True,
             "progress_fraction": 0.0,
-            "message": "该任务已在另一个工作台实例中重新启动；本窗口仅保留旧轮次只读状态。",
+            "message": "该任务已在另一个工作平台实例中重新启动；本窗口仅保留旧轮次只读状态。",
         }
     status_path = Path(context.report.status_path) if context.report.status_path else context.context_path.parent / "report_status.json"
     result_path = Path(context.report.result_path) if context.report.result_path else context.context_path.parent / "report_result.json"
@@ -632,12 +638,12 @@ def terminate_report_job(context: JobContext) -> str:
         lease_launch = str((lease or {}).get("launch_id") or "")
         if lease_launch and lease_launch != expected:
             raise RuntimeError(
-                "任务已由另一个工作台实例重新启动；当前窗口状态已过期，未停止新报告。"
+                "任务已由另一个工作平台实例重新启动；当前窗口状态已过期，未停止新报告。"
             )
         current = JobContext.read(context_path) if context_path.is_file() else context
         if str(current.report.launch_id or "") != str(context.report.launch_id or ""):
             raise RuntimeError(
-                "任务已由另一个工作台实例重新启动；当前窗口状态已过期，未停止新报告。"
+                "任务已由另一个工作平台实例重新启动；当前窗口状态已过期，未停止新报告。"
             )
         outcome = _terminate_report_job_locked(current)
         current.write()

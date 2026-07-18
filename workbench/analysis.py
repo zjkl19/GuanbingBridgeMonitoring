@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .models import JobContext
+from .module_progress import normalize_module_progress
+from .report_disclosures import invalidate_disclosure_approval
 from .config_layers import config_dependency_sha256, load_layered_config
 from .process_utils import (
     atomic_write_json,
@@ -231,6 +233,7 @@ class AnalysisLauncher:
         context.analysis.manifest_path = ""
         context.analysis.manifest_sha256 = ""
         context.report.plots_approved = False
+        invalidate_disclosure_approval(context.report)
         context.report.state = "blocked"
         context.report.launch_id = ""
         context.report.pid = None
@@ -335,7 +338,7 @@ class AnalysisLauncher:
             lease_launch = str((lease or {}).get("launch_id") or "")
             if lease_launch and lease_launch != expected:
                 raise RuntimeError(
-                    "任务已由另一个工作台实例重新启动；当前窗口状态已过期，未写入停止标志。"
+                    "任务已由另一个工作平台实例重新启动；当前窗口状态已过期，未写入停止标志。"
                 )
             current = (
                 JobContext.read(context_path) if context_path.is_file() else context
@@ -343,7 +346,7 @@ class AnalysisLauncher:
             actual = str(current.analysis.launch_id or "")
             if expected != actual:
                 raise RuntimeError(
-                    "任务已由另一个工作台实例重新启动；当前窗口状态已过期，未写入停止标志。"
+                    "任务已由另一个工作平台实例重新启动；当前窗口状态已过期，未写入停止标志。"
                 )
             if str(current.analysis.state or "").lower() in TERMINAL_ANALYSIS_STATES:
                 raise RuntimeError("分析任务已经结束，无需再次请求停止。")
@@ -449,7 +452,7 @@ def read_analysis_status(context: JobContext) -> dict[str, Any]:
             "status": "superseded",
             "stage": "stale_window",
             "context_superseded": True,
-            "message": "该任务已在另一个工作台实例中重新启动；本窗口仅保留旧轮次只读状态。",
+            "message": "该任务已在另一个工作平台实例中重新启动；本窗口仅保留旧轮次只读状态。",
         }
     path = Path(context.analysis.status_path)
     read_error = ""
@@ -482,6 +485,7 @@ def read_analysis_status(context: JobContext) -> dict[str, Any]:
     context_state = str(context.analysis.state or "").lower()
 
     if state in TERMINAL_ANALYSIS_STATES:
+        status = _reconcile_terminal_module_progress(context, status)
         if context.analysis.pid and _analysis_process_running(context):
             return {
                 **status,
@@ -525,6 +529,7 @@ def read_analysis_status(context: JobContext) -> dict[str, Any]:
             }
         latest = _latest_terminal_analysis_status(path, expected_launch_id)
         if latest is not None:
+            latest = _reconcile_terminal_module_progress(context, latest)
             _sync_terminal_analysis_context(context, latest)
             return latest
         stopped = {
@@ -549,6 +554,7 @@ def read_analysis_status(context: JobContext) -> dict[str, Any]:
         # synthetic failure so the authoritative terminal result wins.
         latest = _latest_terminal_analysis_status(path, expected_launch_id)
         if latest is not None:
+            latest = _reconcile_terminal_module_progress(context, latest)
             _sync_terminal_analysis_context(context, latest)
             return latest
         failure = {
@@ -579,6 +585,38 @@ def _latest_terminal_analysis_status(
         return None
     state = str(latest.get("status") or "").lower()
     return latest if state in TERMINAL_ANALYSIS_STATES else None
+
+
+def _reconcile_terminal_module_progress(
+    context: JobContext, status: dict[str, Any]
+) -> dict[str, Any]:
+    """Overlay terminal module states from the exact published manifest.
+
+    This is intentionally a display/progress reconciliation only. Existing
+    launch-id validation, process cleanup, and durable task-state transitions
+    continue to use the runner status payload exactly as before.
+    """
+
+    raw_path = str(
+        status.get("manifest_path") or context.analysis.manifest_path or ""
+    ).strip()
+    if not raw_path:
+        return status
+    manifest_path = Path(raw_path).expanduser()
+    if not manifest_path.is_absolute():
+        manifest_path = Path(context.analysis.status_path).parent / manifest_path
+    try:
+        manifest = _read_json(manifest_path)
+    except (OSError, ValueError, UnicodeError):
+        return status
+    progress = normalize_module_progress(
+        status,
+        manifest,
+        selected_modules=context.selected_modules,
+    )
+    if progress.authority != "analysis_manifest":
+        return status
+    return {**status, **progress.status_fields()}
 
 
 def _analysis_process_running(context: JobContext) -> bool:
@@ -711,6 +749,7 @@ def bind_analysis_manifest(
                 current.analysis.state = str(analysis_state).lower()
             if invalidate_report_approval:
                 current.report.plots_approved = False
+                invalidate_disclosure_approval(current.report)
                 current.report.state = "blocked"
             current.write(context.context_path)
             context.analysis = copy.deepcopy(current.analysis)

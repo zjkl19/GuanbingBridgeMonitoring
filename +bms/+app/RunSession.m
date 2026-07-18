@@ -20,6 +20,7 @@ classdef RunSession < handle
         ManifestPath char = ''
         Summary struct = struct()
         Preflight struct = struct()
+        Progress struct = struct()
     end
 
     methods
@@ -77,7 +78,8 @@ classdef RunSession < handle
 
                 sub = bms.app.LegacyStepFunctions.buildSubfolders(obj.Config);
                 plan = bms.app.StepFactory.buildLegacyPlan(obj.Root, obj.StartDate, obj.EndDate, obj.Options, obj.Config, obj.StatsDir, sub);
-                obj.Results = plan.execute(@() obj.shouldStop(), @(payload) obj.reportProgress(payload));
+                [obj.Results, obj.Progress] = plan.execute( ...
+                    @() obj.shouldStop(), @(payload) obj.reportProgress(payload));
 
                 warning(ws);
                 obj.ElapsedSec = toc(t0);
@@ -129,6 +131,7 @@ classdef RunSession < handle
             obj.Summary = bms.app.LegacyRunAllAdapter.buildSummary(obj.Root, obj.StartDate, obj.EndDate, obj.Options, obj.Config, obj.StartTimestamp, obj.ElapsedSec, ...
                 allLogs, obj.LogFile, obj.OffsetLog, obj.StatsDir, obj.LogDir, obj.Preflight);
             obj.Summary.run_request = obj.Request.toStruct();
+            obj.Summary = obj.attachTerminalProgress(obj.Summary);
             obj.ManifestPath = bms.app.RunSession.writeManifest(obj, obj.Summary.status, obj.Summary);
             obj.Summary.analysis_manifest = obj.ManifestPath;
             obj.configureFolderViews();
@@ -153,8 +156,21 @@ classdef RunSession < handle
             if isempty(obj.Summary)
                 obj.Summary = struct('status','failed','message',ME.message,'error_type',bms.app.ErrorClassifier.classifyException(ME));
             end
+            obj.Summary = obj.attachTerminalProgress(obj.Summary);
             obj.ManifestPath = bms.app.RunSession.writeManifest(obj, 'failed', obj.Summary);
             obj.Summary.analysis_manifest = obj.ManifestPath;
+            if ~isempty(obj.Request) && isa(obj.Request, 'bms.app.RunRequest') && ...
+                    ~isempty(obj.Request.AsyncStatusFile)
+                details = bms.app.RunRequestRunner.terminalProgressForManifest( ...
+                    obj.ManifestPath, 'failed');
+                details.async_run_id = obj.Request.AsyncRunId;
+                details.data_root = obj.Root;
+                details.start_date = obj.StartDate;
+                details.end_date = obj.EndDate;
+                details.manifest_path = obj.ManifestPath;
+                bms.app.AsyncRunService.writeStatus( ...
+                    obj.Request.AsyncStatusFile, 'failed', details);
+            end
         end
 
         function logRecord = writeOffsetCorrectionReport(obj)
@@ -270,6 +286,35 @@ classdef RunSession < handle
                 statusText = char(string(payload.status));
             end
             bms.app.AsyncRunService.writeStatus(obj.Request.AsyncStatusFile, statusText, details);
+        end
+
+        function summary = attachTerminalProgress(obj, summary)
+            progress = bms.app.RunProgressReporter.reconcile( ...
+                obj.Progress, obj.Results, 'analysis_manifest');
+            terminalStatus = 'completed';
+            if isstruct(summary) && isfield(summary, 'status')
+                switch lower(char(string(summary.status)))
+                    case {'fail','failed','error'}
+                        terminalStatus = 'failed';
+                    case {'stop','stopped','stopping'}
+                        terminalStatus = 'stopped';
+                end
+            end
+            progress.status = terminalStatus;
+            if progress.module_total > 0 && progress.completed_modules >= progress.module_total
+                progress.progress_fraction = 1;
+            end
+            fields = {'progress_schema_version','progress_authority','module_index', ...
+                'module_total','completed_modules','progress_fraction', ...
+                'current_module_key','current_module_label','current_module_status', ...
+                'stage','current_point_id','current_date','processed_dates', ...
+                'total_dates','message','module_steps'};
+            for i = 1:numel(fields)
+                name = fields{i};
+                summary.(name) = progress.(name);
+            end
+            summary.analysis_progress = progress;
+            obj.Progress = progress;
         end
 
         function tf = shouldNotify(obj, key, defaultValue)

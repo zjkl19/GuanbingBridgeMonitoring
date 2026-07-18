@@ -86,7 +86,12 @@ function Assert-OperatorGuideContract {
         (-join (33258, 21160, 21305, 37197, 24403, 21069, 20219, 21153, 26354, 32447, 39044, 35272 | ForEach-Object { [char]$_ })),
         (-join (26222, 36890, 27969, 31243, 26080, 38656, 36873, 25321, 20219, 20309, 25991, 20214 | ForEach-Object { [char]$_ })),
         (-join (30452, 25509, 36873, 25321, 32, 77, 65, 84, 76, 65, 66, 32, 70, 73, 71 | ForEach-Object { [char]$_ })),
-        (-join (39640, 32423, 65306, 23548, 20837, 31995, 32479, 26354, 32447, 35760, 24405, 32, 74, 83, 79, 78 | ForEach-Object { [char]$_ })),
+        (-join (23548, 20837, 20854, 20182, 20219, 21153, 30340, 24037, 20316, 24179, 21488, 26354, 32447, 35760, 24405 | ForEach-Object { [char]$_ })),
+        (-join (29983, 25104, 24403, 21069, 27979, 28857, 26354, 32447 | ForEach-Object { [char]$_ })),
+        (-join (19981, 36816, 34892, 33258, 21160, 38408, 20540, 31639, 27861 | ForEach-Object { [char]$_ })),
+        (-join (39640, 32423, 65306, 20174, 32, 74, 83, 79, 78, 32, 25991, 20214, 23548, 20837 | ForEach-Object { [char]$_ })),
+        (-join (30495, 23454, 36827, 24230 | ForEach-Object { [char]$_ })),
+        (-join (35831, 27714, 23433, 20840, 20572, 27490 | ForEach-Object { [char]$_ })),
         (-join (20572, 27490, 26412, 27425, 32, 70, 73, 71, 32, 25805, 20316 | ForEach-Object { [char]$_ })),
         "stats",
         "run_logs",
@@ -120,7 +125,8 @@ $distParent = Join-Path $repo "dist"
 $buildRoot = Join-Path $repo "build\workbench"
 # Keep this PowerShell 5.1 script ASCII-safe while constructing the canonical
 # Chinese display name from its Unicode code points.
-$bundleName = -join (26725, 26753, 20581, 24247, 30417, 27979, 24037, 20316, 21488 | ForEach-Object { [char]$_ })
+$bundleName = -join (26725, 26753, 20581, 24247, 30417, 27979, 24037, 20316, 24179, 21488 | ForEach-Object { [char]$_ })
+$legacyChineseExecutableName = (-join (26725, 26753, 20581, 24247, 30417, 27979, 24037, 20316, 21488 | ForEach-Object { [char]$_ })) + ".exe"
 $operatorGuideName = (-join (20351, 29992, 35828, 26126 | ForEach-Object { [char]$_ })) + ".md"
 $generatedRoot = Join-Path $distParent $bundleName
 $distRoot = Join-Path $distParent "BridgeMonitoringWorkbench"
@@ -239,6 +245,8 @@ $analysisRunnerCacheCleanupPolicySmoke = $false
 $analysisRunnerCacheCleanupPolicy = $null
 $analysisRunnerFigThresholdSmoke = $false
 $analysisRunnerFigThreshold = $null
+$thresholdCurveRunnerSmoke = $false
+$thresholdCurveRunner = $null
 if (-not $SkipAnalysisRunner) {
     $runnerSource = Join-Path $repo "bin\BridgeAnalysisRunner"
     $runnerExe = Join-Path $runnerSource "BridgeAnalysisRunner.exe"
@@ -379,6 +387,31 @@ if (-not $SkipAnalysisRunner) {
         throw "Compiled analysis FIG-threshold evidence is incomplete"
     }
     $analysisRunnerFigThresholdSmoke = $true
+    $thresholdCurveSmokeRoot = Join-Path $buildRoot "threshold_curve_runner_smoke"
+    Invoke-NativeChecked `
+        -FilePath $PythonExe `
+        -ArgumentList @(
+            (Join-Path $repo "scripts\validate_threshold_curve_runner.py"),
+            "--project-root", $repo,
+            "--output-root", $thresholdCurveSmokeRoot,
+            "--replace"
+        ) `
+        -StepName "Compiled independent threshold-curve contract smoke"
+    $thresholdCurveSummaryPath = Join-Path $thresholdCurveSmokeRoot "threshold_curve_contract_summary.json"
+    $thresholdCurveRunner = Get-Content -LiteralPath $thresholdCurveSummaryPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not $thresholdCurveRunner.ok `
+            -or $thresholdCurveRunner.runner_exit_code -ne 0 `
+            -or $thresholdCurveRunner.curve_record_count -ne 1 `
+            -or $thresholdCurveRunner.source_sample_count -ne 101 `
+            -or $thresholdCurveRunner.finite_sample_count -ne 101 `
+            -or $thresholdCurveRunner.preview_max -ne 100 `
+            -or $thresholdCurveRunner.progress_percent -ne 100 `
+            -or $thresholdCurveRunner.preview_sha256 -notmatch '^[0-9A-Fa-f]{64}$' `
+            -or $thresholdCurveRunner.record_sha256 -notmatch '^[0-9A-Fa-f]{64}$' `
+            -or $thresholdCurveRunner.unexpected_auto_preview_count -ne 0) {
+        throw "Compiled independent threshold-curve evidence is incomplete"
+    }
+    $thresholdCurveRunnerSmoke = $true
     $previewSmokeRoot = Join-Path $buildRoot "auto_threshold_preview_smoke"
     Invoke-NativeChecked `
         -FilePath $PythonExe `
@@ -517,6 +550,7 @@ if (-not $smoke.ok -or $smoke.profile_count -ne $expectedProfileCount -or $smoke
         -or -not $smoke.update_backup_management_enabled `
         -or -not $smoke.auto_update_option_available `
         -or -not $smoke.profile_matrix_review_enabled `
+        -or $smoke.app_display_name -ne $bundleName `
         -or $smoke.executable_filename -ne "${bundleName}.exe" `
         -or $smoke.ui_font_point_size -lt 10 `
         -or $smoke.ui_font_family -ne "Microsoft YaHei UI" `
@@ -534,8 +568,8 @@ if (-not $smoke.ok -or $smoke.profile_count -ne $expectedProfileCount -or $smoke
         -or -not $smoke.organization_logo_available `
         -or $smoke.plot_common_field_count -ne 14 `
         -or $smoke.spectrum_module_count -ne 2 `
-        -or $smoke.provenance_column_count -ne 7 `
-        -or $smoke.report_qc_column_count -ne 5) {
+        -or $smoke.provenance_column_count -ne 8 `
+        -or $smoke.report_qc_column_count -ne 6) {
     throw "Workbench EXE smoke contract failed: $($smoke | ConvertTo-Json -Compress)"
 }
 
@@ -659,7 +693,13 @@ $releaseManifest = [ordered]@{
     source_git_commit = $sourceGitStateBeforeBuild.commit
     source_tree_clean = $sourceTreeCleanForBuild
     version = (Get-Content -LiteralPath (Join-Path $distRoot "VERSION") -Raw -Encoding UTF8).Trim()
+    display_name = $bundleName
     executable = "${bundleName}.exe"
+    supported_executable_filenames = @(
+        "${bundleName}.exe",
+        $legacyChineseExecutableName,
+        "BridgeMonitoringWorkbench.exe"
+    )
     executable_sha256 = (Get-FileHash -LiteralPath $exePath -Algorithm SHA256).Hash.ToLowerInvariant()
     update_repository = $updatePolicy.repository
     update_channel = $updatePolicy.channel
@@ -676,6 +716,8 @@ $releaseManifest = [ordered]@{
     report_gate_contract_smoke = [bool]$reportRuntimeSmoke.report_gate_contract
     report_visual_qc_smoke = [bool]$reportRuntimeSmoke.visual_qc_contract
     auto_threshold_preview_runner_smoke = -not $SkipAnalysisRunner
+    threshold_curve_runner_smoke = $thresholdCurveRunnerSmoke
+    threshold_curve_runner = $thresholdCurveRunner
     analysis_runner_failure_exit_smoke = $analysisRunnerFailureExitSmoke
     analysis_runner_manifest_resilience_smoke = $analysisRunnerManifestResilienceSmoke
     analysis_runner_manifest_resilience = $analysisRunnerManifestResilience

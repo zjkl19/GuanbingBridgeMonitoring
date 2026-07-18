@@ -307,7 +307,7 @@ print('released', flush=True)
             try:
                 assert child.stdout is not None
                 self.assertEqual(child.stdout.readline().strip(), "ready")
-                with self.assertRaisesRegex(RuntimeError, "另一个工作台"):
+                with self.assertRaisesRegex(RuntimeError, "另一个工作平台"):
                     with exclusive_file_lock(lock):
                         self.fail("second process unexpectedly acquired the lock")
             finally:
@@ -1762,6 +1762,8 @@ class WorkbenchTaskLifecycleGuiTests(unittest.TestCase):
             )
             try:
                 with patch.object(window, "_report_gate_ready", return_value=True), patch(
+                    "workbench.main_window.require_report_gate"
+                ), patch(
                     "workbench.main_window.launch_report_job", return_value=launch
                 ):
                     window._start_report_job()

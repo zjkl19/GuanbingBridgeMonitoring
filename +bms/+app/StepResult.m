@@ -15,6 +15,11 @@ classdef StepResult
         StartedAt datetime = NaT
         EndedAt datetime = NaT
         ElapsedSec double = 0
+        Stage char = ''
+        CurrentPointId char = ''
+        CurrentDate char = ''
+        ProcessedDates double = 0
+        TotalDates double = 0
         Artifacts cell = {}
         FigurePaths cell = {}
         ArtifactCount double = 0
@@ -53,6 +58,11 @@ classdef StepResult
             s.started_at = bms.app.StepResult.formatTime(obj.StartedAt);
             s.ended_at = bms.app.StepResult.formatTime(obj.EndedAt);
             s.elapsed_sec = obj.ElapsedSec;
+            s.stage = obj.Stage;
+            s.current_point_id = obj.CurrentPointId;
+            s.current_date = obj.CurrentDate;
+            s.processed_dates = obj.ProcessedDates;
+            s.total_dates = obj.TotalDates;
             s.stats_file = obj.StatsFile;
             s.stats_path = obj.StatsPath;
             if isempty(s.stats_path) && ~isempty(statsDir) && ~isempty(obj.StatsFile)
@@ -67,6 +77,27 @@ classdef StepResult
             s.figure_paths = obj.FigurePaths;
             s.artifact_count = obj.ArtifactCount;
             s.figure_count = obj.FigureCount;
+        end
+
+        function obj = withProgress(obj, progressStep)
+            if ~isstruct(progressStep)
+                return;
+            end
+            if isfield(progressStep, 'stage')
+                obj.Stage = char(string(progressStep.stage));
+            end
+            if isfield(progressStep, 'current_point_id')
+                obj.CurrentPointId = char(string(progressStep.current_point_id));
+            end
+            if isfield(progressStep, 'current_date')
+                obj.CurrentDate = char(string(progressStep.current_date));
+            end
+            if isfield(progressStep, 'processed_dates') && isnumeric(progressStep.processed_dates)
+                obj.ProcessedDates = double(progressStep.processed_dates);
+            end
+            if isfield(progressStep, 'total_dates') && isnumeric(progressStep.total_dates)
+                obj.TotalDates = double(progressStep.total_dates);
+            end
         end
     end
 

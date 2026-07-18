@@ -17,6 +17,7 @@ from build_zhishan_monthly_report import build_report as build_zhishan_monthly_r
 from analysis_manifest import pinned_analysis_manifest_scope, pinned_derived_artifact_manifest_scope
 from missing_summary import missing_summary_paths
 from report_visual_qc import render_docx_visual_qc
+from report_disclosure_output import reconcile_and_apply_disclosures
 from template_precheck import raise_for_template
 from word_pdf_export import export_authoritative_word_pdf
 
@@ -63,6 +64,7 @@ class ReportJobRequest:
     derived_artifact_manifest_sha256: str = ""
     require_source_provenance: bool = False
     source_quality_note: str = ""
+    disclosures: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -73,6 +75,8 @@ class ReportJobResult:
     missing: tuple[str, ...]
     summary_files: tuple[Path, ...]
     qc: dict[str, Any]
+    report_status: str = "passed"
+    disclosure_count: int = 0
 
 
 def _sha256(path: Path) -> str:
@@ -148,13 +152,46 @@ def _manifest_qc(path: Path | None) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8-sig"))
     if not isinstance(payload, dict):
         raise ValueError("report build manifest must be an object")
+    missing_items = list(payload.get("missing_items") or [])
+    warnings = list(payload.get("warnings") or [])
+    disclosures = list(payload.get("disclosures") or [])
+
+    def issue_text(item: object) -> str:
+        if not isinstance(item, dict):
+            return str(item).strip()
+        label = str(
+            item.get("label")
+            or item.get("title")
+            or item.get("slot")
+            or item.get("module")
+            or "缺项"
+        ).strip()
+        reason = str(
+            item.get("reason_zh")
+            or item.get("reason")
+            or item.get("message")
+            or ""
+        ).strip()
+        return f"{label}：{reason}" if reason else label
+
+    details = [text for text in (issue_text(item) for item in missing_items) if text]
+    details.extend(text for text in (issue_text(item) for item in warnings) if text)
+    message = str(payload.get("message") or "").strip()
+    if not message:
+        message = "；".join(details)
     return {
         "path": str(path),
         "exists": True,
         "sha256": _sha256(path),
         "status": str(payload.get("status") or "unknown"),
-        "missing_count": int(payload.get("missing_count") or len(payload.get("missing_items") or [])),
-        "warning_count": len(payload.get("warnings") or []),
+        "missing_count": int(payload.get("missing_count") or len(missing_items)),
+        "warning_count": len(warnings),
+        "missing_items": missing_items,
+        "warnings": warnings,
+        "disclosures": disclosures,
+        "disclosure_count": int(payload.get("disclosure_count") or len(disclosures)),
+        "analysis_manifest": payload.get("analysis_manifest") or {},
+        "message": message,
         "output_docx_image_count": int(payload.get("output_docx_image_count") or 0),
     }
 
@@ -180,6 +217,35 @@ def build_qc(
     )
     pdf["authoritative"] = pdf_authoritative
     pdf["export"] = export_record
+    disclosure_ids = {
+        str(item.get("stable_id") or "")
+        for item in manifest.get("disclosures", [])
+        if isinstance(item, dict) and item.get("stable_id")
+    }
+    missing_covered = all(
+        isinstance(item, dict)
+        and (
+            str(item.get("disclosure_stable_id") or "") in disclosure_ids
+            or (
+                str(item.get("label") or "").startswith("analysis:")
+                and any(
+                    isinstance(disclosure, dict)
+                    and disclosure.get("source_kind") == "analysis_module"
+                    for disclosure in manifest.get("disclosures", [])
+                )
+            )
+        )
+        for item in manifest.get("missing_items", [])
+    )
+    disclosed_manifest_passed = bool(
+        manifest.get("status") == "passed_with_disclosures"
+        and int(manifest.get("disclosure_count") or 0) == len(disclosure_ids)
+        and len(disclosure_ids) > 0
+        and isinstance(manifest.get("analysis_manifest"), dict)
+        and bool(manifest.get("analysis_manifest", {}).get("sha256"))
+        and int(manifest.get("warning_count") or 0) == 0
+        and missing_covered
+    )
     manifest_passed = bool(
         manifest.get("status") == "ok"
         and int(manifest.get("missing_count") or 0) == 0
@@ -188,6 +254,8 @@ def build_qc(
             or int(manifest.get("warning_count") or 0) == 0
         )
     )
+    if require_source_provenance and disclosed_manifest_passed:
+        manifest_passed = True
     if not require_source_provenance:
         manifest_passed = manifest.get("status") in {"ok", "warning"}
     authoritative_pdf_invalid = bool(
@@ -214,6 +282,8 @@ def build_qc(
         status = "warning"
     elif visual.get("status") in {"warning", "unavailable"}:
         status = "warning"
+    elif disclosed_manifest_passed:
+        status = "passed_with_disclosures"
     else:
         status = "passed"
     return {"status": status, "docx": docx, "pdf": pdf, "manifest": manifest, "visual": visual}
@@ -466,6 +536,11 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
             period_label=request.period_label, monitoring_range=request.monitoring_range,
             report_date=request.report_date, start_date=request.start_date,
             end_date=request.end_date,
+            source_quality_note=request.source_quality_note,
+            # The unified worker owns the authoritative Word/PDF export and
+            # visual-QC stage. Keeping the builder DOCX-only ensures its
+            # report-build manifest is durable before Word automation starts.
+            update_word=False,
         )
         manifest_path = _select_new_report_build_manifest(
             request.output_dir,
@@ -523,11 +598,6 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
         }
     else:
         pdf_path = None
-    if request.require_source_provenance and missing:
-        raise RuntimeError(
-            "Strict report build has missing or warning items: "
-            + "; ".join(str(item) for item in missing[:20])
-        )
     manifest_path = _ensure_report_manifest(
         request.output_dir,
         report_path,
@@ -535,6 +605,16 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
         report_type,
         require_source_provenance=request.require_source_provenance,
     )
+    disclosures = ()
+    if request.require_source_provenance:
+        disclosures, _manifest_payload = reconcile_and_apply_disclosures(
+            report_type=report_type,
+            report_path=report_path,
+            manifest_path=manifest_path,
+            analysis_manifest_path=request.analysis_manifest_path,
+            analysis_manifest_sha256=request.analysis_manifest_sha256,
+            approved_disclosures=request.disclosures,
+        )
     emit("rendering", 0.82, "正在通过独立 Word 实例生成权威 PDF 并逐页检查")
     if pdf_path is None:
         word_export = export_authoritative_word_pdf(report_path)
@@ -565,6 +645,9 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
         raise RuntimeError(f"report QC failed: {qc}")
     summary_files = tuple(path for path in missing_summary_paths(report_path) if path.exists())
     emit("completed", 1.0, "报告生成与 QC 已完成")
+    report_status = (
+        "passed_with_disclosures" if disclosures else "passed"
+    )
     return ReportJobResult(
         manifest_path,
         report_path,
@@ -572,4 +655,6 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
         tuple(str(item) for item in missing),
         summary_files,
         qc,
+        report_status,
+        len(disclosures),
     )

@@ -185,7 +185,7 @@ class PathProfileResolver:
         if profile_id == self.CUSTOM_ID:
             return None
         profile = self.by_id(profile_id)
-        return profile.marked("manual", "用户在工作台中手动选择") if profile else None
+        return profile.marked("manual", "用户在工作平台中手动选择") if profile else None
 
     def resolve_data_root(
         self,

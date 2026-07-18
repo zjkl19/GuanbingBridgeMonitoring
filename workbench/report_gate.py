@@ -7,6 +7,13 @@ from .manifest import ManifestSummary, load_manifest_summary, manifest_context_i
 from .models import JobContext, file_sha256
 from .config_layers import config_dependency_sha256
 from .provenance import PlotProvenanceSummary, inspect_manifest_plot_provenance
+from .report_disclosures import (
+    DISCLOSABLE_MODULE_STATUSES,
+    DisclosureItem,
+    analysis_disclosure_items,
+    disclosure_supported_for_report,
+    validate_confirmations,
+)
 
 
 SUCCESS_STATES = {"ok", "success", "completed"}
@@ -16,7 +23,23 @@ SUCCESS_STATES = {"ok", "success", "completed"}
 class ReportGateAudit:
     manifest: ManifestSummary | None
     provenance: PlotProvenanceSummary | None
-    issues: tuple[str, ...]
+    hard_issues: tuple[str, ...]
+    disclosure_items: tuple[DisclosureItem, ...] = ()
+    missing_confirmation_ids: tuple[str, ...] = ()
+    stale_confirmation_ids: tuple[str, ...] = ()
+
+    @property
+    def issues(self) -> tuple[str, ...]:
+        issues = list(self.hard_issues)
+        if self.missing_confirmation_ids:
+            issues.append(
+                f"黄色缺项尚未逐项确认：{len(self.missing_confirmation_ids)}项"
+            )
+        if self.stale_confirmation_ids:
+            issues.append(
+                f"黄色缺项确认已失效或不属于当前清单：{len(self.stale_confirmation_ids)}项"
+            )
+        return tuple(issues)
 
     @property
     def passed(self) -> bool:
@@ -82,8 +105,15 @@ def inspect_report_gate(context: JobContext) -> ReportGateAudit:
             )
             if manifest.status.lower() not in SUCCESS_STATES:
                 issues.append(f"分析结果状态不是成功：{manifest.status}")
-            if manifest.failed_modules:
-                failed = ", ".join(item.key or item.label for item in manifest.failed_modules)
+            hard_failed_modules = tuple(
+                item
+                for item in manifest.failed_modules
+                if str(item.status or "").strip().casefold()
+                not in DISCLOSABLE_MODULE_STATUSES
+                or not str(item.message or "").strip()
+            )
+            if hard_failed_modules:
+                failed = ", ".join(item.key or item.label for item in hard_failed_modules)
                 issues.append(f"分析结果包含失败项目：{failed}")
             missing = manifest.missing_selected_modules(context.selected_modules)
             if missing:
@@ -93,7 +123,17 @@ def inspect_report_gate(context: JobContext) -> ReportGateAudit:
 
         try:
             provenance = inspect_manifest_plot_provenance(manifest_path)
-            if not provenance.rows:
+            disclosable_module_keys = {
+                item.key
+                for item in manifest.modules
+                if str(item.status or "").strip().casefold()
+                in DISCLOSABLE_MODULE_STATUSES
+                and str(item.message or "").strip()
+            } if manifest is not None else set()
+            modules_requiring_provenance = {
+                key for key in context.selected_modules if key not in disclosable_module_keys
+            }
+            if not provenance.rows and modules_requiring_provenance:
                 issues.append("分析结果中没有正式图件的数据核验记录")
             elif provenance.failed_count:
                 failures = "; ".join(
@@ -103,7 +143,74 @@ def inspect_report_gate(context: JobContext) -> ReportGateAudit:
         except Exception as exc:  # noqa: BLE001
             issues.append(f"正式图件数据无法核验：{exc}")
 
-    return ReportGateAudit(manifest, provenance, tuple(dict.fromkeys(issues)))
+    disclosures: tuple[DisclosureItem, ...] = ()
+    missing_confirmation_ids: tuple[str, ...] = ()
+    stale_confirmation_ids: tuple[str, ...] = ()
+    if manifest is not None and provenance is not None:
+        discovered = analysis_disclosure_items(manifest, provenance)
+        unsupported = tuple(
+            item
+            for item in discovered
+            if not disclosure_supported_for_report(context.report.report_type, item)
+        )
+        if unsupported:
+            issues.append(
+                "当前报告类型尚未实现这些黄色缺项的安全正文处置："
+                + ", ".join(item.label for item in unsupported)
+            )
+        report_build_items: list[DisclosureItem] = []
+        for raw in context.report.report_build_disclosure_candidates:
+            if not isinstance(raw, dict):
+                issues.append("报告缺项候选记录损坏，必须重新执行报告预检查")
+                continue
+            try:
+                item = DisclosureItem(**{
+                    name: str(raw.get(name) or "")
+                    for name in DisclosureItem.__dataclass_fields__
+                })
+            except TypeError:
+                issues.append("报告缺项候选记录无法读取，必须重新执行报告预检查")
+                continue
+            if item.source_kind != "report_build" or not item.stable_id:
+                issues.append("报告缺项候选记录来源无效，必须重新执行报告预检查")
+                continue
+            report_build_items.append(item)
+        disclosures = (
+            *(item for item in discovered if item not in unsupported),
+            *report_build_items,
+        )
+        if disclosures:
+            if (
+                str(context.report.disclosure_manifest_sha256 or "").upper()
+                != str(context.analysis.manifest_sha256 or "").upper()
+            ):
+                missing_confirmation_ids = tuple(item.stable_id for item in disclosures)
+                stale_confirmation_ids = tuple(
+                    str(raw.get("stable_id") or "")
+                    for raw in context.report.disclosure_confirmations
+                    if isinstance(raw, dict) and raw.get("stable_id")
+                )
+            else:
+                missing_confirmation_ids, stale_confirmation_ids = validate_confirmations(
+                    disclosures,
+                    context.report.disclosure_confirmations,
+                    analysis_manifest_sha256=context.analysis.manifest_sha256,
+                    policy_version=context.report.disclosure_policy_version,
+                )
+        elif context.report.disclosure_confirmations:
+            stale_confirmation_ids = tuple(
+                str(raw.get("stable_id") or "")
+                for raw in context.report.disclosure_confirmations
+                if isinstance(raw, dict) and raw.get("stable_id")
+            )
+    return ReportGateAudit(
+        manifest,
+        provenance,
+        tuple(dict.fromkeys(issues)),
+        disclosures,
+        missing_confirmation_ids,
+        stale_confirmation_ids,
+    )
 
 
 def require_report_gate(context: JobContext) -> ReportGateAudit:

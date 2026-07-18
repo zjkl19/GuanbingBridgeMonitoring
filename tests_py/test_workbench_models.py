@@ -21,7 +21,7 @@ from workbench.version import app_version
 
 
 class WorkbenchModelTests(unittest.TestCase):
-    def test_job_context_schema_v3_preserves_boolean_options_and_strict_cleanup_policy(self) -> None:
+    def test_job_context_schema_v4_preserves_boolean_options_and_strict_cleanup_policy(self) -> None:
         root = Path(__file__).resolve().parents[1]
         schema = json.loads(
             (root / "workbench" / "job_context.schema.json").read_text(
@@ -30,7 +30,7 @@ class WorkbenchModelTests(unittest.TestCase):
         )
 
         self.assertEqual(schema["properties"]["schema_version"]["const"], SCHEMA_VERSION)
-        self.assertTrue(schema["$id"].endswith("job-context-v3.json"))
+        self.assertTrue(schema["$id"].endswith("job-context-v4.json"))
         self.assertFalse(set(schema["required"]).difference(schema["properties"]))
         options_schema = schema["properties"]["options"]
         self.assertEqual(options_schema["additionalProperties"], {"type": "boolean"})
@@ -198,7 +198,7 @@ class WorkbenchModelTests(unittest.TestCase):
 
             migrated = JobContext.from_dict(payload)
 
-            self.assertEqual(migrated.schema_version, 3)
+            self.assertEqual(migrated.schema_version, SCHEMA_VERSION)
             self.assertEqual(migrated.report.derived_artifact_manifest_path, "")
             self.assertEqual(migrated.report.derived_artifact_manifest_sha256, "")
 

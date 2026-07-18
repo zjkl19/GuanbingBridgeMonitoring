@@ -36,7 +36,8 @@ classdef AutoThresholdProposalService
             opts.zero_ratio_threshold = 0.90;
             opts.flat_ratio_threshold = 0.95;
             opts.load_without_existing_cleaning = true;
-            opts.capture_preview_series = false;
+            opts.prefer_mat_cache = true;
+            opts.capture_curve_records = false;
             opts.preview_sample_count = 20000;
         end
 
@@ -76,22 +77,22 @@ classdef AutoThresholdProposalService
             endText = bms.config.AutoThresholdProposalService.dateText(endDate, false);
 
             proposals = bms.config.AutoThresholdProposalService.emptyProposal();
-            previewSeries = struct('module_key', {}, 'point_id', {}, ...
-                'sensor_type', {}, 'times', {}, 'values', {}, 'sample_count', {});
+            curveRecords = struct('module_key', {}, 'point_id', {}, ...
+                'sensor_type', {}, 'times', {}, 'values', {}, 'sample_count', {}, ...
+                'source_sample_count', {}, 'finite_sample_count', {}, ...
+                'source_files', {});
             moduleReports = struct('module_key', {}, 'point_count', {}, ...
                 'proposal_count', {}, 'skipped_count', {}, 'message', {});
 
-            cfgForLoad = cfg;
-            if bms.config.AutoThresholdProposalService.boolOpt(opts, 'load_without_existing_cleaning', true)
-                cfgForLoad = bms.config.AutoThresholdProposalService.disableCleaningRules(cfgForLoad, modules);
-            end
-
             for mi = 1:numel(modules)
                 moduleKey = modules{mi};
-                [points, subfolder, msg] = bms.config.AutoThresholdProposalService.resolveModuleInputs(cfg, moduleKey);
+                bms.app.RunProgressReporter.startModule(mi);
+                [points, ~, msg] = bms.config.AutoThresholdProposalService.resolveModuleInputs(cfg, moduleKey);
                 if isempty(points)
                     moduleReports(end+1) = struct('module_key', moduleKey, 'point_count', 0, ... %#ok<AGROW>
                         'proposal_count', 0, 'skipped_count', 0, 'message', msg);
+                    bms.app.RunProgressReporter.completeModule(mi, ...
+                        struct('status', 'skipped', 'message', msg));
                     continue;
                 end
 
@@ -104,33 +105,72 @@ classdef AutoThresholdProposalService
                 skipped = 0;
                 for pi = 1:numel(points)
                     pointId = points{pi};
-                    sensorType = bms.config.AutoThresholdProposalService.sensorTypeForPoint(moduleKey, pointId);
+                    bms.app.StopController.throwIfRequested( ...
+                        'Auto-threshold proposal generation was safely stopped.');
+                    totalDates = numel(bms.data.TimeRangeResolver.daysBetween(startText, endText));
+                    bms.app.RunProgressReporter.checkpoint( ...
+                        'stage', 'load_curve', ...
+                        'current_point_id', pointId, ...
+                        'current_date', '', ...
+                        'processed_dates', 0, ...
+                        'total_dates', totalDates);
                     try
-                        [times, values] = load_timeseries_range(rootDir, subfolder, pointId, ...
-                            startText, endText, cfgForLoad, sensorType);
-                    catch
+                        curveOptions = struct( ...
+                            'ignore_existing_cleaning', bms.config.AutoThresholdProposalService. ...
+                                boolOpt(opts, 'load_without_existing_cleaning', true), ...
+                            'prefer_mat_cache', bms.config.AutoThresholdProposalService. ...
+                                boolOpt(opts, 'prefer_mat_cache', true), ...
+                            'preview_sample_count', opts.preview_sample_count);
+                        [curve, times, values] = ...
+                            bms.config.ThresholdCurveRecordService.generate( ...
+                            cfg, rootDir, startText, endText, moduleKey, pointId, curveOptions);
+                    catch ME
+                        if strcmp(ME.identifier, 'BMS:RunStopped')
+                            rethrow(ME);
+                        end
                         times = [];
                         values = [];
+                        curve = [];
                     end
                     if isempty(values)
                         skipped = skipped + 1;
                         continue;
                     end
+                    % The curve is an independent input record.  Capture it
+                    % before running any Beta proposal algorithm so a valid
+                    % curve is retained even when proposal generation returns
+                    % zero rows.
+                    if bms.config.AutoThresholdProposalService.boolOpt(opts, 'capture_curve_records', false)
+                        curveRecords(end+1) = curve; %#ok<AGROW>
+                    end
+                    bms.app.StopController.throwIfRequested( ...
+                        'Auto-threshold proposal generation was safely stopped.');
+                    bms.app.RunProgressReporter.checkpoint( ...
+                        'stage', 'generate_proposals', ...
+                        'current_point_id', pointId, ...
+                        'current_date', endText, ...
+                        'processed_dates', totalDates, ...
+                        'total_dates', totalDates);
                     rows = bms.config.AutoThresholdProposalService.generateForSeries( ...
-                        times, values, moduleKey, pointId, sensorType, opts);
+                        times, values, moduleKey, pointId, curve.sensor_type, opts);
                     if ~isempty(rows)
-                        if bms.config.AutoThresholdProposalService.boolOpt(opts, 'capture_preview_series', false)
-                            previewSeries(end+1) = bms.config.AutoThresholdProposalService.previewSeriesRecord( ... %#ok<AGROW>
-                                moduleKey, pointId, sensorType, times, values, opts.preview_sample_count);
-                        end
                         proposals = bms.config.AutoThresholdProposalService.appendStruct(proposals, rows);
                     end
+                    bms.app.RunProgressReporter.checkpoint( ...
+                        'stage', 'point_complete', ...
+                        'current_point_id', pointId, ...
+                        'current_date', endText, ...
+                        'processed_dates', totalDates, ...
+                        'total_dates', totalDates);
                 end
 
                 added = numel(proposals) - beforeCount;
                 moduleReports(end+1) = struct('module_key', moduleKey, ... %#ok<AGROW>
                     'point_count', numel(points), 'proposal_count', added, ...
                     'skipped_count', skipped, 'message', msg);
+                bms.app.RunProgressReporter.completeModule(mi, ...
+                    struct('status', 'completed', 'message', ...
+                    sprintf('%d point(s), %d proposal(s)', numel(points), added)));
             end
 
             result = struct();
@@ -145,8 +185,8 @@ classdef AutoThresholdProposalService
                 'proposal_count', numel(proposals), ...
                 'module_reports', moduleReports);
             result.proposals = proposals;
-            if bms.config.AutoThresholdProposalService.boolOpt(opts, 'capture_preview_series', false)
-                result.preview_series = previewSeries;
+            if bms.config.AutoThresholdProposalService.boolOpt(opts, 'capture_curve_records', false)
+                result.curve_records = curveRecords;
             end
         end
 
@@ -308,8 +348,8 @@ classdef AutoThresholdProposalService
             stamp = datestr(now, 'yyyymmdd_HHMMSS');
             paths.json = fullfile(outDir, ['auto_threshold_proposals_' stamp '.json']);
             exportResult = result;
-            if isstruct(exportResult) && isfield(exportResult, 'preview_series')
-                exportResult = rmfield(exportResult, 'preview_series');
+            if isstruct(exportResult) && isfield(exportResult, 'curve_records')
+                exportResult = rmfield(exportResult, 'curve_records');
             end
             bms.core.Logger.writeJson(paths.json, exportResult);
             try
@@ -328,14 +368,19 @@ classdef AutoThresholdProposalService
             if nargin < 7
                 ignoreExistingCleaning = true;
             end
-            if ignoreExistingCleaning
-                cfg = bms.config.AutoThresholdProposalService.disableCleaningRules(cfg, {char(string(moduleKey))});
+            opts = struct('ignore_existing_cleaning', logical(ignoreExistingCleaning), ...
+                'prefer_mat_cache', true, 'preview_sample_count', 1);
+            [~, times, values] = bms.config.ThresholdCurveRecordService.generate( ...
+                cfg, rootDir, startDate, endDate, moduleKey, pointId, opts);
+        end
+
+        function modules = modulesForOptions(opts)
+            if nargin < 1 || isempty(opts)
+                opts = struct();
             end
-            subfolder = bms.config.ModuleConfigResolver.resolveSubfolder(cfg, moduleKey, '');
-            sensorType = bms.config.AutoThresholdProposalService.sensorTypeForPoint(moduleKey, pointId);
-            [times, values] = load_timeseries_range(rootDir, subfolder, pointId, ...
-                bms.config.AutoThresholdProposalService.dateText(startDate, false), ...
-                bms.config.AutoThresholdProposalService.dateText(endDate, false), cfg, sensorType);
+            opts = bms.config.AutoThresholdProposalService.mergeOptions( ...
+                bms.config.AutoThresholdProposalService.defaultOptions(), opts);
+            modules = bms.config.AutoThresholdProposalService.normalizedModules(opts);
         end
 
         function cols = tableColumns()

@@ -238,7 +238,7 @@ def _create_fig_wait_dialog(parent: Any, on_cancel: Any) -> Any:
     row = QHBoxLayout()
     row.addStretch(1)
     cancel_button = QPushButton("停止本次 FIG 操作")
-    cancel_button.setToolTip("仅停止本次由工作台启动的 FIG 交互进程，不影响其它分析任务")
+    cancel_button.setToolTip("仅停止本次由工作平台启动的 FIG 交互进程，不影响其它分析任务")
     cancel_button.clicked.connect(on_cancel)
     row.addWidget(cancel_button)
     layout.addLayout(row)

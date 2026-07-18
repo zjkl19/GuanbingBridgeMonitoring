@@ -78,7 +78,7 @@ def main() -> int:
         request_id="compiled_preview_contract",
         options={
             "module_keys": ["temperature"],
-            "capture_preview_series": True,
+            "capture_curve_records": True,
             "preview_sample_count": 32,
             "use_auto_cut": False,
             "use_quantile": True,
@@ -106,7 +106,7 @@ def main() -> int:
         expected_sha256=str(result["preview_sha256"]),
         expected_request_id=str(result["request_id"]),
         expected_config_sha256=str(result["config_sha256"]),
-        expected_series_count=int(result["preview_series_count"]),
+        expected_series_count=int(result["curve_record_count"]),
     )
     proposals = result.get("proposals") or []
     series = previews.get(("temperature", "T-1"))
@@ -122,7 +122,7 @@ def main() -> int:
         "config_sha256": result["config_sha256"],
         "preview_sha256": result["preview_sha256"],
         "proposal_count": len(proposals),
-        "preview_series_count": len(previews),
+        "curve_record_count": len(previews),
         "preview_sample_count": len(series.values),
         "preview_max": max(finite),
         "status_path": str(paths.status),

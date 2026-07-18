@@ -25,7 +25,7 @@ from .models import JobContext
 from .result_location import analysis_result_location
 
 
-HEALTH_LABELS = {"ready": "可恢复", "warning": "需注意", "invalid": "不可恢复"}
+HEALTH_LABELS = {"ready": "正常", "warning": "需核对", "invalid": "记录损坏"}
 
 
 class TaskHistoryWidget(QWidget):
@@ -52,8 +52,8 @@ class TaskHistoryWidget(QWidget):
         header.addWidget(back)
         outer.addLayout(header)
         hint = QLabel(
-            "只读索引当前数据根目录 run_logs/workbench 下的任务。状态文件优先于旧上下文；"
-            "配置版本、数据目录、分析结果清单和报告文件会在恢复前复核。"
+            "只读索引当前数据根目录 run_logs/workbench 下的任务。状态文件优先于任务上下文；"
+            "配置版本、数据目录、分析结果清单和报告文件会在重新打开前复核。"
         )
         hint.setWordWrap(True)
         outer.addWidget(hint)
@@ -81,7 +81,7 @@ class TaskHistoryWidget(QWidget):
 
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels(
-            ["更新时间", "桥梁", "监测周期", "分析状态", "报告状态", "健康", "任务ID", "问题/上下文路径"]
+            ["更新时间", "桥梁", "监测周期", "分析状态", "报告状态", "记录状态", "任务ID", "问题/上下文路径"]
         )
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -96,7 +96,7 @@ class TaskHistoryWidget(QWidget):
         outer.addWidget(self.table, 1)
 
         actions = QHBoxLayout()
-        self.restore_button = QPushButton("恢复选中任务")
+        self.restore_button = QPushButton("重新打开选中任务")
         self.restore_button.setEnabled(False)
         self.restore_button.setStyleSheet(
             "font-weight: 700; background: #005eac; color: white; padding: 6px 14px;"
@@ -112,7 +112,7 @@ class TaskHistoryWidget(QWidget):
         self.open_result_button.clicked.connect(self._open_result_directory)
         actions.addWidget(self.open_result_button)
         actions.addStretch(1)
-        self.detail_label = QLabel("请选择任务查看恢复条件。")
+        self.detail_label = QLabel("请选择任务查看重新打开条件。")
         self.detail_label.setWordWrap(True)
         actions.addWidget(self.detail_label, 1)
         outer.addLayout(actions)
@@ -203,9 +203,11 @@ class TaskHistoryWidget(QWidget):
                 elif entry.health == "warning":
                     item.setForeground(Qt.darkYellow)
                 self.table.setItem(row, column, item)
-        ready = sum(entry.can_restore for entry in self.entries)
+        ready = sum(entry.health == "ready" for entry in self.entries)
         warnings = sum(entry.health == "warning" for entry in self.entries)
-        self.summary_label.setText(f"显示 {len(rows)}/{len(self.entries)}；可恢复 {ready}；需注意 {warnings}")
+        self.summary_label.setText(
+            f"显示 {len(rows)}/{len(self.entries)}；正常可重新打开 {ready}；需核对 {warnings}"
+        )
         self._selection_changed()
 
     def _selected(self) -> TaskHistoryEntry | None:
@@ -224,16 +226,18 @@ class TaskHistoryWidget(QWidget):
             bool(result_location and result_location.root.is_dir())
         )
         if entry is None:
-            self.detail_label.setText("请选择任务查看恢复条件。")
+            self.detail_label.setText("请选择任务查看重新打开条件。")
         elif entry.issues:
             self.detail_label.setText("；".join(entry.issues))
         else:
-            self.detail_label.setText(f"任务可恢复：{entry.context_path}")
+            self.detail_label.setText(f"任务记录正常，可以重新打开：{entry.context_path}")
 
     def _restore(self) -> None:
         entry = self._selected()
         if entry is None or not entry.can_restore:
-            QMessageBox.warning(self, "无法恢复", "选中任务未通过恢复前检查。")
+            QMessageBox.warning(
+                self, "无法重新打开", "选中任务未通过重新打开前的完整性检查。"
+            )
             return
         self.restore_requested.emit(str(entry.context_path))
 
@@ -260,7 +264,7 @@ class TaskHistoryWidget(QWidget):
             QMessageBox.warning(
                 self,
                 "结果目录不可用",
-                "选中任务记录的计算结果目录不存在；可恢复任务后查看任务页上的实际结果位置。",
+                "选中任务记录的计算结果目录不存在；重新打开任务后可查看任务页上的实际结果位置。",
             )
             return
         if os.name == "nt":

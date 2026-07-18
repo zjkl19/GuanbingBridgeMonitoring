@@ -13,19 +13,22 @@ from reporting_contract import contract_precheck_warnings
 SCHEMA_VERSION = 1
 
 
-def normalize_missing(items: list[Any] | None) -> list[dict[str, str]]:
-    normalized: list[dict[str, str]] = []
+def normalize_missing(items: list[Any] | None) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
     for item in items or []:
         if isinstance(item, dict):
             category = str(item.get("category") or item.get("severity") or "missing")
             label = str(item.get("item") or item.get("label") or item.get("module") or item.get("path") or "")
             detail = str(item.get("detail") or item.get("message") or item.get("source") or "")
+            record = dict(item)
+            record.update({"category": category, "label": label, "detail": detail})
         else:
             text = str(item)
             category = "warning" if text.startswith("warning:") else "missing"
             label = text.removeprefix("warning:")
             detail = ""
-        normalized.append({"category": category, "label": label, "detail": detail})
+            record = {"category": category, "label": label, "detail": detail}
+        normalized.append(record)
     return normalized
 
 

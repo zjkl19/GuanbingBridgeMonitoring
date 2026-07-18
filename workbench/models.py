@@ -12,8 +12,8 @@ from .process_utils import atomic_write_json
 from .version import app_version
 
 
-SCHEMA_VERSION = 3
-READABLE_SCHEMA_VERSIONS = {1, 2, SCHEMA_VERSION}
+SCHEMA_VERSION = 4
+READABLE_SCHEMA_VERSIONS = {1, 2, 3, SCHEMA_VERSION}
 TERMINAL_ANALYSIS_STATES = {"completed", "failed", "stopped", "launch_failed"}
 
 
@@ -59,6 +59,10 @@ class ReportState:
     derived_artifact_manifest_path: str = ""
     derived_artifact_manifest_sha256: str = ""
     plots_approved: bool = False
+    disclosure_manifest_sha256: str = ""
+    disclosure_policy_version: int = 1
+    disclosure_confirmations: list[dict[str, Any]] = field(default_factory=list)
+    report_build_disclosure_candidates: list[dict[str, Any]] = field(default_factory=list)
     stdout_log: str = ""
     stderr_log: str = ""
     status_path: str = ""

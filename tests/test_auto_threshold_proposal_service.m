@@ -26,6 +26,8 @@ classdef test_auto_threshold_proposal_service < matlab.unittest.TestCase
         function testGenerateQuantileProposalAndApply(tc)
             cfg = tc.minimalConfig();
             opts = bms.config.AutoThresholdProposalService.defaultOptions();
+            tc.verifyTrue(isfield(opts, 'capture_curve_records'));
+            tc.verifyFalse(isfield(opts, 'capture_preview_series'));
             opts.module_keys = {'temperature'};
             opts.use_quantile = true;
             opts.quantile_low = 0;
@@ -65,11 +67,11 @@ classdef test_auto_threshold_proposal_service < matlab.unittest.TestCase
             tc.verifyEqual(p2(1).point_id, p(1).point_id);
         end
 
-        function testGenerateCapturesPreviewSeriesWhenRequested(tc)
+        function testGenerateCapturesCurveRecordsWhenRequested(tc)
             cfg = tc.minimalConfig();
             opts = bms.config.AutoThresholdProposalService.defaultOptions();
             opts.module_keys = {'temperature'};
-            opts.capture_preview_series = true;
+            opts.capture_curve_records = true;
             opts.preview_sample_count = 10;
             opts.use_auto_cut = false;
             opts.use_quantile = true;
@@ -82,19 +84,43 @@ classdef test_auto_threshold_proposal_service < matlab.unittest.TestCase
             result = bms.config.AutoThresholdProposalService.generate( ...
                 cfg, tc.Root, '2026-01-01', '2026-01-01', opts);
 
-            tc.verifyTrue(isfield(result, 'preview_series'));
-            tc.verifyNumElements(result.preview_series, 1);
-            tc.verifyEqual(result.preview_series(1).module_key, 'temperature');
-            tc.verifyEqual(result.preview_series(1).point_id, 'T-1');
-            tc.verifyLessThanOrEqual(result.preview_series(1).sample_count, 10);
-            tc.verifyEqual(numel(result.preview_series(1).values), result.preview_series(1).sample_count);
+            tc.verifyTrue(isfield(result, 'curve_records'));
+            tc.verifyFalse(isfield(result, 'preview_series'));
+            tc.verifyNumElements(result.curve_records, 1);
+            tc.verifyEqual(result.curve_records(1).module_key, 'temperature');
+            tc.verifyEqual(result.curve_records(1).point_id, 'T-1');
+            tc.verifyLessThanOrEqual(result.curve_records(1).sample_count, 10);
+            tc.verifyEqual(numel(result.curve_records(1).values), ...
+                result.curve_records(1).sample_count);
         end
 
-        function testWriteArtifactsOmitsPreviewSeries(tc)
+        function testValidCurveIsCapturedWhenNoProposalIsGenerated(tc)
             cfg = tc.minimalConfig();
             opts = bms.config.AutoThresholdProposalService.defaultOptions();
             opts.module_keys = {'temperature'};
-            opts.capture_preview_series = true;
+            opts.capture_curve_records = true;
+            opts.use_auto_cut = false;
+            opts.use_quantile = false;
+            opts.use_mad = false;
+            opts.use_iqr = false;
+            opts.use_spike_window = false;
+            opts.use_zero_or_flat = false;
+
+            result = bms.config.AutoThresholdProposalService.generate( ...
+                cfg, tc.Root, '2026-01-01', '2026-01-01', opts);
+
+            tc.verifyEmpty(result.proposals);
+            tc.verifyNumElements(result.curve_records, 1);
+            tc.verifyFalse(isfield(result, 'preview_series'));
+            tc.verifyGreaterThan(result.curve_records(1).source_sample_count, 0);
+            tc.verifyEqual(result.curve_records(1).point_id, 'T-1');
+        end
+
+        function testWriteArtifactsOmitsCurveRecords(tc)
+            cfg = tc.minimalConfig();
+            opts = bms.config.AutoThresholdProposalService.defaultOptions();
+            opts.module_keys = {'temperature'};
+            opts.capture_curve_records = true;
             opts.preview_sample_count = 10;
             opts.use_auto_cut = false;
             opts.use_quantile = true;
@@ -109,7 +135,9 @@ classdef test_auto_threshold_proposal_service < matlab.unittest.TestCase
             paths = bms.config.AutoThresholdProposalService.writeArtifacts(tc.Root, result);
             decoded = jsondecode(fileread(paths.json));
 
-            tc.verifyTrue(isfield(result, 'preview_series'));
+            tc.verifyTrue(isfield(result, 'curve_records'));
+            tc.verifyFalse(isfield(result, 'preview_series'));
+            tc.verifyFalse(isfield(decoded, 'curve_records'));
             tc.verifyFalse(isfield(decoded, 'preview_series'));
         end
 

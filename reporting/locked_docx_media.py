@@ -15,6 +15,12 @@ from xml.etree import ElementTree as ET
 from zipfile import BadZipFile, ZipFile
 
 from PIL import Image, UnidentifiedImageError
+from workbench.provenance_contract import (
+    ProvenanceContractViolation,
+    validate_derived_10min_series,
+    validate_source_sample_counts,
+    validate_source_day_coverage,
+)
 
 
 REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
@@ -35,6 +41,8 @@ DEFAULT_MAX_ASPECT_RATIO_ERROR = 0.001
 APPROVED_RENDER_ONLY_REDUCTION_ALGORITHMS = frozenset(
     {"peak_preserving_bucket_minmax_v1"}
 )
+RAW_RENDER_MODES = frozenset({"line", "dense_band", "band"})
+DERIVED_RENDER_MODES = frozenset({"derived_10min_mean", "wind_rose_aggregate"})
 
 
 class LockedDocxMediaError(RuntimeError):
@@ -51,6 +59,26 @@ class MediaMemberError(LockedDocxMediaError):
 
 class MediaCandidateError(LockedDocxMediaError):
     """A candidate image is missing, changed, or incompatible."""
+
+
+class PlotProvenanceContractError(MediaCandidateError):
+    """A plot contract failure with user-facing Chinese recovery guidance."""
+
+    def __init__(
+        self,
+        technical_message: str,
+        *,
+        code: str,
+        reason_zh: str,
+        suggestion_zh: str,
+    ) -> None:
+        self.code = code
+        self.technical_message = technical_message
+        self.reason_zh = reason_zh
+        self.suggestion_zh = suggestion_zh
+        super().__init__(
+            f"{technical_message} 用户可读原因：{reason_zh} 修复建议：{suggestion_zh}"
+        )
 
 
 class SharedMediaReferenceError(LockedDocxMediaError):
@@ -367,6 +395,120 @@ def _validate_render_only_reduction(
         raise MediaCandidateError(
             f"Plot provenance series {index} rendered count exceeds finite source count."
         )
+    input_count = item.get("input_count")
+    render_input_count = item.get("render_input_count")
+    render_finite_input_count = item.get("render_finite_input_count")
+    if not _finite_nonnegative_number(input_count):
+        raise MediaCandidateError(
+            f"Plot provenance series {index} reduced full render requires explicit input_count."
+        )
+    if not _finite_nonnegative_number(render_input_count):
+        raise MediaCandidateError(
+            f"Plot provenance series {index} reduced full render requires explicit "
+            "render_input_count."
+        )
+    if not _finite_nonnegative_number(render_finite_input_count):
+        raise MediaCandidateError(
+            f"Plot provenance series {index} reduced full render requires explicit "
+            "render_finite_input_count."
+        )
+    if not (
+        float(input_count) >= finite_count >= float(render_finite_input_count)
+        and float(input_count) >= float(render_input_count)
+        and float(render_input_count) >= float(render_finite_input_count)
+        and float(render_finite_input_count) >= plotted_finite_count
+    ):
+        raise MediaCandidateError(
+            f"Plot provenance series {index} source/render input counts do not close: "
+            f"source_input={input_count}, source_finite={finite_count}, "
+            f"render_input={render_input_count}, "
+            f"render_finite={render_finite_input_count}, plotted={plotted_finite_count}."
+        )
+
+
+def _validate_full_series_counts(
+    item: Mapping[str, Any],
+    *,
+    index: int,
+    provenance_schema_version: int,
+) -> tuple[float, float, float, str]:
+    """Validate plot-domain counts independently from raw-source counts."""
+
+    render_mode = str(item.get("render_mode") or "line").strip().lower()
+    if render_mode == "derived_10min_mean":
+        try:
+            input_numeric, finite_numeric, plotted_numeric = (
+                validate_derived_10min_series(
+                    item,
+                    provenance_schema_version=provenance_schema_version,
+                )
+            )
+        except ProvenanceContractViolation as exc:
+            raise PlotProvenanceContractError(
+                str(exc),
+                code=exc.code,
+                reason_zh=exc.reason_zh,
+                suggestion_zh=exc.suggestion_zh,
+            ) from exc
+        return input_numeric, finite_numeric, plotted_numeric, render_mode
+
+    sampling_mode = str(item.get("sampling_mode") or "").strip().lower()
+    if sampling_mode != "full":
+        raise MediaCandidateError(
+            f"Plot provenance series {index} is not full sampling: "
+            f"{sampling_mode or '<missing>'}"
+        )
+    reduction_applied = item.get("reduction_applied")
+    if not isinstance(reduction_applied, bool):
+        raise MediaCandidateError(
+            f"Plot provenance series {index} reduction_applied must be boolean."
+        )
+    input_count = item.get("input_count", item.get("finite_count"))
+    finite_count = item.get("finite_count")
+    plotted_finite_count = item.get("plotted_finite_count")
+    if not all(
+        _finite_nonnegative_number(value)
+        for value in (input_count, finite_count, plotted_finite_count)
+    ):
+        raise MediaCandidateError(
+            f"Plot provenance series {index} has invalid input/finite/plotted point counts."
+        )
+    input_numeric = float(input_count)
+    finite_numeric = float(finite_count)
+    plotted_numeric = float(plotted_finite_count)
+    if render_mode == "wind_rose_aggregate":
+        if reduction_applied or not (input_numeric >= finite_numeric >= plotted_numeric):
+            raise PlotProvenanceContractError(
+                f"Plot provenance series {index} aggregate input/finite/plotted counts do not close "
+                "or reduction was applied.",
+                code="aggregate_counts_not_closed",
+                reason_zh="风玫瑰聚合序列的输入、有限值或已绘制聚合计数不闭合。",
+                suggestion_zh="重新核对风向聚合计数并以full、reduction_applied=false输出来源记录。",
+            )
+    elif render_mode in RAW_RENDER_MODES:
+        if reduction_applied:
+            _validate_render_only_reduction(
+                item,
+                index=index,
+                provenance_schema_version=provenance_schema_version,
+                finite_count=finite_numeric,
+                plotted_finite_count=plotted_numeric,
+            )
+        elif not (input_numeric >= finite_numeric == plotted_numeric):
+            raise MediaCandidateError(
+                f"Plot provenance series {index} full raw input/finite/plotted counts do not close: "
+                f"input_count={input_count}, finite_count={finite_count}, "
+                f"plotted_finite_count={plotted_finite_count}."
+            )
+    else:
+        raise MediaCandidateError(
+            f"Plot provenance series {index} has unsupported render_mode={render_mode or '<missing>'}."
+        )
+    if plotted_numeric <= 0:
+        raise MediaCandidateError(
+            f"Plot provenance series {index} contains no plotted finite values."
+        )
+    return input_numeric, finite_numeric, plotted_numeric, render_mode
 
 
 def validate_full_plot_provenance(
@@ -411,41 +553,12 @@ def validate_full_plot_provenance(
         raise MediaCandidateError(f"Plot provenance requires at least one series object: {provenance}")
 
     for index, item in enumerate(series, start=1):
-        sampling_mode = str(item.get("sampling_mode") or "").strip().lower()
-        if sampling_mode != "full":
-            raise MediaCandidateError(
-                f"Plot provenance series {index} is not full sampling: {sampling_mode or '<missing>'}"
-            )
-        reduction_applied = item.get("reduction_applied")
-        if not isinstance(reduction_applied, bool):
-            raise MediaCandidateError(
-                f"Plot provenance series {index} reduction_applied must be boolean."
-            )
-        finite_count = item.get("finite_count")
-        plotted_finite_count = item.get("plotted_finite_count")
-        valid_numbers = (
-            _finite_nonnegative_number(finite_count)
-            and _finite_nonnegative_number(plotted_finite_count)
+        input_count_numeric, finite_count_numeric, _, render_mode = _validate_full_series_counts(
+            item,
+            index=index,
+            provenance_schema_version=provenance_schema_version,
         )
-        if not valid_numbers:
-            raise MediaCandidateError(
-                f"Plot provenance series {index} has invalid finite point counts."
-            )
-        finite_count_numeric = float(finite_count)
-        plotted_finite_count_numeric = float(plotted_finite_count)
-        if reduction_applied:
-            _validate_render_only_reduction(
-                item,
-                index=index,
-                provenance_schema_version=provenance_schema_version,
-                finite_count=finite_count_numeric,
-                plotted_finite_count=plotted_finite_count_numeric,
-            )
-        elif finite_count_numeric != plotted_finite_count_numeric:
-            raise MediaCandidateError(
-                f"Plot provenance series {index} point counts differ: "
-                f"finite_count={finite_count}, plotted_finite_count={plotted_finite_count}"
-            )
+        reduction_applied = bool(item.get("reduction_applied"))
         if require_source_provenance or reduction_applied:
             source = item.get("source")
             if not isinstance(source, dict):
@@ -453,90 +566,30 @@ def validate_full_plot_provenance(
                     f"Plot provenance series {index} requires a source object."
                 )
 
-            input_count = item.get("input_count")
-            source_sample_count = source.get("source_sample_count")
-            finite_source_sample_count = source.get("finite_source_sample_count")
-            source_counts_valid = (
-                _finite_nonnegative_number(input_count)
-                and _finite_nonnegative_number(source_sample_count)
-                and _finite_nonnegative_number(finite_source_sample_count)
-                and float(finite_source_sample_count) <= float(source_sample_count)
-            )
-            if not source_counts_valid:
-                raise MediaCandidateError(
-                    f"Plot provenance series {index} has invalid source sample counts."
+            try:
+                validate_source_sample_counts(
+                    source,
+                    input_count=input_count_numeric,
+                    finite_count=finite_count_numeric,
+                    derived=render_mode in DERIVED_RENDER_MODES,
                 )
-            if float(source_sample_count) != float(input_count):
-                raise MediaCandidateError(
-                    f"Plot provenance series {index} source/input counts differ: "
-                    f"source_sample_count={source_sample_count}, input_count={input_count}."
-                )
-            if float(finite_source_sample_count) != float(finite_count):
-                raise MediaCandidateError(
-                    f"Plot provenance series {index} finite source/plot-input counts differ: "
-                    f"finite_source_sample_count={finite_source_sample_count}, "
-                    f"finite_count={finite_count}."
-                )
+            except ProvenanceContractViolation as exc:
+                raise PlotProvenanceContractError(
+                    str(exc),
+                    code=exc.code,
+                    reason_zh=exc.reason_zh,
+                    suggestion_zh=exc.suggestion_zh,
+                ) from exc
 
-            completeness_scope = str(source.get("completeness_scope") or "").strip()
-            if completeness_scope != "required_export_contribution":
-                raise MediaCandidateError(
-                    f"Plot provenance series {index} has unsupported source completeness_scope: "
-                    f"{completeness_scope or '<missing>'}."
-                )
-            if not isinstance(source.get("internal_gap_coverage_assessed"), bool):
-                raise MediaCandidateError(
-                    f"Plot provenance series {index} requires boolean "
-                    "source internal_gap_coverage_assessed."
-                )
-
-            day_count_fields = (
-                "calendar_day_count_requested",
-                "complete_day_count",
-                "incomplete_day_count",
-            )
-            day_counts: dict[str, int] = {}
-            for field_name in day_count_fields:
-                raw_count = source.get(field_name)
-                valid_count = (
-                    _finite_nonnegative_number(raw_count)
-                    and float(raw_count).is_integer()
-                )
-                if not valid_count:
-                    raise MediaCandidateError(
-                        f"Plot provenance series {index} has invalid source {field_name}."
-                    )
-                day_counts[field_name] = int(raw_count)
-            if day_counts["calendar_day_count_requested"] != (
-                day_counts["complete_day_count"] + day_counts["incomplete_day_count"]
-            ):
-                raise MediaCandidateError(
-                    f"Plot provenance series {index} has inconsistent source day counts: "
-                    f"requested={day_counts['calendar_day_count_requested']}, "
-                    f"complete={day_counts['complete_day_count']}, "
-                    f"incomplete={day_counts['incomplete_day_count']}."
-                )
-
-            incomplete_days = source.get("incomplete_days")
-            if not (
-                isinstance(incomplete_days, list)
-                and all(isinstance(value, str) and value.strip() for value in incomplete_days)
-                and len(incomplete_days) == day_counts["incomplete_day_count"]
-            ):
-                raise MediaCandidateError(
-                    f"Plot provenance series {index} has invalid source incomplete_days."
-                )
-            missing_required_sources = source.get("missing_required_sources")
-            if not (
-                isinstance(missing_required_sources, list)
-                and all(
-                    isinstance(value, str) and value.strip()
-                    for value in missing_required_sources
-                )
-            ):
-                raise MediaCandidateError(
-                    f"Plot provenance series {index} has invalid source missing_required_sources."
-                )
+            try:
+                validate_source_day_coverage(source)
+            except ProvenanceContractViolation as exc:
+                raise PlotProvenanceContractError(
+                    str(exc),
+                    code=exc.code,
+                    reason_zh=exc.reason_zh,
+                    suggestion_zh=exc.suggestion_zh,
+                ) from exc
     return len(series)
 
 

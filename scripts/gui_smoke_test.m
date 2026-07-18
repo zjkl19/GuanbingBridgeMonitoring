@@ -36,7 +36,7 @@ function gui_smoke_test()
     assert(~isempty(textAreas), 'GUI smoke failed: log/status text area was not created.');
     assert(summaryTableHasRows(tables), 'GUI smoke failed: result summary table was empty.');
     assert(hasButton(buttons, '检查配置'), 'GUI smoke failed: config check button was not created.');
-    assert(hasDisabledButton(buttons, '报告已迁移到统一工作台'), ...
+    assert(hasDisabledButton(buttons, '报告已迁移到统一工作平台'), ...
         'GUI smoke failed: retired report-builder entry was not disabled.');
     profileCount = bridgeProfileCount(dropdowns);
     assert(profileCount >= 4, 'GUI smoke failed: bridge profile dropdown missing expected profiles.');

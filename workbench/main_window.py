@@ -1,20 +1,23 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import traceback
+import copy
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QDate, QSize, QTimer, Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QFont, QPixmap
+from PySide6.QtCore import QDate, QRect, QSettings, QSize, QTimer, Qt, QUrl
+from PySide6.QtGui import QCursor, QDesktopServices, QFont, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
     QDateEdit,
     QFileDialog,
+    QFrame,
     QFormLayout,
     QGridLayout,
     QGroupBox,
@@ -27,10 +30,9 @@ from PySide6.QtWidgets import (
     QPushButton,
     QPlainTextEdit,
     QProgressBar,
+    QScrollArea,
     QStackedWidget,
     QTabWidget,
-    QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -54,6 +56,7 @@ from .config_tab import (
     PostFilterThresholdEditorWidget,
 )
 from .config_layers import config_dependency_sha256, load_layered_config
+from .copyable_table import CopyableTableWidget
 from .cache_cleanup_settings import (
     CACHE_SOURCE_CLEANUP_CONFIRMATION,
     CACHE_SOURCE_CLEANUP_KEY,
@@ -66,6 +69,8 @@ from .manifest import ManifestSummary, find_latest_manifest, load_manifest_summa
 from .module_icons import module_icon
 from .models import JobContext, file_sha256
 from .modules import MODULE_SPECS, options_for_modules
+from .module_progress import normalize_module_progress
+from .module_progress_widget import ModuleProgressPanel, module_stage_label
 from .operator_text import operator_friendly_text, operator_stage_label, operator_state_label
 from .profiles import PathProfileResolver, WorkbenchProfile, load_profiles, profile_by_id
 from .plot_config_tab import PlotCommonEditorWidget, SpectrumConfigEditorWidget
@@ -78,10 +83,24 @@ from .report_task import (
     read_report_status,
     terminate_report_job,
 )
+from .report_disclosures import (
+    DISCLOSABLE_MODULE_STATUSES,
+    DISCLOSURE_POLICY_VERSION,
+    DisclosureItem,
+    analysis_disclosure_items,
+    confirmation_record,
+    disclosure_supported_for_report,
+    invalidate_disclosure_approval,
+    validate_confirmations,
+)
+from .report_gate import inspect_report_gate, require_report_gate
 from .result_location import analysis_result_location
 from .task_history_tab import TaskHistoryWidget
+from .threshold_curve_task_dialog import ThresholdCurveTaskDialog
 from .update_ui import UpdateController
+from .ui_styles import apply_danger_action_style
 from .version import APP_DISPLAY_NAME, app_version, project_root as default_project_root
+from .window_geometry import fit_window_geometry
 
 
 SUCCESS_STATES = {"ok", "success", "completed"}
@@ -92,9 +111,50 @@ def _set_line_edit_path(edit: QLineEdit, value: Path | str) -> None:
     edit.setCursorPosition(0)
 
 
+def _provenance_detail_text(item) -> str:
+    details: list[str] = []
+    reason = str(getattr(item, "reason_zh", "") or "").strip()
+    suggestion = str(getattr(item, "suggestion_zh", "") or "").strip()
+    if reason:
+        details.append(reason)
+    if suggestion:
+        details.append(f"修复建议：{suggestion}")
+    if not details:
+        fallback = str(getattr(item, "message", "") or "").strip()
+        if fallback:
+            details.append(fallback)
+    return "\n".join(details)
+
+
+def _whole_seconds_text(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        seconds = max(0.0, float(text))
+    except (TypeError, ValueError, OverflowError):
+        return text
+    if not math.isfinite(seconds):
+        return text
+    return f"{round(seconds)} 秒"
+
+
 class WorkbenchWindow(QMainWindow):
-    def __init__(self, project_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        project_root: Path | None = None,
+        window_settings: QSettings | None = None,
+    ) -> None:
         super().__init__()
+        self._window_settings = (
+            window_settings
+            if window_settings is not None
+            else QSettings("Guanbing", "BridgeMonitoringWorkbench")
+        )
+        self._persist_window_geometry = bool(
+            window_settings is not None
+            or os.environ.get("QT_QPA_PLATFORM", "").casefold() != "offscreen"
+        )
         self.project_root = (project_root or default_project_root()).resolve()
         self.profiles = load_profiles(self.project_root)
         self.path_resolver = PathProfileResolver(self.project_root)
@@ -106,18 +166,19 @@ class WorkbenchWindow(QMainWindow):
         self.current_context_path: Path | None = None
         self.current_manifest: ManifestSummary | None = None
         self.current_provenance: PlotProvenanceSummary | None = None
+        self.current_disclosure_items: tuple[DisclosureItem, ...] = ()
         self.current_manifest_missing_selected: tuple[str, ...] = ()
         self.known_context_paths: set[Path] = set()
         self.module_checks: dict[str, QCheckBox] = {}
         self._report_auto_values: dict[str, str] = {}
         self._suspend_report_autofill = False
+        self._report_gate_audit_cache = None
+        self._report_gate_audit_signature: tuple[object, ...] | None = None
         self.setFont(QFont("Microsoft YaHei UI", 10))
         self.setWindowTitle(f"{APP_DISPLAY_NAME} {app_version(self.project_root)}")
         self.setWindowIcon(application_icon(self.project_root))
-        # The four-column module grid and the update action are designed for
-        # the 1600 px workbench layout used by the legacy GUI.
-        self.resize(1600, 860)
         self._build_ui()
+        self._restore_window_geometry()
         self._apply_profile(self.profiles[0])
         self.update_controller = UpdateController(
             self,
@@ -132,9 +193,46 @@ class WorkbenchWindow(QMainWindow):
         self.poll_timer.timeout.connect(self._poll_status)
         self.poll_timer.start()
 
+    def _available_screen_geometries(self) -> tuple[QRect, ...]:
+        return tuple(QRect(screen.availableGeometry()) for screen in QApplication.screens())
+
+    def _restore_window_geometry(self) -> None:
+        screens = self._available_screen_geometries()
+        restored_rect: QRect | None = None
+        if self._persist_window_geometry:
+            raw_geometry = self._window_settings.value("window/geometry")
+            if raw_geometry is not None:
+                try:
+                    if self.restoreGeometry(raw_geometry):
+                        restored_rect = QRect(self.normalGeometry())
+                except (TypeError, ValueError):
+                    restored_rect = None
+            if restored_rect is None:
+                raw_rect = self._window_settings.value("window/normal_geometry")
+                if isinstance(raw_rect, QRect):
+                    restored_rect = QRect(raw_rect)
+        target = fit_window_geometry(
+            screens,
+            saved=restored_rect,
+            anchor=QCursor.pos(),
+        )
+        self.setGeometry(target)
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt API
+        if self._persist_window_geometry:
+            self._window_settings.setValue("window/geometry", self.saveGeometry())
+            self._window_settings.setValue(
+                "window/normal_geometry", self.normalGeometry()
+            )
+            self._window_settings.sync()
+        super().closeEvent(event)
+
     def _build_ui(self) -> None:
         tabs = QTabWidget(self)
-        tabs.addTab(self._build_analysis_tab(), "项目与数据分析")
+        tabs.addTab(
+            self._scrollable_page(self._build_analysis_tab(), "analysisScrollArea"),
+            "项目与数据分析",
+        )
         config_tabs = QTabWidget()
         self.alarm_editor = AlarmBoundsEditorWidget()
         self.alarm_editor.config_saved.connect(
@@ -143,7 +241,7 @@ class WorkbenchWindow(QMainWindow):
             )
         )
         self.cleaning_editor = CleaningThresholdEditorWidget(
-            preview_context_provider=self._auto_threshold_context,
+            preview_context_provider=self._threshold_task_context,
             project_root=self.project_root,
         )
         self.cleaning_editor.config_saved.connect(
@@ -160,10 +258,10 @@ class WorkbenchWindow(QMainWindow):
             )
         )
         self.auto_threshold_editor = AutoThresholdProposalWidget(
-            self.project_root, self._auto_threshold_context
+            self.project_root, self._threshold_task_context
         )
-        self.cleaning_editor.auto_threshold_requested.connect(
-            self._show_auto_threshold_for_module
+        self.cleaning_editor.threshold_curve_requested.connect(
+            self._generate_current_threshold_curve
         )
         self.auto_threshold_editor.config_saved.connect(
             lambda path, sha256, backup: self._on_config_saved(
@@ -200,32 +298,85 @@ class WorkbenchWindow(QMainWindow):
                 "ZIP 解压并发", path, sha256, backup
             )
         )
-        config_tabs.addTab(self.alarm_editor, "预警值")
-        config_tabs.addTab(self.cleaning_editor, "数据清洗阈值")
-        config_tabs.addTab(self.post_filter_editor, "滤波后二次清洗")
-        config_tabs.addTab(self.auto_threshold_editor, "自动清洗建议")
-        config_tabs.addTab(self.offset_editor, "零点修正")
-        config_tabs.addTab(self.group_plot_editor, "组图配置")
-        config_tabs.addTab(self.plot_common_editor, "绘图公共参数")
-        config_tabs.addTab(self.spectrum_editor, "频谱覆盖与找峰")
-        config_tabs.addTab(self.unzip_settings_editor, "解压并发")
+        config_tabs.addTab(
+            self._scrollable_page(self.alarm_editor, "alarmConfigScrollArea"),
+            "预警值",
+        )
+        config_tabs.addTab(
+            self._scrollable_page(self.cleaning_editor, "cleaningConfigScrollArea"),
+            "数据清洗阈值",
+        )
+        config_tabs.addTab(
+            self._scrollable_page(
+                self.post_filter_editor, "postFilterConfigScrollArea"
+            ),
+            "滤波后二次清洗",
+        )
+        self.auto_threshold_scroll = self._scrollable_page(
+            self.auto_threshold_editor, "autoThresholdConfigScrollArea"
+        )
+        config_tabs.addTab(
+            self.auto_threshold_scroll,
+            "自动清洗建议（Beta）",
+        )
+        config_tabs.addTab(
+            self._scrollable_page(self.offset_editor, "offsetConfigScrollArea"),
+            "零点修正",
+        )
+        config_tabs.addTab(
+            self._scrollable_page(self.group_plot_editor, "groupPlotConfigScrollArea"),
+            "组图配置",
+        )
+        config_tabs.addTab(
+            self._scrollable_page(
+                self.plot_common_editor, "plotCommonConfigScrollArea"
+            ),
+            "绘图公共参数",
+        )
+        config_tabs.addTab(
+            self._scrollable_page(self.spectrum_editor, "spectrumConfigScrollArea"),
+            "频谱覆盖与找峰",
+        )
+        config_tabs.addTab(
+            self._scrollable_page(self.unzip_settings_editor, "unzipConfigScrollArea"),
+            "解压并发",
+        )
         self.config_tabs = config_tabs
         tabs.addTab(config_tabs, "配置与预警值")
-        tabs.addTab(self._build_review_tab(), "结果与图件审核")
-        tabs.addTab(self._build_report_tab(), "报告生成")
+        tabs.addTab(
+            self._scrollable_page(self._build_review_tab(), "reviewScrollArea"),
+            "结果与图件审核",
+        )
+        tabs.addTab(
+            self._scrollable_page(self._build_report_tab(), "reportScrollArea"),
+            "报告生成",
+        )
         self.setCentralWidget(tabs)
         self.tabs = tabs
+
+    @staticmethod
+    def _scrollable_page(page: QWidget, object_name: str) -> QScrollArea:
+        """Keep dense task pages usable when the window height is reduced."""
+
+        area = QScrollArea()
+        area.setObjectName(object_name)
+        area.setFrameShape(QFrame.NoFrame)
+        area.setWidgetResizable(True)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        area.setWidget(page)
+        return area
 
     def _build_analysis_tab(self) -> QWidget:
         page = QWidget()
         outer = QVBoxLayout(page)
-        title = QLabel("桥梁健康监测统一任务")
+        title = QLabel(APP_DISPLAY_NAME)
         title.setStyleSheet("font-size: 22px; font-weight: 700; color: #005eac;")
         title_row = QHBoxLayout()
         self.brand_icon_label = QLabel()
         brand_icon = application_icon(self.project_root)
         self.brand_icon_label.setPixmap(brand_icon.pixmap(38, 38))
-        self.brand_icon_label.setToolTip("桥梁健康监测工作台")
+        self.brand_icon_label.setToolTip(APP_DISPLAY_NAME)
         title_row.addWidget(self.brand_icon_label)
         title_row.addWidget(title)
         title_row.addStretch(1)
@@ -247,7 +398,7 @@ class WorkbenchWindow(QMainWindow):
         self.auto_update_check.setToolTip("默认开启；关闭后仍可随时手动检查更新")
         title_row.addWidget(self.auto_update_check)
         self.update_btn = QPushButton("立即检查更新")
-        self.update_btn.setToolTip("从 GitHub Release 检查工作台正式更新")
+        self.update_btn.setToolTip("从 GitHub Release 检查工作平台正式更新")
         title_row.addWidget(self.update_btn)
         self.update_backup_btn = QPushButton("更新备份")
         self.update_backup_btn.setToolTip("查看更新备份；经确认后保留最新两个并清理更旧备份")
@@ -453,6 +604,7 @@ class WorkbenchWindow(QMainWindow):
         self.start_btn.clicked.connect(self._start_analysis)
         action_row.addWidget(self.start_btn)
         self.stop_btn = QPushButton("请求停止")
+        apply_danger_action_style(self.stop_btn)
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self._request_stop)
         action_row.addWidget(self.stop_btn)
@@ -473,15 +625,17 @@ class WorkbenchWindow(QMainWindow):
         self.analysis_progress = QProgressBar()
         self.analysis_progress.setRange(0, 1000)
         self.analysis_progress.setValue(0)
-        self.analysis_progress.setFormat("%p%")
+        self.analysis_progress.setFormat("模块进度 %p%（非耗时比例）")
         progress_row.addWidget(self.analysis_progress, 1)
         self.analysis_progress_label = QLabel("等待任务")
-        self.analysis_progress_label.setMinimumWidth(360)
+        self.analysis_progress_label.setMinimumWidth(220)
         progress_row.addWidget(self.analysis_progress_label)
         outer.addLayout(progress_row)
+        self.module_progress_panel = ModuleProgressPanel(self)
+        outer.addWidget(self.module_progress_panel)
         self.analysis_log = QPlainTextEdit()
         self.analysis_log.setReadOnly(True)
-        self.analysis_log.setPlaceholderText("工作台操作、启动信息和状态变化会显示在这里。")
+        self.analysis_log.setPlaceholderText("工作平台操作、启动信息和状态变化会显示在这里。")
         outer.addWidget(self.analysis_log, 1)
         self.analysis_form_page = page
         self.task_history_page = TaskHistoryWidget(tuple(profile.bridge_id for profile in self.profiles))
@@ -499,7 +653,8 @@ class WorkbenchWindow(QMainWindow):
         self.manifest_label = QLabel("分析结果清单：未加载")
         self.manifest_label.setWordWrap(True)
         self.manifest_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        header.addWidget(self.manifest_label, 1)
+        outer.addWidget(self.manifest_label)
+        header.addStretch(1)
         refresh = QPushButton("刷新当前任务")
         refresh.clicked.connect(self._poll_status)
         header.addWidget(refresh)
@@ -513,10 +668,17 @@ class WorkbenchWindow(QMainWindow):
 
         self.manifest_summary_label = QLabel("等待分析完成。")
         outer.addWidget(self.manifest_summary_label)
-        self.module_table = QTableWidget(0, 5)
+        module_filter_row = QHBoxLayout()
+        self.module_failed_filter = QCheckBox("只看未通过项目")
+        self.module_gap_filter = QCheckBox("只看有缺口项目")
+        module_filter_row.addWidget(self.module_failed_filter)
+        module_filter_row.addWidget(self.module_gap_filter)
+        module_filter_row.addStretch(1)
+        outer.addLayout(module_filter_row)
+        self.module_table = CopyableTableWidget(0, 5)
         self.module_table.setHorizontalHeaderLabels(["分析项目", "状态", "耗时", "统计文件", "消息"])
-        self.module_table.setAlternatingRowColors(True)
-        self.module_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.module_failed_filter.stateChanged.connect(self._apply_module_table_filters)
+        self.module_gap_filter.stateChanged.connect(self._apply_module_table_filters)
         self.module_table.horizontalHeader().setStretchLastSection(False)
         header_view = self.module_table.horizontalHeader()
         header_view.setSectionResizeMode(0, QHeaderView.ResizeToContents)
@@ -531,17 +693,30 @@ class WorkbenchWindow(QMainWindow):
         provenance_layout = QVBoxLayout(provenance_group)
         self.provenance_summary_label = QLabel("等待加载分析结果清单。")
         provenance_layout.addWidget(self.provenance_summary_label)
-        self.provenance_table = QTableWidget(0, 7)
+        provenance_filter_row = QHBoxLayout()
+        self.provenance_failed_filter = QCheckBox("只看未通过")
+        self.provenance_gap_filter = QCheckBox("只看有数据缺口")
+        provenance_filter_row.addWidget(self.provenance_failed_filter)
+        provenance_filter_row.addWidget(self.provenance_gap_filter)
+        provenance_filter_row.addStretch(1)
+        provenance_layout.addLayout(provenance_filter_row)
+        self.provenance_table = CopyableTableWidget(0, 8)
         self.provenance_table.setHorizontalHeaderLabels(
-            ["模块", "检查结果", "序列", "源点数", "绘制点数", "不完整日期", "核验文件/说明"]
+            ["模块", "检查结果", "序列", "源点数", "绘制点数", "不完整日期", "失败原因", "核验文件"]
         )
-        self.provenance_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.provenance_table.setAlternatingRowColors(True)
+        self.provenance_failed_filter.stateChanged.connect(
+            self._apply_provenance_table_filters
+        )
+        self.provenance_gap_filter.stateChanged.connect(
+            self._apply_provenance_table_filters
+        )
         provenance_header = self.provenance_table.horizontalHeader()
         for column in range(6):
             provenance_header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
         provenance_header.setSectionResizeMode(6, QHeaderView.Stretch)
-        self.provenance_table.setMinimumHeight(170)
+        provenance_header.setSectionResizeMode(7, QHeaderView.Interactive)
+        self.provenance_table.setColumnWidth(7, 320)
+        self.provenance_table.setMinimumHeight(130)
         provenance_layout.addWidget(self.provenance_table)
         outer.addWidget(provenance_group)
 
@@ -551,6 +726,45 @@ class WorkbenchWindow(QMainWindow):
         self.approval_check = QCheckBox("我已审核当前任务图件，允许进入正式报告阶段")
         self.approval_check.stateChanged.connect(self._on_approval_changed)
         approval_layout.addWidget(self.approval_check)
+        self.disclosure_summary_label = QLabel("当前分析结果没有需要逐项确认的黄色缺项。")
+        self.disclosure_summary_label.setWordWrap(True)
+        approval_layout.addWidget(self.disclosure_summary_label)
+        disclosure_actions = QHBoxLayout()
+        self.disclosure_select_all_btn = QPushButton("全选报告条件")
+        self.disclosure_select_all_btn.setObjectName("selectAllReportDisclosuresButton")
+        self.disclosure_select_all_btn.setToolTip(
+            "勾选图件审核确认和当前分析清单中的全部黄色可披露缺项；"
+            "不能绕过任何红色硬阻塞"
+        )
+        self.disclosure_select_all_btn.setEnabled(False)
+        self.disclosure_select_all_btn.clicked.connect(
+            lambda: self._set_all_report_conditions(Qt.Checked)
+        )
+        disclosure_actions.addWidget(self.disclosure_select_all_btn)
+        self.disclosure_clear_all_btn = QPushButton("取消全选")
+        self.disclosure_clear_all_btn.setObjectName("clearAllReportDisclosuresButton")
+        self.disclosure_clear_all_btn.setEnabled(False)
+        self.disclosure_clear_all_btn.clicked.connect(
+            lambda: self._set_all_report_conditions(Qt.Unchecked)
+        )
+        disclosure_actions.addWidget(self.disclosure_clear_all_btn)
+        disclosure_actions.addStretch(1)
+        approval_layout.addLayout(disclosure_actions)
+        self.disclosure_table = CopyableTableWidget(0, 6)
+        self.disclosure_table.setHorizontalHeaderLabels(
+            ["逐项确认", "原因类型", "模块/项目", "确认原因", "报告处置", "核验文件"]
+        )
+        disclosure_header = self.disclosure_table.horizontalHeader()
+        disclosure_header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        disclosure_header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        disclosure_header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        disclosure_header.setSectionResizeMode(3, QHeaderView.Stretch)
+        disclosure_header.setSectionResizeMode(4, QHeaderView.Stretch)
+        disclosure_header.setSectionResizeMode(5, QHeaderView.Interactive)
+        self.disclosure_table.setColumnWidth(5, 280)
+        self.disclosure_table.setMinimumHeight(120)
+        self.disclosure_table.itemChanged.connect(self._on_disclosure_item_changed)
+        approval_layout.addWidget(self.disclosure_table)
         outer.addWidget(approval_group)
         return page
 
@@ -559,6 +773,7 @@ class WorkbenchWindow(QMainWindow):
         outer = QVBoxLayout(page)
         form = QFormLayout()
         self.template_edit = QLineEdit()
+        self.template_edit.textChanged.connect(self._on_report_gate_input_changed)
         form.addRow("报告模板", self._path_row(self.template_edit, self._browse_template))
         self.output_dir_edit = QLineEdit()
         form.addRow("输出目录", self._path_row(self.output_dir_edit, self._browse_output_dir, directory=True))
@@ -573,50 +788,84 @@ class WorkbenchWindow(QMainWindow):
         self.report_gate_label = QLabel("尚不能生成报告：请先完成分析结果检查和图件审核。")
         self.report_gate_label.setWordWrap(True)
         outer.addWidget(self.report_gate_label)
-        buttons = QHBoxLayout()
+        buttons = QGridLayout()
         self.open_report_btn = QPushButton("生成报告并执行质量检查")
         self.open_report_btn.setEnabled(False)
         self.open_report_btn.clicked.connect(self._start_report_job)
-        buttons.addWidget(self.open_report_btn)
+        buttons.addWidget(self.open_report_btn, 0, 0)
         self.stop_report_btn = QPushButton("停止报告任务")
+        apply_danger_action_style(self.stop_report_btn)
         self.stop_report_btn.setEnabled(False)
         self.stop_report_btn.clicked.connect(self._stop_report_job)
-        buttons.addWidget(self.stop_report_btn)
+        buttons.addWidget(self.stop_report_btn, 0, 1)
         open_output = QPushButton("打开输出目录")
         open_output.clicked.connect(self._open_output_dir)
-        buttons.addWidget(open_output)
+        buttons.addWidget(open_output, 1, 0)
         self.open_report_qc_btn = QPushButton("打开逐页版面检查")
         self.open_report_qc_btn.setEnabled(False)
         self.open_report_qc_btn.clicked.connect(self._open_report_qc_dir)
-        buttons.addWidget(self.open_report_qc_btn)
-        buttons.addStretch(1)
+        buttons.addWidget(self.open_report_qc_btn, 1, 1)
+        buttons.setColumnStretch(2, 1)
         outer.addLayout(buttons)
         progress_row = QHBoxLayout()
         self.report_progress = QProgressBar()
         self.report_progress.setRange(0, 1000)
         progress_row.addWidget(self.report_progress, 1)
         self.report_progress_label = QLabel("等待报告任务")
-        self.report_progress_label.setMinimumWidth(420)
+        self.report_progress_label.setMinimumWidth(220)
         progress_row.addWidget(self.report_progress_label)
         outer.addLayout(progress_row)
         self.report_output_label = QLabel("DOCX/PDF：尚未生成")
         self.report_output_label.setWordWrap(True)
         self.report_output_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         outer.addWidget(self.report_output_label)
-        self.report_qc_table = QTableWidget(0, 5)
-        self.report_qc_table.setHorizontalHeaderLabels(["对象", "状态", "大小/页数", "图片/缺失/警告", "路径或摘要"])
-        self.report_qc_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.report_qc_table.setAlternatingRowColors(True)
+        qc_filter_row = QHBoxLayout()
+        self.report_qc_failed_filter = QCheckBox("只看未通过")
+        self.report_qc_gap_filter = QCheckBox("只看有缺口")
+        qc_filter_row.addWidget(self.report_qc_failed_filter)
+        qc_filter_row.addWidget(self.report_qc_gap_filter)
+        qc_filter_row.addStretch(1)
+        outer.addLayout(qc_filter_row)
+        self.report_qc_table = CopyableTableWidget(0, 6)
+        self.report_qc_table.setHorizontalHeaderLabels(
+            ["对象", "状态", "大小/页数", "图片/缺失/警告", "失败原因", "核验文件"]
+        )
+        self.report_qc_failed_filter.stateChanged.connect(
+            self._apply_report_qc_table_filters
+        )
+        self.report_qc_gap_filter.stateChanged.connect(
+            self._apply_report_qc_table_filters
+        )
         qc_header = self.report_qc_table.horizontalHeader()
         for column in range(4):
             qc_header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
         qc_header.setSectionResizeMode(4, QHeaderView.Stretch)
+        qc_header.setSectionResizeMode(5, QHeaderView.Interactive)
+        self.report_qc_table.setColumnWidth(5, 320)
         outer.addWidget(self.report_qc_table)
         self.report_log = QPlainTextEdit()
         self.report_log.setReadOnly(True)
         self.report_log.setPlaceholderText("报告生成阶段、错误和最终质量检查会显示在这里。")
         outer.addWidget(self.report_log, 1)
         return page
+
+    def _apply_module_table_filters(self) -> None:
+        self.module_table.set_filters(
+            failed_only=self.module_failed_filter.isChecked(),
+            gap_only=self.module_gap_filter.isChecked(),
+        )
+
+    def _apply_provenance_table_filters(self) -> None:
+        self.provenance_table.set_filters(
+            failed_only=self.provenance_failed_filter.isChecked(),
+            gap_only=self.provenance_gap_filter.isChecked(),
+        )
+
+    def _apply_report_qc_table_filters(self) -> None:
+        self.report_qc_table.set_filters(
+            failed_only=self.report_qc_failed_filter.isChecked(),
+            gap_only=self.report_qc_gap_filter.isChecked(),
+        )
 
     def _path_row(self, edit: QLineEdit, callback, *, directory: bool = False) -> QWidget:
         container = QWidget()
@@ -788,7 +1037,7 @@ class WorkbenchWindow(QMainWindow):
         self.data_source_mode_label.setText(descriptions.get(mode, f"配置的数据读取方式：{mode}"))
         self.data_source_mode_label.setStyleSheet("color: #174a75;")
 
-    def _auto_threshold_context(self) -> dict[str, str]:
+    def _threshold_task_context(self) -> dict[str, str]:
         return {
             "bridge_id": str(self.profile_combo.currentData() or ""),
             "data_root": self.data_root_edit.text().strip(),
@@ -799,11 +1048,24 @@ class WorkbenchWindow(QMainWindow):
 
     def _show_auto_threshold_for_module(self, module_key: str) -> None:
         self.tabs.setCurrentWidget(self.config_tabs)
-        self.config_tabs.setCurrentWidget(self.auto_threshold_editor)
+        self.config_tabs.setCurrentWidget(self.auto_threshold_scroll)
         if not self.auto_threshold_editor.select_only_module(module_key):
             self._append_log(
                 f"自动清洗建议暂不支持当前分析类型：{module_key}；请改选受支持模块。"
             )
+
+    def _generate_current_threshold_curve(
+        self, module_key: str, point_id: str
+    ) -> None:
+        dialog = ThresholdCurveTaskDialog(
+            self.project_root,
+            self._threshold_task_context(),
+            module_key,
+            point_id,
+            self,
+        )
+        dialog.exec()
+        dialog.deleteLater()
 
     def _analysis_result_location(self):
         current_root = self.data_root_edit.text().strip()
@@ -1296,7 +1558,7 @@ class WorkbenchWindow(QMainWindow):
             self.load_context(Path(path))
             self.analysis_stack.setCurrentIndex(0)
         except Exception as exc:  # noqa: BLE001
-            self._show_exception("恢复历史任务失败", exc)
+            self._show_exception("重新打开历史任务失败", exc)
 
     def _request_stop(self) -> None:
         if self.current_context is None:
@@ -1332,29 +1594,46 @@ class WorkbenchWindow(QMainWindow):
             context.analysis.manifest_path = manifest_path
             changed = True
         self.analysis_status_label.setText(f"状态：{state}；任务 {context.job_id}")
-        fraction = status.get("progress_fraction")
-        try:
-            progress_value = max(0, min(1000, round(float(fraction) * 1000)))
-        except (TypeError, ValueError, OverflowError):
-            progress_value = 1000 if state == "completed" else self.analysis_progress.value()
+        progress_snapshot = normalize_module_progress(
+            status,
+            selected_modules=context.selected_modules,
+        )
+        progress_value = max(
+            0,
+            min(1000, round(float(progress_snapshot.progress_fraction) * 1000)),
+        )
         self.analysis_progress.setValue(progress_value)
-        current_label = str(status.get("current_module_label") or status.get("current_module_key") or "")
-        completed = status.get("completed_modules")
-        total = status.get("module_total")
-        remaining = self._duration_text(status.get("estimated_remaining_sec"))
-        progress_bits = [current_label or state]
-        if completed is not None and total is not None:
-            progress_bits.append(f"{completed}/{total}")
-        if remaining:
-            progress_bits.append(f"预计剩余 {remaining}")
-        self.analysis_progress_label.setText("；".join(progress_bits))
+        self.module_progress_panel.set_snapshot(progress_snapshot)
+        current_step = progress_snapshot.current_step
+        progress_bits: list[str] = []
+        if current_step is not None:
+            if current_step.current_point_id:
+                progress_bits.append(f"当前测点：{current_step.current_point_id}")
+            if current_step.current_date:
+                progress_bits.append(f"当前日期：{current_step.current_date}")
+            if current_step.total_dates is not None and current_step.total_dates > 0:
+                progress_bits.append(
+                    "本模块日期："
+                    f"{current_step.processed_dates or 0}/{current_step.total_dates}"
+                )
+            if current_step.stage:
+                progress_bits.append(f"阶段：{module_stage_label(current_step.stage)}")
+        self.analysis_progress_label.setText(
+            "；".join(progress_bits) if progress_bits else progress_snapshot.summary_text
+        )
         if state == "completed":
             location = self._analysis_result_location()
             if location is not None:
                 self.analysis_progress_label.setText(
                     f"计算完成；结果保存在：{location.root}"
                 )
-        terminal = state in {"completed", "failed", "stopped", "launch_failed"}
+        terminal = state in {
+            "completed",
+            "disclosure_required",
+            "failed",
+            "stopped",
+            "launch_failed",
+        }
         if superseded:
             self.start_btn.setEnabled(False)
             self.stop_btn.setEnabled(False)
@@ -1436,7 +1715,7 @@ class WorkbenchWindow(QMainWindow):
         )
         if state in {"launched", "running"} and not safe_stop_identity:
             self.stop_report_btn.setToolTip(
-                "这是旧版任务，缺少安全进程身份记录；为避免误停其他程序，不能从工作台强制停止。"
+                "这是旧版任务，缺少安全进程身份记录；为避免误停其他程序，不能从工作平台强制停止。"
             )
         else:
             self.stop_report_btn.setToolTip("安全停止当前报告后台任务")
@@ -1482,6 +1761,51 @@ class WorkbenchWindow(QMainWindow):
                 persist_report_state(context)
             if show_details:
                 self._show_report_qc(status)
+        elif state == "disclosure_required" and not cleanup_pending:
+            self._invalidate_report_gate_cache()
+            candidates = status.get("disclosure_candidates")
+            analysis_sha = str(status.get("analysis_manifest_sha256") or "").upper()
+            if analysis_sha and analysis_sha != context.analysis.manifest_sha256.upper():
+                context.report.report_build_disclosure_candidates = []
+                context.report.disclosure_confirmations = [
+                    raw
+                    for raw in context.report.disclosure_confirmations
+                    if isinstance(raw, dict)
+                    and str(raw.get("source_kind") or "") != "report_build"
+                ]
+                context.report.qc_state = "failed"
+                self.report_log.appendPlainText(
+                    f"[{datetime.now():%H:%M:%S}] 报告预检查绑定的分析清单已变化，黄色缺项确认已失效。"
+                )
+            elif isinstance(candidates, list):
+                normalized = [dict(raw) for raw in candidates if isinstance(raw, dict)]
+                new_candidates = normalized != context.report.report_build_disclosure_candidates
+                if new_candidates:
+                    context.report.report_build_disclosure_candidates = normalized
+                    actual_ids = {
+                        str(raw.get("stable_id") or "") for raw in normalized
+                    }
+                    context.report.disclosure_confirmations = [
+                        raw
+                        for raw in context.report.disclosure_confirmations
+                        if isinstance(raw, dict)
+                        and (
+                            str(raw.get("source_kind") or "") != "report_build"
+                            or str(raw.get("stable_id") or "") in actual_ids
+                        )
+                    ]
+                context.report.qc_state = "disclosure_required"
+                context.report.manifest_path = str(status.get("manifest_path") or "")
+                context.report.output_docx = str(status.get("report_path") or "")
+                if new_candidates:
+                    self.report_log.appendPlainText(
+                        f"[{datetime.now():%H:%M:%S}] 报告预检查发现{len(normalized)}项黄色缺项；"
+                        "请在“分析结果与图件审核”页逐项确认后重新生成。"
+                    )
+            context.report.pid = None
+            persist_report_state(context)
+            self._refresh_disclosure_table()
+            self._update_report_gate()
         elif state == "failed" and not cleanup_pending:
             context.report.pid = None
             context.report.qc_state = "failed"
@@ -1508,6 +1832,7 @@ class WorkbenchWindow(QMainWindow):
                 "通过" if docx.get("zip_integrity") and docx.get("document_xml") else "失败",
                 f"{docx.get('size_bytes', 0)} bytes",
                 f"媒体 {docx.get('media_count', 0)}",
+                "" if docx.get("zip_integrity") and docx.get("document_xml") else "DOCX 结构或正文检查未通过",
                 str(docx.get("path") or ""),
             ),
             (
@@ -1515,13 +1840,16 @@ class WorkbenchWindow(QMainWindow):
                 "通过" if pdf_passed else ("仅版面预览" if preview_pdf_path else "未生成权威 PDF"),
                 f"{pdf.get('size_bytes', 0)} bytes / {pdf.get('page_count', 0)} 页",
                 "Microsoft Word 权威导出" if pdf_passed else "LibreOffice 结果不作为交付 PDF",
+                "" if pdf_passed else "尚未取得 Microsoft Word 权威导出的有效 PDF",
                 str(pdf.get("path") or preview_pdf_path),
             ),
             (
                 "报告内容清单",
                 operator_state_label(manifest.get("status") or "missing"),
                 "",
-                f"缺失 {manifest.get('missing_count', 0)} / 警告 {manifest.get('warning_count', 0)}",
+                f"缺失 {manifest.get('missing_count', 0)} / 警告 {manifest.get('warning_count', 0)} / "
+                f"披露 {manifest.get('disclosure_count', 0)}",
+                operator_friendly_text(manifest.get("message") or ""),
                 str(manifest.get("path") or ""),
             ),
             (
@@ -1529,13 +1857,30 @@ class WorkbenchWindow(QMainWindow):
                 operator_state_label(visual.get("status") or "unavailable"),
                 f"{visual.get('page_count', 0)} 页",
                 f"空白页 {len(visual.get('blank_pages') or [])} / 边界告警 {len(visual.get('edge_touch_pages') or [])}",
-                operator_friendly_text(visual.get("contact_sheet") or visual.get("message") or ""),
+                operator_friendly_text(visual.get("message") or ""),
+                str(visual.get("contact_sheet") or ""),
             ),
         )
         self.report_qc_table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
             for column, value in enumerate(row):
-                self.report_qc_table.setItem(row_index, column, QTableWidgetItem(str(value)))
+                self.report_qc_table.set_copyable_item(
+                    row_index,
+                    column,
+                    value,
+                    path=value if column == 5 and str(value).strip() else None,
+                )
+            status_text = str(row[1])
+            gap = bool(
+                (row_index == 2 and (manifest.get("missing_count") or manifest.get("warning_count")))
+                or (row_index == 3 and (visual.get("blank_pages") or visual.get("edge_touch_pages")))
+            )
+            self.report_qc_table.set_row_flags(
+                row_index,
+                failed=status_text not in {"通过", "通过（含缺项披露）"},
+                gap=gap,
+            )
+        self._apply_report_qc_table_filters()
         report_path = str(result.get("report_path") or "")
         pdf_path = str(result.get("pdf_path") or "")
         pdf_text = pdf_path or "未生成权威 Word PDF"
@@ -1564,6 +1909,7 @@ class WorkbenchWindow(QMainWindow):
             config_sha256=self.current_context.config_sha256,
             selected_modules=self.current_context.selected_modules,
             successful_only=True,
+            disclosure_capable=True,
         )
         if path is None:
             QMessageBox.warning(
@@ -1585,6 +1931,7 @@ class WorkbenchWindow(QMainWindow):
             self.current_context_path = self.current_context.context_path
 
     def _load_manifest(self, path: Path, *, allow_rebind: bool = False) -> bool:
+        self._invalidate_report_gate_cache()
         try:
             summary = load_manifest_summary(path)
         except Exception as exc:  # noqa: BLE001
@@ -1656,15 +2003,28 @@ class WorkbenchWindow(QMainWindow):
             values = (
                 item.label,
                 operator_state_label(item.status),
-                item.elapsed_sec,
+                _whole_seconds_text(item.elapsed_sec),
                 item.stats_path,
                 operator_friendly_text(item.message),
             )
             for column, value in enumerate(values):
-                table_item = QTableWidgetItem(str(value))
-                if column == 0:
-                    table_item.setData(Qt.UserRole, item.key)
-                self.module_table.setItem(row, column, table_item)
+                self.module_table.set_copyable_item(
+                    row,
+                    column,
+                    value,
+                    path=value if column == 3 and str(value).strip() else None,
+                    user_data=item.key if column == 0 else None,
+                )
+            message_text = str(item.message or "")
+            self.module_table.set_row_flags(
+                row,
+                failed=str(item.status).lower() not in SUCCESS_STATES | {"skipped"},
+                gap=any(
+                    marker in message_text
+                    for marker in ("缺口", "不完整", "缺失", "无有效数据", "断采")
+                ),
+            )
+        self._apply_module_table_filters()
         self.module_table.resizeColumnsToContents()
         self.module_table.setColumnWidth(3, 300)
         try:
@@ -1684,13 +2044,23 @@ class WorkbenchWindow(QMainWindow):
                     item.source_count,
                     item.plotted_count,
                     ", ".join(item.incomplete_days),
-                    f"{item.path}" + (f"；{item.message}" if item.message else ""),
+                    _provenance_detail_text(item),
+                    item.path,
                 )
                 for column, value in enumerate(values):
-                    table_item = QTableWidgetItem(str(value))
-                    if column == 0:
-                        table_item.setData(Qt.UserRole, item.module_key)
-                    self.provenance_table.setItem(row_index, column, table_item)
+                    self.provenance_table.set_copyable_item(
+                        row_index,
+                        column,
+                        value,
+                        path=value if column == 7 and str(value).strip() else None,
+                        user_data=item.module_key if column == 0 else None,
+                    )
+                self.provenance_table.set_row_flags(
+                    row_index,
+                    failed=item.status == "failed",
+                    gap=bool(item.incomplete_days) or item.status == "closed_incomplete_source",
+                )
+            self._apply_provenance_table_filters()
             self.provenance_summary_label.setText(
                 f"正式图件核验记录：{len(provenance.rows)}；"
                 f"通过：{provenance.closed_count}；未通过：{provenance.failed_count}；"
@@ -1704,27 +2074,240 @@ class WorkbenchWindow(QMainWindow):
             self.provenance_table.setRowCount(0)
             self.provenance_summary_label.setText(f"图件数据完整性检查失败：{exc}")
             self.provenance_summary_label.setStyleSheet("color: #a33; font-weight: 600;")
+        disclosable_module_keys = {
+            item.key
+            for item in summary.modules
+            if str(item.status or "").strip().casefold()
+            in DISCLOSABLE_MODULE_STATUSES
+            and str(item.message or "").strip()
+        }
+        hard_failed = tuple(
+            item
+            for item in summary.failed_modules
+            if item.key not in disclosable_module_keys
+        )
+        modules_requiring_provenance = {
+            key for key in selected if key not in disclosable_module_keys
+        }
+        provenance_ready = bool(
+            self.current_provenance is not None
+            and self.current_provenance.failed_count == 0
+            and (self.current_provenance.rows or not modules_requiring_provenance)
+        )
+        self._refresh_disclosure_table()
         self.approval_check.setEnabled(
             summary.status.lower() in SUCCESS_STATES
-            and failed == 0
+            and not hard_failed
             and not self.current_manifest_missing_selected
             and bool(selected)
-            and bool(self.current_provenance is not None)
-            and bool(self.current_provenance.rows)
-            and self.current_provenance.failed_count == 0
+            and provenance_ready
         )
-        if failed or self.current_manifest_missing_selected or (
+        self._refresh_report_condition_buttons()
+        if hard_failed or self.current_manifest_missing_selected or (
             self.current_provenance is not None and self.current_provenance.failed_count
         ):
             self.approval_check.setChecked(False)
         self._update_report_gate()
         return True
 
+    def _refresh_disclosure_table(self) -> None:
+        context = self.current_context
+        if self.current_manifest is None or self.current_provenance is None:
+            self.current_disclosure_items = ()
+        else:
+            discovered = analysis_disclosure_items(
+                self.current_manifest,
+                self.current_provenance,
+            )
+            report_type = self.current_context.report.report_type if self.current_context else ""
+            analysis_items = tuple(
+                item
+                for item in discovered
+                if disclosure_supported_for_report(report_type, item)
+            )
+            report_items: list[DisclosureItem] = []
+            if self.current_context is not None:
+                for raw in self.current_context.report.report_build_disclosure_candidates:
+                    if not isinstance(raw, dict):
+                        continue
+                    try:
+                        report_items.append(
+                            DisclosureItem(**{
+                                name: str(raw.get(name) or "")
+                                for name in DisclosureItem.__dataclass_fields__
+                            })
+                        )
+                    except TypeError:
+                        continue
+            self.current_disclosure_items = (*analysis_items, *report_items)
+        self.disclosure_table.blockSignals(True)
+        try:
+            self.disclosure_table.setRowCount(len(self.current_disclosure_items))
+            confirmed_ids: set[str] = set()
+            if context is not None:
+                missing, stale = validate_confirmations(
+                    self.current_disclosure_items,
+                    context.report.disclosure_confirmations,
+                    analysis_manifest_sha256=context.analysis.manifest_sha256,
+                    policy_version=context.report.disclosure_policy_version,
+                )
+                if (
+                    not stale
+                    and context.report.disclosure_manifest_sha256.upper()
+                    == context.analysis.manifest_sha256.upper()
+                ):
+                    confirmed_ids = {
+                        item.stable_id
+                        for item in self.current_disclosure_items
+                        if item.stable_id not in missing
+                    }
+            reason_labels = {
+                "incomplete_source_coverage": "设备断采/来源不完整",
+                "no_valid_data": "本期无有效数据",
+                "not_applicable": "模块明确不适用",
+                "report_type_omission_allowed": "报告类型允许省略",
+            }
+            for row, disclosure in enumerate(self.current_disclosure_items):
+                check_item = self.disclosure_table.set_copyable_item(
+                    row,
+                    0,
+                    "已确认" if disclosure.stable_id in confirmed_ids else "待确认",
+                    user_data=disclosure.stable_id,
+                )
+                check_item.setFlags(
+                    check_item.flags()
+                    | Qt.ItemIsUserCheckable
+                    | Qt.ItemIsEnabled
+                    | Qt.ItemIsSelectable
+                )
+                check_item.setCheckState(
+                    Qt.Checked if disclosure.stable_id in confirmed_ids else Qt.Unchecked
+                )
+                values = (
+                    reason_labels.get(disclosure.reason_code, disclosure.reason_code),
+                    disclosure.label,
+                    disclosure.reason_zh,
+                    disclosure.action_zh,
+                    disclosure.source_path,
+                )
+                for column, value in enumerate(values, start=1):
+                    self.disclosure_table.set_copyable_item(
+                        row,
+                        column,
+                        value,
+                        path=value if column == 5 and str(value).strip() else None,
+                    )
+                self.disclosure_table.set_row_flags(row, gap=True)
+        finally:
+            self.disclosure_table.blockSignals(False)
+        total = len(self.current_disclosure_items)
+        self._refresh_report_condition_buttons()
+        confirmed = sum(
+            self.disclosure_table.item(row, 0) is not None
+            and self.disclosure_table.item(row, 0).checkState() == Qt.Checked
+            for row in range(total)
+        )
+        if total:
+            self.disclosure_summary_label.setText(
+                f"黄色可披露缺项：{total}项；已逐项确认：{confirmed}项。"
+                "确认仅绑定当前分析清单 SHA，清单变化后自动失效。"
+            )
+            self.disclosure_summary_label.setStyleSheet(
+                "color: #946200; font-weight: 600;"
+            )
+        else:
+            self.disclosure_summary_label.setText(
+                "当前分析结果没有需要逐项确认的黄色缺项。"
+            )
+            self.disclosure_summary_label.setStyleSheet("color: #167c35;")
+
+    def _refresh_report_condition_buttons(self) -> None:
+        if not hasattr(self, "disclosure_select_all_btn"):
+            return
+        available = bool(
+            (hasattr(self, "approval_check") and self.approval_check.isEnabled())
+            or self.current_disclosure_items
+        )
+        self.disclosure_select_all_btn.setEnabled(available)
+        self.disclosure_clear_all_btn.setEnabled(available)
+
+    def _set_all_report_conditions(self, state: Qt.CheckState) -> None:
+        """Apply one explicit bulk choice without bypassing hard blockers."""
+
+        if self.current_context is None:
+            return
+        checked = state == Qt.Checked
+        if self.approval_check.isEnabled():
+            blocked = self.approval_check.blockSignals(True)
+            self.approval_check.setChecked(checked)
+            self.approval_check.blockSignals(blocked)
+            self.current_context.report.plots_approved = checked
+        first_item = None
+        self.disclosure_table.blockSignals(True)
+        try:
+            for row in range(self.disclosure_table.rowCount()):
+                item = self.disclosure_table.item(row, 0)
+                if item is None:
+                    continue
+                item.setCheckState(state)
+                if first_item is None:
+                    first_item = item
+        finally:
+            self.disclosure_table.blockSignals(False)
+        if first_item is not None:
+            self._on_disclosure_item_changed(first_item)
+            return
+        if not persist_report_state(self.current_context):
+            self._append_log(
+                "任务方案已被其他窗口更新，本次报告条件全选未保存；请重新打开任务。"
+            )
+        self._invalidate_report_gate_cache()
+        self._update_report_gate()
+
+    def _on_disclosure_item_changed(self, item) -> None:
+        if item.column() != 0 or self.current_context is None:
+            return
+        context = self.current_context
+        by_id = {entry.stable_id: entry for entry in self.current_disclosure_items}
+        confirmations: list[dict[str, object]] = []
+        self.disclosure_table.blockSignals(True)
+        try:
+            for row in range(self.disclosure_table.rowCount()):
+                check_item = self.disclosure_table.item(row, 0)
+                if check_item is None:
+                    continue
+                checked = check_item.checkState() == Qt.Checked
+                check_item.setText("已确认" if checked else "待确认")
+                stable_id = str(check_item.data(Qt.UserRole) or "")
+                disclosure = by_id.get(stable_id)
+                if checked and disclosure is not None:
+                    confirmations.append(
+                        confirmation_record(
+                            disclosure,
+                            analysis_manifest_sha256=context.analysis.manifest_sha256,
+                        )
+                    )
+        finally:
+            self.disclosure_table.blockSignals(False)
+        context.report.disclosure_manifest_sha256 = context.analysis.manifest_sha256
+        context.report.disclosure_policy_version = DISCLOSURE_POLICY_VERSION
+        context.report.disclosure_confirmations = confirmations
+        if not persist_report_state(context):
+            self._append_log(
+                "任务方案已被其他窗口更新，本次黄色缺项确认未保存；请重新打开任务。"
+            )
+        self._refresh_disclosure_table()
+        self._update_report_gate()
+
     def _reset_review_state(self, *, clear_context_approval: bool = True) -> None:
+        self._invalidate_report_gate_cache()
         if clear_context_approval and self.current_context is not None:
             context = self.current_context
             changed = context.report.plots_approved
             context.report.plots_approved = False
+            if context.report.disclosure_confirmations:
+                changed = True
+            invalidate_disclosure_approval(context.report)
             if context.report.state.lower() not in {"launched", "running"}:
                 changed = changed or context.report.state.lower() != "blocked"
                 context.report.state = "blocked"
@@ -1736,6 +2319,7 @@ class WorkbenchWindow(QMainWindow):
                     )
         self.current_manifest = None
         self.current_provenance = None
+        self.current_disclosure_items = ()
         self.current_manifest_missing_selected = ()
         self.approval_check.blockSignals(True)
         self.approval_check.setChecked(False)
@@ -1747,6 +2331,12 @@ class WorkbenchWindow(QMainWindow):
         self.provenance_table.setRowCount(0)
         self.provenance_summary_label.setText("等待加载分析结果清单。")
         self.provenance_summary_label.setStyleSheet("")
+        self.disclosure_table.blockSignals(True)
+        self.disclosure_table.setRowCount(0)
+        self.disclosure_table.blockSignals(False)
+        self.disclosure_select_all_btn.setEnabled(False)
+        self.disclosure_clear_all_btn.setEnabled(False)
+        self.disclosure_summary_label.setText("当前分析结果没有需要逐项确认的黄色缺项。")
         self._update_report_gate()
 
     def _on_approval_changed(self) -> None:
@@ -1766,8 +2356,9 @@ class WorkbenchWindow(QMainWindow):
             )
         self._update_report_gate()
 
-    def _update_report_gate(self) -> None:
-        ready = self._report_gate_ready()
+    def _update_report_gate(self, *, force_audit: bool = False) -> None:
+        audit = self._current_report_gate_audit(force=force_audit)
+        ready = bool(audit is not None and audit.passed)
         running = bool(
             self.current_context
             and (
@@ -1778,32 +2369,144 @@ class WorkbenchWindow(QMainWindow):
         )
         self.open_report_btn.setEnabled(ready and not running)
         if ready:
+            disclosure_count = len(audit.disclosure_items) if audit is not None else 0
             self.report_gate_label.setText(
-                "报告任务运行中。" if running else "已满足报告生成条件：分析结果和图件数据均已检查。"
+                "报告任务运行中。"
+                if running
+                else (
+                    f"已满足报告生成条件：{disclosure_count}项黄色缺项已逐项确认，"
+                    "将生成缺项披露版正式报告。"
+                    if disclosure_count
+                    else "已满足报告生成条件：分析结果和图件数据均已检查。"
+                )
             )
-            self.report_gate_label.setStyleSheet("color: #167c35; font-weight: 600;")
+            self.report_gate_label.setStyleSheet(
+                "color: #946200; font-weight: 600;"
+                if disclosure_count
+                else "color: #167c35; font-weight: 600;"
+            )
         else:
-            self.report_gate_label.setText("尚不能生成报告：请先完成分析结果检查和图件审核。")
+            details = ""
+            if audit is not None and audit.issues:
+                details = "\n" + "；".join(audit.issues[:3])
+            self.report_gate_label.setText(
+                "尚不能生成报告：请先完成分析结果检查、图件审核和黄色缺项逐项确认。"
+                + details
+            )
             self.report_gate_label.setStyleSheet("color: #a33; font-weight: 600;")
 
-    def _report_gate_ready(self) -> bool:
-        ui_ready = bool(
+    @staticmethod
+    def _report_gate_file_signature(raw_path: str) -> tuple[object, ...]:
+        text = str(raw_path or "").strip()
+        if not text:
+            return ("", 0, 0)
+        path = Path(text).expanduser().resolve(strict=False)
+        try:
+            stat = path.stat()
+        except OSError:
+            return (str(path), -1, -1)
+        return (str(path), stat.st_size, stat.st_mtime_ns)
+
+    def _report_gate_cache_key(self) -> tuple[object, ...]:
+        context = self.current_context
+        if context is None:
+            return ()
+        confirmations = tuple(
+            sorted(
+                (
+                    str(raw.get("stable_id") or ""),
+                    str(raw.get("analysis_manifest_sha256") or ""),
+                    str(raw.get("policy_version") or ""),
+                )
+                for raw in context.report.disclosure_confirmations
+                if isinstance(raw, dict)
+            )
+        )
+        template_path = (
+            self.template_edit.text().strip()
+            if hasattr(self, "template_edit")
+            else context.report.template_path
+        )
+        try:
+            live_config_sha = config_dependency_sha256(
+                Path(context.config_path).expanduser()
+            )
+        except Exception:  # noqa: BLE001 - cache keys must never break UI polling
+            live_config_sha = "<配置依赖无法读取>"
+        provenance_signatures = tuple(
+            self._report_gate_file_signature(str(row.path))
+            for row in getattr(self.current_provenance, "rows", ())
+        )
+        report_build_candidates = tuple(
+            json.dumps(raw, ensure_ascii=False, sort_keys=True, default=str)
+            for raw in context.report.report_build_disclosure_candidates
+            if isinstance(raw, dict)
+        )
+        return (
+            id(context),
+            context.analysis.state,
+            context.analysis.manifest_sha256,
+            context.config_sha256,
+            bool(context.report.plots_approved),
+            context.report.disclosure_manifest_sha256,
+            context.report.disclosure_policy_version,
+            context.report.state,
+            context.report.qc_state,
+            confirmations,
+            report_build_candidates,
+            tuple(context.selected_modules),
+            context.report.report_type,
+            live_config_sha,
+            self._report_gate_file_signature(context.config_path),
+            self._report_gate_file_signature(template_path),
+            self._report_gate_file_signature(context.analysis.manifest_path),
+            provenance_signatures,
+        )
+
+    def _invalidate_report_gate_cache(self) -> None:
+        self._report_gate_audit_cache = None
+        self._report_gate_audit_signature = None
+
+    def _on_report_gate_input_changed(self, *_args: object) -> None:
+        self._invalidate_report_gate_cache()
+        if hasattr(self, "open_report_btn"):
+            self._update_report_gate()
+
+    def _current_report_gate_audit(self, *, force: bool = False):
+        if not (
             self.current_context
             and not self._analysis_context_superseded
             and not self._report_context_superseded
             and self.current_context.report.pid is None
-            and self.current_context.report_ready
             and self.approval_check.isChecked()
             and self._context_matches_current_inputs(self.current_context)
             and self.current_manifest is not None
-            and self.current_manifest.status.lower() in SUCCESS_STATES
-            and not self.current_manifest.failed_modules
-            and not self.current_manifest_missing_selected
             and self.current_provenance is not None
-            and bool(self.current_provenance.rows)
-            and self.current_provenance.failed_count == 0
-        )
-        return ui_ready
+        ):
+            self._invalidate_report_gate_cache()
+            return None
+        signature = self._report_gate_cache_key()
+        if (
+            not force
+            and self._report_gate_audit_cache is not None
+            and self._report_gate_audit_signature == signature
+        ):
+            return self._report_gate_audit_cache
+        candidate = copy.deepcopy(self.current_context)
+        if hasattr(self, "template_edit"):
+            candidate.report.template_path = self.template_edit.text().strip()
+            template = Path(candidate.report.template_path).expanduser()
+            candidate.report.template_sha256 = (
+                file_sha256(template) if template.is_file() else ""
+            )
+        audit = inspect_report_gate(candidate)
+        self._report_gate_audit_cache = audit
+        self._report_gate_audit_signature = signature
+        return audit
+
+    def _report_gate_ready(self) -> bool:
+        audit = self._current_report_gate_audit(force=True)
+        return bool(audit is not None and audit.passed)
 
     def _start_report_job(self) -> None:
         context = self.current_context
@@ -1831,6 +2534,7 @@ class WorkbenchWindow(QMainWindow):
             actual_manifest_hash = file_sha256(manifest_path)
             if context.analysis.manifest_sha256 != actual_manifest_hash:
                 raise RuntimeError("分析结果清单在图件审核后发生变化，必须重新审核")
+            require_report_gate(context)
             self.current_context_path = context.context_path
             launch = launch_report_job(
                 context,

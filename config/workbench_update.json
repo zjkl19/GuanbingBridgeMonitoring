@@ -4,6 +4,12 @@
   "auto_check": true,
   "check_interval_hours": 24,
   "startup_delay_seconds": 5,
+  "display_name": "桥梁健康监测工作平台",
+  "supported_executable_filenames": [
+    "桥梁健康监测工作平台.exe",
+    "桥梁健康监测工作台.exe",
+    "BridgeMonitoringWorkbench.exe"
+  ],
   "package_prefix": "BridgeMonitoringWorkbench-",
   "package_suffix": "-win-x64.zip"
 }

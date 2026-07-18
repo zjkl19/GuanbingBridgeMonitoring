@@ -131,6 +131,9 @@ class WorkbenchProvenanceTests(unittest.TestCase):
 
                 self.assertEqual(summary.failed_count, 1)
                 self.assertIn(expected, summary.rows[0].message)
+                if label == "source_count_mismatch":
+                    self.assertEqual(summary.rows[0].failure_code, "raw_counts_not_closed")
+                    self.assertIn("原始序列", summary.rows[0].reason_zh)
 
     def test_reduced_full_v2_requires_source_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
@@ -336,13 +339,18 @@ class WorkbenchProvenanceTests(unittest.TestCase):
             root = Path(folder)
             provenance = root / "W1_10min.plot.json"
             provenance.write_text(json.dumps({
+                "schema_version": 2,
                 "series": [{
+                    "schema_version": 2,
                     "sampling_mode": "capped",
                     "render_mode": "derived_10min_mean",
                     "reduction_applied": False,
                     "input_count": 10,
                     "finite_count": 9,
                     "plotted_finite_count": 9,
+                    "render_input_count": 10,
+                    "render_finite_input_count": 9,
+                    "render_vertex_count": 9,
                     "source": source(),
                 }],
             }), encoding="utf-8")
@@ -389,14 +397,19 @@ class WorkbenchProvenanceTests(unittest.TestCase):
             raw_source["source_sample_count"] = 1000
             raw_source["finite_source_sample_count"] = 900
             provenance.write_text(json.dumps({
+                "schema_version": 2,
                 "series": [
                     {
+                        "schema_version": 2,
                         "sampling_mode": "full",
                         "render_mode": "derived_10min_mean",
                         "reduction_applied": False,
                         "input_count": 100,
                         "finite_count": 90,
                         "plotted_finite_count": 90,
+                        "render_input_count": 100,
+                        "render_finite_input_count": 90,
+                        "render_vertex_count": 90,
                         "source": raw_source,
                     },
                     {
@@ -427,13 +440,18 @@ class WorkbenchProvenanceTests(unittest.TestCase):
             root = Path(folder)
             provenance = root / "W1.plot.json"
             provenance.write_text(json.dumps({
+                "schema_version": 2,
                 "series": [{
+                    "schema_version": 2,
                     "sampling_mode": "full",
                     "render_mode": "derived_10min_mean",
                     "reduction_applied": False,
                     "input_count": 11,
                     "finite_count": 10,
                     "plotted_finite_count": 10,
+                    "render_input_count": 11,
+                    "render_finite_input_count": 10,
+                    "render_vertex_count": 10,
                     "source": source(),
                 }],
             }), encoding="utf-8")

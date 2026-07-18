@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QProgressBar,
     QSplitter,
     QSpinBox,
     QTableWidget,
@@ -38,6 +39,7 @@ from .auto_threshold import (
     load_preview_artifact,
     prepare_request,
     read_status,
+    request_stop,
 )
 from .auto_threshold_preview import (
     MODULE_LABELS,
@@ -47,6 +49,8 @@ from .auto_threshold_preview import (
     proposal_kind_label,
 )
 from .config_editor import CleaningConfigEditorSession, ConfigEditorError
+from .operator_text import operator_friendly_text, operator_stage_label, operator_state_label
+from .ui_styles import apply_danger_action_style
 
 
 class AutoThresholdProposalWidget(QWidget):
@@ -63,7 +67,7 @@ class AutoThresholdProposalWidget(QWidget):
         self.context_provider = context_provider
         self.current_run: AutoThresholdRun | None = None
         self.result: dict[str, Any] | None = None
-        self.preview_series: dict[tuple[str, str], PreviewSeries] = {}
+        self.curve_records: dict[tuple[str, str], PreviewSeries] = {}
         self.poll_timer = QTimer(self)
         self.poll_timer.setInterval(1000)
         self.poll_timer.timeout.connect(self._poll)
@@ -71,11 +75,12 @@ class AutoThresholdProposalWidget(QWidget):
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
-        title = QLabel("自动清洗建议（草稿与人工复核）")
+        title = QLabel("自动清洗建议（Beta，草稿与人工复核）")
         title.setStyleSheet("font-size: 20px; font-weight: 700; color: #005eac;")
         outer.addWidget(title)
         hint = QLabel(
-            "由内置数据分析服务读取当前数据生成草稿；不会自动修改配置。"
+            "这是独立 Beta 功能：由内置数据分析服务读取当前数据并运行自动阈值算法生成草稿；"
+            "人工拖线、框选和 FIG 导入不依赖本功能。不会自动修改配置。"
             "仅勾选的全时段阈值或局部时段阈值会在二次确认后写入，并核对生成时的配置版本。"
         )
         hint.setWordWrap(True)
@@ -207,6 +212,19 @@ class AutoThresholdProposalWidget(QWidget):
         splitter.setStretchFactor(1, 2)
         outer.addWidget(splitter, 1)
 
+        progress_group = QGroupBox("后台真实进度")
+        progress_layout = QVBoxLayout(progress_group)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 1000)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("真实进度 0.0%")
+        progress_layout.addWidget(self.progress_bar)
+        self.progress_detail = QLabel("阶段：等待；模块：—；测点：—；日期：—；已处理/总日期：0/0；耗时：0 秒")
+        self.progress_detail.setWordWrap(True)
+        self.progress_detail.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        progress_layout.addWidget(self.progress_detail)
+        outer.addWidget(progress_group)
+
         actions = QHBoxLayout()
         self.generate_button = QPushButton("生成建议（后台分析）")
         self.generate_button.setToolTip("使用独立分析进程生成建议，不会阻塞主界面")
@@ -215,7 +233,8 @@ class AutoThresholdProposalWidget(QWidget):
         )
         self.generate_button.clicked.connect(self.generate)
         actions.addWidget(self.generate_button)
-        self.stop_button = QPushButton("终止建议任务")
+        self.stop_button = QPushButton("请求安全停止")
+        apply_danger_action_style(self.stop_button)
         self.stop_button.setEnabled(False)
         self.stop_button.clicked.connect(self.stop)
         actions.addWidget(self.stop_button)
@@ -290,7 +309,7 @@ class AutoThresholdProposalWidget(QWidget):
             "spike_mad_factor": self.spike_factor.value(),
             "use_zero_or_flat": self.zero_flat.isChecked(),
             "load_without_existing_cleaning": self.ignore_existing.isChecked(),
-            "capture_preview_series": True,
+            "capture_curve_records": True,
             "preview_sample_count": 20_000,
         }
 
@@ -318,7 +337,7 @@ class AutoThresholdProposalWidget(QWidget):
             QMessageBox.critical(self, "自动建议启动失败", str(exc))
             return
         self.result = None
-        self.preview_series = {}
+        self.curve_records = {}
         self.preview.clear()
         self.preview_info.setText(self.preview.summary_text())
         self.popup_preview_button.setEnabled(False)
@@ -328,7 +347,49 @@ class AutoThresholdProposalWidget(QWidget):
         self.apply_button.setEnabled(False)
         self.open_button.setEnabled(True)
         self.status_label.setText(f"运行中；PID {self.current_run.process.pid}")
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("真实进度 0.0%")
         self.poll_timer.start()
+
+    @staticmethod
+    def _status_number(status: dict[str, Any], field: str, fallback: float = 0.0) -> float:
+        try:
+            return float(status.get(field, fallback))
+        except (TypeError, ValueError):
+            return fallback
+
+    def _render_progress(self, status: dict[str, Any]) -> str:
+        state = str(status.get("status") or "unknown").casefold()
+        fraction = self._status_number(status, "progress_fraction", -1.0)
+        if fraction < 0:
+            fraction = self._status_number(status, "progress_percent") / 100.0
+        fraction = min(1.0, max(0.0, fraction))
+        self.progress_bar.setValue(round(fraction * 1000))
+        self.progress_bar.setFormat(f"真实进度 {fraction * 100:.1f}%")
+        module_key = str(status.get("module_key") or "")
+        point_id = str(status.get("point_id") or "—")
+        current_date = str(status.get("current_date") or "—")
+        processed = max(0, int(self._status_number(status, "processed_dates")))
+        total = max(0, int(self._status_number(status, "total_dates")))
+        elapsed = max(
+            0.0,
+            self._status_number(
+                status,
+                "elapsed_seconds",
+                self._status_number(status, "elapsed_sec"),
+            ),
+        )
+        stage = operator_stage_label(status.get("stage") or "等待")
+        self.progress_detail.setText(
+            f"阶段：{stage}；模块：{module_label(module_key) if module_key else '—'}；"
+            f"测点：{point_id}；日期：{current_date}；已处理/总日期：{processed}/{total}；"
+            f"耗时：{round(elapsed)} 秒"
+        )
+        self.status_label.setText(
+            f"{operator_state_label(state)}；建议 {status.get('proposal_count', '…')}；"
+            f"真实进度 {fraction * 100:.1f}%"
+        )
+        return state
 
     def _poll(self) -> None:
         run = self.current_run
@@ -336,10 +397,7 @@ class AutoThresholdProposalWidget(QWidget):
             self.poll_timer.stop()
             return
         status = read_status(run.paths.status)
-        state = str(status.get("status") or "unknown").lower()
-        self.status_label.setText(
-            f"{state}；建议 {status.get('proposal_count', '…')}；任务 {run.paths.root.name}"
-        )
+        state = self._render_progress(status)
         if state == "completed":
             self.poll_timer.stop()
             try:
@@ -349,7 +407,7 @@ class AutoThresholdProposalWidget(QWidget):
                 if not preview_path_text or len(preview_hash) != 64:
                     raise ConfigEditorError("后台分析结果缺少固定的预览文件位置或完整性校验码")
                 preview_path = Path(preview_path_text)
-                self.preview_series = load_preview_artifact(
+                self.curve_records = load_preview_artifact(
                     preview_path,
                     expected_sha256=preview_hash,
                     expected_request_id=str(self.result.get("request_id") or ""),
@@ -358,7 +416,7 @@ class AutoThresholdProposalWidget(QWidget):
                     expected_data_root=run.data_root,
                     expected_start_date=run.start_date,
                     expected_end_date=run.end_date,
-                    expected_series_count=int(self.result.get("preview_series_count") or 0),
+                    expected_series_count=int(self.result.get("curve_record_count") or 0),
                 )
                 self._populate(self.result.get("proposals", []))
             except Exception as exc:  # noqa: BLE001
@@ -366,6 +424,11 @@ class AutoThresholdProposalWidget(QWidget):
             self.generate_button.setEnabled(True)
             self.stop_button.setEnabled(False)
             self.apply_button.setEnabled(bool(self.result and self.result.get("proposals")))
+        elif state == "stopped":
+            self.poll_timer.stop()
+            self.generate_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
+            self.status_label.setText("已安全停止；未伪造或补写不完整的最终建议结果")
         elif state == "failed":
             self.poll_timer.stop()
             self.generate_button.setEnabled(True)
@@ -455,8 +518,8 @@ class AutoThresholdProposalWidget(QWidget):
             self.popup_preview_button.setEnabled(False)
         else:
             key = (str(proposal.get("module_key") or ""), str(proposal.get("point_id") or ""))
-            self.preview.set_preview(proposal, self.preview_series.get(key))
-            self.popup_preview_button.setEnabled(key in self.preview_series)
+            self.preview.set_preview(proposal, self.curve_records.get(key))
+            self.popup_preview_button.setEnabled(key in self.curve_records)
         self.preview_info.setText(self.preview.summary_text())
 
     def _open_preview_dialog(self) -> None:
@@ -464,7 +527,7 @@ class AutoThresholdProposalWidget(QWidget):
         if proposal is None:
             return
         key = (str(proposal.get("module_key") or ""), str(proposal.get("point_id") or ""))
-        series = self.preview_series.get(key)
+        series = self.curve_records.get(key)
         if series is None:
             return
         dialog = QDialog(self)
@@ -506,7 +569,7 @@ class AutoThresholdProposalWidget(QWidget):
             f"2026-06-18 {index // 60:02d}:{index % 60:02d}:00" for index in range(240)
         )
         series = PreviewSeries("dynamic_strain", "SX-5", "strain", times, tuple(values))
-        self.preview_series = {series.key: series}
+        self.curve_records = {series.key: series}
         self._populate([proposal])
 
     @staticmethod
@@ -575,17 +638,20 @@ class AutoThresholdProposalWidget(QWidget):
             return
         answer = QMessageBox.question(
             self,
-            "终止建议任务",
-            "确认终止当前自动建议后台分析任务？已生成的完整结果文件不会被伪造或补写。",
+            "请求安全停止自动建议",
+            "确认请求当前自动建议任务在下一安全边界停止？不会粗暴结束任意 MATLAB 进程，"
+            "也不会伪造或补写不完整结果。",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
         if answer == QMessageBox.Yes:
-            run.process.terminate()
-            self.poll_timer.stop()
-            self.generate_button.setEnabled(True)
+            try:
+                request_stop(run.paths, reason="用户在工作平台请求安全停止自动清洗建议")
+            except Exception as exc:  # noqa: BLE001
+                QMessageBox.critical(self, "安全停止请求失败", str(exc))
+                return
             self.stop_button.setEnabled(False)
-            self.status_label.setText("任务已由用户终止")
+            self.status_label.setText("已请求安全停止；正在等待后台到达安全边界")
 
     def open_run_folder(self) -> None:
         if self.current_run is None:

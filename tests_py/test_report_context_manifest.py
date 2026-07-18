@@ -79,8 +79,20 @@ class TestReportContextManifest(unittest.TestCase):
             self.assertEqual(payload["missing_items"][0]["category"], "warning")
 
     def test_normalize_missing_accepts_dicts_and_strings(self):
-        items = normalize_missing([{"item": "A", "detail": "B"}, "missing C"])
+        items = normalize_missing([
+            {
+                "item": "A",
+                "detail": "B",
+                "section": "2.3",
+                "source": "temperature",
+                "reason_zh": "设备断采",
+            },
+            "missing C",
+        ])
         self.assertEqual(items[0]["label"], "A")
+        self.assertEqual(items[0]["section"], "2.3")
+        self.assertEqual(items[0]["source"], "temperature")
+        self.assertEqual(items[0]["reason_zh"], "设备断采")
         self.assertEqual(items[1]["category"], "missing")
 
 

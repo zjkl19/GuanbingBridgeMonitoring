@@ -39,6 +39,8 @@ function manifestPath = run_request_cli(requestPath)
     end
     if strcmp(requestType, 'auto_threshold_proposal')
         manifestPath = bms.app.AutoThresholdRequestRunner.runFile(requestPath);
+    elseif strcmp(requestType, 'threshold_curve_generation')
+        manifestPath = bms.app.ThresholdCurveRequestRunner.runFile(requestPath);
     elseif strcmp(requestType, 'fig_threshold_interaction')
         manifestPath = bms.app.FigThresholdRequestRunner.runFile(requestPath);
     else

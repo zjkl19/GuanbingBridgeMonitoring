@@ -480,7 +480,12 @@ class ReportMediaPlanTests(unittest.TestCase):
         cases: list[tuple[str, int, dict[str, object], str]] = [
             ("legacy_schema", 1, {}, "schema_version"),
             ("series_legacy_schema", 2, {"schema_version": 1}, "schema_version"),
-            ("derived_render_mode", 2, {"render_mode": "derived_10min_mean"}, "raw render mode"),
+            (
+                "derived_render_mode",
+                2,
+                {"render_mode": "derived_10min_mean"},
+                "without reduction",
+            ),
             ("not_render_only", 2, {"reduction_scope": "analysis"}, "render_only"),
             ("unknown_algorithm", 2, {"reduction_algorithm": "lttb"}, "unsupported"),
             ("extrema_not_preserved", 2, {"extrema_preserved": False}, "preserve extrema"),

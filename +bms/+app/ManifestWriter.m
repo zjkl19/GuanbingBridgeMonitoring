@@ -44,6 +44,10 @@ classdef ManifestWriter
             manifest.elapsed_sec = NaN;
             manifest.module_logs = {};
             manifest.module_results = {};
+            manifest.progress_schema_version = bms.app.RunProgressReporter.SchemaVersion;
+            manifest.progress_authority = 'analysis_manifest';
+            manifest.module_steps = {};
+            manifest.analysis_progress = struct();
             manifest.module_status_counts = struct('ok', 0, 'fail', 0, 'skip', 0, 'missing', 0, 'other', 0);
             manifest.module_artifacts = {};
             manifest.artifact_count = 0;
@@ -90,6 +94,17 @@ classdef ManifestWriter
                 manifest.module_status_counts = bms.app.ManifestWriter.statusCounts(records);
                 manifest.module_artifacts = bms.app.ManifestWriter.moduleArtifacts(records);
                 manifest.artifact_count = bms.app.ManifestWriter.countArtifacts(manifest.module_artifacts);
+            end
+            progressFields = {'progress_schema_version','progress_authority', ...
+                'module_index','module_total','completed_modules','progress_fraction', ...
+                'current_module_key','current_module_label','current_module_status', ...
+                'stage','current_point_id','current_date','processed_dates', ...
+                'total_dates','message','module_steps','analysis_progress'};
+            for i = 1:numel(progressFields)
+                name = progressFields{i};
+                if isfield(details, name)
+                    manifest.(name) = details.(name);
+                end
             end
             if isfield(details, 'module_catalog')
                 manifest.module_catalog = details.module_catalog;
@@ -269,6 +284,10 @@ classdef ManifestWriter
             manifest.write_error_identifier = char(string(writeError.identifier));
             manifest.module_results = {};
             manifest.module_logs = {};
+            manifest.progress_schema_version = bms.app.RunProgressReporter.SchemaVersion;
+            manifest.progress_authority = 'analysis_manifest';
+            manifest.module_steps = {};
+            manifest.analysis_progress = struct();
             manifest.module_status_counts = struct('ok', 0, 'fail', 0, 'skip', 0, 'missing', 0, 'other', 0);
             manifest.module_artifacts = {};
             manifest.artifact_count = 0;
@@ -289,6 +308,9 @@ classdef ManifestWriter
                     manifest.module_results = records;
                     manifest.module_logs = records;
                     manifest.module_status_counts = bms.app.ManifestWriter.statusCounts(records);
+                    progress = bms.app.RunProgressReporter.reconcile(struct(), records, 'analysis_manifest');
+                    manifest.module_steps = progress.module_steps;
+                    manifest.analysis_progress = progress;
                 end
                 if isfield(details, 'log_file') && ~isempty(details.log_file)
                     manifest.run_log = bms.app.ManifestWriter.safeStructText(details, 'log_file');

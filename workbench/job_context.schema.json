@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fjjky.local/schemas/bridge-monitoring-job-context-v3.json",
+  "$id": "https://fjjky.local/schemas/bridge-monitoring-job-context-v4.json",
   "title": "Bridge Monitoring Workbench Job Context",
   "type": "object",
   "required": [
@@ -9,7 +9,7 @@
     "selected_modules", "options", "analysis", "report"
   ],
   "properties": {
-    "schema_version": {"const": 3},
+    "schema_version": {"const": 4},
     "job_id": {"type": "string", "minLength": 1},
     "app_version": {"type": "string", "minLength": 1},
     "project_root": {"type": "string", "minLength": 1},
@@ -37,6 +37,11 @@
         "template_sha256": {"type": "string"},
         "derived_artifact_manifest_path": {"type": "string"},
         "derived_artifact_manifest_sha256": {"type": "string"},
+        "plots_approved": {"type": "boolean"},
+        "disclosure_manifest_sha256": {"type": "string"},
+        "disclosure_policy_version": {"type": "integer", "minimum": 1},
+        "disclosure_confirmations": {"type": "array", "items": {"type": "object"}},
+        "report_build_disclosure_candidates": {"type": "array", "items": {"type": "object"}},
         "stdout_log": {"type": "string"},
         "stderr_log": {"type": "string"},
         "pid": {"type": ["integer", "null"]}

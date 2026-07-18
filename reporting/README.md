@@ -61,14 +61,14 @@ The generator also removes a redundant empty section-break paragraph before
 the result chapter to prevent a blank page after the alarm-threshold table.
 Always update Word fields/TOC and render every page before delivery.
 
-## Unified Workbench / 统一工作台
+## Unified Platform / 统一工作平台
 
 Starting with v1.8, operators generate reports from the `报告生成` tab of
-`桥梁健康监测工作台.exe`.  The report engine runs as a hidden worker of
+`桥梁健康监测工作平台.exe`.  The report engine runs as a hidden worker of
 the same application, so no second report-builder window or standalone report
 executable is part of the production package.
 
-从 v1.8 开始，用户统一在 `桥梁健康监测工作台.exe` 的“报告生成”页生成报告。
+从 v1.8 开始，用户统一在 `桥梁健康监测工作平台.exe` 的“报告生成”页生成报告。
 报告内核以同一应用程序的隐藏后台任务运行，生产包不再包含第二个报告窗口或独立报告 EXE。
 
 The schema-v3 `release_manifest.json` must declare:
@@ -81,6 +81,32 @@ The schema-v3 `release_manifest.json` must declare:
 The compatibility field `includes_report_builder = true` means that report
 capability is embedded in the workbench; it does **not** authorize packaging a
 standalone `BridgeReportBuilder.exe`.
+
+### Audited disclosures / 可审计缺项披露
+
+The unified frontend and background worker use the same report-gate audit.
+Bridge/date/config mismatch, manifest corruption or hash drift, analysis
+failure, provenance-count mismatch, and incorrect media binding are hard
+failures and cannot be manually waived. Explicitly closed source-coverage gaps
+and supported no-data/not-applicable omissions can become disclosures only
+when the selected report adapter has a tested safe action for stale template
+content.
+
+Each disclosure has a stable ID. Operator confirmation is bound to the exact
+analysis-manifest SHA-256 and policy version; any manifest change invalidates
+it. Newly discovered builder omissions cause a `disclosure_required` terminal
+result on the first pass. A second pass may publish only if it reproduces the
+exact confirmed candidate set. The formal report then records
+`passed_with_disclosures`, appends a body disclosure section, and writes the
+item count, reasons, actions, confirmation timestamps, analysis SHA and output
+hash to the report manifest and QC. `jlj_monthly` and
+`shuixianhua_monthly` currently support the tested builder/module omission
+actions. Unsupported report types remain fail-closed.
+
+统一前端与后台 worker 共用同一门禁。红色硬阻塞不可人工放行；黄色项必须逐项确认，
+且确认精确绑定分析清单 SHA。第一次发现新的报告构建缺项只返回
+`disclosure_required`，不得发布正式报告；第二次构建必须复现完全相同的已确认集合。
+正式交付使用 `passed_with_disclosures`，同时把缺项原因与处置写入正文、生成清单和 QC。
 
 Version `v1.8.0` makes the embedded runtime the only production report entry.
 Shuixianhua and Jiulongjiang monthly generation now rejects stale-period text,
@@ -116,8 +142,8 @@ developer-only entrypoints under `reporting/` remain available for isolated
 backend diagnostics and template regression; they are not operator or release
 entrypoints and must not be copied to a production package.
 
-生产机更新时，应整体替换统一工作台目录，保留现场的 `config/` 和数据根目录，
-再由工作台内置的配置检查、分析结果检查和逐页版面检查完成报告交付。
+生产机更新时，应整体替换统一工作平台目录，保留现场的 `config/` 和数据根目录，
+再由工作平台内置的配置检查、分析结果检查和逐页版面检查完成报告交付。
 
 ## Data Root / 数据根目录
 
@@ -250,16 +276,16 @@ The GUI performs a preflight check before generating a period report and warns w
 
 ## Embedded report runtime / 内嵌报告运行时
 
-The only operator entry is the **报告生成** page in `桥梁健康监测工作台.exe`.
+The only operator entry is the **报告生成** page in `桥梁健康监测工作平台.exe`.
 `report_gui.py` retains headless report contracts and developer self-tests, but
 it cannot open a standalone window. The separate EXE build and package scripts
 have been removed and must not be restored into the unified release.
 
-用户唯一入口是 `桥梁健康监测工作台.exe` 的“报告生成”页。`report_gui.py` 仅保留
+用户唯一入口是 `桥梁健康监测工作平台.exe` 的“报告生成”页。`report_gui.py` 仅保留
 后台报告契约和开发自测，不能再打开独立窗口；独立 EXE 构建和打包脚本已经删除，
 不得重新放回统一发布包。
 
-生产入口统一为 `桥梁健康监测工作台.exe` 内的“报告生成”页面。以下内容只作为历史实现
+生产入口统一为 `桥梁健康监测工作平台.exe` 内的“报告生成”页面。以下内容只作为历史实现
 和隔离兼容测试资料保留；旧界面、旧 EXE 构建和旧打包脚本默认拒绝运行，且不得进入统一
 发布包。
 

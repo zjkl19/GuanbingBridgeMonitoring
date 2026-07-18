@@ -244,6 +244,51 @@ class WorkbenchCleaningEditorGuiTests(unittest.TestCase):
         finally:
             widget.close()
 
+    def test_cleaning_bounds_are_rounded_to_three_decimal_places(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "config.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "defaults": {
+                            "deflection": {
+                                "thresholds": {
+                                    "min": -4.875565610859724,
+                                    "max": 24.85294117647058,
+                                }
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            widget = CleaningThresholdEditorWidget()
+            try:
+                widget.load_path(path)
+                self.assertEqual(widget.table.item(0, 3).text(), "-4.876")
+                self.assertEqual(widget.table.item(0, 4).text(), "24.853")
+                row = widget.rows()[0]
+                self.assertEqual(
+                    (row.minimum, row.maximum),
+                    (-4.875565610859724, 24.85294117647058),
+                )
+                self.assertEqual(
+                    widget.session.build_payload(widget.rows()), widget.session.payload
+                )
+
+                widget.table.item(0, 3).setText("-4.8764")
+                edited = widget.rows()[0]
+                self.assertEqual(
+                    (edited.minimum, edited.maximum), (-4.876, 24.85294117647058)
+                )
+                updated = widget.session.build_payload([edited])
+                self.assertEqual(
+                    updated["defaults"]["deflection"]["thresholds"],
+                    {"min": -4.876, "max": 24.85294117647058},
+                )
+            finally:
+                widget.close()
+
     def test_post_filter_widget_hides_unsupported_columns(self) -> None:
         widget = PostFilterThresholdEditorWidget()
         try:

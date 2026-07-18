@@ -2,7 +2,8 @@ param(
     [string]$Version = "",
     [string]$OutputDir = "release\workbench",
     [switch]$SkipBuild,
-    [switch]$AllowDevelopmentVersion
+    [switch]$AllowDevelopmentVersion,
+    [switch]$LegacyNameBridge
 )
 
 $ErrorActionPreference = "Stop"
@@ -147,7 +148,12 @@ function Assert-OperatorGuideContract([string]$Path) {
         (-join (33258, 21160, 21305, 37197, 24403, 21069, 20219, 21153, 26354, 32447, 39044, 35272 | ForEach-Object { [char]$_ })),
         (-join (26222, 36890, 27969, 31243, 26080, 38656, 36873, 25321, 20219, 20309, 25991, 20214 | ForEach-Object { [char]$_ })),
         (-join (30452, 25509, 36873, 25321, 32, 77, 65, 84, 76, 65, 66, 32, 70, 73, 71 | ForEach-Object { [char]$_ })),
-        (-join (39640, 32423, 65306, 23548, 20837, 31995, 32479, 26354, 32447, 35760, 24405, 32, 74, 83, 79, 78 | ForEach-Object { [char]$_ })),
+        (-join (23548, 20837, 20854, 20182, 20219, 21153, 30340, 24037, 20316, 24179, 21488, 26354, 32447, 35760, 24405 | ForEach-Object { [char]$_ })),
+        (-join (29983, 25104, 24403, 21069, 27979, 28857, 26354, 32447 | ForEach-Object { [char]$_ })),
+        (-join (19981, 36816, 34892, 33258, 21160, 38408, 20540, 31639, 27861 | ForEach-Object { [char]$_ })),
+        (-join (39640, 32423, 65306, 20174, 32, 74, 83, 79, 78, 32, 25991, 20214, 23548, 20837 | ForEach-Object { [char]$_ })),
+        (-join (30495, 23454, 36827, 24230 | ForEach-Object { [char]$_ })),
+        (-join (35831, 27714, 23433, 20840, 20572, 27490 | ForEach-Object { [char]$_ })),
         (-join (20572, 27490, 26412, 27425, 32, 70, 73, 71, 32, 25805, 20316 | ForEach-Object { [char]$_ })),
         "stats",
         "run_logs",
@@ -360,6 +366,36 @@ if ((Get-StrictInt64 $manifest.schema_version "manifest.schema_version") -ne 3) 
 if ((Get-StrictString $manifest.version "manifest.version") -cne $Version) {
     throw "VERSION and release manifest differ: $Version vs $($manifest.version)"
 }
+
+function Get-StrictFiniteDouble($Value, [string]$Name) {
+    if (-not (Test-IsIntegerValue $Value) -and $Value -isnot [single] -and $Value -isnot [double] -and $Value -isnot [decimal]) {
+        throw "$Name must be a number"
+    }
+    $converted = [double]$Value
+    if ([double]::IsNaN($converted) -or [double]::IsInfinity($converted)) {
+        throw "$Name must be finite"
+    }
+    return $converted
+}
+$canonicalDisplayName = -join (26725, 26753, 20581, 24247, 30417, 27979, 24037, 20316, 24179, 21488 | ForEach-Object { [char]$_ })
+$legacyChineseName = -join (26725, 26753, 20581, 24247, 30417, 27979, 24037, 20316, 21488 | ForEach-Object { [char]$_ })
+if ((Get-StrictString $manifest.display_name "manifest.display_name") -cne $canonicalDisplayName) {
+    throw "Workbench release manifest display name is not canonical"
+}
+$supportedExecutableNames = @($manifest.supported_executable_filenames)
+$expectedExecutableNames = @(
+    "${canonicalDisplayName}.exe",
+    "${legacyChineseName}.exe",
+    "BridgeMonitoringWorkbench.exe"
+)
+if ($supportedExecutableNames.Count -ne $expectedExecutableNames.Count) {
+    throw "Workbench release manifest executable migration metadata is incomplete"
+}
+for ($index = 0; $index -lt $expectedExecutableNames.Count; $index++) {
+    if ((Get-StrictString $supportedExecutableNames[$index] "manifest.supported_executable_filenames[$index]") -cne $expectedExecutableNames[$index]) {
+        throw "Workbench release manifest executable migration metadata is invalid"
+    }
+}
 foreach ($sourceField in @("source_git_commit", "source_tree_clean")) {
     if ($null -eq $manifest.PSObject.Properties[$sourceField]) {
         throw "Workbench release manifest is missing $sourceField"
@@ -381,6 +417,7 @@ if (-not $isDevelopmentVersion -and -not $manifest.source_tree_clean) {
 
 $requiredTrueManifestFields = @(
     "auto_threshold_preview_runner_smoke",
+    "threshold_curve_runner_smoke",
     "analysis_runner_failure_exit_smoke",
     "analysis_runner_manifest_resilience_smoke",
     "analysis_runner_cache_cleanup_policy_smoke",
@@ -477,6 +514,33 @@ $runnerFigThreshold = $manifest.analysis_runner_fig_threshold
 if ($null -eq $runnerFigThreshold) {
     throw "Workbench release manifest is missing compiled Runner FIG-threshold evidence"
 }
+
+$thresholdCurveRunner = $manifest.threshold_curve_runner
+if ($null -eq $thresholdCurveRunner) {
+    throw "Release manifest is missing independent threshold-curve evidence"
+}
+Assert-ExactBoolean $thresholdCurveRunner.ok $true `
+    "manifest.threshold_curve_runner.ok"
+if ((Get-StrictInt64 $thresholdCurveRunner.runner_exit_code `
+        "manifest.threshold_curve_runner.runner_exit_code") -ne 0 `
+        -or (Get-StrictInt64 $thresholdCurveRunner.curve_record_count `
+            "manifest.threshold_curve_runner.curve_record_count") -ne 1 `
+        -or (Get-StrictInt64 $thresholdCurveRunner.source_sample_count `
+            "manifest.threshold_curve_runner.source_sample_count") -ne 101 `
+        -or (Get-StrictInt64 $thresholdCurveRunner.finite_sample_count `
+            "manifest.threshold_curve_runner.finite_sample_count") -ne 101 `
+        -or (Get-StrictFiniteDouble $thresholdCurveRunner.preview_max `
+            "manifest.threshold_curve_runner.preview_max") -ne 100 `
+        -or (Get-StrictFiniteDouble $thresholdCurveRunner.progress_percent `
+            "manifest.threshold_curve_runner.progress_percent") -ne 100 `
+        -or (Get-StrictInt64 $thresholdCurveRunner.unexpected_auto_preview_count `
+            "manifest.threshold_curve_runner.unexpected_auto_preview_count") -ne 0) {
+    throw "Release manifest has invalid independent threshold-curve evidence"
+}
+$null = Get-NormalizedSha256 $thresholdCurveRunner.preview_sha256 `
+    "manifest.threshold_curve_runner.preview_sha256"
+$null = Get-NormalizedSha256 $thresholdCurveRunner.record_sha256 `
+    "manifest.threshold_curve_runner.record_sha256"
 foreach ($booleanField in @(
         "ok",
         "source_fig_unchanged",
@@ -756,6 +820,62 @@ if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
     throw "Verified workbench executable is missing: $exePath"
 }
 
+# A single transitional release may carry a byte-identical copy under the
+# v1.8.2 executable name.  The old updater can therefore authenticate and
+# launch the package, while the new installer validates the explicit bridge,
+# installs the canonical executable and migrates recognized desktop shortcuts.
+# The verified dist itself remains canonical-only.
+$archiveExpectedByPath = @{}
+foreach ($pair in $expectedByPath.GetEnumerator()) {
+    $archiveExpectedByPath[[string]$pair.Key] = $pair.Value
+}
+$archiveManifestBytes = $manifestBytes
+$archiveManifestHash = $manifestHash
+if ($LegacyNameBridge) {
+    $legacyBridgeName = "${legacyChineseName}.exe"
+    if ($archiveExpectedByPath.ContainsKey($legacyBridgeName)) {
+        throw "Legacy bridge executable already exists in the canonical distribution"
+    }
+    $archiveExpectedByPath[$legacyBridgeName] = [pscustomobject]@{
+        path = $exePath
+        bytes = [int64]$executableInventory.bytes
+        sha256 = [string]$executableInventory.sha256
+    }
+    $bridgeManifest = $manifestText | ConvertFrom-Json
+    $bridgeInventory = @($manifest.file_inventory | ForEach-Object {
+        [ordered]@{
+            path = [string]$_.path
+            bytes = [int64]$_.bytes
+            sha256 = [string]$_.sha256
+        }
+    })
+    $bridgeInventory += [ordered]@{
+        path = $legacyBridgeName
+        bytes = [int64]$executableInventory.bytes
+        sha256 = [string]$executableInventory.sha256
+    }
+    $bridgeManifest.executable = $legacyBridgeName
+    $bridgeManifest.executable_sha256 = [string]$executableInventory.sha256
+    $bridgeManifest | Add-Member -MemberType NoteProperty `
+        -Name canonical_executable_sha256 `
+        -Value ([string]$executableInventory.sha256) -Force
+    $bridgeManifest | Add-Member -MemberType NoteProperty `
+        -Name executable_migration `
+        -Value ([ordered]@{
+            mode = "legacy_name_bridge"
+            legacy_entrypoint = $legacyBridgeName
+            canonical_entrypoint = "${canonicalDisplayName}.exe"
+        }) -Force
+    $bridgeManifest.file_inventory = @($bridgeInventory)
+    $bridgeManifest.file_inventory_count = [int64]$bridgeInventory.Count
+    $bridgeManifest.file_count_excluding_manifest = [int64]$bridgeInventory.Count
+    $bridgeManifest.total_bytes_excluding_manifest = `
+        [int64]$manifestTotalBytes + [int64]$executableInventory.bytes
+    $bridgeManifestJson = $bridgeManifest | ConvertTo-Json -Depth 100 -Compress
+    $archiveManifestBytes = $strictUtf8.GetBytes($bridgeManifestJson)
+    $archiveManifestHash = Get-BytesSha256 $archiveManifestBytes
+}
+
 $forbiddenStandaloneReportFiles = @($actualFiles | Where-Object {
     $_.Name -ieq "BridgeReportBuilder.exe" -or
     $_.Name -ieq "MonthlyReportBuilder.exe" -or
@@ -829,7 +949,7 @@ try {
             [System.Text.Encoding]::UTF8
         )
         try {
-            foreach ($pair in @($expectedByPath.GetEnumerator() | Sort-Object Name)) {
+            foreach ($pair in @($archiveExpectedByPath.GetEnumerator() | Sort-Object Name)) {
                 $relative = [string]$pair.Key
                 $archiveEntryPath = "BridgeMonitoringWorkbench/$relative"
                 $source = $pair.Value
@@ -868,14 +988,14 @@ try {
             )
             $manifestEntryStream = $manifestEntry.Open()
             try {
-                $manifestEntryStream.Write($manifestBytes, 0, $manifestBytes.Length)
+                $manifestEntryStream.Write($archiveManifestBytes, 0, $archiveManifestBytes.Length)
             }
             finally {
                 $manifestEntryStream.Dispose()
             }
             $expectedArchiveByPath[$manifestEntryPath] = [pscustomobject]@{
-                bytes = [int64]$manifestBytes.Length
-                sha256 = $manifestHash
+                bytes = [int64]$archiveManifestBytes.Length
+                sha256 = $archiveManifestHash
             }
         }
         finally {
@@ -958,6 +1078,7 @@ try {
         tag = $Version
         source_git_commit = $manifestSourceCommit
         source_tree_clean = [bool]$manifest.source_tree_clean
+        legacy_name_bridge = [bool]$LegacyNameBridge
         archive = $archivePath
         archive_sha256 = $archiveHash
         checksum = $checksumPath
