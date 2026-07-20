@@ -3,10 +3,15 @@
 ## Update channel
 
 The packaged PySide6 workbench uses the public repository
-`zjkl19/GuanbingBridgeMonitoring` and the stable GitHub Release channel. It
+`zjkl19/BridgeHealthMonitoringPlatform` and the stable GitHub Release channel. It
 queries GitHub's `releases/latest` API once per 24 hours after startup by default.
 The user can disable **自动检查更新** and can always use **立即检查更新**. Source/development launches never install
 updates automatically.
+
+The repository was renamed from `zjkl19/GuanbingBridgeMonitoring` at v1.8.3
+because the platform now supports multiple bridges. GitHub's repository redirect
+keeps old links and existing clones functional, while v1.8.3 and later packages
+use the bridge-neutral repository name directly.
 
 Git tags alone are not updates. `v1.8.0-rc1` was the first published GitHub
 Pre-release and is intentionally ignored by the stable updater; `v1.8.0` is the

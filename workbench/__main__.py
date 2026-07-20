@@ -54,7 +54,14 @@ class WorkbenchArgumentParser(argparse.ArgumentParser):
         if target is None:
             _write_cli_diagnostic(message)
             return
-        target.write(message)  # type: ignore[attr-defined]
+        try:
+            target.write(message)  # type: ignore[attr-defined]
+        except (AttributeError, OSError, ValueError):
+            # A GUI-subsystem child may inherit a redirected standard handle
+            # that becomes invalid as soon as its launcher exits.  Treat that
+            # exactly like a noconsole build instead of letting PyInstaller
+            # display an English "Unhandled exception in script" dialog.
+            _write_cli_diagnostic(message)
 
     def error(self, message: str) -> None:
         if sys.stderr is None:

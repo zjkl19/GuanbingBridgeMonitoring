@@ -21,7 +21,12 @@ DISCLOSABLE_MODULE_STATUSES = {
 }
 MODULE_DISCLOSURE_REPORT_TYPES = {"jlj_monthly", "shuixianhua_monthly"}
 SAFE_REPORT_MISSING_CATEGORIES = {
-    "jlj_monthly": {"章节内容缺失", "图表/资源缺失", "巡查资料缺失"},
+    "jlj_monthly": {
+        "章节内容缺失",
+        "图表/资源缺失",
+        "巡查资料缺失",
+        "数据完整性披露",
+    },
     "shuixianhua_monthly": {"report_image"},
 }
 
@@ -161,16 +166,15 @@ def report_build_disclosure_item(
         or "本报告期没有可用于该位置的有效数据。"
     ).strip()
     module_key = str(raw.get("module_key") or raw.get("module") or "").strip()
-    reason_code = (
-        "no_valid_data"
-        if category in {"章节内容缺失", "图表/资源缺失", "report_image"}
-        else "report_type_omission_allowed"
-    )
-    action = (
-        "生成器已清除该位置的模板旧媒体，并在正文写入本期无有效数据或等效说明。"
-        if reason_code == "no_valid_data"
-        else "该报告类型允许省略此项；生成器已清除模板旧内容并写入缺项说明。"
-    )
+    if category == "数据完整性披露":
+        reason_code = "incomplete_source_coverage"
+        action = "正文披露实际数据边界；统计仅使用实际有效数据，不插补缺失时段。"
+    elif category in {"章节内容缺失", "图表/资源缺失", "report_image"}:
+        reason_code = "no_valid_data"
+        action = "生成器已清除该位置的模板旧媒体，并在正文写入本期无有效数据或等效说明。"
+    else:
+        reason_code = "report_type_omission_allowed"
+        action = "该报告类型允许省略此项；生成器已清除模板旧内容并写入缺项说明。"
     identity = {
         "report_type": str(report_type),
         "category": category,

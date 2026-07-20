@@ -1,5 +1,5 @@
 {
-  "repository": "zjkl19/GuanbingBridgeMonitoring",
+  "repository": "zjkl19/BridgeHealthMonitoringPlatform",
   "channel": "stable",
   "auto_check": true,
   "check_interval_hours": 24,

@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STARTER = ROOT / "scripts" / "start_word_export_background.ps1"
 WORKER = ROOT / "scripts" / "update_word_fields_and_export_pdf.ps1"
+PDF_WORKER = ROOT / "scripts" / "export_word_docx_to_pdf.ps1"
 
 
 def _powershell() -> str:
@@ -136,6 +137,34 @@ if ($failed.Count -gt 0) {{
         self.assertIn("Publish-AtomicFile -Source $tempDocx", source)
         self.assertIn("Copy-Item -LiteralPath $docxFull -Destination $tempDocx", source)
         self.assertNotIn("AcceptAllRevisions", source)
+
+    def test_atomic_replacement_uses_a_real_same_volume_backup_path(self) -> None:
+        source = WORKER.read_text(encoding="utf-8")
+        self.assertNotIn("[System.IO.File]::Replace($tmp, $Path, $null)", source)
+        self.assertNotIn(
+            "[System.IO.File]::Replace($Source, $Destination, $null)", source
+        )
+        self.assertIn(
+            "[System.IO.File]::Replace($tmp, $Path, $backup, $true)", source
+        )
+        self.assertIn(
+            "[System.IO.File]::Replace($Source, $Destination, $backup, $true)",
+            source,
+        )
+        self.assertIn("$Path + '.bak.'", source)
+        self.assertIn("$Destination + '.bak.'", source)
+
+    def test_pdf_export_uses_a_fresh_powershell_com_apartment(self) -> None:
+        source = WORKER.read_text(encoding="utf-8")
+        pdf_source = PDF_WORKER.read_text(encoding="utf-8")
+        self.assertIn("export_word_docx_to_pdf.ps1", source)
+        self.assertIn("& powershell.exe -NoProfile -ExecutionPolicy Bypass", source)
+        self.assertIn("[GC]::WaitForPendingFinalizers()", source)
+        self.assertIn("[void]$document.SaveAs2($pdfFull, 17)", pdf_source)
+        self.assertIn("$word.Documents.Open($docxFull, $false, $true, $false)", pdf_source)
+        self.assertNotIn("$document.ExportAsFixedFormat(", source)
+        self.assertNotIn("$document.ExportAsFixedFormat(", pdf_source)
+        self.assertIn("isolated process", pdf_source)
 
 
 if __name__ == "__main__":

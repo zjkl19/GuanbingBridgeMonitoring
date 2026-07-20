@@ -262,6 +262,11 @@ JLG_PENDING_ACCESS_REMARKS = {
     "expansion_joint_displacement": "新版竣工图新增测点SSFWYJ-01~04，本月暂未接入，未获取有效数据",
 }
 
+JLG_ACQUISITION_SOURCE_BASIS = (
+    "本月监测系统数据获取情况如下。设计测点以九龙江配置文件及竣工图测点布置为参考，"
+    "实际获取情况按监测周期内原始 CSV 文件，或经安全清理流程验证的 MAT 缓存中的有效记录统计。"
+)
+
 JLG_HEALTH_STATUS_MODULES: list[tuple[str, list[str]]] = [
     ("温度监测", ["temperature", "temp_humidity"]),
     ("湿度监测", ["temp_humidity"]),
@@ -319,6 +324,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--patrol-docx", type=Path, default=None, help="Optional patrol report source DOCX. Defaults to reports/九龙江大桥巡查报告.docx lookup.")
     parser.add_argument("--skip-template-precheck", action="store_true", help="Skip DOCX template anchor precheck.")
     parser.add_argument("--no-word-update", action="store_true", help="Skip Microsoft Word field updates (test/headless use only).")
+    parser.add_argument(
+        "--source-quality-note",
+        default="",
+        help="Reviewed source-coverage disclosure written into the report and build manifest.",
+    )
     return parser.parse_args(argv)
 
 
@@ -757,6 +767,82 @@ def csv_has_records(path: Path | None) -> bool:
     return False
 
 
+def _jlj_cache_source_records(metadata: dict) -> list[dict]:
+    records = metadata.get("source_records")
+    if isinstance(records, dict):
+        return [records]
+    if isinstance(records, list):
+        return [record for record in records if isinstance(record, dict)]
+    return []
+
+
+def verified_jlj_cache_has_records(csv_dir: Path, point_id: str) -> bool:
+    """Accept only a transactional jlj_csv_v2 MAT/metadata source pair.
+
+    A report may run after the verified cleanup workflow has removed configured
+    CSV files.  The retained MAT is evidence only when its JSON metadata still
+    binds the exact byte length, a non-empty pair id, and the original source
+    record for this point.  Orphan, legacy pairless, or malformed caches fail
+    closed and therefore cannot inflate the acquisition table.
+    """
+    base = normalize_jlj_raw_point_id(point_id)
+    cache_path = csv_dir / "cache" / f"{base}.mat"
+    metadata_path = Path(f"{cache_path}.meta.json")
+    if (
+        not cache_path.is_file()
+        or cache_path.stat().st_size <= 0
+        or not metadata_path.is_file()
+    ):
+        return False
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(metadata, dict):
+        return False
+    try:
+        schema_version = int(metadata.get("schema_version", 0))
+        mat_bytes = int(metadata.get("mat_bytes", -1))
+    except (TypeError, ValueError, OverflowError):
+        return False
+    if (
+        schema_version < 1
+        or str(metadata.get("cache_version") or "") != "jlj_csv_v2"
+        or not str(metadata.get("config_hash") or "").strip()
+        or not str(metadata.get("pair_id") or "").strip()
+        or mat_bytes != cache_path.stat().st_size
+    ):
+        return False
+
+    expected = base.casefold()
+    for record in _jlj_cache_source_records(metadata):
+        source_path = str(record.get("path") or "").replace("\\", "/")
+        source_stem = normalize_jlj_raw_point_id(Path(source_path).stem).casefold()
+        try:
+            source_bytes = int(record.get("bytes", 0))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if (
+            source_stem == expected
+            and record.get("exists") is True
+            and source_bytes > 0
+            and str(record.get("modified_at") or "").strip()
+        ):
+            return True
+    return False
+
+
+def jlj_source_has_records(csv_dir: Path, point_id: str) -> bool:
+    csv_path = find_jlj_csv_file(csv_dir, point_id)
+    if csv_path is not None:
+        # A present CSV is authoritative.  Do not let a stale cache hide an
+        # empty, truncated, or otherwise record-free current export.  The MAT
+        # fallback is reserved for the transactional cleanup case where the
+        # configured CSV was deliberately removed after cache verification.
+        return csv_has_records(csv_path)
+    return verified_jlj_cache_has_records(csv_dir, point_id)
+
+
 def collect_jlj_health_status_rows(cfg: dict, result_root: Path, start_date: date, end_date: date) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
 
@@ -777,11 +863,15 @@ def collect_jlj_health_status_rows(cfg: dict, result_root: Path, start_date: dat
                 continue
             for point_id in module_points:
                 csv_path = find_jlj_csv_file(csv_dir, point_id)
-                if csv_path is None:
-                    point_reason_days.setdefault((point_id, "原始文件缺失"), []).append(current_day)
+                if jlj_source_has_records(csv_dir, point_id):
                     continue
-                if not csv_has_records(csv_path):
-                    point_reason_days.setdefault((point_id, "无原始记录"), []).append(current_day)
+                if csv_path is None:
+                    point_reason_days.setdefault((point_id, "原始文件及有效缓存缺失"), []).append(current_day)
+                else:
+                    point_reason_days.setdefault(
+                        (point_id, "当前原始文件无记录；已有缓存不替代当前文件"),
+                        [],
+                    ).append(current_day)
 
         if all_missing_days:
             rows.append(
@@ -838,7 +928,7 @@ def collect_jlj_data_acquisition_rows(cfg: dict, result_root: Path, start_date: 
             for point_id in design_points:
                 if point_id in acquired:
                     continue
-                if csv_has_records(find_jlj_csv_file(csv_dir, point_id)):
+                if jlj_source_has_records(csv_dir, point_id):
                     acquired.add(point_id)
 
         missing_points = [point_id for point_id in design_points if point_id not in acquired]
@@ -882,7 +972,7 @@ def summarize_jlj_data_acquisition(rows: list[dict[str, str]]) -> str:
     ]
     base = f"本月按监测项目统计设计测点共{total_design}项次，实际获取{total_acquired}项次，整体获取率约{rate:.1f}%。"
     if not incomplete:
-        return base + "各监测项目均获取到有效原始记录。"
+        return base + "各监测项目均获取到有效来源记录。"
     return base + "其中" + "、".join(incomplete[:6]) + ("等项目未完全获取。" if len(incomplete) > 6 else "。")
 
 
@@ -907,6 +997,7 @@ def apply_monthly_data_status_section(
     caption_templates: CaptionTemplates,
     *,
     source_coverage: dict[str, object] | None = None,
+    source_quality_note: str = "",
 ) -> None:
     start_date, end_date = resolve_jlj_monitoring_dates(monitoring_range, result_root)
     section_idx, heading_para = find_heading(doc, "本月监测数据情况", 2)
@@ -920,11 +1011,18 @@ def apply_monthly_data_status_section(
     disclosure = str((source_coverage or {}).get("disclosure") or "").strip()
     if disclosure:
         add_text_paragraph_before(anchor, disclosure, text_template)
+    source_quality_note = str(source_quality_note or "").strip()
+    if source_quality_note:
+        add_text_paragraph_before(anchor, source_quality_note, text_template)
     if not rows:
         add_text_paragraph_before(anchor, "未读取到设计测点配置，无法生成本月监测数据获取情况统计表。", text_template)
         return
 
-    add_text_paragraph_before(anchor, "本月监测系统数据获取情况如下。设计测点以九龙江配置文件及竣工图测点布置为参考，实际获取情况按监测周期内原始 CSV 文件及有效记录统计。", text_template)
+    add_text_paragraph_before(
+        anchor,
+        JLG_ACQUISITION_SOURCE_BASIS,
+        text_template,
+    )
     insert_auto_caption_before(anchor, caption_templates.table_paragraph, "本月监测数据获取情况统计表")
     table = insert_table_before(anchor, rows=len(rows) + 1, cols=6)
     headers = ["监测项目", "设计测点数", "实际获取测点数", "获取率", "获取日期", "缺失说明"]
@@ -3717,6 +3815,7 @@ def build_report(
     patrol_docx: Path | None = None,
     precheck_template: bool = True,
     update_word: bool = True,
+    source_quality_note: str = "",
 ) -> Path:
     if report_date is None:
         report_date = datetime.now().strftime("%Y年%m月%d日")
@@ -3758,6 +3857,7 @@ def build_report(
         monitoring_range,
         caption_templates,
         source_coverage=source_coverage,
+        source_quality_note=source_quality_note,
     )
     data_acquisition_summary = summarize_jlj_data_acquisition(collect_jlj_data_acquisition_rows(cfg, result_root, start_date, end_date))
     with jlj_report_period_scope(start_date, end_date):
@@ -3874,6 +3974,17 @@ def build_report(
     missing_items.extend(patrol_missing)
     missing_items.extend(qc_errors)
     missing_items.extend(missing_module_summary_items(analysis_context))
+    source_quality_note = str(source_quality_note or "").strip()
+    if source_quality_note:
+        missing_items.append(
+            {
+                "category": "数据完整性披露",
+                "label": "监测数据有效覆盖边界",
+                "detail": source_quality_note,
+                "module_key": "source_coverage",
+                "source": str(analysis_context.get("path") or ""),
+            }
+        )
     manifest_path = write_report_build_manifest(
         context=ctx,
         report_type="jlj_monthly",
@@ -3897,6 +4008,7 @@ def build_report(
             "plot_provenance_source_count": source_coverage["plot_provenance_source_count"],
             "incomplete_source_record_count": source_coverage["incomplete_source_record_count"],
             "source_coverage": source_coverage,
+            "source_quality_note": source_quality_note,
             "report_image_source_count": len(image_sources),
             "report_image_sources": image_sources,
             "not_applicable_sections": sorted(
@@ -3944,6 +4056,7 @@ def main() -> None:
         patrol_docx=args.patrol_docx,
         precheck_template=not args.skip_template_precheck,
         update_word=not args.no_word_update,
+        source_quality_note=args.source_quality_note,
     )
     print(f"Jiulongjiang monthly report generated: {output}")
 

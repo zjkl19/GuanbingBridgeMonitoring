@@ -1,4 +1,4 @@
-"""Unified PySide6 workbench for Guanbing bridge monitoring workflows."""
+"""Unified PySide6 bridge health monitoring platform."""
 
 from .version import app_version
 

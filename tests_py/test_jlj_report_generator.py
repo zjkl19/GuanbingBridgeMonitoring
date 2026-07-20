@@ -21,6 +21,7 @@ from analysis_manifest import (  # noqa: E402
     pinned_derived_artifact_manifest_scope,
 )
 from build_jlj_monthly_report import (  # noqa: E402
+    JLG_ACQUISITION_SOURCE_BASIS,
     JLJ_CABLE_FORCE_UNVERIFIED_DISCLOSURE,
     bind_last_figure_to_caption,
     build_cable_section,
@@ -29,6 +30,7 @@ from build_jlj_monthly_report import (  # noqa: E402
     build_wind_section,
     clean_jlj_report_xml_text,
     collect_jlj_data_acquisition_rows,
+    collect_jlj_health_status_rows,
     find_latest_two_deflection_images,
     find_latest_point_image_patterns,
     find_wind_summary_file,
@@ -41,6 +43,7 @@ from build_jlj_monthly_report import (  # noqa: E402
     update_jlj_warning_threshold_table,
     validate_jlj_analysis_profile,
     validate_jlj_analysis_period,
+    verified_jlj_cache_has_records,
 )
 
 
@@ -124,6 +127,111 @@ class TestJljReportGenerator(unittest.TestCase):
         self.assertEqual(row["rate"], "0.0%")
         self.assertEqual(row["date_range"], "/")
         self.assertIn("新版竣工图新增测点SSFWYJ-01~04", row["remarks"])
+
+    def test_data_acquisition_basis_discloses_verified_mat_cache(self):
+        self.assertIn("安全清理流程验证的 MAT 缓存", JLG_ACQUISITION_SOURCE_BASIS)
+
+    def _write_jlj_cache_pair(
+        self,
+        point_id: str,
+        *,
+        metadata_overrides: dict | None = None,
+    ) -> tuple[Path, Path]:
+        csv_dir = self.tmp / "data_jlj_2026-06-01" / "data" / "jlj" / "csv"
+        cache_dir = csv_dir / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_path = cache_dir / f"{point_id}.mat"
+        cache_path.write_bytes(b"transactional-mat-payload")
+        metadata = {
+            "schema_version": 1,
+            "cache_version": "jlj_csv_v2",
+            "config_hash": "test-config-hash",
+            "pair_id": "test-pair-id",
+            "mat_bytes": cache_path.stat().st_size,
+            "source_records": {
+                "path": str(csv_dir / f"{point_id}.csv"),
+                "exists": True,
+                "bytes": 1234,
+                "modified_at": "2026-06-01 01:02:03",
+            },
+        }
+        metadata.update(metadata_overrides or {})
+        metadata_path = Path(f"{cache_path}.meta.json")
+        metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+        return cache_path, metadata_path
+
+    def test_verified_mat_metadata_counts_after_configured_csv_cleanup(self):
+        point_id = "WD-01-K15-A01"
+        self._write_jlj_cache_pair(point_id)
+        cfg = {"points": {"temperature": [point_id]}}
+
+        self.assertTrue(
+            verified_jlj_cache_has_records(
+                self.tmp / "data_jlj_2026-06-01" / "data" / "jlj" / "csv",
+                point_id,
+            )
+        )
+        rows = collect_jlj_data_acquisition_rows(
+            cfg,
+            self.tmp,
+            date(2026, 6, 1),
+            date(2026, 6, 1),
+        )
+        temperature = next(row for row in rows if row["module"] == "温度监测")
+        self.assertEqual(temperature["design_count"], "1")
+        self.assertEqual(temperature["acquired_count"], "1")
+        self.assertEqual(temperature["rate"], "100.0%")
+
+        health_rows = collect_jlj_health_status_rows(
+            cfg,
+            self.tmp,
+            date(2026, 6, 1),
+            date(2026, 6, 1),
+        )
+        self.assertFalse(any(point_id in row["points"] for row in health_rows))
+
+    def test_orphan_or_malformed_mat_cache_does_not_count_as_acquired(self):
+        csv_dir = self.tmp / "data_jlj_2026-06-01" / "data" / "jlj" / "csv"
+        cache_dir = csv_dir / "cache"
+        cache_dir.mkdir(parents=True)
+        orphan = cache_dir / "WD-01-K15-A01.mat"
+        orphan.write_bytes(b"orphan")
+        self.assertFalse(verified_jlj_cache_has_records(csv_dir, "WD-01-K15-A01"))
+
+        cache_path, metadata_path = self._write_jlj_cache_pair(
+            "SD-01-K15-A01",
+            metadata_overrides={"mat_bytes": 1},
+        )
+        self.assertNotEqual(cache_path.stat().st_size, 1)
+        self.assertTrue(metadata_path.exists())
+        self.assertFalse(verified_jlj_cache_has_records(csv_dir, "SD-01-K15-A01"))
+
+    def test_present_empty_csv_is_not_hidden_by_an_older_valid_cache(self):
+        point_id = "WD-01-K15-A01"
+        self._write_jlj_cache_pair(point_id)
+        csv_dir = self.tmp / "data_jlj_2026-06-01" / "data" / "jlj" / "csv"
+        (csv_dir / f"{point_id}.csv").write_text("timestamp,value\n", encoding="utf-8")
+        cfg = {"points": {"temperature": [point_id]}}
+
+        rows = collect_jlj_data_acquisition_rows(
+            cfg,
+            self.tmp,
+            date(2026, 6, 1),
+            date(2026, 6, 1),
+        )
+        temperature = next(row for row in rows if row["module"] == "温度监测")
+        self.assertEqual(temperature["design_count"], "1")
+        self.assertEqual(temperature["acquired_count"], "0")
+        self.assertEqual(temperature["rate"], "0.0%")
+
+        health_rows = collect_jlj_health_status_rows(
+            cfg,
+            self.tmp,
+            date(2026, 6, 1),
+            date(2026, 6, 1),
+        )
+        current_file_row = next(row for row in health_rows if point_id in row["points"])
+        self.assertIn("已有缓存不替代当前文件", current_file_row["reason"])
 
     def test_warning_threshold_table_fixed_text_and_arch_lower_bound(self):
         doc = Document()

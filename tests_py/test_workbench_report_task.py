@@ -433,12 +433,14 @@ class WorkbenchReportTaskTests(unittest.TestCase):
                     )
                     result = execute_report_job(request)
 
-                if report_type in {"shuixianhua_monthly", "zhishan_monthly"}:
+                if report_type in {"jlj_monthly", "shuixianhua_monthly", "zhishan_monthly"}:
                     self.assertEqual(
                         builder_mock.call_args.kwargs["source_quality_note"],
                         "审定的数据完整性说明。",
                     )
                 if report_type == "shuixianhua_monthly":
+                    self.assertIs(builder_mock.call_args.kwargs["update_word"], False)
+                if report_type == "jlj_monthly":
                     self.assertIs(builder_mock.call_args.kwargs["update_word"], False)
                 export_mock.assert_called_once_with(report.resolve())
                 self.assertEqual(observed["preferred_pdf_path"], pdf.resolve())

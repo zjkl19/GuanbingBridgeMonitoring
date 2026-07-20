@@ -28,7 +28,7 @@ from .version import (
 
 
 GITHUB_API_VERSION = "2022-11-28"
-DEFAULT_REPOSITORY = "zjkl19/GuanbingBridgeMonitoring"
+DEFAULT_REPOSITORY = "zjkl19/BridgeHealthMonitoringPlatform"
 VERSION_PATTERN = re.compile(
     r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$"
 )

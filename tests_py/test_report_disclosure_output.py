@@ -87,6 +87,7 @@ class ReportDisclosureOutputTests(unittest.TestCase):
                 document_xml = archive.read("word/document.xml").decode("utf-8")
             self.assertIn("缺项与数据完整性披露", document_xml)
             self.assertIn("本月设备断采", document_xml)
+            self.assertNotIn("2.3 车辆荷载：2.3 车辆荷载：", document_xml)
 
             qc = build_qc(
                 report,
@@ -157,6 +158,21 @@ class ReportDisclosureOutputTests(unittest.TestCase):
 
     def test_confirmation_policy_version_is_recorded(self) -> None:
         self.assertGreaterEqual(DISCLOSURE_POLICY_VERSION, 1)
+
+    def test_jlj_source_coverage_note_is_a_sha_bound_disclosure(self) -> None:
+        item = report_build_disclosure_item(
+            "jlj_monthly",
+            {
+                "category": "数据完整性披露",
+                "label": "监测数据有效覆盖边界",
+                "detail": "6月18日至30日无有效源数据，不插补。",
+                "module_key": "source_coverage",
+            },
+        )
+        self.assertIsNotNone(item)
+        assert item is not None
+        self.assertEqual(item.reason_code, "incomplete_source_coverage")
+        self.assertIn("不插补缺失时段", item.action_zh)
 
     def test_worker_publishes_review_required_as_expected_terminal_state(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

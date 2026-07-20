@@ -123,7 +123,10 @@ class WorkbenchGuiTests(unittest.TestCase):
             self.assertEqual(window.save_btn.text(), "保存任务方案（便于恢复）")
             self.assertEqual(window.history_btn.text(), "查看任务历史")
             self.assertIn("不会启动", window.save_btn.toolTip())
-            self.assertEqual(window.update_controller.policy.repository, "zjkl19/GuanbingBridgeMonitoring")
+            self.assertEqual(
+                window.update_controller.policy.repository,
+                "zjkl19/BridgeHealthMonitoringPlatform",
+            )
             self.assertEqual(window.update_btn.text(), "立即检查更新")
             self.assertFalse(window.open_report_btn.isEnabled())
             self.assertFalse(window.open_report_qc_btn.isEnabled())

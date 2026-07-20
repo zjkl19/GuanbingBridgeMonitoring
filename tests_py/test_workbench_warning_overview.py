@@ -36,6 +36,23 @@ class WorkbenchWarningOverviewTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 2)
         self.assertIn("unrecognized arguments", write_diagnostic.call_args.args[0])
 
+    def test_invalid_cli_with_broken_redirect_exits_cleanly_and_logs_diagnostic(self) -> None:
+        class BrokenRedirect:
+            def write(self, _message: str) -> None:
+                raise OSError(22, "Invalid argument")
+
+        with patch("workbench.__main__.sys.stderr", BrokenRedirect()), patch(
+            "workbench.__main__._write_cli_diagnostic"
+        ) as write_diagnostic:
+            with self.assertRaises(SystemExit) as raised:
+                _parser().parse_args(["--definitely-invalid-workbench-option"])
+        self.assertEqual(raised.exception.code, 2)
+        self.assertTrue(write_diagnostic.called)
+        self.assertIn(
+            "unrecognized arguments",
+            "\n".join(call.args[0] for call in write_diagnostic.call_args_list),
+        )
+
     def test_mixed_warning_schemas_keep_distinct_semantics_and_provenance(self) -> None:
         payload = {
             "defaults": {

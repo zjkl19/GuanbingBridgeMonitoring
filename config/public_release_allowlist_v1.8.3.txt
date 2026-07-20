@@ -1,0 +1,26 @@
+# Exact changed-file set permitted in the public v1.8.3 release branch.
+# Internal task state, machine inventory and remote-operation evidence are
+# intentionally absent. The validation script requires exact set equality.
+README.md
+VERSION
+config/public_release_allowlist_v1.8.3.txt
+config/workbench_update.json
+docs/releases/v1.8.3.md
+docs/workbench_github_updates.md
+reporting/build_jlj_monthly_report.py
+reporting/report_disclosure_output.py
+reporting/report_job.py
+scripts/export_word_docx_to_pdf.ps1
+scripts/package_workbench_github_release.ps1
+scripts/update_word_fields_and_export_pdf.ps1
+tests_py/test_jlj_report_generator.py
+tests_py/test_report_disclosure_output.py
+tests_py/test_word_export_scripts.py
+tests_py/test_workbench_gui.py
+tests_py/test_workbench_report_task.py
+tests_py/test_workbench_warning_overview.py
+workbench/__init__.py
+workbench/__main__.py
+workbench/report_disclosures.py
+workbench/updater.py
+workbench/version.py

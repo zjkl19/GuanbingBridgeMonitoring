@@ -516,6 +516,12 @@ def _execute_report_job(request: ReportJobRequest, progress: ProgressCallback | 
             output_dir=request.output_dir, wim_root=request.wim_root,
             period_label=request.period_label, monitoring_range=request.monitoring_range,
             report_date=request.report_date, patrol_docx=None,
+            source_quality_note=request.source_quality_note,
+            # The unified worker performs one authoritative Word refresh/PDF
+            # export after disclosure reconciliation.  Keeping the builder
+            # DOCX-only avoids a redundant Word instance during preflight and
+            # prevents a disclosure-review draft from invoking Word at all.
+            update_word=False,
         )
         manifest_path = _select_new_report_build_manifest(
             request.output_dir,

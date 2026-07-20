@@ -86,7 +86,11 @@ def _append_disclosure_section(report_path: Path, disclosures: Sequence[Disclosu
     for index, item in enumerate(disclosures, start=1):
         paragraph = document.add_paragraph()
         paragraph.add_run(f"{index}. {item.label}：").bold = True
-        paragraph.add_run(f"{item.reason_zh} 处置：{item.action_zh}")
+        reason = item.reason_zh.strip()
+        label_prefix = f"{item.label}："
+        if reason.startswith(label_prefix):
+            reason = reason[len(label_prefix):].lstrip()
+        paragraph.add_run(f"{reason} 处置：{item.action_zh}")
         created.append(paragraph)
     if anchor is not None:
         for paragraph in created:

@@ -1074,7 +1074,7 @@ try {
 
     $publication = [ordered]@{
         schema_version = 1
-        repository = "zjkl19/GuanbingBridgeMonitoring"
+        repository = "zjkl19/BridgeHealthMonitoringPlatform"
         tag = $Version
         source_git_commit = $manifestSourceCommit
         source_tree_clean = [bool]$manifest.source_tree_clean

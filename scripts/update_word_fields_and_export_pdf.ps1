@@ -31,11 +31,15 @@ function Publish-AtomicJson {
     )
     $json = $Value | ConvertTo-Json -Depth 8
     $tmp = $Path + '.tmp.' + $PID + '.' + [Guid]::NewGuid().ToString('N')
+    $backup = $Path + '.bak.' + $PID + '.' + [Guid]::NewGuid().ToString('N')
     $encoding = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($tmp, $json, $encoding)
     try {
         if (Test-Path -LiteralPath $Path -PathType Leaf) {
-            [System.IO.File]::Replace($tmp, $Path, $null)
+            # .NET Framework on some Windows hosts rejects a null backup path
+            # even though newer runtimes accept it.  A same-volume temporary
+            # backup preserves the atomic replacement guarantee everywhere.
+            [System.IO.File]::Replace($tmp, $Path, $backup, $true)
         }
         else {
             [System.IO.File]::Move($tmp, $Path)
@@ -44,6 +48,9 @@ function Publish-AtomicJson {
     finally {
         if (Test-Path -LiteralPath $tmp -PathType Leaf) {
             Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path -LiteralPath $backup -PathType Leaf) {
+            Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -54,7 +61,15 @@ function Publish-AtomicFile {
         [Parameter(Mandatory = $true)][string]$Destination
     )
     if (Test-Path -LiteralPath $Destination -PathType Leaf) {
-        [System.IO.File]::Replace($Source, $Destination, $null)
+        $backup = $Destination + '.bak.' + $PID + '.' + [Guid]::NewGuid().ToString('N')
+        try {
+            [System.IO.File]::Replace($Source, $Destination, $backup, $true)
+        }
+        finally {
+            if (Test-Path -LiteralPath $backup -PathType Leaf) {
+                Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
     else {
         [System.IO.File]::Move($Source, $Destination)
@@ -239,26 +254,46 @@ try {
     }
     [void]$document.Save()
     Write-Stage -Stage 'document_saved'
-    [void]$document.Repaginate()
-
-    $pageCount = [int]$document.ComputeStatistics(2)
     $tableCount = [int]$document.Tables.Count
     $inlineShapeCount = [int]$document.InlineShapes.Count
     $shapeCount = [int]$document.Shapes.Count
     $fieldCount = [int]$document.Fields.Count
 
-    # wdExportFormatPDF=17, wdExportOptimizeForPrint=0, wdExportAllDocument=0,
-    # wdExportDocumentContent=0, bitmapMissingFonts=true, PDF/A=false.
-    Write-Stage -Stage 'exporting_pdf' -Extra @{ pages = $pageCount }
-    $document.ExportAsFixedFormat($tempPdf, 17, $false, 0, 0, 1, 1, 0, $true, $true, 1, $true, $true, $false)
-    Write-Stage -Stage 'pdf_exported'
-
+    # Close the field-update session before PDF export.  On Office 16, a large
+    # report with regenerated TOC/figure fields can spin forever when PDF
+    # export reuses the same PowerShell/COM apartment.  The isolated helper
+    # opens the saved sibling in a fresh process and uses Word SaveAs2 format 17.
     [void]$document.Close($false)
     Release-ComObject -Value $document
     $document = $null
     [void]$word.Quit()
     Release-ComObject -Value $word
     $word = $null
+    [GC]::Collect()
+    [GC]::WaitForPendingFinalizers()
+    Start-Sleep -Milliseconds 1000
+
+    $pdfWorker = Join-Path $PSScriptRoot 'export_word_docx_to_pdf.ps1'
+    if (-not (Test-Path -LiteralPath $pdfWorker -PathType Leaf)) {
+        throw "Isolated Word PDF exporter does not exist: $pdfWorker"
+    }
+    Write-Stage -Stage 'exporting_pdf'
+    $pdfWorkerOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass `
+        -File $pdfWorker -DocxPath $tempDocx -PdfPath $tempPdf
+    if ($LASTEXITCODE -ne 0) {
+        throw "Isolated Word PDF exporter failed with exit code $LASTEXITCODE"
+    }
+    try {
+        $pdfWorkerResult = ($pdfWorkerOutput -join [Environment]::NewLine) | ConvertFrom-Json
+    }
+    catch {
+        throw "Isolated Word PDF exporter returned invalid JSON: $pdfWorkerOutput"
+    }
+    if ($pdfWorkerResult.status -ne 'ok') {
+        throw "Isolated Word PDF exporter did not report success"
+    }
+    $pageCount = [int]$pdfWorkerResult.page_count
+    Write-Stage -Stage 'pdf_exported' -Extra @{ pages = $pageCount }
 
     if (-not (Test-Path -LiteralPath $tempPdf -PathType Leaf)) {
         throw "Microsoft Word did not create the PDF: $tempPdf"
@@ -276,7 +311,8 @@ try {
         status = 'ok'
         authoritative = $true
         run_id = $runId
-        exporter = 'Microsoft Word COM ExportAsFixedFormat'
+        exporter = [string]$pdfWorkerResult.exporter
+        word_version = [string]$pdfWorkerResult.word_version
         started_at = $startedAt.ToString('o')
         completed_at = [DateTimeOffset]::Now.ToString('o')
         docx_path = $docxFull
